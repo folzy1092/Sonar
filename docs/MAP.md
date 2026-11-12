@@ -74,7 +74,10 @@ Sonar/
 │   │   ├── integrations/
 │   │   │   └── lastfm.py     auth, scrobble, updateNowPlaying
 │   │   ├── bot/              aiogram 3: вход, привязка, команды админа
-│   │   │   ├── handlers.py   /start login_… / link_…, кнопки подтверждения
+│   │   │   ├── handlers.py   /start (приветствие, login_…, link_…), подтверждение входа
+│   │   │   ├── user.py       /services (инструкции по токенам), /profile (карточка с аватаром),
+│   │   │   │                 удаление присланных токенов
+│   │   │   ├── texts.py      все тексты бота (ru, en)
 │   │   │   └── admin.py      /user, /setlogin, /ban, /unban, /logout_all, /stats,
 │   │   │                     /broadcast (только владелец)
 │   │   ├── media.py          аватары и свой фон: проверка, ресайз (Pillow), лимиты
