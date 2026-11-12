@@ -216,8 +216,8 @@
 
 ### 4.15. Бот Sonar
 
-Отображаемое имя — **Sonar**. Username — первый свободный из: `@SonarPlayerBot`,
-`@SonarMusicBot`, `@sonar_player_bot`, `@getsonar_bot`, `@sonar_folzy_bot`.
+Отображаемое имя — **Sonar**, username — **`@SonarMusicApp`** (`t.me/SonarMusicApp`, занят
+владельцем 2026-11-12). Ссылки входа: `https://t.me/SonarMusicApp?start=login_<secret>`.
 Описание (BotFather → Edit Description): «Вход в Sonar через Telegram, подключение
 SoundCloud и Яндекс Музыки, твой профиль.»
 
@@ -299,6 +299,5 @@ Sonar как дополнительный источник; один репо; �
 1. Яндекс с латвийского IP **работает** (проверено 2026-11-12, SPEC §3.7а). Осталось
    проверить с сервера Velt (Германия) в субботу — от этого зависит, ходит к Яндексу сервер
    или телефон.
-3. Username бота: `@SonarPlayerBot` → `@SonarMusicBot` → `@sonar_folzy_bot` (что свободно).
-   Отображаемое имя — «Sonar».
-4. Иконка приложения и лого.
+2. Иконка приложения и лого (варианты: пинг, радар, волна в круге, эхо; рекомендация —
+   «пинг»: точка + три дуги, бирюзовый `#00D7E0` на тёмном).
