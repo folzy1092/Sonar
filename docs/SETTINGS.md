@@ -52,22 +52,36 @@
 | `appearance.preset` | `neutral`, `amoled`, `crimson`, `nord`, `sky`, `mint`, `violet`, `blossom`, `sakura`, `terminal`, `aqua`, `sunset`, `slate` | `neutral` | да |
 | `appearance.tab_style` | `standard` / `rounded` / `floating` | `floating` | да |
 | `appearance.mini_player` | `capsule` / `standard` / `minimal` | `capsule` | да |
-| `appearance.background` | `cover_color` / `theme` / `image` | `cover_color` | да |
-| `appearance.progress_indicator` | `ring_on_cover` / `line` / `background` | `ring_on_cover` | да |
-| `appearance.cover_shape` | `circle` / `square` | `circle` | да |
-| `appearance.corner_radius` | `none` / `small` / `medium` / `pill` | `pill` | да |
+| `appearance.background` | `standard` (тема) / `cover_color` / `cover` (сама обложка, размытая) / `custom` (свой фон) | `cover_color` | да |
+| `appearance.progress_indicator` | `none` / `line` (линия внизу мини-плеера) / `fill` (заливка фона) / `ring` (кольцо на обложке) | `ring` | да |
+| `appearance.cover_shape` | `rounded` / `circle` / `hidden` (обложка в мини-плеере) | `circle` | да |
+| `appearance.corner_radius` | `none` / `soft` / `rounded` / `pill` | `pill` | да |
 | `appearance.glass` | bool — прозрачность | `true` | да |
-| `appearance.glass_type` | `thin` / `regular` / `ultra` | `ultra` | да |
+| `appearance.glass_type` | `balance` / `ultra` / `no_blur` | `ultra` | да |
 | `appearance.opacity` | 0–100 % | `100` | да |
 | `appearance.glass_blur` | 0–40 px | `0` | да |
 | `appearance.bg_blur` | 0–40 px | `0` | да |
 | `appearance.bg_dim` | 0–90 % | `0` | да |
-| `appearance.bg_image` | id картинки на сервере / null | `null` | да |
-| `appearance.font` | `system`, `inter`, `sf_rounded`, `serif`, `mono`, … | `system` | да |
+| `appearance.bg_custom` | id своего фона на сервере (картинка или видео ≤ 10 с) / null | `null` | да |
+| `appearance.font` | `default` или имя шрифта из списка ниже | `default` | да |
 | `appearance.font_size` | 12 / 14 / 16 / 18 / 20 | `16` | да |
 | `appearance.font_weight` (PC) | `auto` / 400 / 500 / 600 / 700 | `auto` | да |
 | `appearance.scale_window` (PC) | 75–125 % | `90` | нет |
 | `appearance.scale_fullscreen` (PC) | 75–125 % | `90` | нет |
+
+Каждый выбор с несколькими вариантами открывается **нижним листом** (`photo_20..25`): иконка,
+название, галочка у выбранного. Тогглы и ползунки — прямо в списке.
+
+**Шрифты** (`photo_26, 27`), лист сгруппирован:
+- По умолчанию (системный SF Pro);
+- Без засечек: Manrope, Golos Text, Onest, Roboto, Poppins, Montserrat, Nunito, Lato,
+  Open Sans, Raleway, Ubuntu, DM Sans;
+- С засечками: Playfair Display, Merriweather, PT Serif, Lora, Crimson Text, EB Garamond;
+- Акцидентные: Oswald, Bebas Neue, Anton, Impact (Impact — только если есть в системе,
+  иначе Anton);
+- Моноширинные: JetBrains Mono, Fira Code, Roboto Mono.
+Все шрифты — Google Fonts (OFL), лежат в `ios/Sonar/Resources/Fonts` (только с кириллицей —
+у кого её нет, в списке помечаются «лат.»). Каждая строка списка нарисована своим шрифтом.
 
 ## Плеер — `player.*` (`photo_16, 17`, `pc/6, 7`)
 
@@ -80,6 +94,9 @@
 | `player.slider` | `normal` / `thin` / `smooth` / `wave_bars` / `wavy` | `normal` | да |
 | `player.play_button` | `circle` / `square` / `clean` | `circle` | да |
 | `player.artist_avatars` | bool | `true` | да |
+
+Скорость воспроизведения — не настройка, а лист в плеере (`photo_30`); «Запомнить» пишет в
+`track_prefs` (см. `DB.md`).
 | `player.visualizer` (PC) | `off` / `bar` / `cover` / `slider` | `bar` | да |
 | `player.visualizer_style` (PC) | `wave` / `bars` | `wave` | да |
 | `player.cover_position` (PC) | `left` / `right` | `left` | да |

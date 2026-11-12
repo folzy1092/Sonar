@@ -10,7 +10,7 @@
    │  HTTPS + JSON                    │
    └──────────────┬───────────────────┘
                   ▼
-        sonar.folzy.ru  (Cloudflare Tunnel)
+        API: поддомен хостинга с HTTPS  или  sonar.folzy.ru (Cloudflare Tunnel)
                   ▼
    Pterodactyl-сервер · Python 3.13 · один процесс
    ┌───────────────────────────────────────────────┐
@@ -27,6 +27,7 @@
  Обновления: клиент ◄── raw.githubusercontent.com/folzy1092/Sonar/main/updates/*.json
                        ◄── github.com/folzy1092/Sonar/releases (IPA)
  selfbot ──► GET /oauth/now (Bearer ключ API)
+ Публичный сайт: sonar.folzy.is-a.dev (GitHub Pages, папка site/) ──► GET /public/users/...
 ```
 
 Принципы:
@@ -64,10 +65,24 @@
 
 - Второй Pterodactyl-сервер, egg Python. Старт: `python -m sonar` (поднимает uvicorn и бота).
 - Код тянется из `main` при перезапуске (как selfbot), данные — `server/data/` (вне git).
-- HTTPS: `cloudflared` (бинарник в `server/bin/`, как `telegram-bot-api` в selfbot) поднимает
-  туннель `sonar.folzy.ru → http://127.0.0.1:<порт>`. Нужны: DNS folzy.ru на Cloudflare
-  и токен туннеля в env `CF_TUNNEL_TOKEN`. Входящий порт тогда даже не нужен.
-- Запасной вариант без Cloudflare: порт Pterodactyl + сертификат Let's Encrypt (DNS-01).
+- **Два адреса, разные задачи:**
+  - **API** (`SONAR_PUBLIC_URL`) — его видят только приложения. Пользователи его не видят,
+    поэтому некрасивое имя не важно. Порядок выбора:
+    1. поддомен, который даёт хостинг (вида `app.sonar.n5.host.rooni.dev`), **если на нём
+       есть HTTPS** с нормальным сертификатом — проще всего, ничего настраивать не надо;
+    2. иначе `sonar.folzy.ru` через Cloudflare Tunnel (`cloudflared` в `server/bin/`, env
+       `CF_TUNNEL_TOKEN`; нужен DNS folzy.ru на Cloudflare; одноуровневый поддомен —
+       бесплатный SSL Cloudflare покрывает только `*.folzy.ru`).
+  - **Публичный сайт** — ссылки «Поделиться профилем», страница скачивания:
+    `https://sonar.folzy.is-a.dev` на **GitHub Pages** (папка `site/` этого репо).
+    GitHub Pages сам выпускает сертификат на свой домен любой вложенности — поэтому
+    is-a.dev здесь работает, а для API не годится (сертификат и туннель там не наши).
+    Регистрация — PR в `github.com/is-a-dev/register`, файл `domains/sonar.folzy.json`
+    (`"CNAME": "folzy1092.github.io"`, владелец — folzy1092). Запасной: `folzy.ru/sonar`.
+- Адрес API в iOS не зашит: `Info.plist` → `SonarAPIBaseURL` (меняется в сборке), плюс
+  `updates/update.json` может объявить новый адрес (`api_url`) — на случай переезда.
+- Требование iOS: `itms-services` манифест и все запросы — только HTTPS с валидным
+  сертификатом (ATS), поэтому вариант «голый IP:порт» не рассматриваем.
 - Бэкап: раз в сутки копия `sonar.db` (через `VACUUM INTO`) владельцу в Telegram.
 
 ### 3.3. Env
@@ -127,12 +142,34 @@ lyrics(id) -> Lyrics|None                   # Яндекс отдаёт LRC
 
 ### 3.7. «Моя волна»
 
-- Яндекс: `rotor/station/user:onyourwave/tracks` + `rotor/station/.../feedback`
-  (`radioStarted`, `trackStarted`, `trackFinished`, `skip`, лайк). Сессия волны — `batch_id`
-  в памяти сервера на пользователя (TTL 1 ч). Настройки волны Яндекса (занятие, характер,
-  настроение) — позже.
-- SoundCloud-волна: стартовые сиды = 20 последних лайков с SC → `related` → перемешать →
-  отсеять прослушанное за 7 дней и дизлайкнутое → порция по 10.
+**Яндекс (основной путь).** Есть два варианта API, какой живой — проверить на токене владельца
+в этапе 1 (скрипт `server/tools/check_rotor.py`):
+- новый, сессионный: `POST /rotor/session/new` (`seeds: ["user:onyourwave"]`) →
+  `radioSessionId` + первая порция; дальше `POST /rotor/session/{id}/tracks` (догрузка, с
+  `queue` из последних треков) и `POST /rotor/session/{id}/feedback`;
+- старый: `GET /rotor/station/user:onyourwave/tracks` + `POST .../feedback`.
+События обратной связи: `radioStarted`, `trackStarted`, `trackFinished` (с
+`totalPlayedSeconds`), `skip`, лайк/дизлайк. Сессия волны — в памяти сервера на пользователя
+(TTL 1 ч). Настройки волны Яндекса (занятие, характер, настроение) — позже.
+
+**Своя волна (SoundCloud или если rotor не работает).** Простой и понятный алгоритм
+(псевдокод — `PSEUDOCODE.md` §11):
+- кандидаты: `related` от сидов (последние лайки + последние дослушанные), плюс 10–20 %
+  «разведки» — related от случайного старого лайка;
+- сигналы из событий: дослушал (+), лайк (++), пропуск в первые 30 с (−), дизлайк (бан
+  трека), повторный пропуск артиста подряд (артист на паузу на сессию);
+- фильтры: не играть прослушанное за 7 дней, не ставить одного артиста два раза подряд,
+  не больше 2 треков артиста на порцию из 10.
+
+**Почему не Rust-движок `NoAffr4id/Dotify_Moya_volna_Ebal`** (смотрели 2026-11-12):
+- это не клиент API Яндекса, а самописный рекомендатель (бандиты, марковские цепи,
+  совместная встречаемость, HNSW-поиск по векторам);
+- ему нужен каталог с **аудио-эмбеддингами**, жанром, BPM, кривой энергии для каждого
+  трека — ни SoundCloud, ни Яндекс таких данных не отдают, ядро без них не работает;
+- **нет лицензии** — по умолчанию все права у автора, копировать код нельзя;
+- один коммит «Add files via upload», файлы без `src/`, как есть не собирается; и он на Rust,
+  а сервер на Python.
+Идеи (какие события учитывать, разнообразие, «разведка») — взяли в свою волну выше.
 
 ### 3.8. Статистика
 
@@ -169,7 +206,7 @@ lyrics(id) -> Lyrics|None                   # Яндекс отдаёт LRC
 
 | Что | Чем |
 |---|---|
-| UI | SwiftUI, iOS 17+, `@Observable` |
+| UI | SwiftUI, iOS 18+, `@Observable` |
 | Проект | XcodeGen (`ios/project.yml`) → `.xcodeproj` генерируется в CI |
 | Сеть | URLSession + async/await, свой `APIClient` |
 | Локальные данные | SwiftData (кэш библиотеки, очередь ops), Keychain (сессия, P12) |
@@ -198,6 +235,20 @@ lyrics(id) -> Lyrics|None                   # Яндекс отдаёт LRC
   `-14 LUFS - loudness трека` (у Яндекса `r128`; у SC — нет данных, без коррекции).
 - «При уведомлении»: обработка `AVAudioSession.interruptionNotification` → приглушить /
   пауза / ничего.
+- **Скорость:** `player.rate` (0.5–2.0, шаг 0.25) + `item.audioTimePitchAlgorithm =
+  .timeDomain` — тон не меняется. «Запомнить» → `track_prefs[ref].speed` (синхронизируется,
+  тип `track_pref` в синке; там же потом сдвиг текста). При загрузке трека: есть запомненная
+  скорость — ставим её, иначе 1.0. Экран «Кэш» → «Настройки треков — Сбросить» чистит всё.
+
+### 4.3а. Вход в Яндекс «в один клик»
+
+`WKWebView` в листе открывает
+`https://oauth.yandex.ru/authorize?response_type=token&client_id=<id Яндекс Музыки>`.
+`WKNavigationDelegate` ловит переход на `music.yandex.ru/#access_token=...` — достаёт
+`access_token` (`y0_...`), закрывает лист, шлёт `PUT /services/yandex {token}`.
+`ASWebAuthenticationSession` не подходит: https-колбэк требует associated domains на
+`music.yandex.ru`, а они не наши. client_id — константа на сервере (`GET
+/services/yandex/oauth-url`), чтобы поменять без обновления приложения.
 
 ### 4.4. Тема под обложку
 
@@ -212,6 +263,34 @@ lyrics(id) -> Lyrics|None                   # Яндекс отдаёт LRC
 
 Таб-бар (стиль: стандартный / закруглённый / плавающий): **Главная · Медиатека · Поиск ·
 Профиль**. Над таб-баром — мини-плеер. Полный плеер — `fullScreenCover` со свайпом вниз.
+
+Таб-бар свой (не `TabView` со системной панелью) — иначе не получить три стиля и
+сворачивание. Сворачивание (`photo_28 → 29`):
+- каждый экран-список сообщает смещение прокрутки (`onScrollGeometryChange`, iOS 18) в
+  `ChromeState`;
+- прокрутка вниз больше 24 pt → `collapsed = true`; вверх больше 24 pt или у верхнего края →
+  `false` (гистерезис, чтобы не дёргалось);
+- развёрнуто: [мини-плеер на всю ширину] над [таб-бар из 4 иконок];
+- свёрнуто: одна строка — [кнопка текущей вкладки ○] [сжатый мини-плеер] [кнопка поиска ○];
+  тап по левой кнопке — разворачивает;
+- переход — `matchedGeometryEffect` для обложки, названия и кнопки плей, пружина 0,35 с.
+
+### 4.5а. Публичный сайт и профиль
+
+`site/` — статический сайт на GitHub Pages (`sonar.folzy.is-a.dev`): главная (что такое Sonar,
+кнопка «Скачать IPA» на последний релиз) и `/@username` — страница профиля. Это один
+`index.html` + JS: берёт username из пути (404.html-трюк GitHub Pages), запрашивает
+`GET <API>/public/users/{username}` (CORS разрешён только для этого домена) и рисует
+аватар, имя, @username, #номер, дату регистрации и кнопку «Открыть в Sonar»
+(`sonar://user/{username}`). Ничего приватного эндпоинт не отдаёт.
+
+### 4.5б. Свой фон
+
+Выбор из галереи (`PhotosPicker`): картинка → ресайз до 2560 px, JPEG 85 %; видео → обрезка
+до 10 с, `AVAssetExportSession` 720p HEVC, без звука. `POST /me/background` (multipart) →
+`{id, kind, url}` → настройка `appearance.bg_image = id`. Отрисовка: `AVPlayerLooper` для
+видео, поверх — размытие и затемнение из настроек. На сервере файлы в `data/backgrounds/`,
+один на пользователя (новый заменяет старый).
 
 ### 4.6. Автообновление
 
@@ -230,6 +309,15 @@ lyrics(id) -> Lyrics|None                   # Яндекс отдаёт LRC
 - Объявление обновления — правка `updates/update.json` + запись в `updates/changelog.json`
   (`[skip ci]`), как в Shadow.
 - `.github/workflows/server.yml` — pytest на каждый push в `server/`.
+
+## 5а. Уведомления и рассылка
+
+- Таблица `notifications` (общие — `user_id NULL`, личные — с `user_id`), прочитанное — в
+  `notification_reads`. Колокольчик на главной показывает точку, если есть непрочитанные.
+- `/broadcast <текст>` в боте: предпросмотр → «Отправить» → запись в `notifications` +
+  рассылка в Telegram всем с `tg_id` (не чаще 25 сообщений/с, ошибки «бот заблокирован»
+  пропускаются и считаются в отчёте владельцу).
+- «Доступно обновление» — тоже уведомление, но генерируется клиентом из `update.json`.
 
 ## 6. Безопасность
 

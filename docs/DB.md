@@ -11,7 +11,9 @@ CREATE TABLE users (
   login         TEXT UNIQUE NOT NULL COLLATE NOCASE,  -- не меняется (только админ)
   username      TEXT UNIQUE NOT NULL COLLATE NOCASE,  -- @username, меняется
   display_name  TEXT NOT NULL,
-  avatar_path   TEXT,
+  avatar_path   TEXT,                           -- data/avatars/<id>.jpg
+  bg_path       TEXT,                           -- data/backgrounds/<id>.<jpg|mp4>
+  bg_kind       TEXT,                           -- image | video
   password_hash TEXT,                           -- NULL, если вошёл только через Telegram
   tg_id         INTEGER UNIQUE,
   tg_username   TEXT,
@@ -66,9 +68,10 @@ CREATE TABLE tracks (                           -- кэш метаданных
   fetched_at    INTEGER NOT NULL
 );
 
-CREATE TABLE likes (
+CREATE TABLE likes (                            -- треки, альбомы, исполнители
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  ref           TEXT NOT NULL,
+  ref           TEXT NOT NULL,                  -- sc:/ym: трек, scalb:/ymalb: альбом, sca:/yma: артист
+  kind          TEXT NOT NULL,                  -- track | album | artist (дублирует префикс для индекса)
   added_at      INTEGER NOT NULL,
   deleted       INTEGER NOT NULL DEFAULT 0,     -- tombstone для синка
   rev           INTEGER NOT NULL,
@@ -148,6 +151,30 @@ CREATE TABLE api_keys (
   user_id       TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   key_hash      TEXT UNIQUE NOT NULL,
   created_at    INTEGER NOT NULL
+);
+
+CREATE TABLE track_prefs (                      -- «Запомнить» скорость и т.п. для трека
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ref           TEXT NOT NULL,
+  speed         REAL,                           -- 0.5 … 2.0
+  lyrics_offset_ms INTEGER,
+  deleted       INTEGER NOT NULL DEFAULT 0,
+  rev           INTEGER NOT NULL,
+  PRIMARY KEY (user_id, ref)
+);
+
+CREATE TABLE notifications (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT REFERENCES users(id) ON DELETE CASCADE,   -- NULL = всем (рассылка)
+  title         TEXT,
+  text          TEXT NOT NULL,
+  created_at    INTEGER NOT NULL
+);
+
+CREATE TABLE notification_reads (
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, notification_id)
 );
 
 CREATE TABLE sync_rev (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER NOT NULL);

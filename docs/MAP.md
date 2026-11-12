@@ -24,6 +24,12 @@ Sonar/
 │   ├── mobile/               photo_1..20, player, likes
 │   └── pc/                   Screenshot_1..18
 │
+├── site/                     GitHub Pages → sonar.folzy.is-a.dev (статический сайт)
+│   ├── index.html            что такое Sonar + «Скачать IPA» (последний релиз)
+│   ├── 404.html              трюк для /@username: рисует профиль через GET /public/users/…
+│   ├── CNAME                 sonar.folzy.is-a.dev
+│   └── assets/
+│
 ├── updates/                  читается приложением с raw.githubusercontent.com
 │   ├── update.json           какую сборку объявить
 │   └── changelog.json        изменения по сборкам, новые сверху
@@ -60,7 +66,7 @@ Sonar/
 │   │   │   ├── yandex.py
 │   │   │   └── registry.py   ref "sc:…" → нужный провайдер с токеном пользователя
 │   │   ├── domain/           логика без HTTP
-│   │   │   ├── wave.py       сессии волны, SC-эмуляция
+│   │   │   ├── wave.py       сессии волны: rotor Яндекса + своя волна
 │   │   │   ├── stats.py      агрегаты
 │   │   │   ├── sync.py       применение ops, конфликты
 │   │   │   ├── now.py        сборка Dotify-JSON из player_state
@@ -69,8 +75,14 @@ Sonar/
 │   │   │   └── lastfm.py     auth, scrobble, updateNowPlaying
 │   │   ├── bot/              aiogram 3: вход, привязка, команды админа
 │   │   │   ├── handlers.py   /start login_… / link_…, кнопки подтверждения
-│   │   │   └── admin.py      /user, /setlogin, /ban, /stats (только владелец)
+│   │   │   └── admin.py      /user, /setlogin, /ban, /unban, /logout_all, /stats,
+│   │   │                     /broadcast (только владелец)
+│   │   ├── media.py          аватары и свой фон: проверка, ресайз (Pillow), лимиты
 │   │   └── util/             время, ULID, логирование с фильтром токенов
+│   ├── tools/                разовые скрипты проверки, не часть сервера
+│   │   ├── check_rotor.py    живая ли волна Яндекса (новый и старый API) на твоём токене
+│   │   ├── check_sc.py       поток SoundCloud по client_id + OAuth
+│   │   └── check_ym.py       download-info и ссылка на поток Яндекса
 │   ├── migrations/           Alembic
 │   ├── tests/                pytest, без сети: провайдеры подменяются фейками
 │   ├── bin/                  cloudflared (бинарник, коммитит workflow)
@@ -82,9 +94,10 @@ Sonar/
 │   ├── project.yml           XcodeGen: таргеты Sonar, SonarTests; bundle com.folzy.sonar
 │   ├── Sonar/
 │   │   ├── App/
-│   │   │   ├── SonarApp.swift        @main, сцена, обработка ссылок
+│   │   │   ├── SonarApp.swift        @main, сцена, ссылки sonar://
 │   │   │   ├── AppState.swift        вошёл/не вошёл, текущий пользователь
-│   │   │   ├── RootView.swift        таб-бар + мини-плеер + полный плеер
+│   │   │   ├── RootView.swift        свой таб-бар + мини-плеер + полный плеер
+│   │   │   ├── ChromeState.swift     свёрнут ли таб-бар (прокрутка, гистерезис)
 │   │   │   └── Dependencies.swift    сборка сервисов (APIClient, Player, Sync…)
 │   │   ├── Core/
 │   │   │   ├── API/          APIClient, эндпоинты, ошибки, DTO (зеркало API.md)
@@ -121,6 +134,7 @@ Sonar/
 │   │   └── Resources/
 │   │       ├── Assets.xcassets       иконка, цвета
 │   │       ├── Localizable.xcstrings ru, en
+│   │       ├── Fonts/                шрифты Google Fonts (OFL) из SETTINGS.md
 │   │       └── Info.plist            фон. аудио, ATS, URL-схема sonar://
 │   ├── Packages/             локальные SwiftPM-пакеты (Zsign, ZipArchive из Shadow)
 │   └── SonarTests/           модели, синк, очередь, CoverColor
@@ -129,8 +143,9 @@ Sonar/
 │   └── README.md             стек и план (SPEC §9)
 │
 └── .github/workflows/
-    ├── ios.yml               macOS: XcodeGen → archive без подписи → IPA → Release build-N
-    └── server.yml            pytest при изменениях в server/
+    ├── ios.yml               macOS: XcodeGen → archive без подписи → IPA → Release ios-build-N
+    ├── server.yml            pytest при изменениях в server/
+    └── pages.yml             публикация site/ на GitHub Pages
 ```
 
 ## Правила раскладки

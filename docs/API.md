@@ -1,6 +1,7 @@
 # Sonar — API сервера
 
-База: `https://sonar.folzy.ru`. JSON, UTF-8. Время — миллисекунды Unix (`*_at`).
+База: `<API>` — адрес из `SONAR_PUBLIC_URL` (поддомен хостинга с HTTPS или
+`https://sonar.folzy.ru`, см. SPEC §3.2). JSON, UTF-8. Время — миллисекунды Unix (`*_at`).
 Авторизация: `Authorization: Bearer <session>` (кроме помеченных «без авторизации»).
 
 Ошибка — всегда так:
@@ -25,6 +26,13 @@
 | PATCH | `/me` | `{username?, display_name?, avatar?}` → `User` |
 | GET | `/me/devices` | → `[Device]` |
 | DELETE | `/me/devices/{id}` | завершить сессию → `204` |
+| PUT | `/me/avatar` | multipart `file` (JPEG/PNG ≤ 5 МБ, сервер режет до 512×512) → `{avatar_url}` |
+| DELETE | `/me/avatar` | → `204` |
+| PUT | `/me/background` | multipart `file` (картинка ≤ 5 МБ или видео ≤ 10 с, ≤ 15 МБ) → `{id, kind: "image"\|"video", url}` |
+| DELETE | `/me/background` | → `204` |
+| GET | `/public/users/{username}` (без авт., CORS для сайта) | → `{username, display_name, number, avatar_url, created_at}` |
+| GET | `/notifications?since=` | → `[{id, title, text, created_at, read}]` |
+| POST | `/notifications/read` | `{ids: [id]}` → `204` |
 
 `device` = `{name: "iPhone 15 Pro", platform: "ios", app_version: "1.0.0", build: 12}`.
 
@@ -81,9 +89,11 @@
 
 | Метод | Путь | Тело → ответ |
 |---|---|---|
-| GET | `/library/likes` | `{rev, tracks: [{track: Track, added_at}]}` |
-| PUT | `/library/likes/{ref}` | → `{rev}` |
+| GET | `/library/likes?kind=track\|album\|artist` | `{rev, items: [{item: Track\|Album\|Artist, added_at}]}` |
+| PUT | `/library/likes/{ref}` | → `{rev}` (вид по префиксу: `sc:`/`ym:` трек, `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист) |
 | DELETE | `/library/likes/{ref}` | → `{rev}` |
+| PUT | `/library/track-prefs/{ref}` | `{speed?: 0.5…2.0, lyrics_offset_ms?}` → `{rev}` («Запомнить») |
+| DELETE | `/library/track-prefs` | сбросить все → `{rev}` |
 | GET | `/playlists` | `[Playlist]` (без треков) |
 | POST | `/playlists` | `{name, tracks?: [ref]}` → `Playlist` |
 | GET | `/playlists/{id}` | `Playlist` с `tracks` |
@@ -125,7 +135,7 @@
 | GET | `/sync/snapshot` | полный снимок: лайки, плейлисты, настройки, состояние плеера |
 | POST | `/sync/replace` | полный снимок с клиента → `{rev}` |
 
-`type`: `like`, `playlist`, `playlist_item`, `setting`, `player_state`.
+`type`: `like`, `playlist`, `playlist_item`, `setting`, `player_state`, `track_pref`.
 Настройки: `type: "setting"`, `key: "appearance.cover_theme"`, `value: true`.
 
 ## 7. Интеграции
@@ -184,5 +194,6 @@ selfbot переключился сменой адреса:
 // update.json
 {"enabled": true, "build": 42, "version": "1.2.0", "minimum_build": 30,
  "title": "Sonar 1.2.0", "notes": "Тексты песен, жесты в очереди",
+ "api_url": null,  // если не null — приложение переключается на новый адрес API
  "url": "https://github.com/folzy1092/Sonar/releases/download/build-42/Sonar.ipa"}
 ```

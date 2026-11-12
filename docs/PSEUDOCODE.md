@@ -293,7 +293,7 @@ func install(_ u) async {
     try Zsign.sign(app, p12: cert.p12, password: cert.password, profile: cert.profile)
     let signed = try zip(app)
     let server = try InstallServer.start(serving: signed)        // 127.0.0.1:port
-    let manifest = "https://sonar.folzy.ru/updates/manifest.plist?ipa=\(server.ipaURL)&build=\(u.build)"
+    let manifest = "\(api.baseURL)/updates/manifest.plist?ipa=\(server.ipaURL)&build=\(u.build)"
     beginBackgroundTask()                                         // iOS забирает IPA, пока мы живы
     present(SFSafariViewController(url: server.installPage(manifest)))   // itms-services://...
 }
@@ -306,19 +306,46 @@ def wave_start(user, source="auto"):
     src = source if source != "auto" else (
         "ym" if user.has("yandex") and setting(user, "general.platform") == "yandex" else
         "sc" if user.has("soundcloud") else "ym")
-    if src == "ym":
-        y = yandex(user); y.rotor_feedback("radioStarted", station="user:onyourwave")
-        tracks, batch = y.rotor_tracks("user:onyourwave")
+    if src == "ym" and ROTOR_MODE != "off":           # ROTOR_MODE = session | station | off — по итогам check_rotor.py
+        y = yandex(user)
+        if ROTOR_MODE == "session":
+            r = y.post("/rotor/session/new", {"seeds": ["user:onyourwave"], "includeTracksInResponse": True})
+            ext_id, tracks = r.radioSessionId, r.sequence.tracks
+        else:
+            y.post("/rotor/station/user:onyourwave/feedback", {"type": "radioStarted"})
+            r = y.get("/rotor/station/user:onyourwave/tracks"); ext_id, tracks = r.batchId, r.sequence.tracks
     else:
-        seeds = recent_likes(user, src="sc", n=20)
-        tracks = dedupe(shuffle(flatten(sc(user).related(s) for s in sample(seeds, 5))))
-        tracks = [t for t in tracks if not played_recently(user, t, days=7)][:10]; batch = None
-    session = waves.create(user, src, batch, queue=tracks)
+        src, ext_id = "own", None
+        tracks = own_wave_portion(user, sess=None)
+    session = waves.create(user, src, ext_id, queue=tracks, played=[], artist_skips={})
     return {"session_id": session.id, "tracks": tracks}
 
 def wave_feedback(session, event, ref, played_ms):
-    if session.src == "ym": yandex(...).rotor_feedback(map(event), ref, played_ms, batch=session.batch)
+    if session.src == "ym": send_rotor_feedback(session, event, ref, played_ms)
     if event == "dislike": blacklist(session.user, ref)
-    if session.remaining() <= 2: return {"tracks": next_portion(session)}
+    if event == "skip" and played_ms < 30_000:
+        a = artist(ref); session.artist_skips[a] += 1
+        if session.artist_skips[a] >= 2: session.paused_artists.add(a)   # артист на паузу до конца сессии
+    session.played.append(ref)
+    if session.remaining() <= 2:
+        more = (rotor_next(session) if session.src == "ym" else own_wave_portion(session.user, session))
+        return {"tracks": more}
     return {"tracks": []}
+
+def own_wave_portion(user, sess, n=10):
+    seeds = last_likes(user, 15) + last_finished(user, 10)            # «вкус сейчас»
+    explore = sample(old_likes(user), 2)                             # 10–20 % разведки
+    cands = flatten(related(s) for s in sample(seeds, 5) + explore)
+    cands = [t for t in dedupe(cands)
+             if not played_recently(user, t, days=7) and not blacklisted(user, t)
+             and (not sess or artist(t) not in sess.paused_artists)]
+    score = lambda t: (2 * liked_artist(user, t) + finished_rate(user, artist(t))
+                       - skip_rate(user, artist(t)) + random(0, 0.5))  # немного случайности
+    out = []
+    for t in sorted(cands, key=score, reverse=True):
+        if out and artist(out[-1]) == artist(t): continue           # не два подряд
+        if count(artist(t), out) >= 2: continue                     # не больше 2 на порцию
+        out.append(t)
+        if len(out) == n: break
+    return out
 ```
