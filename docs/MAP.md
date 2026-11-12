@@ -16,6 +16,7 @@ Sonar/
 │   ├── API.md                контракт сервера (эндпоинты, JSON)
 │   ├── DB.md                 схема SQLite
 │   ├── SETTINGS.md           каталог всех настроек с ключами и умолчаниями
+│   ├── PLATFORMS.md          iOS и Windows: одна структура разделов, что где, что отличается
 │   ├── MAP.md                этот файл
 │   ├── PSEUDOCODE.md         псевдокод ключевых алгоритмов
 │   └── ROADMAP.md            этапы и план по дням
@@ -72,7 +73,8 @@ Sonar/
 │   │   │   ├── stats.py      агрегаты
 │   │   │   ├── sync.py       применение ops, конфликты
 │   │   │   ├── now.py        сборка Dotify-JSON из player_state
-│   │   │   └── lyrics.py     Яндекс LRC → lrclib (порт из selfbot)
+│   │   │   ├── lyrics.py     lrclib (синхронный) → Genius (просто текст); порт selfbot lyrics.py
+│   │   │   └── genius.py     поиск и разбор текста Genius; порт selfbot ai_lyrics (_genius_text, _genius_queries), без Whisper
 │   │   ├── integrations/
 │   │   │   └── lastfm.py     auth, scrobble, updateNowPlaying
 │   │   ├── bot/              aiogram 3: вход, привязка, команды админа
