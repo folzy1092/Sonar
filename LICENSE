@@ -1,0 +1,45 @@
+Sonar — Proprietary License
+
+Copyright (c) 2026 Folzy (github.com/folzy1092). All rights reserved.
+
+1. Ownership. The source code, assets, designs, documentation and every other
+   file in this repository (the "Software") are the exclusive property of the
+   copyright holder. The Software is published for viewing only; publication
+   does not grant any license except the one stated in section 2.
+
+2. Permitted use. You may download the official compiled builds of the
+   Software that the copyright holder publishes (for example, GitHub Releases
+   of this repository) and install and run them for your own personal,
+   non-commercial use.
+
+3. Prohibited. Without prior written permission from the copyright holder you
+   may NOT, in whole or in part:
+   a) copy, reproduce or redistribute the source code or assets;
+   b) modify, adapt, translate, or create derivative works;
+   c) import, include, link or reuse any part of the source code in another
+      program, library, service or repository;
+   d) decompile, disassemble or reverse engineer the compiled builds, except
+      where such restriction is prohibited by applicable law;
+   e) sell, sublicense, rent, host or otherwise make the Software available to
+      third parties, including as a modified or rebranded application;
+   f) remove or alter this notice or any copyright notice.
+
+4. Platform terms. Where the hosting platform's own terms (for example, the
+   GitHub Terms of Service) grant users the right to view or fork public
+   repositories on that platform, that right is limited to what those terms
+   require and grants nothing beyond it: a fork may not be used, built,
+   modified or distributed in any way prohibited by section 3.
+
+5. Third-party components keep their own licenses. Music and metadata are
+   provided by third-party services under their terms; the Software grants no
+   rights to that content.
+
+6. No warranty. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+   KIND, EXPRESS OR IMPLIED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE
+   FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THE
+   SOFTWARE.
+
+7. Termination. Any breach of this license terminates your right to use the
+   Software immediately.
+
+For permissions, contact Folzy via github.com/folzy1092.

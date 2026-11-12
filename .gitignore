@@ -1,0 +1,38 @@
+# Референсы: на скринах личные данные (почта, Telegram, токены). В публичный репо не идут.
+reference/
+
+# Секреты
+.env
+*.env
+!.env.example
+*.p12
+*.mobileprovision
+secrets/
+
+# Python (server)
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.sqlite3
+*.db
+server/data/
+
+# iOS
+ios/*.xcodeproj/
+ios/*.xcworkspace/
+ios/build/
+DerivedData/
+*.ipa
+*.xcuserstate
+xcuserdata/
+
+# Windows (Rust)
+windows/target/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
