@@ -30,6 +30,8 @@ Sonar/
 │   ├── CNAME                 sonar.folzy.is-a.dev
 │   └── assets/
 │
+├── brand/                    иконки, лого, фирменные материалы (brand/README.md)
+│
 ├── updates/                  читается приложением с raw.githubusercontent.com
 │   ├── update.json           какую сборку объявить
 │   └── changelog.json        изменения по сборкам, новые сверху

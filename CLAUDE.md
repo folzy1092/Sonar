@@ -34,6 +34,7 @@
 | `ios/` | SwiftUI-приложение, проект генерирует XcodeGen (`ios/project.yml`) |
 | `windows/` | Rust-клиент (позже, стек — в `docs/SPEC.md` §9) |
 | `site/` | публичный сайт на GitHub Pages (`sonar.folzy.is-a.dev`): скачать, профиль по ссылке |
+| `brand/` | иконки и лого (тёмная и светлая), см. `brand/README.md` |
 | `updates/` | `update.json` + `changelog.json` — их читает автообновление клиентов |
 | `.github/workflows/` | сборка IPA (macOS-раннер) → GitHub Release, тесты сервера |
 | `reference/` | скрины Dotify (`mobile/` photo_1..30, `pc/` Screenshot_1..18) — визуальный референс, только локально; что на каком скрине — таблица в `docs/TZ.md` §3.1 и `docs/SETTINGS.md` |
