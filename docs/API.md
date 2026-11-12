@@ -65,7 +65,6 @@
 | GET | `/tracks/{ref}` | `Track` |
 | GET | `/tracks/{ref}/stream?quality=low\|medium\|high\|max` | `StreamInfo` |
 | GET | `/tracks/{ref}/related` | `[Track]` |
-| GET | `/tracks/{ref}/lyrics` | `{synced: bool, source: "lrclib"\|"genius", lines: [{t_ms, text}], plain?}` или `404` (SPEC §3.7б) |
 | GET | `/albums/{ref}` · `/artists/{ref}` | альбом с треками · артист с топом |
 | GET | `/home` | `{greeting, blocks: [Block]}` |
 | POST | `/wave/start` | — → `{session_id, tracks: [Track]}` (своя волна, SPEC §3.7) |

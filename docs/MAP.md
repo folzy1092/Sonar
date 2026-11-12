@@ -55,7 +55,7 @@ Sonar/
 │   │   │   ├── auth.py       register, login, logout, telegram start/poll
 │   │   │   ├── me.py         профиль, пароль, устройства
 │   │   │   ├── services.py   подключение SC/Яндекса, фантомные плейлисты, импорт
-│   │   │   ├── catalog.py    search, tracks, stream, related, lyrics, albums, artists
+│   │   │   ├── catalog.py    search, tracks, stream, related, albums, artists
 │   │   │   ├── home.py       главная, волна
 │   │   │   ├── library.py    лайки, плейлисты
 │   │   │   ├── player.py     состояние, plays, stats
@@ -73,8 +73,6 @@ Sonar/
 │   │   │   ├── stats.py      агрегаты
 │   │   │   ├── sync.py       применение ops, конфликты
 │   │   │   ├── now.py        сборка Dotify-JSON из player_state
-│   │   │   ├── lyrics.py     lrclib (синхронный) → Genius (просто текст); порт selfbot lyrics.py
-│   │   │   └── genius.py     поиск и разбор текста Genius; порт selfbot ai_lyrics (_genius_text, _genius_queries), без Whisper
 │   │   ├── integrations/
 │   │   │   └── lastfm.py     auth, scrobble, updateNowPlaying
 │   │   ├── bot/              aiogram 3: вход, привязка, команды админа
@@ -110,6 +108,7 @@ Sonar/
 │   │   │   ├── Models/       Track, TrackRef, Playlist, User, PlayerState…
 │   │   │   ├── Storage/      SwiftData-модели кэша, Keychain
 │   │   │   ├── Sync/         SyncEngine: очередь ops, pull по таймеру
+│   │   │   ├── Lyrics/       тексты на устройстве: Lyrics.swift (fetchAny), Lrclib.swift, Genius.swift — порт selfbot
 │   │   │   └── Settings/     SettingsStore: ключи из SETTINGS.md, умолчания, синк
 │   │   ├── Playback/
 │   │   │   ├── PlaybackEngine.swift  AVQueuePlayer, предзагрузка, ошибки потока
@@ -145,7 +144,7 @@ Sonar/
 │   ├── Packages/             локальные SwiftPM-пакеты (Zsign, ZipArchive из Shadow)
 │   └── SonarTests/           модели, синк, очередь, CoverColor
 │
-├── windows/                  (позже) Rust: Cargo workspace
+├── windows/                  (позже) Rust: Cargo workspace; src/lyrics/ — те же тексты, что в iOS
 │   └── README.md             стек и план (SPEC §9)
 │
 └── .github/workflows/
