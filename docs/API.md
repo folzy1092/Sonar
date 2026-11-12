@@ -109,7 +109,7 @@
 | PUT | `/player/state` | `PlayerState` → `204` |
 | GET | `/player/state` | `PlayerState` (для восстановления на другом устройстве) |
 | POST | `/plays` | `{plays: [{ref, played_at, listened_ms, context}]}` → `{accepted: n}` |
-| GET | `/stats?period=week\|month\|year\|all&metric=time\|tracks` | `Stats` |
+| GET | `/stats?period=day\|week\|month\|half_year\|year\|all&metric=time\|tracks` | `Stats` |
 
 ```json
 // PlayerState
