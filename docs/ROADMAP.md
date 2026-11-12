@@ -8,8 +8,11 @@
 
 ## Этап 0. Подготовка (делает владелец)
 
-- [ ] Второй Pterodactyl-сервер (Python). Узнать: есть ли HTTPS на его поддомене.
-- [ ] Если HTTPS нет: DNS folzy.ru на Cloudflare → туннель `sonar.folzy.ru` (токен туннеля).
+- [ ] Velt → Контейнеры → Python: 512 МБ, 10 % vCPU, **2 ГБ** диска, 1 порт, 0 MySQL.
+      Узнать страну сервера.
+- [ ] DNS folzy.ru перенести на Cloudflare (Free), запись GitHub Pages сохранить →
+      Zero Trust → Tunnels → туннель `sonar-api.folzy.ru → http://localhost:<порт>`, токен
+      туннеля → env `CF_TUNNEL_TOKEN`.
 - [ ] PR в `is-a-dev/register`: `domains/sonar.folzy.json` → `folzy1092.github.io`.
 - [ ] Бот в @BotFather, токен → `SONAR_BOT_TOKEN`; бот — админ лог-группы (для тем «Tests»).
 - [ ] Ключи Last.fm API (last.fm/api/account/create).
@@ -19,13 +22,14 @@
 ## Этап 1. Сервер: каркас (дни 1–3)
 
 0. **Сначала проверка сервисов** (`server/tools/check_*.py`, токены владельца в `.env`):
-   поток SC, поток Яндекса, волна Яндекса (новый сессионный rotor и старый). По итогам —
-   `ROTOR_MODE` (`session` / `station` / `off`) и правка SPEC §3.7, если что-то не так.
+   поток SC; доступ к Яндексу **с сервера Velt и с ПК владельца** (поиск, трек,
+   download-info, похожие), с правильными заголовками и без спешки. По итогам — вариант из
+   SPEC §3.7а и правка документов.
 1. `server/` по `MAP.md`, `python -m sonar` поднимает FastAPI + бота.
 2. БД и миграции по `DB.md`.
 3. Регистрация, вход, сессии, устройства, вход и привязка через Telegram.
 4. Тесты на всё это. CI `server.yml`.
-5. Деплой на Pterodactyl (+ туннель, если нужен). **Проверка:** `curl <API>/health`.
+5. Деплой на Velt + туннель. **Проверка:** `curl <API>/health`.
 6. `site/` на GitHub Pages: главная + страница профиля.
 
 ## Этап 2. Сервер: музыка (дни 4–6)
@@ -34,7 +38,7 @@
    плейлисты, импорт.
 2. Лайки, плейлисты, синк (`pull`/`push`/`snapshot`/`replace`).
 3. `player/state`, `plays`, `/oauth/now`. **Проверка:** selfbot `/get` на новый адрес.
-4. Волна (Яндекс rotor по `ROTOR_MODE` + своя волна), главная, тексты, Last.fm,
+4. Своя волна, главная, тексты, Last.fm,
    уведомления и `/broadcast`, аватар и свой фон.
 
 ## Этап 3. iOS: каркас и плеер (дни 7–11)

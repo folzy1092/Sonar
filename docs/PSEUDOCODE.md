@@ -302,40 +302,27 @@ func install(_ u) async {
 ## 11. «Моя волна» (сервер)
 
 ```python
-def wave_start(user, source="auto"):
-    src = source if source != "auto" else (
-        "ym" if user.has("yandex") and setting(user, "general.platform") == "yandex" else
-        "sc" if user.has("soundcloud") else "ym")
-    if src == "ym" and ROTOR_MODE != "off":           # ROTOR_MODE = session | station | off — по итогам check_rotor.py
-        y = yandex(user)
-        if ROTOR_MODE == "session":
-            r = y.post("/rotor/session/new", {"seeds": ["user:onyourwave"], "includeTracksInResponse": True})
-            ext_id, tracks = r.radioSessionId, r.sequence.tracks
-        else:
-            y.post("/rotor/station/user:onyourwave/feedback", {"type": "radioStarted"})
-            r = y.get("/rotor/station/user:onyourwave/tracks"); ext_id, tracks = r.batchId, r.sequence.tracks
-    else:
-        src, ext_id = "own", None
-        tracks = own_wave_portion(user, sess=None)
-    session = waves.create(user, src, ext_id, queue=tracks, played=[], artist_skips={})
-    return {"session_id": session.id, "tracks": tracks}
+# Волна своя (rotor Яндекса не используем — SPEC §3.7). general.platform влияет на долю
+# источников в кандидатах: soundcloud → 80 % sc, yandex → 80 % ym (если Яндекс доступен).
+def wave_start(user):
+    session = waves.create(user, queue=[], played=[], artist_skips={}, paused_artists=set())
+    session.queue = own_wave_portion(user, session)
+    return {"session_id": session.id, "tracks": session.queue}
 
 def wave_feedback(session, event, ref, played_ms):
-    if session.src == "ym": send_rotor_feedback(session, event, ref, played_ms)
     if event == "dislike": blacklist(session.user, ref)
     if event == "skip" and played_ms < 30_000:
         a = artist(ref); session.artist_skips[a] += 1
         if session.artist_skips[a] >= 2: session.paused_artists.add(a)   # артист на паузу до конца сессии
     session.played.append(ref)
     if session.remaining() <= 2:
-        more = (rotor_next(session) if session.src == "ym" else own_wave_portion(session.user, session))
-        return {"tracks": more}
+        return {"tracks": own_wave_portion(session.user, session)}
     return {"tracks": []}
 
 def own_wave_portion(user, sess, n=10):
     seeds = last_likes(user, 15) + last_finished(user, 10)            # «вкус сейчас»
     explore = sample(old_likes(user), 2)                             # 10–20 % разведки
-    cands = flatten(related(s) for s in sample(seeds, 5) + explore)
+    cands = flatten(similar(s) for s in sample(seeds, 5) + explore)  # sc: related, ym: /tracks/{id}/similar
     cands = [t for t in dedupe(cands)
              if not played_recently(user, t, days=7) and not blacklisted(user, t)
              and (not sess or artist(t) not in sess.paused_artists)]

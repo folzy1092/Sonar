@@ -66,7 +66,7 @@ Sonar/
 │   │   │   ├── yandex.py
 │   │   │   └── registry.py   ref "sc:…" → нужный провайдер с токеном пользователя
 │   │   ├── domain/           логика без HTTP
-│   │   │   ├── wave.py       сессии волны: rotor Яндекса + своя волна
+│   │   │   ├── wave.py       своя волна: кандидаты, сигналы, разнообразие
 │   │   │   ├── stats.py      агрегаты
 │   │   │   ├── sync.py       применение ops, конфликты
 │   │   │   ├── now.py        сборка Dotify-JSON из player_state
@@ -80,9 +80,8 @@ Sonar/
 │   │   ├── media.py          аватары и свой фон: проверка, ресайз (Pillow), лимиты
 │   │   └── util/             время, ULID, логирование с фильтром токенов
 │   ├── tools/                разовые скрипты проверки, не часть сервера
-│   │   ├── check_rotor.py    живая ли волна Яндекса (новый и старый API) на твоём токене
 │   │   ├── check_sc.py       поток SoundCloud по client_id + OAuth
-│   │   └── check_ym.py       download-info и ссылка на поток Яндекса
+│   │   └── check_ym.py       пускает ли Яндекс с этого IP: поиск, трек, download-info, похожие
 │   ├── migrations/           Alembic
 │   ├── tests/                pytest, без сети: провайдеры подменяются фейками
 │   ├── bin/                  cloudflared (бинарник, коммитит workflow)

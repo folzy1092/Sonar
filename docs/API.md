@@ -1,7 +1,6 @@
 # Sonar — API сервера
 
-База: `<API>` — адрес из `SONAR_PUBLIC_URL` (поддомен хостинга с HTTPS или
-`https://sonar.folzy.ru`, см. SPEC §3.2). JSON, UTF-8. Время — миллисекунды Unix (`*_at`).
+База: `<API>` = `SONAR_PUBLIC_URL` = `https://sonar-api.folzy.ru` (Cloudflare Tunnel, SPEC §3.2). JSON, UTF-8. Время — миллисекунды Unix (`*_at`).
 Авторизация: `Authorization: Bearer <session>` (кроме помеченных «без авторизации»).
 
 Ошибка — всегда так:
@@ -69,7 +68,7 @@
 | GET | `/tracks/{ref}/lyrics` | `{synced: bool, lines: [{t_ms, text}], plain?}` или `404` |
 | GET | `/albums/{ref}` · `/artists/{ref}` | альбом с треками · артист с топом |
 | GET | `/home` | `{greeting, blocks: [Block]}` |
-| POST | `/wave/start` | `{source?: "auto"\|"ym"\|"sc"}` → `{session_id, tracks: [Track]}` |
+| POST | `/wave/start` | — → `{session_id, tracks: [Track]}` (своя волна, SPEC §3.7) |
 | POST | `/wave/{session_id}/feedback` | `{event: "started"\|"finished"\|"skip"\|"like"\|"dislike", ref, played_ms}` → `{tracks: [Track]}` (догрузка, если пора) |
 
 ```json
