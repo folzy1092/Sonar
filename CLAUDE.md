@@ -8,6 +8,10 @@
 `player_state`/`plays` в локальный SQLite, кнопка скорости Slowed/Sped up) готовы 2026-11-14.
 Следующий шаг — W3 (медиатека), см. `docs/ROADMAP.md`. Тесты Windows: `npm test` (vitest),
 `cargo test` в `src-tauri`; живые проверки SC — `SC_CLIENT_ID=… cargo test -- --ignored`.
+Запуск без команд — батники в корне: «Собрать и запустить.bat» (`tauri build --no-bundle` + запуск),
+«Запустить.bat». Окно Sonar только одно (single-instance), при запуске и Ctrl+R — заставка с лого.
+Вид ПК-клиента сверять с `reference/pc` и кодом Dotify (`C:/Users/Folzy/dotify-work`) — владелец
+просит «не слопно», один в один по референсу; всплывашки открываются и закрываются **только кликом**.
 
 ## Состояние и вопросы владельцу
 
