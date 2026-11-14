@@ -53,8 +53,15 @@
 
   <div class="left">
     <div class="now">
-      <button class="art" onclick={() => router.go('player')} aria-label="Открыть плеер" title="Открыть плеер">
+      <button
+        class="art"
+        disabled={!track}
+        onclick={() => lyrics.open()}
+        aria-label="Полноэкранный плеер"
+        title="Полноэкранный плеер"
+      >
         <Cover url={track?.cover_url} size={46} />
+        <span class="expand" aria-hidden="true"><Icon name="expand" size={18} /></span>
       </button>
       <span class="meta selectable">
         <span class="title" role="link" tabindex="-1" onclick={openPlayer} onkeydown={() => {}}>{track?.title ?? 'Ничего не играет'}</span>
@@ -135,12 +142,6 @@
     pointer-events: none;
     transition: width 0.25s linear;
   }
-  .mini.seekable {
-    cursor: pointer;
-  }
-  .mini.seekable:hover .fill {
-    background: rgba(255, 255, 255, 0.1);
-  }
   .mini.dragging .fill {
     transition: none;
   }
@@ -179,9 +180,34 @@
     font-weight: 600;
   }
   .art {
+    position: relative;
     display: grid;
     border-radius: var(--radius-s);
     overflow: hidden;
+  }
+  /* при наведении на обложку — две стрелки: откроется полноэкранный плеер */
+  .expand {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    opacity: 0;
+    transition: opacity var(--fast) var(--ease);
+  }
+  .expand :global(svg) {
+    transform: scale(0.7);
+    transition: transform var(--normal) var(--ease);
+  }
+  .art:hover:not(:disabled) .expand {
+    opacity: 1;
+  }
+  .art:hover:not(:disabled) .expand :global(svg) {
+    transform: scale(1);
+  }
+  .art:active:not(:disabled) .expand :global(svg) {
+    transform: scale(0.9);
   }
   .title,
   .link {

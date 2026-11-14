@@ -251,13 +251,13 @@
   .float.a {
     left: 38%;
     top: 8%;
-    animation: drift-a 46s ease-in-out infinite alternate;
+    animation: drift-a 18s ease-in-out infinite alternate;
   }
   .float.b {
     left: -10%;
     top: 40%;
     opacity: 0.5;
-    animation: drift-b 61s ease-in-out infinite alternate;
+    animation: drift-b 24s ease-in-out infinite alternate;
   }
   @keyframes drift-a {
     0% {
