@@ -418,7 +418,13 @@ String Catalog (`Localizable.xcstrings`), ru — основной, en. Язык 
 - **Локальный аудио-сервер Rust на `127.0.0.1:<порт>`** (приём Dotify): `/stream?ref=sc:123`
   → Rust берёт ссылку у SoundCloud/Яндекса, отдаёт поток с Range, на лету пишет в кэш,
   склеивает HLS SoundCloud. Интерфейс видит обычный URL — без CORS и протухших ссылок.
-- `/cover?url=…&size=300` — локальный кэш и ресайз обложек.
+- `/cover?url=…&size=300` — локальный кэш и ресайз обложек (W5).
+- Сделано в W2 (`src-tauri/src/stream.rs`): `/file?ref=` (файл с Range, на 403/410 — новая ссылка),
+  `/hls?ref=` (m3u8, ссылки кусков и `EXT-X-MAP` переписаны на `/seg?u=…`), `/seg` — только CDN
+  SoundCloud (`*.sndcdn.com`, `*.soundcloud.cloud` — с 2026 куски идут с
+  `playback.media-streaming.soundcloud.cloud`). Вариант потока SC: AAC HLS с большим битрейтом →
+  mp3 файлом → mp3 HLS; DRM (`*-encrypted-hls`) и Opus пропускаются. Яндекс — запросы с IP
+  компьютера (вариант 3 из §3.7а), mp3 ≤ `audio.quality`.
 
 ### 9.3. Автономный режим → сервер → API
 1. **Сейчас (до хостинга):** всё на компьютере — токены SC и Яндекса в `keyring`, лайки,

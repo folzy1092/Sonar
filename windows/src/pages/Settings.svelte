@@ -1,11 +1,13 @@
 <script lang="ts">
   import Icon from '../components/Icon.svelte'
   import type { IconName } from '../components/icons'
+  import Services from './settings/Services.svelte'
+  import { settingsSection, type SettingsSection } from './settings-section.svelte'
 
   // Пока список разделов. Панель с 3D-анимацией открытия — W5 (PLATFORMS.md).
-  const sections: { icon: IconName; title: string; text: string }[] = [
+  const sections: { icon: IconName; title: string; text: string; id?: SettingsSection }[] = [
     { icon: 'user', title: 'Аккаунт', text: 'Профиль, статистика, вход — с сервером' },
-    { icon: 'key', title: 'Сервисы', text: 'Токены SoundCloud и Яндекс Музыки' },
+    { icon: 'key', title: 'Сервисы', text: 'Токены SoundCloud и Яндекс Музыки', id: 'services' },
     { icon: 'palette', title: 'Интерфейс', text: 'Тема, фон, вкладки, мини-плеер' },
     { icon: 'player', title: 'Плеер', text: 'Кроссфейд, нормализация, устройство вывода' },
     { icon: 'lyrics', title: 'Тексты', text: 'lrclib, Genius, синхронизация' },
@@ -14,11 +16,18 @@
   ]
 </script>
 
+{#if settingsSection.value === 'services'}
+  <button class="back" onclick={() => (settingsSection.value = null)}>
+    <Icon name="chevronLeft" size={18} /> Настройки
+  </button>
+  <h1>Сервисы</h1>
+  <Services />
+{:else}
 <h1>Настройки</h1>
 
 <div class="grid">
   {#each sections as s (s.title)}
-    <button class="card">
+    <button class="card" class:soon={!s.id} disabled={!s.id} onclick={() => s.id && (settingsSection.value = s.id)}>
       <span class="ico"><Icon name={s.icon} size={20} /></span>
       <span class="txt">
         <span class="t">{s.title}</span>
@@ -30,6 +39,7 @@
 </div>
 
 <p class="ver">Sonar 0.1.0 · автономный режим</p>
+{/if}
 
 <style>
   h1 {
@@ -56,7 +66,24 @@
       background var(--fast) var(--ease),
       border-color var(--fast) var(--ease);
   }
-  .card:hover {
+  .card.soon {
+    opacity: 0.55;
+    cursor: default;
+  }
+  .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 0 8px -6px;
+    padding: 4px 10px 4px 4px;
+    border-radius: 999px;
+    color: var(--text-3);
+  }
+  .back:hover {
+    color: var(--text);
+    background: var(--hover);
+  }
+  .card:hover:not(:disabled) {
     background: var(--hover);
     border-color: var(--border-strong);
   }

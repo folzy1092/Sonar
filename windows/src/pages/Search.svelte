@@ -1,10 +1,53 @@
 <script lang="ts">
   import EmptyState from '../components/EmptyState.svelte'
+  import TrackRow from '../components/TrackRow.svelte'
   import { search } from '../app/search.svelte'
+  import { router } from '../app/router.svelte'
+  import { settingsSection } from './settings-section.svelte'
+  import { api, errorText, type Track } from '../lib/api'
+  import { player } from '../player/player.svelte'
 
   const tabs = ['Все', 'Треки', 'Артисты', 'Альбомы', 'Плейлисты'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
-  const source = $derived(search.source === 'sc' ? 'SoundCloud' : 'Яндекс Музыке')
+  const sourceName = $derived(search.source === 'sc' ? 'SoundCloud' : 'Яндекс Музыке')
+
+  let results = $state<Track[]>([])
+  let loading = $state(false)
+  let error = $state<string | null>(null)
+  let seq = 0
+
+  // Поиск с задержкой 350 мс после ввода; устаревшие ответы отбрасываются.
+  $effect(() => {
+    const q = search.query.trim()
+    const src = search.source
+    error = null
+    if (!q) {
+      results = []
+      loading = false
+      return
+    }
+    const my = ++seq
+    loading = true
+    const timer = setTimeout(async () => {
+      try {
+        const found = await api.search(q, src)
+        if (my === seq) results = found
+      } catch (e) {
+        if (my === seq) {
+          results = []
+          error = errorText(e)
+        }
+      } finally {
+        if (my === seq) loading = false
+      }
+    }, 350)
+    return () => clearTimeout(timer)
+  })
+
+  function openServices() {
+    settingsSection.value = 'services'
+    router.go('settings')
+  }
 </script>
 
 <div class="chips">
@@ -13,14 +56,30 @@
   {/each}
 </div>
 
-{#if search.query.trim()}
-  <EmptyState
-    icon="search"
-    title={`«${search.query.trim()}»`}
-    text={`Поиск по ${source} заработает, когда подключим сервисы (W2).`}
-  />
+{#if !search.query.trim()}
+  <EmptyState icon="search" title="Что включить?" text="Ищи треки в SoundCloud и Яндекс Музыке." />
+{:else if tab !== 'Все' && tab !== 'Треки'}
+  <EmptyState icon="search" title={tab} text="Артисты, альбомы и плейлисты появятся вместе со страницами медиатеки (W3)." />
+{:else if error}
+  <div class="err">
+    <EmptyState icon="key" title="Не получилось" text={error} />
+    {#if error.includes('не подключ')}
+      <button class="cta" onclick={openServices}>Открыть «Сервисы»</button>
+    {/if}
+  </div>
+{:else if loading && !results.length}
+  <div class="skeleton" aria-label="Ищу…">
+    {#each { length: 6 } as _, i (i)}<div class="sk"></div>{/each}
+  </div>
+{:else if !results.length}
+  <EmptyState icon="search" title="Ничего не нашлось" text={`По запросу «${search.query.trim()}» в ${sourceName} пусто.`} />
 {:else}
-  <EmptyState icon="search" title="Что включить?" text="Ищи треки, артистов, альбомы и плейлисты в SoundCloud и Яндекс Музыке." />
+  <h2>Треки</h2>
+  <div class="list" class:stale={loading}>
+    {#each results as t, i (t.ref)}
+      <TrackRow track={t} index={i} onplay={() => player.playList(results, i, 'search')} />
+    {/each}
+  </div>
 {/if}
 
 <style>
@@ -48,5 +107,55 @@
     background: var(--accent);
     border-color: transparent;
     color: var(--accent-ink);
+  }
+  h2 {
+    margin: 22px 0 8px;
+    font-size: 20px;
+    font-weight: 800;
+  }
+  .list {
+    display: flex;
+    flex-direction: column;
+    transition: opacity var(--fast) var(--ease);
+  }
+  .list.stale {
+    opacity: 0.6;
+  }
+  .err {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .cta {
+    height: 38px;
+    padding: 0 18px;
+    margin-top: -32px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 700;
+  }
+  .skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 22px;
+  }
+  .sk {
+    height: 54px;
+    border-radius: var(--radius-m);
+    background: linear-gradient(90deg, var(--plate), var(--hover), var(--plate));
+    background-size: 200% 100%;
+    animation: shimmer 1.2s linear infinite;
+  }
+  @keyframes shimmer {
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sk {
+      animation: none;
+    }
   }
 </style>

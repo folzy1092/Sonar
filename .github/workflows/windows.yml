@@ -41,6 +41,13 @@ jobs:
       - name: Проверка типов
         run: npm run check
 
+      - name: Тесты интерфейса
+        run: npm test
+
+      - name: Тесты Rust
+        run: cargo test
+        working-directory: windows/src-tauri
+
       - name: Сборка
         run: npx tauri build --bundles nsis
 

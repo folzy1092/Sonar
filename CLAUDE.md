@@ -3,8 +3,11 @@
 Свой музыкальный плеер владельца (Folzy): SoundCloud + Яндекс Музыка, свои лайки и смешанные
 плейлисты, «Моя волна», статистика, синхронизация. Пользователи — владелец и несколько друзей.
 Сейчас стадия: **блок W, Windows-клиент.** W1 (каркас Tauri 2 + Svelte 5, окно без рамки,
-левая панель, строка поиска, мини-плеер-заглушка, CI `windows.yml`) готов 2026-11-14.
-Следующий шаг — W2 (сервисы, поток, `<audio>`), см. `docs/ROADMAP.md`.
+левая панель, строка поиска, мини-плеер, CI `windows.yml`) и W2 (токены SC/Яндекса в keyring,
+поиск треков, локальный аудио-сервер Rust + `<audio>`/hls.js, очередь, медиа-клавиши SMTC,
+`player_state`/`plays` в локальный SQLite, кнопка скорости Slowed/Sped up) готовы 2026-11-14.
+Следующий шаг — W3 (медиатека), см. `docs/ROADMAP.md`. Тесты Windows: `npm test` (vitest),
+`cargo test` в `src-tauri`; живые проверки SC — `SC_CLIENT_ID=… cargo test -- --ignored`.
 
 ## Состояние и вопросы владельцу
 
@@ -122,5 +125,6 @@
 ## Перед коммитом
 
 - Сервер: `cd server && python -m pytest -q`.
+- Windows: `cd windows && npm run check && npm test`, `cd windows/src-tauri && cargo test`.
 - iOS: собирается только на CI (Mac нет) — пуш в `main` запускает `ios.yml`; смотреть лог сборки.
 - Обновил API или схему — обнови `docs/API.md` / `docs/DB.md` в том же коммите.

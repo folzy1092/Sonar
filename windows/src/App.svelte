@@ -9,12 +9,16 @@
   import Search from './pages/Search.svelte'
   import Player from './pages/Player.svelte'
   import Settings from './pages/Settings.svelte'
+  import { onMount } from 'svelte'
+  import { player } from './player/player.svelte'
 
   const pages = { home: Home, library: Library, search: Search, player: Player, settings: Settings }
   const withSearch: Page[] = ['home', 'search']
 
   const Current = $derived(pages[router.page])
   let scroller: HTMLElement | undefined = $state()
+
+  onMount(() => player.init())
 
   $effect(() => {
     router.page

@@ -164,6 +164,8 @@ Sonar/
 │           ├── main.rs       точка входа → sonar_lib::run()
 │           ├── lib.rs        сборка Tauri; потом трей, автозапуск, медиа-клавиши
 │           ├── commands.rs   команды для интерфейса
+│           ├── services.rs   ядро: HTTP, ключи сервисов, кэш ссылок на поток
+│           ├── media.rs      медиа-клавиши и плашка Windows (souvlaki, SMTC)
 │           ├── providers/    mod.rs (трейт Provider), soundcloud.rs, yandex.rs
 │           ├── stream.rs     локальный сервер 127.0.0.1: /stream, /cover, кэш
 │           ├── lyrics/       mod.rs (fetch_any), lrclib.rs, genius.rs — порт selfbot

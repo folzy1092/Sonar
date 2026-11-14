@@ -105,6 +105,8 @@
 | `player.visualizer_style` (PC) | `wave` / `bars` | `wave` | да |
 | `player.cover_position` (PC) | `left` / `right` | `left` | да |
 | `player.cover_in_cover` (PC) | bool | `false` | да |
+| `player.volume` (PC) | 0…1 | `0.8` | нет |
+| `player.speed_mode` (PC) | `normal` / `slowed` (0.8×) / `speed` (1.25×) — кнопка-часы у громкости, тон меняется вместе со скоростью | `normal` | нет |
 
 ## Очередь — `queue.*` (PC `pc/7`; на iOS — часть «Плеера»)
 

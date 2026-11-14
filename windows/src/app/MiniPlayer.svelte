@@ -1,43 +1,71 @@
 <script lang="ts">
   import Icon from '../components/Icon.svelte'
   import IconButton from '../components/IconButton.svelte'
+  import Cover from '../components/Cover.svelte'
+  import SpeedButton from '../player/SpeedButton.svelte'
+  import Volume from '../player/Volume.svelte'
+  import { player } from '../player/player.svelte'
   import { router } from './router.svelte'
 
-  // Заглушка: плеер появится в W2. Пока — пустое состояние «Ничего не играет».
-  type NowPlaying = { title: string; artist: string }
-  let track = $state<NowPlaying | null>(null)
+  const track = $derived(player.current)
+  const duration = $derived(player.durationMs || track?.duration_ms || 0)
+  const progress = $derived(duration ? Math.min(100, (player.positionMs / duration) * 100) : 0)
+
+  function seekFromBar(e: MouseEvent) {
+    const el = e.currentTarget as HTMLElement
+    const r = el.getBoundingClientRect()
+    player.seek(((e.clientX - r.left) / r.width) * duration)
+  }
 </script>
 
 <footer class="mini">
-  <div class="progress" aria-hidden="true"><span style="width: 0%"></span></div>
+  <button class="progress" aria-label="Перемотка" disabled={!track} onclick={seekFromBar}>
+    <span style:width="{progress}%"></span>
+  </button>
 
   <button class="now" onclick={() => router.go('player')} title="Открыть плеер">
-    <div class="cover">
-      <Icon name="music" size={20} />
-    </div>
+    <Cover url={track?.cover_url} size={44} />
     <div class="meta">
       <span class="title">{track?.title ?? 'Ничего не играет'}</span>
-      <span class="artist">{track?.artist ?? 'Найди трек в поиске или медиатеке'}</span>
+      {#if player.error}
+        <span class="artist err" title={player.error}>{player.error}</span>
+      {:else}
+        <span class="artist">{track?.artist ?? 'Найди трек в поиске или медиатеке'}</span>
+      {/if}
     </div>
   </button>
 
   <div class="center">
-    <IconButton icon="heart" label="В Любимые" size={18} disabled={!track} />
+    <IconButton icon="heart" label="В Любимые (W3)" size={18} disabled />
     <span class="sep"></span>
-    <IconButton icon="repeat" label="Повтор" size={18} disabled={!track} />
-    <IconButton icon="prev" label="Назад" size={18} filled disabled={!track} />
-    <button class="play" aria-label="Играть" title="Играть" disabled={!track}>
-      <Icon name="play" size={18} filled />
+    <IconButton
+      icon={player.repeat === 'one' ? 'repeatOnce' : 'repeat'}
+      label={player.repeat === 'off' ? 'Повтор: выкл' : player.repeat === 'all' ? 'Повтор: всё' : 'Повтор: трек'}
+      size={18}
+      active={player.repeat !== 'off'}
+      disabled={!track}
+      onclick={() => player.cycleRepeat()}
+    />
+    <IconButton icon="prev" label="Назад" size={18} filled disabled={!track} onclick={() => player.prev()} />
+    <button
+      class="play"
+      class:loading={player.loading}
+      aria-label={player.playing ? 'Пауза' : 'Играть'}
+      title={player.playing ? 'Пауза' : 'Играть'}
+      disabled={!track}
+      onclick={() => player.toggle()}
+    >
+      <Icon name={player.playing ? 'pause' : 'play'} size={18} filled />
     </button>
-    <IconButton icon="next" label="Вперёд" size={18} filled disabled={!track} />
-    <IconButton icon="shuffle" label="Перемешать" size={18} disabled={!track} />
+    <IconButton icon="next" label="Вперёд" size={18} filled disabled={!track} onclick={() => player.next()} />
+    <IconButton icon="shuffle" label="Перемешать" size={18} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
   </div>
 
   <div class="right">
-    <IconButton icon="history" label="История" size={18} />
-    <IconButton icon="volume" label="Громкость" size={18} />
-    <IconButton icon="lyrics" label="Текст" size={18} disabled={!track} />
-    <IconButton icon="queue" label="Очередь" size={18} disabled={!track} />
+    <SpeedButton />
+    <Volume />
+    <IconButton icon="lyrics" label="Текст (W4)" size={18} disabled />
+    <IconButton icon="queue" label="Очередь" size={18} disabled={!track} onclick={() => router.go('player')} />
   </div>
 </footer>
 
@@ -53,20 +81,27 @@
     border-radius: var(--radius-l);
     background: var(--surface-1);
     border: 1px solid var(--border);
-    overflow: hidden;
   }
   .progress {
     position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 2px;
-    background: var(--border);
+    left: 14px;
+    right: 14px;
+    bottom: -1px;
+    height: 7px;
+    padding: 3px 0 2px;
+    background-clip: content-box;
+    background-color: var(--border);
+    cursor: pointer;
+  }
+  .progress:disabled {
+    cursor: default;
   }
   .progress span {
     display: block;
     height: 100%;
     background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.25s linear;
   }
   .now {
     display: flex;
@@ -82,16 +117,6 @@
   }
   .now:hover {
     background: var(--hover);
-  }
-  .cover {
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    flex-shrink: 0;
-    border-radius: var(--radius-s);
-    background: linear-gradient(135deg, var(--surface-3), var(--surface-2));
-    color: var(--text-3);
   }
   .meta {
     display: flex;
@@ -110,6 +135,9 @@
   .artist {
     font-size: 12px;
     color: var(--text-3);
+  }
+  .artist.err {
+    color: var(--danger);
   }
   .center {
     display: flex;
@@ -142,9 +170,23 @@
     opacity: 0.4;
     cursor: default;
   }
+  .play.loading {
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    50% {
+      opacity: 0.6;
+    }
+  }
   .right {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
     gap: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .play.loading {
+      animation: none;
+    }
   }
 </style>
