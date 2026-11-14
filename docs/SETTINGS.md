@@ -145,7 +145,7 @@
 | `mini.cover_shape` | `default` / `circle` | `circle` |
 | `mini.shape` | `default` / `capsule` | `capsule` |
 
-## Оверлей PC — `overlay.*` (`pc/10, 11`) — после MVP
+## Оверлей PC — `overlay.*` (`pc/10, 11`) — **не делаем** (решение 2026-11-14)
 
 `overlay.mode` (`off` / `fullscreen` / `island` / `card` / `sticky`), `overlay.shape`
 (`square` / `rounded`), `overlay.position`, `overlay.opacity` (90), `overlay.scale` (100),
