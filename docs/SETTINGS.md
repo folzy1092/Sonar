@@ -138,10 +138,10 @@
 
 | Ключ | Значения | По умолч. |
 |---|---|---|
-| `mini.style` | `off` / `full` / `rounded` / `hybrid` / `deck` | `rounded` |
+| `mini.style` | `off` / `full` / `rounded` / `hybrid` / `deck` — пресет, выставляет фон/прогресс/обложку/форму (`PLATFORMS.md`) | `hybrid` |
 | `mini.position` | `top` / `bottom` / `bottom_inset` / `floating` | `bottom` |
 | `mini.background` | `theme` / `cover` / `cover_color` | `cover_color` |
-| `mini.progress` | `line` / `background` / `around_cover` | `background` |
+| `mini.progress` | `line` / `background` (без `around_cover`) | `background` |
 | `mini.cover_shape` | `default` / `circle` | `circle` |
 | `mini.shape` | `default` / `capsule` | `capsule` |
 
