@@ -39,3 +39,6 @@ windows/dist/
 Thumbs.db
 .idea/
 .vscode/
+
+windows/src-tauri/target-check/
+windows/src-tauri/src-tauri/

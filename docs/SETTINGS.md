@@ -38,7 +38,7 @@
 
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
-| `audio.quality` | `low`(192) / `medium`(256) / `high`(320) / `max`(1411+) | `high` | нет |
+| `audio.quality` | `low`(192) / `medium`(256) / `high`(320) / `max`(от 1411, FLAC Яндекса; нет FLAC — 320). SoundCloud отдаёт максимум сам (AAC 160, с Go+ — 256) | `max` | нет |
 | `audio.gapless` | bool | `true` | да |
 | `audio.normalize` | bool | `false` | да |
 | `audio.on_interruption` | `duck` / `pause` / `none` | `duck` | да |
@@ -106,7 +106,23 @@
 | `player.cover_position` (PC) | `left` / `right` | `left` | да |
 | `player.cover_in_cover` (PC) | bool | `false` | да |
 | `player.volume` (PC) | 0…1 | `0.8` | нет |
+| `audio.eq` (PC) | 12 чисел, дБ ±12 (32 Гц … 20 кГц) — общая кривая эквалайзера (кнопка у громкости на странице плеера) | все `0` | нет |
+| `audio.eq_presets` (PC) | `[{name, gains}]` — свои пресеты («+»); встроенные: Нейтральный, Басы, Высокие, Вокал, Громче | `[]` | да |
 | `player.speed_mode` (PC) | `normal` / `slowed` (0.8×) / `speed` (1.25×) — кнопка-часы у громкости, тон меняется вместе со скоростью | `normal` | нет |
+
+## Текст песни — `lyrics.*` (меню текста, `photo_6`; LYRICS.md §6)
+
+Меняются в меню текста (правый клик по тексту или ⋮ в полноэкранном плеере), отдельного экрана нет.
+
+| Ключ | Значения | По умолч. | sync |
+|---|---|---|---|
+| `lyrics.mode` | `words` / `lines` — «По словам» работает, только если у текста есть пословный тайминг | `words` | да |
+| `lyrics.size` | `S` / `M` / `L` / `XL` (1.25 / 1.6 / 2 / 2.5 rem) | `L` | да |
+| `lyrics.style` | `normal` / `scale` / `blur` / `cinema` / `shift` | `blur` | да |
+| `lyrics.animation` | `normal` / `fade` / `blur` (остальные из Dotify — потом) | `normal` | да |
+| `lyrics.visible` (PC) | bool — кнопка «T» в полноэкранном плеере | `true` | нет |
+
+Сдвиг тайминга — не настройка, а `track_prefs.lyrics_offset_ms` на трек (LYRICS.md §5).
 
 ## Очередь — `queue.*` (PC `pc/7`; на iOS — часть «Плеера»)
 

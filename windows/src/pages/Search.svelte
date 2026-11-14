@@ -6,7 +6,7 @@
   import { openRef } from '../app/router.svelte'
   import { search } from '../app/search.svelte'
   import { router } from '../app/router.svelte'
-  import { settingsSection } from './settings-section.svelte'
+  import { settingsPanel } from './settings-section.svelte'
   import { api, errorText, type SearchMore, type Track } from '../lib/api'
   import { player } from '../player/player.svelte'
 
@@ -54,8 +54,7 @@
   })
 
   function openServices() {
-    settingsSection.value = 'services'
-    router.go('settings')
+    settingsPanel.show('services')
   }
 </script>
 

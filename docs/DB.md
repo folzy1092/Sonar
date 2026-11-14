@@ -158,6 +158,7 @@ CREATE TABLE track_prefs (                      -- «Запомнить» ско
   ref           TEXT NOT NULL,
   speed         REAL,                           -- 0.5 … 2.0
   lyrics_offset_ms INTEGER,
+  eq_json       TEXT,                           -- эквалайзер «Запомнить»: 12 полос в дБ (32 Гц … 20 кГц)
   deleted       INTEGER NOT NULL DEFAULT 0,
   rev           INTEGER NOT NULL,
   PRIMARY KEY (user_id, ref)

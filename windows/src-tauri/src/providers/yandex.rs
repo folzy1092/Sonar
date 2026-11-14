@@ -10,6 +10,36 @@ use serde_json::Value;
 const API: &str = "https://api.music.yandex.net";
 /// Соль подписи ссылки на mp3 (как в yandex-music-api).
 const SALT: &str = "XGRlBW9FXlekgbPrRHuSiA";
+/// Ключ подписи `get-file-info` (как в yandex-music-api).
+const SIGN_KEY: &[u8] = b"p93jhgh689SBReK6ghtw62";
+/// «Без потерь» в настройке качества: FLAC, от 1411 кбит/с.
+pub const LOSSLESS_KBPS: u32 = 1411;
+
+fn hmac_sha256(key: &[u8], msg: &[u8]) -> [u8; 32] {
+  use sha2::{Digest, Sha256};
+  let mut k = [0u8; 64];
+  if key.len() > 64 {
+    k[..32].copy_from_slice(&Sha256::digest(key));
+  } else {
+    k[..key.len()].copy_from_slice(key);
+  }
+  let (mut ipad, mut opad) = ([0x36u8; 64], [0x5cu8; 64]);
+  for i in 0..64 {
+    ipad[i] ^= k[i];
+    opad[i] ^= k[i];
+  }
+  let inner = Sha256::new().chain_update(ipad).chain_update(msg).finalize();
+  Sha256::new().chain_update(opad).chain_update(inner).finalize().into()
+}
+
+/// Подпись `get-file-info`: base64(HMAC-SHA256(ts + trackId + quality + codecs без запятых + transports)) без последнего символа.
+pub fn file_info_sign(ts: &str, id: &str, quality: &str, codecs: &str, transports: &str) -> String {
+  use base64::Engine;
+  let msg = format!("{ts}{id}{quality}{}{transports}", codecs.replace(',', ""));
+  let mut s = base64::engine::general_purpose::STANDARD.encode(hmac_sha256(SIGN_KEY, msg.as_bytes()));
+  s.pop();
+  s
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Creds {
@@ -156,8 +186,40 @@ impl Yandex<'_> {
       .unwrap_or_default())
   }
 
+  /// Без потерь (`audio.quality = lossless`): `get-file-info` с `quality=lossless` → FLAC
+  /// без шифрования (`transports=raw`). Подпись — HMAC-SHA256 параметров, как в yandex-music-api.
+  /// Нет FLAC (нет Плюса, трек не в lossless) — None, дальше обычный mp3.
+  pub async fn lossless_info(&self, id: &str) -> Result<Option<(String, String, u32)>> {
+    let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs().to_string();
+    let codecs = "flac,flac-mp4,aac,he-aac,mp3";
+    let transports = "raw";
+    let sign = file_info_sign(&ts, id, "lossless", codecs, transports);
+    let data = self
+      .get(
+        &format!("{API}/get-file-info"),
+        &[("ts", &ts), ("trackId", id), ("quality", "lossless"), ("codecs", codecs), ("transports", transports), ("sign", &sign)],
+      )
+      .await?;
+    let info = &data["downloadInfo"];
+    let codec = info["codec"].as_str().unwrap_or("").to_owned();
+    let url = info["url"].as_str().or_else(|| info["urls"][0].as_str()).map(str::to_owned);
+    let bitrate = info["bitrate"].as_u64().unwrap_or(0) as u32;
+    Ok(match url {
+      Some(u) if codec.starts_with("flac") && info["transport"] != "encraw" => Some((u, codec, bitrate)),
+      _ => None,
+    })
+  }
+
   /// download-info → лучший mp3 не выше `max_kbps` → XML → подписанная ссылка на CDN.
+  /// `max_kbps ≥ 1411` — сначала FLAC без потерь (`lossless_info`).
   pub async fn stream(&self, id: &str, max_kbps: u32) -> Result<Source> {
+    if max_kbps >= LOSSLESS_KBPS {
+      match self.lossless_info(id).await {
+        Ok(Some((url, _, _))) => return Ok(Source::File { url }),
+        Ok(None) => {}
+        Err(e) => log::warn!("[yandex] lossless: {e}"),
+      }
+    }
     let infos = self.get(&format!("{API}/tracks/{id}/download-info"), &[]).await?;
     let info = pick_mp3(&infos, max_kbps).ok_or_else(|| anyhow!("Яндекс Музыка: нет mp3 для этого трека"))?;
     let xml_url = info["downloadInfoUrl"].as_str().ok_or_else(|| anyhow!("Яндекс Музыка: нет downloadInfoUrl"))?;
@@ -340,5 +402,38 @@ mod tests {
     assert_eq!(t.artist, "Lil Peep");
     assert_eq!(t.cover_url.as_deref(), Some("https://avatars.yandex.net/get-music-content/1/400x400"));
     assert_eq!(t.url.as_deref(), Some("https://music.yandex.ru/album/99/track/123"));
+  }
+
+  #[test]
+  fn hmac_matches_rfc4231() {
+    // RFC 4231, тест 2
+    let mac = super::hmac_sha256(b"Jefe", b"what do ya want for nothing?");
+    let hex: String = mac.iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(hex, "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
+  }
+
+  #[tokio::test]
+  #[ignore = "живой Яндекс на токене из keyring: печатает только форматы"]
+  async fn live_quality_options() {
+    let stored: crate::services::Stored<Creds> = crate::secrets::load("yandex").expect("Яндекс не подключён");
+    let http = reqwest::Client::new();
+    let ym = Yandex { http: &http, creds: &stored.creds };
+    let q = std::env::var("YM_QUERY").unwrap_or_else(|_| "кизару дежавю".into());
+    let found = ym.search(&q, 1).await.unwrap();
+    let id = found[0].ref_.trim_start_matches("ym:").to_string();
+    let infos = ym.get(&format!("{API}/tracks/{id}/download-info"), &[]).await.unwrap();
+    let list: Vec<String> = infos.as_array().unwrap().iter().map(|i| format!("{} {}", i["codec"], i["bitrateInKbps"])).collect();
+    println!("{} — {}: download-info {list:?}", found[0].artist, found[0].title);
+    match ym.lossless_info(&id).await {
+      Ok(Some((url, codec, br))) => {
+        let r = http.get(&url).header("Range", "bytes=0-63").send().await.unwrap();
+        let ct = r.headers().get("content-type").map(|v| v.to_str().unwrap_or("").to_owned());
+        let len = r.headers().get("content-range").map(|v| v.to_str().unwrap_or("").to_owned());
+        let b = r.bytes().await.unwrap();
+        println!("lossless: {codec} {br} kbps, {ct:?} {len:?}, head {:?}", String::from_utf8_lossy(&b[4..12.min(b.len())]));
+      }
+      Ok(None) => println!("lossless: нет"),
+      Err(e) => println!("lossless: ошибка {e}"),
+    }
   }
 }

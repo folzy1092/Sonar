@@ -106,7 +106,7 @@
 | GET | `/library/likes?kind=track\|album\|artist` | `{rev, items: [{item: Track\|Album\|Artist, added_at}]}` |
 | PUT | `/library/likes/{ref}` | → `{rev}` (вид по префиксу: `sc:`/`ym:` трек, `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист) |
 | DELETE | `/library/likes/{ref}` | → `{rev}` |
-| PUT | `/library/track-prefs/{ref}` | `{speed?: 0.5…2.0, lyrics_offset_ms?}` → `{rev}` («Запомнить») |
+| PUT | `/library/track-prefs/{ref}` | `{speed?: 0.5…2.0, lyrics_offset_ms?, eq?: number[12]}` → `{rev}` («Запомнить») |
 | DELETE | `/library/track-prefs` | сбросить все → `{rev}` |
 | GET | `/playlists` | `[Playlist]` (без треков) |
 | POST | `/playlists` | `{name, tracks?: [ref]}` → `Playlist` |

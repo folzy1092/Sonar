@@ -1,5 +1,6 @@
 //! Команды для интерфейса (`invoke` из src/lib/api.ts). Ошибки — строкой, по-русски.
 
+use crate::lyrics::{self, Lyrics};
 use crate::media::{self, Media, MediaInfo};
 use crate::providers::{soundcloud, yandex, AlbumPage, ArtistPage, SearchResults, ServicePlaylist, Source, Track};
 use crate::services::{Core, PlaylistPage, ServiceStatus, ServicesStatus};
@@ -114,12 +115,7 @@ pub fn get_setting(db: State<'_, Db>, key: String) -> Res<Option<serde_json::Val
 #[tauri::command]
 pub fn set_setting(core: State<'_, Arc<Core>>, db: State<'_, Db>, key: String, value: serde_json::Value) -> Res<()> {
   if key == "audio.quality" {
-    let kbps = match value.as_str() {
-      Some("low") => 192,
-      Some("medium") => 256,
-      _ => 320,
-    };
-    core.max_kbps.store(kbps, Ordering::Relaxed);
+    core.max_kbps.store(crate::services::quality_kbps(value.as_str()), Ordering::Relaxed);
   }
   db.0.lock().unwrap().set_setting(&key, &value).map_err(err)
 }
@@ -282,4 +278,55 @@ pub fn reorder_playlist(db: State<'_, Db>, id: String, item_ids: Vec<String>) ->
 #[tauri::command]
 pub fn media_update(media: State<'_, Media>, info: MediaInfo) {
   media::update(&media, &info);
+}
+
+// ——— тексты песен (SPEC §3.7б, docs/LYRICS.md) ———
+
+/// Текст трека: кэш в базе → lrclib → Genius. `None` — «Текст не найден»
+/// («нет» перепроверяется через 30 мин). `refresh` — выбросить кэш и искать заново.
+#[tauri::command]
+pub async fn lyrics(core: State<'_, Arc<Core>>, db: State<'_, Db>, track: Track, refresh: Option<bool>) -> Res<Option<Lyrics>> {
+  if refresh == Some(true) {
+    db.0.lock().unwrap().clear_lyrics(&track.ref_).map_err(err)?;
+  } else if let Some((json, at)) = db.0.lock().unwrap().lyrics_cached(&track.ref_).map_err(err)? {
+    match json {
+      Some(j) => {
+        if let Ok(l) = serde_json::from_str::<Lyrics>(&j) {
+          return Ok(Some(l));
+        }
+      }
+      None if crate::store::now_ms() - at < lyrics::RECHECK_TTL_MS => return Ok(None),
+      None => {}
+    }
+  }
+  let found = lyrics::fetch_any(&core.http, &lyrics::Meta::of(&track)).await.map_err(err)?;
+  let json = found.as_ref().map(|l| serde_json::to_string(l)).transpose().map_err(err)?;
+  db.0
+    .lock()
+    .unwrap()
+    .put_lyrics(&track.ref_, json.as_deref(), found.as_ref().map(|l| l.source.as_str()))
+    .map_err(err)?;
+  Ok(found)
+}
+
+#[tauri::command]
+pub fn lyrics_offset(db: State<'_, Db>, track_ref: String) -> Res<i64> {
+  db.0.lock().unwrap().lyrics_offset(&track_ref).map_err(err)
+}
+
+#[tauri::command]
+pub fn set_lyrics_offset(db: State<'_, Db>, track_ref: String, ms: i64) -> Res<()> {
+  db.0.lock().unwrap().set_lyrics_offset(&track_ref, ms).map_err(err)
+}
+
+// ——— эквалайзер: кривая, запомненная для трека ———
+
+#[tauri::command]
+pub fn track_eq(db: State<'_, Db>, track_ref: String) -> Res<Option<Vec<f64>>> {
+  db.0.lock().unwrap().track_eq(&track_ref).map_err(err)
+}
+
+#[tauri::command]
+pub fn set_track_eq(db: State<'_, Db>, track_ref: String, gains: Option<Vec<f64>>) -> Res<()> {
+  db.0.lock().unwrap().set_track_eq(&track_ref, gains.as_deref()).map_err(err)
 }

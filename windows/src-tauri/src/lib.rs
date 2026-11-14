@@ -1,4 +1,5 @@
 mod commands;
+mod lyrics;
 mod media;
 mod providers;
 mod secrets;
@@ -34,12 +35,7 @@ pub fn run() {
 
       let core = Arc::new(Core::new());
       if let Ok(Some(q)) = db.setting("audio.quality") {
-        let kbps = match q.as_str() {
-          Some("low") => 192,
-          Some("medium") => 256,
-          _ => 320,
-        };
-        core.max_kbps.store(kbps, std::sync::atomic::Ordering::Relaxed);
+        core.max_kbps.store(services::quality_kbps(q.as_str()), std::sync::atomic::Ordering::Relaxed);
       }
       let port = tauri::async_runtime::block_on(stream::start(core.clone()))?;
 
@@ -85,6 +81,11 @@ pub fn run() {
       commands::add_to_playlist,
       commands::remove_from_playlist,
       commands::reorder_playlist,
+      commands::lyrics,
+      commands::lyrics_offset,
+      commands::set_lyrics_offset,
+      commands::track_eq,
+      commands::set_track_eq,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");

@@ -2,7 +2,8 @@
   import Icon from '../components/Icon.svelte'
   import type { IconName } from '../components/icons'
   import { router, type Page } from './router.svelte'
-  import logo from '../assets/logo-mark.png'
+  import logo from '../assets/logo-mark.svg'
+  import { settingsPanel } from '../pages/settings-section.svelte'
 
   const middle: { page: Page; icon: IconName; label: string }[] = [
     { page: 'player', icon: 'player', label: 'Плеер' },
@@ -19,7 +20,10 @@
     aria-label={label}
     title={label}
     aria-current={on ? 'page' : undefined}
-    onclick={() => router.go(page)}
+    onclick={() => {
+      settingsPanel.close()
+      router.go(page)
+    }}
   >
     <Icon name={icon} size={22} />
   </button>
@@ -38,7 +42,16 @@
   </div>
 
   <div class="group" data-tauri-drag-region>
-    {@render item('settings', 'settings', 'Настройки')}
+    <button
+      class="item"
+      class:active={settingsPanel.open}
+      aria-label="Настройки"
+      title="Настройки"
+      aria-expanded={settingsPanel.open}
+      onclick={() => settingsPanel.toggle()}
+    >
+      <Icon name="settings" size={22} />
+    </button>
     <button class="avatar" aria-label="Профиль" title="Профиль — вход появится вместе с сервером">
       <Icon name="user" size={18} />
       <span class="online" aria-hidden="true"></span>

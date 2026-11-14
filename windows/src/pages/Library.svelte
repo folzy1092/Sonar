@@ -9,7 +9,7 @@
   import { tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
   import { openRef, router } from '../app/router.svelte'
-  import { settingsSection } from './settings-section.svelte'
+  import { settingsPanel } from './settings-section.svelte'
 
   const tabs = ['Все', 'Плейлисты', 'Альбомы', 'Исполнители'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
@@ -74,8 +74,7 @@
   }
 
   function openServices() {
-    settingsSection.value = 'services'
-    router.go('settings')
+    settingsPanel.show('services')
   }
 </script>
 

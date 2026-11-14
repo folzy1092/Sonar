@@ -52,7 +52,7 @@ pub struct Core {
   /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
   sc_auto: RwLock<Option<String>>,
   streams: Mutex<HashMap<String, (Source, Instant)>>,
-  /// Потолок битрейта Яндекса (`audio.quality`): 192 / 256 / 320.
+  /// Потолок битрейта Яндекса (`audio.quality`): 192 / 256 / 320 / 1411 (FLAC без потерь).
   pub max_kbps: AtomicU32,
 }
 
@@ -77,7 +77,7 @@ impl Core {
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
-      max_kbps: AtomicU32::new(320),
+      max_kbps: AtomicU32::new(crate::providers::yandex::LOSSLESS_KBPS),
     }
   }
 
@@ -138,7 +138,7 @@ impl Core {
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
-      max_kbps: AtomicU32::new(320),
+      max_kbps: AtomicU32::new(crate::providers::yandex::LOSSLESS_KBPS),
     }
   }
 
@@ -449,4 +449,14 @@ impl Core {
 fn is_auth_error(e: &anyhow::Error) -> bool {
   let t = e.to_string();
   t.contains("HTTP 401") || t.contains("HTTP 403")
+}
+
+/// `audio.quality` → потолок битрейта Яндекса. По умолчанию — максимум (FLAC, если есть).
+pub fn quality_kbps(v: Option<&str>) -> u32 {
+  match v {
+    Some("low") => 192,
+    Some("medium") => 256,
+    Some("high") => 320,
+    _ => crate::providers::yandex::LOSSLESS_KBPS,
+  }
 }

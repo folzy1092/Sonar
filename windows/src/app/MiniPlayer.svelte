@@ -10,6 +10,7 @@
   import { openRef, router } from './router.svelte'
   import { library } from '../lib/library.svelte'
   import { hasSelection } from '../lib/selection'
+  import { lyrics } from '../lyrics/lyrics.svelte'
 
   const track = $derived(player.current)
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
@@ -79,7 +80,7 @@
       <SpeedButton />
       <Volume />
       <IconButton icon="queue" label="Очередь" size={17} disabled={!track} onclick={() => router.go('player')} />
-      <IconButton icon="lyrics" label="Текст — W4" size={17} disabled />
+      <IconButton icon="letterT" label="Текст и полноэкранный плеер" size={17} active={lyrics.fullscreen} disabled={!track} onclick={() => (lyrics.fullscreen ? lyrics.close() : lyrics.open())} />
     </div>
   </div>
 </footer>

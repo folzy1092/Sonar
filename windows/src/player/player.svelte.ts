@@ -3,7 +3,9 @@
 // запись player_state и plays в локальную базу (формат API.md §5).
 // Два элемента для бесшовности и кроссфейда, GainNode нормализации — позже (W5).
 import Hls from 'hls.js'
+import { untrack } from 'svelte'
 import { api, errorText, onMediaControl, type PlayerState, type Repeat, type Track } from '../lib/api'
+import { eq } from './eq.svelte'
 import { countsAsPlay, enqueue, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
 
 /** Режимы скорости кнопки рядом с громкостью: тон меняется вместе со скоростью (slowed / sped up). */
@@ -52,6 +54,11 @@ class Player {
   /** Спектр звука для волны на странице плеера (Web Audio). */
   analyser: AnalyserNode | null = null
 
+  /** Сам <audio> — тексту нужны его события для своих часов (lyrics/LyricsView). */
+  get media(): HTMLAudioElement | null {
+    return this.audio
+  }
+
   init() {
     if (this.audio) return
     const a = new Audio()
@@ -85,6 +92,14 @@ class Player {
     })
 
     void this.restore()
+    void eq.load()
+    $effect.root(() => {
+      $effect(() => {
+        const ref = this.current?.ref ?? null
+        // внутри eq читает и пишет своё состояние — не подписываемся на него
+        untrack(() => void eq.onTrack(ref))
+      })
+    })
   }
 
   /** Полная остановка: при подмене модуля в dev (HMR), иначе старый <audio> играет «вторым потоком». */
@@ -108,7 +123,8 @@ class Player {
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 2048
       analyser.smoothingTimeConstant = 0.82
-      ctx.createMediaElementSource(a).connect(analyser)
+      // источник → эквалайзер → анализатор волны → выход
+      eq.connect(ctx, ctx.createMediaElementSource(a), analyser)
       analyser.connect(ctx.destination)
       this.ctx = ctx
       this.analyser = analyser

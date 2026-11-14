@@ -10,6 +10,12 @@
     toggleMaximizeWindow,
   } from '../lib/tauri'
 
+  interface Props {
+    /** Кнопка «Назад» (в полноэкранном плеере её нет). */
+    back?: boolean
+  }
+  let { back = true }: Props = $props()
+
   let maximized = $state(false)
 
   onMount(() => {
@@ -20,9 +26,11 @@
 </script>
 
 <div class="controls">
-  <button class="ctl" aria-label="Назад" title="Назад" disabled={!router.canGoBack} onclick={() => router.back()}>
-    <Icon name="chevronLeft" size={16} />
-  </button>
+  {#if back}
+    <button class="ctl" aria-label="Назад" title="Назад" disabled={!router.canGoBack} onclick={() => router.back()}>
+      <Icon name="chevronLeft" size={16} />
+    </button>
+  {/if}
   <button class="ctl" aria-label="Свернуть" title="Свернуть" onclick={minimizeWindow}>
     <Icon name="minus" size={16} />
   </button>

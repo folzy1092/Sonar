@@ -7,12 +7,14 @@
   import TrackRow from '../components/TrackRow.svelte'
   import SeekBar from '../player/SeekBar.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
+  import EqButton from '../player/EqButton.svelte'
   import Wave from '../player/Wave.svelte'
   import { formatTime, player } from '../player/player.svelte'
   import { library } from '../lib/library.svelte'
   import { trackMenu } from '../lib/menu.svelte'
   import { hasSelection } from '../lib/selection'
   import { openRef } from '../app/router.svelte'
+  import { lyrics } from '../lyrics/lyrics.svelte'
 
   const track = $derived(player.current)
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
@@ -38,7 +40,9 @@
 
 <div class="top">
   <div class="art">
-    <Cover url={track?.cover_url} size={320} radius="18px" />
+    <button class="open-full" aria-label="Полноэкранный плеер" title="Полноэкранный плеер" disabled={!track} onclick={() => lyrics.open()}>
+      <Cover url={track?.cover_url} size={320} radius="18px" />
+    </button>
     {#if track}
       <button
         class="on-cover left"
@@ -116,6 +120,7 @@
       </div>
       <div class="panel extra">
         <SpeedButton />
+        <EqButton />
       </div>
     </div>
 
@@ -152,6 +157,13 @@
     position: relative;
     border-radius: 18px;
     overflow: hidden;
+  }
+  .open-full {
+    display: block;
+    cursor: zoom-in;
+  }
+  .open-full:disabled {
+    cursor: default;
   }
   .on-cover {
     position: absolute;

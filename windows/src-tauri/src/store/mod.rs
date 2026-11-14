@@ -67,6 +67,8 @@ INSERT INTO users (id, number, login, username, display_name, created_at)
 "#, r#"
 CREATE TABLE catalog (ref TEXT PRIMARY KEY, kind TEXT NOT NULL, json TEXT NOT NULL, fetched_at INTEGER NOT NULL);
 CREATE INDEX likes_kind ON likes(user_id, kind, deleted, added_at);
+"#, r#"
+ALTER TABLE track_prefs ADD COLUMN eq_json TEXT;
 "#];
 
 pub fn now_ms() -> i64 {
@@ -572,6 +574,86 @@ impl Store {
     tx.commit()?;
     Ok(())
   }
+
+  // ——— тексты: кэш и сдвиг на трек (LYRICS.md §5, §7) ———
+
+  /// Кэш текста: `Some((json, fetched_at))`, json `None` — «не найдено».
+  pub fn lyrics_cached(&self, r: &str) -> Result<Option<(Option<String>, i64)>> {
+    Ok(
+      self
+        .db
+        .query_row("SELECT json, fetched_at FROM lyrics_cache WHERE ref = ?1", [r], |row| Ok((row.get(0)?, row.get(1)?)))
+        .optional()?,
+    )
+  }
+
+  pub fn put_lyrics(&self, r: &str, json: Option<&str>, source: Option<&str>) -> Result<()> {
+    self.db.execute(
+      "INSERT INTO lyrics_cache (ref, json, source, fetched_at) VALUES (?1, ?2, ?3, ?4)
+       ON CONFLICT(ref) DO UPDATE SET json = ?2, source = ?3, fetched_at = ?4",
+      params![r, json, source, now_ms()],
+    )?;
+    Ok(())
+  }
+
+  pub fn clear_lyrics(&self, r: &str) -> Result<()> {
+    self.db.execute("DELETE FROM lyrics_cache WHERE ref = ?1", [r])?;
+    Ok(())
+  }
+
+  /// Сдвиг текста для трека в мс (0 — нет).
+  pub fn lyrics_offset(&self, r: &str) -> Result<i64> {
+    let v: Option<Option<i64>> = self
+      .db
+      .query_row(
+        "SELECT lyrics_offset_ms FROM track_prefs WHERE user_id = ?1 AND ref = ?2 AND deleted = 0",
+        [LOCAL_USER, r],
+        |row| row.get(0),
+      )
+      .optional()?;
+    Ok(v.flatten().unwrap_or(0))
+  }
+
+  /// Записать сдвиг; 0 → поле `NULL`, пустая запись помечается удалённой (для синка).
+  pub fn set_lyrics_offset(&self, r: &str, ms: i64) -> Result<()> {
+    let ms = ms.clamp(-15_000, 15_000);
+    let value = (ms != 0).then_some(ms);
+    let rev = self.next_rev()?;
+    self.db.execute(
+      "INSERT INTO track_prefs (user_id, ref, lyrics_offset_ms, deleted, rev) VALUES (?1, ?2, ?3, 0, ?4)
+       ON CONFLICT(user_id, ref) DO UPDATE SET lyrics_offset_ms = ?3, deleted = 0, rev = ?4",
+      params![LOCAL_USER, r, value, rev],
+    )?;
+    self.db.execute(
+      "UPDATE track_prefs SET deleted = 1 WHERE user_id = ?1 AND ref = ?2 AND speed IS NULL AND lyrics_offset_ms IS NULL AND eq_json IS NULL",
+      [LOCAL_USER, r],
+    )?;
+    Ok(())
+  }
+
+  /// Кривая эквалайзера, запомненная для трека («Запомнить»), — 12 значений в дБ.
+  pub fn track_eq(&self, r: &str) -> Result<Option<Vec<f64>>> {
+    let v: Option<Option<String>> = self
+      .db
+      .query_row("SELECT eq_json FROM track_prefs WHERE user_id = ?1 AND ref = ?2 AND deleted = 0", [LOCAL_USER, r], |row| row.get(0))
+      .optional()?;
+    Ok(v.flatten().and_then(|j| serde_json::from_str(&j).ok()))
+  }
+
+  pub fn set_track_eq(&self, r: &str, gains: Option<&[f64]>) -> Result<()> {
+    let json = gains.map(serde_json::to_string).transpose()?;
+    let rev = self.next_rev()?;
+    self.db.execute(
+      "INSERT INTO track_prefs (user_id, ref, eq_json, deleted, rev) VALUES (?1, ?2, ?3, 0, ?4)
+       ON CONFLICT(user_id, ref) DO UPDATE SET eq_json = ?3, deleted = 0, rev = ?4",
+      params![LOCAL_USER, r, json, rev],
+    )?;
+    self.db.execute(
+      "UPDATE track_prefs SET deleted = 1 WHERE user_id = ?1 AND ref = ?2 AND speed IS NULL AND lyrics_offset_ms IS NULL AND eq_json IS NULL",
+      [LOCAL_USER, r],
+    )?;
+    Ok(())
+  }
 }
 
 #[cfg(test)]
@@ -702,5 +784,26 @@ mod tests {
     s.set_setting("player.volume", &serde_json::json!(0.5)).unwrap();
     s.set_setting("player.volume", &serde_json::json!(0.7)).unwrap();
     assert_eq!(s.setting("player.volume").unwrap(), Some(serde_json::json!(0.7)));
+  }
+
+  #[test]
+  fn lyrics_cache_and_offset() {
+    let s = Store::memory().unwrap();
+    assert!(s.lyrics_cached("sc:1").unwrap().is_none());
+    s.put_lyrics("sc:1", None, None).unwrap();
+    assert_eq!(s.lyrics_cached("sc:1").unwrap().unwrap().0, None);
+    s.put_lyrics("sc:1", Some("{}"), Some("lrclib")).unwrap();
+    assert_eq!(s.lyrics_cached("sc:1").unwrap().unwrap().0.as_deref(), Some("{}"));
+    assert_eq!(s.lyrics_offset("sc:1").unwrap(), 0);
+    s.set_lyrics_offset("sc:1", 250).unwrap();
+    assert_eq!(s.lyrics_offset("sc:1").unwrap(), 250);
+    s.set_lyrics_offset("sc:1", 99_999).unwrap();
+    assert_eq!(s.lyrics_offset("sc:1").unwrap(), 15_000);
+    s.set_lyrics_offset("sc:1", 0).unwrap();
+    assert_eq!(s.lyrics_offset("sc:1").unwrap(), 0);
+    s.set_track_eq("sc:1", Some(&[1.0, -2.5])).unwrap();
+    assert_eq!(s.track_eq("sc:1").unwrap(), Some(vec![1.0, -2.5]));
+    s.set_track_eq("sc:1", None).unwrap();
+    assert_eq!(s.track_eq("sc:1").unwrap(), None);
   }
 }

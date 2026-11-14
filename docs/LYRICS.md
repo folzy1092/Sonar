@@ -33,6 +33,16 @@ type Word = { time: number; duration: number; text: string; isBackground: boolea
      в основном азиатская музыка). Формат на выходе тот же — интерфейс не меняется.
   3. Нет слов у строки → строка подсвечивается целиком по её `progress`; в меню у «По словам»
      подсказка «для этого трека — только по строкам». Слова **не придумываем** равномерно.
+- **Заметка владельца про Dotify (2026-11-14, запомнить на будущее, сейчас не делаем):**
+  фронт Dotify не ходит в lrclib / Genius / Musixmatch — только один `GET /lyrics?title&artist&
+  duration&source&track_id` на свой сервер, ответ protobuf `LyricsResponse` (`lines`, `isSynced`,
+  аннотации). Базовый адрес API в бандле не найден (виден только `dotify.fun`). Фронт вырезает из
+  LRC водяные знаки `lrcgenerator`, `rentanadviser`, `megalobiz`, `lyricsify`, `syair.info`,
+  `minilyrics`, `viewlyrics`, `crintsoft` → их сервер собирает тексты из нескольких LRC-сайтов и,
+  вероятно, ищет по `track_id` сервиса (у lrclib — только название/исполнитель/длительность),
+  поэтому покрытие шире. Плюс у них перевод (`translateLyrics`), слова (`words`) и сдвиг
+  (`lyricsOffset`). Для Sonar это кандидат в `ServerProvider` (§8): свой сервер-агрегатор
+  с тем же форматом `Lyrics` — когда появится сервер.
 - Парсер LRC: `[mm:ss.xx]`, несколько таймкодов на строку, `[offset:±ms]` из файла,
   пустые строки = паузы (проигрыш → индикатор «•••»), строки в `( )` → `isBackground`.
 
@@ -109,14 +119,23 @@ progress  = isPast ? 1 : isCurrent ? clamp((t' - word.time) / d, 0, 1) : 0
 
 ## 8. Архитектура и где код
 
-- **Rust** (`windows/src-tauri/src/lyrics/`): трейт `LyricsProvider { fetch(meta) -> Option<Lyrics> }`;
-  реализации `LocalProvider` (lrclib → Genius, по названию, артисту, длительности) и потом
-  `ServerProvider`. Кэш (память + SQLite), парсер LRC. На выходе всегда `Lyrics` из §1.
+- **Rust** (`windows/src-tauri/src/lyrics/`, сделано в W4): `mod.rs` — типы §1, парсер LRC
+  (enhanced-LRC со словами, `[offset]`, паузы, бэк-вокал), `fetch_any` (lrclib как есть →
+  ядро названия без мусора → «АРТИСТ - ТРЕК» из перезалива → Genius → plain из lrclib);
+  `lrclib.rs`, `genius.rs`. Кэш — SQLite `lyrics_cache` («нет» перепроверяется через 30 мин),
+  в памяти — LRU на 100 треков в `lyrics.svelte.ts`. Команды `lyrics`, `lyrics_offset`,
+  `set_lyrics_offset`. Трейт `LyricsProvider` и `ServerProvider` — когда появится сервер.
+- **Genius и Cloudflare (проверено 2026-11-14):** на запросы из Rust (reqwest — и rustls,
+  и schannel) Genius отвечает проверкой «я не робот» по TLS-отпечатку, а системный
+  `C:\Windows\System32\curl.exe` (есть в Windows 10 1803+) и Python-requests пропускает.
+  Поэтому Genius запрашивается через `curl.exe` скрытым процессом, reqwest — запасной путь.
 - **TypeScript** (`windows/src/lyrics/core/`): **чистые функции без UI** — `clock.ts`
   (§2), `find.ts` (§3), `progress.ts` (§4), `offset.ts` (§5). Тесты — vitest
   (`windows/src/lyrics/core/*.test.ts`).
-- **UI** (`windows/src/lyrics/`): `LyricsView.svelte` (rAF-цикл, прокрутка, маски),
-  `LyricsMenu.svelte` (режим, размер, стиль, анимация, оффсет, перевод).
+- **UI** (`windows/src/lyrics/`): `LyricsView.svelte` (rAF-цикл, прокрутка, заливка слов —
+  градиент `background-clip: text` по `--p`), `LyricsMenu.svelte` (режим, размер, стиль,
+  анимация, оффсет, «Найти заново», перевод — неактивен), `lyrics.svelte.ts` (загрузка,
+  предзагрузка следующего, настройки). Полноэкранный плеер — `windows/src/player/FullPlayer.svelte`.
 
 Обязательные тесты ядра: seek назад и вперёд, пауза/плей, скорость 0.5× и 2×, редкий
 `timeupdate` (раз в 250–500 мс), пустой текст, текст без таймкодов, слова нулевой

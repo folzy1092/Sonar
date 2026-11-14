@@ -8,7 +8,8 @@
   import Library from './pages/Library.svelte'
   import Search from './pages/Search.svelte'
   import Player from './pages/Player.svelte'
-  import Settings from './pages/Settings.svelte'
+  import SettingsPanel from './pages/SettingsPanel.svelte'
+  import { settingsPanel } from './pages/settings-section.svelte'
   import PlaylistPage from './pages/PlaylistPage.svelte'
   import ArtistPage from './pages/ArtistPage.svelte'
   import AlbumPage from './pages/AlbumPage.svelte'
@@ -17,13 +18,14 @@
   import { library } from './lib/library.svelte'
   import { onMount } from 'svelte'
   import { player } from './player/player.svelte'
+  import FullPlayer from './player/FullPlayer.svelte'
+  import { lyrics } from './lyrics/lyrics.svelte'
 
   const pages = {
     home: Home,
     library: Library,
     search: Search,
     player: Player,
-    settings: Settings,
     playlist: PlaylistPage,
     artist: ArtistPage,
     album: AlbumPage,
@@ -35,8 +37,26 @@
 
   onMount(() => {
     player.init()
+    lyrics.init()
     void library.load()
   })
+
+  /** Боковые кнопки мыши: «назад» (button 3) и «вперёд» (button 4). В полноэкранном
+   *  плеере «назад» сворачивает его. mousedown гасим, чтобы WebView не трогал свою историю. */
+  function mouseNav(e: MouseEvent) {
+    if (e.button !== 3 && e.button !== 4) return
+    e.preventDefault()
+    if (e.type !== 'mouseup') return
+    if (e.button === 3) {
+      if (lyrics.fullscreen) lyrics.close()
+      else if (settingsPanel.open) settingsPanel.close()
+      else router.back()
+    } else if (!lyrics.fullscreen && !settingsPanel.open) router.forward()
+  }
+
+  function onKey(e: KeyboardEvent) {
+    if (e.key === 'Escape' && settingsPanel.open && !lyrics.fullscreen) settingsPanel.close()
+  }
 
   $effect(() => {
     router.key
@@ -44,7 +64,10 @@
   })
 </script>
 
-<div class="shell">
+<SettingsPanel />
+
+<div class="stage">
+<div class="shell" class:away={settingsPanel.open} inert={settingsPanel.open}>
   <Rail />
 
   <main class="card">
@@ -69,11 +92,68 @@
     <MiniPlayer />
   </div>
 </div>
+{#if settingsPanel.open}
+  <!-- клик по отъехавшему окну закрывает настройки -->
+  <button class="back-to-app" aria-label="Закрыть настройки" onclick={() => settingsPanel.close()}></button>
+{/if}
+</div>
+
+{#if lyrics.fullscreen}
+  <FullPlayer />
+{/if}
+<svelte:window onmousedown={mouseNav} onmouseup={mouseNav} onkeydown={onKey} />
 
 <TrackMenu />
 <Toast />
 
 <style>
+  /* Открытие настроек (PLATFORMS.md, pc/Screenshot_30..32): окно уезжает вправо на ширину панели
+     и поворачивается вглубь на ~15° (левый край дальше), затемняется; панель слева — плоская. */
+  :global(:root) {
+    --settings-w: 440px;
+  }
+  .stage {
+    position: relative;
+    /* выше панели настроек (z 30): закрыто — окно её прячет, открыто — уезжает и показывает */
+    z-index: 31;
+    height: 100vh;
+    perspective: 1800px;
+    perspective-origin: 30% 50%;
+    overflow: hidden;
+    /* сама сцена прозрачна для мыши — иначе перекроет панель, клики ловят окно и «назад» */
+    pointer-events: none;
+  }
+  .shell,
+  .back-to-app {
+    pointer-events: auto;
+  }
+  .shell {
+    position: relative;
+    z-index: 31;
+    background: var(--bg);
+    transform-origin: left center;
+    transition:
+      transform 0.38s var(--ease),
+      filter 0.38s var(--ease),
+      border-radius 0.38s var(--ease);
+  }
+  .shell.away {
+    transform: translateX(calc(var(--settings-w) + 24px)) rotateY(-15deg) scale(0.9);
+    filter: brightness(0.42);
+    border-radius: 18px;
+    box-shadow: -30px 0 80px rgba(0, 0, 0, 0.6);
+  }
+  .back-to-app {
+    position: absolute;
+    inset: 0 0 0 var(--settings-w);
+    z-index: 32;
+    cursor: pointer;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shell {
+      transition: filter 0.2s linear;
+    }
+  }
   .shell {
     display: grid;
     grid-template-columns: var(--rail-w) minmax(0, 1fr);

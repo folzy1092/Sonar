@@ -2,6 +2,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { isTauri } from './tauri'
+import type { Lyrics } from '../lyrics/core/types'
 
 export type Source = 'sc' | 'ym'
 export type Repeat = 'off' | 'all' | 'one'
@@ -167,6 +168,13 @@ export const api = {
 
   getSetting: <T>(key: string) => call<T | null>('get_setting', { key }),
   setSetting: (key: string, value: unknown) => call<void>('set_setting', { key, value }),
+
+  lyrics: (track: Track, refresh = false) => call<Lyrics | null>('lyrics', { track, refresh }),
+  lyricsOffset: (trackRef: string) => call<number>('lyrics_offset', { trackRef }),
+  setLyricsOffset: (trackRef: string, ms: number) => call<void>('set_lyrics_offset', { trackRef, ms }),
+
+  trackEq: (trackRef: string) => call<number[] | null>('track_eq', { trackRef }),
+  setTrackEq: (trackRef: string, gains: number[] | null) => call<void>('set_track_eq', { trackRef, gains }),
 
   mediaUpdate: (info: MediaInfo) => (isTauri ? invoke<void>('media_update', { info }) : Promise.resolve()),
 }

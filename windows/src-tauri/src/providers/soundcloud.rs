@@ -365,10 +365,15 @@ mod tests {
   #[tokio::test]
   #[ignore]
   async fn live_search_and_stream() {
-    let creds = Creds { client_id: std::env::var("SC_CLIENT_ID").unwrap(), oauth_token: None };
     let http = reqwest::Client::new();
+    let client_id = match std::env::var("SC_CLIENT_ID") {
+      Ok(id) => id,
+      Err(_) => public_client_id(&http).await.unwrap(),
+    };
+    let creds = Creds { client_id, oauth_token: None };
     let sc = SoundCloud { http: &http, creds: &creds };
-    let found = sc.search("lil peep", 5).await.unwrap();
+    let q = std::env::var("SC_QUERY").unwrap_or_else(|_| "lil peep".into());
+    let found = sc.search(&q, 5).await.unwrap();
     assert!(!found.is_empty());
     let (track, json) = &found[0];
     let src = sc.stream(json).await.unwrap();
@@ -378,7 +383,7 @@ mod tests {
     if let Source::Hls { url } = src {
       let text = http.get(&url).send().await.unwrap().text().await.unwrap();
       assert!(text.starts_with("#EXTM3U"));
-      println!("{}", &text[..text.len().min(400)]);
+      println!("{}", &text[..text.len().min(1500)]);
     }
   }
 
