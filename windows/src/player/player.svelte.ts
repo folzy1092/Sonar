@@ -32,6 +32,8 @@ class Player {
   error = $state<string | null>(null)
   positionMs = $state(0)
   durationMs = $state(0)
+  /** Реальный формат потока для плашки: «AAC 160», «MP3 320», «FLAC». */
+  quality = $state<string | null>(null)
 
   volume = $state(0.8)
   repeat = $state<Repeat>('off')
@@ -280,12 +282,14 @@ class Player {
     this.durationMs = track.duration_ms
     this.hls?.destroy()
     this.hls = null
+    this.quality = null
     a.removeAttribute('src')
     this.updateMedia()
 
     try {
       const s = await api.streamUrl(track.ref)
       if (token !== this.loadToken) return
+      this.quality = s.quality
       if (s.kind === 'hls' && Hls.isSupported()) {
         const hls = new Hls({ startPosition: startMs / 1000 })
         hls.on(Hls.Events.ERROR, (_e, data) => {

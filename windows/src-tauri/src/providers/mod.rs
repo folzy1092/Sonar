@@ -98,10 +98,11 @@ pub struct AlbumPage {
 }
 
 /// Откуда играть: прямой файл (с Range) или плейлист HLS (его склеивает hls.js).
+/// `quality` — что реально играет, для плашки в плеере: «AAC 160», «MP3 320», «FLAC».
 #[derive(Debug, Clone, PartialEq)]
 pub enum Source {
-  File { url: String },
-  Hls { url: String },
+  File { url: String, quality: String },
+  Hls { url: String, quality: String },
 }
 
 /// Подключённый аккаунт сервиса — для экрана «Сервисы».

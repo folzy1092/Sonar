@@ -17,9 +17,38 @@
   const liked = $derived(library.isLiked(track?.ref))
   const openPlayer = () => !hasSelection() && router.go('player')
   const progress = $derived(duration ? Math.min(100, (player.positionMs / duration) * 100) : 0)
+
+  // Прогресс в стиле «Гибрид» — весь фон мини-плеера: клик по пустому месту (не по кнопке, ссылке
+  // или тексту) перематывает туда, как в Dotify. Тянуть тоже можно.
+  let bar: HTMLElement | undefined = $state()
+  let dragging = $state(false)
+  const isControl = (t: EventTarget | null) =>
+    !!(t as HTMLElement | null)?.closest?.('button, a, input, [role="link"], .selectable, .capsule')
+
+  function seekAt(clientX: number) {
+    if (!bar || !duration || !track) return
+    const r = bar.getBoundingClientRect()
+    player.seek(Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * duration)
+  }
+
+  function down(e: PointerEvent) {
+    if (e.button !== 0 || isControl(e.target) || !track) return
+    dragging = true
+    bar?.setPointerCapture(e.pointerId)
+    seekAt(e.clientX)
+  }
 </script>
 
-<footer class="mini">
+<footer
+  class="mini"
+  class:seekable={!!track}
+  class:dragging
+  bind:this={bar}
+  onpointerdown={down}
+  onpointermove={(e) => dragging && seekAt(e.clientX)}
+  onpointerup={() => (dragging = false)}
+  onpointercancel={() => (dragging = false)}
+>
   <div class="fill" style:width="{progress}%" aria-hidden="true"></div>
 
   <div class="left">
@@ -105,6 +134,15 @@
     background: var(--hover);
     pointer-events: none;
     transition: width 0.25s linear;
+  }
+  .mini.seekable {
+    cursor: pointer;
+  }
+  .mini.seekable:hover .fill {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .mini.dragging .fill {
+    transition: none;
   }
   .left,
   .center,

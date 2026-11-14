@@ -108,6 +108,8 @@ export interface ServicesStatus {
 export interface StreamUrl {
   kind: 'file' | 'hls'
   url: string
+  /** Что реально играет: «AAC 160», «MP3 320», «FLAC». */
+  quality: string
 }
 
 export interface MediaInfo {

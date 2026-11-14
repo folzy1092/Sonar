@@ -77,7 +77,11 @@
 
     <div class="seek">
       <SeekBar times={false} />
-      <div class="times"><span>{formatTime(player.positionMs)}</span><span>{formatTime(duration)}</span></div>
+      <div class="times">
+        <span>{formatTime(player.positionMs)}</span>
+        {#if player.quality}<span class="quality" title="Что реально играет">{player.quality}</span>{/if}
+        <span>{formatTime(duration)}</span>
+      </div>
     </div>
 
     <Wave height={52} />
@@ -258,6 +262,15 @@
     font-size: 11px;
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
+  }
+  .quality {
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-2);
   }
   .panel {
     border: 1px solid var(--border);

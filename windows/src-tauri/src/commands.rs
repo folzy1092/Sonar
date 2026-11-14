@@ -64,17 +64,19 @@ pub async fn search(
 pub struct StreamUrl {
   kind: &'static str,
   url: String,
+  /// Что реально играет: «AAC 160», «MP3 320», «FLAC».
+  quality: String,
 }
 
 /// Адрес на локальном аудио-сервере для `<audio>` (file) или hls.js (hls).
 #[tauri::command]
 pub async fn stream_url(core: State<'_, Arc<Core>>, port: State<'_, StreamPort>, track_ref: String) -> Res<StreamUrl> {
   let src = core.resolve(&track_ref, false).await.map_err(err)?;
-  let (kind, path) = match src {
-    Source::File { .. } => ("file", "file"),
-    Source::Hls { .. } => ("hls", "hls"),
+  let (kind, path, quality) = match src {
+    Source::File { quality, .. } => ("file", "file", quality),
+    Source::Hls { quality, .. } => ("hls", "hls", quality),
   };
-  Ok(StreamUrl { kind, url: format!("http://127.0.0.1:{}/{path}?ref={}", port.0, urlencoding::encode(&track_ref)) })
+  Ok(StreamUrl { kind, url: format!("http://127.0.0.1:{}/{path}?ref={}", port.0, urlencoding::encode(&track_ref)), quality })
 }
 
 #[tauri::command]

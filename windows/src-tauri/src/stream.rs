@@ -75,7 +75,7 @@ async fn file(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>, headers:
   let range = headers.get(header::RANGE);
   for fresh in [false, true] {
     let url = match core.resolve(&q.ref_, fresh).await {
-      Ok(Source::File { url }) => url,
+      Ok(Source::File { url, .. }) => url,
       Ok(Source::Hls { .. }) => return plain(StatusCode::BAD_REQUEST, "этот трек — HLS, нужен /hls"),
       Err(e) => return plain(StatusCode::BAD_GATEWAY, e.to_string()),
     };
@@ -92,7 +92,7 @@ async fn file(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>, headers:
 async fn hls(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>) -> Response<Body> {
   for fresh in [false, true] {
     let url = match core.resolve(&q.ref_, fresh).await {
-      Ok(Source::Hls { url }) => url,
+      Ok(Source::Hls { url, .. }) => url,
       Ok(Source::File { .. }) => return plain(StatusCode::BAD_REQUEST, "этот трек — файл, нужен /file"),
       Err(e) => return plain(StatusCode::BAD_GATEWAY, e.to_string()),
     };

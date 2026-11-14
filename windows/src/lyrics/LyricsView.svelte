@@ -213,7 +213,7 @@
   .line {
     display: block;
     width: 100%;
-    margin: 0;
+    margin: 0 0 0.3em;
     padding: 0.22em 0.25em;
     border-radius: 12px;
     text-align: left;

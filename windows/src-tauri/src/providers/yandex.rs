@@ -215,7 +215,7 @@ impl Yandex<'_> {
   pub async fn stream(&self, id: &str, max_kbps: u32) -> Result<Source> {
     if max_kbps >= LOSSLESS_KBPS {
       match self.lossless_info(id).await {
-        Ok(Some((url, _, _))) => return Ok(Source::File { url }),
+        Ok(Some((url, _, _))) => return Ok(Source::File { url, quality: "FLAC".into() }),
         Ok(None) => {}
         Err(e) => log::warn!("[yandex] lossless: {e}"),
       }
@@ -229,7 +229,8 @@ impl Yandex<'_> {
     }
     let xml = r.text().await?;
     let url = signed_link(&xml).ok_or_else(|| anyhow!("Яндекс Музыка: не разобрал ссылку на файл"))?;
-    Ok(Source::File { url })
+    let quality = format!("MP3 {}", info["bitrateInKbps"].as_u64().unwrap_or(0));
+    Ok(Source::File { url, quality })
   }
 }
 

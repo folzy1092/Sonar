@@ -160,7 +160,12 @@ impl SoundCloud<'_> {
     let auth = track["track_authorization"].as_str().unwrap_or("");
     let data = self.get(url, &[("track_authorization", auth)]).await?;
     let link = data["url"].as_str().ok_or_else(|| anyhow!("SoundCloud: поток без ссылки"))?.to_owned();
-    Ok(if t["format"]["protocol"] == "progressive" { Source::File { url: link } } else { Source::Hls { url: link } })
+    let quality = quality_label(t);
+    Ok(if t["format"]["protocol"] == "progressive" {
+      Source::File { url: link, quality }
+    } else {
+      Source::Hls { url: link, quality }
+    })
   }
 }
 
@@ -217,6 +222,14 @@ fn find_client_id(js: &str) -> Option<String> {
 
 /// Лучший вариант, который умеют `<audio>` и hls.js: AAC HLS (больший битрейт) → mp3 файлом → mp3 HLS.
 /// Зашифрованные (DRM) и Opus пропускаем; превью 30 с — только если другого нет.
+/// «aac_160k» → «AAC 160», mp3 → «MP3 128» (битрейт у mp3_* в пресете не пишут).
+pub fn quality_label(t: &Value) -> String {
+  let preset = t["preset"].as_str().unwrap_or("");
+  let codec = if t["format"]["mime_type"].as_str().unwrap_or("").contains("mpeg") { "MP3" } else { "AAC" };
+  let kbps = preset.split('_').find_map(|p| p.strip_suffix('k').and_then(|n| n.parse::<u32>().ok())).unwrap_or(128);
+  format!("{codec} {kbps}")
+}
+
 pub fn pick_transcoding(track: &Value) -> Option<&Value> {
   let list = track["media"]["transcodings"].as_array()?;
   let score = |t: &Value| -> Option<i32> {
@@ -380,7 +393,7 @@ mod tests {
     let presets: Vec<_> = json["media"]["transcodings"].as_array().unwrap().iter()
       .map(|t| format!("{} {}", t["preset"], t["format"]["protocol"])).collect();
     println!("{} — {}: {presets:?} → {:?}", track.artist, track.title, pick_transcoding(json).unwrap()["preset"]);
-    if let Source::Hls { url } = src {
+    if let Source::Hls { url, .. } = src {
       let text = http.get(&url).send().await.unwrap().text().await.unwrap();
       assert!(text.starts_with("#EXTM3U"));
       println!("{}", &text[..text.len().min(1500)]);

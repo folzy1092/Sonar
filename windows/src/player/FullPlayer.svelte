@@ -5,6 +5,7 @@
   // справа караоке. «T» прячет/показывает текст, правый клик по тексту — меню текста.
   import { onMount } from 'svelte'
   import { cubicOut } from 'svelte/easing'
+  import { fade } from 'svelte/transition'
   import Icon from '../components/Icon.svelte'
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
@@ -76,8 +77,18 @@
 </script>
 
 <div class="fs" transition:zoom role="dialog" aria-label="Полноэкранный плеер">
+  <!-- фон: обложка, сильно размытая, и две её копии медленно плавают (как в Dotify) —
+       видны только пятна и силуэт, саму картинку не разобрать -->
   <div class="bg" aria-hidden="true">
-    {#if track?.cover_url}<img src={track.cover_url} alt="" />{/if}
+    {#key track?.cover_url}
+      {#if track?.cover_url}
+        <div class="layer" transition:fade={{ duration: 700 }}>
+          <img class="base" src={track.cover_url} alt="" />
+          <img class="float a" src={track.cover_url} alt="" />
+          <img class="float b" src={track.cover_url} alt="" />
+        </div>
+      {/if}
+    {/key}
   </div>
 
   <header data-tauri-drag-region>
@@ -214,22 +225,77 @@
     inset: 0;
     pointer-events: none;
   }
-  .bg img {
+  .layer {
     position: absolute;
-    inset: -10%;
-    width: 120%;
-    height: 120%;
+    inset: 0;
+    overflow: hidden;
+  }
+  .base {
+    position: absolute;
+    inset: -15%;
+    width: 130%;
+    height: 130%;
     object-fit: cover;
-    filter: blur(70px) saturate(120%) brightness(0.42);
-    transform: scale(1.1);
+    filter: blur(90px) saturate(120%) brightness(0.55);
+  }
+  .float {
+    position: absolute;
+    width: 85vmin;
+    height: 85vmin;
+    object-fit: cover;
+    border-radius: 30%;
+    filter: blur(30px) saturate(120%) brightness(0.7);
+    opacity: 0.85;
+    will-change: transform;
+  }
+  .float.a {
+    left: 38%;
+    top: 8%;
+    animation: drift-a 46s ease-in-out infinite alternate;
+  }
+  .float.b {
+    left: -10%;
+    top: 40%;
+    opacity: 0.5;
+    animation: drift-b 61s ease-in-out infinite alternate;
+  }
+  @keyframes drift-a {
+    0% {
+      transform: translate(0, 0) rotate(0deg) scale(1);
+    }
+    35% {
+      transform: translate(-14vw, 10vh) rotate(-18deg) scale(1.12);
+    }
+    70% {
+      transform: translate(-4vw, 26vh) rotate(12deg) scale(0.92);
+    }
+    100% {
+      transform: translate(10vw, 4vh) rotate(28deg) scale(1.05);
+    }
+  }
+  @keyframes drift-b {
+    0% {
+      transform: translate(0, 0) rotate(0deg) scale(1.05);
+    }
+    50% {
+      transform: translate(22vw, -18vh) rotate(24deg) scale(0.9);
+    }
+    100% {
+      transform: translate(8vw, -6vh) rotate(-16deg) scale(1.15);
+    }
   }
   .bg::after {
     content: '';
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(ellipse at 50% 40%, transparent 0%, rgba(0, 0, 0, 0.45) 80%),
-      linear-gradient(to bottom, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.5));
+      radial-gradient(ellipse at 50% 45%, transparent 0%, rgba(0, 0, 0, 0.35) 85%),
+      linear-gradient(to bottom, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.4));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .float {
+      animation: none;
+    }
   }
   header,
   .body,
