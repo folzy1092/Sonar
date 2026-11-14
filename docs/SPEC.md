@@ -405,6 +405,12 @@ String Catalog (`Localizable.xcstrings`), ru — основной, en. Язык 
   `tauri-plugin-updater` (автообновление из GitHub Releases).
 - Флаги WebView2 (как у Dotify): autoplay без жеста, без троттлинга фоновых таймеров,
   GPU-растеризация; системные медиа-клавиши WebView отключены — их ведёт Rust.
+- **Образец — Dotify** (приложение друга владельца, разрешено опираться): распакованный
+  фронтенд лежит локально в `C:/Users/Folzy/dotify-work` (в репо не идёт). Его стек: Tauri +
+  React 19 + Tailwind, Dexie (IndexedDB), `hls.js` + `<audio>`, локальный аудио-сервер Rust
+  на `127.0.0.1:53080`, WebGL-фон текста, шрифты fontsource. Sonar остаётся на Svelte, но
+  берёт оттуда вид, размеры, флаги WebView2 и приёмы: `hls.js` для HLS SoundCloud (W2),
+  WebGL-фон текста (W4), шрифты fontsource (W5).
 
 ### 9.2. Аудио
 - Играет **WebView** (`<audio>` + Web Audio): два элемента по очереди — бесшовность и
