@@ -77,15 +77,14 @@
 </script>
 
 <div class="fs" transition:zoom role="dialog" aria-label="Полноэкранный плеер">
-  <!-- фон: обложка, сильно размытая, и две её копии медленно плавают (как в Dotify) —
-       видны только пятна и силуэт, саму картинку не разобрать -->
+  <!-- фон как в Dotify: одна огромная, сильно размытая копия обложки медленно плывёт и
+       поворачивается — тянется силуэт, саму картинку не разобрать; под ней — средний цвет обложки -->
   <div class="bg" aria-hidden="true">
     {#key track?.cover_url}
       {#if track?.cover_url}
         <div class="layer" transition:fade={{ duration: 700 }}>
           <img class="base" src={track.cover_url} alt="" />
-          <img class="float a" src={track.cover_url} alt="" />
-          <img class="float b" src={track.cover_url} alt="" />
+          <img class="float" src={track.cover_url} alt="" />
         </div>
       {/if}
     {/key}
@@ -232,56 +231,36 @@
   }
   .base {
     position: absolute;
-    inset: -15%;
-    width: 130%;
-    height: 130%;
+    inset: -20%;
+    width: 140%;
+    height: 140%;
     object-fit: cover;
-    filter: blur(90px) saturate(120%) brightness(0.55);
+    filter: blur(140px) saturate(110%) brightness(0.62);
   }
   .float {
     position: absolute;
-    width: 85vmin;
-    height: 85vmin;
+    left: 50%;
+    top: 50%;
+    width: 130vmax;
+    height: 130vmax;
+    margin: -65vmax 0 0 -65vmax;
     object-fit: cover;
-    border-radius: 30%;
-    filter: blur(30px) saturate(120%) brightness(0.7);
-    opacity: 0.85;
+    filter: blur(70px) saturate(110%) brightness(0.68);
     will-change: transform;
+    animation: drift 22s ease-in-out infinite alternate;
   }
-  .float.a {
-    left: 38%;
-    top: 8%;
-    animation: drift-a 18s ease-in-out infinite alternate;
-  }
-  .float.b {
-    left: -10%;
-    top: 40%;
-    opacity: 0.5;
-    animation: drift-b 24s ease-in-out infinite alternate;
-  }
-  @keyframes drift-a {
+  @keyframes drift {
     0% {
-      transform: translate(0, 0) rotate(0deg) scale(1);
+      transform: translate(18vw, -6vh) rotate(-8deg) scale(1);
     }
-    35% {
-      transform: translate(-14vw, 10vh) rotate(-18deg) scale(1.12);
+    33% {
+      transform: translate(4vw, 12vh) rotate(14deg) scale(1.12);
     }
-    70% {
-      transform: translate(-4vw, 26vh) rotate(12deg) scale(0.92);
+    66% {
+      transform: translate(-14vw, -4vh) rotate(-20deg) scale(0.95);
     }
     100% {
-      transform: translate(10vw, 4vh) rotate(28deg) scale(1.05);
-    }
-  }
-  @keyframes drift-b {
-    0% {
-      transform: translate(0, 0) rotate(0deg) scale(1.05);
-    }
-    50% {
-      transform: translate(22vw, -18vh) rotate(24deg) scale(0.9);
-    }
-    100% {
-      transform: translate(8vw, -6vh) rotate(-16deg) scale(1.15);
+      transform: translate(-4vw, 10vh) rotate(6deg) scale(1.08);
     }
   }
   .bg::after {
@@ -289,8 +268,8 @@
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(ellipse at 50% 45%, transparent 0%, rgba(0, 0, 0, 0.35) 85%),
-      linear-gradient(to bottom, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.4));
+      radial-gradient(ellipse at 50% 45%, transparent 0%, rgba(0, 0, 0, 0.22) 90%),
+      linear-gradient(to bottom, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.25));
   }
   @media (prefers-reduced-motion: reduce) {
     .float {
