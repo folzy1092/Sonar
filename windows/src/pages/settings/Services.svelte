@@ -72,7 +72,7 @@
         {#if status?.soundcloud.connected}
           Подключён{status.soundcloud.name ? ` как ${status.soundcloud.name}` : ' (без входа — только открытые треки)'}
         {:else}
-          Не подключён
+          Без входа: поиск и открытые треки работают сами
         {/if}
       </p>
     </div>
@@ -91,6 +91,7 @@
       <input bind:value={scToken} type="password" placeholder="2-123456-…" autocomplete="off" spellcheck="false" />
     </label>
     <p class="hint">
+      Ключи нужны, чтобы играли и твои закрытые треки, а в W3 — подтянуть лайки и плейлисты.
       soundcloud.com → F12 → Сеть → любой запрос к api-v2: <code>client_id</code> в адресе, токен — в
       заголовке <code>Authorization: OAuth …</code>.
     </p>

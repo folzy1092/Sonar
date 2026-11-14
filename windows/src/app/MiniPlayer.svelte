@@ -1,4 +1,6 @@
 <script lang="ts">
+  // Мини-плеер в стиле «Гибрид» (reference/pc/гибрид.png, mini.style = hybrid): прогресс — фоном,
+  // по центру простые значки без кругов, справа капсула скорость · громкость · очередь · текст.
   import Icon from '../components/Icon.svelte'
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
@@ -10,34 +12,29 @@
   const track = $derived(player.current)
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
   const progress = $derived(duration ? Math.min(100, (player.positionMs / duration) * 100) : 0)
-
-  function seekFromBar(e: MouseEvent) {
-    const el = e.currentTarget as HTMLElement
-    const r = el.getBoundingClientRect()
-    player.seek(((e.clientX - r.left) / r.width) * duration)
-  }
 </script>
 
 <footer class="mini">
-  <button class="progress" aria-label="Перемотка" disabled={!track} onclick={seekFromBar}>
-    <span style:width="{progress}%"></span>
-  </button>
+  <div class="fill" style:width="{progress}%" aria-hidden="true"></div>
 
-  <button class="now" onclick={() => router.go('player')} title="Открыть плеер">
-    <Cover url={track?.cover_url} size={44} />
-    <div class="meta">
-      <span class="title">{track?.title ?? 'Ничего не играет'}</span>
-      {#if player.error}
-        <span class="artist err" title={player.error}>{player.error}</span>
-      {:else}
-        <span class="artist">{track?.artist ?? 'Найди трек в поиске или медиатеке'}</span>
-      {/if}
-    </div>
-  </button>
+  <div class="left">
+    <button class="now" onclick={() => router.go('player')} title="Открыть плеер">
+      <Cover url={track?.cover_url} size={46} />
+      <span class="meta">
+        <span class="title">{track?.title ?? 'Ничего не играет'}</span>
+        {#if player.error}
+          <span class="artist err" title={player.error}>{player.error}</span>
+        {:else}
+          <span class="artist">{track?.artist ?? 'Найди трек в поиске'}</span>
+        {/if}
+      </span>
+    </button>
+    {#if track}
+      <IconButton icon="heart" label="В Любимые — W3" size={17} filled disabled />
+    {/if}
+  </div>
 
   <div class="center">
-    <IconButton icon="heart" label="В Любимые (W3)" size={18} disabled />
-    <span class="sep"></span>
     <IconButton
       icon={player.repeat === 'one' ? 'repeatOnce' : 'repeat'}
       label={player.repeat === 'off' ? 'Повтор: выкл' : player.repeat === 'all' ? 'Повтор: всё' : 'Повтор: трек'}
@@ -55,17 +52,19 @@
       disabled={!track}
       onclick={() => player.toggle()}
     >
-      <Icon name={player.playing ? 'pause' : 'play'} size={18} filled />
+      <Icon name={player.playing ? 'pause' : 'play'} size={22} filled />
     </button>
     <IconButton icon="next" label="Вперёд" size={18} filled disabled={!track} onclick={() => player.next()} />
     <IconButton icon="shuffle" label="Перемешать" size={18} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
   </div>
 
   <div class="right">
-    <SpeedButton />
-    <Volume />
-    <IconButton icon="lyrics" label="Текст (W4)" size={18} disabled />
-    <IconButton icon="queue" label="Очередь" size={18} disabled={!track} onclick={() => router.go('player')} />
+    <div class="capsule">
+      <SpeedButton />
+      <Volume />
+      <IconButton icon="queue" label="Очередь" size={17} disabled={!track} onclick={() => router.go('player')} />
+      <IconButton icon="lyrics" label="Текст — W4" size={17} disabled />
+    </div>
   </div>
 </footer>
 
@@ -77,46 +76,38 @@
     align-items: center;
     gap: 16px;
     height: var(--player-h);
-    padding: 0 12px 0 10px;
+    padding: 0 12px 0 8px;
     border-radius: var(--radius-l);
     background: var(--surface-1);
     border: 1px solid var(--border);
+    overflow: hidden;
   }
-  .progress {
+  .fill {
     position: absolute;
-    left: 14px;
-    right: 14px;
-    bottom: -1px;
-    height: 7px;
-    padding: 3px 0 2px;
-    background-clip: content-box;
-    background-color: var(--border);
-    cursor: pointer;
-  }
-  .progress:disabled {
-    cursor: default;
-  }
-  .progress span {
-    display: block;
-    height: 100%;
-    background: var(--accent);
-    border-radius: 2px;
+    inset: 0 auto 0 0;
+    background: var(--hover);
+    pointer-events: none;
     transition: width 0.25s linear;
+  }
+  .left,
+  .center,
+  .right {
+    position: relative;
+  }
+  .left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
   }
   .now {
     display: flex;
     align-items: center;
     gap: 12px;
     min-width: 0;
-    text-align: left;
+    padding: 4px;
     border-radius: var(--radius-m);
-    padding: 4px 8px 4px 4px;
-    justify-self: start;
-    max-width: 100%;
-    transition: background var(--fast) var(--ease);
-  }
-  .now:hover {
-    background: var(--hover);
+    text-align: left;
   }
   .meta {
     display: flex;
@@ -132,6 +123,10 @@
   .title {
     font-weight: 600;
   }
+  .now:hover .title {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
   .artist {
     font-size: 12px;
     color: var(--text-3);
@@ -142,32 +137,21 @@
   .center {
     display: flex;
     align-items: center;
-    gap: 4px;
-  }
-  .sep {
-    width: 1px;
-    height: 18px;
-    margin: 0 6px;
-    background: var(--border-strong);
+    gap: 6px;
   }
   .play {
     display: grid;
     place-items: center;
-    width: 40px;
-    height: 40px;
-    margin: 0 4px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: var(--accent-ink);
-    transition:
-      transform var(--fast) var(--ease),
-      opacity var(--fast) var(--ease);
+    width: 38px;
+    height: 38px;
+    color: var(--text);
+    transition: transform var(--fast) var(--ease);
   }
-  .play:hover:not(:disabled) {
-    transform: scale(1.06);
+  .play:active:not(:disabled) {
+    transform: scale(0.9);
   }
   .play:disabled {
-    opacity: 0.4;
+    opacity: 0.35;
     cursor: default;
   }
   .play.loading {
@@ -175,18 +159,35 @@
   }
   @keyframes pulse {
     50% {
-      opacity: 0.6;
+      opacity: 0.5;
     }
   }
   .right {
     display: flex;
     justify-content: flex-end;
+  }
+  .capsule {
+    display: flex;
     align-items: center;
     gap: 2px;
+    padding: 3px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+  }
+  .capsule :global(.icon-btn) {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+  }
+  .capsule :global(.icon-btn:hover:not(:disabled)) {
+    background: none;
   }
   @media (prefers-reduced-motion: reduce) {
     .play.loading {
       animation: none;
+    }
+    .fill {
+      transition: none;
     }
   }
 </style>

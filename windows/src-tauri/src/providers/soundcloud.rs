@@ -75,6 +75,57 @@ impl SoundCloud<'_> {
   }
 }
 
+/// Публичный client_id с soundcloud.com (как `_sc_refresh_client_id` в selfbot): страница →
+/// скрипты `a-v2.sndcdn.com/assets/*.js` с конца → `client_id:"<32 символа>"`.
+pub async fn public_client_id(http: &reqwest::Client) -> Result<String> {
+  let get = |url: String| async move {
+    let r = http.get(&url).header("User-Agent", UA).send().await?;
+    if !r.status().is_success() {
+      return Err(http_error("SoundCloud", r.status()));
+    }
+    Ok::<String, anyhow::Error>(r.text().await?)
+  };
+  let page = get("https://soundcloud.com/".into()).await?;
+  for src in script_urls(&page).into_iter().rev() {
+    if let Ok(js) = get(src).await {
+      if let Some(id) = find_client_id(&js) {
+        return Ok(id);
+      }
+    }
+  }
+  Err(anyhow!("SoundCloud: не нашёл client_id на сайте — вставь свой в Настройки → Сервисы"))
+}
+
+fn script_urls(html: &str) -> Vec<String> {
+  const START: &str = "https://a-v2.sndcdn.com/assets/";
+  let mut out = Vec::new();
+  let mut rest = html;
+  while let Some(i) = rest.find(START) {
+    let tail = &rest[i..];
+    let end = tail.find('"').unwrap_or(tail.len());
+    if tail[..end].ends_with(".js") {
+      out.push(tail[..end].to_owned());
+    }
+    rest = &tail[end..];
+  }
+  out
+}
+
+fn find_client_id(js: &str) -> Option<String> {
+  for pat in ["client_id:\"", "client_id=\""] {
+    let mut rest = js;
+    while let Some(i) = rest.find(pat) {
+      let after = &rest[i + pat.len()..];
+      let id: String = after.chars().take_while(|c| c.is_ascii_alphanumeric()).collect();
+      if id.len() == 32 && after[32..].starts_with('"') {
+        return Some(id);
+      }
+      rest = after;
+    }
+  }
+  None
+}
+
 /// Лучший вариант, который умеют `<audio>` и hls.js: AAC HLS (больший битрейт) → mp3 файлом → mp3 HLS.
 /// Зашифрованные (DRM) и Opus пропускаем; превью 30 с — только если другого нет.
 pub fn pick_transcoding(track: &Value) -> Option<&Value> {
@@ -148,6 +199,23 @@ mod tests {
       tc("hls", "audio/mp4; codecs=\"mp4a.40.2\"", "aac_96k", false),
     ]}});
     assert_eq!(pick_transcoding(&t).unwrap()["preset"], "aac_160k");
+  }
+
+  #[test]
+  fn finds_scripts_and_client_id() {
+    let html = r#"<script crossorigin src="https://a-v2.sndcdn.com/assets/0-a.js"></script>
+      <link href="https://a-v2.sndcdn.com/assets/x.css"><script src="https://a-v2.sndcdn.com/assets/49-b.js"></script>"#;
+    assert_eq!(script_urls(html), ["https://a-v2.sndcdn.com/assets/0-a.js", "https://a-v2.sndcdn.com/assets/49-b.js"]);
+    let js = r#"a={client_id:"short"},b={client_id:"AbCdEfGhIjKlMnOpQrStUvWxYz012345",env:"production"}"#;
+    assert_eq!(find_client_id(js).as_deref(), Some("AbCdEfGhIjKlMnOpQrStUvWxYz012345"));
+  }
+
+  /// Публичный client_id с сайта (сеть): `cargo test live_public -- --ignored`.
+  #[tokio::test]
+  #[ignore]
+  async fn live_public_client_id() {
+    let id = public_client_id(&reqwest::Client::new()).await.unwrap();
+    assert_eq!(id.len(), 32);
   }
 
   #[test]

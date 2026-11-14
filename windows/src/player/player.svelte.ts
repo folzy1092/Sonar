@@ -30,7 +30,6 @@ class Player {
   durationMs = $state(0)
 
   volume = $state(0.8)
-  muted = $state(false)
   repeat = $state<Repeat>('off')
   shuffle = $state(false)
   speedMode = $state<SpeedMode>('normal')
@@ -164,14 +163,8 @@ class Player {
 
   setVolume(v: number) {
     this.volume = Math.max(0, Math.min(1, v))
-    if (this.volume > 0) this.muted = false
     this.applyVolume()
     void api.setSetting('player.volume', this.volume).catch(() => {})
-  }
-
-  toggleMute() {
-    this.muted = !this.muted
-    this.applyVolume()
   }
 
   setSpeedMode(mode: SpeedMode) {
@@ -184,7 +177,7 @@ class Player {
 
   private applyVolume() {
     // квадрат — громкость на слух ровнее, чем линейная
-    if (this.audio) this.audio.volume = this.muted ? 0 : this.volume * this.volume
+    if (this.audio) this.audio.volume = this.volume * this.volume
   }
 
   private applySpeed() {

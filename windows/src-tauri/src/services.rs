@@ -40,6 +40,8 @@ pub struct Core {
   ym: RwLock<Option<Stored<yandex::Creds>>>,
   /// Сырой JSON треков SoundCloud из поиска — в нём `transcodings` для потока.
   sc_raw: Mutex<HashMap<String, Value>>,
+  /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
+  sc_auto: RwLock<Option<String>>,
   streams: Mutex<HashMap<String, (Source, Instant)>>,
   /// Потолок битрейта Яндекса (`audio.quality`): 192 / 256 / 320.
   pub max_kbps: AtomicU32,
@@ -64,8 +66,49 @@ impl Core {
       sc: RwLock::new(secrets::load("soundcloud")),
       ym: RwLock::new(secrets::load("yandex")),
       sc_raw: Mutex::new(HashMap::new()),
+      sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
       max_kbps: AtomicU32::new(320),
+    }
+  }
+
+  /// Ключи SoundCloud: свои из «Сервисов», иначе публичный client_id с сайта.
+  /// Второе значение — true, если ключи публичные (их можно взять заново при 401/403).
+  /// `renew` — выбросить старый публичный client_id и найти свежий.
+  async fn sc_creds(&self, renew: bool) -> Result<(soundcloud::Creds, bool)> {
+    if let Some(s) = self.sc.read().await.as_ref() {
+      return Ok((s.creds.clone(), false));
+    }
+    if !renew {
+      if let Some(id) = self.sc_auto.read().await.clone() {
+        return Ok((soundcloud::Creds { client_id: id, oauth_token: None }, true));
+      }
+    }
+    let id = soundcloud::public_client_id(&self.http).await?;
+    *self.sc_auto.write().await = Some(id.clone());
+    Ok((soundcloud::Creds { client_id: id, oauth_token: None }, true))
+  }
+
+  async fn sc_search(&self, creds: &soundcloud::Creds, q: &str, limit: u32) -> Result<Vec<(Track, Value)>> {
+    soundcloud::SoundCloud { http: &self.http, creds }.search(q, limit).await
+  }
+
+  async fn sc_stream(&self, creds: &soundcloud::Creds, track_ref: &str, id: &str, fresh: bool) -> Result<Source> {
+    let sc = soundcloud::SoundCloud { http: &self.http, creds };
+    let cached = self.sc_raw.lock().unwrap().get(track_ref).cloned();
+    let json = match cached {
+      Some(j) if !fresh => j,
+      _ => sc.track_json(id).await?,
+    };
+    match sc.stream(&json).await {
+      Ok(src) => Ok(src),
+      // в сохранённом JSON могла протухнуть track_authorization — берём трек заново
+      Err(_) if !fresh => {
+        let json = sc.track_json(id).await?;
+        self.sc_raw.lock().unwrap().insert(track_ref.to_owned(), json.clone());
+        sc.stream(&json).await
+      }
+      Err(e) => Err(e),
     }
   }
 
@@ -84,6 +127,7 @@ impl Core {
       sc: RwLock::new(None),
       ym: RwLock::new(None),
       sc_raw: Mutex::new(HashMap::new()),
+      sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
       max_kbps: AtomicU32::new(320),
     }
@@ -129,9 +173,11 @@ impl Core {
   pub async fn search(&self, q: &str, src: &str, limit: u32) -> Result<Vec<Track>> {
     match src {
       "sc" => {
-        let guard = self.sc.read().await;
-        let s = guard.as_ref().ok_or_else(|| anyhow!("SoundCloud не подключён — открой Настройки → Сервисы"))?;
-        let found = soundcloud::SoundCloud { http: &self.http, creds: &s.creds }.search(q, limit).await?;
+        let (creds, public) = self.sc_creds(false).await?;
+        let found = match self.sc_search(&creds, q, limit).await {
+          Err(e) if public && is_auth_error(&e) => self.sc_search(&self.sc_creds(true).await?.0, q, limit).await?,
+          r => r?,
+        };
         let mut raw = self.sc_raw.lock().unwrap();
         if raw.len() > 2000 {
           raw.clear();
@@ -165,22 +211,12 @@ impl Core {
     let (kind, id) = track_ref.split_once(':').ok_or_else(|| anyhow!("плохой ref {track_ref}"))?;
     let src = match kind {
       "sc" => {
-        let guard = self.sc.read().await;
-        let s = guard.as_ref().ok_or_else(|| anyhow!("SoundCloud не подключён"))?;
-        let sc = soundcloud::SoundCloud { http: &self.http, creds: &s.creds };
-        let cached = self.sc_raw.lock().unwrap().get(track_ref).cloned();
-        let json = match cached {
-          Some(j) if !fresh => j,
-          _ => sc.track_json(id).await?,
-        };
-        let src = sc.stream(&json).await;
-        if src.is_err() && !fresh {
-          // в сохранённом JSON могла протухнуть track_authorization — берём трек заново
-          let json = sc.track_json(id).await?;
-          self.sc_raw.lock().unwrap().insert(track_ref.to_owned(), json.clone());
-          sc.stream(&json).await?
-        } else {
-          src?
+        let (creds, public) = self.sc_creds(false).await?;
+        match self.sc_stream(&creds, track_ref, id, fresh).await {
+          Err(e) if public && is_auth_error(&e) => {
+            self.sc_stream(&self.sc_creds(true).await?.0, track_ref, id, true).await?
+          }
+          r => r?,
         }
       }
       "ym" => {
@@ -193,4 +229,10 @@ impl Core {
     self.streams.lock().unwrap().insert(track_ref.to_owned(), (src.clone(), Instant::now()));
     Ok(src)
   }
+}
+
+/// 401/403 от сервиса — ключ не подошёл (публичный client_id SoundCloud время от времени меняется).
+fn is_auth_error(e: &anyhow::Error) -> bool {
+  let t = e.to_string();
+  t.contains("HTTP 401") || t.contains("HTTP 403")
 }

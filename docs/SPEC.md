@@ -423,7 +423,9 @@ String Catalog (`Localizable.xcstrings`), ru — основной, en. Язык 
   `/hls?ref=` (m3u8, ссылки кусков и `EXT-X-MAP` переписаны на `/seg?u=…`), `/seg` — только CDN
   SoundCloud (`*.sndcdn.com`, `*.soundcloud.cloud` — с 2026 куски идут с
   `playback.media-streaming.soundcloud.cloud`). Вариант потока SC: AAC HLS с большим битрейтом →
-  mp3 файлом → mp3 HLS; DRM (`*-encrypted-hls`) и Opus пропускаются. Яндекс — запросы с IP
+  mp3 файлом → mp3 HLS; DRM (`*-encrypted-hls`) и Opus пропускаются. Без своих ключей SoundCloud клиент
+  сам берёт публичный client_id со страницы soundcloud.com (как selfbot), при 401/403 — свежий: поиск и
+  открытые треки работают сразу после установки. Яндекс — запросы с IP
   компьютера (вариант 3 из §3.7а), mp3 ≤ `audio.quality`.
 
 ### 9.3. Автономный режим → сервер → API
