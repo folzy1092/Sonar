@@ -144,7 +144,28 @@ Sonar/
 │   ├── Packages/             локальные SwiftPM-пакеты (Zsign, ZipArchive из Shadow)
 │   └── SonarTests/           модели, синк, очередь, CoverColor
 │
-├── windows/                  (позже) Rust: Cargo workspace; src/lyrics/ — те же тексты, что в iOS
+├── windows/                  Tauri 2 — ПЕРВАЯ платформа (SPEC §9)
+│   ├── package.json          Svelte 5 + TS + Vite
+│   ├── src/                  интерфейс (WebView)
+│   │   ├── app/              окно, левая панель, строка поиска, мини-плеер, роутинг
+│   │   ├── pages/            Home, Library, Playlist, Artist, Album, Search, Player, Settings/*
+│   │   ├── player/           движок на <audio>: очередь, бесшовность, кроссфейд, гейн, визуализатор
+│   │   ├── lyrics/           экран текста: караоке, меню (слова/строки, размер S–XL, стиль, анимация, сдвиг)
+│   │   ├── theme/            цвет из обложки, готовые темы, стекло, шрифты
+│   │   ├── components/       кнопки, ползунки 5 видов, строки треков, карусели, меню
+│   │   └── lib/              вызовы Rust (invoke), стор настроек, i18n ru/en
+│   └── src-tauri/
+│       ├── tauri.conf.json   окно без рамки, id com.folzy.sonar, флаги WebView2, updater
+│       └── src/
+│           ├── main.rs       запуск, трей, автозапуск, медиа-клавиши
+│           ├── commands.rs   команды для интерфейса
+│           ├── providers/    mod.rs (трейт Provider), soundcloud.rs, yandex.rs
+│           ├── stream.rs     локальный сервер 127.0.0.1: /stream, /cover, кэш
+│           ├── lyrics/       mod.rs (fetch_any), lrclib.rs, genius.rs — порт selfbot
+│           ├── store/        SQLite по схеме DB.md: лайки, плейлисты, plays, player_state, настройки
+│           ├── secrets.rs    токены в keyring
+│           ├── discord.rs    Discord RPC
+│           └── sync.rs       (потом) сервер Sonar: вход, синхронизация, отправка now/plays
 │   └── README.md             стек и план (SPEC §9)
 │
 └── .github/workflows/
