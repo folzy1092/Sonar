@@ -29,7 +29,10 @@ DerivedData/
 xcuserdata/
 
 # Windows (Rust)
-windows/target/
+windows/src-tauri/target/
+windows/src-tauri/gen/
+windows/node_modules/
+windows/dist/
 
 # OS / editors
 .DS_Store

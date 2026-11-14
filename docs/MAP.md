@@ -148,17 +148,21 @@ Sonar/
 ├── windows/                  Tauri 2 — ПЕРВАЯ платформа (SPEC §9)
 │   ├── package.json          Svelte 5 + TS + Vite
 │   ├── src/                  интерфейс (WebView)
-│   │   ├── app/              окно, левая панель, строка поиска, мини-плеер, роутинг
+│   │   ├── App.svelte        оболочка: колонка иконок + карточка-страница + мини-плеер
+│   │   ├── app/              Rail, WindowControls, SearchBar, MiniPlayer, router.svelte.ts
 │   │   ├── pages/            Home, Library, Playlist, Artist, Album, Search, Player, Settings/*
 │   │   ├── player/           движок на <audio>: очередь, бесшовность, кроссфейд, гейн, визуализатор
 │   │   ├── lyrics/           core/ (чистые функции + vitest), LyricsView, LyricsMenu — docs/LYRICS.md
-│   │   ├── theme/            цвет из обложки, готовые темы, стекло, шрифты
-│   │   ├── components/       кнопки, ползунки 5 видов, строки треков, карусели, меню
-│   │   └── lib/              вызовы Rust (invoke), стор настроек, i18n ru/en
+│   │   ├── theme/            tokens.css (CSS-переменные); потом цвет из обложки, темы, стекло
+│   │   ├── components/       Icon (Tabler, icons.ts), IconButton, Tile, EmptyState; потом ползунки, строки, меню
+│   │   └── lib/              tauri.ts (окно), потом вызовы Rust (invoke), стор настроек, i18n ru/en
 │   └── src-tauri/
-│       ├── tauri.conf.json   окно без рамки, id com.folzy.sonar, флаги WebView2, updater
+│       ├── tauri.conf.json   окно без рамки, id com.folzy.sonar, флаги WebView2, NSIS, updater
+│       ├── capabilities/     права окна: перетаскивание, свернуть/развернуть/закрыть
+│       ├── icons/            из brand/icon (npx tauri icon brand/icon/sonar_icon_dark.png)
 │       └── src/
-│           ├── main.rs       запуск, трей, автозапуск, медиа-клавиши
+│           ├── main.rs       точка входа → sonar_lib::run()
+│           ├── lib.rs        сборка Tauri; потом трей, автозапуск, медиа-клавиши
 │           ├── commands.rs   команды для интерфейса
 │           ├── providers/    mod.rs (трейт Provider), soundcloud.rs, yandex.rs
 │           ├── stream.rs     локальный сервер 127.0.0.1: /stream, /cover, кэш
@@ -171,6 +175,7 @@ Sonar/
 │
 └── .github/workflows/
     ├── ios.yml               macOS: XcodeGen → archive без подписи → IPA → Release ios-build-N
+    ├── windows.yml           windows-latest: tauri build → установщик NSIS (артефакт)
     ├── server.yml            pytest при изменениях в server/
     └── pages.yml             публикация site/ на GitHub Pages
 ```
