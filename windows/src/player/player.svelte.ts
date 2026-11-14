@@ -45,12 +45,19 @@ class Player {
   private startedAt = 0
   private lastTick = 0
   private heartbeat: ReturnType<typeof setInterval> | null = null
+  private offMedia: (() => void) | null = null
+  private ctx: AudioContext | null = null
+  /** Спектр звука для волны на странице плеера (Web Audio). */
+  analyser: AnalyserNode | null = null
 
   init() {
     if (this.audio) return
     const a = new Audio()
     a.preload = 'auto'
+    // поток идёт с 127.0.0.1 с CORS — без этого Web Audio получит тишину
+    a.crossOrigin = 'anonymous'
     this.audio = a
+    this.connectAnalyser(a)
     this.applyVolume()
     this.applySpeed()
 
@@ -66,7 +73,7 @@ class Player {
     a.addEventListener('ended', () => this.onEnded())
     a.addEventListener('error', () => this.onError(a.error?.message || 'не удалось воспроизвести'))
 
-    onMediaControl((action) => {
+    this.offMedia = onMediaControl((action) => {
       if (action === 'play') void this.play()
       else if (action === 'pause' || action === 'stop') this.pause()
       else if (action === 'toggle') this.toggle()
@@ -76,6 +83,36 @@ class Player {
     })
 
     void this.restore()
+  }
+
+  /** Полная остановка: при подмене модуля в dev (HMR), иначе старый <audio> играет «вторым потоком». */
+  destroy() {
+    this.hls?.destroy()
+    this.hls = null
+    if (this.audio) {
+      this.audio.pause()
+      this.audio.removeAttribute('src')
+      this.audio.load()
+    }
+    this.audio = null
+    if (this.heartbeat) clearInterval(this.heartbeat)
+    this.offMedia?.()
+    void this.ctx?.close()
+  }
+
+  private connectAnalyser(a: HTMLAudioElement) {
+    try {
+      const ctx = new AudioContext()
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 2048
+      analyser.smoothingTimeConstant = 0.82
+      ctx.createMediaElementSource(a).connect(analyser)
+      analyser.connect(ctx.destination)
+      this.ctx = ctx
+      this.analyser = analyser
+    } catch {
+      this.analyser = null
+    }
   }
 
   // ——— очередь ———
@@ -252,6 +289,7 @@ class Player {
 
   private setPlaying(on: boolean) {
     this.playing = on
+    if (on && this.ctx?.state === 'suspended') void this.ctx.resume()
     if (on) this.error = null
     if (this.heartbeat) clearInterval(this.heartbeat)
     this.heartbeat = on ? setInterval(() => this.saveState(), HEARTBEAT_MS) : null
@@ -352,4 +390,9 @@ export function formatTime(ms: number): string {
   const m = Math.floor((s % 3600) / 60)
   const sec = String(s % 60).padStart(2, '0')
   return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
+}
+
+// Vite HMR: модуль плеера подменили — старый экземпляр глушим, новый поднимет App.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => player.destroy())
 }

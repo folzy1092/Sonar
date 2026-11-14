@@ -2,7 +2,7 @@
   import Icon from '../components/Icon.svelte'
   import type { IconName } from '../components/icons'
   import { router, type Page } from './router.svelte'
-  import logo from '../assets/logo.png'
+  import logo from '../assets/logo-mark.png'
 
   const middle: { page: Page; icon: IconName; label: string }[] = [
     { page: 'player', icon: 'player', label: 'Плеер' },

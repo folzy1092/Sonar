@@ -1,0 +1,85 @@
+<script lang="ts">
+  // Волна под ползунком (как в Dotify): спектр звука из AnalyserNode, плавная заливка,
+  // басы слева. На паузе плавно опадает. Рисуется только пока страница открыта.
+  import { onMount } from 'svelte'
+  import { player } from './player.svelte'
+
+  interface Props {
+    height?: number
+  }
+  let { height = 56 }: Props = $props()
+
+  const POINTS = 72
+  let canvas: HTMLCanvasElement
+
+  onMount(() => {
+    const g = canvas.getContext('2d')!
+    const color = getComputedStyle(canvas).color
+    const levels = new Float32Array(POINTS)
+    let data: Uint8Array<ArrayBuffer> | null = null
+    let frame = 0
+
+    const draw = () => {
+      frame = requestAnimationFrame(draw)
+      const dpr = window.devicePixelRatio || 1
+      const w = canvas.clientWidth
+      const h = canvas.clientHeight
+      if (canvas.width !== Math.round(w * dpr)) canvas.width = Math.round(w * dpr)
+      if (canvas.height !== Math.round(h * dpr)) canvas.height = Math.round(h * dpr)
+      g.setTransform(dpr, 0, 0, dpr, 0, 0)
+      g.clearRect(0, 0, w, h)
+
+      const a = player.analyser
+      if (a && player.playing) {
+        if (!data || data.length !== a.frequencyBinCount) data = new Uint8Array(a.frequencyBinCount)
+        a.getByteFrequencyData(data)
+        // логарифмическая шкала частот: ~40 Гц … ~14 кГц
+        const hz = a.context.sampleRate / a.fftSize
+        const lo = Math.max(1, Math.round(40 / hz))
+        const hi = Math.min(data.length - 1, Math.round(14000 / hz))
+        for (let i = 0; i < POINTS; i++) {
+          const from = Math.round(lo * Math.pow(hi / lo, i / POINTS))
+          const to = Math.max(from + 1, Math.round(lo * Math.pow(hi / lo, (i + 1) / POINTS)))
+          let sum = 0
+          for (let b = from; b < to; b++) sum += data[b]
+          const v = sum / (to - from) / 255
+          levels[i] += (v * v - levels[i]) * 0.35
+        }
+      } else {
+        for (let i = 0; i < POINTS; i++) levels[i] *= 0.9
+      }
+
+      let peak = 0
+      for (let i = 0; i < POINTS; i++) peak = Math.max(peak, levels[i])
+      if (peak < 0.004) return // тишина — без полоски на дне
+
+      // плавная кривая через середины отрезков
+      const step = w / (POINTS - 1)
+      const y = (i: number) => h - levels[i] * (h - 4)
+      g.beginPath()
+      g.moveTo(0, h)
+      g.lineTo(0, y(0))
+      for (let i = 1; i < POINTS; i++) {
+        const xm = (i - 0.5) * step
+        g.quadraticCurveTo((i - 1) * step, y(i - 1), xm, (y(i - 1) + y(i)) / 2)
+      }
+      g.lineTo(w, y(POINTS - 1))
+      g.lineTo(w, h)
+      g.closePath()
+      g.fillStyle = color
+      g.fill()
+    }
+    draw()
+    return () => cancelAnimationFrame(frame)
+  })
+</script>
+
+<canvas bind:this={canvas} style:height="{height}px" aria-hidden="true"></canvas>
+
+<style>
+  canvas {
+    display: block;
+    width: 100%;
+    color: rgba(163, 163, 171, 0.55);
+  }
+</style>

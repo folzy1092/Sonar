@@ -7,14 +7,16 @@
   interface Props {
     track: Track
     index?: number
+    /** list — поиск и списки (колонка альбома); queue — очередь плеера (❤ и длительность плашкой). */
+    variant?: 'list' | 'queue'
     onplay: () => void
   }
 
-  let { track, index, onplay }: Props = $props()
+  let { track, index, variant = 'list', onplay }: Props = $props()
   const isCurrent = $derived(player.current?.ref === track.ref)
 </script>
 
-<button class="row" class:current={isCurrent} class:off={!track.available} onclick={() => (isCurrent ? player.toggle() : onplay())}>
+<button class="row" class:queue={variant === 'queue'} class:current={isCurrent} class:off={!track.available} onclick={() => (isCurrent ? player.toggle() : onplay())}>
   {#if index !== undefined}
     <span class="num">
       {#if isCurrent && player.playing}
@@ -32,8 +34,21 @@
     <span class="title">{track.title}{#if track.explicit}<span class="e" title="Нецензурная лексика">E</span>{/if}</span>
     <span class="artist">{track.artist}</span>
   </span>
-  <span class="album">{track.album?.title ?? ''}</span>
-  <span class="dur">{formatTime(track.duration_ms)}</span>
+  {#if variant === 'queue'}
+    <span class="end">
+      <span class="like" title="В Любимые — W3"><Icon name="heart" size={14} filled /></span>
+      <span class="pill">
+        {#if isCurrent && player.playing}
+          <span class="eq small"><i></i><i></i><i></i></span>
+        {:else}
+          {formatTime(track.duration_ms)}
+        {/if}
+      </span>
+    </span>
+  {:else}
+    <span class="album">{track.album?.title ?? ''}</span>
+    <span class="dur">{formatTime(track.duration_ms)}</span>
+  {/if}
 </button>
 
 <style>
@@ -50,6 +65,35 @@
   }
   .row:not(:has(.num)) {
     grid-template-columns: auto minmax(0, 2fr) minmax(0, 1fr) auto;
+  }
+  .row.queue {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: 6px 10px 6px 6px;
+  }
+  .end {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .like {
+    display: grid;
+    color: var(--text);
+    opacity: 0.85;
+  }
+  .pill {
+    display: grid;
+    place-items: center;
+    min-width: 40px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    font-size: 11px;
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .eq.small {
+    height: 9px;
   }
   .row:hover {
     background: var(--hover);
