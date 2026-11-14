@@ -163,6 +163,13 @@ CREATE TABLE track_prefs (                      -- «Запомнить» ско
   PRIMARY KEY (user_id, ref)
 );
 
+CREATE TABLE lyrics_cache (                     -- только на клиенте (ПК/iOS), не на сервере
+  ref           TEXT PRIMARY KEY,
+  json          TEXT,                           -- Lyrics (docs/LYRICS.md §1); NULL = «не найдено»
+  source        TEXT,                           -- lrclib | genius
+  fetched_at    INTEGER NOT NULL
+);
+
 CREATE TABLE notifications (
   id            TEXT PRIMARY KEY,
   user_id       TEXT REFERENCES users(id) ON DELETE CASCADE,   -- NULL = всем (рассылка)
