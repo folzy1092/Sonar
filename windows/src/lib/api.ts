@@ -25,6 +25,61 @@ export interface Track {
   available: boolean
 }
 
+export interface Album {
+  ref: string
+  title: string
+  artist: string
+  artists: ArtistRef[]
+  cover_url: string | null
+  year: number | null
+  track_count: number
+  url: string | null
+}
+
+export interface Artist {
+  ref: string
+  name: string
+  avatar_url: string | null
+  followers: number | null
+  url: string | null
+}
+
+/** Плейлист сервиса (фантомный): scpl:<id>, scpl:likes, ympl:<uid>:<kind>, ympl:likes. */
+export interface ServicePlaylist {
+  ref: string
+  title: string
+  owner: string
+  cover_url: string | null
+  track_count: number
+}
+
+/** Трек в Любимых или плейлисте Sonar: трек + id строки и время добавления. */
+export interface ListTrack extends Track {
+  item_id: string
+  added_at: number
+}
+
+export interface Playlist {
+  id: string
+  name: string
+  hidden: boolean
+  source_ref: string | null
+  created_at: number
+  updated_at: number
+  track_count: number
+  duration_ms: number
+  covers: string[]
+  tracks: ListTrack[] | null
+}
+
+export interface SearchMore {
+  artists: Artist[]
+  albums: Album[]
+  playlists: ServicePlaylist[]
+}
+
+export type Service = 'soundcloud' | 'yandex'
+
 export interface PlayerState {
   device_id: string | null
   ref: string | null
@@ -88,6 +143,27 @@ export const api = {
   loadPlayerState: () => call<{ state: PlayerState; tracks: Track[] } | null>('load_player_state'),
   recordPlay: (play: { ref: string; artist: string; context: string | null; played_at: number; listened_ms: number }) =>
     call<void>('record_play', { play }),
+
+  searchMore: (q: string, src: Source, limit = 12) => call<SearchMore>('search_more', { q, src, limit }),
+  artistPage: (artistRef: string) => call<{ artist: Artist; top: Track[]; albums: Album[] }>('artist_page', { artistRef }),
+  albumPage: (albumRef: string) => call<{ album: Album; tracks: Track[] }>('album_page', { albumRef }),
+  servicePlaylists: (service: Service) => call<ServicePlaylist[]>('service_playlists', { service }),
+  servicePlaylist: (plRef: string) => call<{ playlist: ServicePlaylist; tracks: Track[] }>('service_playlist', { plRef }),
+  importPlaylist: (plRef: string, name?: string) => call<Playlist>('import_playlist', { plRef, name }),
+
+  setLike: (itemRef: string, on: boolean, item?: Track | Album | Artist) => call<void>('set_like', { itemRef, on, item }),
+  likedRefs: () => call<string[]>('liked_refs'),
+  favorites: () => call<ListTrack[]>('favorites'),
+  likedCatalog: <T>(kind: 'album' | 'artist') => call<T[]>('liked_catalog', { kind }),
+  playlists: () => call<Playlist[]>('playlists'),
+  playlist: (id: string) => call<Playlist>('playlist', { id }),
+  createPlaylist: (name: string, tracks?: Track[]) => call<Playlist>('create_playlist', { name, tracks }),
+  updatePlaylist: (id: string, patch: { name?: string; hidden?: boolean }) => call<void>('update_playlist', { id, ...patch }),
+  deletePlaylist: (id: string) => call<void>('delete_playlist', { id }),
+  addToPlaylist: (id: string, tracks: Track[], position: 'start' | 'end' = 'end') =>
+    call<void>('add_to_playlist', { id, tracks, position }),
+  removeFromPlaylist: (id: string, itemIds: string[]) => call<void>('remove_from_playlist', { id, itemIds }),
+  reorderPlaylist: (id: string, itemIds: string[]) => call<void>('reorder_playlist', { id, itemIds }),
 
   getSetting: <T>(key: string) => call<T | null>('get_setting', { key }),
   setSetting: (key: string, value: unknown) => call<void>('set_setting', { key, value }),

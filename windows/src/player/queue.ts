@@ -35,3 +35,14 @@ export const countsAsPlay = (listenedMs: number, durationMs: number) =>
   listenedMs >= Math.min(30_000, durationMs > 0 ? durationMs / 2 : 30_000)
 
 export const nextRepeat = (r: Repeat): Repeat => (r === 'off' ? 'all' : r === 'all' ? 'one' : 'off')
+
+/**
+ * Вставить трек в очередь: `next` — сразу после текущего, иначе в конец.
+ * Трек дописывается в конец списка треков; меняется только порядок.
+ */
+export function enqueue(order: number[], pos: number, newIndex: number, next: boolean): number[] {
+  if (!order.length) return [newIndex]
+  const out = order.slice()
+  out.splice(next ? pos + 1 : out.length, 0, newIndex)
+  return out
+}

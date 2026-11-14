@@ -4,7 +4,7 @@
 // Два элемента для бесшовности и кроссфейда, GainNode нормализации — позже (W5).
 import Hls from 'hls.js'
 import { api, errorText, onMediaControl, type PlayerState, type Repeat, type Track } from '../lib/api'
-import { countsAsPlay, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
+import { countsAsPlay, enqueue, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
 
 /** Режимы скорости кнопки рядом с громкостью: тон меняется вместе со скоростью (slowed / sped up). */
 export const speedModes = {
@@ -22,6 +22,8 @@ class Player {
   order = $state<number[]>([])
   pos = $state(0)
   context = $state<string | null>(null)
+  /** Название контекста для очереди («Любимые», имя плейлиста, альбома, исполнителя). */
+  contextTitle = $state<string | null>(null)
 
   playing = $state(false)
   loading = $state(false)
@@ -118,14 +120,40 @@ class Player {
   // ——— очередь ———
 
   /** Играть список с трека `index`. `context` — откуда (search, favorites, playlist:<id>…). */
-  async playList(tracks: Track[], index: number, context: string | null) {
+  async playList(tracks: Track[], index: number, context: string | null, title: string | null = null) {
+    if (!tracks.length) return
     this.finishPlay()
     this.tracks = tracks
     this.context = context
+    this.contextTitle = title
     this.order = makeOrder(tracks.length, index, this.shuffle)
     this.pos = this.shuffle ? 0 : index
     void api.cacheTracks(tracks).catch(() => {})
     await this.load(true)
+  }
+
+  /** «Перемешать»: включить перемешивание и начать со случайного трека. */
+  async playShuffled(tracks: Track[], context: string | null, title: string | null = null) {
+    if (!tracks.length) return
+    this.shuffle = true
+    await this.playList(tracks, Math.floor(Math.random() * tracks.length), context, title)
+  }
+
+  /** «Следующим» (`next`) или «В очередь» (в конец). Пустая очередь — сразу играет. */
+  async addToQueue(tracks: Track[], next: boolean) {
+    if (!tracks.length) return
+    if (!this.current) return this.playList(tracks, 0, 'queue')
+    void api.cacheTracks(tracks).catch(() => {})
+    let order = this.order
+    const pos = this.pos
+    const list = this.tracks.slice()
+    for (const t of next ? [...tracks].reverse() : tracks) {
+      list.push(t)
+      order = enqueue(order, pos, list.length - 1, next)
+    }
+    this.tracks = list
+    this.order = order
+    this.saveState()
   }
 
   /** Перейти к треку из «Далее» (номер в upNext). */

@@ -163,6 +163,14 @@ CREATE TABLE track_prefs (                      -- «Запомнить» ско
   PRIMARY KEY (user_id, ref)
 );
 
+CREATE TABLE catalog (                          -- кэш альбомов и исполнителей (как tracks)
+  ref           TEXT PRIMARY KEY,               -- scalb:/ymalb: | sca:/yma:
+  kind          TEXT NOT NULL,                  -- album | artist
+  json          TEXT NOT NULL,                  -- Album / Artist (API.md §3)
+  fetched_at    INTEGER NOT NULL
+);
+CREATE INDEX likes_kind ON likes(user_id, kind, deleted, added_at);
+
 CREATE TABLE lyrics_cache (                     -- только на клиенте (ПК/iOS), не на сервере
   ref           TEXT PRIMARY KEY,
   json          TEXT,                           -- Lyrics (docs/LYRICS.md §1); NULL = «не найдено»

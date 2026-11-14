@@ -1,6 +1,6 @@
 //! SoundCloud через api-v2: поиск, трек, ссылка на поток. Опыт — selfbot `sc_api.py`, `sc_audio.py`.
 
-use super::{http_error, Account, ArtistRef, Source, Track, UA};
+use super::{http_error, Account, Album, Artist, ArtistRef, ServicePlaylist, Source, Track, UA};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -44,6 +44,7 @@ impl SoundCloud<'_> {
       return Ok(Account {
         name: me["username"].as_str().map(str::to_owned),
         avatar_url: me["avatar_url"].as_str().map(str::to_owned),
+        uid: me["id"].as_u64().map(|n| n.to_string()),
       });
     }
     self.get(&format!("{API}/search/tracks"), &[("q", "a"), ("limit", "1")]).await?;
@@ -58,6 +59,94 @@ impl SoundCloud<'_> {
       .as_array()
       .map(|items| items.iter().filter_map(|j| track_from_json(j).map(|t| (t, j.clone()))).collect())
       .unwrap_or_default())
+  }
+
+  /// Исполнители, альбомы и плейлисты для вкладок поиска.
+  pub async fn search_more(&self, q: &str, limit: u32) -> Result<(Vec<Artist>, Vec<Album>, Vec<ServicePlaylist>)> {
+    let limit = limit.to_string();
+    let query = [("q", q), ("limit", limit.as_str())];
+    let (u1, u2, u3) =
+      (format!("{API}/search/users"), format!("{API}/search/albums"), format!("{API}/search/playlists_without_albums"));
+    let (users, albums, lists) = futures_util::join!(self.get(&u1, &query), self.get(&u2, &query), self.get(&u3, &query));
+    let coll = |r: Result<Value>| r.ok().and_then(|v| v["collection"].as_array().cloned()).unwrap_or_default();
+    Ok((
+      coll(users).iter().filter_map(artist_from_json).collect(),
+      coll(albums).iter().filter_map(album_from_json).collect(),
+      coll(lists).iter().filter_map(playlist_from_json).collect(),
+    ))
+  }
+
+  pub async fn user(&self, id: &str) -> Result<Value> {
+    self.get(&format!("{API}/users/{id}"), &[]).await
+  }
+
+  /// Популярные треки пользователя (сырой JSON треков).
+  pub async fn top_tracks(&self, id: &str, limit: u32) -> Result<Vec<Value>> {
+    let limit = limit.to_string();
+    let v = self.get(&format!("{API}/users/{id}/toptracks"), &[("limit", &limit)]).await?;
+    Ok(v["collection"].as_array().cloned().unwrap_or_default())
+  }
+
+  pub async fn user_albums(&self, id: &str) -> Result<Vec<Album>> {
+    let v = self.get(&format!("{API}/users/{id}/albums"), &[("limit", "30")]).await?;
+    Ok(v["collection"].as_array().map(|a| a.iter().filter_map(album_from_json).collect()).unwrap_or_default())
+  }
+
+  /// Свои плейлисты пользователя (без альбомов) — фантомные плейлисты в медиатеке.
+  pub async fn user_playlists(&self, id: &str) -> Result<Vec<ServicePlaylist>> {
+    let v = self.get(&format!("{API}/users/{id}/playlists_without_albums"), &[("limit", "50")]).await?;
+    Ok(v["collection"].as_array().map(|a| a.iter().filter_map(playlist_from_json).collect()).unwrap_or_default())
+  }
+
+  /// Плейлист или альбом целиком: JSON шапки + сырой JSON всех треков по порядку.
+  /// SoundCloud отдаёт полностью только первые треки, остальные — заглушки с id: дозапрашиваем по 50.
+  pub async fn playlist(&self, id: &str) -> Result<(Value, Vec<Value>)> {
+    let pl = self.get(&format!("{API}/playlists/{id}"), &[("representation", "full")]).await?;
+    let items = pl["tracks"].as_array().cloned().unwrap_or_default();
+    let tracks = self.fill_stubs(items).await?;
+    Ok((pl, tracks))
+  }
+
+  /// Лайки пользователя в SoundCloud (до `max` треков, новые первыми).
+  pub async fn user_likes(&self, id: &str, max: usize) -> Result<Vec<Value>> {
+    let mut out = Vec::new();
+    let mut url = format!("{API}/users/{id}/track_likes?limit=200&linked_partitioning=1");
+    loop {
+      let page = self.get(&url, &[]).await?;
+      for it in page["collection"].as_array().into_iter().flatten() {
+        if it["track"].is_object() {
+          out.push(it["track"].clone());
+        }
+      }
+      match page["next_href"].as_str() {
+        Some(next) if out.len() < max => url = next.to_owned(),
+        _ => break,
+      }
+    }
+    out.truncate(max);
+    Ok(out)
+  }
+
+  async fn fill_stubs(&self, items: Vec<Value>) -> Result<Vec<Value>> {
+    let missing: Vec<String> = items
+      .iter()
+      .filter(|t| t["title"].is_null())
+      .filter_map(|t| t["id"].as_u64().map(|n| n.to_string()))
+      .collect();
+    let mut full = std::collections::HashMap::new();
+    for chunk in missing.chunks(50) {
+      let ids = chunk.join(",");
+      let v = self.get(&format!("{API}/tracks"), &[("ids", &ids)]).await?;
+      for t in v.as_array().into_iter().flatten() {
+        if let Some(n) = t["id"].as_u64() {
+          full.insert(n, t.clone());
+        }
+      }
+    }
+    Ok(items
+      .into_iter()
+      .filter_map(|t| if t["title"].is_null() { t["id"].as_u64().and_then(|n| full.get(&n).cloned()) } else { Some(t) })
+      .collect())
   }
 
   pub async fn track_json(&self, id: &str) -> Result<Value> {
@@ -173,6 +262,51 @@ pub fn track_from_json(j: &Value) -> Option<Track> {
   })
 }
 
+pub fn artist_from_json(u: &Value) -> Option<Artist> {
+  Some(Artist {
+    ref_: format!("sca:{}", u["id"].as_u64()?),
+    name: u["username"].as_str()?.to_owned(),
+    avatar_url: u["avatar_url"].as_str().map(big_artwork),
+    followers: u["followers_count"].as_u64(),
+    url: u["permalink_url"].as_str().map(str::to_owned),
+  })
+}
+
+/// Обложка плейлиста: своя, иначе первого трека.
+fn playlist_cover(p: &Value) -> Option<String> {
+  p["artwork_url"].as_str().or(p["tracks"][0]["artwork_url"].as_str()).map(big_artwork)
+}
+
+/// Альбом SoundCloud — это плейлист с `set_type` album/ep; ref `scalb:<id>`.
+pub fn album_from_json(p: &Value) -> Option<Album> {
+  let user = &p["user"];
+  let name = user["username"].as_str().unwrap_or("").to_owned();
+  let date = p["release_date"].as_str().or(p["published_at"].as_str()).or(p["created_at"].as_str()).unwrap_or("");
+  Some(Album {
+    ref_: format!("scalb:{}", p["id"].as_u64()?),
+    title: p["title"].as_str()?.to_owned(),
+    artist: name.clone(),
+    artists: user["id"]
+      .as_u64()
+      .map(|id| vec![ArtistRef { ref_: format!("sca:{id}"), name, avatar_url: user["avatar_url"].as_str().map(str::to_owned) }])
+      .unwrap_or_default(),
+    cover_url: playlist_cover(p),
+    year: date.get(..4).and_then(|y| y.parse().ok()),
+    track_count: p["track_count"].as_u64().unwrap_or(0) as u32,
+    url: p["permalink_url"].as_str().map(str::to_owned),
+  })
+}
+
+pub fn playlist_from_json(p: &Value) -> Option<ServicePlaylist> {
+  Some(ServicePlaylist {
+    ref_: format!("scpl:{}", p["id"].as_u64()?),
+    title: p["title"].as_str()?.to_owned(),
+    owner: p["user"]["username"].as_str().unwrap_or("").to_owned(),
+    cover_url: playlist_cover(p),
+    track_count: p["track_count"].as_u64().unwrap_or(0) as u32,
+  })
+}
+
 /// `…-large.jpg` → `…-t500x500.jpg`.
 pub fn big_artwork(url: &str) -> String {
   url.replace("-large.", "-t500x500.")
@@ -245,6 +379,39 @@ mod tests {
       let text = http.get(&url).send().await.unwrap().text().await.unwrap();
       assert!(text.starts_with("#EXTM3U"));
       println!("{}", &text[..text.len().min(400)]);
+    }
+  }
+
+  #[test]
+  fn playlist_json_to_album_and_phantom() {
+    let p = json!({"id": 77, "title": "suffocate reality", "track_count": 9, "release_date": "2024-03-01T00:00:00Z",
+      "artwork_url": null, "tracks": [{"id": 1, "artwork_url": "https://i1.sndcdn.com/a-large.jpg"}],
+      "user": {"id": 5, "username": "extra"}, "permalink_url": "https://soundcloud.com/extra/sets/s"});
+    let a = album_from_json(&p).unwrap();
+    assert_eq!(a.ref_, "scalb:77");
+    assert_eq!(a.year, Some(2024));
+    assert_eq!(a.cover_url.as_deref(), Some("https://i1.sndcdn.com/a-t500x500.jpg"));
+    assert_eq!(a.artists[0].ref_, "sca:5");
+    let pl = playlist_from_json(&p).unwrap();
+    assert_eq!((pl.ref_.as_str(), pl.owner.as_str(), pl.track_count), ("scpl:77", "extra", 9));
+  }
+
+  /// Живая проверка страниц (сеть): `cargo test live_pages -- --ignored --nocapture`.
+  #[tokio::test]
+  #[ignore]
+  async fn live_pages() {
+    let http = reqwest::Client::new();
+    let creds = Creds { client_id: public_client_id(&http).await.unwrap(), oauth_token: None };
+    let sc = SoundCloud { http: &http, creds: &creds };
+    let (artists, albums, lists) = sc.search_more("lil peep", 5).await.unwrap();
+    println!("{} артистов, {} альбомов, {} плейлистов", artists.len(), albums.len(), lists.len());
+    let id = artists[0].ref_.trim_start_matches("sca:");
+    let top = sc.top_tracks(id, 5).await.unwrap();
+    assert!(top.iter().filter_map(track_from_json).count() > 0);
+    if let Some(pl) = lists.first() {
+      let (_, tracks) = sc.playlist(pl.ref_.trim_start_matches("scpl:")).await.unwrap();
+      println!("{}: {} из {}", pl.title, tracks.len(), pl.track_count);
+      assert!(tracks.iter().all(|t| !t["title"].is_null()));
     }
   }
 

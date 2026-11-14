@@ -9,27 +9,65 @@
   import SpeedButton from '../player/SpeedButton.svelte'
   import Wave from '../player/Wave.svelte'
   import { formatTime, player } from '../player/player.svelte'
+  import { library } from '../lib/library.svelte'
+  import { trackMenu } from '../lib/menu.svelte'
+  import { hasSelection } from '../lib/selection'
+  import { openRef } from '../app/router.svelte'
 
   const track = $derived(player.current)
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
   const avatar = $derived(track?.artists[0]?.avatar_url ?? null)
-  const contextTitle = $derived(player.context === 'search' ? 'Из поиска' : player.context === 'favorites' ? 'Любимые' : 'Очередь')
+  const liked = $derived(library.isLiked(track?.ref))
+  const contextTitle = $derived(
+    player.contextTitle ??
+      (player.context === 'search' ? 'Из поиска' : player.context === 'favorites' ? 'Любимые' : 'Очередь'),
+  )
+  const contextIcon = $derived<'search' | 'heart' | 'queue'>(
+    player.context === 'search' ? 'search' : player.context === 'favorites' ? 'heart' : 'queue',
+  )
+
+  function openContext() {
+    const c = player.context
+    if (!c) return
+    if (c === 'favorites') openRef('favorites')
+    else if (c.startsWith('playlist:')) openRef(c.slice(9))
+    else if (c.startsWith('album:')) openRef(c.slice(6))
+    else if (c.startsWith('artist:')) openRef(c.slice(7))
+  }
 </script>
 
 <div class="top">
   <div class="art">
     <Cover url={track?.cover_url} size={320} radius="18px" />
     {#if track}
-      <span class="on-cover left" title="В Любимые — W3"><Icon name="heart" size={18} filled /></span>
+      <button
+        class="on-cover left"
+        class:on={liked}
+        aria-label={liked ? 'Удалить из Любимых' : 'В Любимые'}
+        title={liked ? 'Удалить из Любимых' : 'В Любимые'}
+        onclick={() => track && library.toggleLike(track)}
+      >
+        <Icon name="heart" size={18} filled={liked} />
+      </button>
     {/if}
   </div>
 
   <div class="side">
     <div class="head">
-      <h1 title={track?.title}>{track?.title ?? 'Ничего не играет'}</h1>
-      <p class="artist">
+      <h1 class="selectable" title={track?.title}>{track?.title ?? 'Ничего не играет'}</h1>
+      <p class="artist selectable">
         {#if avatar}<img src={avatar} alt="" />{/if}
-        {track ? track.artist : 'Найди трек в поиске'}
+        {#if track}
+          {#each track.artists as a, i (a.ref + i)}{#if i},&nbsp;{/if}<span
+              class="link"
+              role="link"
+              tabindex="0"
+              onclick={() => !hasSelection() && openRef(a.ref)}
+              onkeydown={(e) => e.key === 'Enter' && openRef(a.ref)}>{a.name}</span
+            >{:else}{track.artist}{/each}
+        {:else}
+          Найди трек в поиске
+        {/if}
       </p>
     </div>
 
@@ -41,7 +79,9 @@
     <Wave height={52} />
 
     <div class="panel controls">
-      <IconButton icon="dots" label="Меню трека — W3" size={18} disabled />
+      <button class="menu-btn" aria-label="Меню трека" title="Меню трека" disabled={!track} onclick={(e) => track && trackMenu.openAt({ track }, e.currentTarget)}>
+        <Icon name="dots" size={18} />
+      </button>
       <div class="main">
         <IconButton
           icon={player.repeat === 'one' ? 'repeatOnce' : 'repeat'}
@@ -84,7 +124,7 @@
 </div>
 
 <section class="panel queue">
-  <span class="chip"><Icon name={player.context === 'search' ? 'search' : 'queue'} size={14} /> {contextTitle}{#if player.shuffle}<Icon name="shuffle" size={14} />{/if}</span>
+  <button class="chip" onclick={openContext} title="Открыть источник очереди"><Icon name={contextIcon} size={14} filled={contextIcon === 'heart'} /> {contextTitle}{#if player.shuffle}<Icon name="shuffle" size={14} />{/if}</button>
 
   {#if track}
     <h3>Сейчас играет</h3>
@@ -127,6 +167,42 @@
   }
   .on-cover.left {
     left: 12px;
+  }
+  button.on-cover {
+    color: rgba(255, 255, 255, 0.75);
+    transition:
+      transform var(--fast) var(--ease),
+      color var(--fast) var(--ease);
+  }
+  button.on-cover:hover,
+  button.on-cover.on {
+    color: #fff;
+  }
+  button.on-cover:active {
+    transform: scale(0.9);
+  }
+  .menu-btn {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-s);
+    color: var(--text-2);
+  }
+  .menu-btn:hover:not(:disabled) {
+    background: var(--hover);
+    color: var(--text);
+  }
+  .menu-btn:disabled {
+    opacity: 0.35;
+  }
+  .link {
+    cursor: pointer;
+  }
+  .link:hover {
+    color: var(--text);
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
   .side {
     display: flex;

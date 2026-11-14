@@ -81,7 +81,23 @@
 // StreamInfo
 {"url": "https://cf-hls-media.sndcdn.com/...", "protocol": "hls", "codec": "aac",
  "bitrate": 160, "expires_at": 1794340594779, "gain_db": null}
+
+// Album — scalb:<id плейлиста-альбома SC> | ymalb:<id>
+{"ref": "ymalb:9", "title": "Come Over When You're Sober", "artist": "Lil Peep",
+ "artists": [{"ref": "yma:7", "name": "Lil Peep", "avatar_url": null}],
+ "cover_url": "https://avatars.yandex.net/.../400x400", "year": 2017, "track_count": 7,
+ "url": "https://music.yandex.ru/album/9"}
+
+// Artist — sca:<id пользователя SC> | yma:<id>
+{"ref": "sca:5", "name": "extra", "avatar_url": "...", "followers": 9400, "url": "https://soundcloud.com/extra"}
+
+// ServicePlaylist — scpl:<id> | ympl:<uid>:<kind>; лайки сервиса — scpl:likes, ympl:likes
+{"ref": "ympl:42:1003", "title": "2016", "owner": "Folzy", "cover_url": "...", "track_count": 121}
 ```
+
+Страницы: `/artists/{ref}` → `{artist: Artist, top: [Track], albums: [Album]}`,
+`/albums/{ref}` → `{album: Album, tracks: [Track]}`,
+`/services/{svc}/playlists/{id}/tracks` → `{playlist: ServicePlaylist, tracks: [Track]}`.
 
 ## 4. Медиатека
 
@@ -100,6 +116,17 @@
 | POST | `/playlists/{id}/tracks` | `{refs: [ref], position: "start"\|"end"\|int}` → `{rev}` |
 | DELETE | `/playlists/{id}/tracks` | `{item_ids: [id]}` → `{rev}` |
 | PUT | `/playlists/{id}/order` | `{item_ids: [id]}` (полный порядок) → `{rev}` |
+
+```json
+// Playlist (в списке tracks = null; covers — до 4 обложек первых треков для коллажа)
+{"id": "pl_01JD3...", "name": "Микс", "hidden": false, "source_ref": "scpl:77",
+ "created_at": 1794340594779, "updated_at": 1794340594779, "track_count": 2, "duration_ms": 312000,
+ "covers": ["https://..."], "tracks": [{"item_id": "pi_01JD3...", "added_at": 1794340594779, "ref": "sc:1", "...": "поля Track"}]}
+```
+
+Импорт плейлиста сервиса повторно не создаёт копию: уже перенесённый (`source_ref`) дополняется
+треками, которых в нём ещё нет. Windows-клиент сейчас делает всё это локально (команды
+`src-tauri/src/commands.rs`, те же формы).
 
 ## 5. Плеер, прослушивания, статистика
 

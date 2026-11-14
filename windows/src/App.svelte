@@ -9,19 +9,37 @@
   import Search from './pages/Search.svelte'
   import Player from './pages/Player.svelte'
   import Settings from './pages/Settings.svelte'
+  import PlaylistPage from './pages/PlaylistPage.svelte'
+  import ArtistPage from './pages/ArtistPage.svelte'
+  import AlbumPage from './pages/AlbumPage.svelte'
+  import TrackMenu from './app/TrackMenu.svelte'
+  import Toast from './app/Toast.svelte'
+  import { library } from './lib/library.svelte'
   import { onMount } from 'svelte'
   import { player } from './player/player.svelte'
 
-  const pages = { home: Home, library: Library, search: Search, player: Player, settings: Settings }
+  const pages = {
+    home: Home,
+    library: Library,
+    search: Search,
+    player: Player,
+    settings: Settings,
+    playlist: PlaylistPage,
+    artist: ArtistPage,
+    album: AlbumPage,
+  }
   const withSearch: Page[] = ['home', 'search']
 
   const Current = $derived(pages[router.page])
   let scroller: HTMLElement | undefined = $state()
 
-  onMount(() => player.init())
+  onMount(() => {
+    player.init()
+    void library.load()
+  })
 
   $effect(() => {
-    router.page
+    router.key
     scroller?.scrollTo({ top: 0 })
   })
 </script>
@@ -39,7 +57,7 @@
     </header>
 
     <div class="scroll" bind:this={scroller}>
-      {#key router.page}
+      {#key router.key}
         <div class="page">
           <Current />
         </div>
@@ -51,6 +69,9 @@
     <MiniPlayer />
   </div>
 </div>
+
+<TrackMenu />
+<Toast />
 
 <style>
   .shell {

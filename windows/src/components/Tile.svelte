@@ -1,29 +1,69 @@
 <script lang="ts">
+  // Плитка медиатеки и каруселей (pc/Screenshot_21): квадратная (или круглая) обложка и подписи.
+  // Обложка — картинка, коллаж из 4 обложек (плейлист Sonar) или значок.
   import Icon from './Icon.svelte'
   import type { IconName } from './icons'
+  import type { Snippet } from 'svelte'
 
   interface Props {
     title: string
     subtitle?: string
     meta?: string
     icon?: IconName
+    image?: string | null
+    covers?: string[]
     round?: boolean
     ghost?: boolean
+    dim?: boolean
+    source?: string | null
+    onclick?: () => void
+    oncontextmenu?: (e: MouseEvent) => void
+    badge?: Snippet
   }
 
-  let { title, subtitle, meta, icon = 'music', round = false, ghost = false }: Props = $props()
+  let {
+    title,
+    subtitle,
+    meta,
+    icon = 'music',
+    image = null,
+    covers = [],
+    round = false,
+    ghost = false,
+    dim = false,
+    source = null,
+    onclick,
+    oncontextmenu,
+    badge,
+  }: Props = $props()
+  let failed = $state(false)
+  const src = $derived(source?.startsWith('sc') ? 'sc' : source?.startsWith('ym') ? 'ym' : null)
 </script>
 
-<div class="tile" class:ghost>
-  <div class="cover" class:round>
-    <Icon name={icon} size={36} stroke={1.6} />
-  </div>
-  <div class="text" class:center={round}>
+<button class="tile" class:ghost class:dim {onclick} {oncontextmenu} title={title}>
+  <span class="cover" class:round>
+    {#if image && !failed}
+      <img src={image} alt="" loading="lazy" draggable="false" onerror={() => (failed = true)} />
+    {:else if covers.length >= 4}
+      <span class="collage">
+        {#each covers.slice(0, 4) as c, i (i)}<img src={c} alt="" loading="lazy" draggable="false" />{/each}
+      </span>
+    {:else if covers.length}
+      <img src={covers[0]} alt="" loading="lazy" draggable="false" />
+    {:else}
+      <Icon name={icon} size={36} stroke={1.6} />
+    {/if}
+    {#if src}
+      <span class="src {src}">{src === 'sc' ? 'SC' : 'Я'}</span>
+    {/if}
+    {#if badge}<span class="badge">{@render badge()}</span>{/if}
+  </span>
+  <span class="text" class:center={round}>
     <span class="title">{title}</span>
     {#if subtitle}<span class="sub">{subtitle}</span>{/if}
     {#if meta}<span class="meta">{meta}</span>{/if}
-  </div>
-</div>
+  </span>
+</button>
 
 <style>
   .tile {
@@ -32,11 +72,18 @@
     gap: 10px;
     width: 160px;
     flex-shrink: 0;
+    text-align: left;
+  }
+  .dim {
+    opacity: 0.5;
   }
   .cover {
+    position: relative;
     display: grid;
     place-items: center;
+    width: 100%;
     aspect-ratio: 1;
+    overflow: hidden;
     border-radius: var(--radius-l);
     background: var(--plate);
     border: 1px solid var(--border);
@@ -52,9 +99,51 @@
   .cover.round {
     border-radius: 50%;
   }
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .collage {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    height: 100%;
+  }
   .ghost .cover {
     border-style: dashed;
     color: var(--text-3);
+  }
+  .src {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 18px;
+    text-align: center;
+    color: #fff;
+    background: #ff5500;
+  }
+  .src.ym {
+    color: #111;
+    background: #ffcc00;
+  }
+  .badge {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: rgba(20, 20, 22, 0.7);
+    color: #fff;
   }
   .text {
     display: flex;
@@ -66,14 +155,19 @@
     text-align: center;
   }
   .title {
+    max-width: 100%;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .sub {
+    max-width: 100%;
     font-size: 12px;
     color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .meta {
     font-size: 11px;

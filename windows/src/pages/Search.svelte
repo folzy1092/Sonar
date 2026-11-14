@@ -1,10 +1,13 @@
 <script lang="ts">
   import EmptyState from '../components/EmptyState.svelte'
   import TrackRow from '../components/TrackRow.svelte'
+  import Tile from '../components/Tile.svelte'
+  import { compact, tracksText } from '../lib/format'
+  import { openRef } from '../app/router.svelte'
   import { search } from '../app/search.svelte'
   import { router } from '../app/router.svelte'
   import { settingsSection } from './settings-section.svelte'
-  import { api, errorText, type Track } from '../lib/api'
+  import { api, errorText, type SearchMore, type Track } from '../lib/api'
   import { player } from '../player/player.svelte'
 
   const tabs = ['Все', 'Треки', 'Артисты', 'Альбомы', 'Плейлисты'] as const
@@ -12,6 +15,7 @@
   const sourceName = $derived(search.source === 'sc' ? 'SoundCloud' : 'Яндекс Музыке')
 
   let results = $state<Track[]>([])
+  let more = $state<SearchMore>({ artists: [], albums: [], playlists: [] })
   let loading = $state(false)
   let error = $state<string | null>(null)
   let seq = 0
@@ -23,12 +27,17 @@
     error = null
     if (!q) {
       results = []
+      more = { artists: [], albums: [], playlists: [] }
       loading = false
       return
     }
     const my = ++seq
     loading = true
     const timer = setTimeout(async () => {
+      api
+        .searchMore(q, src)
+        .then((m) => my === seq && (more = m))
+        .catch(() => my === seq && (more = { artists: [], albums: [], playlists: [] }))
       try {
         const found = await api.search(q, src)
         if (my === seq) results = found
@@ -58,8 +67,6 @@
 
 {#if !search.query.trim()}
   <EmptyState icon="search" title="Что включить?" text="Ищи треки в SoundCloud и Яндекс Музыке." />
-{:else if tab !== 'Все' && tab !== 'Треки'}
-  <EmptyState icon="search" title={tab} text="Артисты, альбомы и плейлисты появятся вместе со страницами медиатеки (W3)." />
 {:else if error}
   <div class="err">
     <EmptyState icon="key" title="Не получилось" text={error} />
@@ -71,15 +78,52 @@
   <div class="skeleton" aria-label="Ищу…">
     {#each { length: 6 } as _, i (i)}<div class="sk"></div>{/each}
   </div>
-{:else if !results.length}
+{:else if !results.length && !more.artists.length && !more.albums.length && !more.playlists.length}
   <EmptyState icon="search" title="Ничего не нашлось" text={`По запросу «${search.query.trim()}» в ${sourceName} пусто.`} />
 {:else}
-  <h2>Треки</h2>
-  <div class="list" class:stale={loading}>
-    {#each results as t, i (t.ref)}
-      <TrackRow track={t} index={i} onplay={() => player.playList(results, i, 'search')} />
-    {/each}
-  </div>
+  {@const all = tab === 'Все'}
+  {#if (all || tab === 'Треки') && results.length}
+    <h2>Треки {#if all && results.length > 5}<button class="more" onclick={() => (tab = 'Треки')}>Показать все</button>{/if}</h2>
+    <div class="list" class:stale={loading}>
+      {#each all ? results.slice(0, 5) : results as t, i (t.ref)}
+        <TrackRow track={t} index={i} onplay={() => player.playList(results, i, 'search')} />
+      {/each}
+    </div>
+  {/if}
+  {#if (all || tab === 'Артисты') && more.artists.length}
+    <h2>Артисты</h2>
+    <div class:row={all} class:grid={!all}>
+      {#each more.artists as a (a.ref)}
+        <Tile
+          title={a.name}
+          subtitle={a.followers != null ? `${compact(a.followers)} подп.` : undefined}
+          image={a.avatar_url}
+          icon="user"
+          round
+          onclick={() => openRef(a.ref)}
+        />
+      {/each}
+    </div>
+  {/if}
+  {#if (all || tab === 'Альбомы') && more.albums.length}
+    <h2>Альбомы</h2>
+    <div class:row={all} class:grid={!all}>
+      {#each more.albums as a (a.ref)}
+        <Tile title={a.title} subtitle={a.artist} meta={a.year ? String(a.year) : undefined} image={a.cover_url} icon="disc" onclick={() => openRef(a.ref)} />
+      {/each}
+    </div>
+  {/if}
+  {#if (all || tab === 'Плейлисты') && more.playlists.length}
+    <h2>Плейлисты</h2>
+    <div class:row={all} class:grid={!all}>
+      {#each more.playlists as p (p.ref)}
+        <Tile title={p.title} subtitle={p.owner} meta={p.track_count ? tracksText(p.track_count) : undefined} image={p.cover_url} onclick={() => openRef(p.ref)} />
+      {/each}
+    </div>
+  {/if}
+  {#if !all && ((tab === 'Треки' && !results.length) || (tab === 'Артисты' && !more.artists.length) || (tab === 'Альбомы' && !more.albums.length) || (tab === 'Плейлисты' && !more.playlists.length))}
+    <EmptyState icon="search" title="Ничего не нашлось" text={`${tab} по запросу «${search.query.trim()}» не нашлись.`} />
+  {/if}
 {/if}
 
 <style>
@@ -109,9 +153,39 @@
     color: var(--accent-ink);
   }
   h2 {
-    margin: 22px 0 8px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 22px 0 10px;
     font-size: 20px;
     font-weight: 800;
+  }
+  .more {
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-2);
+  }
+  .more:hover {
+    color: var(--text);
+  }
+  .row {
+    display: flex;
+    gap: 18px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .row::-webkit-scrollbar {
+    display: none;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 18px;
+  }
+  .grid :global(.tile) {
+    width: auto;
   }
   .list {
     display: flex;

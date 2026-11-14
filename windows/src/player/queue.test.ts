@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countsAsPlay, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
+import { countsAsPlay, enqueue, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
 
 describe('makeOrder', () => {
   it('без перемешивания — по порядку', () => {
@@ -49,4 +49,16 @@ it('повтор по кругу: выкл → всё → трек → выкл'
   expect(nextRepeat('off')).toBe('all')
   expect(nextRepeat('all')).toBe('one')
   expect(nextRepeat('one')).toBe('off')
+})
+
+describe('enqueue', () => {
+  it('ставит следующим после текущего', () => {
+    expect(enqueue([0, 1, 2], 0, 3, true)).toEqual([0, 3, 1, 2])
+  })
+  it('в конец очереди', () => {
+    expect(enqueue([2, 0, 1], 1, 3, false)).toEqual([2, 0, 1, 3])
+  })
+  it('пустая очередь — один трек', () => {
+    expect(enqueue([], 0, 0, true)).toEqual([0])
+  })
 })

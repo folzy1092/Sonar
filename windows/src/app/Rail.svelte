@@ -12,12 +12,13 @@
 </script>
 
 {#snippet item(page: Page, icon: IconName, label: string)}
+  {@const on = router.page === page || (page === 'library' && ['playlist', 'artist', 'album'].includes(router.page))}
   <button
     class="item"
-    class:active={router.page === page}
+    class:active={on}
     aria-label={label}
     title={label}
-    aria-current={router.page === page ? 'page' : undefined}
+    aria-current={on ? 'page' : undefined}
     onclick={() => router.go(page)}
   >
     <Icon name={icon} size={22} />

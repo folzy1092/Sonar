@@ -37,6 +37,66 @@ pub struct AlbumRef {
   pub title: String,
 }
 
+/// Альбом (`scalb:` — альбом SoundCloud, `ymalb:` — Яндекса). `tracks` — только на странице альбома.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Album {
+  #[serde(rename = "ref")]
+  pub ref_: String,
+  pub title: String,
+  pub artist: String,
+  pub artists: Vec<ArtistRef>,
+  pub cover_url: Option<String>,
+  pub year: Option<u32>,
+  pub track_count: u32,
+  pub url: Option<String>,
+}
+
+/// Исполнитель (`sca:` — пользователь SoundCloud, `yma:` — артист Яндекса).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Artist {
+  #[serde(rename = "ref")]
+  pub ref_: String,
+  pub name: String,
+  pub avatar_url: Option<String>,
+  pub followers: Option<u64>,
+  pub url: Option<String>,
+}
+
+/// Плейлист сервиса (`scpl:<id>`, `ympl:<uid>:<kind>`) — «фантомный», виден, пока не перенесён.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ServicePlaylist {
+  #[serde(rename = "ref")]
+  pub ref_: String,
+  pub title: String,
+  pub owner: String,
+  pub cover_url: Option<String>,
+  pub track_count: u32,
+}
+
+/// Ответ поиска — как `GET /search` в docs/API.md §3.
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct SearchResults {
+  pub tracks: Vec<Track>,
+  pub artists: Vec<Artist>,
+  pub albums: Vec<Album>,
+  pub playlists: Vec<ServicePlaylist>,
+}
+
+/// Страница исполнителя: шапка, популярные треки, альбомы.
+#[derive(Debug, Clone, Serialize)]
+pub struct ArtistPage {
+  pub artist: Artist,
+  pub top: Vec<Track>,
+  pub albums: Vec<Album>,
+}
+
+/// Страница альбома или плейлиста сервиса: шапка и треки.
+#[derive(Debug, Clone, Serialize)]
+pub struct AlbumPage {
+  pub album: Album,
+  pub tracks: Vec<Track>,
+}
+
 /// Откуда играть: прямой файл (с Range) или плейлист HLS (его склеивает hls.js).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Source {
@@ -49,6 +109,9 @@ pub enum Source {
 pub struct Account {
   pub name: Option<String>,
   pub avatar_url: Option<String>,
+  /// id аккаунта в сервисе (uid Яндекса, id пользователя SoundCloud) — для его плейлистов и лайков.
+  #[serde(default)]
+  pub uid: Option<String>,
 }
 
 pub const UA: &str =

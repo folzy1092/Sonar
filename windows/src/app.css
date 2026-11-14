@@ -24,6 +24,16 @@ body {
   cursor: default;
 }
 
+/* Текст, который можно выделить и скопировать (название трека, артист). */
+.selectable {
+  user-select: text;
+  cursor: text;
+}
+.selectable::selection,
+.selectable *::selection {
+  background: rgba(255, 255, 255, 0.28);
+}
+
 button {
   font: inherit;
   color: inherit;

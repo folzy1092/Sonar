@@ -64,6 +64,9 @@ CREATE TABLE sync_rev (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER NOT 
 INSERT INTO sync_rev (id, value) VALUES (1, 0);
 INSERT INTO users (id, number, login, username, display_name, created_at)
   VALUES ('u_local', 0, 'local', 'local', 'Я', CAST(strftime('%s','now') AS INTEGER) * 1000);
+"#, r#"
+CREATE TABLE catalog (ref TEXT PRIMARY KEY, kind TEXT NOT NULL, json TEXT NOT NULL, fetched_at INTEGER NOT NULL);
+CREATE INDEX likes_kind ON likes(user_id, kind, deleted, added_at);
 "#];
 
 pub fn now_ms() -> i64 {
@@ -95,6 +98,54 @@ pub struct Play {
   pub context: Option<String>,
   pub played_at: i64,
   pub listened_ms: i64,
+}
+
+/// Трек в списке (Любимые или плейлист): сам трек + id строки и время добавления.
+/// В JSON поля трека лежат на верхнем уровне — интерфейс работает с ним как с обычным `Track`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ListTrack {
+  pub item_id: String,
+  pub added_at: i64,
+  #[serde(flatten)]
+  pub track: Track,
+}
+
+/// Плейлист Sonar (`Playlist` в docs/API.md §4). `tracks` — только при открытии плейлиста.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Playlist {
+  pub id: String,
+  pub name: String,
+  pub hidden: bool,
+  pub source_ref: Option<String>,
+  pub created_at: i64,
+  pub updated_at: i64,
+  pub track_count: i64,
+  pub duration_ms: i64,
+  /// До 4 обложек первых треков — для коллажа.
+  pub covers: Vec<String>,
+  pub tracks: Option<Vec<ListTrack>>,
+}
+
+/// Вид лайка по префиксу ref: `sc:`/`ym:` трек, `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист.
+pub fn like_kind(r: &str) -> Option<&'static str> {
+  match r.split_once(':')?.0 {
+    "sc" | "ym" => Some("track"),
+    "scalb" | "ymalb" => Some("album"),
+    "sca" | "yma" => Some("artist"),
+    _ => None,
+  }
+}
+
+/// Id вида `pl_<26 символов>`: время в мс + случайная часть, сортируется по времени (как ULID).
+pub fn new_id(prefix: &str) -> String {
+  use std::hash::{BuildHasher, Hasher};
+  const ABC: &[u8] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+  h.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0));
+  let rnd = (h.finish() as u128) << 16;
+  let v = ((now_ms() as u128) << 80) | (rnd & ((1u128 << 80) - 1));
+  let s: String = (0..26).rev().map(|i| ABC[((v >> (i * 5)) & 31) as usize] as char).collect();
+  format!("{prefix}_{s}")
 }
 
 pub struct Store {
@@ -276,6 +327,251 @@ impl Store {
     )?;
     Ok(())
   }
+
+  // ——— лайки ———
+
+  /// Поставить или снять лайк (снятый остаётся строкой с `deleted = 1` — для синка).
+  pub fn set_like(&self, r: &str, on: bool) -> Result<()> {
+    let kind = like_kind(r).ok_or_else(|| anyhow::anyhow!("нельзя лайкнуть {r}"))?;
+    let rev = self.next_rev()?;
+    if on {
+      self.db.execute(
+        "INSERT INTO likes (user_id, ref, kind, added_at, deleted, rev) VALUES (?1, ?2, ?3, ?4, 0, ?5)
+         ON CONFLICT(user_id, ref) DO UPDATE SET added_at = CASE WHEN deleted = 1 THEN ?4 ELSE added_at END,
+           deleted = 0, rev = ?5",
+        params![LOCAL_USER, r, kind, now_ms(), rev],
+      )?;
+    } else {
+      self.db.execute(
+        "UPDATE likes SET deleted = 1, rev = ?3 WHERE user_id = ?1 AND ref = ?2",
+        params![LOCAL_USER, r, rev],
+      )?;
+    }
+    Ok(())
+  }
+
+  /// Лайкнутое одного вида: (ref, added_at), новые первыми.
+  pub fn likes(&self, kind: &str) -> Result<Vec<(String, i64)>> {
+    let mut st = self.db.prepare(
+      "SELECT ref, added_at FROM likes WHERE user_id = ?1 AND kind = ?2 AND deleted = 0 ORDER BY added_at DESC",
+    )?;
+    let rows = st.query_map([LOCAL_USER, kind], |r| Ok((r.get(0)?, r.get(1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+  }
+
+  /// Любимые треки с данными из кэша `tracks`.
+  pub fn favorites(&self) -> Result<Vec<ListTrack>> {
+    let likes = self.likes("track")?;
+    let refs: Vec<String> = likes.iter().map(|(r, _)| r.clone()).collect();
+    let by_ref: std::collections::HashMap<String, Track> =
+      self.tracks(&refs)?.into_iter().map(|t| (t.ref_.clone(), t)).collect();
+    Ok(likes
+      .into_iter()
+      .filter_map(|(r, added_at)| by_ref.get(&r).map(|t| ListTrack { item_id: r, added_at, track: t.clone() }))
+      .collect())
+  }
+
+  // ——— кэш альбомов и исполнителей (для вкладок медиатеки) ———
+
+  pub fn put_catalog(&self, r: &str, kind: &str, json: &serde_json::Value) -> Result<()> {
+    self.db.execute(
+      "INSERT INTO catalog (ref, kind, json, fetched_at) VALUES (?1, ?2, ?3, ?4)
+       ON CONFLICT(ref) DO UPDATE SET json = ?3, fetched_at = ?4",
+      params![r, kind, json.to_string(), now_ms()],
+    )?;
+    Ok(())
+  }
+
+  /// Лайкнутые альбомы или исполнители — сохранённый JSON, новые первыми.
+  pub fn liked_catalog(&self, kind: &str) -> Result<Vec<serde_json::Value>> {
+    let mut st = self.db.prepare(
+      "SELECT c.json FROM likes l JOIN catalog c ON c.ref = l.ref
+       WHERE l.user_id = ?1 AND l.kind = ?2 AND l.deleted = 0 ORDER BY l.added_at DESC",
+    )?;
+    let rows = st.query_map([LOCAL_USER, kind], |r| r.get::<_, String>(0))?;
+    Ok(rows.filter_map(|r| r.ok().and_then(|s| serde_json::from_str(&s).ok())).collect())
+  }
+
+  // ——— плейлисты ———
+
+  pub fn create_playlist(&mut self, name: &str, refs: &[String], source_ref: Option<&str>) -> Result<String> {
+    let id = new_id("pl");
+    let rev = self.next_rev()?;
+    let now = now_ms();
+    self.db.execute(
+      "INSERT INTO playlists (id, user_id, name, source_ref, created_at, updated_at, rev) VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6)",
+      params![id, LOCAL_USER, name.trim(), source_ref, now, rev],
+    )?;
+    self.add_to_playlist(&id, refs, false)?;
+    Ok(id)
+  }
+
+  /// Плейлист, перенесённый из сервиса (`scpl:…` / `ympl:…`), если он уже есть.
+  pub fn playlist_by_source(&self, source_ref: &str) -> Result<Option<String>> {
+    Ok(self
+      .db
+      .query_row(
+        "SELECT id FROM playlists WHERE user_id = ?1 AND source_ref = ?2 AND deleted = 0",
+        [LOCAL_USER, source_ref],
+        |r| r.get(0),
+      )
+      .optional()?)
+  }
+
+  fn summary(&self, row: &rusqlite::Row) -> rusqlite::Result<Playlist> {
+    Ok(Playlist {
+      id: row.get(0)?,
+      name: row.get(1)?,
+      hidden: row.get(2)?,
+      source_ref: row.get(3)?,
+      created_at: row.get(4)?,
+      updated_at: row.get(5)?,
+      track_count: 0,
+      duration_ms: 0,
+      covers: vec![],
+      tracks: None,
+    })
+  }
+
+  fn fill_stats(&self, p: &mut Playlist) -> Result<()> {
+    let (count, dur): (i64, i64) = self.db.query_row(
+      "SELECT COUNT(*), COALESCE(SUM(t.duration_ms), 0) FROM playlist_items i LEFT JOIN tracks t ON t.ref = i.ref
+       WHERE i.playlist_id = ?1 AND i.deleted = 0",
+      [&p.id],
+      |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    let mut st = self.db.prepare(
+      "SELECT t.cover_url FROM playlist_items i JOIN tracks t ON t.ref = i.ref
+       WHERE i.playlist_id = ?1 AND i.deleted = 0 AND t.cover_url IS NOT NULL ORDER BY i.position LIMIT 4",
+    )?;
+    p.covers = st.query_map([&p.id], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+    p.track_count = count;
+    p.duration_ms = dur;
+    Ok(())
+  }
+
+  /// Все плейлисты без треков, новые сверху.
+  pub fn playlists(&self) -> Result<Vec<Playlist>> {
+    let mut st = self.db.prepare(
+      "SELECT id, name, hidden, source_ref, created_at, updated_at FROM playlists
+       WHERE user_id = ?1 AND deleted = 0 ORDER BY created_at DESC",
+    )?;
+    let mut list: Vec<Playlist> = st.query_map([LOCAL_USER], |r| self.summary(r))?.collect::<rusqlite::Result<_>>()?;
+    for p in &mut list {
+      self.fill_stats(p)?;
+    }
+    Ok(list)
+  }
+
+  pub fn playlist(&self, id: &str) -> Result<Option<Playlist>> {
+    let p = self
+      .db
+      .query_row(
+        "SELECT id, name, hidden, source_ref, created_at, updated_at FROM playlists
+         WHERE user_id = ?1 AND id = ?2 AND deleted = 0",
+        [LOCAL_USER, id],
+        |r| self.summary(r),
+      )
+      .optional()?;
+    let Some(mut p) = p else { return Ok(None) };
+    self.fill_stats(&mut p)?;
+    let mut st = self.db.prepare(
+      "SELECT id, ref, added_at FROM playlist_items WHERE playlist_id = ?1 AND deleted = 0 ORDER BY position",
+    )?;
+    let items: Vec<(String, String, i64)> =
+      st.query_map([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<rusqlite::Result<_>>()?;
+    let refs: Vec<String> = items.iter().map(|i| i.1.clone()).collect();
+    let by_ref: std::collections::HashMap<String, Track> =
+      self.tracks(&refs)?.into_iter().map(|t| (t.ref_.clone(), t)).collect();
+    p.tracks = Some(
+      items
+        .into_iter()
+        .filter_map(|(item_id, r, added_at)| by_ref.get(&r).map(|t| ListTrack { item_id, added_at, track: t.clone() }))
+        .collect(),
+    );
+    Ok(Some(p))
+  }
+
+  fn touch(&self, id: &str) -> Result<()> {
+    let rev = self.next_rev()?;
+    let n = self.db.execute(
+      "UPDATE playlists SET updated_at = ?3, rev = ?4 WHERE user_id = ?1 AND id = ?2 AND deleted = 0",
+      params![LOCAL_USER, id, now_ms(), rev],
+    )?;
+    if n == 0 {
+      anyhow::bail!("плейлист не найден");
+    }
+    Ok(())
+  }
+
+  pub fn update_playlist(&self, id: &str, name: Option<&str>, hidden: Option<bool>) -> Result<()> {
+    self.touch(id)?;
+    if let Some(n) = name.map(str::trim).filter(|n| !n.is_empty()) {
+      self.db.execute("UPDATE playlists SET name = ?2 WHERE id = ?1", params![id, n])?;
+    }
+    if let Some(h) = hidden {
+      self.db.execute("UPDATE playlists SET hidden = ?2 WHERE id = ?1", params![id, h])?;
+    }
+    Ok(())
+  }
+
+  pub fn delete_playlist(&self, id: &str) -> Result<()> {
+    self.touch(id)?;
+    self.db.execute("UPDATE playlists SET deleted = 1 WHERE id = ?1", [id])?;
+    Ok(())
+  }
+
+  /// Добавить треки в начало или в конец (дробные позиции — без перенумерации).
+  pub fn add_to_playlist(&mut self, id: &str, refs: &[String], at_start: bool) -> Result<()> {
+    self.touch(id)?;
+    let rev = self.next_rev()?;
+    let tx = self.db.transaction()?;
+    {
+      let (lo, hi): (Option<f64>, Option<f64>) = tx.query_row(
+        "SELECT MIN(position), MAX(position) FROM playlist_items WHERE playlist_id = ?1 AND deleted = 0",
+        [id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+      )?;
+      let n = refs.len() as f64;
+      let first = if at_start { lo.unwrap_or(0.0) - n } else { hi.map_or(0.0, |h| h + 1.0) };
+      let mut st = tx.prepare(
+        "INSERT INTO playlist_items (id, playlist_id, ref, position, added_at, rev) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+      )?;
+      let now = now_ms();
+      for (i, r) in refs.iter().enumerate() {
+        st.execute(params![new_id("pi"), id, r, first + i as f64, now, rev])?;
+      }
+    }
+    tx.commit()?;
+    Ok(())
+  }
+
+  pub fn remove_from_playlist(&self, id: &str, item_ids: &[String]) -> Result<()> {
+    self.touch(id)?;
+    let rev = self.next_rev()?;
+    for item in item_ids {
+      self.db.execute(
+        "UPDATE playlist_items SET deleted = 1, rev = ?3 WHERE playlist_id = ?1 AND id = ?2",
+        params![id, item, rev],
+      )?;
+    }
+    Ok(())
+  }
+
+  /// Полный новый порядок строк.
+  pub fn reorder_playlist(&mut self, id: &str, item_ids: &[String]) -> Result<()> {
+    self.touch(id)?;
+    let rev = self.next_rev()?;
+    let tx = self.db.transaction()?;
+    for (i, item) in item_ids.iter().enumerate() {
+      tx.execute(
+        "UPDATE playlist_items SET position = ?3, rev = ?4 WHERE playlist_id = ?1 AND id = ?2",
+        params![id, item, i as f64, rev],
+      )?;
+    }
+    tx.commit()?;
+    Ok(())
+  }
 }
 
 #[cfg(test)]
@@ -338,6 +634,66 @@ mod tests {
     s.add_play(&p).unwrap();
     s.add_play(&p).unwrap();
     assert_eq!(s.plays_count().unwrap(), 1);
+  }
+
+  #[test]
+  fn likes_toggle_and_favorites_order() {
+    let mut s = Store::memory().unwrap();
+    s.upsert_tracks(&[track("sc:1"), track("ym:2")]).unwrap();
+    s.set_like("sc:1", true).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(3));
+    s.set_like("ym:2", true).unwrap();
+    s.set_like("scalb:9", true).unwrap();
+    let fav = s.favorites().unwrap();
+    assert_eq!(fav.iter().map(|t| t.track.ref_.as_str()).collect::<Vec<_>>(), ["ym:2", "sc:1"]);
+    s.set_like("ym:2", false).unwrap();
+    assert_eq!(s.favorites().unwrap().len(), 1);
+    assert_eq!(s.likes("album").unwrap().len(), 1);
+    assert!(s.set_like("pl_x", true).is_err());
+  }
+
+  #[test]
+  fn liked_albums_come_from_catalog() {
+    let s = Store::memory().unwrap();
+    s.put_catalog("ymalb:9", "album", &serde_json::json!({"ref": "ymalb:9", "title": "Come Over"})).unwrap();
+    s.set_like("ymalb:9", true).unwrap();
+    assert_eq!(s.liked_catalog("album").unwrap()[0]["title"], "Come Over");
+  }
+
+  #[test]
+  fn playlist_lifecycle() {
+    let mut s = Store::memory().unwrap();
+    s.upsert_tracks(&[track("sc:1"), track("ym:2"), track("sc:3")]).unwrap();
+    let id = s.create_playlist(" Микс ", &["sc:1".into(), "ym:2".into()], Some("scpl:5")).unwrap();
+    assert!(id.starts_with("pl_") && id.len() == 29);
+    assert_eq!(s.playlist_by_source("scpl:5").unwrap().as_deref(), Some(id.as_str()));
+
+    s.add_to_playlist(&id, &["sc:3".into()], true).unwrap();
+    let p = s.playlist(&id).unwrap().unwrap();
+    let refs = |p: &Playlist| p.tracks.as_ref().unwrap().iter().map(|t| t.track.ref_.clone()).collect::<Vec<_>>();
+    assert_eq!(p.name, "Микс");
+    assert_eq!(refs(&p), ["sc:3", "sc:1", "ym:2"]);
+    assert_eq!((p.track_count, p.duration_ms), (3, 3000));
+
+    let items: Vec<String> = p.tracks.unwrap().iter().map(|t| t.item_id.clone()).collect();
+    s.reorder_playlist(&id, &[items[2].clone(), items[1].clone(), items[0].clone()]).unwrap();
+    s.remove_from_playlist(&id, &[items[1].clone()]).unwrap();
+    assert_eq!(refs(&s.playlist(&id).unwrap().unwrap()), ["ym:2", "sc:3"]);
+
+    s.update_playlist(&id, Some("Новое"), Some(true)).unwrap();
+    let list = s.playlists().unwrap();
+    assert_eq!((list[0].name.as_str(), list[0].hidden, list[0].track_count), ("Новое", true, 2));
+    s.delete_playlist(&id).unwrap();
+    assert!(s.playlists().unwrap().is_empty());
+    assert!(s.playlist(&id).unwrap().is_none());
+  }
+
+  #[test]
+  fn ids_are_unique_and_sorted() {
+    let a = new_id("pl");
+    std::thread::sleep(std::time::Duration::from_millis(2));
+    let b = new_id("pl");
+    assert!(a < b);
   }
 
   #[test]

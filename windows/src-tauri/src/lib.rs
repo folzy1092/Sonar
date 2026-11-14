@@ -5,6 +5,7 @@ mod secrets;
 mod services;
 mod store;
 mod stream;
+mod tray;
 
 use commands::{Db, StreamPort};
 use services::Core;
@@ -16,13 +17,7 @@ pub fn run() {
   tauri::Builder::default()
     // Только одно окно Sonar: повторный запуск сразу завершается, а уже открытое окно
     // разворачивается и выходит вперёд. Плагин должен стоять первым.
-    .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-      if let Some(w) = app.get_webview_window("main") {
-        let _ = w.unminimize();
-        let _ = w.show();
-        let _ = w.set_focus();
-      }
-    }))
+    .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)))
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -48,6 +43,8 @@ pub fn run() {
       }
       let port = tauri::async_runtime::block_on(stream::start(core.clone()))?;
 
+      tray::setup(app)?;
+
       let controls = app.get_webview_window("main").and_then(|w| media::attach(app.handle(), &w));
 
       app.manage(core);
@@ -70,6 +67,24 @@ pub fn run() {
       commands::get_setting,
       commands::set_setting,
       commands::media_update,
+      commands::search_more,
+      commands::artist_page,
+      commands::album_page,
+      commands::service_playlists,
+      commands::service_playlist,
+      commands::import_playlist,
+      commands::set_like,
+      commands::liked_refs,
+      commands::favorites,
+      commands::liked_catalog,
+      commands::playlists,
+      commands::playlist,
+      commands::create_playlist,
+      commands::update_playlist,
+      commands::delete_playlist,
+      commands::add_to_playlist,
+      commands::remove_from_playlist,
+      commands::reorder_playlist,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");

@@ -7,10 +7,14 @@
   import SpeedButton from '../player/SpeedButton.svelte'
   import Volume from '../player/Volume.svelte'
   import { player } from '../player/player.svelte'
-  import { router } from './router.svelte'
+  import { openRef, router } from './router.svelte'
+  import { library } from '../lib/library.svelte'
+  import { hasSelection } from '../lib/selection'
 
   const track = $derived(player.current)
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
+  const liked = $derived(library.isLiked(track?.ref))
+  const openPlayer = () => !hasSelection() && router.go('player')
   const progress = $derived(duration ? Math.min(100, (player.positionMs / duration) * 100) : 0)
 </script>
 
@@ -18,19 +22,31 @@
   <div class="fill" style:width="{progress}%" aria-hidden="true"></div>
 
   <div class="left">
-    <button class="now" onclick={() => router.go('player')} title="Открыть плеер">
-      <Cover url={track?.cover_url} size={46} />
-      <span class="meta">
-        <span class="title">{track?.title ?? 'Ничего не играет'}</span>
+    <div class="now">
+      <button class="art" onclick={() => router.go('player')} aria-label="Открыть плеер" title="Открыть плеер">
+        <Cover url={track?.cover_url} size={46} />
+      </button>
+      <span class="meta selectable">
+        <span class="title" role="link" tabindex="-1" onclick={openPlayer} onkeydown={() => {}}>{track?.title ?? 'Ничего не играет'}</span>
         {#if player.error}
           <span class="artist err" title={player.error}>{player.error}</span>
+        {:else if track}
+          <span class="artist">
+            {#each track.artists as a, i (a.ref + i)}{#if i},&nbsp;{/if}<span
+                class="link"
+                role="link"
+                tabindex="-1"
+                onclick={() => !hasSelection() && openRef(a.ref)}
+                onkeydown={() => {}}>{a.name}</span
+              >{:else}{track.artist}{/each}
+          </span>
         {:else}
-          <span class="artist">{track?.artist ?? 'Найди трек в поиске'}</span>
+          <span class="artist">Найди трек в поиске</span>
         {/if}
       </span>
-    </button>
+    </div>
     {#if track}
-      <IconButton icon="heart" label="В Любимые — W3" size={17} filled disabled />
+      <IconButton icon="heart" label={liked ? 'Удалить из Любимых' : 'В Любимые'} size={17} filled={liked} active={liked} onclick={() => library.toggleLike(track)} />
     {/if}
   </div>
 
@@ -123,7 +139,17 @@
   .title {
     font-weight: 600;
   }
-  .now:hover .title {
+  .art {
+    display: grid;
+    border-radius: var(--radius-s);
+    overflow: hidden;
+  }
+  .title,
+  .link {
+    cursor: pointer;
+  }
+  .title:hover,
+  .link:hover {
     text-decoration: underline;
     text-underline-offset: 2px;
   }
