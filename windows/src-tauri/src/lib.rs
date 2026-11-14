@@ -14,6 +14,15 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    // Только одно окно Sonar: повторный запуск сразу завершается, а уже открытое окно
+    // разворачивается и выходит вперёд. Плагин должен стоять первым.
+    .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+      if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+      }
+    }))
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
