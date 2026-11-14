@@ -34,6 +34,9 @@ pub fn run() {
       let db = store::Store::open(&dir.join("sonar.db"))?;
 
       let core = Arc::new(Core::new());
+      if let Ok(Some(v)) = db.setting("audio.sc_via_yandex") {
+        core.sc_via_yandex.store(v.as_bool().unwrap_or(true), std::sync::atomic::Ordering::Relaxed);
+      }
       if let Ok(Some(q)) = db.setting("audio.quality") {
         core.max_kbps.store(services::quality_kbps(q.as_str()), std::sync::atomic::Ordering::Relaxed);
       }

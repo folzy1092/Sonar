@@ -39,6 +39,7 @@
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
 | `audio.quality` | `low`(192) / `medium`(256) / `high`(320) / `max`(от 1411, FLAC Яндекса; нет FLAC — 320). SoundCloud отдаёт максимум сам (AAC 160, с Go+ — 256) | `max` | нет |
+| `audio.sc_via_yandex` | bool — трек SoundCloud играть с Яндекса, если там есть тот же (исполнитель, название ±0.9, длительность ±3 с, одинаковые «версии»); нет — SoundCloud | `true` | нет |
 | `audio.gapless` | bool | `true` | да |
 | `audio.normalize` | bool | `false` | да |
 | `audio.on_interruption` | `duck` / `pause` / `none` | `duck` | да |

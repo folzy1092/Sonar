@@ -9,7 +9,7 @@ use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
@@ -54,6 +54,10 @@ pub struct Core {
   streams: Mutex<HashMap<String, (Source, Instant)>>,
   /// Потолок битрейта Яндекса (`audio.quality`): 192 / 256 / 320 / 1411 (FLAC без потерь).
   pub max_kbps: AtomicU32,
+  /// Трек SoundCloud играть с Яндекса, если там есть тот же (`audio.sc_via_yandex`).
+  pub sc_via_yandex: AtomicBool,
+  /// Найденные пары `sc:…` → `ym:…` (None — на Яндексе нет), чтобы не искать каждый раз.
+  ym_twins: Mutex<HashMap<String, Option<String>>>,
 }
 
 fn status<C>(s: &Option<Stored<C>>) -> ServiceStatus {
@@ -78,6 +82,8 @@ impl Core {
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
       max_kbps: AtomicU32::new(crate::providers::yandex::LOSSLESS_KBPS),
+      sc_via_yandex: AtomicBool::new(true),
+      ym_twins: Mutex::new(HashMap::new()),
     }
   }
 
@@ -139,6 +145,8 @@ impl Core {
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
       max_kbps: AtomicU32::new(crate::providers::yandex::LOSSLESS_KBPS),
+      sc_via_yandex: AtomicBool::new(false),
+      ym_twins: Mutex::new(HashMap::new()),
     }
   }
 
@@ -424,15 +432,13 @@ impl Core {
     }
     let (kind, id) = track_ref.split_once(':').ok_or_else(|| anyhow!("плохой ref {track_ref}"))?;
     let src = match kind {
-      "sc" => {
-        let (creds, public) = self.sc_creds(false).await?;
-        match self.sc_stream(&creds, track_ref, id, fresh).await {
-          Err(e) if public && is_auth_error(&e) => {
-            self.sc_stream(&self.sc_creds(true).await?.0, track_ref, id, true).await?
-          }
-          r => r?,
+      "sc" if self.sc_via_yandex.load(Ordering::Relaxed) && self.ym.read().await.is_some() => {
+        match self.yandex_twin(track_ref, id).await {
+          Some(src) => src,
+          None => self.sc_resolve(track_ref, id, fresh).await?,
         }
       }
+      "sc" => self.sc_resolve(track_ref, id, fresh).await?,
       "ym" => {
         let guard = self.ym.read().await;
         let s = guard.as_ref().ok_or_else(|| anyhow!("Яндекс Музыка не подключена"))?;
@@ -442,6 +448,72 @@ impl Core {
     };
     self.streams.lock().unwrap().insert(track_ref.to_owned(), (src.clone(), Instant::now()));
     Ok(src)
+  }
+
+  /// Поток SoundCloud как есть (публичный client_id обновляется при 401/403).
+  async fn sc_resolve(&self, track_ref: &str, id: &str, fresh: bool) -> Result<Source> {
+    let (creds, public) = self.sc_creds(false).await?;
+    match self.sc_stream(&creds, track_ref, id, fresh).await {
+      Err(e) if public && is_auth_error(&e) => self.sc_stream(&self.sc_creds(true).await?.0, track_ref, id, true).await,
+      r => r,
+    }
+  }
+
+  /// Тот же трек на Яндексе (FLAC / 320 вместо AAC 160 SoundCloud). Любая ошибка — None,
+  /// и играет SoundCloud. Пара запоминается на сеанс.
+  async fn yandex_twin(&self, track_ref: &str, id: &str) -> Option<Source> {
+    let known = self.ym_twins.lock().unwrap().get(track_ref).cloned();
+    let ym_id = match known {
+      Some(None) => return None,
+      Some(Some(ym)) => ym,
+      None => {
+        let found = self.find_yandex_twin(track_ref, id).await;
+        if let Err(e) = &found {
+          log::warn!("[twin] {track_ref}: {e}");
+        }
+        let found = found.ok().flatten();
+        self.ym_twins.lock().unwrap().insert(track_ref.to_owned(), found.clone());
+        found?
+      }
+    };
+    let guard = self.ym.read().await;
+    let s = guard.as_ref()?;
+    match (yandex::Yandex { http: &self.http, creds: &s.creds }).stream(&ym_id, self.max_kbps.load(Ordering::Relaxed)).await {
+      Ok(Source::File { url, quality }) => Some(Source::File { url, quality: format!("{quality} · Яндекс") }),
+      Ok(other) => Some(other),
+      Err(e) => {
+        log::warn!("[twin] поток Яндекса {ym_id}: {e}");
+        None
+      }
+    }
+  }
+
+  async fn find_yandex_twin(&self, track_ref: &str, id: &str) -> Result<Option<String>> {
+    let cached = self.sc_raw.lock().unwrap().get(track_ref).cloned();
+    let json = match cached {
+      Some(j) => j,
+      None => {
+        let (creds, _) = self.sc_creds(false).await?;
+        soundcloud::SoundCloud { http: &self.http, creds: &creds }.track_json(id).await?
+      }
+    };
+    let wanted = crate::providers::matching::Wanted::soundcloud(
+      json["user"]["username"].as_str().unwrap_or(""),
+      json["publisher_metadata"]["artist"].as_str(),
+      json["title"].as_str().unwrap_or(""),
+      json["full_duration"].as_u64().or(json["duration"].as_u64()).unwrap_or(0),
+    );
+    let guard = self.ym.read().await;
+    let Some(s) = guard.as_ref() else { return Ok(None) };
+    let ym = yandex::Yandex { http: &self.http, creds: &s.creds };
+    for q in wanted.queries() {
+      let found = ym.search(&q, 8).await?;
+      if let Some(t) = wanted.best(&found) {
+        log::info!("[twin] {track_ref} → {} ({} — {})", t.ref_, t.artist, t.title);
+        return Ok(Some(t.ref_.trim_start_matches("ym:").to_owned()));
+      }
+    }
+    Ok(None)
   }
 }
 
@@ -458,5 +530,25 @@ pub fn quality_kbps(v: Option<&str>) -> u32 {
     Some("medium") => 256,
     Some("high") => 320,
     _ => crate::providers::yandex::LOSSLESS_KBPS,
+  }
+}
+
+#[cfg(test)]
+mod live_twin {
+  use super::*;
+
+  #[tokio::test]
+  #[ignore = "живые SoundCloud и Яндекс на ключах из keyring: печатает только формат"]
+  async fn sc_tracks_play_from_yandex() {
+    let core = Core::new();
+    for q in ["EsDeeKid 4 Raws", "ONDA ANDAR FIRE", "kizaru дежавю", "lil peep star shopping"] {
+      let found = core.search(q, "sc", 3).await.unwrap();
+      let Some(t) = found.first() else { continue };
+      let src = core.resolve(&t.ref_, false).await.unwrap();
+      let quality = match src {
+        Source::File { quality, .. } | Source::Hls { quality, .. } => quality,
+      };
+      println!("{q}: SC «{} — {}» → {quality}", t.artist, t.title);
+    }
   }
 }

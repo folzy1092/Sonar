@@ -26,6 +26,7 @@
     { id: 'max', title: 'Максимальное', kbps: 'от 1411 кбит/с', icon: 'sparkles' },
   ]
   let quality = $state<Quality>('max')
+  let scViaYandex = $state(true)
 
   const later: Partial<Record<SettingsTab, string>> = {
     account: 'Профиль, статистика и вход появятся вместе с сервером.',
@@ -37,12 +38,21 @@
 
   onMount(async () => {
     try {
-      const q = await api.getSetting<Quality>('audio.quality')
+      const [q, via] = await Promise.all([
+        api.getSetting<Quality>('audio.quality'),
+        api.getSetting<boolean>('audio.sc_via_yandex'),
+      ])
       if (q && qualities.some((x) => x.id === q)) quality = q
+      if (typeof via === 'boolean') scViaYandex = via
     } catch {
       // вне приложения — по умолчанию
     }
   })
+
+  function toggleScViaYandex() {
+    scViaYandex = !scViaYandex
+    void api.setSetting('audio.sc_via_yandex', scViaYandex).catch(() => {})
+  }
 
   function setQuality(q: Quality) {
     quality = q
@@ -82,8 +92,18 @@
         </div>
         <p class="note">
           «Максимальное» — FLAC без потерь, если трек есть в lossless (нужен Яндекс Плюс), иначе 320.
-          SoundCloud всегда отдаёт свой максимум: AAC 160 кбит/с, с подпиской Go+ — 256.
         </p>
+
+        <button class="switch-row" role="switch" aria-checked={scViaYandex} onclick={toggleScViaYandex}>
+          <span>
+            <b>SoundCloud в качестве Яндекса</b>
+            <small>
+              Если тот же трек есть на Яндексе (исполнитель, название и длительность совпадают), играть его
+              оттуда — в качестве выше. Иначе SoundCloud: AAC 160 кбит/с, с Go+ — 256.
+            </small>
+          </span>
+          <i class="switch" class:on={scViaYandex} aria-hidden="true"></i>
+        </button>
       </section>
     {:else if settingsPanel.tab === 'services'}
       <section>
@@ -220,6 +240,58 @@
     font-size: 12px;
     line-height: 1.5;
     color: var(--text-3);
+  }
+  .switch-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    margin-top: 20px;
+    text-align: left;
+  }
+  .switch-row span {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .switch-row b {
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .switch-row small {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-3);
+  }
+  .switch {
+    position: relative;
+    flex-shrink: 0;
+    width: 40px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--surface-3);
+    transition: background var(--fast) var(--ease);
+  }
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text-2);
+    transition:
+      transform var(--fast) var(--ease),
+      background var(--fast) var(--ease);
+  }
+  .switch.on {
+    background: var(--text);
+  }
+  .switch.on::after {
+    transform: translateX(18px);
+    background: var(--accent-ink);
   }
   .later {
     margin: 8px 0;

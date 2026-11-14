@@ -1,6 +1,7 @@
 //! Работа с музыкальными сервисами: модели (как в docs/API.md) и разбор ответов.
 //! Потом эта же раскладка переезжает в server/sonar/providers (SPEC §9.3).
 
+pub mod matching;
 pub mod soundcloud;
 pub mod yandex;
 

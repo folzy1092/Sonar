@@ -116,6 +116,9 @@ pub fn get_setting(db: State<'_, Db>, key: String) -> Res<Option<serde_json::Val
 
 #[tauri::command]
 pub fn set_setting(core: State<'_, Arc<Core>>, db: State<'_, Db>, key: String, value: serde_json::Value) -> Res<()> {
+  if key == "audio.sc_via_yandex" {
+    core.sc_via_yandex.store(value.as_bool().unwrap_or(true), Ordering::Relaxed);
+  }
   if key == "audio.quality" {
     core.max_kbps.store(crate::services::quality_kbps(value.as_str()), Ordering::Relaxed);
   }
