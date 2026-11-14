@@ -206,6 +206,38 @@ selfbot переключился сменой адреса:
 - `source`: `soundcloud` / `yandex`. `id` и `track_id` — id без префикса `sc:`/`ym:`.
 - `duration` — секунды (целое), `duration_ms` — миллисекунды.
 
+## 9. Статус (SPEC §3.11)
+
+Без авторизации, кэш 30 с.
+
+| Метод | Путь | Ответ |
+|---|---|---|
+| GET | `/status` | текущее состояние (ниже) |
+| GET | `/status/history?days=90` | `{days: [{date: "2026-11-15", items: {api: 100.0, bot: 99.3, …}}]}` — % успешных проверок по дням |
+
+```json
+{
+  "state": "degraded",                 // ok | degraded | down
+  "title": "Некоторые сервисы работают с перебоями",
+  "uptime_30d": 99.99,
+  "checked_at": 1794700000000,
+  "infra": [
+    {"id": "api", "name": "Основной", "icon": "🖥️", "state": "ok", "ms": 12},
+    {"id": "bot", "name": "Бот", "icon": "🤖", "state": "ok", "ms": null},
+    {"id": "storage", "name": "Хранилище", "icon": "📦", "state": "ok", "ms": 3},
+    {"id": "site", "name": "Сайт", "icon": "🌐", "state": "ok", "ms": 210}
+  ],
+  "platforms": [
+    {"id": "soundcloud", "name": "SoundCloud", "icon": "🌐", "state": "ok", "ms": 340},
+    {"id": "yandex", "name": "Яндекс Музыка", "icon": "🌐", "state": "degraded", "ms": 2900},
+    {"id": "lrclib", "name": "lrclib", "icon": "📝", "state": "ok", "ms": 410},
+    {"id": "genius", "name": "Genius", "icon": "📝", "state": "ok", "ms": 520},
+    {"id": "lastfm", "name": "Last.fm", "icon": "🎧", "state": "ok", "ms": 190},
+    {"id": "telegram", "name": "Telegram", "icon": "✈️", "state": "ok", "ms": 95}
+  ]
+}
+```
+
 ## 8. Обновления
 
 | Метод | Путь | Ответ |

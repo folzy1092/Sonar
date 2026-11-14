@@ -194,6 +194,23 @@ CREATE TABLE notification_reads (
 );
 
 CREATE TABLE sync_rev (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER NOT NULL);
+
+-- Статус (SPEC §3.11), только на сервере
+CREATE TABLE status_checks (                    -- сырые проверки раз в 5 мин, хранятся 7 дней
+  at            INTEGER NOT NULL,               -- мс
+  item          TEXT NOT NULL,                  -- api | bot | storage | site | soundcloud | yandex | lrclib | genius | lastfm | telegram
+  ok            INTEGER NOT NULL,
+  ms            INTEGER,
+  note          TEXT,                           -- текст ошибки
+  PRIMARY KEY (item, at)
+);
+CREATE TABLE status_daily (                     -- свёртка по дням, хранится 90 дней
+  day           TEXT NOT NULL,                  -- YYYY-MM-DD (UTC)
+  item          TEXT NOT NULL,
+  ok_count      INTEGER NOT NULL,
+  total         INTEGER NOT NULL,
+  PRIMARY KEY (item, day)
+);
 ```
 
 Объёмы: `plays` ≈ 100 строк × 10 пользователей × 365 дней ≈ 365 тыс. строк ≈ 40 МБ в год.
