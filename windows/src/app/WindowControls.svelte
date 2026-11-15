@@ -28,11 +28,11 @@
 <div class="controls">
   {#if back}
     <button class="ctl" aria-label="Назад" title="Назад" disabled={!router.canGoBack} onclick={() => router.back()}>
-      <Icon name="chevronLeft" size={16} />
+      <Icon name="chevronLeft" size={14} stroke={1.8} />
     </button>
   {/if}
   <button class="ctl" aria-label="Свернуть" title="Свернуть" onclick={minimizeWindow}>
-    <Icon name="minus" size={16} />
+    <Icon name="minus" size={14} stroke={1.8} />
   </button>
   <button
     class="ctl"
@@ -40,7 +40,7 @@
     title={maximized ? 'Восстановить' : 'Развернуть'}
     onclick={toggleMaximizeWindow}
   >
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
       {#if maximized}
         <rect x="5" y="9" width="10" height="10" rx="2" />
         <path d="M9 9V7a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2" />
@@ -50,20 +50,21 @@
     </svg>
   </button>
   <button class="ctl close" aria-label="Закрыть" title="Закрыть" onclick={closeWindow}>
-    <Icon name="x" size={16} />
+    <Icon name="x" size={14} stroke={1.8} />
   </button>
 </div>
 
 <style>
   .controls {
     display: flex;
-    gap: 2px;
+    gap: 1px;
   }
+  /* компактно, как у Dotify: кнопки окна почти не занимают места */
   .ctl {
     display: grid;
     place-items: center;
-    width: 32px;
-    height: 28px;
+    width: 26px;
+    height: 22px;
     border-radius: var(--radius-s);
     color: var(--text-3);
     transition:

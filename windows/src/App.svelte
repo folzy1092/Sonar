@@ -40,6 +40,8 @@
   /** Страницы со своей шапкой в верхней строке (вкладки медиатеки как у Dotify): кнопки окна
    *  висят поверх справа, а страница начинается от самого верха. */
   const ownHeader: Page[] = ['library']
+  /** Строки поиска нет — кнопки окна висят поверх в углу, страница начинается от самого верха. */
+  const floatHeader = $derived(ownHeader.includes(router.page) || !withSearch.includes(router.page))
 
   const Current = $derived(pages[router.page])
   let scroller: HTMLElement | undefined = $state()
@@ -90,10 +92,11 @@
 <SettingsPanel />
 
 <div class="stage">
-<div class="shell" class:away={settingsPanel.open} class:solo={settings.get('mini.style') === 'off' || !player.current} inert={settingsPanel.open}>
+<div class="shell" class:away={settingsPanel.open} class:solo={settings.get('mini.style') === 'off' || !player.current || router.page === 'player'} inert={settingsPanel.open}>
   <Rail />
 
-  <main class="card" class:own-head={ownHeader.includes(router.page)}>
+  <main class="card" class:own-head={floatHeader}>
+    {#if floatHeader}<div class="drag-strip" data-tauri-drag-region></div>{/if}
     <header class="top" data-tauri-drag-region>
       {#if withSearch.includes(router.page)}
         <SearchBar />
@@ -112,7 +115,7 @@
   </main>
 
   <!-- пока ничего не играло — плеера снизу нет, главная на весь экран; появился трек — плеер выезжает -->
-  {#if settings.get('mini.style') !== 'off' && player.current}
+  {#if settings.get('mini.style') !== 'off' && player.current && router.page !== 'player'}
     <div class="player-slot" transition:slide={{ duration: 280 }}>
       <MiniPlayer />
     </div>
@@ -212,8 +215,8 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    min-height: 56px;
-    padding: 10px 10px 4px 28px;
+    min-height: 50px;
+    padding: 8px 6px 2px 28px;
   }
   .spacer {
     flex: 1;
@@ -227,7 +230,15 @@
     top: 0;
     right: 0;
     z-index: 3;
-    padding-left: 0;
+    min-height: 0;
+    padding: 6px 6px 0 0;
+  }
+  /* тонкая полоса сверху — за неё окно по-прежнему можно тащить */
+  .drag-strip {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 12px;
+    z-index: 2;
   }
   .own-head .top .spacer {
     display: none;

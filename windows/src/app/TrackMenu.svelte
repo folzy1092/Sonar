@@ -43,6 +43,8 @@
   })
 
   function onPointerDown(e: PointerEvent) {
+    // нажатие по той же ⋮ не закрываем здесь — её клик сам закроет меню (иначе оно закрылось бы и открылось снова)
+    if (trackMenu.anchor?.contains(e.target as Node)) return
     if (t && el && !el.contains(e.target as Node)) trackMenu.close()
   }
 

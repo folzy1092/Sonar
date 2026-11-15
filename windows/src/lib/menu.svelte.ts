@@ -14,8 +14,11 @@ class TrackMenu {
   target = $state<MenuTarget | null>(null)
   x = $state(0)
   y = $state(0)
+  /** Кнопка ⋮, которой открыли меню: повторный клик по ней меню закрывает. */
+  anchor: HTMLElement | null = null
 
-  open(target: MenuTarget, x: number, y: number) {
+  open(target: MenuTarget, x: number, y: number, anchor: HTMLElement | null = null) {
+    this.anchor = anchor
     this.target = target
     this.x = x
     this.y = y
@@ -23,12 +26,14 @@ class TrackMenu {
 
   /** Открыть под кнопкой (⋮). */
   openAt(target: MenuTarget, el: HTMLElement) {
+    if (this.target && this.anchor === el) return this.close()
     const r = el.getBoundingClientRect()
-    this.open(target, r.right, r.bottom + 4)
+    this.open(target, r.right, r.bottom + 4, el)
   }
 
   close() {
     this.target = null
+    this.anchor = null
   }
 }
 

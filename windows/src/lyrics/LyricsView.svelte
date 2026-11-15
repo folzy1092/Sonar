@@ -253,7 +253,8 @@
     display: block;
     width: 100%;
     margin: 0;
-    padding: 0.32em 0.25em;
+    /* справа запас как у Dotify: текущая строка увеличивается до 108 % и не должна обрезаться */
+    padding: 0.32em 9% 0.32em 0.25em;
     text-align: left;
     font: inherit;
     font-weight: 600;
