@@ -1,6 +1,9 @@
 <script lang="ts">
   // Ползунок настройки (pc/Screenshot_1 «Непрозрачность»): название, полоса, значение справа.
+  import Soon from './Soon.svelte'
   interface Props {
+    /** Есть на референсе, но ещё не работает. */
+    soon?: boolean
     title: string
     hint?: string
     value: number
@@ -10,13 +13,13 @@
     unit?: string
     onchange: (v: number) => void
   }
-  let { title, hint, value, min, max, step = 1, unit = '', onchange }: Props = $props()
+  let { title, hint, value, min, max, step = 1, unit = '', onchange, soon = false }: Props = $props()
   let live = $state<number | null>(null)
   const shown = $derived(live ?? value)
 </script>
 
-<div class="row">
-  <b>{title}</b>
+<div class="row" class:soon>
+  <b>{title}{#if soon}<Soon />{/if}</b>
   {#if hint}<small>{hint}</small>{/if}
   <div class="line">
     <input
@@ -25,6 +28,7 @@
       {max}
       {step}
       value={shown}
+      disabled={soon}
       style:--fill="{((shown - min) / (max - min)) * 100}%"
       oninput={(e) => (live = Number(e.currentTarget.value))}
       onchange={(e) => {
@@ -37,6 +41,12 @@
 </div>
 
 <style>
+  .row.soon .line {
+    opacity: 0.45;
+  }
+  input:disabled {
+    cursor: default;
+  }
   .row {
     display: flex;
     flex-direction: column;

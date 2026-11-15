@@ -8,6 +8,7 @@ import { player } from '../player/player.svelte'
 import { css, pickAccent, themeFrom, type RGB } from './palette'
 import { settings } from '../lib/settings.svelte'
 import { setAnimations } from '../lib/motion'
+import { fontStack, RADII } from './look'
 
 let port: number | null = null
 
@@ -86,6 +87,23 @@ class Theme {
       })
       $effect(() => {
         setAnimations(settings.get('appearance.animations'))
+      })
+      // шрифт и скругления (Интерфейс → Вид)
+      $effect(() => {
+        const st = document.documentElement.style
+        const f = fontStack(settings.get('appearance.font'))
+        if (f) {
+          st.setProperty('--font', f)
+          st.setProperty('--font-display', f)
+        } else {
+          st.removeProperty('--font')
+          st.removeProperty('--font-display')
+        }
+      })
+      $effect(() => {
+        const r = RADII[settings.get('appearance.corner_radius')] ?? RADII.rounded
+        const st = document.documentElement.style
+        ;(['--radius-s', '--radius-m', '--radius-l', '--radius-xl'] as const).forEach((k, i) => st.setProperty(k, `${r[i]}px`))
       })
     })
   }

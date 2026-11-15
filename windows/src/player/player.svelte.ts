@@ -264,6 +264,17 @@ class Player {
     void api.setSetting('player.volume', this.volume).catch(() => {})
   }
 
+  /** Устройство вывода (`audio.output_device`): звук идёт через Web Audio, поэтому меняем выход
+   *  у AudioContext (`setSinkId`, Chromium 110+). Пустая строка — системное устройство. */
+  async setOutput(deviceId: string) {
+    const ctx = this.ctx as (AudioContext & { setSinkId?: (id: string) => Promise<void> }) | null
+    try {
+      await ctx?.setSinkId?.(deviceId)
+    } catch {
+      // устройство пропало — остаёмся на текущем
+    }
+  }
+
   setSpeedMode(mode: SpeedMode) {
     this.speedMode = mode
     this.applySpeed()
@@ -430,12 +441,14 @@ class Player {
   /** Настройки и последнее состояние: тот же трек и позиция, на паузе (`general.restore`). */
   private async restore() {
     try {
-      const [volume, speed, saved, mode] = await Promise.all([
+      const [volume, speed, saved, mode, output] = await Promise.all([
         api.getSetting<number>('player.volume'),
         api.getSetting<SpeedMode>('player.speed_mode'),
         api.loadPlayerState(),
         api.getSetting<'none' | 'track' | 'queue'>('general.restore'),
+        api.getSetting<string>('audio.output_device'),
       ])
+      if (output) void this.setOutput(output)
       if (typeof volume === 'number') this.volume = volume
       if (speed && speed in speedModes) this.speedMode = speed
       this.applyVolume()

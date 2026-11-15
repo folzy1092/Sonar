@@ -8,6 +8,7 @@
   import { replay } from '../lib/replay'
   import { wave } from '../player/my-wave.svelte'
   import { settings } from '../lib/settings.svelte'
+  import { slide } from 'svelte/transition'
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
   import TrackRow from '../components/TrackRow.svelte'
@@ -45,7 +46,7 @@
   }
 </script>
 
-<div class="top">
+<div class="top" class:flip={settings.get('player.cover_position') === 'right'}>
   <div class="art">
     <button class="open-full" aria-label="Полноэкранный плеер" title="Полноэкранный плеер" disabled={!track} onclick={() => lyrics.open()}>
       <Cover url={track?.cover_url} size={320} radius="18px" />
@@ -148,7 +149,8 @@
   </div>
 </div>
 
-<section class="panel queue">
+{#if settings.get('queue.show')}
+<section class="panel queue" transition:slide={{ duration: 260 }}>
   <button class="chip" onclick={openContext} title="Открыть источник очереди"><Icon name={contextIcon} size={14} filled={contextIcon === 'heart'} /> {contextTitle}{#if player.shuffle}<Icon name="shuffle" size={14} />{/if}</button>
 
   {#if track}
@@ -167,6 +169,7 @@
     <p class="empty">Очередь пуста — включи трек из поиска.</p>
   {/if}
 </section>
+{/if}
 
 <style>
   .top {
@@ -174,6 +177,13 @@
     grid-template-columns: 320px minmax(0, 1fr);
     gap: 18px;
     align-items: start;
+  }
+  /* «Позиция обложки: справа» (player.cover_position) */
+  .top.flip {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+  .top.flip .art {
+    order: 2;
   }
   .art {
     position: relative;

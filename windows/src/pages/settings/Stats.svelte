@@ -6,20 +6,14 @@
   import { api, type Stats, type StatsPeriod } from '../../lib/api'
   import { plural } from '../../lib/format'
   import { cascade } from '../../lib/cascade'
-  import { indicator } from '../../lib/indicator'
   import { openRef } from '../../app/router.svelte'
   import { settingsPanel } from '../settings-section.svelte'
   import { player } from '../../player/player.svelte'
 
-  const periods: { id: StatsPeriod; title: string }[] = [
-    { id: 'week', title: 'Неделя' },
-    { id: 'month', title: 'Месяц' },
-    { id: 'year', title: 'Год' },
-    { id: 'all', title: 'Всё время' },
-  ]
   const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
-  let period = $state<StatsPeriod>('all')
+  // экран как pc/Screenshot_32 — итоги за всё время
+  const period: StatsPeriod = 'all'
   let stats = $state<Stats | null>(null)
   let error = $state<string | null>(null)
 
@@ -42,7 +36,6 @@
     const m = Math.round(ms / 60_000)
     return `${m} ${plural(m, ['минута', 'минуты', 'минут'])}`
   }
-  const max = $derived(Math.max(1, ...(stats?.buckets.map((b) => b.value_ms) ?? [1])))
   const artists = $derived(stats ? [stats.top_artist, ...stats.more_artists].filter((a) => !!a) : [])
 
   function openArtist(ref: string | null) {
@@ -60,12 +53,6 @@
     if (list.length) void player.playList(list, Math.max(0, at), 'stats', 'Любимые треки')
   }
 </script>
-
-<div class="periods" use:indicator={{ key: period, kind: 'pill' }}>
-  {#each periods as p (p.id)}
-    <button class:on={period === p.id} onclick={() => (period = p.id)}>{p.title}</button>
-  {/each}
-</div>
 
 {#if error}
   <p class="hint">{error}</p>
@@ -100,13 +87,6 @@
         </div>
       {/if}
     </div>
-    {#key period}
-      <div class="chart" aria-hidden="true">
-        {#each stats.buckets as b, i (i)}
-          <span class="bar" style:--h="{(b.value_ms / max) * 100}%" style:--d="{i * 18}ms" title="{b.label}: {Math.round(b.value_ms / 60000)} мин"></span>
-        {/each}
-      </div>
-    {/key}
   </div>
 
   {#if artists.length}
@@ -140,23 +120,6 @@
 {/if}
 
 <style>
-  .periods {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 14px;
-  }
-  .periods button {
-    height: 30px;
-    padding: 0 12px;
-    border-radius: 999px;
-    font-size: 13px;
-    color: var(--text-2);
-    transition: color var(--fast) var(--ease);
-  }
-  .periods button.on {
-    color: var(--on-text);
-    font-weight: 600;
-  }
   .card {
     padding: 18px;
     border-radius: 16px;
@@ -218,29 +181,6 @@
   .minor span {
     font-size: 12px;
     color: var(--text-3);
-  }
-  .chart {
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    gap: 3px;
-    height: 70px;
-    margin-top: 18px;
-  }
-  .bar {
-    flex: 1;
-    max-width: 22px;
-    height: max(3px, var(--h));
-    border-radius: 3px;
-    background: var(--text);
-    opacity: 0.85;
-    transform-origin: bottom;
-    animation: bar-in 0.6s var(--ease) var(--d) both;
-  }
-  @keyframes bar-in {
-    from {
-      transform: scaleY(0);
-    }
   }
   h2 {
     margin: 26px 0 12px;

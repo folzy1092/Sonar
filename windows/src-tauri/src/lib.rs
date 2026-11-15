@@ -9,6 +9,7 @@ mod store;
 mod stream;
 mod tray;
 mod wave;
+mod zoom;
 
 use commands::{Db, StreamPort};
 use services::Core;
@@ -75,12 +76,9 @@ pub fn run() {
       rpc.progress.store(flag("integrations.discord.progress"), std::sync::atomic::Ordering::Relaxed);
       app.manage(rpc);
 
-      // масштаб окна из настроек — сразу, без «прыжка» после загрузки
-      if let (Ok(Some(z)), Some(w)) = (db.setting("appearance.scale_window"), app.get_webview_window("main")) {
-        if let Some(pct) = z.as_f64().filter(|p| (50.0..=200.0).contains(p)) {
-          let _ = w.set_zoom(pct / 100.0);
-        }
-      }
+      // масштаб в окне и на весь экран — сразу, без «прыжка» после загрузки
+      let pct = |k: &str| db.setting(k).ok().flatten().and_then(|v| v.as_f64());
+      zoom::setup(app, pct("appearance.scale_window"), pct("appearance.scale_fullscreen"));
 
       let controls = app.get_webview_window("main").and_then(|w| media::attach(app.handle(), &w));
 

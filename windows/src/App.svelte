@@ -23,6 +23,7 @@
   import { wave } from './player/my-wave.svelte'
   import { theme } from './theme/theme.svelte'
   import { settings } from './lib/settings.svelte'
+  import { slide } from 'svelte/transition'
 
   const pages = {
     home: Home,
@@ -104,9 +105,11 @@
     </div>
   </main>
 
-  <div class="player-slot">
-    <MiniPlayer />
-  </div>
+  {#if settings.get('mini.style') !== 'off'}
+    <div class="player-slot" transition:slide={{ duration: 280 }}>
+      <MiniPlayer />
+    </div>
+  {/if}
 </div>
 {#if settingsPanel.open}
   <!-- клик по отъехавшему окну закрывает настройки -->

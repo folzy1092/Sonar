@@ -1,13 +1,15 @@
 <script lang="ts">
-  // Система → Общее (pc/Screenshot_16): платформа волны, медиатека, восстановление, запуск
-  // (автозапуск, трей, экономия ресурсов).
+  // Система → Общее по pc/Screenshot_16: язык, платформа волны, медиатека (добавление, облако), запуск
+  // (автозапуск, трей, экономия ресурсов). «Продолжить с прошлого раза» и «Авто похожие» — в Очереди.
+  import { onMount } from 'svelte'
+  import Icon from '../../components/Icon.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Choice from '../../components/settings/Choice.svelte'
   import Group from '../../components/settings/Group.svelte'
+  import Soon from '../../components/settings/Soon.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { api } from '../../lib/api'
   import { wave } from '../../player/my-wave.svelte'
-  import { onMount } from 'svelte'
 
   // автозапуск — реальное состояние из реестра Windows, а не только настройка
   let autostart = $state(false)
@@ -40,24 +42,24 @@
   }
 </script>
 
-<Group title="Волна и рекомендации">
-  <Choice
-    title="Платформа"
-    hint="Откуда главная берёт волну и похожее"
-    value={settings.get('general.platform')}
-    options={[
-      { id: 'soundcloud', label: 'SoundCloud' },
-      { id: 'yandex', label: 'Яндекс' },
-    ]}
-    onchange={setPlatform}
-  />
-  <Switch
-    title="Похожие после очереди"
-    hint="Очередь закончилась — играть дальше волну по последнему треку"
-    on={settings.get('general.similar_autoplay')}
-    onchange={(v) => settings.set('general.similar_autoplay', v)}
-  />
-</Group>
+<Choice
+  title="Язык приложения"
+  value="ru"
+  options={[
+    { id: 'en', label: 'English', sub: 'EN', soon: true },
+    { id: 'ru', label: 'Русский', sub: 'RU' },
+  ]}
+/>
+<Choice
+  title="Платформа"
+  hint="Откуда главная берёт волну и рекомендации"
+  value={settings.get('general.platform')}
+  options={[
+    { id: 'soundcloud', label: 'SoundCloud' },
+    { id: 'yandex', label: 'Яндекс' },
+  ]}
+  onchange={setPlatform}
+/>
 
 <Group title="Медиатека">
   <Choice
@@ -70,33 +72,24 @@
     ]}
     onchange={(v) => settings.set('general.add_position', v)}
   />
-  <Choice
-    title="При запуске"
-    hint="Что вернуть после перезапуска Sonar (на паузе)"
-    value={settings.get('general.restore')}
-    wide
-    options={[
-      { id: 'none', label: 'Ничего' },
-      { id: 'track', label: 'Трек' },
-      { id: 'queue', label: 'Трек и очередь' },
-    ]}
-    onchange={(v) => settings.set('general.restore', v)}
-  />
+  <button class="cloud" disabled>
+    <Icon name="cloudUp" size={18} />
+    <span><b>Сохранить в облако <Soon /></b><small>Лайки и плейлисты с этого устройства</small></span>
+  </button>
+  <button class="cloud" disabled>
+    <Icon name="cloudDown" size={18} />
+    <span><b>Загрузить из облака <Soon /></b><small>Заменит лайки и плейлисты здесь</small></span>
+  </button>
 </Group>
 
 <Group title="Запуск">
-  <Switch title="Автозапуск" hint="Открывать Sonar при входе в Windows (в трее)" on={autostart} onchange={setAutostart} />
-  <Switch
-    title="Сворачивать в трей"
-    hint="Крестик прячет окно, музыка играет дальше. Выключено — крестик закрывает Sonar"
-    on={settings.get('system.tray')}
-    onchange={setTray}
-  />
+  <Switch title="Автозапуск" hint="Открывать Sonar при входе в систему" on={autostart} onchange={setAutostart} />
+  <Switch title="Сворачивать в трей" hint="Крестик прячет окно, музыка играет дальше" on={settings.get('system.tray')} onchange={setTray} />
   <Choice
     title="Экономия ресурсов"
-    hint="Когда останавливать визуализатор и фоновые анимации"
-    value={settings.get('system.power_saving')}
+    hint="Когда упрощать эффекты, чтобы не нагружать компьютер"
     wide
+    value={settings.get('system.power_saving')}
     options={[
       { id: 'off', label: 'Выключено' },
       { id: 'minimized', label: 'При сворачивании' },
@@ -105,3 +98,34 @@
     onchange={(v) => settings.set('system.power_saving', v)}
   />
 </Group>
+
+<style>
+  .cloud {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    margin-top: 8px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--plate);
+    color: var(--text-2);
+    text-align: left;
+  }
+  .cloud:disabled {
+    cursor: default;
+  }
+  .cloud span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .cloud b {
+    font-size: 13px;
+    color: var(--text);
+  }
+  .cloud small {
+    font-size: 11px;
+    color: var(--text-3);
+  }
+</style>

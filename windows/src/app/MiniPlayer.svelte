@@ -12,6 +12,7 @@
   import { library } from '../lib/library.svelte'
   import { hasSelection } from '../lib/selection'
   import { replay } from '../lib/replay'
+  import { settings } from '../lib/settings.svelte'
   import { lyrics } from '../lyrics/lyrics.svelte'
 
   const track = $derived(player.current)
@@ -47,14 +48,24 @@
 </script>
 
 <footer
-  class="mini"
+  class="mini bg-{settings.get('mini.background')} progress-{settings.get('mini.progress')}"
+  class:shape-capsule={settings.get('mini.shape') === 'capsule'}
+  class:round-cover={settings.get('mini.cover_shape') === 'circle'}
   class:seekable={!!track}
   bind:this={bar}
   onpointerdown={down}
   onpointerup={up}
   onpointercancel={() => (press = null)}
 >
-  <div class="fill" style:width="{progress}%" aria-hidden="true"></div>
+  {#if settings.get('mini.background') === 'cover' && track?.cover_url}
+    <!-- фон «Обложка»: сама обложка, размытая и затемнённая -->
+    {#key track.cover_url}
+      <img class="cover-bg" src={track.cover_url} alt="" aria-hidden="true" />
+    {/key}
+  {/if}
+  {#if settings.get('mini.progress') !== 'cover'}
+    <div class="fill" style:width="{progress}%" aria-hidden="true"></div>
+  {/if}
 
   <div class="left">
     <div class="now">
@@ -65,7 +76,11 @@
         aria-label="Полноэкранный плеер"
         title="Полноэкранный плеер"
       >
-        <Cover url={track?.cover_url} size={46} />
+        <Cover url={track?.cover_url} size={46} radius={settings.get('mini.cover_shape') === 'circle' ? '50%' : 'var(--radius-s)'} />
+        {#if settings.get('mini.progress') === 'cover'}
+          <!-- прогресс «Вокруг обложки»: кольцо -->
+          <svg class="ring" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24.5" pathLength="100" style:stroke-dasharray="{progress} 100" /></svg>
+        {/if}
         <span class="expand" aria-hidden="true"><Icon name="expand" size={18} /></span>
       </button>
       <span class="meta selectable" use:replay={track?.ref}>
@@ -136,10 +151,61 @@
     height: var(--player-h);
     padding: 0 12px 0 8px;
     border-radius: var(--radius-l);
-    /* mini.background = cover_color: фон — оттенок обложки (тема под обложку) */
-    background: color-mix(in srgb, var(--tint) 75%, var(--surface-1));
+    background: var(--surface-1);
     border: 1px solid var(--border);
     overflow: hidden;
+    transition:
+      background 0.4s var(--ease),
+      border-radius 0.4s var(--ease);
+  }
+  /* mini.background (Настройки → Плеер → Мини плеер): тема / обложка / цвет обложки */
+  .mini.bg-cover_color {
+    background: color-mix(in srgb, var(--tint) 75%, var(--surface-1));
+  }
+  .mini.bg-cover {
+    background: #000;
+  }
+  .cover-bg {
+    position: absolute;
+    inset: -20px;
+    width: calc(100% + 40px);
+    height: calc(100% + 40px);
+    object-fit: cover;
+    filter: blur(28px) brightness(0.45) saturate(1.2);
+    pointer-events: none;
+    animation: xfade-in 0.6s var(--ease);
+  }
+  @keyframes xfade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  .mini.shape-capsule {
+    border-radius: 999px;
+    padding-left: 10px;
+  }
+  /* прогресс «Линия» — тонкая полоска внизу */
+  .mini.progress-line .fill {
+    top: auto;
+    height: 2px;
+    background: var(--accent);
+  }
+  .ring {
+    position: absolute;
+    inset: -3px;
+    width: calc(100% + 6px);
+    height: calc(100% + 6px);
+    transform: rotate(-90deg);
+    pointer-events: none;
+  }
+  .ring circle {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+  }
+  .mini.progress-cover .art {
+    overflow: visible;
   }
   .fill {
     position: absolute;
@@ -186,6 +252,10 @@
     display: grid;
     border-radius: var(--radius-s);
     overflow: hidden;
+  }
+  .round-cover .art,
+  .round-cover .expand {
+    border-radius: 50%;
   }
   /* при наведении на обложку — две стрелки: откроется полноэкранный плеер */
   .expand {

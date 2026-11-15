@@ -13,22 +13,45 @@ export const TABS: { id: SettingsTab; title: string }[] = [
   { id: 'system', title: 'Система' },
 ]
 
-/** Подразделы — капсулы под вкладками. Профиль, вход, Last.fm, ключ API — вместе с сервером. */
-export const SUBS: Record<SettingsTab, { id: string; title: string; icon: IconName }[]> = {
-  account: [{ id: 'stats', title: 'Статистика', icon: 'history' }],
-  interface: [{ id: 'look', title: 'Вид', icon: 'palette' }],
+/** Подразделы — капсулы под вкладками, по reference/pc. `soon` — с сервером / ещё не сделано,
+ *  `lock` — «В разработке» (приватность). Не делаем: подписку, Кастом/Мастерскую, оверлей, прокси,
+ *  горячие клавиши (CLAUDE.md). */
+export interface SettingsSub {
+  id: string
+  title: string
+  icon: IconName
+  soon?: boolean
+  lock?: boolean
+}
+
+export const SUBS: Record<SettingsTab, SettingsSub[]> = {
+  account: [
+    { id: 'profile', title: 'Профиль', icon: 'user2', soon: true },
+    { id: 'login', title: 'Вход', icon: 'shield', soon: true },
+    { id: 'privacy', title: 'Приватность', icon: 'lock', lock: true },
+    { id: 'stats', title: 'Статистика', icon: 'bars' },
+  ],
+  interface: [
+    { id: 'look', title: 'Вид', icon: 'palette' },
+    { id: 'tabs', title: 'Вкладки', icon: 'grid' },
+  ],
   player: [
     { id: 'audio', title: 'Аудио', icon: 'volume' },
-    { id: 'view', title: 'Вид', icon: 'eye' },
+    { id: 'view', title: 'Вид', icon: 'player' },
+    { id: 'queue', title: 'Очередь', icon: 'queue' },
+    { id: 'mini', title: 'Мини плеер', icon: 'music' },
   ],
   services: [{ id: 'services', title: 'Сервисы', icon: 'key' }],
-  integrations: [{ id: 'apps', title: 'Приложения', icon: 'link' }],
+  integrations: [{ id: 'apps', title: 'Приложения', icon: 'stack' }],
   system: [
     { id: 'general', title: 'Общее', icon: 'adjustments' },
     { id: 'storage', title: 'Хранилище', icon: 'database' },
     { id: 'about', title: 'О приложении', icon: 'info' },
   ],
 }
+
+/** Подраздел по умолчанию — первый рабочий. */
+export const firstSub = (tab: SettingsTab) => (SUBS[tab].find((s) => !s.soon && !s.lock) ?? SUBS[tab][0]).id
 
 class SettingsPanel {
   open = $state(false)
@@ -38,7 +61,7 @@ class SettingsPanel {
   show(tab?: SettingsTab, sub?: string) {
     if (tab && tab !== this.tab) {
       this.tab = tab
-      this.sub = SUBS[tab][0].id
+      this.sub = firstSub(tab)
     }
     if (sub) this.sub = sub
     this.open = true

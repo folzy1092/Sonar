@@ -622,10 +622,10 @@ pub fn open_url(url: String) -> Res<()> {
   Ok(())
 }
 
-/// Масштаб окна (`appearance.scale_window`, 75–125 %) — зум WebView, как Ctrl+колесо в браузере.
+/// Масштаб: `kind` — `window` (в окне) или `fullscreen` (развёрнуто), `percent` — 75–125.
 #[tauri::command]
-pub fn set_zoom(window: tauri::WebviewWindow, scale: f64) -> Res<()> {
-  window.set_zoom(scale.clamp(0.5, 2.0)).map_err(err)
+pub fn set_zoom(window: tauri::WebviewWindow, kind: String, percent: f64) {
+  crate::zoom::set(&window, &kind, percent);
 }
 
 /// Автозапуск с Windows (`system.autostart`): запись в HKCU…Run через tauri-plugin-autostart.

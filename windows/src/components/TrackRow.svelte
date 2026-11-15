@@ -10,6 +10,7 @@
   import { hasSelection } from '../lib/selection'
   import { openRef } from '../app/router.svelte'
   import { formatTime, player } from '../player/player.svelte'
+  import { settings } from '../lib/settings.svelte'
 
   interface Props {
     track: Track
@@ -33,6 +34,8 @@
   function activate() {
     if (hasSelection()) return
     if (isCurrent) player.toggle()
+    // «Добавлять следующие» выключено — играет только нажатый трек, без хвоста списка
+    else if (!settings.get('queue.add_following') && variant !== 'queue') void player.playList([track], 0, null)
     else onplay()
   }
 

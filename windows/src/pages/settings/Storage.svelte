@@ -4,6 +4,8 @@
   import { onMount } from 'svelte'
   import Group from '../../components/settings/Group.svelte'
   import CountUp from '../../components/CountUp.svelte'
+  import Switch from '../../components/settings/Switch.svelte'
+  import Soon from '../../components/settings/Soon.svelte'
   import { api, type StorageUsage } from '../../lib/api'
   import { plural } from '../../lib/format'
   import { toast } from '../../lib/toast.svelte'
@@ -40,8 +42,8 @@
 
 {#if usage}
   <div class="total">
-    <b><CountUp value={mb(total)} format={(n) => n.toFixed(1)} /> МБ</b>
-    <span>занято</span>
+    <b><CountUp value={mb(total)} format={(n) => n.toFixed(1)} /> MB</b>
+    <span>Занято</span>
   </div>
   <div class="bar" aria-hidden="true">
     <i class="covers" style:width="{part(usage.covers_bytes)}%"></i>
@@ -49,10 +51,17 @@
     <i class="db" style:width="{part(usage.db_bytes)}%"></i>
   </div>
 
-  <Group title="Очистка кэша">
+  <Switch title="Кеширование треков" hint="Все треки будут сохранены в кеш для быстрого воспроизведения" on={false} soon />
+
+  <Group title="Очистка кеша">
     {#snippet action()}
       <button class="link" onclick={() => clear('all', 'Кэш очищен')}>Очистить всё</button>
     {/snippet}
+    <div class="row off">
+      <span class="dot tracks"></span>
+      <span class="text"><b>Треки <Soon /></b><small>0 треков, 0 МБ</small></span>
+      <button class="link" disabled>Очистить</button>
+    </div>
     <div class="row">
       <span class="dot covers"></span>
       <span class="text"><b>Обложки</b><small>{usage.covers} {plural(usage.covers, ['обложка', 'обложки', 'обложек'])}, {mbText(usage.covers_bytes)}</small></span>
@@ -63,17 +72,17 @@
       <span class="text"><b>Тексты</b><small>{usage.lyrics} {plural(usage.lyrics, ['текст', 'текста', 'текстов'])}, {mbText(usage.lyrics_bytes)}</small></span>
       <button class="link" onclick={() => clear('lyrics', 'Тексты удалены')}>Очистить</button>
     </div>
-    <div class="row">
-      <span class="dot db"></span>
-      <span class="text"><b>База</b><small>Лайки, плейлисты, история, настройки — {mbText(usage.db_bytes)}</small></span>
-    </div>
   </Group>
 
   <Group title="Данные">
+    <div class="row off">
+      <span class="text"><b>История поиска <Soon /></b><small>Запросы и открытые из поиска результаты</small></span>
+      <button class="link" disabled>Очистить</button>
+    </div>
     <div class="row">
       <span class="text">
         <b>Настройки треков</b>
-        <small>Скорость, эквалайзер и сдвиг текста, сохранённые для {usage.track_prefs} {plural(usage.track_prefs, ['трека', 'треков', 'треков'])}</small>
+        <small>Скорость, эквалайзер и сдвиг текста, сохранённые для отдельных треков ({usage.track_prefs})</small>
       </span>
       {#if confirmPrefs}
         <button class="link danger" onclick={() => clear('track_prefs', 'Настройки треков сброшены')}>Точно сбросить?</button>
@@ -120,6 +129,13 @@
   }
   .db {
     background: var(--text-3);
+  }
+  .tracks {
+    background: var(--text);
+    opacity: 0.4;
+  }
+  .row.off .text small {
+    opacity: 0.6;
   }
   .row {
     display: flex;

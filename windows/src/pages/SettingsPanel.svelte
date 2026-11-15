@@ -12,6 +12,9 @@
   import General from './settings/General.svelte'
   import Storage from './settings/Storage.svelte'
   import About from './settings/About.svelte'
+  import TabsView from './settings/TabsView.svelte'
+  import Queue from './settings/Queue.svelte'
+  import Mini from './settings/Mini.svelte'
   import { settingsPanel, SUBS, TABS } from './settings-section.svelte'
   import { indicator } from '../lib/indicator'
 
@@ -51,7 +54,19 @@
     {#key settingsPanel.tab}
       <div class="subs tab-in" use:indicator={{ key: sub, kind: 'pill' }}>
         {#each subs as s (s.id)}
-          <button class="sub" class:on={sub === s.id} onclick={() => (settingsPanel.sub = s.id)}><Icon name={s.icon} size={15} /> {s.title}</button>
+          <button
+            class="sub"
+            class:on={sub === s.id}
+            class:off={s.soon || s.lock}
+            disabled={s.soon || s.lock}
+            title={s.lock ? `${s.title} — в разработке` : s.soon ? `${s.title} — скоро, вместе с сервером` : s.title}
+            onclick={(e) => {
+              settingsPanel.sub = s.id
+              e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
+            }}
+          >
+            <Icon name={s.lock ? 'lock' : s.icon} size={15} /> {s.title}
+          </button>
         {/each}
       </div>
     {/key}
@@ -64,6 +79,12 @@
           <Stats />
         {:else if sub === 'look'}
           <Look />
+        {:else if sub === 'tabs'}
+          <TabsView />
+        {:else if sub === 'queue'}
+          <Queue />
+        {:else if sub === 'mini'}
+          <Mini />
         {:else if sub === 'audio'}
           <Audio />
         {:else if sub === 'view'}
@@ -132,13 +153,15 @@
     border-radius: 999px;
     background: var(--plate);
     border: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
   }
   .sub {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 7px;
-    flex: 1;
+    flex: 1 0 auto;
     height: 34px;
     padding: 0 12px;
     border-radius: 999px;
@@ -147,8 +170,12 @@
     white-space: nowrap;
     transition: color var(--fast) var(--ease);
   }
-  .sub:hover {
+  .sub:hover:not(:disabled) {
     color: var(--text);
+  }
+  .sub.off {
+    opacity: 0.45;
+    cursor: default;
   }
   .sub.on {
     color: var(--on-text);
