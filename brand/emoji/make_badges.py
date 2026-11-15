@@ -1,4 +1,4 @@
-"""Значки Sonar для премиум-эмодзи (свой пак): волнистая «розетка» с вырезанным знаком.
+"""Значки Sonar для премиум-эмодзи (свой пак): простые одноцветные знаки (без розетки — решение 2026-11-15).
 
 Рисуется с нуля (PIL, 4× сглаживание) — ничего не скопировано из чужих паков.
 Значок белый на прозрачном: в паке с needs_repainting Telegram красит его под цвет текста.
@@ -145,18 +145,32 @@ def sonar(d):
 BADGES = {"windows": windows, "iphone": iphone, "android": android, "music": music,
           "diamond": diamond, "heart": heart, "bug": bug, "wave": wave, "sonar": sonar}
 
+def plain(glyph, size=100, pad=0.06):
+    """Просто знак без розетки (решение владельца 2026-11-15): белый на прозрачном, вписан в квадрат."""
+    m = Image.new("L", (S, S), 255)
+    glyph(ImageDraw.Draw(m))
+    m = Image.eval(m, lambda v: 255 - v)          # знак рисовали «дыркой» в белом — переворачиваем
+    box = m.getbbox()
+    m = m.crop(box)
+    side = max(m.size)
+    sq = Image.new("L", (side, side), 0)
+    sq.paste(m, ((side - m.size[0]) // 2, (side - m.size[1]) // 2))
+    inner = int(size * (1 - 2 * pad))
+    sq = sq.resize((inner * 4, inner * 4), Image.LANCZOS).resize((inner, inner), Image.LANCZOS)
+    out = Image.new("RGBA", (size, size), (255, 255, 255, 0))
+    a = Image.new("L", (size, size), 0)
+    a.paste(sq, ((size - inner) // 2, (size - inner) // 2))
+    out.putalpha(a)
+    return out
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     for name, glyph in BADGES.items():
-        m = Image.new("L", (S, S), 0)
-        d = ImageDraw.Draw(m)
-        rosette(d)
-        glyph(d)
-        img = Image.new("RGBA", (S, S), (255, 255, 255, 0))
-        img.putalpha(m)
-        img.resize((100, 100), Image.LANCZOS).save(os.path.join(OUT, f"{name}.png"))
+        if name == "sonar":
+            continue
+        plain(glyph).save(os.path.join(OUT, f"{name}.png"))
         print(name)
-    # Просто знак Sonar, без розетки — для «Открыть в Sonar» и шапок.
     import numpy as np
     m = Image.fromarray((logo_mask(S, 360, 255) * 255).astype("uint8"))
     img = Image.new("RGBA", (S, S), (255, 255, 255, 0))

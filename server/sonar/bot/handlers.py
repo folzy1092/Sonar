@@ -330,6 +330,96 @@ async def reg_again(msg: Message, state: FSMContext, ctx: Ctx):
     await ctx.shower.send(msg.chat.id, S.main(user, ctx.settings))
 
 
+
+# ---- свой пак премиум-эмодзи (brand/emoji/badges) — только владелец ----
+
+PACK_EMOJI = {"logo_sonar": "🎧", "windows": "💻", "iphone": "📱", "android": "🤖", "music": "🎶",
+              "diamond": "💎", "heart": "❤️", "bug": "🐞", "wave": "🌊"}
+
+
+@router.message(Command("emoji_pack"))
+async def cmd_emoji_pack(msg: Message, ctx: Ctx):
+    """Создаёт (или дополняет) пак «Sonar» из brand/emoji/badges и присылает ключ → custom_emoji_id."""
+    from aiogram.types import FSInputFile, InputSticker
+    from ..config import REPO_DIR
+    from ..db import kv_set
+    if not ctx.is_owner(msg.from_user.id):
+        return
+    folder = REPO_DIR / "brand" / "emoji" / "badges"
+    name = f"sonar_icons_by_{ctx.bot_username}"
+    have: dict[str, str] = {}
+    try:
+        existing = await ctx.bot.get_sticker_set(name)
+        have = {s.emoji: s.custom_emoji_id for s in existing.stickers}
+    except TelegramBadRequest:
+        existing = None
+    todo = [(k, e) for k, e in PACK_EMOJI.items() if (folder / f"{k}.png").exists()]
+    stickers = [InputSticker(sticker=FSInputFile(folder / f"{k}.png"), format="static", emoji_list=[e]) for k, e in todo]
+    if existing is None:
+        await ctx.bot.create_new_sticker_set(user_id=msg.from_user.id, name=name, title="Sonar", stickers=stickers,
+                                             sticker_type="custom_emoji", needs_repainting=True)
+    # Пак уже есть — свои значки не трогаем (в нём ещё и скопированные эмодзи), дописываем только новые PNG.
+    from ..db import kv_get
+    for k, e in todo:
+        if existing is not None and not kv_get(ctx.accounts.con, f"pack:{k}"):
+            await ctx.bot.add_sticker_to_set(user_id=msg.from_user.id, name=name,
+                                             sticker=InputSticker(sticker=FSInputFile(folder / f"{k}.png"), format="static", emoji_list=[e]))
+            kv_set(ctx.accounts.con, f"pack:{k}", (await ctx.bot.get_sticker_set(name)).stickers[-1].custom_emoji_id)
+        elif existing is None:
+            created = await ctx.bot.get_sticker_set(name)
+            kv_set(ctx.accounts.con, f"pack:{k}", next(s.custom_emoji_id for s in created.stickers if s.emoji == e))
+    lines = []
+    for k, e in todo:
+        cid = kv_get(ctx.accounts.con, f"pack:{k}")
+        if cid:
+            lines.append(f'<tg-emoji emoji-id="{cid}">{e}</tg-emoji> <code>{k}</code> — <code>{cid}</code>')
+    lines += await copy_picked(ctx, msg.from_user.id, name)
+    text = f"Паки: https://t.me/addemoji/{name} · https://t.me/addemoji/sonar_logos_by_{ctx.bot_username}\n\n"
+    for i in range(0, len(lines), 40):  # 4096 знаков на сообщение
+        await msg.answer((text if i == 0 else "") + "\n".join(lines[i:i + 40]), parse_mode="HTML",
+                         link_preview_options={"is_disabled": True})
+
+
+async def copy_picked(ctx: Ctx, owner_id: int, icons_set: str) -> list[str]:
+    """Подобранные премиум-эмодзи (таблица emoji.py) — копиями в свои паки по file_id.
+
+    Одноцветные (needs_repainting) → «Sonar», цветные логотипы → «Sonar Logos» (иначе Telegram их обесцветит).
+    Соответствие «исходный id → наш id» — в kv packsrc:<исходный id>; повторный запуск копирует только новые.
+    """
+    from aiogram.types import InputSticker
+    from ..db import kv_get, kv_set
+    from .emoji import EMOJI
+    con = ctx.accounts.con
+    src: dict[str, list[str]] = {}
+    for key, (_, cid) in EMOJI.items():
+        if cid and not key.startswith("badge_") and key != "logo_sonar":
+            src.setdefault(cid, []).append(key)
+    todo = [cid for cid in src if not kv_get(con, f"packsrc:{cid}")]
+    logos = f"sonar_logos_by_{ctx.bot_username}"
+    for i in range(0, len(todo), 200):
+        for st in await ctx.bot.get_custom_emoji_stickers(custom_emoji_ids=todo[i:i + 200]):
+            fmt = "video" if st.is_video else "animated" if st.is_animated else "static"
+            inp = InputSticker(sticker=st.file_id, format=fmt, emoji_list=[st.emoji or "⭐"])
+            target = icons_set if st.needs_repainting else logos
+            try:
+                await ctx.bot.add_sticker_to_set(user_id=owner_id, name=target, sticker=inp)
+            except TelegramBadRequest as e:
+                if target == logos and "STICKERSET_INVALID" in str(e):
+                    await ctx.bot.create_new_sticker_set(user_id=owner_id, name=logos, title="Sonar Logos", stickers=[inp],
+                                                         sticker_type="custom_emoji", needs_repainting=False)
+                else:
+                    await ctx.logs.error("Эмодзи не скопирован в пак", e)
+                    continue
+            pack = await ctx.bot.get_sticker_set(target)
+            kv_set(con, f"packsrc:{st.custom_emoji_id}", pack.stickers[-1].custom_emoji_id)
+    out = []
+    for cid, keys in src.items():
+        new = kv_get(con, f"packsrc:{cid}")
+        if new:
+            out.append(f'<tg-emoji emoji-id="{new}">{EMOJI[keys[0]][0]}</tg-emoji> <code>{",".join(keys)}</code> — <code>{new}</code>')
+    return out
+
+
 # ---- обращения ----
 
 _albums: dict[str, int] = {}
@@ -392,3 +482,4 @@ async def group_message(msg: Message, ctx: Ctx):
 
 
 _started = time.monotonic()
+

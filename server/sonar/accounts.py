@@ -20,7 +20,7 @@ from .db import now_ms
 
 LOGIN_RE = re.compile(r"^[a-z0-9_.]{3,24}$")
 PASSWORD_MIN = 8
-NUMBER_START = 100001
+NUMBER_START = 1  # владелец — #1, дальше по порядку (решение 2026-11-15)
 REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 TOKEN_PREFIX = "snr_"
 TOKEN_LIKE = re.compile(r"^(y0_[\w-]{20,}|AQAAAA[\w-]{20,}|2-\d{5,}-\d+-\w{10,}|[A-Za-z0-9_-]{32,})$")

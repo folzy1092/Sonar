@@ -52,7 +52,7 @@ def test_owner_not_pinged(con):
     bot = FakeBot()
     lg = LogGroup(bot, con, -100, owner_id=7)
     run(lg.event("🔑", "Вход", SimpleNamespace(id=7, username="cocainemodel", full_name="F")))
-    assert "DEV" in bot.sent[0][1] and "cocainemodel" not in bot.sent[0][1]
+    assert "Dev" in bot.sent[0][1] and "cocainemodel" not in bot.sent[0][1] and "<blockquote><b>Sonar</b></blockquote>" in bot.sent[0][1] and "tg-emoji" in bot.sent[0][1]
 
 
 def test_no_chat_no_logs(con):

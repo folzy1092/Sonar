@@ -6,13 +6,13 @@ from sonar.db import now_ms
 
 def test_register_and_login(acc):
     u = acc.register("Folzy", "password1")
-    assert u.login == "folzy" and u.username == "folzy" and u.number == 100001 and len(u.referral_code) == 6
+    assert u.login == "folzy" and u.username == "folzy" and u.number == 1 and len(u.referral_code) == 6
     assert acc.verify("folzy", "password1").id == u.id
     assert acc.verify("@FOLZY", "password1").id == u.id
     with pytest.raises(AccountError) as e:
         acc.verify("folzy", "nope")
     assert e.value.code == "bad_password"
-    assert acc.register("second", "password2").number == 100002
+    assert acc.register("second", "password2").number == 2
 
 
 @pytest.mark.parametrize("login", ["ab", "Кот", "a b", "x" * 25])

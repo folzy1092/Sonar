@@ -11,6 +11,9 @@ SERVER_DIR = Path(__file__).resolve().parent.parent
 REPO_DIR = SERVER_DIR.parent
 # Тема «Data» лог-группы владельца (t.me/c/2276939424/32139) — общая для бэкапов всех его ботов.
 DATA_THREAD_ID = 32139
+# Группа-форум поддержки (BOT.md §2.10) — не секрет, поэтому значение по умолчанию.
+SUPPORT_GROUP_ID = -1003910646265
+LOG_CHAT_ID = -1002276939424
 
 
 def _int(name: str) -> int | None:
@@ -45,8 +48,8 @@ def load(env_file: Path | None = None) -> Settings:
         owner_tg_id=_int("SONAR_OWNER_TG_ID"),
         fernet_key=os.getenv("SONAR_FERNET_KEY", "").strip(),
         public_url=os.getenv("SONAR_PUBLIC_URL", "").strip().rstrip("/"),
-        support_group_id=_int("SUPPORT_GROUP_ID"),
-        log_chat_id=_int("SONAR_LOG_CHAT_ID"),
+        support_group_id=_int("SUPPORT_GROUP_ID") or SUPPORT_GROUP_ID,
+        log_chat_id=_int("SONAR_LOG_CHAT_ID") or LOG_CHAT_ID,
         data_thread_id=_int("SONAR_DATA_THREAD_ID") or DATA_THREAD_ID,
         lastfm_api_key=os.getenv("LASTFM_API_KEY", "").strip(),
         port=_int("PORT") or 8080,
