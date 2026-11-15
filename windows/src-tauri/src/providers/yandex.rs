@@ -156,6 +156,33 @@ impl Yandex<'_> {
     self.tracks(&ids).await
   }
 
+  /// Похожие треки (`/tracks/{id}/similar`) — кандидаты своей волны (SPEC §3.7). rotor не трогаем.
+  pub async fn similar(&self, id: &str) -> Result<Vec<Track>> {
+    let v = self.get(&format!("{API}/tracks/{id}/similar"), &[]).await?;
+    Ok(v["similarTracks"].as_array().map(|a| a.iter().filter_map(track_from_json).collect()).unwrap_or_default())
+  }
+
+  /// Новинки Яндекса (`landing3/new-releases` → альбомы по id) — запасной вариант «Релизов».
+  pub async fn new_releases(&self, limit: usize) -> Result<Vec<Album>> {
+    let v = self.get(&format!("{API}/landing3/new-releases"), &[]).await?;
+    let ids: Vec<String> = v["newReleases"].as_array().map(|a| a.iter().filter_map(id_str).take(limit).collect()).unwrap_or_default();
+    if ids.is_empty() {
+      return Ok(vec![]);
+    }
+    let body = format!("album-ids={}", urlencoding::encode(&ids.join(",")));
+    let r = self
+      .with_headers(self.http.post(format!("{API}/albums")))
+      .header("Content-Type", "application/x-www-form-urlencoded")
+      .body(body)
+      .send()
+      .await?;
+    if !r.status().is_success() {
+      return Err(http_error("Яндекс Музыка", r.status()));
+    }
+    let v: Value = r.json().await?;
+    Ok(v["result"].as_array().into_iter().flatten().filter_map(album_from_json).collect())
+  }
+
   /// Треки по id (`POST /tracks`, порциями по 100), в том же порядке.
   async fn tracks(&self, ids: &[String]) -> Result<Vec<Track>> {
     let mut out = Vec::with_capacity(ids.len());

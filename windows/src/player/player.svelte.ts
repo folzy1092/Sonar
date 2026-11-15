@@ -55,6 +55,8 @@ class Player {
   private raf = 0
   private offMedia: (() => void) | null = null
   private ctx: AudioContext | null = null
+  /** Кто слушает конец трека (своя волна): трек, сколько прослушано, пропущен ли вручную. */
+  private endHooks = new Set<(t: Track, listenedMs: number, skipped: boolean) => void>()
   /** Спектр звука для волны на странице плеера (Web Audio). */
   analyser: AnalyserNode | null = null
 
@@ -138,6 +140,11 @@ class Player {
     }
   }
 
+  onTrackEnd(cb: (t: Track, listenedMs: number, skipped: boolean) => void): () => void {
+    this.endHooks.add(cb)
+    return () => this.endHooks.delete(cb)
+  }
+
   // ——— очередь ———
 
   /** Играть список с трека `index`. `context` — откуда (search, favorites, playlist:<id>…). */
@@ -179,14 +186,14 @@ class Player {
 
   /** Перейти к треку из «Далее» (номер в upNext). */
   async jumpTo(upNextIndex: number) {
-    this.finishPlay()
+    this.finishPlay(true)
     this.pos = this.pos + 1 + upNextIndex
     await this.load(true)
   }
 
   async next(manual = true) {
     const p = nextPos(this.pos, this.order.length, this.repeat, manual)
-    this.finishPlay()
+    this.finishPlay(manual)
     if (p === null) {
       this.pause()
       this.seek(0)
@@ -361,10 +368,11 @@ class Player {
   }
 
   /** Засчитать прослушивание текущего трека, если дослушали достаточно (SPEC §3.8). */
-  private finishPlay() {
+  private finishPlay(skipped = false) {
     const t = this.current
     if (!t || !this.startedAt) return
     const listened = Math.round(this.listenedMs)
+    for (const cb of this.endHooks) cb(t, listened, skipped)
     if (countsAsPlay(listened, t.duration_ms)) {
       void api
         .recordPlay({ ref: t.ref, artist: t.artist, context: this.context, played_at: this.startedAt, listened_ms: listened })

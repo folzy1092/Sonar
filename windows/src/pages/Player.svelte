@@ -6,6 +6,7 @@
   import PlayPause from '../components/PlayPause.svelte'
   import { pulse } from '../lib/pulse'
   import { replay } from '../lib/replay'
+  import { wave } from '../player/wave.svelte'
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
   import TrackRow from '../components/TrackRow.svelte'
@@ -56,6 +57,15 @@
         onclick={() => track && library.toggleLike(track)}
       >
         <span class="ic" use:pulse={liked}><Icon name="heart" size={18} filled={liked} /></span>
+      </button>
+      <button
+        class="on-cover right"
+        class:on={wave.isDisliked(track.ref)}
+        aria-label="Не нравится"
+        title={wave.isDisliked(track.ref) ? 'Снова можно ставить в волну' : 'Не нравится — больше не ставить'}
+        onclick={() => track && wave.dislike(track)}
+      >
+        <span class="ic" use:pulse={wave.isDisliked(track.ref)}><Icon name="dislike" size={18} filled={wave.isDisliked(track.ref)} /></span>
       </button>
     {/if}
   </div>
@@ -189,6 +199,9 @@
   }
   .on-cover.left {
     left: 12px;
+  }
+  .on-cover.right {
+    right: 12px;
   }
   button.on-cover {
     color: rgba(255, 255, 255, 0.75);

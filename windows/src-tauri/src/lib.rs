@@ -7,6 +7,7 @@ mod services;
 mod store;
 mod stream;
 mod tray;
+mod wave;
 
 use commands::{Db, StreamPort};
 use services::Core;
@@ -96,6 +97,12 @@ pub fn run() {
       commands::set_lyrics_offset,
       commands::track_eq,
       commands::set_track_eq,
+      commands::wave_portion,
+      commands::wave_feedback,
+      commands::disliked_refs,
+      commands::similar_tracks,
+      commands::recent_tracks,
+      commands::home_releases,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");

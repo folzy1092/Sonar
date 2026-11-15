@@ -335,3 +335,150 @@ pub fn track_eq(db: State<'_, Db>, track_ref: String) -> Res<Option<Vec<f64>>> {
 pub fn set_track_eq(db: State<'_, Db>, track_ref: String, gains: Option<Vec<f64>>) -> Res<()> {
   db.0.lock().unwrap().set_track_eq(&track_ref, gains.as_deref()).map_err(err)
 }
+
+// ——— главная и своя волна (SPEC §3.7) ———
+
+#[derive(serde::Deserialize)]
+pub struct WaveRequest {
+  /// Уже выданные в этой сессии волны.
+  #[serde(default)]
+  exclude: Vec<String>,
+  /// Артисты на паузе до конца сессии (два пропуска подряд).
+  #[serde(default)]
+  paused_artists: Vec<String>,
+  /// «Волна по треку»: сид — только этот трек.
+  seed: Option<Track>,
+  n: Option<usize>,
+}
+
+/// Следующая порция своей волны.
+#[tauri::command]
+pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: WaveRequest) -> Res<Vec<Track>> {
+  use crate::wave::{pick, Filter, Rng, PORTION};
+  let mut rng = Rng::new(crate::store::now_ms() as u64);
+  let (seeds, taste, filter, platform) = {
+    let mut store = db.0.lock().unwrap();
+    let seeds = match &req.seed {
+      Some(s) => {
+        store.upsert_tracks(std::slice::from_ref(s)).map_err(err)?;
+        vec![s.ref_.clone()]
+      }
+      None => {
+        let mut fresh = store.recent_like_refs(15).map_err(err)?;
+        for r in store.recent_finished_refs(10).map_err(err)? {
+          if !fresh.contains(&r) {
+            fresh.push(r);
+          }
+        }
+        if fresh.is_empty() {
+          fresh = store.recent_play_refs(10).map_err(err)?;
+        }
+        let mut seeds = rng.sample(&fresh, 5);
+        // 10–20 % «разведки»: похожие от случайного старого лайка
+        let old = store.old_like_refs(15, 300).map_err(err)?;
+        seeds.extend(rng.sample(&old, 1));
+        seeds
+      }
+    };
+    let filter = Filter {
+      recent: store.played_since_days(7).map_err(err)?,
+      banned: store.disliked_refs().map_err(err)?.into_iter().collect(),
+      exclude: req.exclude.into_iter().collect(),
+      paused_artists: req.paused_artists.iter().map(|a| a.to_lowercase()).collect(),
+    };
+    let platform = store.setting("general.platform").ok().flatten().and_then(|v| v.as_str().map(str::to_owned));
+    (seeds, store.taste().map_err(err)?, filter, platform)
+  };
+
+  let has_ym = core.has_yandex().await;
+  let seeds: Vec<String> = seeds.into_iter().filter(|r| has_ym || !r.starts_with("ym:")).collect();
+  if seeds.is_empty() {
+    return Err("Волне пока не от чего оттолкнуться — лайкни или послушай пару треков.".into());
+  }
+  let results = futures_util::future::join_all(seeds.iter().map(|r| core.similar(r, 25))).await;
+  let mut cands = Vec::new();
+  let mut first_err = None;
+  for r in results {
+    match r {
+      Ok(v) => cands.extend(v),
+      Err(e) => {
+        first_err.get_or_insert_with(|| e.to_string());
+      }
+    }
+  }
+  if cands.is_empty() {
+    return Err(first_err.unwrap_or_else(|| "Похожих треков не нашлось — попробуй лайкнуть что-нибудь ещё.".into()));
+  }
+  let prefer = if has_ym && platform.as_deref() == Some("yandex") { "ym" } else { "sc" };
+  let n = req.n.unwrap_or(PORTION);
+  let mut out = pick(cands.clone(), &taste, &filter, Some(prefer), n, false, &mut rng);
+  if out.len() < 3 {
+    out = pick(cands, &taste, &filter, Some(prefer), n, true, &mut rng);
+  }
+  db.0.lock().unwrap().upsert_tracks(&out).map_err(err)?;
+  Ok(out)
+}
+
+/// Сигнал волне: `dislike` / `undislike` (👎 и отмена), `skip` (пропуск в первые 30 с).
+#[tauri::command]
+pub fn wave_feedback(db: State<'_, Db>, event: String, track: Track, played_ms: Option<i64>) -> Res<()> {
+  let mut store = db.0.lock().unwrap();
+  match event.as_str() {
+    "dislike" | "undislike" => {
+      store.upsert_tracks(std::slice::from_ref(&track)).map_err(err)?;
+      store.set_dislike(&track.ref_, &track.artist, event == "dislike").map_err(err)
+    }
+    "skip" => store.add_skip(&track.ref_, &track.artist, played_ms.unwrap_or(0)).map_err(err),
+    _ => Err(format!("неизвестный сигнал {event}")),
+  }
+}
+
+#[tauri::command]
+pub fn disliked_refs(db: State<'_, Db>) -> Res<Vec<String>> {
+  db.0.lock().unwrap().disliked_refs().map_err(err)
+}
+
+/// Похожие на трек — ряд «Похожее» на главной.
+#[tauri::command]
+pub async fn similar_tracks(core: State<'_, Arc<Core>>, db: State<'_, Db>, track_ref: String, limit: Option<u32>) -> Res<Vec<Track>> {
+  let banned: std::collections::HashSet<String> = db.0.lock().unwrap().disliked_refs().map_err(err)?.into_iter().collect();
+  let tracks: Vec<Track> = core
+    .similar(&track_ref, limit.unwrap_or(20))
+    .await
+    .map_err(err)?
+    .into_iter()
+    .filter(|t| t.available && !banned.contains(&t.ref_))
+    .collect();
+  db.0.lock().unwrap().upsert_tracks(&tracks).map_err(err)?;
+  Ok(tracks)
+}
+
+/// Недавно игравшие треки (свежие первыми, без повторов).
+#[tauri::command]
+pub fn recent_tracks(db: State<'_, Db>, limit: Option<usize>) -> Res<Vec<Track>> {
+  let store = db.0.lock().unwrap();
+  let refs = store.recent_play_refs(limit.unwrap_or(20)).map_err(err)?;
+  store.tracks(&refs).map_err(err)
+}
+
+/// «Релизы»: свежие альбомы лайкнутых и самых слушаемых исполнителей; пусто — новинки Яндекса.
+#[tauri::command]
+pub async fn home_releases(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<Vec<crate::providers::Album>> {
+  let artists = db.0.lock().unwrap().favorite_artist_refs(10).map_err(err)?;
+  let has_ym = core.has_yandex().await;
+  let artists: Vec<String> = artists.into_iter().filter(|r| has_ym || r.starts_with("sca:")).collect();
+  let lists = futures_util::future::join_all(artists.iter().map(|r| core.artist_albums(r))).await;
+  let mut seen = std::collections::HashSet::new();
+  let mut albums: Vec<crate::providers::Album> =
+    lists.into_iter().flat_map(|r| r.unwrap_or_default().into_iter().take(4)).filter(|a| seen.insert(a.ref_.clone())).collect();
+  // свежие первыми; внутри года — как отдал сервис (у него новые первыми)
+  albums.sort_by(|a, b| b.year.unwrap_or(0).cmp(&a.year.unwrap_or(0)));
+  albums.truncate(16);
+  if albums.len() < 4 && has_ym {
+    if let Ok(more) = core.yandex_new_releases(16).await {
+      albums.extend(more.into_iter().filter(|a| seen.insert(a.ref_.clone())));
+      albums.truncate(16);
+    }
+  }
+  Ok(albums)
+}

@@ -149,6 +149,13 @@ impl SoundCloud<'_> {
       .collect())
   }
 
+  /// Похожие треки (`/tracks/{id}/related`) — кандидаты для своей волны и «Похожего» (SPEC §3.7).
+  pub async fn related(&self, id: &str, limit: u32) -> Result<Vec<Value>> {
+    let limit = limit.to_string();
+    let v = self.get(&format!("{API}/tracks/{id}/related"), &[("limit", &limit)]).await?;
+    Ok(v["collection"].as_array().cloned().unwrap_or_default())
+  }
+
   pub async fn track_json(&self, id: &str) -> Result<Value> {
     self.get(&format!("{API}/tracks/{id}"), &[]).await
   }

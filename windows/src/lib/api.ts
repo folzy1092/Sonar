@@ -178,6 +178,15 @@ export const api = {
   trackEq: (trackRef: string) => call<number[] | null>('track_eq', { trackRef }),
   setTrackEq: (trackRef: string, gains: number[] | null) => call<void>('set_track_eq', { trackRef, gains }),
 
+  wavePortion: (req: { exclude?: string[]; paused_artists?: string[]; seed?: Track | null; n?: number }) =>
+    call<Track[]>('wave_portion', { req }),
+  waveFeedback: (event: 'dislike' | 'undislike' | 'skip', track: Track, playedMs?: number) =>
+    call<void>('wave_feedback', { event, track, playedMs }),
+  dislikedRefs: () => call<string[]>('disliked_refs'),
+  similarTracks: (trackRef: string, limit = 20) => call<Track[]>('similar_tracks', { trackRef, limit }),
+  recentTracks: (limit = 20) => call<Track[]>('recent_tracks', { limit }),
+  homeReleases: () => call<Album[]>('home_releases'),
+
   mediaUpdate: (info: MediaInfo) => (isTauri ? invoke<void>('media_update', { info }) : Promise.resolve()),
 }
 

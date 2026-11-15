@@ -2,7 +2,7 @@
 //! Команды интерфейса и локальный аудио-сервер ходят в сервисы только через него.
 
 use crate::providers::{
-  soundcloud, yandex, Account, AlbumPage, ArtistPage, SearchResults, ServicePlaylist, Source, Track,
+  soundcloud, yandex, Account, Album, AlbumPage, ArtistPage, SearchResults, ServicePlaylist, Source, Track,
 };
 use crate::secrets;
 use anyhow::{anyhow, bail, Result};
@@ -306,6 +306,52 @@ impl Core {
       }
       _ => bail!("неизвестный альбом {album_ref}"),
     }
+  }
+
+  /// Похожие на трек (`sc:` — related SoundCloud, `ym:` — similar Яндекса). Для волны и «Похожего».
+  pub async fn similar(&self, track_ref: &str, limit: u32) -> Result<Vec<Track>> {
+    let (kind, id) = track_ref.split_once(':').ok_or_else(|| anyhow!("плохой ref {track_ref}"))?;
+    match kind {
+      "sc" => {
+        let http = &self.http;
+        let raw = self.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.related(id, limit).await }).await?;
+        Ok(self.sc_keep(raw))
+      }
+      "ym" => {
+        let s = self.ym_creds().await?;
+        let mut t = yandex::Yandex { http: &self.http, creds: &s.creds }.similar(id).await?;
+        t.truncate(limit as usize);
+        Ok(t)
+      }
+      _ => bail!("неизвестный трек {track_ref}"),
+    }
+  }
+
+  /// Яндекс подключён — можно брать его похожие и новинки.
+  pub async fn has_yandex(&self) -> bool {
+    self.ym.read().await.is_some()
+  }
+
+  /// Альбомы исполнителя (для «Релизов» на главной).
+  pub async fn artist_albums(&self, artist_ref: &str) -> Result<Vec<Album>> {
+    let (kind, id) = artist_ref.split_once(':').ok_or_else(|| anyhow!("плохой ref {artist_ref}"))?;
+    match kind {
+      "sca" => {
+        let http = &self.http;
+        self.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.user_albums(id).await }).await
+      }
+      "yma" => {
+        let s = self.ym_creds().await?;
+        Ok(yandex::Yandex { http: &self.http, creds: &s.creds }.artist(id).await?.2)
+      }
+      _ => bail!("неизвестный исполнитель {artist_ref}"),
+    }
+  }
+
+  /// Новинки Яндекса — когда у любимых исполнителей свежего нет.
+  pub async fn yandex_new_releases(&self, limit: usize) -> Result<Vec<Album>> {
+    let s = self.ym_creds().await?;
+    yandex::Yandex { http: &self.http, creds: &s.creds }.new_releases(limit).await
   }
 
   /// id своего аккаунта в сервисе: из сохранённого, иначе спросить у сервиса.

@@ -10,6 +10,7 @@
   import { player } from '../player/player.svelte'
   import { openRef } from './router.svelte'
   import { pop } from '../lib/motion'
+  import { wave } from '../player/wave.svelte'
 
   const W = 280
   let el: HTMLElement | undefined = $state()
@@ -108,8 +109,10 @@
     {#if view === 'main'}
       {@render item('playNext', 'Следующим', () => player.addToQueue([t.track], true))}
       {@render item('queue', 'В очередь', () => player.addToQueue([t.track], false))}
+      {@render item('bolt', 'Волна по треку', () => wave.start(t.track))}
       <hr />
       {@render item('heart', liked ? 'Удалить из Любимых' : 'В Любимые', () => library.toggleLike(t.track), liked)}
+      {@render item('dislike', wave.isDisliked(t.track.ref) ? 'Убрать из «Не нравится»' : 'Не нравится', () => wave.dislike(t.track), wave.isDisliked(t.track.ref))}
       <button class="item" role="menuitem" onclick={() => (view = 'playlists')}>
         <Icon name="playlistAdd" size={17} />
         <span>Добавить в плейлист</span>

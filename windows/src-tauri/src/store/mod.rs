@@ -8,6 +8,9 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+mod wave;
+pub use wave::Taste;
+
 pub const LOCAL_USER: &str = "u_local";
 
 /// Миграции по порядку; номер = `PRAGMA user_version`.
@@ -72,6 +75,16 @@ ALTER TABLE track_prefs ADD COLUMN eq_json TEXT;
 "#, r#"
 ALTER TABLE lyrics_cache ADD COLUMN used_at INTEGER;
 UPDATE lyrics_cache SET used_at = fetched_at;
+"#, r#"
+CREATE TABLE dislikes (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, ref TEXT NOT NULL, artist TEXT NOT NULL,
+  added_at INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, rev INTEGER NOT NULL, PRIMARY KEY (user_id, ref)
+);
+CREATE TABLE skips (
+  id INTEGER PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, ref TEXT NOT NULL,
+  artist TEXT NOT NULL, played_ms INTEGER NOT NULL, at INTEGER NOT NULL
+);
+CREATE INDEX skips_user_time ON skips(user_id, at);
 "#];
 
 pub fn now_ms() -> i64 {

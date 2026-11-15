@@ -20,6 +20,7 @@
   import { player } from './player/player.svelte'
   import FullPlayer from './player/FullPlayer.svelte'
   import { lyrics } from './lyrics/lyrics.svelte'
+  import { wave } from './player/wave.svelte'
 
   const pages = {
     home: Home,
@@ -37,6 +38,7 @@
 
   onMount(() => {
     player.init()
+    wave.init()
     lyrics.init()
     void library.load()
   })

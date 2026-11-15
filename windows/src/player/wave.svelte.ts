@@ -1,0 +1,157 @@
+// Своя «Моя волна» (SPEC §3.7): порции по 10 треков от Rust (`wave_portion`), сессия — здесь:
+// что уже выдано, какие артисты на паузе (два пропуска подряд), догрузка, когда очередь кончается.
+// Сигналы: пропуск в первые 30 с, 👎 (трек больше не попадёт в волну, текущий — сразу дальше).
+import { untrack } from 'svelte'
+import { api, errorText, type Track } from '../lib/api'
+import { toast } from '../lib/toast.svelte'
+import { player } from './player.svelte'
+
+export const WAVE_CONTEXT = 'wave'
+const SKIP_MS = 30_000
+/** Догружать, когда до конца очереди осталось столько треков. */
+const PREFETCH_LEFT = 3
+
+class Wave {
+  loading = $state(false)
+  error = $state<string | null>(null)
+  /** Заранее подобранная порция — обложки на главной и мгновенный старт. */
+  preview = $state<Track[]>([])
+  /** 👎 — чтобы кнопка показывала состояние. */
+  disliked = $state<Set<string>>(new Set())
+
+  active = $derived(player.context === WAVE_CONTEXT)
+
+  private served = new Set<string>()
+  private paused = new Set<string>()
+  private skipRun = new Map<string, number>()
+  private previewAt = 0
+  private started = false
+
+  init() {
+    if (this.started) return
+    this.started = true
+    void api
+      .dislikedRefs()
+      .then((r) => (this.disliked = new Set(r)))
+      .catch(() => {})
+    player.onTrackEnd((t, listened, skipped) => this.onEnd(t, listened, skipped))
+    $effect.root(() => {
+      $effect(() => {
+        if (player.context !== WAVE_CONTEXT) return
+        const left = player.order.length - 1 - player.pos
+        if (left < PREFETCH_LEFT) untrack(() => void this.more())
+      })
+    })
+  }
+
+  /** Подобрать порцию заранее (главная), не чаще раза в 10 минут. */
+  async prefetch(force = false) {
+    if (this.loading || (!force && this.preview.length && Date.now() - this.previewAt < 600_000)) return
+    this.loading = true
+    try {
+      this.preview = await api.wavePortion({ exclude: [], paused_artists: [] })
+      this.previewAt = Date.now()
+      this.error = null
+    } catch (e) {
+      this.error = errorText(e)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  /** Включить волну. `seed` — «Волна по треку»: только похожие на него, он играет первым. */
+  async start(seed?: Track) {
+    this.served = new Set()
+    this.paused = new Set()
+    this.skipRun = new Map()
+    let tracks: Track[]
+    if (!seed && this.preview.length) {
+      tracks = this.preview
+      this.preview = []
+    } else {
+      this.loading = true
+      try {
+        tracks = await api.wavePortion({ seed: seed ?? null })
+        this.error = null
+      } catch (e) {
+        this.error = errorText(e)
+        toast.show(this.error)
+        return
+      } finally {
+        this.loading = false
+      }
+    }
+    const list = seed ? [seed, ...tracks.filter((t) => t.ref !== seed.ref)] : tracks
+    if (!list.length) {
+      toast.show('Волне пока нечего предложить')
+      return
+    }
+    for (const t of list) this.served.add(t.ref)
+    player.shuffle = false
+    await player.playList(list, 0, WAVE_CONTEXT, seed ? `Волна по «${seed.title}»` : 'Моя волна')
+  }
+
+  /** Играет волна — пауза/продолжить, иначе — включить. */
+  toggle() {
+    if (this.active && player.current) player.toggle()
+    else void this.start()
+  }
+
+  /** Догрузить следующую порцию в конец очереди. */
+  async more() {
+    if (this.loading) return
+    this.loading = true
+    try {
+      const tracks = await api.wavePortion({ exclude: [...this.served], paused_artists: [...this.paused] })
+      if (player.context !== WAVE_CONTEXT) return
+      const fresh = tracks.filter((t) => !this.served.has(t.ref))
+      for (const t of fresh) this.served.add(t.ref)
+      if (fresh.length) await player.addToQueue(fresh, false)
+      this.error = null
+    } catch (e) {
+      this.error = errorText(e)
+    } finally {
+      this.loading = false
+    }
+  }
+
+  isDisliked(ref: string | null | undefined) {
+    return !!ref && this.disliked.has(ref)
+  }
+
+  /** 👎: больше не ставить; если это текущий трек — сразу следующий. Повторно — отменить. */
+  async dislike(track: Track) {
+    const on = !this.disliked.has(track.ref)
+    const next = new Set(this.disliked)
+    if (on) next.add(track.ref)
+    else next.delete(track.ref)
+    this.disliked = next
+    try {
+      await api.waveFeedback(on ? 'dislike' : 'undislike', track)
+    } catch (e) {
+      toast.show(errorText(e))
+      return
+    }
+    if (!on) {
+      toast.show('Трек снова может попасть в волну')
+      return
+    }
+    toast.show('Больше не поставим этот трек')
+    if (player.current?.ref === track.ref) void player.next()
+  }
+
+  private onEnd(t: Track, listened: number, skipped: boolean) {
+    if (player.context !== WAVE_CONTEXT) return
+    const artist = t.artist.toLowerCase()
+    if (skipped && listened < SKIP_MS) {
+      void api.waveFeedback('skip', t, listened).catch(() => {})
+      const n = (this.skipRun.get(artist) ?? 0) + 1
+      this.skipRun.set(artist, n)
+      if (n >= 2) this.paused.add(artist)
+    } else {
+      this.skipRun.delete(artist)
+    }
+  }
+}
+
+export const wave = new Wave()
