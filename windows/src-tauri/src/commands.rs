@@ -389,8 +389,17 @@ pub struct WaveRequest {
   /// Артисты на паузе до конца сессии (два пропуска подряд).
   #[serde(default)]
   paused_artists: Vec<String>,
-  /// «Волна по треку»: сид — только этот трек.
+  /// «Волна по треку»: стиль сессии — похожие на этот трек (во всех порциях сессии).
   seed: Option<Track>,
+  /// Дослушанные / лайкнутые в этой сессии — сиды следующей порции (волна учится на ходу).
+  #[serde(default)]
+  session: Vec<Track>,
+  /// Артисты, пропущенные в сессии хотя бы раз.
+  #[serde(default)]
+  skipped_artists: Vec<String>,
+  /// Артисты всех выданных в сессии треков (с повторами, по порядку).
+  #[serde(default)]
+  served_artists: Vec<String>,
   n: Option<usize>,
   /// Режим волны (`wave::MODES`), по умолчанию «своя».
   #[serde(default)]
@@ -403,14 +412,47 @@ pub struct WaveRequest {
 /// Следующая порция своей волны.
 #[tauri::command]
 pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: WaveRequest) -> Res<Vec<Track>> {
-  use crate::wave::{pick, Filter, Rng, PORTION};
+  use crate::wave::{pick, tag_words, Filter, Origin, Rng, Session, PORTION};
   let mut rng = Rng::new(crate::store::now_ms() as u64);
+  // что зашло в сессии — свежие в конце; берём до трёх последних
+  let live: Vec<String> = req.session.iter().rev().take(3).map(|t| t.ref_.clone()).collect();
+  let mut session = Session {
+    skipped_artists: req.skipped_artists.iter().map(|a| a.to_lowercase()).collect(),
+    recent_artists: req.served_artists.iter().map(|a| a.to_lowercase()).collect(),
+    ..Default::default()
+  };
+  for a in &session.recent_artists {
+    *session.served.entry(a.clone()).or_insert(0) += 1;
+  }
+  for (i, t) in req.session.iter().rev().enumerate() {
+    // свежее зашедшее весит больше
+    let w = 1.0 / (1.0 + i as f64 * 0.5);
+    for tag in tag_words(t) {
+      *session.tags.entry(tag).or_insert(0.0) += w;
+    }
+  }
   let (seeds, taste, filter, platform) = {
     let mut store = db.0.lock().unwrap();
+    if !req.session.is_empty() {
+      store.upsert_tracks(&req.session).map_err(err)?;
+    }
     let seeds = match &req.seed {
+      // стиль «по треку» держится всю сессию; зашедшее в ней понемногу его уточняет
       Some(s) => {
         store.upsert_tracks(std::slice::from_ref(s)).map_err(err)?;
-        vec![s.ref_.clone()]
+        let mut v = vec![s.ref_.clone()];
+        v.extend(live.iter().filter(|r| **r != s.ref_).take(2).cloned());
+        v
+      }
+      None if !live.is_empty() => {
+        // волна учится на ходу: зашедшее в сессии + немного общего вкуса и разведки
+        let mut v = live.clone();
+        let fresh = store.recent_like_refs(15).map_err(err)?;
+        let fresh: Vec<String> = fresh.into_iter().filter(|r| !v.contains(r)).collect();
+        v.extend(rng.sample(&fresh, 2));
+        let old = store.old_like_refs(15, 300).map_err(err)?;
+        v.extend(rng.sample(&old, 1));
+        v
       }
       None => {
         let mut fresh = store.recent_like_refs(15).map_err(err)?;
@@ -474,10 +516,14 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   let mode = req.mode.as_deref().filter(|m| crate::wave::MODES.contains(m)).unwrap_or("own").to_owned();
   let results = futures_util::future::join_all(seeds.iter().map(|r| core.similar(r, if mode == "own" { 25 } else { 35 }))).await;
   let mut cands = Vec::new();
+  let mut origin = Origin::default();
   let mut first_err = None;
-  for r in results {
+  for (seed, r) in seeds.iter().zip(results) {
     match r {
-      Ok(v) => cands.extend(v),
+      Ok(v) => {
+        origin.add(&v, live.contains(seed));
+        cands.extend(v)
+      }
       Err(e) => {
         first_err.get_or_insert_with(|| e.to_string());
       }
@@ -488,9 +534,9 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   }
   let prefer = if has_ym && platform.as_deref() == Some("yandex") { "ym" } else { "sc" };
   let n = req.n.unwrap_or(PORTION);
-  let mut out = pick(cands.clone(), &taste, &filter, Some(prefer), &mode, n, false, &mut rng);
+  let mut out = pick(cands.clone(), &taste, &origin, &session, &filter, Some(prefer), &mode, n, false, &mut rng);
   if out.len() < 3 {
-    out = pick(cands, &taste, &filter, Some(prefer), &mode, n, true, &mut rng);
+    out = pick(cands, &taste, &origin, &session, &filter, Some(prefer), &mode, n, true, &mut rng);
   }
   db.0.lock().unwrap().upsert_tracks(&out).map_err(err)?;
   Ok(out)

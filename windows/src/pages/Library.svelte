@@ -2,6 +2,7 @@
   import { cascade } from '../lib/cascade'
   import { pop } from '../lib/motion'
   import { hscroll } from '../lib/hscroll'
+  import { edges } from '../lib/edges'
   // Медиатека один в один по Dotify (pc/Screenshot_21): вкладки Все / Плейлисты / Альбомы /
   // Исполнители без подчёркивания, «Вы вошли как», в одном ряду Любимые, свои плейлисты и плейлисты
   // сервисов («фантомом» — открыть или перенести в Sonar), сохранённые альбомы и исполнители;
@@ -122,7 +123,7 @@
     {#if tab === 'Все'}
       <h2>Плейлисты <button class="more" aria-label="Все плейлисты" onclick={() => (tab = 'Плейлисты')}><Icon name="chevronRight" size={18} /></button></h2>
     {/if}
-    <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll>
+    <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll use:edges>
       <Tile title="Любимые" subtitle="Лайкнутые треки" meta={tracksText(favCount)} art={favArt} onclick={() => router.go('playlist', 'favorites')} />
       {#each own as p (p.id)}
         <Tile title={p.name} subtitle={p.hidden ? 'Скрыт' : 'Sonar'} meta={tracksText(p.track_count)} covers={p.covers} dim={p.hidden} onclick={() => router.go('playlist', p.id)} />
@@ -138,7 +139,7 @@
     <section class="block">
       <h2>Альбомы {#if tab === 'Все'}<button class="more" aria-label="Все альбомы" onclick={() => (tab = 'Альбомы')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
       {#if albums.length}
-        <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll>
+        <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll use:edges>
           {#each albums as a (a.ref)}
             <Tile title={a.title} subtitle={a.artist} meta={a.year ? String(a.year) : undefined} image={a.cover_url} icon="disc" source={a.ref} onclick={() => openRef(a.ref)} />
           {/each}
@@ -154,7 +155,7 @@
   <section class="block">
     <h2>Исполнители {#if tab === 'Все'}<button class="more" aria-label="Все исполнители" onclick={() => (tab = 'Исполнители')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
     {#if artists.length}
-      <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll>
+      <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll use:edges>
         {#each artists as a (a.ref)}
           <Tile title={a.name} image={a.avatar_url} icon="user" round onclick={() => openRef(a.ref)} />
         {/each}
@@ -266,6 +267,7 @@
     color: var(--text);
   }
   .row {
+    --fade: 64px;
     display: flex;
     gap: 18px;
     overflow-x: auto;

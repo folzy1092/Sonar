@@ -1,11 +1,16 @@
 // Своя «Моя волна» (SPEC §3.7): порции по 10 треков от Rust (`wave_portion`), сессия — здесь:
 // что уже выдано, какие артисты на паузе (два пропуска подряд), догрузка, когда очередь кончается.
 // Сигналы: пропуск в первые 30 с, 👎 (трек больше не попадёт в волну, текущий — сразу дальше).
+// Волна учится на ходу (как у Яндекса): дослушанные и лайкнутые в этой сессии треки становятся
+// сидами следующих порций, однократно пропущенные артисты теряют вес, частые артисты сессии
+// уступают место другим. Стиль сессии (режим и «волна по треку») держится, пока волна играет —
+// перемотка меняет трек, а не стиль.
 import { untrack } from 'svelte'
 import { api, errorText, type Track } from '../lib/api'
 import { toast } from '../lib/toast.svelte'
 import { player } from './player.svelte'
 import { settings } from '../lib/settings.svelte'
+import { library } from '../lib/library.svelte'
 
 export const WAVE_CONTEXT = 'wave'
 
@@ -29,12 +34,19 @@ function ctx() {
 const SKIP_MS = 30_000
 /** Догружать, когда до конца очереди осталось столько треков. */
 const PREFETCH_LEFT = 3
+/** Сколько последних «хороших» треков сессии отправлять сидами. */
+const SESSION_SEEDS = 4
 
 class Wave {
   loading = $state(false)
   error = $state<string | null>(null)
   /** Заранее подобранная порция — обложки на главной и мгновенный старт. */
   preview = $state<Track[]>([])
+  /** Обложки на главной — «лицо» стиля волны. Задаются при подборе порции, включении и смене
+   *  режима и **не меняются от перемотки**: они выбирают стиль, а не показывают очередь. */
+  covers = $state<Track[]>([])
+  /** «Волна по треку»: стиль сессии, держится во всех следующих порциях. */
+  seed = $state<Track | null>(null)
   /** 👎 — чтобы кнопка показывала состояние. */
   disliked = $state<Set<string>>(new Set())
 
@@ -43,6 +55,12 @@ class Wave {
   private served = new Set<string>()
   private paused = new Set<string>()
   private skipRun = new Map<string, number>()
+  /** Дослушанные / лайкнутые в сессии — сиды следующих порций (новые в конце). */
+  private good: Track[] = []
+  /** Артисты, пропущенные в сессии хотя бы раз, — мягкий минус. */
+  private skipped = new Set<string>()
+  /** Сколько раз артист уже звучал в сессии. */
+  private servedArtists: string[] = []
   private previewAt = 0
   private started = false
 
@@ -76,6 +94,7 @@ class Wave {
     try {
       this.preview = await api.wavePortion({ exclude: [], paused_artists: [], ...ctx() })
       this.previewAt = Date.now()
+      if (!this.active) this.covers = this.preview.slice(0, 3)
       this.error = null
     } catch (e) {
       this.error = errorText(e)
@@ -89,6 +108,10 @@ class Wave {
     this.served = new Set()
     this.paused = new Set()
     this.skipRun = new Map()
+    this.good = []
+    this.skipped = new Set()
+    this.servedArtists = []
+    this.seed = seed ?? null
     let tracks: Track[]
     if (!seed && this.preview.length) {
       tracks = this.preview
@@ -115,7 +138,9 @@ class Wave {
       toast.show('Волне пока нечего предложить')
       return
     }
-    for (const t of list) this.served.add(t.ref)
+    for (const t of list) this.serve(t)
+    // обложки — только если их ещё нет: клик по обложке выбирает стиль, сами обложки остаются
+    if (!this.covers.length) this.covers = list.slice(0, 3)
     player.shuffle = false
     await player.playList(list, 0, WAVE_CONTEXT, seed ? `Волна по «${seed.title}»` : 'Моя волна')
   }
@@ -130,6 +155,8 @@ class Wave {
     const i = WAVE_MODES.findIndex((m) => m.id === this.mode)
     settings.set('wave.mode', WAVE_MODES[(i + 1) % WAVE_MODES.length].id)
     this.preview = []
+    this.seed = null
+    this.covers = []
     if (this.active) await this.start()
     else await this.prefetch(true)
   }
@@ -145,10 +172,18 @@ class Wave {
     if (this.loading) return
     this.loading = true
     try {
-      const tracks = await api.wavePortion({ exclude: [...this.served], paused_artists: [...this.paused], ...ctx() })
+      const tracks = await api.wavePortion({
+        exclude: [...this.served],
+        paused_artists: [...this.paused],
+        seed: this.seed,
+        session: this.good.slice(-SESSION_SEEDS),
+        skipped_artists: [...this.skipped],
+        served_artists: this.servedArtists,
+        ...ctx(),
+      })
       if (player.context !== WAVE_CONTEXT) return
       const fresh = tracks.filter((t) => !this.served.has(t.ref))
-      for (const t of fresh) this.served.add(t.ref)
+      for (const t of fresh) this.serve(t)
       if (fresh.length) await player.addToQueue(fresh, false)
       this.error = null
     } catch (e) {
@@ -183,16 +218,28 @@ class Wave {
     if (player.current?.ref === track.ref) void player.next()
   }
 
+  private serve(t: Track) {
+    this.served.add(t.ref)
+    this.servedArtists.push(t.artist.toLowerCase())
+  }
+
   private onEnd(t: Track, listened: number, skipped: boolean) {
     if (player.context !== WAVE_CONTEXT) return
     const artist = t.artist.toLowerCase()
-    if (skipped && listened < SKIP_MS) {
+    if (skipped && listened < SKIP_MS && !library.isLiked(t.ref)) {
       void api.waveFeedback('skip', t, listened).catch(() => {})
+      this.skipped.add(artist)
       const n = (this.skipRun.get(artist) ?? 0) + 1
       this.skipRun.set(artist, n)
       if (n >= 2) this.paused.add(artist)
-    } else {
-      this.skipRun.delete(artist)
+      return
+    }
+    this.skipRun.delete(artist)
+    // зашло: дослушал (≥ 80 %) или лайкнул — волна дальше тянется к этому треку
+    const finished = t.duration_ms > 0 && listened >= t.duration_ms * 0.8
+    if (finished || library.isLiked(t.ref)) {
+      this.skipped.delete(artist)
+      this.good = [...this.good.filter((x) => x.ref !== t.ref), t]
     }
   }
 }
