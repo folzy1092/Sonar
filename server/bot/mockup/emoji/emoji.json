@@ -460,5 +460,17 @@
   "emoji": "",
   "adaptive": true,
   "label": "свой значок (пак ещё не загружен)"
+ },
+ "logo_sonar": {
+  "id": null,
+  "emoji": "",
+  "adaptive": true,
+  "label": "знак Sonar (свой пак, ещё не загружен)"
+ },
+ "badge_sonar": {
+  "id": null,
+  "emoji": "",
+  "adaptive": true,
+  "label": "свой значок (пак ещё не загружен)"
  }
 }

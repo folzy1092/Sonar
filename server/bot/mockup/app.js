@@ -14,12 +14,14 @@ const S = {
   reg: {},
   report: null,         // { kind, platform } пока пишут первое сообщение
   ticket: null,         // открытое обращение { id, kind, platform }
-  token: 'hidden',      // fresh | hidden | none
+  token: 'on',          // on | none — токен виден всегда (решение владельца 2026-11-15)
+  tokenValue: 'snr_8f2c41d07a9b4e1f',
   period: 'week',
   online: 3,
 };
 const linked = () => S.who !== 'guest';
 const name = () => 'Folzy';
+const newToken = () => `snr_${Math.random().toString(16).slice(2, 10)}${Math.random().toString(16).slice(2, 10)}`;
 
 // ---------- разметка ----------
 const E = (k) => `<img class="e${k.startsWith('logo_') ? ' logo' : ''}" src="emoji/${k}.png" alt="">`;
@@ -185,8 +187,7 @@ const scr = {
   guest: () => ({
     banner: 'main',
     html: `Привет! Это <b>Sonar</b> — твой музыкальный плеер.\n${Q('Аккаунт не привязан к Sonar\nВойди или зарегистрируйся, чтобы продолжить')}`,
-    kb: [[B('Войти', 'login', (m) => go.login(m)), B('Регистрация', 'register', (m) => go.register(m))],
-      [B('Баг / Идея', 'bug', (m) => edit(m, scr.reportKind()))]],
+    kb: [[B('Войти', 'login', (m) => go.login(m)), B('Регистрация', 'register', (m) => go.register(m))]],
   }),
 
   login: () => ({
@@ -199,7 +200,7 @@ const scr = {
   quick: () => ({
     banner: 'login',
     html: `${E('quick_link')} <b>Быстрая ссылка</b>\n${Q(`Открой на устройстве, где ты уже вошёл в Sonar. ${E('wait')} Действует до <b>${now(5)}</b>`)}`,
-    kb: [[B('Открыть в Sonar', 'logo_windows', (m) => openAuth(m))],
+    kb: [[B('Открыть в Sonar', 'logo_sonar', (m) => openAuth(m))],
       [back((m) => go.login(m))]],
   }),
 
@@ -240,22 +241,20 @@ const scr = {
     const head = `${E('integration')} <b>Интеграция</b>\n\n`;
     if (S.token === 'none') {
       return {
-        html: `${head}${Q('Токена ещё нет. Он нужен selfbot и своим сервисам: «сейчас играет», профиль.')}`,
-        kb: [[B('Создать токен', 'success', (m) => { S.token = 'fresh'; edit(m, scr.integration()); })], [back((m) => edit(m, scr.profile()))]],
+        html: `${head}${Q('Токена нет. Он нужен selfbot и своим сервисам: «сейчас играет», профиль.')}`,
+        kb: [[B('Создать токен', 'success', (m) => { S.token = 'on'; S.tokenValue = newToken(); edit(m, scr.integration()); })], [back((m) => edit(m, scr.profile()))]],
       };
     }
-    const tok = S.token === 'fresh' ? '<span class="spoiler">snr_8f2c41d07a9b4e1f</span>' : '••••••••';
     return {
       html: head
         + `Сейчас играет ${E('listening')}\n${Q('GET https://sonar-api.folzy.ru/oauth/now?token=...\nТекущий трек, обложка, тайминги')}\n`
         + `Профиль ${E('profile')}\n${Q('GET https://sonar-api.folzy.ru/oauth/profile?token=...\nНикнейм и аватарка')}\n`
-        + `${E('key')} Токен: ${tok}`
-        + (S.token === 'hidden' ? `\n${Q(`${E('info')} Токен виден один раз — сразу после создания. Потерял — обнови.`)}` : ''),
+        + `${E('key')} Токен: <span class="spoiler">${S.tokenValue}</span>`,
       kb: [
-        ...(S.token === 'fresh' ? [[B('Скопировать токен', 'copy', () => toast('Токен скопирован'))]] : []),
-        [B('Обновить токен', 'refresh', (m) => edit(m, scr.ask('Старый токен перестанет работать. Обновить?', () => { S.token = 'fresh'; edit(m, scr.integration()); }, () => edit(m, scr.integration()))))],
+        [B('Скопировать токен', 'copy', () => toast('Токен скопирован'))],
+        [B('Обновить токен', 'refresh', (m) => edit(m, scr.ask('Старый токен перестанет работать. Обновить?', () => { S.tokenValue = newToken(); edit(m, scr.integration()); }, () => edit(m, scr.integration()))))],
         [B('Отозвать токен', 'revoke', (m) => edit(m, scr.ask('Отозвать токен? Всё, что им пользуется, перестанет работать.', () => { S.token = 'none'; edit(m, scr.integration()); }, () => edit(m, scr.integration()))))],
-        [back((m) => { if (S.token === 'fresh') S.token = 'hidden'; edit(m, scr.profile()); })],
+        [back((m) => edit(m, scr.profile()))],
       ],
     };
   },
@@ -524,7 +523,7 @@ const JUMPS = [
   ['Регистрация', 'register', () => { setWho('guest'); const m = send(scr.guest()); later(450, () => go.register(m)); }],
   ['Главное меню', 'menu', () => { if (!linked()) setWho('user'); send(scr.main()); }],
   ['Профиль', 'profile', () => { if (!linked()) setWho('user'); send(scr.profile()); }],
-  ['Интеграция', 'integration', () => { if (!linked()) setWho('user'); S.token = 'fresh'; send(scr.integration()); }],
+  ['Интеграция', 'integration', () => { if (!linked()) setWho('user'); send(scr.integration()); }],
   ['Рефералка', 'referral', () => { if (!linked()) setWho('user'); send(scr.referral()); }],
   ['Версии', 'versions', () => { if (!linked()) setWho('user'); send(scr.versions()); }],
   ['Статистика', 'stats', () => { if (!linked()) setWho('user'); send(scr.stats()); }],

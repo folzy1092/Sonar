@@ -88,8 +88,62 @@ def wave(d):
     d.line(pts, fill=0, width=18, joint="curve")
 
 
+def logo_polys(size, box, cx=None, cy=None):
+    """Контуры знака Sonar из brand/logo.svg (только M/C/L/Z), вписанные в квадрат box с центром (cx, cy)."""
+    import re
+    svg = open(os.path.join(os.path.dirname(OUT), "..", "logo.svg"), encoding="utf-8").read()
+    vb = [float(v) for v in re.search(r'viewBox="([^"]+)"', svg).group(1).split()]
+    k = box / max(vb[2], vb[3])
+    cx = size / 2 if cx is None else cx
+    cy = size / 2 if cy is None else cy
+    ox, oy = cx - vb[2] * k / 2 - vb[0] * k, cy - vb[3] * k / 2 - vb[1] * k
+    polys = []
+    for d in re.findall(r'\sd="([^"]+)"', svg):
+        toks = re.findall(r"[MCLZ]|-?\d+(?:\.\d+)?", d)
+        i, cur, poly = 0, (0, 0), []
+        while i < len(toks):
+            t = toks[i]; i += 1
+            if t == "M":
+                if poly: polys.append(poly)
+                cur = (float(toks[i]), float(toks[i + 1])); i += 2; poly = [cur]
+            elif t == "L":
+                cur = (float(toks[i]), float(toks[i + 1])); i += 2; poly.append(cur)
+            elif t == "C":
+                a, b, e = [(float(toks[i + j]), float(toks[i + j + 1])) for j in (0, 2, 4)]; i += 6
+                for n in range(1, 13):
+                    u = n / 12; v = 1 - u
+                    poly.append((v**3 * cur[0] + 3 * v * v * u * a[0] + 3 * v * u * u * b[0] + u**3 * e[0],
+                                 v**3 * cur[1] + 3 * v * v * u * a[1] + 3 * v * u * u * b[1] + u**3 * e[1]))
+                cur = e
+            elif t == "Z":
+                if poly: polys.append(poly); poly = []
+            else:
+                i -= 1; cur = (float(toks[i]), float(toks[i + 1])); i += 2; poly.append(cur)  # неявный повтор команды
+        if poly: polys.append(poly)
+    return [[(ox + x * k, oy + y * k) for x, y in p] for p in polys]
+
+
+def logo_mask(size, box, fill):
+    """Маска знака с правилом even-odd (дырки в букве остаются дырками)."""
+    import numpy as np
+    acc = np.zeros((size, size), dtype=bool)
+    for p in logo_polys(size, box):
+        m = Image.new("L", (size, size), 0)
+        ImageDraw.Draw(m).polygon(p, fill=255)
+        acc ^= np.array(m) > 127
+    return acc
+
+
+def sonar(d):
+    import numpy as np
+    acc = logo_mask(S, 236, 0)
+    arr = np.array(d._image)
+    arr[acc] = 0
+    d._image.paste(Image.fromarray(arr))
+
+
 BADGES = {"windows": windows, "iphone": iphone, "android": android, "music": music,
-          "diamond": diamond, "heart": heart, "bug": bug, "wave": wave}
+          "diamond": diamond, "heart": heart, "bug": bug, "wave": wave, "sonar": sonar}
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
@@ -102,3 +156,10 @@ if __name__ == "__main__":
         img.putalpha(m)
         img.resize((100, 100), Image.LANCZOS).save(os.path.join(OUT, f"{name}.png"))
         print(name)
+    # Просто знак Sonar, без розетки — для «Открыть в Sonar» и шапок.
+    import numpy as np
+    m = Image.fromarray((logo_mask(S, 360, 255) * 255).astype("uint8"))
+    img = Image.new("RGBA", (S, S), (255, 255, 255, 0))
+    img.putalpha(m)
+    img.resize((100, 100), Image.LANCZOS).save(os.path.join(OUT, "logo_sonar.png"))
+    print("logo_sonar")

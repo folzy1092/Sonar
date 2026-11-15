@@ -149,7 +149,8 @@ CREATE TABLE lastfm (
 
 CREATE TABLE api_keys (
   user_id       TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  key_hash      TEXT UNIQUE NOT NULL,
+  key_hash      TEXT UNIQUE NOT NULL,           -- sha256, для поиска по запросу
+  key_enc       TEXT NOT NULL,                  -- Fernet: токен виден в боте всегда (BOT.md §2.6а)
   created_at    INTEGER NOT NULL
 );
 
