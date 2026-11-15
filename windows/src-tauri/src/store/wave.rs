@@ -142,6 +142,91 @@ impl Store {
     Ok(t)
   }
 
+  /// Подборка «под время суток» на главной: треки, которые ты слушаешь в эти часы (±2 ч от
+  /// текущего, за 90 дней), вперемешку с лайками; лайки сдвигаются по дню, чтобы подборка
+  /// менялась каждый день, но не прыгала в течение дня. `tz_min` — как `Date.getTimezoneOffset()`.
+  pub fn daypart_refs(&self, tz_min: i64, n: usize) -> Result<Vec<String>> {
+    let now = now_ms();
+    let local = now - tz_min * 60_000;
+    let hour = (local / 3_600_000).rem_euclid(24);
+    let day = local.div_euclid(DAY);
+    let mut st = self.db.prepare(
+      "SELECT ref, ((played_at - ?3 * 60000) / 3600000) % 24 AS h, played_at FROM plays
+       WHERE user_id = ?1 AND played_at >= ?2",
+    )?;
+    let rows = st.query_map(params![LOCAL_USER, now - 90 * DAY, tz_min], |r| {
+      Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
+    })?;
+    let mut score: HashMap<String, (u32, i64)> = HashMap::new();
+    for row in rows {
+      let (r, h, at) = row?;
+      let d = (h.rem_euclid(24) - hour).rem_euclid(24);
+      if d <= 2 || d >= 22 {
+        let e = score.entry(r).or_insert((0, 0));
+        e.0 += 1;
+        e.1 = e.1.max(at);
+      }
+    }
+    let disliked: HashSet<String> = self.disliked_refs()?.into_iter().collect();
+    let mut hours: Vec<(String, (u32, i64))> = score.into_iter().filter(|(r, _)| !disliked.contains(r)).collect();
+    hours.sort_by(|a, b| b.1 .0.cmp(&a.1 .0).then(b.1 .1.cmp(&a.1 .1)));
+    let mut likes = self.recent_like_refs(120)?;
+    likes.retain(|r| !disliked.contains(r));
+    if !likes.is_empty() {
+      let k = (day as usize).wrapping_mul(7) % likes.len();
+      likes.rotate_left(k);
+    }
+    // по два «своих часа» на один лайк: подборка про это время, а лайки её освежают
+    let mut out = Vec::with_capacity(n);
+    let mut seen = HashSet::new();
+    let (mut h, mut l) = (hours.into_iter().map(|x| x.0), likes.into_iter());
+    let mut turn = 0;
+    while out.len() < n {
+      let next = if turn % 3 == 2 { l.next().or_else(|| h.next()) } else { h.next().or_else(|| l.next()) };
+      let Some(r) = next else { break };
+      turn += 1;
+      if seen.insert(r.clone()) {
+        out.push(r);
+      }
+    }
+    Ok(out)
+  }
+
+  /// Исполнители для «Релизов недели»: на кого стоят лайки — лайкнутые исполнители, потом авторы
+  /// лайкнутых треков (свежие лайки первыми), потом самые слушаемые. Только `sca:`/`yma:`.
+  pub fn release_artist_refs(&self, n: usize) -> Result<Vec<String>> {
+    let mut out: Vec<String> = self.refs(
+      "SELECT ref FROM likes WHERE user_id = ?1 AND kind = 'artist' AND deleted = 0 ORDER BY added_at DESC LIMIT ?2",
+      params![LOCAL_USER, n as i64],
+    )?;
+    let mut st = self.db.prepare(
+      "SELECT t.artists_json FROM likes l JOIN tracks t ON t.ref = l.ref
+       WHERE l.user_id = ?1 AND l.kind = 'track' AND l.deleted = 0 ORDER BY l.added_at DESC LIMIT 300",
+    )?;
+    let rows = st.query_map([LOCAL_USER], |r| r.get::<_, Option<String>>(0))?;
+    for json in rows.flatten().flatten() {
+      if out.len() >= n {
+        break;
+      }
+      let Ok(list) = serde_json::from_str::<Vec<crate::providers::ArtistRef>>(&json) else { continue };
+      if let Some(a) = list.first() {
+        if (a.ref_.starts_with("sca:") || a.ref_.starts_with("yma:")) && !out.contains(&a.ref_) {
+          out.push(a.ref_.clone());
+        }
+      }
+    }
+    for r in self.favorite_artist_refs(n)? {
+      if out.len() >= n {
+        break;
+      }
+      if !out.contains(&r) {
+        out.push(r);
+      }
+    }
+    out.truncate(n);
+    Ok(out)
+  }
+
   /// Исполнители для «Релизов»: лайкнутые и самые слушаемые (ref `sca:`/`yma:`), без повторов.
   pub fn favorite_artist_refs(&self, n: usize) -> Result<Vec<String>> {
     let mut out: Vec<String> = self.refs(
@@ -189,5 +274,23 @@ mod tests {
     assert_eq!(t.plays.get("art"), Some(&1));
     assert!(s.played_since_days(7).unwrap().contains("sc:5"));
     assert_eq!(s.recent_play_refs(5).unwrap(), vec!["sc:5".to_owned()]);
+  }
+
+  #[test]
+  fn daypart_mixes_hours_and_likes() {
+    let s = Store::memory().unwrap();
+    let now = now_ms();
+    let play = |r: &str, at: i64| {
+      s.add_play(&Play { ref_: r.into(), artist: "A".into(), context: None, played_at: at, listened_ms: 60_000 }).unwrap()
+    };
+    // в это время суток (сегодня и вчера) — sc:1 дважды, sc:2 раз; sc:3 — через 12 часов
+    play("sc:1", now - 60_000);
+    play("sc:1", now - DAY);
+    play("sc:2", now - DAY - 3_600_000);
+    play("sc:3", now - 12 * 3_600_000);
+    s.set_like("sc:9", true).unwrap();
+    s.set_dislike("sc:2", "A", true).unwrap();
+    let out = s.daypart_refs(0, 10).unwrap();
+    assert_eq!(out, vec!["sc:1".to_owned(), "sc:9".to_owned()]);
   }
 }

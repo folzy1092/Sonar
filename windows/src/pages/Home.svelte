@@ -1,6 +1,8 @@
 <script lang="ts">
   // Главная по reference/pc/Screenshot_20, 23: «Моя волна» (обложка, заголовок, источник, плавающие
-  // обложки следующих треков, большая кнопка), приветствие с недавним, «Релизы», «Похожее».
+  // обложки следующих треков, большая кнопка); под ней приветствие с ником и подборкой под время
+  // суток, «Релизы недели» тех, на кого стоят лайки, «Похожее»; ниже — тренды, плейлисты
+  // пользователей и чарты Sonar (с сервера, до него — заготовка).
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
   import Tile from '../components/Tile.svelte'
@@ -16,20 +18,26 @@
   import { cubicOut, cubicIn } from 'svelte/easing'
   import { hscroll } from '../lib/hscroll'
   import { wave } from '../player/my-wave.svelte'
-  import { home } from './home-data.svelte'
+  import { DAYPART_TEXT, daypart, home, releaseLabel, weekReleases } from './home-data.svelte'
+  import { indicator } from '../lib/indicator'
   import { flyOrb } from '../lib/fly'
   import { colorOf } from '../theme/theme.svelte'
   import { css, inkFor, type RGB } from '../theme/palette'
 
-  function greeting(hour: number) {
-    if (hour < 5) return 'Доброй ночи'
-    if (hour < 12) return 'Доброе утро'
-    if (hour < 18) return 'Добрый день'
-    if (hour < 23) return 'Добрый вечер'
-    return 'Доброй ночи'
-  }
+  const part = DAYPART_TEXT[daypart(new Date().getHours())]
+  const hello = part.hello
 
-  const hello = greeting(new Date().getHours())
+  // «Релизы недели»; за неделю у любимых ничего — показываем самые свежие под другим заголовком
+  const week = $derived(weekReleases(home.releases))
+  const releases = $derived(week.length ? week : home.releases)
+
+  // Чарты Sonar (SPEC §4.7): период переключается капсулой; данные — с сервера
+  const CHART_PERIODS = [
+    { id: 'week', label: 'Неделя' },
+    { id: 'month', label: 'Месяц' },
+    { id: 'all', label: 'Всё время' },
+  ] as const
+  let chartPeriod = $state<(typeof CHART_PERIODS)[number]['id']>('week')
 
   onMount(() => {
     void home.load()
@@ -43,12 +51,12 @@
   const waveCover = $derived(waveTracks[0]?.cover_url ?? home.recent[0]?.cover_url ?? null)
   const playingWave = $derived(wave.active && player.playing)
 
-  const recentTitle = $derived(
-    home.recent
+  const titles = (list: Track[]) =>
+    list
       .slice(0, 2)
       .map((t) => t.title)
-      .join(', '),
-  )
+      .join(', ')
+  const recentTitle = $derived(titles(home.recent))
 
   let playBtn: HTMLButtonElement | undefined = $state()
   /** Цвет кнопки: после прилёта сгустка — цвет обложки (как в Dotify), иначе — белая. */
@@ -69,6 +77,9 @@
     void wave.start(undefined, true, t.ref)
   }
 
+  function playMix(i: number) {
+    void player.playList(home.mix, i, 'daypart', part.mix)
+  }
   function playRecent(i: number) {
     void player.playList(home.recent, i, 'recent', 'Недавнее')
   }
@@ -148,41 +159,39 @@
         {#if home.account.avatar_url}<img src={home.account.avatar_url} alt="" />{/if}
         {home.account.name}
       </span>{/if}</h2>
-  {#if home.recent.length}
+  {#if home.mix.length || home.recent.length}
     <div class="row" use:cascade use:hscroll>
-      <!-- «Недавнее» целиком — веер из трёх обложек, как у Dotify -->
-      <button class="stack" title={recentTitle} onclick={() => playRecent(0)}>
-        <span class="fan">
-          {#each home.recent.slice(0, 3).reverse() as t, i (t.ref)}
-            <span class="leaf l{home.recent.slice(0, 3).length - 1 - i}"><Cover url={t.cover_url} size={160} radius="var(--radius-l)" /></span>
-          {/each}
-        </span>
-        <span class="st-title">{recentTitle}</span>
-        <span class="st-sub">{tracksText(home.recent.length)}</span>
-      </button>
-      {#each home.recent as t, i (t.ref)}
-        <Tile title={t.title} subtitle={t.artist} image={t.cover_url} source={t.ref} onclick={() => playRecent(i)} />
+      <!-- первым — подборка под время суток (что слушаешь в эти часы + лайки), за ней «Недавнее»;
+           обе — веером из трёх обложек, как у Dotify -->
+      {#if home.mix.length}
+        {@render fan(home.mix, part.mix, `подборка · ${tracksText(home.mix.length)}`, () => playMix(0), titles(home.mix))}
+      {/if}
+      {#if home.recent.length}
+        {@render fan(home.recent, 'Недавнее', tracksText(home.recent.length), () => playRecent(0), recentTitle)}
+      {/if}
+      {#each home.mix.length ? home.mix : home.recent as t, i (t.ref)}
+        <Tile title={t.title} subtitle={t.artist} image={t.cover_url} source={t.ref} onclick={() => (home.mix.length ? playMix(i) : playRecent(i))} />
       {/each}
     </div>
   {:else if home.loading}
     {@render skeleton()}
   {:else}
-    <p class="empty">Здесь будет то, что ты слушал недавно.</p>
+    <p class="empty">Послушай что-нибудь — здесь соберётся подборка под утро, день, вечер и ночь.</p>
   {/if}
 </section>
 
 <section class="block">
-  <h2>Релизы</h2>
-  {#if home.releases.length}
+  <h2>{week.length || !home.releases.length ? 'Релизы недели' : 'Свежие релизы'}</h2>
+  {#if releases.length}
     <div class="row" use:cascade use:hscroll>
-      {#each home.releases as a (a.ref)}
-        <Tile title={a.title} subtitle={a.artist} meta={a.year ? String(a.year) : undefined} image={a.cover_url} icon="disc" source={a.ref} onclick={() => openAlbum(a)} />
+      {#each releases as a (a.ref)}
+        <Tile title={a.title} subtitle={a.artist} meta={releaseLabel(a.released) ?? (a.year ? String(a.year) : undefined)} image={a.cover_url} icon="disc" source={a.ref} onclick={() => openAlbum(a)} />
       {/each}
     </div>
   {:else if home.releasesLoading}
     {@render skeleton()}
   {:else}
-    <p class="empty">Подпишись на исполнителей или послушай их — здесь появятся их свежие альбомы.</p>
+    <p class="empty">Лайкай треки и исполнителей — здесь появятся их новые релизы за неделю.</p>
   {/if}
 </section>
 
@@ -200,6 +209,48 @@
     {/if}
   </section>
 {/if}
+
+<!-- Что слушают в Sonar: с сервера (API.md §5а). Пока его нет — ряды с заготовкой, без выдумок. -->
+<section class="block">
+  <h2>Тренды Sonar<small>что слушают в приложении</small></h2>
+  {@render soon('trending', 'Появятся вместе с сервером Sonar: треки, которые чаще всего слушают все.')}
+</section>
+
+<section class="block">
+  <h2>Плейлисты пользователей<small>по популярности</small></h2>
+  {@render soon('playlist', 'Плейлисты других пользователей — самые слушаемые и сохраняемые. Ждут сервер.')}
+</section>
+
+<section class="block">
+  <div class="head">
+    <h2>Чарты Sonar</h2>
+    <div class="periods" use:indicator={{ key: chartPeriod, kind: 'pill' }}>
+      {#each CHART_PERIODS as p (p.id)}
+        <button class="period press" class:on={chartPeriod === p.id} onclick={() => (chartPeriod = p.id)}>{p.label}</button>
+      {/each}
+    </div>
+  </div>
+  {@render soon('chart', 'Треки, исполнители, альбомы и плейлисты, которые чаще всего слушают в Sonar.')}
+</section>
+
+{#snippet soon(icon: 'trending' | 'playlist' | 'chart', text: string)}
+  <div class="soon">
+    <span class="soon-ic"><Icon name={icon} size={18} /></span>
+    <p>{text}</p>
+  </div>
+{/snippet}
+
+{#snippet fan(list: Track[], title: string, sub: string, onclick: () => void, hint: string)}
+  <button class="stack" title={hint} {onclick}>
+    <span class="fan">
+      {#each list.slice(0, 3).reverse() as t, i (t.ref)}
+        <span class="leaf l{list.slice(0, 3).length - 1 - i}"><Cover url={t.cover_url} size={160} radius="var(--radius-l)" /></span>
+      {/each}
+    </span>
+    <span class="st-title">{title}</span>
+    <span class="st-sub">{sub}</span>
+  </button>
+{/snippet}
 
 {#snippet skeleton()}
   <div class="row" aria-label="Загрузка…">
@@ -477,6 +528,73 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+  .head h2 {
+    margin-bottom: 0;
+  }
+  .periods {
+    position: relative;
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background: var(--plate);
+    border: 1px solid var(--border);
+  }
+  .period {
+    position: relative;
+    z-index: 1;
+    height: 28px;
+    padding: 0 14px;
+    border-radius: 999px;
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 600;
+    transition: color var(--fast) var(--ease);
+  }
+  .period:hover,
+  .period.on {
+    color: var(--text);
+  }
+  .periods :global(.tab-ind.pill) {
+    background: var(--hover);
+  }
+  .soon {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    border-radius: var(--radius-l);
+    background: var(--plate);
+    border: 1px dashed var(--border);
+    color: var(--text-3);
+    animation: soon-in var(--normal) var(--ease) both;
+  }
+  .soon p {
+    margin: 0;
+  }
+  .soon-ic {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--hover);
+    color: var(--text-2);
+  }
+  @keyframes soon-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
   }
   .st-sub {
     font-size: 12px;

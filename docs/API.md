@@ -161,6 +161,29 @@
 // peak_hour и fav_weekday (0 = пн) — в часовом поясе клиента.
 ```
 
+## 5а. Главная: тренды, плейлисты пользователей, чарты (SPEC §4.7)
+
+Всё считается на сервере по `plays` и сохранениям **всех пользователей Sonar**. Клиент Windows до
+появления сервера показывает на главной заготовку этих рядов; подборка «под время суток» и «Релизы
+недели» считаются на устройстве (`daypart_mix`, `home_releases` в `src-tauri/src/commands.rs`).
+
+| Метод | Путь | Ответ |
+|---|---|---|
+| GET | `/home/trends?limit=24` | `{tracks: [Track & {plays, delta_pct}]}` — что слушают в приложении за 7 дней, `delta_pct` к прошлой неделе |
+| GET | `/home/playlists?sort=popular\|saved\|new&period=week\|month\|all&limit=24` | `{playlists: [PublicPlaylist]}` |
+| GET | `/charts?kind=tracks\|artists\|albums\|playlists&period=week\|month\|all&limit=50` | `{kind, period, updated_at, items: [ChartItem]}` |
+
+```json
+// PublicPlaylist — чужой открытый плейлист Sonar
+{"id": "pl_...", "name": "ночной вайб", "owner": {"username": "type_0", "display_name": "type_0", "avatar_url": "..."},
+ "track_count": 71, "duration_ms": 14520000, "covers": ["...", "...", "...", "..."], "plays": 340, "saves": 12}
+
+// ChartItem: место, сдвиг к прошлому периоду (null — новый), прослушивания и сам объект по kind
+{"pos": 1, "prev_pos": 3, "plays": 1753, "listeners": 9,
+ "track": {"ref": "sc:1", "title": "zombie", "artist": "cowboyclicker", "cover_url": "..."}}
+// для kind=artists — "artist": Artist, albums — "album": Album, playlists — "playlist": PublicPlaylist
+```
+
 ## 6. Синхронизация и настройки
 
 | Метод | Путь | Тело → ответ |

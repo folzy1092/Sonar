@@ -544,26 +544,40 @@ pub fn recent_tracks(db: State<'_, Db>, limit: Option<usize>) -> Res<Vec<Track>>
   store.tracks(&refs).map_err(err)
 }
 
-/// «Релизы»: свежие альбомы лайкнутых и самых слушаемых исполнителей; пусто — новинки Яндекса.
+/// Подборка на главной под время суток («Добрый вечер»): что слушаешь в эти часы + лайки.
+#[tauri::command]
+pub fn daypart_mix(db: State<'_, Db>, tz_min: Option<i64>, limit: Option<usize>) -> Res<Vec<Track>> {
+  let store = db.0.lock().unwrap();
+  let refs = store.daypart_refs(tz_min.unwrap_or(0), limit.unwrap_or(24)).map_err(err)?;
+  store.tracks(&refs).map_err(err)
+}
+
+/// «Релизы недели»: свежие альбомы и синглы тех, на кого стоят лайки (новые первыми, с датой
+/// `released`, неделю отсекает клиент); пусто — новинки Яндекса.
 #[tauri::command]
 pub async fn home_releases(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<Vec<crate::providers::Album>> {
-  let artists = db.0.lock().unwrap().favorite_artist_refs(10).map_err(err)?;
+  let artists = db.0.lock().unwrap().release_artist_refs(16).map_err(err)?;
   let has_ym = core.has_yandex().await;
   let artists: Vec<String> = artists.into_iter().filter(|r| has_ym || r.starts_with("sca:")).collect();
   let lists = futures_util::future::join_all(artists.iter().map(|r| core.artist_albums(r))).await;
   let mut seen = std::collections::HashSet::new();
   let mut albums: Vec<crate::providers::Album> =
-    lists.into_iter().flat_map(|r| r.unwrap_or_default().into_iter().take(4)).filter(|a| seen.insert(a.ref_.clone())).collect();
-  // свежие первыми; внутри года — как отдал сервис (у него новые первыми)
-  albums.sort_by(|a, b| b.year.unwrap_or(0).cmp(&a.year.unwrap_or(0)));
-  albums.truncate(16);
+    lists.into_iter().flat_map(|r| r.unwrap_or_default().into_iter().take(6)).filter(|a| seen.insert(a.ref_.clone())).collect();
+  // свежие первыми: по дате выхода, без даты — по году (внутри — как отдал сервис)
+  albums.sort_by_cached_key(|a| std::cmp::Reverse(release_key(a)));
+  albums.truncate(20);
   if albums.len() < 4 && has_ym {
     if let Ok(more) = core.yandex_new_releases(16).await {
       albums.extend(more.into_iter().filter(|a| seen.insert(a.ref_.clone())));
-      albums.truncate(16);
+      albums.truncate(20);
     }
   }
   Ok(albums)
+}
+
+/// Ключ сортировки релиза: `YYYY-MM-DD`, без даты — `YYYY-00-00`.
+fn release_key(a: &crate::providers::Album) -> String {
+  a.released.clone().unwrap_or_else(|| format!("{:04}-00-00", a.year.unwrap_or(0)))
 }
 
 /// Статистика из локальной истории (`GET /stats` в API.md §5). `tz_min` — смещение часового пояса.

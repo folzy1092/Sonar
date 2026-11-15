@@ -146,6 +146,7 @@ pub fn run() {
       commands::similar_tracks,
       commands::recent_tracks,
       commands::home_releases,
+      commands::daypart_mix,
       commands::stats,
       commands::cached_tracks,
       commands::stream_port,
