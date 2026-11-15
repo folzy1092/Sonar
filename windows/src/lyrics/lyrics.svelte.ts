@@ -28,6 +28,7 @@ export const lyricsAnimations = {
 export type LyricsAnimation = keyof typeof lyricsAnimations
 
 export type LyricsMode = 'words' | 'lines'
+export type LyricsViewMode = 'both' | 'cover' | 'lyrics'
 
 const MEMORY_MAX = 100
 
@@ -44,14 +45,17 @@ class LyricsStore {
   style = $state<LyricsStyle>('blur')
   animation = $state<LyricsAnimation>('normal')
 
-  /** Полноэкранный плеер открыт; `visible` — кнопка «T» (показать/скрыть текст). */
+  /** Полноэкранный плеер открыт. `view` — «глаза» в меню: обложка и текст / только обложка /
+   *  только текст (`lyrics.view`). */
   fullscreen = $state(false)
-  visible = $state(true)
+  view = $state<LyricsViewMode>('both')
 
   /** Есть ли у текста пословный тайминг — без него «По словам» неактивно. */
   hasWords = $derived(!!this.data?.lines.some((l) => l.words?.length))
   /** Есть что показать справа в полноэкранном плеере. */
-  shown = $derived(this.visible && this.status === 'ready' && !!this.data?.lines.length)
+  shown = $derived(this.view !== 'cover' && this.status === 'ready' && !!this.data?.lines.length)
+  /** Колонка с обложкой: нет её только в режиме «только текст», когда текст есть. */
+  coverShown = $derived(this.view !== 'lyrics' || !this.shown)
 
   private memory = new Map<string, Lyrics | null>()
   private inflight = new Map<string, Promise<Lyrics | null>>()
@@ -82,13 +86,13 @@ class LyricsStore {
         api.getSetting<LyricsSize>('lyrics.size'),
         api.getSetting<LyricsStyle>('lyrics.style'),
         api.getSetting<LyricsAnimation>('lyrics.animation'),
-        api.getSetting<boolean>('lyrics.visible'),
+        api.getSetting<LyricsViewMode>('lyrics.view'),
       ])
       if (mode === 'words' || mode === 'lines') this.mode = mode
       if (size && lyricsSizes.includes(size)) this.size = size
       if (style && style in lyricsStyles) this.style = style
       if (animation && animation in lyricsAnimations) this.animation = animation
-      if (typeof visible === 'boolean') this.visible = visible
+      if (visible === 'both' || visible === 'cover' || visible === 'lyrics') this.view = visible
     } catch {
       // вне приложения — значения по умолчанию
     }
@@ -177,9 +181,24 @@ class LyricsStore {
     void api.setSetting('lyrics.animation', a).catch(() => {})
   }
 
-  toggleVisible() {
-    this.visible = !this.visible
-    void api.setSetting('lyrics.visible', this.visible).catch(() => {})
+  setView(v: LyricsViewMode) {
+    this.view = v
+    void api.setSetting('lyrics.view', v).catch(() => {})
+  }
+
+  cycleStyle() {
+    const keys = Object.keys(lyricsStyles) as LyricsStyle[]
+    this.setStyle(keys[(keys.indexOf(this.style) + 1) % keys.length])
+  }
+
+  cycleAnimation() {
+    const keys = Object.keys(lyricsAnimations) as LyricsAnimation[]
+    this.setAnimation(keys[(keys.indexOf(this.animation) + 1) % keys.length])
+  }
+
+  setSize(s: LyricsSize) {
+    this.size = s
+    void api.setSetting('lyrics.size', s).catch(() => {})
   }
 
   open() {

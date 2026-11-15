@@ -69,6 +69,9 @@ CREATE TABLE catalog (ref TEXT PRIMARY KEY, kind TEXT NOT NULL, json TEXT NOT NU
 CREATE INDEX likes_kind ON likes(user_id, kind, deleted, added_at);
 "#, r#"
 ALTER TABLE track_prefs ADD COLUMN eq_json TEXT;
+"#, r#"
+ALTER TABLE lyrics_cache ADD COLUMN used_at INTEGER;
+UPDATE lyrics_cache SET used_at = fetched_at;
 "#];
 
 pub fn now_ms() -> i64 {
@@ -577,20 +580,35 @@ impl Store {
 
   // ——— тексты: кэш и сдвиг на трек (LYRICS.md §5, §7) ———
 
-  /// Кэш текста: `Some((json, fetched_at))`, json `None` — «не найдено».
+  /// Кэш текста: `Some((json, fetched_at))`, json `None` — «не найдено». Попадание продлевает
+  /// срок хранения (`used_at`, см. `prune_lyrics`).
   pub fn lyrics_cached(&self, r: &str) -> Result<Option<(Option<String>, i64)>> {
-    Ok(
-      self
-        .db
-        .query_row("SELECT json, fetched_at FROM lyrics_cache WHERE ref = ?1", [r], |row| Ok((row.get(0)?, row.get(1)?)))
-        .optional()?,
-    )
+    let hit: Option<(Option<String>, i64)> = self
+      .db
+      .query_row("SELECT json, fetched_at FROM lyrics_cache WHERE ref = ?1", [r], |row| Ok((row.get(0)?, row.get(1)?)))
+      .optional()?;
+    if hit.is_some() {
+      self.db.execute("UPDATE lyrics_cache SET used_at = ?2 WHERE ref = ?1", params![r, now_ms()])?;
+    }
+    Ok(hit)
+  }
+
+  /// Тексты хранятся на компьютере **неделю** с последнего прослушивания, у треков из Любимых —
+  /// **две недели** (решение владельца 2026-11-15). Вызывается при запуске; возвращает, сколько удалено.
+  pub fn prune_lyrics(&self, now: i64) -> Result<usize> {
+    const DAY: i64 = 86_400_000;
+    Ok(self.db.execute(
+      "DELETE FROM lyrics_cache WHERE COALESCE(used_at, fetched_at) < ?1
+         OR (COALESCE(used_at, fetched_at) < ?2
+             AND ref NOT IN (SELECT ref FROM likes WHERE user_id = ?3 AND deleted = 0))",
+      params![now - 14 * DAY, now - 7 * DAY, LOCAL_USER],
+    )?)
   }
 
   pub fn put_lyrics(&self, r: &str, json: Option<&str>, source: Option<&str>) -> Result<()> {
     self.db.execute(
-      "INSERT INTO lyrics_cache (ref, json, source, fetched_at) VALUES (?1, ?2, ?3, ?4)
-       ON CONFLICT(ref) DO UPDATE SET json = ?2, source = ?3, fetched_at = ?4",
+      "INSERT INTO lyrics_cache (ref, json, source, fetched_at, used_at) VALUES (?1, ?2, ?3, ?4, ?4)
+       ON CONFLICT(ref) DO UPDATE SET json = ?2, source = ?3, fetched_at = ?4, used_at = ?4",
       params![r, json, source, now_ms()],
     )?;
     Ok(())
@@ -805,5 +823,23 @@ mod tests {
     assert_eq!(s.track_eq("sc:1").unwrap(), Some(vec![1.0, -2.5]));
     s.set_track_eq("sc:1", None).unwrap();
     assert_eq!(s.track_eq("sc:1").unwrap(), None);
+  }
+
+  #[test]
+  fn lyrics_kept_week_or_two_for_likes() {
+    let s = Store::memory().unwrap();
+    const DAY: i64 = 86_400_000;
+    let now = now_ms();
+    s.put_lyrics("sc:old", Some("{}"), Some("lrclib")).unwrap();
+    s.put_lyrics("sc:liked", Some("{}"), Some("lrclib")).unwrap();
+    s.put_lyrics("sc:fresh", Some("{}"), Some("lrclib")).unwrap();
+    s.set_like("sc:liked", true).unwrap();
+    // через 8 дней: обычный удалён, лайкнутый живёт
+    assert_eq!(s.prune_lyrics(now + 8 * DAY).unwrap(), 2);
+    assert!(s.lyrics_cached("sc:liked").unwrap().is_some());
+    // прослушивание продлевает срок: через 15 дней от записи, но 1 день от прослушивания — живёт
+    s.db.execute("UPDATE lyrics_cache SET used_at = ?1 WHERE ref = 'sc:liked'", [now + 14 * DAY]).unwrap();
+    assert_eq!(s.prune_lyrics(now + 15 * DAY).unwrap(), 0);
+    assert_eq!(s.prune_lyrics(now + 29 * DAY).unwrap(), 1);
   }
 }

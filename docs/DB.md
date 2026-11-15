@@ -176,7 +176,8 @@ CREATE TABLE lyrics_cache (                     -- только на клиен�
   ref           TEXT PRIMARY KEY,
   json          TEXT,                           -- Lyrics (docs/LYRICS.md §1); NULL = «не найдено»
   source        TEXT,                           -- lrclib | genius
-  fetched_at    INTEGER NOT NULL
+  fetched_at    INTEGER NOT NULL,
+  used_at       INTEGER                         -- последнее прослушивание; хранится 7 дней, у Любимых 14
 );
 
 CREATE TABLE notifications (

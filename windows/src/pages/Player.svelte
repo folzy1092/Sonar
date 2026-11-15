@@ -92,7 +92,7 @@
       </button>
       <div class="main">
         <IconButton
-          icon={player.repeat === 'one' ? 'repeatOnce' : 'repeat'}
+          icon={player.repeat === 'one' ? 'repeatOnce' : player.repeat === 'all' ? 'repeat' : 'repeatOff'}
           label={player.repeat === 'off' ? 'Повтор: выкл' : player.repeat === 'all' ? 'Повтор: всё' : 'Повтор: трек'}
           active={player.repeat !== 'off'}
           disabled={!track}

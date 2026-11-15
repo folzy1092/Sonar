@@ -89,7 +89,7 @@
 
   <div class="center">
     <IconButton
-      icon={player.repeat === 'one' ? 'repeatOnce' : 'repeat'}
+      icon={player.repeat === 'one' ? 'repeatOnce' : player.repeat === 'all' ? 'repeat' : 'repeatOff'}
       label={player.repeat === 'off' ? 'Повтор: выкл' : player.repeat === 'all' ? 'Повтор: всё' : 'Повтор: трек'}
       size={18}
       active={player.repeat !== 'off'}
@@ -140,7 +140,6 @@
     inset: 0 auto 0 0;
     background: var(--hover);
     pointer-events: none;
-    transition: width 0.25s linear;
   }
   .mini.dragging .fill {
     transition: none;

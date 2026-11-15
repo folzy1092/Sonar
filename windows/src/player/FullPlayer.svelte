@@ -2,7 +2,8 @@
   // Полноэкранный плеер (reference/pc/fullscreen_player.webp, PLATFORMS.md): фон — размытая
   // затемнённая обложка; колонкой обложка (❤ и 👎 на ней), название, исполнитель с аватаром,
   // ползунок, кнопки; громкость — тонкая полоска внизу. Нашёлся текст — колонка уходит влево,
-  // справа караоке. «T» прячет/показывает текст, правый клик по тексту — меню текста.
+  // справа караоке. Правый клик в любом месте — меню (размер, вид, синхронизация, смещение).
+  // Вид: обложка и текст / только обложка / только текст (тогда сверху плашка с треком).
   import { onMount } from 'svelte'
   import { cubicOut } from 'svelte/easing'
   import { fade } from 'svelte/transition'
@@ -23,18 +24,9 @@
   const liked = $derived(library.isLiked(track?.ref))
   const avatar = $derived(track?.artists[0]?.avatar_url ?? null)
   const withText = $derived(lyrics.shown)
+  const withCover = $derived(lyrics.coverShown)
 
   let menuAt = $state<{ x: number; y: number } | null>(null)
-
-  const tTitle = $derived(
-    lyrics.status === 'loading'
-      ? 'Ищу текст…'
-      : lyrics.status === 'none'
-        ? 'Текст не найден'
-        : lyrics.visible
-          ? 'Скрыть текст'
-          : 'Показать текст',
-  )
 
   function openArtist(ref: string) {
     if (hasSelection()) return
@@ -45,12 +37,6 @@
   function openMenu(e: MouseEvent) {
     e.preventDefault()
     menuAt = { x: e.clientX, y: e.clientY }
-  }
-
-  function toggleMenu(e: MouseEvent) {
-    if (menuAt) return (menuAt = null)
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    menuAt = { x: r.right - 340, y: r.top - 8 - 330 }
   }
 
   /** Появление: лёгкое приближение + проявление. */
@@ -76,7 +62,7 @@
   })
 </script>
 
-<div class="fs" transition:zoom role="dialog" aria-label="Полноэкранный плеер">
+<div class="fs" transition:zoom role="dialog" aria-label="Полноэкранный плеер" tabindex="-1" oncontextmenu={openMenu}>
   <!-- фон как в Dotify: одна огромная, сильно размытая копия обложки медленно плывёт и
        поворачивается — тянется силуэт, саму картинку не разобрать; под ней — средний цвет обложки -->
   <div class="bg" aria-hidden="true">
@@ -92,14 +78,27 @@
 
   <header data-tauri-drag-region>
     <div></div>
-    <button class="collapse" aria-label="Свернуть" title="Свернуть" onclick={() => lyrics.close()}>
-      <Icon name="chevronDown" size={22} />
-    </button>
+    <div class="center">
+      <button class="collapse" aria-label="Свернуть" title="Свернуть" onclick={() => lyrics.close()}>
+        <Icon name="chevronDown" size={22} />
+      </button>
+      {#if !withCover && track}
+        <!-- «только текст»: сверху плашка с обложкой, названием и исполнителем -->
+        <div class="pill" transition:fade={{ duration: 200 }}>
+          <Cover url={track.cover_url} size={30} radius="50%" />
+          <span>
+            <b class="selectable">{track.title}</b>
+            <small class="selectable">{track.artist}</small>
+          </span>
+        </div>
+      {/if}
+    </div>
     <div class="win"><WindowControls back={false} /></div>
   </header>
 
-  <div class="body" class:text={withText}>
-    <section class="col">
+  <div class="body" class:text={withText && withCover} class:only-text={!withCover}>
+    {#if withCover}
+    <section class="col" transition:fade={{ duration: 220 }}>
       <div class="art">
         <Cover url={track?.cover_url} size={420} radius="14px" />
         {#if track}
@@ -136,7 +135,7 @@
 
       <div class="controls">
         <IconButton
-          icon={player.repeat === 'one' ? 'repeatOnce' : 'repeat'}
+          icon={player.repeat === 'one' ? 'repeatOnce' : player.repeat === 'all' ? 'repeat' : 'repeatOff'}
           label={player.repeat === 'off' ? 'Повтор: выкл' : player.repeat === 'all' ? 'Повтор: всё' : 'Повтор: трек'}
           active={player.repeat !== 'off'}
           disabled={!track}
@@ -158,10 +157,11 @@
       </div>
       {#if player.error}<p class="err">{player.error}</p>{/if}
     </section>
+    {/if}
 
     {#if withText}
       <section class="lyrics-col">
-        <LyricsView oncontextmenu={openMenu} />
+        <LyricsView />
       </section>
     {/if}
   </div>
@@ -184,23 +184,7 @@
         oninput={(e) => player.setVolume(Number(e.currentTarget.value))}
       />
     </div>
-    <div class="tools">
-      {#if lyrics.shown}
-        <button class="t" data-lyrics-menu-toggle class:on={!!menuAt} aria-label="Настройки текста" title="Настройки текста" onclick={toggleMenu}>
-          <Icon name="dots" size={18} />
-        </button>
-      {/if}
-      <button
-        class="t"
-        class:on={lyrics.visible && lyrics.status === 'ready'}
-        class:muted={lyrics.status !== 'ready'}
-        aria-label={tTitle}
-        title={tTitle}
-        onclick={() => lyrics.toggleVisible()}
-      >
-        <Icon name="letterT" size={18} />
-      </button>
-    </div>
+    <div></div>
   </footer>
 
   {#if menuAt}
@@ -308,6 +292,41 @@
   .collapse:hover {
     color: #fff;
   }
+  .center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 420px;
+    margin-top: 2px;
+    padding: 5px 16px 5px 5px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.22);
+    backdrop-filter: blur(16px);
+  }
+  .pill span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.2;
+  }
+  .pill b,
+  .pill small {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pill b {
+    font-size: 14px;
+  }
+  .pill small {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.65);
+  }
 
   .body {
     display: grid;
@@ -321,6 +340,14 @@
   .body.text {
     grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
     justify-items: stretch;
+  }
+  /* только текст: широкая колонка по центру */
+  .body.only-text {
+    justify-items: center;
+  }
+  .body.only-text .lyrics-col {
+    width: min(900px, 100%);
+    max-width: none;
   }
   .col {
     --art: min(52vh, 520px, 70vw);
@@ -509,33 +536,6 @@
     appearance: none;
     width: 4px;
     height: 4px;
-  }
-  .tools {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 4px;
-  }
-  .t {
-    display: grid;
-    place-items: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    color: rgba(255, 255, 255, 0.6);
-    transition:
-      color var(--fast) var(--ease),
-      background var(--fast) var(--ease);
-  }
-  .t:hover {
-    color: #fff;
-  }
-  .t.on {
-    background: rgba(255, 255, 255, 0.14);
-    color: #fff;
-  }
-  .t.muted {
-    opacity: 0.45;
   }
   @media (prefers-reduced-motion: reduce) {
     .col,

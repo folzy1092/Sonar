@@ -33,6 +33,13 @@ pub fn run() {
       std::fs::create_dir_all(&dir)?;
       let db = store::Store::open(&dir.join("sonar.db"))?;
 
+      // тексты: неделя с прослушивания, у Любимых — две
+      if let Ok(n) = db.prune_lyrics(store::now_ms()) {
+        if n > 0 {
+          log::info!("[lyrics] удалено старых текстов: {n}");
+        }
+      }
+
       let core = Arc::new(Core::new());
       if let Ok(Some(v)) = db.setting("audio.sc_via_yandex") {
         core.sc_via_yandex.store(v.as_bool().unwrap_or(true), std::sync::atomic::Ordering::Relaxed);

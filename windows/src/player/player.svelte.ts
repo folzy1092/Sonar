@@ -51,6 +51,8 @@ class Player {
   private startedAt = 0
   private lastTick = 0
   private heartbeat: ReturnType<typeof setInterval> | null = null
+  /** Кадр для плавного таймлайна: пока играет, позиция берётся из <audio> каждый кадр. */
+  private raf = 0
   private offMedia: (() => void) | null = null
   private ctx: AudioContext | null = null
   /** Спектр звука для волны на странице плеера (Web Audio). */
@@ -115,6 +117,7 @@ class Player {
     }
     this.audio = null
     if (this.heartbeat) clearInterval(this.heartbeat)
+    cancelAnimationFrame(this.raf)
     this.offMedia?.()
     void this.ctx?.close()
   }
@@ -335,8 +338,20 @@ class Player {
     this.updateMedia()
   }
 
+  /** Таймлайн везде (мини-плеер, ползунки) плывёт плавно, а не шагами timeupdate (~4 раза в с). */
+  private smooth = () => {
+    const a = this.audio
+    if (!a || a.paused) {
+      this.raf = 0
+      return
+    }
+    if (!a.seeking) this.positionMs = a.currentTime * 1000
+    this.raf = requestAnimationFrame(this.smooth)
+  }
+
   private setPlaying(on: boolean) {
     this.playing = on
+    if (on && !this.raf) this.raf = requestAnimationFrame(this.smooth)
     if (on && this.ctx?.state === 'suspended') void this.ctx.resume()
     if (on) this.error = null
     if (this.heartbeat) clearInterval(this.heartbeat)
