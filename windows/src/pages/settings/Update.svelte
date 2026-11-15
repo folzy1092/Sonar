@@ -25,7 +25,7 @@
     if (p === 'checking') return 'Поиск обновлений…'
     if (p === 'available') return `Доступна версия ${updater.version}`
     if (p === 'downloading') return `Загрузка… ${sizeText(updater.got, updater.total)}`
-    if (p === 'ready') return `Версия ${updater.version} скачана — установка займёт пару секунд`
+    if (p === 'ready') return `Версия ${updater.version} скачана`
     if (p === 'installing') return 'Устанавливаю и перезапускаю…'
     if (p === 'error') return updater.error
     if (p === 'none') return `Вы используете актуальную версию · проверено ${agoText(updater.checkedAt ?? now, now)}`

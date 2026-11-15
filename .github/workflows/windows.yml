@@ -1,18 +1,25 @@
 name: Windows
 
-# Сборка ПК-клиента (Tauri 2) → установщик NSIS как артефакт.
-# Релиз пока не публикуем — появится вместе с автообновлением (ROADMAP W6).
+# Сборка ПК-клиента (Tauri 2) → установщик NSIS (артефакт). Если в секретах есть ключ подписи
+# обновлений и версии из tauri.conf.json ещё нет в релизах — публикуем релиз `windows-v<версия>`
+# (установщик + подпись) и обновляем latest.json в релизе `windows-latest`: его читает
+# автообновление клиентов (tauri-plugin-updater, ROADMAP W6). Новая версия = поднять `version`
+# в tauri.conf.json, Cargo.toml, package.json и добавить запись в updates/changelog.json.
 on:
   push:
     branches: [main]
     paths:
       - 'windows/**'
+      - 'updates/changelog.json'
       - '.github/workflows/windows.yml'
   workflow_dispatch:
 
 concurrency:
   group: windows-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -20,6 +27,11 @@ jobs:
     defaults:
       run:
         working-directory: windows
+        shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
 
@@ -48,11 +60,47 @@ jobs:
         run: cargo test
         working-directory: windows/src-tauri
 
+      - name: Версия и нужен ли релиз
+        id: ver
+        run: |
+          V=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=windows-v$V" >> "$GITHUB_OUTPUT"
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "Ключа подписи нет в секретах — только сборка, без релиза"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          elif gh release view "windows-v$V" > /dev/null 2>&1; then
+            echo "Релиз windows-v$V уже есть — только сборка"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Сборка
-        run: npx tauri build --bundles nsis
+        run: |
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            npx tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          else
+            npx tauri build --bundles nsis
+          fi
 
       - uses: actions/upload-artifact@v5
         with:
-          name: sonar-windows-${{ github.run_number }}
-          path: windows/src-tauri/target/release/bundle/nsis/*.exe
+          name: sonar-windows-${{ steps.ver.outputs.version }}-${{ github.run_number }}
+          path: windows/src-tauri/target/release/bundle/nsis/*.exe*
           if-no-files-found: error
+
+      - name: Релиз
+        if: steps.ver.outputs.release == 'true'
+        run: |
+          TAG='${{ steps.ver.outputs.tag }}'
+          V='${{ steps.ver.outputs.version }}'
+          node scripts/latest-json.mjs "$TAG" > latest.json
+          node -e "process.stdout.write(require('./latest.json').notes || 'Sonar $V для Windows')" > notes.md
+          gh release create "$TAG" src-tauri/target/release/bundle/nsis/*-setup.exe src-tauri/target/release/bundle/nsis/*-setup.exe.sig \
+            --title "Sonar $V для Windows" --notes-file notes.md --latest
+          # постоянный адрес для автообновления: .../releases/download/windows-latest/latest.json
+          gh release view windows-latest > /dev/null 2>&1 || \
+            gh release create windows-latest --title "Автообновление Windows" --latest=false \
+              --notes "Служебный релиз: latest.json для автообновления Sonar. Установщик — в релизе $TAG."
+          gh release upload windows-latest latest.json --clobber

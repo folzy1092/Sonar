@@ -205,7 +205,10 @@ ID приложения Discord — **не настройка**: пользов�
 (сдвиг текста по треку). Скачанные вручную треки — отдельной строкой, «Очистить» с
 подтверждением.
 
-## Автообновление — `update.*` (iOS)
+## Автообновление — `update.*`
 
-`update.auto_check` (true), `update.channel` (`stable`). Сертификат (`.p12`, пароль,
+`update.auto_check` (true) — при запуске и раз в 6 ч, `update.auto_download` (true, Windows) —
+скачивать найденное в фоне, ставить по кнопке «Установить», `update.channel` (`stable`; `beta` —
+«Скоро»). Windows: `tauri-plugin-updater`, `latest.json` в релизе `windows-latest`, история версий —
+`updates/changelog.json` (поле `platform`: `windows` / `ios` / нет — общая). iOS: Сертификат (`.p12`, пароль,
 `.mobileprovision`) — только Keychain/файлы устройства, не sync.
