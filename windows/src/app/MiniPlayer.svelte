@@ -19,12 +19,26 @@
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
   const liked = $derived(library.isLiked(track?.ref))
   const openPlayer = () => !hasSelection() && router.go('player')
-  const progress = $derived(duration ? Math.min(100, (player.positionMs / duration) * 100) : 0)
 
   // Прогресс в стиле «Гибрид» — весь фон мини-плеера: клик по пустому месту (не по кнопке, ссылке
   // или тексту) перематывает туда. Только клик (просьба владельца): зажал и повёл — ничего не
   // происходит, чтобы случайно не перемотать.
   let bar: HTMLElement | undefined = $state()
+  let ring: SVGCircleElement | undefined = $state()
+
+  // Прогресс рисуется каждый кадр мимо Svelte: `--p` (0…1) на фоне-полосе через transform, кольцу —
+  // stroke-dasharray. Позицию плавно ведут часы плеера (player.onFrame), а не шаги timeupdate.
+  $effect(() => {
+    const el = bar
+    const circle = ring
+    const d = duration
+    if (!el) return
+    return player.onFrame((ms) => {
+      const p = d ? Math.min(1, Math.max(0, ms / d)) : 0
+      el.style.setProperty('--p', String(p))
+      circle?.setAttribute('stroke-dasharray', `${p * 100} 100`)
+    })
+  })
   let press: { x: number; y: number } | null = null
   const isControl = (t: EventTarget | null) =>
     !!(t as HTMLElement | null)?.closest?.('button, a, input, [role="link"], .selectable, .capsule')
@@ -65,7 +79,7 @@
     <span class="cover-shade" aria-hidden="true"></span>
   {/if}
   {#if settings.get('mini.progress') !== 'cover'}
-    <div class="fill" style:width="{progress}%" aria-hidden="true"></div>
+    <div class="fill" aria-hidden="true"></div>
   {/if}
 
   <div class="left">
@@ -80,7 +94,7 @@
         <Cover url={track?.cover_url} size={46} radius={settings.get('mini.cover_shape') === 'circle' ? '50%' : 'var(--radius-s)'} />
         {#if settings.get('mini.progress') === 'cover'}
           <!-- прогресс «Вокруг обложки»: кольцо -->
-          <svg class="ring" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24.5" pathLength="100" style:stroke-dasharray="{progress} 100" /></svg>
+          <svg class="ring" viewBox="0 0 52 52" aria-hidden="true"><circle bind:this={ring} cx="26" cy="26" r="24.5" pathLength="100" stroke-dasharray="0 100" /></svg>
         {/if}
         <span class="expand" aria-hidden="true"><Icon name="expand" size={18} /></span>
       </button>
@@ -244,9 +258,12 @@
   .mini.progress-cover .art {
     overflow: visible;
   }
+  /* полоса на всю ширину, уезжает влево: transform не трогает раскладку и рисуется на GPU */
   .fill {
     position: absolute;
-    inset: 0 auto 0 0;
+    inset: 0;
+    transform: translateX(calc((var(--p, 0) - 1) * 100%));
+    will-change: transform;
     background: color-mix(in srgb, var(--accent-soft) 60%, var(--hover));
     pointer-events: none;
   }

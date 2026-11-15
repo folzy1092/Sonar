@@ -6,6 +6,7 @@ import Hls from 'hls.js'
 import { untrack } from 'svelte'
 import { api, errorText, onMediaControl, type PlayerState, type Repeat, type Track } from '../lib/api'
 import { eq } from './eq.svelte'
+import { Clock } from '../lyrics/core/clock'
 import { countsAsPlay, enqueue, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
 
 /** Режимы скорости кнопки рядом с громкостью: тон меняется вместе со скоростью (slowed / sped up). */
@@ -51,7 +52,10 @@ class Player {
   private startedAt = 0
   private lastTick = 0
   private heartbeat: ReturnType<typeof setInterval> | null = null
-  /** Кадр для плавного таймлайна: пока играет, позиция берётся из <audio> каждый кадр. */
+  /** Часы таймлайна как у Dotify (PlaybackClock): между редкими timeupdate позиция идёт от якоря
+   *  по performance.now() с учётом скорости, полосы прогресса рисуются каждый кадр. */
+  private clock = new Clock()
+  private frameSubs = new Set<(ms: number) => void>()
   private raf = 0
   private offMedia: (() => void) | null = null
   private ctx: AudioContext | null = null
@@ -87,6 +91,23 @@ class Player {
       if (Number.isFinite(a.duration) && a.duration > 0) this.durationMs = a.duration * 1000
     })
     a.addEventListener('timeupdate', () => this.onTime())
+    // до метаданных currentTime = 0 ничего не значит (смена src) — держим позицию из place()
+    const tick = (fn: () => void) => () => {
+      if (a.readyState === HTMLMediaElement.HAVE_NOTHING) return
+      fn()
+      this.syncFrames()
+    }
+    const now = () => performance.now()
+    a.addEventListener('timeupdate', tick(() => this.clock.sample(a.currentTime, now())))
+    a.addEventListener('playing', tick(() => this.clock.play(a.currentTime, now(), a.playbackRate)))
+    a.addEventListener('pause', tick(() => this.clock.hold(a.currentTime)))
+    a.addEventListener('waiting', tick(() => this.clock.hold(a.currentTime)))
+    a.addEventListener('seeking', tick(() => this.clock.seek(a.currentTime)))
+    a.addEventListener(
+      'seeked',
+      tick(() => (a.paused ? this.clock.hold(a.currentTime) : this.clock.play(a.currentTime, now(), a.playbackRate))),
+    )
+    a.addEventListener('ratechange', tick(() => this.clock.setRate(a.playbackRate, a.currentTime, now())))
     a.addEventListener('ended', () => this.onEnded())
     a.addEventListener('error', () => this.onError(a.error?.message || 'не удалось воспроизвести'))
 
@@ -122,6 +143,7 @@ class Player {
     this.audio = null
     if (this.heartbeat) clearInterval(this.heartbeat)
     cancelAnimationFrame(this.raf)
+    this.raf = 0
     this.offMedia?.()
     void this.ctx?.close()
   }
@@ -252,7 +274,7 @@ class Player {
     if (!this.audio) return
     const max = this.durationMs || this.current?.duration_ms || 0
     const t = Math.max(0, Math.min(ms, max))
-    this.positionMs = t
+    this.place(t)
     if (this.audio.src) this.audio.currentTime = t / 1000
     this.saveState()
     this.updateMedia()
@@ -303,8 +325,8 @@ class Player {
     const token = ++this.loadToken
     this.error = null
     this.loading = true
-    this.positionMs = startMs
     this.durationMs = track.duration_ms
+    this.place(startMs)
     this.hls?.destroy()
     this.hls = null
     this.quality = null
@@ -360,20 +382,49 @@ class Player {
     this.updateMedia()
   }
 
-  /** Таймлайн везде (мини-плеер, ползунки) плывёт плавно, а не шагами timeupdate (~4 раза в с). */
-  private smooth = () => {
-    const a = this.audio
-    if (!a || a.paused) {
+  /** Позиция таймлайна (мс) на кадр `ts`: плавно между timeupdate, монотонно, в пределах трека. */
+  frameMs(ts = performance.now()): number {
+    const ms = this.clock.read(ts) * 1000
+    const max = this.durationMs || this.current?.duration_ms || 0
+    return max ? Math.min(ms, max) : ms
+  }
+
+  /** Полосы прогресса (мини-плеер, ползунок): `fn` получает позицию каждый кадр, пока играет, и
+   *  один раз на паузе, перемотке, смене трека. Пишет прямо в DOM — плеер не перерисовывается.
+   *  `positionMs` (подписи времени) по-прежнему обновляется по timeupdate. */
+  onFrame(fn: (ms: number) => void): () => void {
+    this.frameSubs.add(fn)
+    fn(this.frameMs())
+    this.syncFrames()
+    return () => this.frameSubs.delete(fn)
+  }
+
+  /** Жёстко поставить позицию: перемотка, смена трека, восстановление сессии. */
+  private place(ms: number) {
+    this.positionMs = ms
+    this.clock.seek(ms / 1000)
+    this.syncFrames()
+  }
+
+  /** Отдать подписчикам текущую позицию и запустить кадры, если часы идут. */
+  private syncFrames() {
+    const v = this.frameMs()
+    for (const fn of this.frameSubs) fn(v)
+    if (!this.raf && this.frameSubs.size && this.clock.mode === 'running') this.raf = requestAnimationFrame(this.frame)
+  }
+
+  private frame = (ts: number) => {
+    if (!this.frameSubs.size || this.clock.mode !== 'running') {
       this.raf = 0
       return
     }
-    if (!a.seeking) this.positionMs = a.currentTime * 1000
-    this.raf = requestAnimationFrame(this.smooth)
+    const v = this.frameMs(ts)
+    for (const fn of this.frameSubs) fn(v)
+    this.raf = requestAnimationFrame(this.frame)
   }
 
   private setPlaying(on: boolean) {
     this.playing = on
-    if (on && !this.raf) this.raf = requestAnimationFrame(this.smooth)
     if (on && this.ctx?.state === 'suspended') void this.ctx.resume()
     if (on) this.error = null
     if (this.heartbeat) clearInterval(this.heartbeat)
@@ -466,8 +517,8 @@ class Player {
       this.shuffle = state.shuffle
       this.order = makeOrder(tracks.length, index, state.shuffle)
       this.pos = state.shuffle ? 0 : index
-      this.positionMs = state.position_ms
       this.durationMs = tracks[index].duration_ms
+      this.place(state.position_ms)
       this.updateMedia()
     } catch {
       // вне приложения (npm run dev) — просто пустой плеер
