@@ -26,6 +26,7 @@
   import { theme } from './theme/theme.svelte'
   import { settings } from './lib/settings.svelte'
   import { slide } from 'svelte/transition'
+  import { notch } from './lib/notch'
 
   const pages = {
     home: Home,
@@ -48,6 +49,7 @@
 
   const Current = $derived(pages[router.page])
   let scroller: HTMLElement | undefined = $state()
+  let island: HTMLElement | undefined = $state()
 
   onMount(() => {
     void settings.load()
@@ -98,14 +100,13 @@
 <div class="shell" class:away={settingsPanel.open} class:solo={settings.get('mini.style') === 'off' || !player.current || router.page === 'player'} inert={settingsPanel.open}>
   <Rail />
 
-  <main class="card" class:own-head={floatHeader} class:fixed-page={fixedPages.includes(router.page)}>
+  <main class="card" class:own-head={floatHeader} class:fixed-page={fixedPages.includes(router.page)} use:notch={island}>
     {#if floatHeader}<div class="drag-strip" data-tauri-drag-region></div>{/if}
     <header class="top" data-tauri-drag-region>
       {#if withSearch.includes(router.page)}
         <SearchBar />
       {/if}
       <div class="spacer" data-tauri-drag-region></div>
-      <WindowControls />
     </header>
 
     <div class="scroll" bind:this={scroller}>
@@ -116,6 +117,10 @@
       {/key}
     </div>
   </main>
+  <!-- «чёлка» как у Dotify: кнопки окна в своём островке, карточка под ним вырезана (lib/notch) -->
+  <div class="island" bind:this={island} data-tauri-drag-region>
+    <WindowControls />
+  </div>
 
   <!-- пока ничего не играло — плеера снизу нет, главная на весь экран; появился трек — плеер выезжает -->
   {#if settings.get('mini.style') !== 'off' && player.current && router.page !== 'player'}
@@ -227,6 +232,18 @@
   }
   .card {
     position: relative;
+  }
+  /* островок — в вырезе карточки: 4 px вокруг кнопок, фон окна (Dotify: top/right +4 к карточке) */
+  .island {
+    position: absolute;
+    top: var(--gap);
+    right: var(--gap);
+    z-index: 4;
+    padding: 4px;
+  }
+  /* полоса прокрутки не уходит под чёлку */
+  .scroll::-webkit-scrollbar-track {
+    margin-top: var(--notch-h, 0px);
   }
   .own-head .top {
     position: absolute;

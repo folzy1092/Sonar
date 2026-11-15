@@ -3,7 +3,9 @@
   import Icon from '../components/Icon.svelte'
   import { router } from './router.svelte'
   import HistoryButton from './HistoryButton.svelte'
-  import { fade } from 'svelte/transition'
+  import { fade, slide } from 'svelte/transition'
+  import { cubicOut } from 'svelte/easing'
+  import { reducedMotion } from '../lib/motion'
   import {
     closeWindow,
     isWindowMaximized,
@@ -20,6 +22,10 @@
 
   let maximized = $state(false)
 
+  // «Назад» выезжает вбок — чёлка растёт вместе с ним; «Меньше движения» — только прозрачность
+  const grow = (node: Element) =>
+    reducedMotion() ? fade(node, { duration: 160 }) : slide(node, { axis: 'x', duration: 220, easing: cubicOut })
+
   onMount(() => {
     const sync = async () => (maximized = await isWindowMaximized())
     sync()
@@ -30,21 +36,21 @@
 <div class="controls">
   <!-- «Назад» — только когда есть куда; на его месте история прослушивания (как часы у Dotify) -->
   {#if back && router.canGoBack}
-    <button class="ctl" aria-label="Назад" title="Назад" onclick={() => router.back()} transition:fade={{ duration: 160 }}>
-      <Icon name="chevronLeft" size={14} stroke={1.8} />
+    <button class="ctl press" aria-label="Назад" title="Назад" onclick={() => router.back()} transition:grow>
+      <Icon name="chevronLeft" size={16} stroke={1.8} />
     </button>
   {/if}
   {#if back}<HistoryButton />{/if}
-  <button class="ctl" aria-label="Свернуть" title="Свернуть" onclick={minimizeWindow}>
-    <Icon name="minus" size={14} stroke={1.8} />
+  <button class="ctl press" aria-label="Свернуть" title="Свернуть" onclick={minimizeWindow}>
+    <Icon name="minus" size={16} stroke={1.8} />
   </button>
   <button
-    class="ctl"
+    class="ctl press"
     aria-label={maximized ? 'Восстановить' : 'Развернуть'}
     title={maximized ? 'Восстановить' : 'Развернуть'}
     onclick={toggleMaximizeWindow}
   >
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
       {#if maximized}
         <rect x="5" y="9" width="10" height="10" rx="2" />
         <path d="M9 9V7a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2" />
@@ -53,35 +59,35 @@
       {/if}
     </svg>
   </button>
-  <button class="ctl close" aria-label="Закрыть" title="Закрыть" onclick={closeWindow}>
-    <Icon name="x" size={14} stroke={1.8} />
+  <button class="ctl close press" aria-label="Закрыть" title="Закрыть" onclick={closeWindow}>
+    <Icon name="x" size={16} stroke={1.8} />
   </button>
 </div>
 
 <style>
   .controls {
     display: flex;
-    gap: 1px;
+    align-items: center;
+    gap: 2px;
   }
-  /* компактно, как у Dotify: кнопки окна почти не занимают места */
+  /* как у Dotify: 28×28, приглушённые, при наведении светлеет только значок, у «×» — красный */
   .ctl {
     display: grid;
     place-items: center;
-    width: 26px;
-    height: 22px;
-    border-radius: var(--radius-s);
-    color: var(--text-3);
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    color: color-mix(in srgb, var(--text-2) 70%, transparent);
     transition:
       color var(--fast) var(--ease),
-      background var(--fast) var(--ease);
+      transform var(--fast) var(--ease);
   }
   .ctl:hover:not(:disabled) {
     color: var(--text);
-    background: var(--hover);
   }
   .ctl.close:hover {
-    color: #fff;
-    background: var(--danger);
+    color: var(--danger);
   }
   .ctl:disabled {
     opacity: 0.3;

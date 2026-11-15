@@ -31,8 +31,8 @@
 <svelte:window onpointerdown={outside} onkeydown={(e) => e.key === 'Escape' && (open = false)} />
 
 <div class="wrap" bind:this={root}>
-  <button class="ctl" class:on={open} aria-label="История прослушивания" title="История прослушивания" aria-expanded={open} onclick={toggle}>
-    <Icon name="history" size={14} stroke={1.8} />
+  <button class="ctl press" class:on={open} aria-label="История прослушивания" title="История прослушивания" aria-expanded={open} onclick={toggle}>
+    <Icon name="history" size={16} stroke={1.8} />
   </button>
   {#if open}
     <div class="pop" role="dialog" aria-label="История прослушивания" in:pop={{ y: -6 }} out:pop={{ y: -6 }}>
@@ -59,21 +59,21 @@
   .wrap {
     position: relative;
   }
+  /* как кнопки окна в чёлке (Dotify): 28×28, без подложки, светлеет только значок */
   .ctl {
     display: grid;
     place-items: center;
-    width: 26px;
-    height: 22px;
-    border-radius: var(--radius-s);
-    color: var(--text-3);
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    color: color-mix(in srgb, var(--text-2) 70%, transparent);
     transition:
       color var(--fast) var(--ease),
-      background var(--fast) var(--ease);
+      transform var(--fast) var(--ease);
   }
   .ctl:hover,
   .ctl.on {
     color: var(--text);
-    background: var(--hover);
   }
   .pop {
     position: absolute;
