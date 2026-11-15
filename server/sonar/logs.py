@@ -25,6 +25,7 @@ from aiogram import Bot
 from aiogram.types import FSInputFile, User as TgUser
 
 from .db import kv_get, kv_set
+from .premium import premiumize
 
 log = logging.getLogger("sonar.logs")
 
@@ -37,13 +38,23 @@ BACKUP_EVERY_S = 86400
 
 
 def person(u: TgUser | None, owner_id: int | None = None) -> str:
-    """«@user | ID: 1»; владелец — DEV, чтобы не пинговать его в группе."""
+    """«<code>Имя</code> (@user | ID: 1)» как у selfbot; владелец — Dev, чтобы не пинговать его в группе."""
     if u is None:
         return "неизвестно"
-    if owner_id and u.id == owner_id:
-        return f"DEV | ID: <code>{u.id}</code>"
-    handle = f"@{u.username}" if u.username else u.full_name
-    return f"{escape(handle)} | ID: <code>{u.id}</code>"
+    who = "Dev" if owner_id and u.id == owner_id else f"@{u.username or 'нет'}"
+    return f"<code>{escape(u.full_name or '')}</code> ({escape(who)} | ID: <code>{u.id}</code>)"
+
+
+def card(icon: str, title: str, user: TgUser | None = None, lines: list[str] | None = None,
+         owner_id: int | None = None) -> str:
+    """Карточка лога в фирменном стиле владельца (selfbot access.py): каждая строка — своя цитата,
+    сверху имя бота, обычные эмодзи → премиум из общей таблицы."""
+    parts = ["<blockquote><b>Sonar</b></blockquote>", f"<blockquote>{icon} {escape(title)}</blockquote>"]
+    if user is not None:
+        parts.append(f"<blockquote>👤 {person(user, owner_id)}</blockquote>")
+        parts.append("<blockquote>💬 Личные сообщения</blockquote>")
+    parts += [f"<blockquote>{x}</blockquote>" for x in (lines or []) if x]
+    return premiumize("\n".join(parts))[:4096]
 
 
 def _plain(e: str) -> str:
@@ -114,12 +125,9 @@ class LogGroup:
                     error: bool = False) -> None:
         if not self.chat_id:
             return
-        parts = [f"{icon} <b>{escape(title)}</b>"]
-        if user is not None:
-            parts.append(f"Кто: {person(user, self.owner_id)}")
-        parts += [x for x in (lines or []) if x]
         try:
-            await self._send(ERROR_TOPIC if error else TOPIC, self.bot.send_message, text="\n".join(parts)[:4096],
+            await self._send(ERROR_TOPIC if error else TOPIC, self.bot.send_message,
+                             text=card(icon, title, user, lines, self.owner_id),
                              parse_mode="HTML", link_preview_options={"is_disabled": True})
         except Exception as e:  # noqa: BLE001
             log.warning("лог не отправлен: %s", e)
@@ -163,8 +171,10 @@ class LogGroup:
         try:
             with tempfile.TemporaryDirectory(prefix="sonar-backup-") as d:
                 archive = await asyncio.to_thread(self._archive, db_path, d)
-                caption = (f"📁 <b>Бэкап Sonar</b>\n{datetime.now():%d.%m.%Y %H:%M}\nПроверка БД: успешно\n"
-                           "Токены сервисов в копии зашифрованы — без SONAR_FERNET_KEY их не прочитать.")
+                caption = premiumize(
+                    f"<blockquote><b>🗄 Бэкап Sonar</b></blockquote>\n<blockquote>📅 {datetime.now():%d.%m.%Y %H:%M}</blockquote>\n"
+                    "<blockquote>✅ Проверка БД: успешно</blockquote>\n"
+                    "<blockquote>🔒 Токены сервисов в копии зашифрованы — без SONAR_FERNET_KEY их не прочитать</blockquote>")
                 await self.bot.send_document(chat_id=self.chat_id, message_thread_id=self.data_thread_id,
                                              document=FSInputFile(archive), caption=caption, parse_mode="HTML")
             return True

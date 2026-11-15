@@ -173,7 +173,7 @@ async def on_button(q: CallbackQuery, state: FSMContext, ctx: Ctx):
             ctx.accounts.unlink_tg(user)
         except AccountError as err:
             return await say(ctx, msg.chat.id, S.ERRORS[err.code])
-        await ctx.logs.event("🚪", "Выход из бота", q.from_user, [f"Аккаунт: <code>@{user.username}</code>"])
+        await ctx.logs.event("🔚", "Выход из бота", q.from_user, [f"Аккаунт: <code>@{user.username}</code>"])
         return await edit(S.guest())
     if head == "stats":
         period = rest if rest in S.PERIODS else "week"
@@ -356,7 +356,7 @@ async def report_first(msg: Message, state: FSMContext, ctx: Ctx):
     user = ctx.accounts.by_tg(msg.from_user.id)
     tid = await ctx.support.create(user, msg, data.get("kind", "bug"), data.get("platform", "windows"))
     kind = data.get("kind", "bug")
-    await ctx.logs.event("🐞" if kind == "bug" else "💡", "Новое обращение", msg.from_user,
+    await ctx.logs.event("🔧" if kind == "bug" else "💡", "Новое обращение", msg.from_user,
                          [f"<code>#{tid}</code> · {S.PLATFORMS.get(data.get('platform', 'windows'))}"])
     await ctx.shower.send(msg.chat.id, S.ticket_opened(tid))
 
