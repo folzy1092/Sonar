@@ -7,6 +7,16 @@
   import { settings } from '../../lib/settings.svelte'
   import { api } from '../../lib/api'
   import { wave } from '../../player/wave.svelte'
+  import { onMount } from 'svelte'
+
+  // автозапуск — реальное состояние из реестра Windows, а не только настройка
+  let autostart = $state(false)
+  onMount(() => {
+    api
+      .autostartEnabled()
+      .then((v) => (autostart = v))
+      .catch(() => {})
+  })
 
   function setPlatform(v: 'soundcloud' | 'yandex') {
     settings.set('general.platform', v)
@@ -14,9 +24,14 @@
     void wave.prefetch(true)
   }
 
-  function setAutostart(on: boolean) {
+  async function setAutostart(on: boolean) {
+    autostart = on
     settings.set('system.autostart', on)
-    void api.setAutostart(on).catch(() => {})
+    try {
+      await api.setAutostart(on)
+    } catch {
+      autostart = !on
+    }
   }
 
   function setTray(on: boolean) {
@@ -70,7 +85,7 @@
 </Group>
 
 <Group title="Запуск">
-  <Switch title="Автозапуск" hint="Открывать Sonar при входе в Windows (в трее)" on={settings.get('system.autostart')} onchange={setAutostart} />
+  <Switch title="Автозапуск" hint="Открывать Sonar при входе в Windows (в трее)" on={autostart} onchange={setAutostart} />
   <Switch
     title="Сворачивать в трей"
     hint="Крестик прячет окно, музыка играет дальше. Выключено — крестик закрывает Sonar"

@@ -37,7 +37,7 @@ pub fn attach(app: &AppHandle, window: &WebviewWindow) -> Option<MediaControls> 
   Some(controls)
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct MediaInfo {
   pub title: Option<String>,
   pub artist: Option<String>,

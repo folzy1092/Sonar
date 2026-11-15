@@ -1,4 +1,5 @@
 mod commands;
+mod discord;
 mod lyrics;
 mod media;
 mod providers;
@@ -20,6 +21,8 @@ pub fn run() {
     // Только одно окно Sonar: повторный запуск сразу завершается, а уже открытое окно
     // разворачивается и выходит вперёд. Плагин должен стоять первым.
     .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)))
+    // автозапуск с Windows; `--autostart` — стартовать сразу в трее, без окна
+    .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--autostart"])))
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -53,7 +56,25 @@ pub fn run() {
       }
       let port = tauri::async_runtime::block_on(stream::start(core.clone()))?;
 
+      // трей: крестик прячет окно или закрывает (`system.tray`)
+      if let Ok(Some(v)) = db.setting("system.tray") {
+        tray::HIDE_ON_CLOSE.store(v.as_bool().unwrap_or(true), std::sync::atomic::Ordering::Relaxed);
+      }
       tray::setup(app)?;
+      if std::env::args().any(|a| a == "--autostart") {
+        if let Some(w) = app.get_webview_window("main") {
+          let _ = w.hide();
+        }
+      }
+
+      // Discord RPC
+      let flag = |k: &str| db.setting(k).ok().flatten().and_then(|v| v.as_bool()).unwrap_or(true);
+      let app_id = db.setting("integrations.discord.app_id").ok().flatten().and_then(|v| v.as_str().map(str::to_owned));
+      let rpc = discord::Discord::start(app_id);
+      rpc.enabled.store(flag("integrations.discord.enabled"), std::sync::atomic::Ordering::Relaxed);
+      rpc.cover.store(flag("integrations.discord.cover"), std::sync::atomic::Ordering::Relaxed);
+      rpc.progress.store(flag("integrations.discord.progress"), std::sync::atomic::Ordering::Relaxed);
+      app.manage(rpc);
 
       // масштаб окна из настроек — сразу, без «прыжка» после загрузки
       if let (Ok(Some(z)), Some(w)) = (db.setting("appearance.scale_window"), app.get_webview_window("main")) {
@@ -122,6 +143,9 @@ pub fn run() {
       commands::clear_storage,
       commands::open_url,
       commands::set_zoom,
+      commands::set_autostart,
+      commands::autostart_enabled,
+      commands::set_tray_mode,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");

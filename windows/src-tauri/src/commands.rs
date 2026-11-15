@@ -115,7 +115,25 @@ pub fn get_setting(db: State<'_, Db>, key: String) -> Res<Option<serde_json::Val
 }
 
 #[tauri::command]
-pub fn set_setting(core: State<'_, Arc<Core>>, db: State<'_, Db>, key: String, value: serde_json::Value) -> Res<()> {
+pub fn set_setting(
+  core: State<'_, Arc<Core>>,
+  discord: State<'_, Arc<crate::discord::Discord>>,
+  db: State<'_, Db>,
+  key: String,
+  value: serde_json::Value,
+) -> Res<()> {
+  let flag = |a: &std::sync::atomic::AtomicBool| {
+    a.store(value.as_bool().unwrap_or(true), Ordering::Relaxed);
+    discord.refresh();
+  };
+  match key.as_str() {
+    "integrations.discord.enabled" => flag(&discord.enabled),
+    "integrations.discord.cover" => flag(&discord.cover),
+    "integrations.discord.progress" => flag(&discord.progress),
+    "integrations.discord.app_id" => discord.set_app_id(value.as_str().unwrap_or("").to_owned()),
+    "system.tray" => crate::tray::HIDE_ON_CLOSE.store(value.as_bool().unwrap_or(true), Ordering::Relaxed),
+    _ => {}
+  }
   if key == "audio.sc_via_yandex" {
     core.sc_via_yandex.store(value.as_bool().unwrap_or(true), Ordering::Relaxed);
   }
@@ -281,8 +299,9 @@ pub fn reorder_playlist(db: State<'_, Db>, id: String, item_ids: Vec<String>) ->
 }
 
 #[tauri::command]
-pub fn media_update(media: State<'_, Media>, info: MediaInfo) {
+pub fn media_update(media: State<'_, Media>, discord: State<'_, Arc<crate::discord::Discord>>, info: MediaInfo) {
   media::update(&media, &info);
+  discord.update(&info);
 }
 
 // ——— тексты песен (SPEC §3.7б, docs/LYRICS.md) ———
@@ -608,4 +627,24 @@ pub fn open_url(url: String) -> Res<()> {
 #[tauri::command]
 pub fn set_zoom(window: tauri::WebviewWindow, scale: f64) -> Res<()> {
   window.set_zoom(scale.clamp(0.5, 2.0)).map_err(err)
+}
+
+/// Автозапуск с Windows (`system.autostart`): запись в HKCU…Run через tauri-plugin-autostart.
+#[tauri::command]
+pub fn set_autostart(app: tauri::AppHandle, on: bool) -> Res<()> {
+  use tauri_plugin_autostart::ManagerExt;
+  let al = app.autolaunch();
+  if on { al.enable() } else { al.disable() }.map_err(err)
+}
+
+#[tauri::command]
+pub fn autostart_enabled(app: tauri::AppHandle) -> Res<bool> {
+  use tauri_plugin_autostart::ManagerExt;
+  app.autolaunch().is_enabled().map_err(err)
+}
+
+/// `system.tray`: крестик прячет в трей (true) или закрывает Sonar (false).
+#[tauri::command]
+pub fn set_tray_mode(on: bool) {
+  crate::tray::HIDE_ON_CLOSE.store(on, Ordering::Relaxed);
 }

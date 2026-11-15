@@ -243,6 +243,7 @@ export const api = {
   openUrl: (url: string) => call<void>('open_url', { url }),
   setZoom: (scale: number) => call<void>('set_zoom', { scale }),
   setAutostart: (on: boolean) => call<void>('set_autostart', { on }),
+  autostartEnabled: () => call<boolean>('autostart_enabled'),
   setTrayMode: (on: boolean) => call<void>('set_tray_mode', { on }),
 
   mediaUpdate: (info: MediaInfo) => (isTauri ? invoke<void>('media_update', { info }) : Promise.resolve()),
