@@ -3,6 +3,7 @@ mod discord;
 mod login;
 mod lyrics;
 mod media;
+mod obs;
 mod providers;
 mod secrets;
 mod services;
@@ -80,6 +81,14 @@ pub fn run() {
       rpc.progress.store(flag("integrations.discord.progress"), std::sync::atomic::Ordering::Relaxed);
       app.manage(rpc);
 
+      // плашка для OBS на постоянном адресе 127.0.0.1:53119/obs
+      let obs = obs::Obs::new(
+        db.setting("obs.size").ok().flatten().and_then(|v| v.as_str().map(str::to_owned)),
+        flag("obs.hide_paused"),
+      );
+      tauri::async_runtime::spawn(obs::start(obs.clone()));
+      app.manage(obs);
+
       // масштаб в окне и на весь экран — сразу, без «прыжка» после загрузки
       let pct = |k: &str| db.setting(k).ok().flatten().and_then(|v| v.as_f64());
       zoom::setup(app, pct("appearance.scale_window"), pct("appearance.scale_fullscreen"));
@@ -96,6 +105,7 @@ pub fn run() {
       commands::services_status,
       commands::connect_soundcloud,
       commands::connect_yandex,
+      commands::obs_status,
       commands::login_service,
       commands::disconnect_service,
       commands::search,

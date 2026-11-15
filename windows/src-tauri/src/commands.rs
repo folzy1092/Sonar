@@ -130,6 +130,7 @@ pub fn get_setting(db: State<'_, Db>, key: String) -> Res<Option<serde_json::Val
 pub fn set_setting(
   core: State<'_, Arc<Core>>,
   discord: State<'_, Arc<crate::discord::Discord>>,
+  obs: State<'_, Arc<crate::obs::Obs>>,
   db: State<'_, Db>,
   key: String,
   value: serde_json::Value,
@@ -143,6 +144,8 @@ pub fn set_setting(
     "integrations.discord.cover" => flag(&discord.cover),
     "integrations.discord.progress" => flag(&discord.progress),
     "system.tray" => crate::tray::HIDE_ON_CLOSE.store(value.as_bool().unwrap_or(true), Ordering::Relaxed),
+    "obs.size" => *obs.size.write().unwrap() = value.as_str().unwrap_or("standard").to_owned(),
+    "obs.hide_paused" => obs.hide_paused.store(value.as_bool().unwrap_or(true), Ordering::Relaxed),
     _ => {}
   }
   if key == "audio.sc_via_yandex" {
@@ -310,9 +313,19 @@ pub fn reorder_playlist(db: State<'_, Db>, id: String, item_ids: Vec<String>) ->
 }
 
 #[tauri::command]
-pub fn media_update(media: State<'_, Media>, discord: State<'_, Arc<crate::discord::Discord>>, info: MediaInfo) {
+pub fn media_update(media: State<'_, Media>, discord: State<'_, Arc<crate::discord::Discord>>, obs: State<'_, Arc<crate::obs::Obs>>, info: MediaInfo) {
   media::update(&media, &info);
   discord.update(&info);
+  obs.update(&info);
+}
+
+/// Плашка OBS: адрес для источника «Браузер» и работает ли (порт мог быть занят).
+#[tauri::command]
+pub fn obs_status(obs: State<'_, Arc<crate::obs::Obs>>) -> serde_json::Value {
+  serde_json::json!({
+    "url": format!("http://127.0.0.1:{}/obs", crate::obs::PORT),
+    "ok": !obs.failed.load(Ordering::Relaxed),
+  })
 }
 
 // ——— тексты песен (SPEC §3.7б, docs/LYRICS.md) ———

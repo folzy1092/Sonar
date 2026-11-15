@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sonar — сейчас играет</title>
+    <!-- Плашка для OBS (src-tauri/src/obs.rs). Фон страницы прозрачный, карточка — размытая обложка
+         под тёмным стеклом. Смена трека — новая строка выезжает снизу, обложка проявляется;
+         пауза при «Скрывать при паузе» — карточка плавно уходит вниз и тает. -->
+    <style>
+      :root {
+        --ease: cubic-bezier(0.22, 1, 0.36, 1);
+        --font: 'Inter Variable', 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+      }
+      html,
+      body {
+        margin: 0;
+        background: transparent;
+        overflow: hidden;
+        font-family: var(--font);
+        color: #fff;
+        -webkit-font-smoothing: antialiased;
+      }
+      .card {
+        position: relative;
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+        margin: 8px;
+        overflow: hidden;
+        border-radius: 18px;
+        background: #0c0c0e;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        transition:
+          opacity 0.5s var(--ease),
+          transform 0.6s var(--ease);
+      }
+      .card.gone {
+        opacity: 0;
+        transform: translateY(14px) scale(0.97);
+      }
+      .standard .card {
+        width: 434px;
+        height: 114px;
+        gap: 14px;
+        padding: 12px 18px 12px 12px;
+      }
+      .compact .card {
+        width: 304px;
+        height: 56px;
+        gap: 10px;
+        padding: 6px 14px 6px 6px;
+        border-radius: 14px;
+      }
+      /* фон — та же обложка, размыта и затемнена */
+      .bg {
+        position: absolute;
+        inset: -30px;
+        background-size: cover;
+        background-position: center;
+        filter: blur(26px) saturate(1.15) brightness(0.5);
+        transition: opacity 0.8s var(--ease);
+      }
+      .card::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        pointer-events: none;
+      }
+      .cover {
+        position: relative;
+        flex: none;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .standard .cover {
+        width: 90px;
+        height: 90px;
+        border-radius: 12px;
+      }
+      .compact .cover {
+        width: 44px;
+        height: 44px;
+        border-radius: 9px;
+      }
+      .cover img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        animation: cover-in 0.7s var(--ease) both;
+      }
+      @keyframes cover-in {
+        from {
+          opacity: 0;
+          transform: scale(1.08);
+        }
+      }
+      .info {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+      }
+      .compact .info {
+        position: static;
+      }
+      /* старая и новая строка стоят в одной клетке, пока одна уходит, другая выезжает */
+      .stack {
+        display: grid;
+        min-width: 0;
+      }
+      .text {
+        grid-area: 1 / 1;
+        min-width: 0;
+        animation: text-in 0.6s var(--ease) both;
+      }
+      .text.out {
+        animation: text-out 0.35s var(--ease) both;
+      }
+      @keyframes text-in {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+      }
+      @keyframes text-out {
+        to {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+      }
+      .title,
+      .artist {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+      }
+      .title {
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .artist {
+        color: rgba(255, 255, 255, 0.72);
+      }
+      .standard .title {
+        font-size: 19px;
+      }
+      .standard .artist {
+        margin-top: 2px;
+        font-size: 14px;
+      }
+      .compact .title {
+        font-size: 14px;
+      }
+      .compact .artist {
+        font-size: 12px;
+      }
+      .progress {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 12px;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        color: rgba(255, 255, 255, 0.6);
+      }
+      .bar {
+        flex: 1;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.18);
+        overflow: hidden;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        border-radius: 2px;
+        background: #fff;
+        transform-origin: left;
+      }
+      /* компактная: только тонкая полоса по низу карточки */
+      .compact .progress {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        margin: 0;
+      }
+      .compact .progress span {
+        display: none;
+      }
+      .compact .bar {
+        height: 2px;
+        border-radius: 0;
+        background: rgba(255, 255, 255, 0.12);
+      }
+    </style>
+  </head>
+  <body class="standard">
+    <div class="card gone" id="card">
+      <div class="bg" id="bg"></div>
+      <div class="cover" id="cover"></div>
+      <div class="info">
+        <div class="stack" id="info"></div>
+        <div class="progress" id="progress">
+          <span id="pos">0:00</span>
+          <div class="bar"><i id="fill"></i></div>
+          <span id="dur">0:00</span>
+        </div>
+      </div>
+    </div>
+    <script>
+      const $ = (id) => document.getElementById(id)
+      const card = $('card')
+      let key = ''
+      let state = null
+      let at = 0
+
+      const fmt = (ms) => {
+        const s = Math.max(0, Math.floor(ms / 1000))
+        return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+      }
+      const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+
+      function show(s) {
+        document.body.className = s.size === 'compact' ? 'compact' : 'standard'
+        const hidden = !s.active || (s.hide_paused && !s.playing)
+        card.classList.toggle('gone', hidden)
+        if (!s.active) return
+        const k = `${s.title}\u0000${s.artist}\u0000${s.cover_url}`
+        if (k !== key) {
+          key = k
+          // старая строка уходит вверх, новая выезжает снизу
+          const old = $('info').querySelector('.text:not(.out)')
+          if (old) {
+            old.classList.add('out')
+            setTimeout(() => old.remove(), 360)
+          }
+          const t = document.createElement('div')
+          t.className = 'text'
+          t.innerHTML = `<div class="title">${esc(s.title)}</div><div class="artist">${esc(s.artist)}</div>`
+          $('info').appendChild(t)
+          $('cover').innerHTML = s.cover_url ? `<img src="${esc(s.cover_url)}" alt="" />` : ''
+          $('bg').style.backgroundImage = s.cover_url ? `url("${s.cover_url.replace(/"/g, '%22')}")` : 'none'
+        }
+      }
+
+      async function poll() {
+        try {
+          const r = await fetch('/obs/now', { cache: 'no-store' })
+          state = await r.json()
+          at = performance.now()
+          show(state)
+        } catch {
+          // Sonar закрыт — плашку прячем
+          card.classList.add('gone')
+          state = null
+        }
+        setTimeout(poll, 1000)
+      }
+
+      // полоса двигается каждый кадр, между запросами
+      function frame(ts) {
+        requestAnimationFrame(frame)
+        if (!state || !state.active) return
+        const d = state.duration_ms || 0
+        let p = state.position_ms || 0
+        if (state.playing) p += ts - at
+        if (d) p = Math.min(p, d)
+        $('fill').style.transform = `scaleX(${d ? p / d : 0})`
+        $('pos').textContent = fmt(p)
+        $('dur').textContent = fmt(d)
+      }
+
+      poll()
+      requestAnimationFrame(frame)
+    </script>
+  </body>
+</html>

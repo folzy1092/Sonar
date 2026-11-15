@@ -1,6 +1,6 @@
 <script lang="ts">
-  // Интеграции → Приложения по pc/Screenshot_14, 15: Discord RPC (работает), Last.fm и OBS Studio —
-  // с сервером («Скоро»). ID приложения Discord пользователь не вводит: он вшит в сборку, потом
+  // Интеграции → Приложения по pc/Screenshot_14, 15: Discord RPC, плашка OBS (Sonar сам отдаёт её на
+  // 127.0.0.1:53119/obs — obs.rs), Last.fm — с сервером («Скоро»). ID приложения Discord пользователь не вводит: он вшит в сборку, потом
   // приходит с сервера (`GET /config`).
   import Icon from '../../components/Icon.svelte'
   import Switch from '../../components/settings/Switch.svelte'
@@ -8,6 +8,27 @@
   import Group from '../../components/settings/Group.svelte'
   import Soon from '../../components/settings/Soon.svelte'
   import { settings } from '../../lib/settings.svelte'
+  import { api } from '../../lib/api'
+  import { toast } from '../../lib/toast.svelte'
+  import { onMount } from 'svelte'
+
+  const OBS_FALLBACK = 'http://127.0.0.1:53119/obs'
+  let obs = $state<{ url: string; ok: boolean }>({ url: OBS_FALLBACK, ok: true })
+  let copied = $state(false)
+
+  onMount(() => {
+    api.obsStatus().then((s) => (obs = s)).catch(() => {})
+  })
+
+  async function copyObs() {
+    try {
+      await navigator.clipboard.writeText(obs.url)
+      copied = true
+      setTimeout(() => (copied = false), 1600)
+    } catch {
+      toast.show(obs.url)
+    }
+  }
 </script>
 
 <Group title="Discord RPC">
@@ -42,31 +63,42 @@
 </Group>
 
 <Group title="OBS Studio">
-  <div class="link">https://sonar-api.folzy.ru/obs?token=…</div>
+  <div class="link selectable">{obs.url}</div>
+  {#if !obs.ok}
+    <p class="warn">Порт 53119 занят другой программой — закрой её и перезапусти Sonar.</p>
+  {/if}
   <div class="tools">
-    <button class="copy" disabled><Icon name="copy" size={15} /> Скопировать <Soon /></button>
-    <button class="sq" disabled aria-label="Перевыпустить"><Icon name="refresh" size={15} /></button>
-    <button class="sq" disabled aria-label="Удалить"><Icon name="trash" size={15} /></button>
+    <button class="copy" class:done={copied} onclick={copyObs}>
+      {#key copied}<span class="swap"><Icon name={copied ? 'check' : 'copy'} size={15} /> {copied ? 'Скопировано' : 'Скопировать'}</span>{/key}
+    </button>
+    <button class="sq" aria-label="Открыть в браузере" title="Посмотреть плашку в браузере" onclick={() => api.openUrl(obs.url).catch(() => toast.show(obs.url))}>
+      <Icon name="share" size={15} />
+    </button>
   </div>
   <Choice
     title="Размер плашки"
     hint="Габариты на экране стрима"
     wide
-    soon
-    value="standard"
+    value={settings.get('obs.size')}
     options={[
       { id: 'standard', label: 'Стандартный' },
       { id: 'compact', label: 'Компактный' },
     ]}
+    onchange={(v) => settings.set('obs.size', v)}
   />
-  <Switch title="Скрывать при паузе" hint="Плавно убирать плашку со стрима, когда трек остановлен" on={true} soon />
+  <Switch
+    title="Скрывать при паузе"
+    hint="Плавно убирать плашку со стрима, когда трек остановлен"
+    on={settings.get('obs.hide_paused')}
+    onchange={(v) => settings.set('obs.hide_paused', v)}
+  />
 </Group>
 
 <Group title="Как подключить в OBS?">
   <ol>
     <li><i>1</i> В OBS добавьте источник «Браузер»</li>
     <li><i>2</i> Вставьте скопированную ссылку в поле «URL»</li>
-    <li><i>3</i> Укажите размер: ширина 450, высота 130</li>
+    <li><i>3</i> Укажите размер: {settings.get('obs.size') === 'compact' ? 'ширина 320, высота 72' : 'ширина 450, высота 130'}</li>
   </ol>
 </Group>
 
@@ -128,6 +160,33 @@
   }
   .copy {
     flex: 1;
+    transition:
+      background var(--fast) var(--ease),
+      color var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .copy:hover,
+  .sq:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
+  .copy:active,
+  .sq:active {
+    transform: scale(0.97);
+  }
+  .copy.done {
+    color: var(--text);
+  }
+  .swap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    animation: tab-in var(--normal) var(--ease);
+  }
+  .warn {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--danger);
   }
   .sq {
     width: 36px;

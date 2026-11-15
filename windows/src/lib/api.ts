@@ -187,6 +187,8 @@ export const api = {
     call<ServiceStatus>('connect_soundcloud', { clientId, oauthToken }),
   connectYandex: (token: string) => call<ServiceStatus>('connect_yandex', { token }),
   /** Вход в один клик: окно входа сервиса, ключи Sonar забирает сам. */
+  /** Плашка OBS: адрес источника «Браузер» и работает ли сервер плашки. */
+  obsStatus: () => call<{ url: string; ok: boolean }>('obs_status'),
   loginService: (service: 'soundcloud' | 'yandex') => call<ServiceStatus>('login_service', { service }),
   disconnectService: (service: 'soundcloud' | 'yandex') => call<void>('disconnect_service', { service }),
 

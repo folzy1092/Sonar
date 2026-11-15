@@ -43,6 +43,8 @@ export const DEFAULTS = {
   'system.tray': true,
   'system.power_saving': 'background' as 'off' | 'minimized' | 'background',
   'wave.mode': 'own' as 'own' | 'hard' | 'calm' | 'sad' | 'fun' | 'new',
+  'obs.size': 'standard' as 'standard' | 'compact',
+  'obs.hide_paused': true,
   'update.auto_check': true,
   'update.auto_download': true,
   'update.channel': 'stable' as 'stable' | 'beta',
