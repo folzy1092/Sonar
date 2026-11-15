@@ -226,6 +226,8 @@ export const api = {
   homeReleases: () => call<Album[]>('home_releases'),
   stats: (period: StatsPeriod) => call<Stats>('stats', { period, tzMin: -new Date().getTimezoneOffset() }),
 
+  streamPort: () => call<number>('stream_port'),
+
   mediaUpdate: (info: MediaInfo) => (isTauri ? invoke<void>('media_update', { info }) : Promise.resolve()),
 }
 

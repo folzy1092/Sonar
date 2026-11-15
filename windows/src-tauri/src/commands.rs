@@ -494,3 +494,9 @@ pub async fn home_releases(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res
 pub fn stats(db: State<'_, Db>, period: String, tz_min: Option<i64>) -> Res<crate::store::Stats> {
   db.0.lock().unwrap().stats(&period, tz_min.unwrap_or(0)).map_err(err)
 }
+
+/// Порт локального сервера — для `/cover` (цвет темы из обложки).
+#[tauri::command]
+pub fn stream_port(port: State<'_, StreamPort>) -> u16 {
+  port.0
+}

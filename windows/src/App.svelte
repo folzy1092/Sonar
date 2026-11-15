@@ -21,6 +21,7 @@
   import FullPlayer from './player/FullPlayer.svelte'
   import { lyrics } from './lyrics/lyrics.svelte'
   import { wave } from './player/wave.svelte'
+  import { theme } from './theme/theme.svelte'
 
   const pages = {
     home: Home,
@@ -39,6 +40,7 @@
   onMount(() => {
     player.init()
     wave.init()
+    theme.init()
     lyrics.init()
     void library.load()
   })
@@ -177,7 +179,8 @@
     min-height: 0;
     margin-top: var(--gap);
     border-radius: var(--radius-xl);
-    background: var(--surface-0);
+    /* тема под обложку: сверху — оттенок обложки, ниже — обычная поверхность */
+    background: linear-gradient(180deg, color-mix(in srgb, var(--tint) 70%, var(--surface-0)) 0, var(--surface-0) 420px);
     border: 1px solid var(--border);
     overflow: hidden;
   }
@@ -199,6 +202,8 @@
     overflow-x: hidden;
   }
   .page {
+    position: relative;
+    z-index: 0;
     padding: 12px 28px 32px;
     animation: page-in var(--normal) var(--ease);
   }

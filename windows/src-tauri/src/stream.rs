@@ -3,7 +3,8 @@
 //! - `/file?ref=ym:1` — файл (mp3 Яндекса, mp3 SoundCloud) с поддержкой Range;
 //! - `/hls?ref=sc:1` — плейлист HLS, где ссылки на куски заменены на `/seg?u=…`;
 //! - `/seg?u=…` — кусок HLS с CDN SoundCloud (`*.sndcdn.com`, `*.soundcloud.cloud`).
-//! Кэш на диск — вместе с экраном «Хранилище» (W5).
+//! - `/cover?u=…` — обложка с CDN SoundCloud/Яндекса с кэшем на диске (`<кэш>/covers`) и CORS —
+//!   из неё интерфейс берёт цвет темы (SPEC §4.4); размер и очистка — экран «Хранилище».
 
 use crate::providers::{Source, UA};
 use crate::services::Core;
@@ -13,7 +14,25 @@ use axum::http::{header, HeaderMap, HeaderValue, Response, StatusCode};
 use axum::routing::get;
 use axum::Router;
 use serde::Deserialize;
-use std::sync::Arc;
+use std::path::PathBuf;
+use std::sync::{Arc, OnceLock};
+
+/// Папка кэша обложек (`%LOCALAPPDATA%/com.folzy.sonar/covers`), задаётся при запуске.
+static COVER_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+pub fn set_cover_dir(dir: PathBuf) {
+  let _ = std::fs::create_dir_all(&dir);
+  let _ = COVER_DIR.set(dir);
+}
+
+pub fn cover_dir() -> Option<&'static PathBuf> {
+  COVER_DIR.get()
+}
+
+#[derive(Deserialize)]
+struct CoverQuery {
+  u: String,
+}
 
 #[derive(Deserialize)]
 struct RefQuery {
@@ -34,6 +53,7 @@ pub async fn start(core: Arc<Core>) -> std::io::Result<u16> {
     .route("/file", get(file))
     .route("/hls", get(hls))
     .route("/seg", get(seg))
+    .route("/cover", get(cover))
     .with_state(core);
   tokio::spawn(async move {
     if let Err(e) = axum::serve(listener, app).await {
@@ -128,6 +148,51 @@ async fn seg(State(core): State<Arc<Core>>, Query(q): Query<SegQuery>, headers: 
   }
 }
 
+/// Хосты картинок, которые можно отдавать через `/cover` (не открытый прокси).
+pub fn cover_host_allowed(u: &str) -> bool {
+  url::Url::parse(u)
+    .ok()
+    .filter(|u| u.scheme() == "https")
+    .and_then(|u| {
+      u.host_str().map(|h| {
+        h.ends_with(".sndcdn.com") || h == "avatars.yandex.net" || h.ends_with(".yandex.net") || h.ends_with(".genius.com")
+      })
+    })
+    .unwrap_or(false)
+}
+
+async fn cover(State(core): State<Arc<Core>>, Query(q): Query<CoverQuery>) -> Response<Body> {
+  if !cover_host_allowed(&q.u) {
+    return plain(StatusCode::FORBIDDEN, "чужой адрес");
+  }
+  let path = cover_dir().map(|d| d.join(format!("{:x}", md5::compute(q.u.as_bytes()))));
+  let image = |bytes: Vec<u8>| {
+    let mut r = Response::new(Body::from(bytes));
+    r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("image/jpeg"));
+    r.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("max-age=604800"));
+    cors(r)
+  };
+  if let Some(p) = &path {
+    if let Ok(bytes) = tokio::fs::read(p).await {
+      return image(bytes);
+    }
+  }
+  let res = match core.http.get(&q.u).header("User-Agent", UA).send().await {
+    Ok(r) if r.status().is_success() => r,
+    Ok(r) => return plain(StatusCode::BAD_GATEWAY, format!("HTTP {}", r.status().as_u16())),
+    Err(e) => return plain(StatusCode::BAD_GATEWAY, e.to_string()),
+  };
+  match res.bytes().await {
+    Ok(b) => {
+      if let Some(p) = &path {
+        let _ = tokio::fs::write(p, &b).await;
+      }
+      image(b.to_vec())
+    }
+    Err(e) => plain(StatusCode::BAD_GATEWAY, e.to_string()),
+  }
+}
+
 fn seg_url(raw: &str, base: &url::Url) -> String {
   let abs = base.join(raw).map(|u| u.to_string()).unwrap_or_else(|_| raw.to_owned());
   format!("/seg?u={}", urlencoding::encode(&abs))
@@ -185,6 +250,14 @@ mod tests {
     let bytes = r.bytes().await.unwrap();
     println!("{} — {}: кусок {} байт", track.artist, track.title, bytes.len());
     assert!(bytes.len() > 10_000);
+  }
+
+  #[test]
+  fn cover_hosts() {
+    assert!(cover_host_allowed("https://i1.sndcdn.com/artworks-1-t500x500.jpg"));
+    assert!(cover_host_allowed("https://avatars.yandex.net/get-music-content/1/400x400"));
+    assert!(!cover_host_allowed("http://i1.sndcdn.com/a.jpg"));
+    assert!(!cover_host_allowed("https://evil.com/?x=.sndcdn.com"));
   }
 
   #[test]

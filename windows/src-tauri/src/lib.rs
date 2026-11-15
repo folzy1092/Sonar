@@ -48,6 +48,9 @@ pub fn run() {
       if let Ok(Some(q)) = db.setting("audio.quality") {
         core.max_kbps.store(services::quality_kbps(q.as_str()), std::sync::atomic::Ordering::Relaxed);
       }
+      if let Ok(cache) = app.path().app_cache_dir() {
+        stream::set_cover_dir(cache.join("covers"));
+      }
       let port = tauri::async_runtime::block_on(stream::start(core.clone()))?;
 
       tray::setup(app)?;
@@ -105,6 +108,7 @@ pub fn run() {
       commands::home_releases,
       commands::stats,
       commands::cached_tracks,
+      commands::stream_port,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");

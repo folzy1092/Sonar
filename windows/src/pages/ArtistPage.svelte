@@ -2,7 +2,7 @@
   import { cascade } from '../lib/cascade'
   // Исполнитель (pc/Screenshot_19): круглый аватар, имя, подписчики; Слушать · Подписаться ·
   // перемешать · в очередь; «Популярные» и «Альбомы». «Подписаться» = лайк исполнителя (вкладка
-  // «Исполнители» в медиатеке). Окраска шапки под аватар — вместе с темой под обложку (W5).
+  // «Исполнители» в медиатеке). Шапка окрашивается в цвет аватара (как тема под обложку).
   import CollectionHeader from '../components/CollectionHeader.svelte'
   import EmptyState from '../components/EmptyState.svelte'
   import Icon from '../components/Icon.svelte'
@@ -13,6 +13,8 @@
   import { library } from '../lib/library.svelte'
   import { openRef, router } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
+  import { colorOf } from '../theme/theme.svelte'
+  import { css, themeFrom } from '../theme/palette'
 
   const ref = router.param ?? ''
   let artist = $state<Artist | null>(null)
@@ -20,6 +22,7 @@
   let albums = $state<Album[]>([])
   let error = $state<string | null>(null)
   let showAll = $state(false)
+  let tint = $state<string | null>(null)
 
   const followed = $derived(library.isLiked(ref))
   const shown = $derived(showAll ? top : top.slice(0, 5))
@@ -31,6 +34,8 @@
       artist = p.artist
       top = p.top
       albums = p.albums
+      if (p.artist.avatar_url)
+        void colorOf(p.artist.avatar_url).then((c) => (tint = c ? css(themeFrom(c).accent, 0.22) : null))
     })
     .catch((e) => (error = errorText(e)))
   void library.load()
@@ -42,6 +47,7 @@
   <div class="loading"><div class="sk round"></div><div class="sk line"></div></div>
 {:else}
   {@const a = artist}
+  <div class="tint" class:on={!!tint} style:--artist-tint={tint ?? 'transparent'} aria-hidden="true"></div>
   <CollectionHeader
     title={a.name}
     image={a.avatar_url}
@@ -146,5 +152,18 @@
     to {
       background-position: -200% 0;
     }
+  }
+  .tint {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: -1;
+    height: 420px;
+    background: linear-gradient(180deg, var(--artist-tint), transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.8s var(--ease);
+  }
+  .tint.on {
+    opacity: 1;
   }
 </style>

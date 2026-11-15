@@ -133,14 +133,15 @@
     height: var(--player-h);
     padding: 0 12px 0 8px;
     border-radius: var(--radius-l);
-    background: var(--surface-1);
+    /* mini.background = cover_color: фон — оттенок обложки (тема под обложку) */
+    background: color-mix(in srgb, var(--tint) 75%, var(--surface-1));
     border: 1px solid var(--border);
     overflow: hidden;
   }
   .fill {
     position: absolute;
     inset: 0 auto 0 0;
-    background: var(--hover);
+    background: color-mix(in srgb, var(--accent-soft) 60%, var(--hover));
     pointer-events: none;
   }
   .mini.dragging .fill {
