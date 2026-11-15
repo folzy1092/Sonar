@@ -28,7 +28,7 @@
  Обновления: клиент ◄── raw.githubusercontent.com/folzy1092/Sonar/main/updates/*.json
                        ◄── github.com/folzy1092/Sonar/releases (IPA)
  selfbot ──► GET /oauth/now (Bearer ключ API)
- Публичный сайт: sonar.folzy.is-a.dev (GitHub Pages, папка site/) ──► GET /public/users/...
+ Публичный сайт: sonar.folzy.ru (GitHub Pages, папка site/) ──► GET /public/users/...
 ```
 
 Принципы:
@@ -85,11 +85,11 @@
     (у is-a.dev — через PR), а прокси Cloudflare is-a.dev пускает только на стандартные
     порты — у контейнера Velt порт произвольный. Туннель на своём folzy.ru проще и надёжнее.
   - **Публичный сайт** — ссылки «Поделиться профилем», страница скачивания:
-    `https://sonar.folzy.is-a.dev` на **GitHub Pages** (папка `site/` этого репо).
-    is-a.dev разрешает вложенные поддомены владельцу основного (`folzy.is-a.dev` — уже твой):
-    PR в `github.com/is-a-dev/register`, файл `domains/sonar.folzy.json`:
-    `{"owner": {"username": "folzy1092"}, "records": {"CNAME": "folzy1092.github.io"}}`
-    без `proxied` — сертификат выпустит сам GitHub Pages. Запасной: `sonar.folzy.ru`.
+    `https://sonar.folzy.ru` на **GitHub Pages** (папка `site/` этого репо).
+    Решение владельца 2026-11-15: свой поддомен вместо is-a.dev. DNS folzy.ru: запись
+    `CNAME sonar → folzy1092.github.io` **без прокси** Cloudflare (серое облако) — сертификат
+    выпустит сам GitHub Pages; в `site/CNAME` — `sonar.folzy.ru`, в настройках Pages репо —
+    Custom domain `sonar.folzy.ru` + Enforce HTTPS.
 - Адрес API в iOS не зашит: `Info.plist` → `SonarAPIBaseURL` (меняется в сборке), плюс
   `updates/update.json` может объявить новый адрес (`api_url`) — на случай переезда.
 - Требование iOS: `itms-services` манифест и все запросы — только HTTPS с валидным
@@ -273,7 +273,7 @@ Windows — `windows/src/lyrics/` (`mod.rs`, `lrclib.rs`, `genius.rs`) — од�
 | Инфраструктура | 🖥️ Основной (API) | сам сервер: запрос к БД, ответ `/health` |
 | | 🤖 Бот | цикл aiogram жив: последний опрос Telegram < 2 мин назад |
 | | 📦 Хранилище | SQLite читается и пишется, свободного места на диске > 100 МБ |
-| | 🌐 Сайт | `GET https://sonar.folzy.is-a.dev` → 200 |
+| | 🌐 Сайт | `GET https://sonar.folzy.ru` → 200 |
 | Платформы | 🌐 SoundCloud | поиск api-v2 с публичным client_id → 200 |
 | | 🌐 Яндекс Музыка | `GET /search?text=…` с сервера → 200 (из Германии может быть ⚠️ — SPEC §3.7а) |
 | | 📝 lrclib | `GET /api/search?q=…` → 200 |
@@ -303,7 +303,7 @@ Telegram и задержки в мс. Формат — BOT.md §4.
 - `GET /status`, `GET /status/history?days=90` — API.md §9, без авторизации, кэш 30 с.
 - Бот `/status` для всех — TZ §4.15 (дерево ├ └, как в примере владельца, кнопка «🔄 Обновить»
   правит то же сообщение, кнопка «Страница статуса»).
-- `https://sonar.folzy.is-a.dev/status` (`site/status.html`, GitHub Pages): опрашивает
+- `https://sonar.folzy.ru/status` (`site/status.html`, GitHub Pages): опрашивает
   `/status` раз в 30 с; полоски по 90 дням на каждый пункт. Сервер не отвечает — страница **сама**
   показывает «🖥️ Основной: ❌ Недоступен» (она живёт на GitHub, а не на нашем сервере).
   Всё анимировано: полоски вырастают, точки состояния мягко пульсируют, смена состояния —
@@ -387,7 +387,7 @@ Telegram и задержки в мс. Формат — BOT.md §4.
 
 ### 4.5а. Публичный сайт и профиль
 
-`site/` — статический сайт на GitHub Pages (`sonar.folzy.is-a.dev`): главная (что такое Sonar,
+`site/` — статический сайт на GitHub Pages (`sonar.folzy.ru`): главная (что такое Sonar,
 кнопка «Скачать IPA» на последний релиз) и `/@username` — страница профиля. Это один
 `index.html` + JS: берёт username из пути (404.html-трюк GitHub Pages), запрашивает
 `GET <API>/public/users/{username}` (CORS разрешён только для этого домена) и рисует

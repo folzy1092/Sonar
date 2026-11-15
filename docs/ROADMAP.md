@@ -131,7 +131,8 @@ MingCute (контур, выбранная — заливка цветом те�
 - [ ] DNS folzy.ru перенести на Cloudflare (Free), запись GitHub Pages сохранить →
       Zero Trust → Tunnels → туннель `sonar-api.folzy.ru → http://localhost:<порт>`, токен
       туннеля → env `CF_TUNNEL_TOKEN`.
-- [ ] PR в `is-a-dev/register`: `domains/sonar.folzy.json` → `folzy1092.github.io`.
+- [ ] Сайт `sonar.folzy.ru` (решено 2026-11-15): в DNS folzy.ru запись `CNAME sonar → folzy1092.github.io`
+      без прокси; GitHub → Settings → Pages → Custom domain `sonar.folzy.ru`, Enforce HTTPS.
 - [ ] Бот в @BotFather, токен → `SONAR_BOT_TOKEN`; бот — админ лог-группы (для тем «Tests»).
 - [ ] Ключи Last.fm API (last.fm/api/account/create).
 - [ ] Секрет GitHub Actions `TAURI_SIGNING_PRIVATE_KEY` — ключ подписи обновлений Windows (см. W6).
@@ -152,7 +153,7 @@ MingCute (контур, выбранная — заливка цветом те�
 5. Деплой на Velt + туннель. **Проверка:** `curl <API>/health`.
 6. `site/` на GitHub Pages: главная + страница профиля.
 7. **Статус** (SPEC §3.11): проверки раз в 5 мин, `GET /status`, бот `/status`, страница
-   `sonar.folzy.is-a.dev/status` (полоски за 90 дней, анимации), сообщения владельцу при сбое.
+   `sonar.folzy.ru/status` (полоски за 90 дней, анимации), сообщения владельцу при сбое.
    Страницу можно сделать заранее, до сервера: без ответа API она честно покажет «недоступен».
 
 ## Этап 2. Сервер: музыка (дни 4–6)

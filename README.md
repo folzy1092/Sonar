@@ -11,7 +11,7 @@
 ![Windows](https://img.shields.io/badge/Windows-скоро-555?style=flat-square&logo=windows)
 ![Status](https://img.shields.io/badge/статус-проектирование-00D7E0?style=flat-square)
 
-[Скачать](https://github.com/folzy1092/Sonar/releases) · [Сайт](https://sonar.folzy.is-a.dev) · [Документация](docs/)
+[Скачать](https://github.com/folzy1092/Sonar/releases) · [Сайт](https://sonar.folzy.ru) · [Документация](docs/)
 
 </div>
 
@@ -35,7 +35,7 @@ docs/      ТЗ, спека, API, база, настройки, карта пр�
 server/    Python: API + Telegram-бот входа
 ios/       SwiftUI-приложение
 windows/   Rust-клиент (позже)
-site/      sonar.folzy.is-a.dev
+site/      sonar.folzy.ru
 updates/   объявления обновлений для приложения
 ```
 
