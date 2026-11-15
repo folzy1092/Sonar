@@ -86,7 +86,7 @@ function send(s) {
   const row = document.createElement('div');
   row.className = 'row enter';
   const wrap = document.createElement('div');
-  wrap.className = 'msg';
+  wrap.className = s.banner || s.kb ? 'msg' : 'msg small';
   const bubble = document.createElement('div');
   bubble.className = 'bubble sizer';
   const content = document.createElement('div');

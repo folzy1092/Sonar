@@ -71,6 +71,8 @@ code { font-family: "Cascadia Mono", Consolas, monospace; font-size: .92em; colo
 @keyframes msg-out { to { opacity: 0; transform: scale(.94); max-height: 0; margin: -3px 0; } }
 
 .msg { max-width: 430px; min-width: 0; }
+.row:not(.out) .msg { width: min(420px, 100%); }
+.row:not(.out) .msg.small { width: auto; }
 .bubble {
   background: var(--bubble); border-radius: 14px 14px 14px 4px; overflow: hidden;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .25); position: relative;
@@ -88,7 +90,7 @@ code { font-family: "Cascadia Mono", Consolas, monospace; font-size: .92em; colo
 .sizer { transition: height .32s var(--ease); overflow: hidden; }
 
 blockquote {
-  margin: 6px 0 2px; padding: 4px 10px 5px 11px; background: var(--quote);
+  margin: 6px 0 2px; padding: 4px 24px 5px 11px; background: var(--quote);
   border-left: 3px solid var(--accent); border-radius: 4px 6px 6px 4px; white-space: pre-wrap;
   position: relative;
 }
@@ -104,7 +106,7 @@ blockquote .qh { font-weight: 600; }
 
 /* баннер 1280×640 */
 .banner {
-  aspect-ratio: 2 / 1; position: relative; display: grid; place-items: center; overflow: hidden;
+  aspect-ratio: 2 / 1; position: relative; container-type: inline-size; display: grid; place-items: center; overflow: hidden;
   background:
     radial-gradient(70% 90% at 30% 20%, #3a3f47 0%, transparent 60%),
     radial-gradient(60% 80% at 85% 100%, #24282e 0%, transparent 70%),
@@ -113,7 +115,7 @@ blockquote .qh { font-weight: 600; }
 }
 .banner.gone { aspect-ratio: 2 / 0.0001; opacity: 0; }
 .banner-in { display: flex; align-items: center; gap: 18px; color: #f2f2f2; font-weight: 600;
-  font-size: clamp(30px, 8vw, 46px); letter-spacing: -.01em; transition: opacity .2s, transform .3s var(--ease); }
+  font-size: 11cqw; letter-spacing: -.01em; transition: opacity .2s, transform .3s var(--ease); }
 .banner-in img { height: 1.05em; }
 .banner-in img.logo { filter: invert(1); height: 1.15em; }
 .banner.swap .banner-in { opacity: 0; transform: scale(.96); }
