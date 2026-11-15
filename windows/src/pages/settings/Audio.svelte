@@ -2,6 +2,7 @@
   // Плеер → Аудио по pc/Screenshot_4, 5: устройство вывода, качество (ряд карточек листается),
   // «Громкость и переходы»; плюс своё — «SoundCloud в качестве Яндекса».
   import { onMount } from 'svelte'
+  import { settingsPanel } from '../settings-section.svelte'
   import Cards from '../../components/settings/Cards.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Group from '../../components/settings/Group.svelte'
@@ -14,7 +15,38 @@
   let scViaYandex = $state(true)
   let devices = $state<{ id: string; label: string; sub: string }[]>([{ id: '', label: 'По умолчанию', sub: 'Системное устройство' }])
 
-  onMount(async () => {
+  /** Устройства вывода. WebView2 отдаёт их id и названия только с разрешением на звук: флаг
+   *  `--use-fake-ui-for-media-stream` (как у Dotify) выдаёт его без окна; если список всё равно
+   *  пустой — один раз открываем и сразу закрываем доступ к звуку, чтобы Chromium показал устройства. */
+  async function outputDevices() {
+    const read = async () => {
+      const seen = new Set([''])
+      return (await navigator.mediaDevices.enumerateDevices()).filter(
+        (d) => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications' && !seen.has(d.deviceId) && !!seen.add(d.deviceId),
+      )
+    }
+    let outs = await read()
+    if (!outs.length || outs.every((d) => !d.label)) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        stream.getTracks().forEach((t) => t.stop())
+        outs = await read()
+      } catch {
+        // доступа нет — остаётся системное устройство
+      }
+    }
+    return outs.map((d, i) => ({ id: d.deviceId, label: d.label || `Устройство ${i + 1}`, sub: 'Устройство вывода' }))
+  }
+
+  onMount(() => {
+    void load()
+    // устройства подключили или отключили — список обновляется сам
+    const onChange = () => settingsPanel.open && void outputDevices().then((outs) => (devices = [devices[0], ...outs])).catch(() => {})
+    navigator.mediaDevices?.addEventListener?.('devicechange', onChange)
+    return () => navigator.mediaDevices?.removeEventListener?.('devicechange', onChange)
+  })
+
+  async function load() {
     try {
       const [q, via] = await Promise.all([api.getSetting<Quality>('audio.quality'), api.getSetting<boolean>('audio.sc_via_yandex')])
       if (q) quality = q
@@ -22,17 +54,14 @@
     } catch {
       // вне приложения — по умолчанию
     }
-    try {
-      const list = await navigator.mediaDevices.enumerateDevices()
-      // без разрешения id бывают пустыми — такие и повторы пропускаем
-      const seen = new Set([''])
-      const outs = list.filter(
-        (d) => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications' && !seen.has(d.deviceId) && !!seen.add(d.deviceId),
-      )
-      devices = [devices[0], ...outs.map((d, i) => ({ id: d.deviceId, label: d.label || `Устройство ${i + 1}`, sub: 'Устройство вывода' }))]
-    } catch {
-      // нет доступа к списку устройств — только системное
-    }
+  }
+
+  // список устройств — только когда настройки открыты (а не при запуске Sonar)
+  $effect(() => {
+    if (!settingsPanel.open) return
+    void outputDevices()
+      .then((outs) => (devices = [devices[0], ...outs]))
+      .catch(() => {})
   })
 
   function setQuality(q: Quality) {

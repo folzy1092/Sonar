@@ -11,6 +11,7 @@
   import { cascade } from '../lib/cascade'
   import { openRef } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
+  import { hscroll } from '../lib/hscroll'
   import { wave } from '../player/my-wave.svelte'
   import { home } from './home-data.svelte'
   import { flyOrb } from '../lib/fly'
@@ -120,7 +121,7 @@
         {home.account.name}
       </span>{/if}</h2>
   {#if home.recent.length}
-    <div class="row" use:cascade>
+    <div class="row" use:cascade use:hscroll>
       <!-- «Недавнее» целиком — веер из трёх обложек, как у Dotify -->
       <button class="stack" title={recentTitle} onclick={() => playRecent(0)}>
         <span class="fan">
@@ -145,7 +146,7 @@
 <section class="block">
   <h2>Релизы</h2>
   {#if home.releases.length}
-    <div class="row" use:cascade>
+    <div class="row" use:cascade use:hscroll>
       {#each home.releases as a (a.ref)}
         <Tile title={a.title} subtitle={a.artist} meta={a.year ? String(a.year) : undefined} image={a.cover_url} icon="disc" source={a.ref} onclick={() => openAlbum(a)} />
       {/each}
@@ -161,7 +162,7 @@
   <section class="block">
     <h2>Похожее{#if home.similarTo}<small> на «{home.similarTo.title}»</small>{/if}</h2>
     {#if home.similar.length}
-      <div class="row" use:cascade>
+      <div class="row" use:cascade use:hscroll>
         {#each home.similar as t, i (t.ref)}
           <Tile title={t.title} subtitle={t.artist} image={t.cover_url} source={t.ref} onclick={() => playSimilar(i)} />
         {/each}
@@ -183,7 +184,8 @@
 <style>
   /* обложки плывут только пока играет музыка — на паузе стоят */
   .scene.still .float {
-    animation-play-state: paused;
+    /* появление доигрывает всегда, на паузе стоит только покачивание */
+    animation-play-state: running, paused;
   }
   .wave {
     position: relative;

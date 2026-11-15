@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { hscroll } from '../lib/hscroll'
   import { cascade } from '../lib/cascade'
   import { indicator } from '../lib/indicator'
   import EmptyState from '../components/EmptyState.svelte'
@@ -94,7 +95,7 @@
   {/if}
   {#if (all || tab === 'Артисты') && more.artists.length}
     <h2>Артисты</h2>
-    <div class:row={all} class:grid={!all} use:cascade={more}>
+    <div class:row={all} class:grid={!all} use:cascade={more} use:hscroll>
       {#each more.artists as a (a.ref)}
         <Tile
           title={a.name}
@@ -109,7 +110,7 @@
   {/if}
   {#if (all || tab === 'Альбомы') && more.albums.length}
     <h2>Альбомы</h2>
-    <div class:row={all} class:grid={!all} use:cascade={more}>
+    <div class:row={all} class:grid={!all} use:cascade={more} use:hscroll>
       {#each more.albums as a (a.ref)}
         <Tile title={a.title} subtitle={a.artist} meta={a.year ? String(a.year) : undefined} image={a.cover_url} icon="disc" onclick={() => openRef(a.ref)} />
       {/each}
@@ -117,7 +118,7 @@
   {/if}
   {#if (all || tab === 'Плейлисты') && more.playlists.length}
     <h2>Плейлисты</h2>
-    <div class:row={all} class:grid={!all} use:cascade={more}>
+    <div class:row={all} class:grid={!all} use:cascade={more} use:hscroll>
       {#each more.playlists as p (p.ref)}
         <Tile title={p.title} subtitle={p.owner} meta={p.track_count ? tracksText(p.track_count) : undefined} image={p.cover_url} onclick={() => openRef(p.ref)} />
       {/each}

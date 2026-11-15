@@ -5,6 +5,7 @@
   import Icon from '../Icon.svelte'
   import type { IconName } from '../icons'
   import Soon from './Soon.svelte'
+  import { hscroll } from '../../lib/hscroll'
 
   interface Props {
     title?: string
@@ -23,7 +24,7 @@
 <div class="block">
   {#if title}<b class="title">{title}{#if soon}<Soon />{/if}</b>{/if}
   {#if hint}<small>{hint}</small>{/if}
-  <div class="cards" class:scroll class:list style:--cols={cols}>
+  <div class="cards" class:scroll class:list style:--cols={cols} use:hscroll>
     {#each options as o (o.id)}
       <button
         class="card"

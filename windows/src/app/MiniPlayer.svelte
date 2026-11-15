@@ -58,10 +58,11 @@
   onpointercancel={() => (press = null)}
 >
   {#if settings.get('mini.background') === 'cover' && track?.cover_url}
-    <!-- фон «Обложка»: сама обложка, размытая и затемнённая -->
+    <!-- фон «Обложка» как у Dotify: сама обложка, чёткая, на всю ширину, затемнена для читаемости -->
     {#key track.cover_url}
       <img class="cover-bg" src={track.cover_url} alt="" aria-hidden="true" />
     {/key}
+    <span class="cover-shade" aria-hidden="true"></span>
   {/if}
   {#if settings.get('mini.progress') !== 'cover'}
     <div class="fill" style:width="{progress}%" aria-hidden="true"></div>
@@ -167,13 +168,20 @@
   }
   .cover-bg {
     position: absolute;
-    inset: -20px;
-    width: calc(100% + 40px);
-    height: calc(100% + 40px);
+    inset: 0;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
-    filter: blur(28px) brightness(0.45) saturate(1.2);
+    object-position: center 40%;
+    filter: brightness(0.62);
     pointer-events: none;
     animation: xfade-in 0.6s var(--ease);
+  }
+  .cover-shade {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.25) 35%, rgba(0, 0, 0, 0.25) 65%, rgba(0, 0, 0, 0.5) 100%);
   }
   @keyframes xfade-in {
     from {
