@@ -96,12 +96,10 @@
   <div class="list">
     <button
       class="item"
-      disabled={!lyrics.hasWords}
-      title={lyrics.hasWords ? '' : 'Для этого трека — только по строкам'}
       onclick={() => lyrics.setMode(lyrics.mode === 'words' ? 'lines' : 'words')}
     >
       <span>Синхронизация</span>
-      <b>{lyrics.mode === 'words' && lyrics.hasWords ? 'По словам' : 'По строкам'}</b>
+      <b>{lyrics.mode === 'words' ? 'По словам' : 'По строкам'}</b>
     </button>
     <button class="item" onclick={() => lyrics.cycleStyle()}>
       <span>Стиль текста</span>

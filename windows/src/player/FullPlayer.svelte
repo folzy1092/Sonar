@@ -1,6 +1,6 @@
 <script lang="ts">
-  // Полноэкранный плеер (reference/pc/fullscreen_player.webp, PLATFORMS.md): фон — размытая
-  // затемнённая обложка; колонкой обложка (❤ и 👎 на ней), название, исполнитель с аватаром,
+  // Полноэкранный плеер (reference/pc/fullscreen_player.webp, PLATFORMS.md): фон — «текущая»
+  // обложка в WebGL (ArtBackdrop, как у Dotify, движется только во время игры); колонкой обложка (❤ и 👎 на ней), название, исполнитель с аватаром,
   // ползунок, кнопки; громкость — тонкая полоска внизу. Нашёлся текст — колонка уходит влево,
   // справа караоке. Правый клик в любом месте — меню (размер, вид, синхронизация, смещение).
   // Вид: обложка и текст / только обложка / только текст (тогда сверху плашка с треком).
@@ -17,6 +17,7 @@
   import Cover from '../components/Cover.svelte'
   import WindowControls from '../app/WindowControls.svelte'
   import SeekBar from './SeekBar.svelte'
+  import ArtBackdrop from './ArtBackdrop.svelte'
   import LyricsView from '../lyrics/LyricsView.svelte'
   import LyricsMenu from '../lyrics/LyricsMenu.svelte'
   import { lyrics } from '../lyrics/lyrics.svelte'
@@ -84,18 +85,7 @@
 <svelte:document onmouseleave={() => (away = true)} onmouseenter={() => (away = false)} />
 
 <div class="fs" class:away onmousemove={() => (away = false)} transition:zoom role="dialog" aria-label="Полноэкранный плеер" tabindex="-1" oncontextmenu={openMenu}>
-  <!-- фон как в Dotify: одна огромная, сильно размытая копия обложки медленно плывёт и
-       поворачивается — тянется силуэт, саму картинку не разобрать; под ней — средний цвет обложки -->
-  <div class="bg" aria-hidden="true">
-    {#key track?.cover_url}
-      {#if track?.cover_url}
-        <div class="layer idle-pause" transition:fade={{ duration: 700 }}>
-          <img class="base" src={track.cover_url} alt="" />
-          <img class="float" src={track.cover_url} alt="" />
-        </div>
-      {/if}
-    {/key}
-  </div>
+  <ArtBackdrop />
 
   <header data-tauri-drag-region>
     <div></div>
@@ -229,63 +219,6 @@
     background: #070708;
     overflow: hidden;
     color: #fff;
-  }
-  .bg {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-  }
-  .layer {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-  }
-  .base {
-    position: absolute;
-    inset: -20%;
-    width: 140%;
-    height: 140%;
-    object-fit: cover;
-    filter: blur(140px) saturate(110%) brightness(0.62);
-  }
-  .float {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 130vmax;
-    height: 130vmax;
-    margin: -65vmax 0 0 -65vmax;
-    object-fit: cover;
-    filter: blur(70px) saturate(110%) brightness(0.68);
-    will-change: transform;
-    animation: drift 22s ease-in-out infinite alternate;
-  }
-  @keyframes drift {
-    0% {
-      transform: translate(18vw, -6vh) rotate(-8deg) scale(1);
-    }
-    33% {
-      transform: translate(4vw, 12vh) rotate(14deg) scale(1.12);
-    }
-    66% {
-      transform: translate(-14vw, -4vh) rotate(-20deg) scale(0.95);
-    }
-    100% {
-      transform: translate(-4vw, 10vh) rotate(6deg) scale(1.08);
-    }
-  }
-  .bg::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(ellipse at 50% 45%, transparent 0%, rgba(0, 0, 0, 0.22) 90%),
-      linear-gradient(to bottom, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.25));
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .float {
-      animation: none;
-    }
   }
   header,
   .body,

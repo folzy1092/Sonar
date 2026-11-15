@@ -19,11 +19,17 @@ export const lyricsStyles = {
 } as const
 export type LyricsStyle = keyof typeof lyricsStyles
 
-/** В MVP — три анимации (LYRICS.md §6), остальные из Dotify — потом. */
+/** Все анимации Dotify (LYRICS.md §6): смена строки и проявление слов в караоке. */
 export const lyricsAnimations = {
   normal: 'Обычная',
   fade: 'Фейд',
   blur: 'Размытие',
+  flip3d: '3D Переворот',
+  bounce: 'Отскок',
+  wave: 'Волна',
+  float: 'Всплытие',
+  drift: 'Дрифт',
+  zoom: 'Глубина',
 } as const
 export type LyricsAnimation = keyof typeof lyricsAnimations
 
@@ -48,6 +54,8 @@ class LyricsStore {
   /** Полноэкранный плеер открыт. `view` — «глаза» в меню: обложка и текст / только обложка /
    *  только текст (`lyrics.view`). */
   fullscreen = $state(false)
+  /** Текущая строка синхронного текста (−1 — вступление): по ней сдвигается фокус фона. */
+  line = $state(-1)
   view = $state<LyricsViewMode>('both')
 
   /** Есть ли у текста пословный тайминг — без него «По словам» неактивно. */
