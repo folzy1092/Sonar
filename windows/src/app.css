@@ -259,3 +259,9 @@ img.fade-img.loaded {
 :root.idle *::after {
   animation-play-state: paused !important;
 }
+
+/* Заголовок «Моя волна» — Roboto Flex, широкий и плотный (как .font-wave у Dotify) */
+.font-wave {
+  font-family: var(--font-wave);
+  font-variation-settings: 'wght' 636, 'GRAD' 105, 'XOPQ' 100, 'wdth' 134, 'opsz' 144;
+}

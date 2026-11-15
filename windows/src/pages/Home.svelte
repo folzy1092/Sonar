@@ -13,7 +13,9 @@
   import { player } from '../player/player.svelte'
   import { wave } from '../player/my-wave.svelte'
   import { home } from './home-data.svelte'
-  import { flyTo } from '../lib/fly'
+  import { flyOrb } from '../lib/fly'
+  import { colorOf } from '../theme/theme.svelte'
+  import { css, inkFor, type RGB } from '../theme/palette'
 
   function greeting(hour: number) {
     if (hour < 5) return 'Доброй ночи'
@@ -45,10 +47,16 @@
   )
 
   let playBtn: HTMLButtonElement | undefined = $state()
+  /** Цвет кнопки: после прилёта сгустка — цвет обложки (как в Dotify), иначе — белая. */
+  let btnColor = $state<RGB | null>(null)
+  const ink = $derived(btnColor ? css(inkFor(btnColor)) : null)
 
-  /** Клик по обложке волны: обложка летит в кнопку, трек играет. */
-  function playCover(e: MouseEvent, t: Track | undefined) {
-    if (playBtn) flyTo(e.currentTarget as Element, playBtn, t?.cover_url ?? waveCover)
+  /** Клик по обложке волны: сгусток её цвета летит в кнопку, кнопка перекрашивается, трек играет. */
+  async function playCover(e: MouseEvent, t: Track | undefined) {
+    const el = e.currentTarget as Element
+    const url = t?.cover_url ?? waveCover
+    const color = (url ? await colorOf(url) : null) ?? ([255, 255, 255] as RGB)
+    if (playBtn) void flyOrb(el, playBtn, color).then(() => (btnColor = color))
     if (!t || (wave.active && player.current?.ref === t.ref)) return wave.toggle()
     if (wave.active) {
       const i = player.upNext.findIndex((x) => x.ref === t.ref)
@@ -68,36 +76,41 @@
   }
 </script>
 
+<!-- Герой как у Dotify: без карточки; слева обложка и «Моя волна» (Roboto Flex), справа — сцена
+     с двумя обложками следующих треков и большой кнопкой. -->
 <section class="wave" class:on={wave.active}>
-  <button class="art" aria-label="Играть волну" onclick={(e) => playCover(e, waveTracks[0])}>
-    <Cover url={waveCover} size={158} radius="var(--radius-l)" />
-  </button>
-  <div class="wave-text">
-    <h1>Моя<br />волна</h1>
-    <span class="mode">
-      <Icon name="bolt" size={15} />
-      {#if wave.loading && !wave.active}Подбираю…{:else if wave.active}{player.contextTitle ?? 'Играет'}{:else}Своя, по твоим лайкам{/if}
-    </span>
+  <div class="lead">
+    <button class="art" aria-label="Играть волну" onclick={(e) => playCover(e, waveTracks[0])}>
+      <Cover url={waveCover} size={158} radius="26px" />
+    </button>
+    <div class="wave-text">
+      <h1 class="font-wave"><span>Моя</span><span>волна</span></h1>
+      <span class="mode">
+        <Icon name="bolt" size={15} />
+        {#if wave.loading && !wave.active}Подбираю…{:else if wave.active}{player.contextTitle ?? 'Играет'}{:else}Своя, по твоим лайкам{/if}
+      </span>
+    </div>
   </div>
 
-  <div class="floats">
+  <div class="scene">
     {#each waveTracks.slice(1, 3) as t, i (t.ref)}
       <button class="float f{i}" aria-label="Играть «{t.title}»" title="{t.artist} — {t.title}" onclick={(e) => playCover(e, t)}>
-        <Cover url={t.cover_url} size={i ? 58 : 66} radius="12px" />
+        <Cover url={t.cover_url} size={64} radius="16px" />
       </button>
     {/each}
+    <button
+      bind:this={playBtn}
+      class="wave-play"
+      class:busy={wave.loading && !wave.active}
+      style:background-color={btnColor ? css(btnColor) : null}
+      style:color={ink}
+      aria-label={playingWave ? 'Пауза' : 'Включить волну'}
+      title={wave.error && !wave.active ? wave.error : playingWave ? 'Пауза' : 'Включить волну'}
+      onclick={() => wave.toggle()}
+    >
+      <PlayPause playing={playingWave} size={30} />
+    </button>
   </div>
-
-  <button
-    bind:this={playBtn}
-    class="wave-play"
-    class:busy={wave.loading && !wave.active}
-    aria-label={playingWave ? 'Пауза' : 'Включить волну'}
-    title={wave.error && !wave.active ? wave.error : playingWave ? 'Пауза' : 'Включить волну'}
-    onclick={() => wave.toggle()}
-  >
-    <PlayPause playing={playingWave} size={30} />
-  </button>
 </section>
 
 <section class="block">
@@ -108,13 +121,16 @@
       </span>{/if}</h2>
   {#if home.recent.length}
     <div class="row" use:cascade>
-      <Tile
-        title={recentTitle}
-        subtitle={tracksText(home.recent.length)}
-        covers={home.recent.slice(0, 4).map((t) => t.cover_url).filter((c): c is string => !!c)}
-        icon="history"
-        onclick={() => playRecent(0)}
-      />
+      <!-- «Недавнее» целиком — веер из трёх обложек, как у Dotify -->
+      <button class="stack" title={recentTitle} onclick={() => playRecent(0)}>
+        <span class="fan">
+          {#each home.recent.slice(0, 3).reverse() as t, i (t.ref)}
+            <span class="leaf l{home.recent.slice(0, 3).length - 1 - i}"><Cover url={t.cover_url} size={160} radius="var(--radius-l)" /></span>
+          {/each}
+        </span>
+        <span class="st-title">{recentTitle}</span>
+        <span class="st-sub">{tracksText(home.recent.length)}</span>
+      </button>
       {#each home.recent as t, i (t.ref)}
         <Tile title={t.title} subtitle={t.artist} image={t.cover_url} source={t.ref} onclick={() => playRecent(i)} />
       {/each}
@@ -168,27 +184,22 @@
   .wave {
     position: relative;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 8px 0 0;
+  }
+  .lead {
+    display: flex;
+    align-items: flex-end;
     gap: 28px;
-    padding: 24px;
-    min-height: 206px;
-    border-radius: var(--radius-xl);
-    background:
-      radial-gradient(120% 140% at 0% 0%, var(--accent-soft), transparent 55%),
-      radial-gradient(90% 120% at 100% 100%, rgba(255, 255, 255, 0.05), transparent 60%),
-      var(--surface-1);
-    border: 1px solid var(--border);
-    overflow: hidden;
-    transition: background var(--normal) var(--ease);
+    min-width: 0;
   }
   .art {
     flex-shrink: 0;
-    border-radius: var(--radius-l);
-    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+    border-radius: 26px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
     transition: transform var(--normal) var(--ease);
-  }
-  .wave.on .art {
-    transform: rotate(-2deg) scale(1.02);
   }
   .art:hover {
     transform: scale(1.03);
@@ -196,23 +207,20 @@
   .art:active {
     transform: scale(0.96);
   }
-  .float {
-    cursor: pointer;
-    transition: filter var(--fast) var(--ease);
-  }
-  .float:hover {
-    filter: brightness(1.15);
-  }
   .wave-text {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 12px;
+    padding-bottom: 4px;
     min-width: 0;
   }
   h1 {
-    font-size: 48px;
-    line-height: 0.95;
-    font-weight: 800;
+    display: flex;
+    flex-direction: column;
+    font-size: 54px;
+    line-height: 0.92;
+    letter-spacing: -0.02em;
   }
   .mode {
     display: inline-flex;
@@ -221,32 +229,36 @@
     color: var(--text-2);
     font-size: 13px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
-  .floats {
+  /* сцена справа: 288×224, обложки 64 px, кнопка 80 px (размеры Dotify) */
+  .scene {
     position: relative;
-    flex: 1;
-    align-self: stretch;
-    min-width: 80px;
+    flex-shrink: 0;
+    width: 288px;
+    height: 224px;
   }
   .float {
     position: absolute;
-    display: block;
-    border-radius: 12px;
+    border-radius: 16px;
     box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+    filter: saturate(0.55) brightness(0.9);
+    cursor: pointer;
+    transition: filter var(--normal) var(--ease);
     animation:
       float-in 0.6s var(--ease) both,
       bob 6s ease-in-out 0.6s infinite alternate;
   }
+  .float:hover {
+    filter: none;
+  }
   .float.f0 {
-    right: 30%;
-    top: 46%;
+    right: 8px;
+    top: 8px;
+    animation-delay: 0.08s, 1.4s;
   }
   .float.f1 {
-    right: 4%;
-    top: 2%;
-    animation-delay: 0.08s, 1.4s;
+    right: 128px;
+    top: 96px;
   }
   @keyframes float-in {
     from {
@@ -256,40 +268,40 @@
   }
   @keyframes bob {
     to {
-      transform: translateY(-8px) rotate(2deg);
+      transform: translateY(-7px);
     }
   }
   .wave-play {
-    position: relative;
+    position: absolute;
+    right: 8px;
+    bottom: 0;
     display: grid;
     place-items: center;
-    flex-shrink: 0;
-    width: 72px;
-    height: 72px;
-    margin-left: auto;
+    width: 80px;
+    height: 80px;
     border-radius: 50%;
-    background: var(--accent);
-    color: var(--accent-ink);
+    background-color: var(--text);
+    color: var(--on-text);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-    transition: transform var(--normal) var(--ease);
-  }
-  .wave-play :global(.play) {
-    padding-left: 3px;
+    transition:
+      background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+      color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 0.22s ease,
+      filter 0.22s ease;
   }
   .wave-play:hover {
-    transform: scale(1.06);
+    transform: scale(1.05);
   }
   .wave-play:active {
-    transform: scale(0.94);
+    transform: scale(0.93);
   }
+  /* загрузка — как у Dotify: прозрачнее, меньше, чуть размыта */
   .wave-play.busy {
-    animation: breathe 1.1s ease-in-out infinite;
-  }
-  @keyframes breathe {
-    50% {
-      transform: scale(0.95);
-      opacity: 0.75;
-    }
+    opacity: 0.35;
+    transform: scale(0.82);
+    filter: blur(1.5px);
+    pointer-events: none;
   }
   .block {
     margin-top: 32px;
@@ -355,5 +367,55 @@
   }
   .sk-line.short {
     width: 50%;
+  }
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 280px;
+    flex-shrink: 0;
+    text-align: left;
+  }
+  .fan {
+    position: relative;
+    height: 160px;
+    margin-bottom: 8px;
+  }
+  .leaf {
+    position: absolute;
+    top: 0;
+    left: 0;
+    border-radius: var(--radius-l);
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.45);
+    transition: transform var(--normal) var(--ease);
+  }
+  .leaf.l0 {
+    z-index: 3;
+  }
+  .leaf.l1 {
+    z-index: 2;
+    transform: translateX(62px) scale(0.86);
+    transform-origin: left center;
+  }
+  .leaf.l2 {
+    z-index: 1;
+    transform: translateX(112px) scale(0.74);
+    transform-origin: left center;
+  }
+  .stack:hover .leaf.l1 {
+    transform: translateX(74px) scale(0.86);
+  }
+  .stack:hover .leaf.l2 {
+    transform: translateX(136px) scale(0.74);
+  }
+  .st-title {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .st-sub {
+    font-size: 12px;
+    color: var(--text-2);
   }
 </style>

@@ -21,9 +21,10 @@
   const progress = $derived(duration ? Math.min(100, (player.positionMs / duration) * 100) : 0)
 
   // Прогресс в стиле «Гибрид» — весь фон мини-плеера: клик по пустому месту (не по кнопке, ссылке
-  // или тексту) перематывает туда, как в Dotify. Тянуть тоже можно.
+  // или тексту) перематывает туда. Только клик (просьба владельца): зажал и повёл — ничего не
+  // происходит, чтобы случайно не перемотать.
   let bar: HTMLElement | undefined = $state()
-  let dragging = $state(false)
+  let press: { x: number; y: number } | null = null
   const isControl = (t: EventTarget | null) =>
     !!(t as HTMLElement | null)?.closest?.('button, a, input, [role="link"], .selectable, .capsule')
 
@@ -34,22 +35,24 @@
   }
 
   function down(e: PointerEvent) {
-    if (e.button !== 0 || isControl(e.target) || !track) return
-    dragging = true
-    bar?.setPointerCapture(e.pointerId)
-    seekAt(e.clientX)
+    press = e.button === 0 && !isControl(e.target) && track ? { x: e.clientX, y: e.clientY } : null
+  }
+
+  /** Перемотка — только если отпустили там же, где нажали (клик, а не протяжка). */
+  function up(e: PointerEvent) {
+    const p = press
+    press = null
+    if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 5) seekAt(e.clientX)
   }
 </script>
 
 <footer
   class="mini"
   class:seekable={!!track}
-  class:dragging
   bind:this={bar}
   onpointerdown={down}
-  onpointermove={(e) => dragging && seekAt(e.clientX)}
-  onpointerup={() => (dragging = false)}
-  onpointercancel={() => (dragging = false)}
+  onpointerup={up}
+  onpointercancel={() => (press = null)}
 >
   <div class="fill" style:width="{progress}%" aria-hidden="true"></div>
 
@@ -143,9 +146,6 @@
     inset: 0 auto 0 0;
     background: color-mix(in srgb, var(--accent-soft) 60%, var(--hover));
     pointer-events: none;
-  }
-  .mini.dragging .fill {
-    transition: none;
   }
   .left,
   .center,

@@ -59,8 +59,10 @@
   --player-h: 64px;
   --gap: 6px;
 
-  --font: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  /* как в Dotify: Inter для всего интерфейса, Roboto Flex — широкий заголовок волны (.font-wave) */
+  --font: 'Inter Variable', 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Inter Variable', 'Inter', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  --font-wave: 'Roboto Flex Variable', 'Inter Variable', sans-serif;
 
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --fast: 140ms;

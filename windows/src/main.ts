@@ -1,4 +1,7 @@
 import { mount } from 'svelte'
+// Шрифты как в Dotify: Inter (интерфейс) и Roboto Flex (заголовок «Моя волна»), из fontsource — в exe
+import '@fontsource-variable/inter/opsz.css'
+import '@fontsource-variable/roboto-flex/full.css'
 import './app.css'
 import App from './App.svelte'
 import { player } from './player/player.svelte'
