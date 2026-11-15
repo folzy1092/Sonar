@@ -64,3 +64,12 @@
   --fast: 140ms;
   --normal: 240ms;
 }
+
+/* AMOLED: чистый чёрный фон */
+:root.amoled {
+  --bg: #000;
+  --surface-0: #000;
+  --surface-1: #070708;
+  --surface-2: #0e0e10;
+  --surface-3: #18181b;
+}

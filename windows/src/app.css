@@ -252,3 +252,10 @@ img.fade-img.loaded {
 .cascade > :nth-child(n + 17) {
   animation-delay: 400ms;
 }
+
+/* Экономия ресурсов: окно в фоне — бесконечные анимации на паузе */
+:root.idle *,
+:root.idle *::before,
+:root.idle *::after {
+  animation-play-state: paused !important;
+}

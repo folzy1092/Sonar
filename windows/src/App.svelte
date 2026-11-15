@@ -22,6 +22,7 @@
   import { lyrics } from './lyrics/lyrics.svelte'
   import { wave } from './player/wave.svelte'
   import { theme } from './theme/theme.svelte'
+  import { settings } from './lib/settings.svelte'
 
   const pages = {
     home: Home,
@@ -38,6 +39,7 @@
   let scroller: HTMLElement | undefined = $state()
 
   onMount(() => {
+    void settings.load()
     player.init()
     wave.init()
     theme.init()
@@ -57,6 +59,16 @@
       else router.back()
     } else if (!lyrics.fullscreen && !settingsPanel.open) router.forward()
   }
+
+  // Экономия ресурсов (`system.power_saving`): окно свёрнуто (или в фоне) — фоновые анимации и
+  // визуализатор на паузе (класс .idle на <html>).
+  let hidden = $state(document.hidden)
+  let focused = $state(document.hasFocus())
+  $effect(() => {
+    const mode = settings.get('system.power_saving')
+    const idle = mode === 'minimized' ? hidden : mode === 'background' ? hidden || !focused : false
+    document.documentElement.classList.toggle('idle', idle)
+  })
 
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape' && settingsPanel.open && !lyrics.fullscreen) settingsPanel.close()
@@ -105,7 +117,8 @@
 {#if lyrics.fullscreen}
   <FullPlayer />
 {/if}
-<svelte:window onmousedown={mouseNav} onmouseup={mouseNav} onkeydown={onKey} />
+<svelte:window onmousedown={mouseNav} onmouseup={mouseNav} onkeydown={onKey} onfocus={() => (focused = true)} onblur={() => (focused = false)} />
+<svelte:document onvisibilitychange={() => (hidden = document.hidden)} />
 
 <TrackMenu />
 <Toast />

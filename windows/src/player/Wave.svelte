@@ -21,6 +21,8 @@
 
     const draw = () => {
       frame = requestAnimationFrame(draw)
+      // экономия ресурсов: окно в фоне — не рисуем
+      if (document.documentElement.classList.contains('idle')) return
       const dpr = window.devicePixelRatio || 1
       const w = canvas.clientWidth
       const h = canvas.clientHeight

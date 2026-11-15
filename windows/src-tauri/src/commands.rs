@@ -500,3 +500,112 @@ pub fn stats(db: State<'_, Db>, period: String, tz_min: Option<i64>) -> Res<crat
 pub fn stream_port(port: State<'_, StreamPort>) -> u16 {
   port.0
 }
+
+// ——— настройки, хранилище, система ———
+
+#[tauri::command]
+pub fn all_settings(db: State<'_, Db>) -> Res<std::collections::HashMap<String, serde_json::Value>> {
+  db.0.lock().unwrap().all_settings().map_err(err)
+}
+
+#[tauri::command]
+pub fn reset_settings(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<()> {
+  db.0.lock().unwrap().reset_settings().map_err(err)?;
+  core.sc_via_yandex.store(true, Ordering::Relaxed);
+  core.max_kbps.store(crate::services::quality_kbps(None), Ordering::Relaxed);
+  Ok(())
+}
+
+#[derive(Serialize)]
+pub struct StorageUsage {
+  covers: u64,
+  covers_bytes: u64,
+  lyrics: i64,
+  lyrics_bytes: i64,
+  track_prefs: i64,
+  db_bytes: u64,
+}
+
+fn dir_usage(dir: &std::path::Path) -> (u64, u64) {
+  let mut n = 0;
+  let mut bytes = 0;
+  if let Ok(rd) = std::fs::read_dir(dir) {
+    for e in rd.flatten() {
+      if let Ok(m) = e.metadata() {
+        if m.is_file() {
+          n += 1;
+          bytes += m.len();
+        }
+      }
+    }
+  }
+  (n, bytes)
+}
+
+/// Экран «Хранилище»: сколько занято обложками, текстами, базой.
+#[tauri::command]
+pub fn storage_usage(app: tauri::AppHandle, db: State<'_, Db>) -> Res<StorageUsage> {
+  use tauri::Manager;
+  let (covers, covers_bytes) = crate::stream::cover_dir().map(|d| dir_usage(d)).unwrap_or((0, 0));
+  let store = db.0.lock().unwrap();
+  let (lyrics, lyrics_bytes) = store.lyrics_usage().map_err(err)?;
+  let db_bytes = app
+    .path()
+    .app_data_dir()
+    .ok()
+    .and_then(|d| std::fs::metadata(d.join("sonar.db")).ok())
+    .map(|m| m.len())
+    .unwrap_or(0);
+  Ok(StorageUsage { covers, covers_bytes, lyrics, lyrics_bytes, track_prefs: store.track_prefs_count().map_err(err)?, db_bytes })
+}
+
+/// Очистить: `covers` | `lyrics` | `track_prefs` | `all` (обложки и тексты).
+#[tauri::command]
+pub fn clear_storage(db: State<'_, Db>, kind: String) -> Res<()> {
+  let clear_covers = || {
+    if let Some(d) = crate::stream::cover_dir() {
+      if let Ok(rd) = std::fs::read_dir(d) {
+        for e in rd.flatten() {
+          let _ = std::fs::remove_file(e.path());
+        }
+      }
+    }
+  };
+  let store = db.0.lock().unwrap();
+  match kind.as_str() {
+    "covers" => clear_covers(),
+    "lyrics" => store.clear_lyrics_cache().map_err(err)?,
+    "track_prefs" => store.reset_track_prefs().map_err(err)?,
+    "all" => {
+      clear_covers();
+      store.clear_lyrics_cache().map_err(err)?;
+    }
+    _ => return Err(format!("неизвестно, что чистить: {kind}")),
+  }
+  Ok(())
+}
+
+/// Открыть ссылку в браузере (только https; «О приложении»: канал, сайт).
+#[tauri::command]
+pub fn open_url(url: String) -> Res<()> {
+  if !url.starts_with("https://") {
+    return Err("можно открыть только https-ссылку".into());
+  }
+  #[cfg(windows)]
+  {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    std::process::Command::new("rundll32")
+      .args(["url.dll,FileProtocolHandler", &url])
+      .creation_flags(CREATE_NO_WINDOW)
+      .spawn()
+      .map_err(err)?;
+  }
+  Ok(())
+}
+
+/// Масштаб окна (`appearance.scale_window`, 75–125 %) — зум WebView, как Ctrl+колесо в браузере.
+#[tauri::command]
+pub fn set_zoom(window: tauri::WebviewWindow, scale: f64) -> Res<()> {
+  window.set_zoom(scale.clamp(0.5, 2.0)).map_err(err)
+}

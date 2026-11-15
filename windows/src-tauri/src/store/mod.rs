@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 mod stats;
+mod system;
 mod wave;
 pub use stats::Stats;
 pub use wave::Taste;

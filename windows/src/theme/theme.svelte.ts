@@ -1,10 +1,13 @@
 // Тема под обложку (SPEC §4.4, `appearance.cover_theme`): цвет текущей обложки → акцент, фон и
 // текст на акценте. Обложка идёт через локальный `/cover` (CORS и кэш на диске), цвета меняются
-// плавно (CSS @property в tokens.css). Выключено или обложка серая — монохромная тема.
+// плавно (CSS @property в tokens.css). Выключено — готовая тема (`appearance.preset`), обложка
+// серая — монохромная.
 import { api } from '../lib/api'
 import { isTauri } from '../lib/tauri'
 import { player } from '../player/player.svelte'
 import { css, pickAccent, themeFrom, type RGB } from './palette'
+import { settings } from '../lib/settings.svelte'
+import { setAnimations } from '../lib/motion'
 
 let port: number | null = null
 
@@ -43,50 +46,78 @@ export async function colorOf(url: string): Promise<RGB | null> {
   return color
 }
 
+/** Готовые темы (`appearance.preset`, pc/Screenshot_1): акцент; фон — его оттенок. */
+export const PRESETS: { id: string; title: string; accent: RGB | null; black?: boolean }[] = [
+  { id: 'neutral', title: 'Neutral', accent: null },
+  { id: 'amoled', title: 'AMOLED', accent: null, black: true },
+  { id: 'crimson', title: 'Crimson', accent: [229, 72, 77] },
+  { id: 'nord', title: 'Nord', accent: [136, 192, 208] },
+  { id: 'sky', title: 'Sky', accent: [76, 154, 255] },
+  { id: 'mint', title: 'Mint', accent: [62, 207, 142] },
+  { id: 'violet', title: 'Violet', accent: [169, 112, 255] },
+  { id: 'blossom', title: 'Blossom', accent: [240, 84, 122] },
+  { id: 'sakura', title: 'Sakura', accent: [244, 166, 196] },
+  { id: 'terminal', title: 'Terminal', accent: [34, 229, 90] },
+  { id: 'aqua', title: 'Aqua', accent: [46, 196, 182] },
+  { id: 'sunset', title: 'Sunset', accent: [255, 138, 61] },
+  { id: 'slate', title: 'Slate', accent: [107, 140, 255] },
+]
+
 class Theme {
-  /** `appearance.cover_theme` */
-  enabled = $state(true)
+  /** Цвет текущей обложки (для образца «Под трек» в настройках). */
   accent = $state<RGB | null>(null)
   private started = false
   private seq = 0
 
+  get enabled() {
+    return settings.get('appearance.cover_theme')
+  }
+
   init() {
     if (this.started) return
     this.started = true
-    void api
-      .getSetting<boolean>('appearance.cover_theme')
-      .then((v) => {
-        if (typeof v === 'boolean') this.enabled = v
-      })
-      .catch(() => {})
+    void settings.load()
     $effect.root(() => {
       $effect(() => {
-        const url = this.enabled ? player.current?.cover_url : null
-        void this.apply(url ?? null)
+        const on = settings.get('appearance.cover_theme')
+        const preset = settings.get('appearance.preset')
+        const url = on ? (player.current?.cover_url ?? null) : null
+        void this.apply(on, url, preset)
+      })
+      $effect(() => {
+        setAnimations(settings.get('appearance.animations'))
       })
     })
   }
 
   setEnabled(on: boolean) {
-    this.enabled = on
-    void api.setSetting('appearance.cover_theme', on).catch(() => {})
+    settings.set('appearance.cover_theme', on)
   }
 
-  private async apply(url: string | null) {
+  /** Готовая тема выключает «Под трек». */
+  setPreset(id: string) {
+    settings.set('appearance.preset', id)
+    settings.set('appearance.cover_theme', false)
+  }
+
+  private async apply(cover: boolean, url: string | null, preset: string) {
     const my = ++this.seq
-    const c = url ? await colorOf(url) : null
+    const p = PRESETS.find((x) => x.id === preset) ?? PRESETS[0]
+    const c = cover ? (url ? await colorOf(url) : null) : p.accent
     if (my !== this.seq) return
-    this.accent = c
-    const root = document.documentElement.style
+    if (cover) this.accent = c
+    const root = document.documentElement
+    root.classList.toggle('amoled', !cover && !!p.black)
+    const st = root.style
     if (!c) {
-      for (const k of ['--accent', '--accent-ink', '--accent-soft', '--tint']) root.removeProperty(k)
+      for (const k of ['--accent', '--accent-ink', '--accent-soft', '--tint']) st.removeProperty(k)
       return
     }
     const t = themeFrom(c)
-    root.setProperty('--accent', css(t.accent))
-    root.setProperty('--accent-ink', css(t.ink))
-    root.setProperty('--accent-soft', css(t.accent, 0.14))
-    root.setProperty('--tint', css(t.bg))
+    st.setProperty('--accent', css(t.accent))
+    st.setProperty('--accent-ink', css(t.ink))
+    st.setProperty('--accent-soft', css(t.accent, 0.14))
+    st.setProperty('--tint', css(t.bg))
   }
 }
 

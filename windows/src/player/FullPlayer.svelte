@@ -12,6 +12,7 @@
   import { pulse } from '../lib/pulse'
   import { replay } from '../lib/replay'
   import { wave } from './wave.svelte'
+  import { settings } from '../lib/settings.svelte'
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
   import WindowControls from '../app/WindowControls.svelte'
@@ -26,7 +27,7 @@
 
   const track = $derived(player.current)
   const liked = $derived(library.isLiked(track?.ref))
-  const avatar = $derived(track?.artists[0]?.avatar_url ?? null)
+  const avatar = $derived(settings.get('player.artist_avatars') ? (track?.artists[0]?.avatar_url ?? null) : null)
   const withText = $derived(lyrics.shown)
   const withCover = $derived(lyrics.coverShown)
 

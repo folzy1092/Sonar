@@ -57,6 +57,8 @@ class Player {
   private ctx: AudioContext | null = null
   /** Кто слушает конец трека (своя волна): трек, сколько прослушано, пропущен ли вручную. */
   private endHooks = new Set<(t: Track, listenedMs: number, skipped: boolean) => void>()
+  /** Очередь доиграла до конца: вернуть true, если кто-то продолжил (похожие после очереди). */
+  onQueueEnd: ((last: Track) => boolean) | null = null
   /** Спектр звука для волны на странице плеера (Web Audio). */
   analyser: AnalyserNode | null = null
 
@@ -193,7 +195,9 @@ class Player {
 
   async next(manual = true) {
     const p = nextPos(this.pos, this.order.length, this.repeat, manual)
+    const last = this.current
     this.finishPlay(manual)
+    if (p === null && last && this.onQueueEnd?.(last)) return
     if (p === null) {
       this.pause()
       this.seek(0)
@@ -426,17 +430,22 @@ class Player {
   /** Настройки и последнее состояние: тот же трек и позиция, на паузе (`general.restore`). */
   private async restore() {
     try {
-      const [volume, speed, saved] = await Promise.all([
+      const [volume, speed, saved, mode] = await Promise.all([
         api.getSetting<number>('player.volume'),
         api.getSetting<SpeedMode>('player.speed_mode'),
         api.loadPlayerState(),
+        api.getSetting<'none' | 'track' | 'queue'>('general.restore'),
       ])
       if (typeof volume === 'number') this.volume = volume
       if (speed && speed in speedModes) this.speedMode = speed
       this.applyVolume()
       this.applySpeed()
-      if (!saved || !saved.tracks.length || this.current) return
-      const { state, tracks } = saved
+      if (!saved || !saved.tracks.length || this.current || mode === 'none') return
+      const { state } = saved
+      let tracks = saved.tracks
+      // «При запуске: трек» — только сам трек, без очереди
+      if (mode === 'track') tracks = tracks.filter((t) => t.ref === state.ref).slice(0, 1)
+      if (!tracks.length) return
       const index = Math.max(0, tracks.findIndex((t) => t.ref === state.ref))
       this.tracks = tracks
       this.context = state.context

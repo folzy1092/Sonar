@@ -55,6 +55,13 @@ pub fn run() {
 
       tray::setup(app)?;
 
+      // масштаб окна из настроек — сразу, без «прыжка» после загрузки
+      if let (Ok(Some(z)), Some(w)) = (db.setting("appearance.scale_window"), app.get_webview_window("main")) {
+        if let Some(pct) = z.as_f64().filter(|p| (50.0..=200.0).contains(p)) {
+          let _ = w.set_zoom(pct / 100.0);
+        }
+      }
+
       let controls = app.get_webview_window("main").and_then(|w| media::attach(app.handle(), &w));
 
       app.manage(core);
@@ -109,6 +116,12 @@ pub fn run() {
       commands::stats,
       commands::cached_tracks,
       commands::stream_port,
+      commands::all_settings,
+      commands::reset_settings,
+      commands::storage_usage,
+      commands::clear_storage,
+      commands::open_url,
+      commands::set_zoom,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");

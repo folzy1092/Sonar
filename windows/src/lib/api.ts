@@ -149,6 +149,15 @@ export interface Stats {
   fav_weekday: number | null
 }
 
+export interface StorageUsage {
+  covers: number
+  covers_bytes: number
+  lyrics: number
+  lyrics_bytes: number
+  track_prefs: number
+  db_bytes: number
+}
+
 export interface MediaInfo {
   title?: string
   artist?: string
@@ -227,6 +236,14 @@ export const api = {
   stats: (period: StatsPeriod) => call<Stats>('stats', { period, tzMin: -new Date().getTimezoneOffset() }),
 
   streamPort: () => call<number>('stream_port'),
+  allSettings: () => call<Record<string, unknown>>('all_settings'),
+  resetSettings: () => call<void>('reset_settings'),
+  storageUsage: () => call<StorageUsage>('storage_usage'),
+  clearStorage: (kind: 'covers' | 'lyrics' | 'track_prefs' | 'all') => call<void>('clear_storage', { kind }),
+  openUrl: (url: string) => call<void>('open_url', { url }),
+  setZoom: (scale: number) => call<void>('set_zoom', { scale }),
+  setAutostart: (on: boolean) => call<void>('set_autostart', { on }),
+  setTrayMode: (on: boolean) => call<void>('set_tray_mode', { on }),
 
   mediaUpdate: (info: MediaInfo) => (isTauri ? invoke<void>('media_update', { info }) : Promise.resolve()),
 }

@@ -54,7 +54,8 @@
 |---|---|---|---|
 | `appearance.mode` | `system` / `dark` / `light` | `dark` | да |
 | `appearance.cover_theme` | bool — тема под обложку | `true` | да |
-| `appearance.preset` | `neutral`, `amoled`, `crimson`, `nord`, `sky`, `mint`, `violet`, `blossom`, `sakura`, `terminal`, `aqua`, `sunset`, `slate` | `neutral` | да |
+| `appearance.preset` | `neutral`, `amoled`, `crimson`, `nord`, `sky`, `mint`, `violet`, `blossom`, `sakura`, `terminal`, `aqua`, `sunset`, `slate` — выбор готовой темы выключает «Под трек» | `neutral` | да |
+| `appearance.animations` | bool — выключено: только прозрачность, как «Меньше движения» | `true` | да |
 | `appearance.tab_style` | `standard` / `rounded` / `floating` | `floating` | да |
 | `appearance.mini_player` | `capsule` / `standard` / `minimal` | `capsule` | да |
 | `appearance.background` | `standard` (тема) / `cover_color` / `cover` (сама обложка, размытая) / `custom` (свой фон) | `cover_color` | да |
@@ -71,7 +72,7 @@
 | `appearance.font` | `default` или имя шрифта из списка ниже | `default` | да |
 | `appearance.font_size` | 12 / 14 / 16 / 18 / 20 | `16` | да |
 | `appearance.font_weight` (PC) | `auto` / 400 / 500 / 600 / 700 | `auto` | да |
-| `appearance.scale_window` (PC) | 75–125 % | `90` | нет |
+| `appearance.scale_window` (PC) | 75–125 % (зум WebView) | `100` | нет |
 | `appearance.scale_fullscreen` (PC) | 75–125 % | `90` | нет |
 
 Каждый выбор с несколькими вариантами открывается **нижним листом** (`photo_20..25`): иконка,
@@ -102,7 +103,7 @@
 
 Скорость воспроизведения — не настройка, а лист в плеере (`photo_30`); «Запомнить» пишет в
 `track_prefs` (см. `DB.md`).
-| `player.visualizer` (PC) | `off` / `bar` / `cover` / `slider` | `bar` | да |
+| `player.visualizer` (PC) | `off` / `bar` / `cover` / `slider` (сейчас есть `off` / `bar`) | `bar` | да |
 | `player.visualizer_style` (PC) | `wave` / `bars` | `wave` | да |
 | `player.cover_position` (PC) | `left` / `right` | `left` | да |
 | `player.cover_in_cover` (PC) | bool | `false` | да |

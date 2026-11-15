@@ -5,6 +5,7 @@ import { untrack } from 'svelte'
 import { api, errorText, type Track } from '../lib/api'
 import { toast } from '../lib/toast.svelte'
 import { player } from './player.svelte'
+import { settings } from '../lib/settings.svelte'
 
 export const WAVE_CONTEXT = 'wave'
 const SKIP_MS = 30_000
@@ -35,6 +36,12 @@ class Wave {
       .then((r) => (this.disliked = new Set(r)))
       .catch(() => {})
     player.onTrackEnd((t, listened, skipped) => this.onEnd(t, listened, skipped))
+    // «Похожие после очереди» (`general.similar_autoplay`): очередь кончилась — волна по последнему треку
+    player.onQueueEnd = (last) => {
+      if (player.context === WAVE_CONTEXT || player.repeat !== 'off' || !settings.get('general.similar_autoplay')) return false
+      void this.start(last, false)
+      return true
+    }
     $effect.root(() => {
       $effect(() => {
         if (player.context !== WAVE_CONTEXT) return
@@ -59,8 +66,8 @@ class Wave {
     }
   }
 
-  /** Включить волну. `seed` — «Волна по треку»: только похожие на него, он играет первым. */
-  async start(seed?: Track) {
+  /** Включить волну. `seed` — «Волна по треку»: только похожие на него; `withSeed` — он играет первым. */
+  async start(seed?: Track, withSeed = true) {
     this.served = new Set()
     this.paused = new Set()
     this.skipRun = new Map()
@@ -81,7 +88,8 @@ class Wave {
         this.loading = false
       }
     }
-    const list = seed ? [seed, ...tracks.filter((t) => t.ref !== seed.ref)] : tracks
+    const rest = seed ? tracks.filter((t) => t.ref !== seed.ref) : tracks
+    const list = seed && withSeed ? [seed, ...rest] : rest
     if (!list.length) {
       toast.show('Волне пока нечего предложить')
       return

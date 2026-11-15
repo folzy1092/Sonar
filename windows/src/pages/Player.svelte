@@ -7,6 +7,7 @@
   import { pulse } from '../lib/pulse'
   import { replay } from '../lib/replay'
   import { wave } from '../player/wave.svelte'
+  import { settings } from '../lib/settings.svelte'
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
   import TrackRow from '../components/TrackRow.svelte'
@@ -23,7 +24,8 @@
 
   const track = $derived(player.current)
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
-  const avatar = $derived(track?.artists[0]?.avatar_url ?? null)
+  const avatar = $derived(settings.get('player.artist_avatars') ? (track?.artists[0]?.avatar_url ?? null) : null)
+  const align = $derived(settings.get('player.title_align'))
   const liked = $derived(library.isLiked(track?.ref))
   const contextTitle = $derived(
     player.contextTitle ??
@@ -71,7 +73,7 @@
   </div>
 
   <div class="side">
-    <div class="head" use:replay={track?.ref}>
+    <div class="head" style:--align={align} style:--justify={align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'} use:replay={track?.ref}>
       <h1 class="selectable" title={track?.title}>{track?.title ?? 'Ничего не играет'}</h1>
       <p class="artist selectable">
         {#if avatar}<img src={avatar} alt="" />{/if}
@@ -98,7 +100,7 @@
       </div>
     </div>
 
-    <Wave height={52} />
+    {#if settings.get('player.visualizer') !== 'off'}<Wave height={52} />{/if}
 
     <div class="panel controls">
       <button class="menu-btn" aria-label="Меню трека" title="Меню трека" disabled={!track} onclick={(e) => track && trackMenu.openAt({ track }, e.currentTarget)}>
@@ -247,7 +249,10 @@
     padding-top: 14px;
   }
   .head {
-    text-align: center;
+    text-align: var(--align, center);
+  }
+  .head .artist {
+    justify-content: var(--justify, center);
   }
   h1 {
     font-size: 28px;
