@@ -13,15 +13,15 @@ const app = mount(App, {
   target: document.getElementById('app')!,
 })
 
-// Заставка из index.html: S перетекает в круг, круг вращается (~0,9 с), потом мягкий фейдаут фона.
+// Заставка из index.html: знак крутится пропеллером, и почти сразу занавес уезжает вниз (класс .out).
 const splash = document.getElementById('splash')
 if (splash) {
   setTimeout(
     () => {
       splash.classList.add('out')
-      setTimeout(() => splash.remove(), 600)
+      setTimeout(() => splash.remove(), 820)
     },
-    Math.max(0, 880 - performance.now()),
+    Math.max(0, 420 - performance.now()),
   )
 }
 

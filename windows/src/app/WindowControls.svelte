@@ -2,6 +2,8 @@
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
   import { router } from './router.svelte'
+  import HistoryButton from './HistoryButton.svelte'
+  import { fade } from 'svelte/transition'
   import {
     closeWindow,
     isWindowMaximized,
@@ -26,11 +28,13 @@
 </script>
 
 <div class="controls">
-  {#if back}
-    <button class="ctl" aria-label="Назад" title="Назад" disabled={!router.canGoBack} onclick={() => router.back()}>
+  <!-- «Назад» — только когда есть куда; на его месте история прослушивания (как часы у Dotify) -->
+  {#if back && router.canGoBack}
+    <button class="ctl" aria-label="Назад" title="Назад" onclick={() => router.back()} transition:fade={{ duration: 160 }}>
       <Icon name="chevronLeft" size={14} stroke={1.8} />
     </button>
   {/if}
+  {#if back}<HistoryButton />{/if}
   <button class="ctl" aria-label="Свернуть" title="Свернуть" onclick={minimizeWindow}>
     <Icon name="minus" size={14} stroke={1.8} />
   </button>

@@ -36,7 +36,8 @@
     artist: ArtistPage,
     album: AlbumPage,
   }
-  const withSearch: Page[] = ['home', 'search']
+  /** Строка поиска — только на странице поиска (на главной её нет, решение владельца). */
+  const withSearch: Page[] = ['search']
   /** Страницы со своей шапкой в верхней строке (вкладки медиатеки как у Dotify): кнопки окна
    *  висят поверх справа, а страница начинается от самого верха. */
   const ownHeader: Page[] = ['library']

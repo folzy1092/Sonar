@@ -41,9 +41,6 @@
     {/each}
   </div>
 
-  <button class="paste" aria-label="Вставить ссылку" title="Вставить ссылку на трек или плейлист">
-    <Icon name="link" size={18} />
-  </button>
 </div>
 
 <style>
@@ -110,22 +107,5 @@
   .src.on {
     background: var(--accent);
     color: var(--accent-ink);
-  }
-  .paste {
-    display: grid;
-    place-items: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--plate);
-    border: 1px solid var(--border);
-    color: var(--text-2);
-    transition:
-      color var(--fast) var(--ease),
-      background var(--fast) var(--ease);
-  }
-  .paste:hover {
-    color: var(--text);
-    background: var(--hover);
   }
 </style>
