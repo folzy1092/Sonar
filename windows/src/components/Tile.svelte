@@ -19,6 +19,8 @@
     onclick?: () => void
     oncontextmenu?: (e: MouseEvent) => void
     badge?: Snippet
+    /** Своё содержимое пустой обложки (например, сердце «Любимых» цветом темы). */
+    art?: Snippet
   }
 
   let {
@@ -35,13 +37,14 @@
     onclick,
     oncontextmenu,
     badge,
+    art,
   }: Props = $props()
   let failed = $state(false)
   const src = $derived(source?.startsWith('sc') ? 'sc' : source?.startsWith('ym') ? 'ym' : null)
 </script>
 
 <button class="tile" class:ghost class:dim {onclick} {oncontextmenu} title={title}>
-  <span class="cover" class:round>
+  <span class="cover" class:round class:empty={!(image && !failed) && !covers.length}>
     {#if image && !failed}
       <img src={image} alt="" loading="lazy" draggable="false" class="fade-img" onload={(e) => e.currentTarget.classList.add('loaded')} onerror={() => (failed = true)} />
     {:else if covers.length >= 4}
@@ -50,6 +53,8 @@
       </span>
     {:else if covers.length}
       <img src={covers[0]} alt="" loading="lazy" draggable="false" />
+    {:else if art}
+      {@render art()}
     {:else}
       <Icon name={icon} size={36} stroke={1.6} />
     {/if}
@@ -86,15 +91,27 @@
     overflow: hidden;
     border-radius: var(--radius-l);
     background: var(--plate);
-    border: 1px solid var(--border);
-    color: var(--text-2);
+    color: var(--text-3);
     transition:
       transform var(--normal) var(--ease),
-      background var(--normal) var(--ease);
+      background var(--normal) var(--ease),
+      filter var(--normal) var(--ease);
+  }
+  /* пустая обложка (значок) — тёмная плашка с едва заметной рамкой, как у Dotify */
+  .cover.empty {
+    box-shadow: inset 0 0 0 1px var(--border);
   }
   .tile:hover .cover {
     transform: translateY(-2px);
+  }
+  .tile:hover .cover.empty {
     background: var(--hover);
+  }
+  .tile:hover .cover:not(.empty) {
+    filter: brightness(1.06);
+  }
+  .tile:active .cover {
+    transform: scale(0.97);
   }
   .cover.round {
     border-radius: 50%;
@@ -111,7 +128,7 @@
     height: 100%;
   }
   .ghost .cover {
-    border-style: dashed;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
     color: var(--text-3);
   }
   .src {
@@ -156,6 +173,7 @@
   }
   .title {
     max-width: 100%;
+    font-size: 13px;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -170,6 +188,7 @@
     text-overflow: ellipsis;
   }
   .meta {
+    margin-top: 1px;
     font-size: 11px;
     color: var(--text-3);
   }

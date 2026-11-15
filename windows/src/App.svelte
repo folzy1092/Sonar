@@ -37,6 +37,9 @@
     album: AlbumPage,
   }
   const withSearch: Page[] = ['home', 'search']
+  /** Страницы со своей шапкой в верхней строке (вкладки медиатеки как у Dotify): кнопки окна
+   *  висят поверх справа, а страница начинается от самого верха. */
+  const ownHeader: Page[] = ['library']
 
   const Current = $derived(pages[router.page])
   let scroller: HTMLElement | undefined = $state()
@@ -90,7 +93,7 @@
 <div class="shell" class:away={settingsPanel.open} inert={settingsPanel.open}>
   <Rail />
 
-  <main class="card">
+  <main class="card" class:own-head={ownHeader.includes(router.page)}>
     <header class="top" data-tauri-drag-region>
       {#if withSearch.includes(router.page)}
         <SearchBar />
@@ -214,6 +217,22 @@
   .spacer {
     flex: 1;
     align-self: stretch;
+  }
+  .card {
+    position: relative;
+  }
+  .own-head .top {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 3;
+    padding-left: 0;
+  }
+  .own-head .top .spacer {
+    display: none;
+  }
+  .own-head .page {
+    padding-top: 14px;
   }
   .scroll {
     flex: 1;

@@ -1,11 +1,12 @@
 <script lang="ts">
   import { cascade } from '../lib/cascade'
-  import { indicator } from '../lib/indicator'
-  // Медиатека (pc/Screenshot_21): вкладки Все / Плейлисты / Альбомы / Исполнители, «Вы вошли как»,
-  // Любимые и свои плейлисты, плейлисты сервисов «фантомом» (открыть или перенести в Sonar),
-  // сохранённые альбомы и исполнители; внизу слева — создать · импорт · обновить.
-  import IconButton from '../components/IconButton.svelte'
+  import { pop } from '../lib/motion'
+  // Медиатека один в один по Dotify (pc/Screenshot_21): вкладки Все / Плейлисты / Альбомы /
+  // Исполнители без подчёркивания, «Вы вошли как», в одном ряду Любимые, свои плейлисты и плейлисты
+  // сервисов («фантомом» — открыть или перенести в Sonar), сохранённые альбомы и исполнители;
+  // внизу слева — создать · перенос · обновить. Создание — всплывашка над «+» (только кликом).
   import Icon from '../components/Icon.svelte'
+  import NavIcon from '../components/NavIcon.svelte'
   import Tile from '../components/Tile.svelte'
   import { api, type Album, type Artist, type ServicePlaylist, type ServicesStatus } from '../lib/api'
   import { tracksText } from '../lib/format'
@@ -27,6 +28,8 @@
   const favCount = $derived([...library.liked].filter((r) => r.startsWith('sc:') || r.startsWith('ym:')).length)
   const own = $derived(tab === 'Все' ? library.playlists.filter((p) => !p.hidden) : library.playlists)
   const imported = $derived(new Set(library.playlists.map((p) => p.source_ref).filter(Boolean)))
+  /** Плейлисты сервисов, ещё не перенесённые в Sonar (перенесённые уже есть среди своих). */
+  const services = $derived([...phantom.sc, ...phantom.ym].filter((p) => !imported.has(p.ref)))
   const accounts = $derived(
     status ? [status.soundcloud, status.yandex].filter((s) => s.connected) : [],
   )
@@ -80,7 +83,7 @@
   }
 </script>
 
-<div class="tabs" role="tablist" use:indicator={{ key: tab }}>
+<div class="tabs" role="tablist" data-tauri-drag-region>
   {#each tabs as t (t)}
     <button class="tab" class:on={tab === t} role="tab" aria-selected={tab === t} onclick={() => (tab = t)}>{t}</button>
   {/each}
@@ -104,51 +107,29 @@
   <Tile
     title={p.title}
     subtitle={p.owner || (p.ref.startsWith('sc') ? 'SoundCloud' : 'Яндекс Музыка')}
-    meta={p.track_count ? tracksText(p.track_count) : imported.has(p.ref) ? 'Перенесён в Sonar' : undefined}
+    meta={p.track_count ? tracksText(p.track_count) : undefined}
     image={p.cover_url}
     icon={p.ref.endsWith('likes') ? 'heart' : 'music'}
-    source={p.ref}
     onclick={() => openRef(p.ref)}
   />
 {/snippet}
 
+{#snippet favArt()}<NavIcon name="heart" active size={44} />{/snippet}
+
 {#if tab === 'Все' || tab === 'Плейлисты'}
   <section class="block">
-    <h2>Плейлисты {#if tab === 'Все'}<button class="more" aria-label="Все плейлисты" onclick={() => (tab = 'Плейлисты')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
+    {#if tab === 'Все'}
+      <h2>Плейлисты <button class="more" aria-label="Все плейлисты" onclick={() => (tab = 'Плейлисты')}><Icon name="chevronRight" size={18} /></button></h2>
+    {/if}
     <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab}>
-      <Tile title="Любимые" subtitle="Лайкнутые треки" meta={tracksText(favCount)} icon="heart" onclick={() => router.go('playlist', 'favorites')} />
+      <Tile title="Любимые" subtitle="Лайкнутые треки" meta={tracksText(favCount)} art={favArt} onclick={() => router.go('playlist', 'favorites')} />
       {#each own as p (p.id)}
         <Tile title={p.name} subtitle={p.hidden ? 'Скрыт' : 'Sonar'} meta={tracksText(p.track_count)} covers={p.covers} dim={p.hidden} onclick={() => router.go('playlist', p.id)} />
       {/each}
-      {#if creating}
-        <form class="create" onsubmit={(e) => (e.preventDefault(), create())}>
-          <!-- svelte-ignore a11y_autofocus -->
-          <input placeholder="Название" bind:value={newName} autofocus spellcheck="false" onkeydown={(e) => e.key === 'Escape' && (creating = false)} />
-          <button type="submit" disabled={!newName.trim()}>Создать</button>
-        </form>
-      {:else}
-        <Tile title="Новый плейлист" subtitle="SoundCloud и Яндекс вместе" icon="plus" ghost onclick={() => (creating = true)} />
-      {/if}
+      {#each services as p (p.ref)}{@render phantomTile(p)}{/each}
     </div>
+    {#if phantomError && tab === 'Плейлисты'}<p class="hint err">{phantomError}</p>{/if}
   </section>
-
-  {#if tab === 'Плейлисты'}
-    {#each [{ name: 'Из SoundCloud', list: phantom.sc }, { name: 'Из Яндекс Музыки', list: phantom.ym }] as g (g.name)}
-      {#if g.list.length}
-        <section class="block">
-          <h2>{g.name}</h2>
-          <p class="hint">Открой, чтобы послушать, или перенеси в Sonar кнопкой на странице плейлиста.</p>
-          <div class="grid" use:cascade>{#each g.list as p (p.ref)}{@render phantomTile(p)}{/each}</div>
-        </section>
-      {/if}
-    {/each}
-    {#if phantomError}<p class="hint err">{phantomError}</p>{/if}
-  {:else if phantom.sc.length || phantom.ym.length}
-    <section class="block">
-      <h2>Из сервисов <button class="more" aria-label="Все плейлисты сервисов" onclick={() => (tab = 'Плейлисты')}><Icon name="chevronRight" size={18} /></button></h2>
-      <div class="row" use:cascade>{#each [...phantom.sc, ...phantom.ym] as p (p.ref)}{@render phantomTile(p)}{/each}</div>
-    </section>
-  {/if}
 {/if}
 
 {#if tab === 'Все' || tab === 'Альбомы'}
@@ -183,22 +164,38 @@
   </section>
 {/if}
 
-<div class="actions">
-  <IconButton icon="plus" label="Создать плейлист" size={16} onclick={() => ((tab = tab === 'Все' || tab === 'Плейлисты' ? tab : 'Плейлисты'), (creating = true))} />
-  <IconButton icon="download" label="Импорт плейлистов сервисов" size={16} onclick={() => (tab = 'Плейлисты')} />
-  <IconButton icon="refresh" label="Обновить" size={16} onclick={refresh} />
+<div class="dock">
+  {#if creating}
+    <form class="create" onsubmit={(e) => (e.preventDefault(), create())} in:pop={{ y: 8 }} out:pop={{ y: 8 }}>
+      <b>Новый плейлист</b>
+      <!-- svelte-ignore a11y_autofocus -->
+      <input placeholder="Название" bind:value={newName} autofocus spellcheck="false" onkeydown={(e) => e.key === 'Escape' && (creating = false)} />
+      <div class="btns">
+        <button type="button" class="ghost" onclick={() => (creating = false)}>Отмена</button>
+        <button type="submit" class="primary" disabled={!newName.trim()}>Создать</button>
+      </div>
+    </form>
+  {/if}
+  <div class="actions">
+    <button class:on={creating} aria-label="Создать плейлист" title="Создать плейлист" onclick={() => (creating = !creating)}><NavIcon name="add" size={18} /></button>
+    <button aria-label="Перенос плейлистов сервисов" title="Перенос плейлистов сервисов" onclick={() => (tab = 'Плейлисты')}><NavIcon name="transfer" size={18} /></button>
+    <button aria-label="Обновить" title="Обновить" onclick={refresh}><NavIcon name="refresh" size={18} /></button>
+  </div>
 </div>
 
 <style>
   .tabs {
     display: flex;
+    align-items: center;
     gap: 18px;
-    padding-bottom: 6px;
+    min-height: 40px;
+    padding-right: 150px;
   }
   .tab {
     font-family: var(--font-display);
     font-size: 26px;
     font-weight: 800;
+    letter-spacing: -0.02em;
     color: var(--text-3);
     transition: color var(--fast) var(--ease);
   }
@@ -285,35 +282,74 @@
   .grid :global(.tile) {
     width: auto;
   }
+  .dock {
+    position: relative;
+    display: inline-block;
+    margin-top: 32px;
+  }
   .create {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    z-index: 5;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    gap: 8px;
-    width: 160px;
-    flex-shrink: 0;
-    aspect-ratio: 1;
+    gap: 10px;
+    width: 260px;
     padding: 14px;
     border-radius: var(--radius-l);
-    border: 1px dashed var(--border-strong);
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    transform-origin: bottom left;
+  }
+  .create b {
+    font-size: 14px;
   }
   .create input {
-    height: 34px;
-    padding: 0 10px;
+    height: 36px;
+    padding: 0 12px;
     border-radius: var(--radius-s);
     background: var(--plate);
     border: 1px solid var(--border);
     outline: none;
     user-select: text;
+    transition: border-color var(--fast) var(--ease);
   }
-  .create button {
-    height: 34px;
-    border-radius: 999px;
+  .create input:focus {
+    border-color: var(--border-strong);
+  }
+  .btns {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .btns button {
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    transition:
+      background var(--fast) var(--ease),
+      opacity var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .btns button:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+  .ghost {
+    color: var(--text-2);
+  }
+  .ghost:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
+  .primary {
     background: var(--accent);
     color: var(--accent-ink);
-    font-weight: 700;
   }
-  .create button:disabled {
+  .primary:disabled {
     opacity: 0.4;
   }
   .hint {
@@ -326,10 +362,28 @@
   .actions {
     display: inline-flex;
     gap: 2px;
-    margin-top: 32px;
     padding: 4px;
     border-radius: var(--radius-m);
     background: var(--plate);
-    border: 1px solid var(--border);
+  }
+  .actions button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    color: var(--text-3);
+    transition:
+      color var(--fast) var(--ease),
+      background var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .actions button:hover,
+  .actions button.on {
+    color: var(--text);
+    background: var(--hover);
+  }
+  .actions button:active {
+    transform: scale(0.9);
   }
 </style>
