@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { hscroll } from '../lib/hscroll'
+  import { edges } from '../lib/edges'
   // Панель настроек слева (reference/pc/Screenshot_30..32): вкладки разделов сверху, под ними
   // капсулы подразделов (docs/PLATFORMS.md «Настройки — одинаковые разделы»). Панель выезжает
   // слева одновременно с уходом окна вглубь (App.svelte) — как в Dotify.
@@ -35,10 +37,8 @@
     class="tabs"
     data-tauri-drag-region
     use:indicator={{ key: settingsPanel.tab }}
-    onwheel={(e) => {
-      // колесо над вкладками листает их вбок — «Система» не прячется за краем
-      if (e.deltaY) e.currentTarget.scrollBy({ left: e.deltaY, behavior: 'smooth' })
-    }}
+    use:hscroll
+    use:edges
   >
     {#each TABS as t (t.id)}
       <button
@@ -53,7 +53,7 @@
 
   {#if subs.length > 1}
     {#key settingsPanel.tab}
-      <div class="subs tab-in" use:indicator={{ key: sub, kind: 'pill' }}>
+      <div class="subs tab-in" use:indicator={{ key: sub, kind: 'pill' }} use:hscroll use:edges>
         {#each subs as s (s.id)}
           <button
             class="sub"
