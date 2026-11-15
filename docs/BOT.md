@@ -124,18 +124,13 @@ ID сняты ботом `@TgEmojis` по порядку из сообщений
 | `logo_spotify` | 🎵 | Spotify (на будущее) | `5282852032263233269` |
 | `logo_youtube` | 📺 | YouTube (на будущее) | `5278611117130653414` |
 | `logo_apple_music` | 🎵 | Apple Music (на будущее) | `5282870814155219459` |
+| `logo_vk_music` | 🎵 | ВК Музыка (на будущее) | `5283135925306532542` |
 
-**Значки** — набор Custom Badges (`HowDidYouDoThis`); владелец хочет нарисовать свой пак в таком же виде (Android в наборе нет):
-
-| Ключ | Эмодзи | Назначение | custom_emoji_id |
-|---|---|---|---|
-| `badge_windows` | 🤖 | Windows (значок) | `5474595435534393866` |
-| `badge_ios` | 🍎 | iPhone / iOS (значок) | `5474202068069687407` |
-| `badge_music` | 🎼 | Музыка (значок) | `5436064227360026383` |
-| `badge_diamond` | 💎 | Алмаз (значок) | `5463276135125130498` |
-| `badge_heart` | ❤️ | Сердце / лайк (значок) | `5319108252095520466` |
-| `badge_bug` | 🐞 | Баг (значок) | `5435954898967505475` |
-| `badge_shuffle` | 💎 | Моя волна / перемешать (значок) | `5375589326895755686` |
+**Свои значки** — пак Sonar в стиле «бейджей» (волнистая розетка, знак вырезан, одноцветный —
+Telegram красит под цвет текста). Нарисованы с нуля скриптом `brand/emoji/make_badges.py`
+(PNG 100×100 в `brand/emoji/badges/`): `windows`, `iphone`, `android`, `music`, `diamond`, `heart`,
+`bug`, `wave`. Чужие бейджи (Custom Badges) не используем. ID появятся, когда пак загрузят в
+Telegram (`createNewStickerSet`, `sticker_type: custom_emoji`, `needs_repainting: true`).
 
 
 ## 1. Команды
