@@ -14,9 +14,9 @@ export interface LineLook {
   transition: string
 }
 
-const T_NORMAL = (cur: boolean) => `opacity ${cur ? 620 : 720}ms cubic-bezier(0.33, 0, 0.2, 1), transform 620ms cubic-bezier(0.22, 1, 0.36, 1)`
-const T_SOFT = 'opacity 500ms cubic-bezier(0.22, 1, 0.36, 1), transform 500ms cubic-bezier(0.22, 1, 0.36, 1), filter 400ms cubic-bezier(0.22, 1, 0.36, 1)'
-const T_SLOW = 'opacity 780ms cubic-bezier(0.25, 1, 0.35, 1), transform 780ms cubic-bezier(0.25, 1, 0.35, 1), filter 600ms cubic-bezier(0.25, 1, 0.35, 1)'
+const T_NORMAL = (cur: boolean) => `opacity ${cur ? 870 : 1010}ms cubic-bezier(0.33, 0, 0.2, 1), transform 868ms cubic-bezier(0.22, 1, 0.36, 1)`
+const T_SOFT = 'opacity 700ms cubic-bezier(0.22, 1, 0.36, 1), transform 700ms cubic-bezier(0.22, 1, 0.36, 1), filter 560ms cubic-bezier(0.22, 1, 0.36, 1)'
+const T_SLOW = 'opacity 1092ms cubic-bezier(0.25, 1, 0.35, 1), transform 1092ms cubic-bezier(0.25, 1, 0.35, 1), filter 840ms cubic-bezier(0.25, 1, 0.35, 1)'
 
 /** Прозрачность строки: текущая 1, следующая 0.58, прошлая 0.42, дальше — тише. */
 export function lineOpacity(delta: number, synced: boolean, isBg: boolean): number {
@@ -115,13 +115,13 @@ export function lineLook(style: TextStyle, anim: TextAnim, delta: number, synced
   if (simple && style !== 'normal') transition = T_SOFT
   else if (anim === 'normal') transition = T_NORMAL(cur)
   else if (anim === 'bounce')
-    transition = 'opacity 600ms cubic-bezier(0.22, 1, 0.36, 1), transform 620ms cubic-bezier(0.34, 1.3, 0.64, 1), filter 450ms cubic-bezier(0.22, 1, 0.36, 1)'
+    transition = 'opacity 840ms cubic-bezier(0.22, 1, 0.36, 1), transform 868ms cubic-bezier(0.34, 1.3, 0.64, 1), filter 630ms cubic-bezier(0.22, 1, 0.36, 1)'
   else if (anim === 'float')
-    transition = 'opacity 680ms cubic-bezier(0.22, 1, 0.36, 1), transform 680ms cubic-bezier(0.22, 1, 0.36, 1), filter 500ms cubic-bezier(0.22, 1, 0.36, 1)'
-  else if (anim === 'fade') transition = 'opacity 660ms cubic-bezier(0.33, 0, 0.2, 1)'
+    transition = 'opacity 952ms cubic-bezier(0.22, 1, 0.36, 1), transform 952ms cubic-bezier(0.22, 1, 0.36, 1), filter 700ms cubic-bezier(0.22, 1, 0.36, 1)'
+  else if (anim === 'fade') transition = 'opacity 924ms cubic-bezier(0.33, 0, 0.2, 1)'
   else transition = T_SLOW
 
-  if (reduced) return { opacity, transform: 'none', filter: 'none', letterSpacing: spacing, transition: 'opacity 300ms linear' }
+  if (reduced) return { opacity, transform: 'none', filter: 'none', letterSpacing: spacing, transition: 'opacity 420ms linear' }
   return { opacity, transform, filter, letterSpacing: spacing, transition }
 }
 

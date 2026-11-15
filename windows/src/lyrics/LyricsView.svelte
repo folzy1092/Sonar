@@ -64,8 +64,33 @@
     if (performance.now() - userScrollAt < USER_SCROLL_PAUSE) return
     const el = i >= 0 ? els[i] : null
     const top = el ? el.offsetTop - scroller.clientHeight * 0.32 : 0
-    scroller.scrollTo({ top: Math.max(0, top), behavior: reduced ? 'auto' : 'smooth' })
+    glide(Math.max(0, top))
   })
+
+  /** Плавный переезд к строке (~1 с, мягкий разгон и торможение) вместо резкого системного
+   *  smooth-скролла: прошлый текст спокойно уходит вверх, новый подтягивается снизу. */
+  let glideRaf = 0
+  function glide(to: number) {
+    const sc = scroller
+    if (!sc) return
+    cancelAnimationFrame(glideRaf)
+    if (reduced) {
+      sc.scrollTop = to
+      return
+    }
+    const from = sc.scrollTop
+    const dist = to - from
+    if (Math.abs(dist) < 1) return
+    const dur = Math.min(1300, 750 + Math.abs(dist) * 0.6)
+    const t0 = performance.now()
+    const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / dur)
+      sc.scrollTop = from + dist * ease(t)
+      if (t < 1) glideRaf = requestAnimationFrame(step)
+    }
+    glideRaf = requestAnimationFrame(step)
+  }
 
   function seekTo(time: number) {
     if (!synced) return
@@ -180,7 +205,7 @@
   aria-label="Текст песни"
   {oncontextmenu}
 >
-  <div class="scroller" bind:this={scroller} onwheel={() => (userScrollAt = performance.now())}>
+  <div class="scroller" bind:this={scroller} onwheel={() => ((userScrollAt = performance.now()), cancelAnimationFrame(glideRaf))}>
     {#if synced}
       {#if intro}
         <div class="line pause intro" class:active={active === -1} style:opacity={active === -1 ? 1 : 0.42}>
