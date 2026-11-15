@@ -16,7 +16,9 @@
 Ключ подписи обновлений — только `C:\Users\Folzy\.tauri\sonar-updater.key` и секрет окружения
 `default` `TAURI_SIGNING_PRIVATE_KEY` (в репо — лишь открытый ключ в `tauri.conf.json`); новая версия —
 `version` в `tauri.conf.json` / `Cargo.toml` / `package.json` + запись в `updates/changelog.json`.
-Следующий шаг — сервер (после покупки Velt), см. `docs/ROADMAP.md`.
+Следующий шаг — сервер (после покупки Velt), см. `docs/ROADMAP.md`. Бот `@SonarMusicApp` уже написан
+(`server/sonar`, aiogram 3 + SQLite, без API) и пока крутится на ПК владельца: «Запустить бота.bat» в корне
+(создаёт `server/.env` из `server/env.example`, токен вписывает владелец). Файлы `.env*` агенту закрыты.
 Текст песен — формулы Dotify в `lyrics/core/motion.ts`, фон плеера — WebGL `player/art-field.ts`,
 иконки левой панели — MingCute (`components/nav-icons.ts`, Apache-2.0). Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`),
 новые экраны собирать на них; настройки — `lib/settings.svelte.ts` (ключи и значения по умолчанию).
