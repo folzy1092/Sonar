@@ -33,8 +33,11 @@ fn window<'a>(app: &'a AppHandle, label: &str, title: &str, url: &str) -> Result
     let _ = old.close();
   }
   let url = Url::parse(url)?;
-  // окно не наследует флаги главного: обычный браузерный вход
+  // Своя папка данных WebView2: у главного окна свои флаги браузера, а два окна с разными флагами
+  // на одной папке WebView2 не создаёт (HRESULT 0x8007139F). Вход сохраняется в этой папке.
+  let dir = app.path().app_local_data_dir()?.join("login-webview");
   let b = WebviewWindowBuilder::new(app, label, WebviewUrl::External(url))
+    .data_directory(dir)
     .title(title)
     .inner_size(480.0, 720.0)
     .min_inner_size(400.0, 560.0)
