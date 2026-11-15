@@ -133,12 +133,14 @@ fn activity(info: &MediaInfo, cover: bool, progress: bool) -> Activity<'_> {
     .status_display_type(StatusDisplayType::Details)
     .details(title)
     .state(artist);
+  // Ассет «sonar» загружен в Discord Developer Portal → Rich Presence → Art Assets (знак Sonar 1024×1024):
+  // без обложки он большой картинкой, с обложкой — маленький значок в углу.
   let mut assets = Assets::new().large_text(clip(info.album.as_deref().unwrap_or("Sonar")));
-  if cover {
-    if let Some(url) = info.cover_url.as_deref().filter(|u| u.starts_with("https://")) {
-      assets = assets.large_image(url.to_owned());
-    }
-  }
+  let cover_url = info.cover_url.as_deref().filter(|u| cover && u.starts_with("https://"));
+  assets = match cover_url {
+    Some(url) => assets.large_image(url.to_owned()).small_image("sonar").small_text("Sonar"),
+    None => assets.large_image("sonar"),
+  };
   a = a.assets(assets);
   if progress {
     if let (Some(pos), Some(dur)) = (info.position_ms, info.duration_ms.filter(|d| *d > 0)) {
