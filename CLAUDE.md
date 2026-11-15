@@ -23,7 +23,7 @@
 иконки левой панели — MingCute (`components/nav-icons.ts`, Apache-2.0). Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`),
 новые экраны собирать на них; настройки — `lib/settings.svelte.ts` (ключи и значения по умолчанию).
 Discord RPC: ID приложения Discord пользователь **не вводит** — до сервера он вшит в сборку
-(`discord.rs` `APP_ID`, ждёт ID от владельца), потом приходит с сервера (`GET /config`). Тесты Windows: `npm test` (vitest),
+(`discord.rs` `APP_ID` = 1571615944449466510, с 2026-11-15), потом приходит с сервера (`GET /config`). Тесты Windows: `npm test` (vitest),
 `cargo test` в `src-tauri`; живые проверки SC — `SC_CLIENT_ID=… cargo test -- --ignored`.
 Запуск без команд — батники в корне: «Собрать и запустить.bat» (`tauri build --no-bundle` + запуск),
 «Запустить.bat». Окно Sonar только одно (single-instance), при запуске и Ctrl+R — заставка с лого.

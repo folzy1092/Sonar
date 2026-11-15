@@ -15,7 +15,7 @@ use std::time::Duration;
 
 /// ID приложения «Sonar» в Discord (discord.com/developers → Applications). Пусто — пока владелец
 /// его не создал (ROADMAP): тогда статус просто не показывается.
-pub const APP_ID: &str = "";
+pub const APP_ID: &str = "1571615944449466510";
 
 enum Msg {
   Update(MediaInfo),
