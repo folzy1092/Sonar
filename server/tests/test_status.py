@@ -19,3 +19,10 @@ def test_uptime(con, tmp_path):
     con.executemany("INSERT INTO status_checks (ts, item, state) VALUES (?, 'main', ?)",
                     [(t, "ok"), (t, "ok"), (t, "ok"), (t, "down")])
     assert st.uptime() == 75.0
+
+
+def test_never_ok_items(con, tmp_path):
+    st = Status(con, tmp_path, Settings())
+    con.executemany("INSERT INTO status_checks (ts, item, state) VALUES (?, ?, ?)",
+                    [(1, "site", "down"), (2, "site", "down"), (1, "main", "ok"), (1, "yandex", "down"), (2, "yandex", "ok")])
+    assert st.never_ok() == {"site"}

@@ -5,8 +5,8 @@
 * Темы нельзя создать (не форум, нет права can_manage_topics) — пишем в General, новая попытка
   не раньше чем через RETRY_S.
 * Иконки: цвет задаётся только при создании, эмодзи — editForumTopic из стандартного набора.
-* Бэкап базы — раз в сутки в общую тему «Data». Её создал другой бот, а Bot API не умеет искать
-  темы по имени, поэтому ID берётся из SONAR_DATA_THREAD_ID; пока его нет — бэкап в «Sonar».
+* Бэкап базы — раз в сутки только в общую тему «Data» (её создал другой бот, а Bot API не умеет
+  искать темы по имени, поэтому ID — config.DATA_THREAD_ID или SONAR_DATA_THREAD_ID).
 * Лог никогда не ломает бота: любая ошибка здесь проглатывается.
 """
 from __future__ import annotations
@@ -157,22 +157,16 @@ class LogGroup:
         return archive
 
     async def backup(self, db_path: str) -> bool:
-        if not self.chat_id:
+        """Бэкап — только в тему «Data» (решение владельца 2026-11-15); не вышло — карточка в «Ошибки»."""
+        if not self.chat_id or not self.data_thread_id:
             return False
         try:
             with tempfile.TemporaryDirectory(prefix="sonar-backup-") as d:
                 archive = await asyncio.to_thread(self._archive, db_path, d)
                 caption = (f"📁 <b>Бэкап Sonar</b>\n{datetime.now():%d.%m.%Y %H:%M}\nПроверка БД: успешно\n"
                            "Токены сервисов в копии зашифрованы — без SONAR_FERNET_KEY их не прочитать.")
-                if self.data_thread_id:
-                    try:
-                        await self.bot.send_document(chat_id=self.chat_id, message_thread_id=self.data_thread_id,
-                                                     document=FSInputFile(archive), caption=caption, parse_mode="HTML")
-                        return True
-                    except Exception as e:  # noqa: BLE001 — «Data» удалили или ID неверный
-                        log.warning("бэкап в Data не ушёл: %s", e)
-                await self._send(TOPIC, self.bot.send_document, document=FSInputFile(archive), caption=caption,
-                                 parse_mode="HTML")
+                await self.bot.send_document(chat_id=self.chat_id, message_thread_id=self.data_thread_id,
+                                             document=FSInputFile(archive), caption=caption, parse_mode="HTML")
             return True
         except Exception as e:  # noqa: BLE001
             await self.error("Бэкап базы не удался", e)

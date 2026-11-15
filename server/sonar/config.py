@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 
 SERVER_DIR = Path(__file__).resolve().parent.parent
 REPO_DIR = SERVER_DIR.parent
+# Тема «Data» лог-группы владельца (t.me/c/2276939424/32139) — общая для бэкапов всех его ботов.
+DATA_THREAD_ID = 32139
 
 
 def _int(name: str) -> int | None:
@@ -45,7 +47,7 @@ def load(env_file: Path | None = None) -> Settings:
         public_url=os.getenv("SONAR_PUBLIC_URL", "").strip().rstrip("/"),
         support_group_id=_int("SUPPORT_GROUP_ID"),
         log_chat_id=_int("SONAR_LOG_CHAT_ID"),
-        data_thread_id=_int("SONAR_DATA_THREAD_ID"),
+        data_thread_id=_int("SONAR_DATA_THREAD_ID") or DATA_THREAD_ID,
         lastfm_api_key=os.getenv("LASTFM_API_KEY", "").strip(),
         port=_int("PORT") or 8080,
     )

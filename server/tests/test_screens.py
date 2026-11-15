@@ -67,3 +67,11 @@ def test_status_header():
     assert "перебоями" in S.status(items, 0, 0, None, owner=False).html
     items["main"] = Item("main", DOWN)
     assert "Сбой: Основной" in S.status(items, 0, 0, None, owner=False).html
+
+
+def test_unset_items_do_not_spoil_header():
+    items = {k: Item(k, OK, 5) for k in KEYS}
+    items["site"] = Item("site", DOWN)
+    items["proxy"] = Item("proxy", DOWN)
+    html = S.status(items, 0, 0, None, owner=True, unset={"site", "proxy"}).html
+    assert "штатно" in html and "не настроен" in html

@@ -301,7 +301,10 @@ def _tree(lines: list[str]) -> str:
     return "\n".join(("└ " if n == len(lines) - 1 else "├ ") + x for n, x in enumerate(lines))
 
 
-def status(items: dict[str, Item], online: int, users: int, uptime: float | None, owner: bool) -> Screen:
+def status(items: dict[str, Item], online: int, users: int, uptime: float | None, owner: bool,
+           unset: set[str] = frozenset()) -> Screen:
+    """unset — пункты, которые ещё ни разу не работали (сайт, туннель до запуска): «не настроен», шапку не портят."""
+    items = {k: v for k, v in items.items() if k not in unset}
     g = items.get
     infra_keys = ["main", "media", "proxy", "bot", "site", "storage"] if owner else ["main", "storage"]
     bad = [k for k in infra_keys if g(k) and g(k).state == DOWN and k not in ("site", "proxy")]
@@ -316,6 +319,9 @@ def status(items: dict[str, Item], online: int, users: int, uptime: float | None
         head = f"{e('status_ok')} <b>Все системы работают штатно</b>"
     infra = []
     for k in infra_keys:
+        if k in unset:
+            infra.append(f"{e(icons[k])} {names[k]}: {e('info')} не настроен")
+            continue
         if k == "proxy" and not g(k):
             continue
         extra = g(k).note if (k == "storage" and owner and g(k)) else ""

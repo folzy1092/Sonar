@@ -79,3 +79,9 @@ def test_backup_goes_to_data_topic(tmp_path):
     assert captured["thread"] == 555
     restored = sqlite3.connect(tmp_path / "out" / "sonar.db")
     assert restored.execute("SELECT value FROM kv WHERE key = 'a'").fetchone()[0] == "b"
+
+
+def test_backup_only_to_data(con):
+    bot = FakeBot()
+    assert not run(LogGroup(bot, con, -100, data_thread_id=None).backup(":memory:"))
+    assert not bot.docs and not bot.topics

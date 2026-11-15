@@ -18,6 +18,10 @@ UA = {"User-Agent": "Sonar/0.1 (+https://sonar.folzy.ru)"}
 MIN_FREE_BYTES = 100 * 1024 * 1024
 
 
+class Throttled(Exception):
+    pass
+
+
 @dataclass
 class Item:
     key: str
@@ -30,8 +34,10 @@ async def _http(session: aiohttp.ClientSession, url: str, **params) -> int:
     t = time.monotonic()
     async with session.get(url, params=params or None, headers=UA, timeout=TIMEOUT) as r:
         await r.read()
-        if r.status >= 500 or r.status in (403, 429):
+        if r.status >= 500:
             raise RuntimeError(f"HTTP {r.status}")
+        if r.status in (403, 429):
+            raise Throttled(r.status)  # капча Cloudflare / лимит — «с перебоями», не «недоступен»
     return int((time.monotonic() - t) * 1000)
 
 
@@ -59,6 +65,8 @@ class Status:
         try:
             ms = await _http(session, url, **params)
             return Item(key, OK if ms < SLOW_MS else PARTIAL, ms)
+        except Throttled:
+            return Item(key, PARTIAL)
         except Exception:  # noqa: BLE001 — любая ошибка сети = сервис недоступен
             return Item(key, DOWN)
 
@@ -121,6 +129,11 @@ class Status:
         if not self.last or time.monotonic() - self.checked_at > max_age_s:
             await self.check()
         return self.last
+
+    def never_ok(self) -> set[str]:
+        """Пункты, которые ещё ни разу не работали (сайт и туннель до запуска) — «не настроен»."""
+        rows = self.con.execute("SELECT item, MAX(state = 'ok') AS ever FROM status_checks GROUP BY item").fetchall()
+        return {r["item"] for r in rows if not r["ever"]}
 
     def uptime(self) -> float | None:
         r = self.con.execute("SELECT COUNT(*) AS n, SUM(state = 'ok') AS ok FROM status_checks WHERE item = 'main' AND ts > ?",

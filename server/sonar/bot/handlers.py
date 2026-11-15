@@ -100,7 +100,8 @@ async def cmd_status(msg: Message, ctx: Ctx):
 
 async def status_screen(ctx: Ctx, tg_id: int, fresh: bool = False) -> Screen:
     items = await ctx.status.current(max_age_s=0 if fresh else 60)
-    return S.status(items, ctx.accounts.listening_now(), ctx.accounts.users_count(), ctx.status.uptime(), ctx.is_owner(tg_id))
+    return S.status(items, ctx.accounts.listening_now(), ctx.accounts.users_count(), ctx.status.uptime(), ctx.is_owner(tg_id),
+                    ctx.status.never_ok())
 
 
 # ---- кнопки ----
