@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SourceIcon from '../components/SourceIcon.svelte'
   import Icon from '../components/Icon.svelte'
   import { router } from './router.svelte'
   import { search, type Source } from './search.svelte'
@@ -35,7 +36,7 @@
         title={s.title}
         onclick={() => (search.source = s.id)}
       >
-        {s.label}
+        <SourceIcon kind={s.id} size={16} plain />
       </button>
     {/each}
   </div>

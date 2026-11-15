@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SourceIcon from './SourceIcon.svelte'
   // Плитка медиатеки и каруселей (pc/Screenshot_21): квадратная (или круглая) обложка и подписи.
   // Обложка — картинка, коллаж из 4 обложек (плейлист Sonar) или значок.
   import Icon from './Icon.svelte'
@@ -59,7 +60,7 @@
       <Icon name={icon} size={36} stroke={1.6} />
     {/if}
     {#if src}
-      <span class="src {src}">{src === 'sc' ? 'SC' : 'Я'}</span>
+      <span class="src"><SourceIcon kind={src} size={18} /></span>
     {/if}
     {#if badge}<span class="badge">{@render badge()}</span>{/if}
   </span>
@@ -135,20 +136,8 @@
     position: absolute;
     right: 8px;
     bottom: 8px;
-    min-width: 20px;
-    height: 18px;
-    padding: 0 4px;
-    border-radius: 5px;
-    font-size: 10px;
-    font-weight: 800;
-    line-height: 18px;
-    text-align: center;
-    color: #fff;
-    background: #ff5500;
-  }
-  .src.ym {
-    color: #111;
-    background: #ffcc00;
+    display: grid;
+    line-height: 0;
   }
   .badge {
     position: absolute;

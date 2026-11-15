@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SourceIcon from './SourceIcon.svelte'
   import Icon from './Icon.svelte'
   import { xfade } from '../lib/motion'
 
@@ -38,7 +39,7 @@
     {/if}
   {/key}
   {#if src}
-    <span class="src {src}" title={src === 'sc' ? 'SoundCloud' : 'Яндекс Музыка'}>{src === 'sc' ? 'SC' : 'Я'}</span>
+    <span class="src"><SourceIcon kind={src} size={Math.max(12, Math.min(18, Math.round(size * 0.24)))} /></span>
   {/if}
 </div>
 
@@ -74,21 +75,7 @@
     position: absolute;
     right: 3px;
     bottom: 3px;
-    min-width: 15px;
-    height: 15px;
-    padding: 0 3px;
-    border-radius: 4px;
-    font-size: 8px;
-    font-weight: 800;
-    line-height: 15px;
-    text-align: center;
-    color: #fff;
-  }
-  .src.sc {
-    background: #ff5500;
-  }
-  .src.ym {
-    color: #111;
-    background: #ffcc00;
+    display: grid;
+    line-height: 0;
   }
 </style>

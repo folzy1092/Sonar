@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SourceIcon from '../../components/SourceIcon.svelte'
   // Сервисы: вход в один клик (окно входа самого сервиса, ключи Sonar забирает сам — login.rs) или
   // вручную: SoundCloud (client_id + OAuth), Яндекс Музыка (токен). Хранятся в Диспетчере учётных
   // данных Windows (Rust, keyring), в интерфейс обратно не отдаются.
@@ -86,7 +87,7 @@
 
 <section class="svc">
   <header>
-    <span class="logo sc">SC</span>
+    <span class="logo sc"><SourceIcon kind="sc" size={24} plain /></span>
     <div>
       <h2>SoundCloud</h2>
       <p>
@@ -136,7 +137,7 @@
 
 <section class="svc">
   <header>
-    <span class="logo ym">Я</span>
+    <span class="logo ym"><SourceIcon kind="ym" size={26} plain /></span>
     <div>
       <h2>Яндекс Музыка</h2>
       <p>
@@ -240,13 +241,9 @@
     font-weight: 800;
     font-size: 13px;
   }
-  .logo.sc {
-    background: #ff5500;
-    color: #fff;
-  }
+  .logo.sc,
   .logo.ym {
-    background: #ffcc00;
-    color: #111;
+    background: var(--surface-3);
   }
   form {
     display: flex;
