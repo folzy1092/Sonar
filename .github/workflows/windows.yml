@@ -24,6 +24,8 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    # ключ подписи обновлений лежит в секретах окружения `default`
+    environment: default
     defaults:
       run:
         working-directory: windows
