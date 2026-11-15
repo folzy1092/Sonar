@@ -6,17 +6,16 @@
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
   import Tile from '../components/Tile.svelte'
+  import Shelf from '../components/Shelf.svelte'
   import Cover from '../components/Cover.svelte'
   import PlayPause from '../components/PlayPause.svelte'
   import { api, type Album, type Track } from '../lib/api'
   import { tracksText } from '../lib/format'
-  import { cascade } from '../lib/cascade'
   import { openRef } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
   import { WAVE_MODES } from '../player/my-wave.svelte'
   import { reducedMotion } from '../lib/motion'
   import { cubicOut, cubicIn } from 'svelte/easing'
-  import { hscroll } from '../lib/hscroll'
   import { wave } from '../player/my-wave.svelte'
   import { DAYPART_TEXT, daypart, home, releaseLabel, weekReleases } from './home-data.svelte'
   import { indicator } from '../lib/indicator'
@@ -44,10 +43,8 @@
     if (!wave.active) void wave.prefetch()
   })
 
-  // Обложки волны: играет — текущий и следующие, иначе — подобранная порция.
-  const waveTracks = $derived<Track[]>(
-    wave.active && player.current ? [player.current, ...player.upNext.slice(0, 2)] : wave.preview.slice(0, 3),
-  )
+  // Обложки волны — «лицо» её стиля (wave.covers): от перемотки треков не меняются.
+  const waveTracks = $derived<Track[]>(wave.covers)
   const waveCover = $derived(waveTracks[0]?.cover_url ?? home.recent[0]?.cover_url ?? null)
   const playingWave = $derived(wave.active && player.playing)
 
@@ -63,18 +60,20 @@
   let btnColor = $state<RGB | null>(null)
   const ink = $derived(btnColor ? css(inkFor(btnColor)) : null)
 
-  /** Клик по обложке волны: сгусток её цвета летит в кнопку, кнопка перекрашивается, трек играет. */
-  async function playCover(e: MouseEvent, t: Track | undefined) {
+  /** Обложка выбирает стиль волны: сгусток её цвета летит в кнопку, кнопка перекрашивается.
+   *  Большая — обычная волна режима (играет — пауза), маленькая — волна в стиле этого трека:
+   *  он звучит первым, дальше — похожие на него, и стиль держится, сколько ни листай треки. */
+  async function playCover(e: MouseEvent, t: Track | undefined, style: boolean) {
     const el = e.currentTarget as Element
     const url = t?.cover_url ?? waveCover
     const color = (url ? await colorOf(url) : null) ?? ([255, 255, 255] as RGB)
     if (playBtn) void flyOrb(el, playBtn, color).then(() => (btnColor = color))
-    if (!t || (wave.active && player.current?.ref === t.ref)) return wave.toggle()
-    if (wave.active) {
-      const i = player.upNext.findIndex((x) => x.ref === t.ref)
-      if (i >= 0) return void player.jumpTo(i)
+    if (!style || !t) {
+      if (wave.active && !wave.seed) return wave.toggle()
+      return void wave.start(undefined, true, t?.ref)
     }
-    void wave.start(undefined, true, t.ref)
+    if (wave.active && wave.seed?.ref === t.ref) return wave.toggle()
+    void wave.start(t)
   }
 
   function playMix(i: number) {
@@ -115,7 +114,7 @@
      с двумя обложками следующих треков и большой кнопкой. -->
 <section class="wave" class:on={wave.active}>
   <div class="lead">
-    <button class="art" aria-label="Играть волну" onclick={(e) => playCover(e, waveTracks[0])}>
+    <button class="art" aria-label="Играть волну" onclick={(e) => playCover(e, waveTracks[0], false)}>
       <Cover url={waveCover} size={158} radius="26px" />
     </button>
     <div class="wave-text">
@@ -125,7 +124,7 @@
         {#key mode.id}
           <span class="flip" in:flipIn out:flipOut>
             <Icon name={mode.icon} size={15} />
-            <b>{mode.title}</b>{#if wave.loading}<span class="sub">· подбираю…</span>{:else}<span class="sub">· {mode.sub}</span>{/if}
+            <b>{mode.title}</b>{#if wave.loading}<span class="sub">· подбираю…</span>{:else if wave.active && wave.seed}<span class="sub">· в стиле «{wave.seed.title}»</span>{:else}<span class="sub">· {mode.sub}</span>{/if}
           </span>
         {/key}
       </button>
@@ -134,7 +133,13 @@
 
   <div class="scene" class:still={!player.playing}>
     {#each waveTracks.slice(1, 3) as t, i (t.ref)}
-      <button class="float f{i} idle-pause" aria-label="Играть «{t.title}»" title="{t.artist} — {t.title}" onclick={(e) => playCover(e, t)}>
+      <button
+        class="float f{i} idle-pause"
+        class:picked={wave.active && wave.seed?.ref === t.ref}
+        aria-label="Волна в стиле «{t.title}»"
+        title="Волна в стиле: {t.artist} — {t.title}"
+        onclick={(e) => playCover(e, t, true)}
+      >
         <Cover url={t.cover_url} size={64} radius="16px" />
       </button>
     {/each}
@@ -160,7 +165,7 @@
         {home.account.name}
       </span>{/if}</h2>
   {#if home.mix.length || home.recent.length}
-    <div class="row" use:cascade use:hscroll>
+    <Shelf>
       <!-- первым — подборка под время суток (что слушаешь в эти часы + лайки), за ней «Недавнее»;
            обе — веером из трёх обложек, как у Dotify -->
       {#if home.mix.length}
@@ -172,7 +177,7 @@
       {#each home.mix.length ? home.mix : home.recent as t, i (t.ref)}
         <Tile title={t.title} subtitle={t.artist} image={t.cover_url} source={t.ref} onclick={() => (home.mix.length ? playMix(i) : playRecent(i))} />
       {/each}
-    </div>
+    </Shelf>
   {:else if home.loading}
     {@render skeleton()}
   {:else}
@@ -183,11 +188,11 @@
 <section class="block">
   <h2>{week.length || !home.releases.length ? 'Релизы недели' : 'Свежие релизы'}</h2>
   {#if releases.length}
-    <div class="row" use:cascade use:hscroll>
+    <Shelf>
       {#each releases as a (a.ref)}
         <Tile title={a.title} subtitle={a.artist} meta={releaseLabel(a.released) ?? (a.year ? String(a.year) : undefined)} image={a.cover_url} icon="disc" source={a.ref} onclick={() => openAlbum(a)} />
       {/each}
-    </div>
+    </Shelf>
   {:else if home.releasesLoading}
     {@render skeleton()}
   {:else}
@@ -199,11 +204,11 @@
   <section class="block">
     <h2>Похожее{#if home.similarTo}<small> на «{home.similarTo.title}»</small>{/if}</h2>
     {#if home.similar.length}
-      <div class="row" use:cascade use:hscroll>
+      <Shelf>
         {#each home.similar as t, i (t.ref)}
           <Tile title={t.title} subtitle={t.artist} image={t.cover_url} source={t.ref} onclick={() => playSimilar(i)} />
         {/each}
-      </div>
+      </Shelf>
     {:else}
       {@render skeleton()}
     {/if}
@@ -363,8 +368,27 @@
       float-in 0.6s var(--ease) both,
       bob 6s ease-in-out 0.6s infinite alternate;
   }
-  .float:hover {
+  .float:hover,
+  .float.picked {
     filter: none;
+  }
+  /* выбранный стиль — тонкое кольцо цвета темы вокруг обложки */
+  .float::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border-radius: 21px;
+    border: 2px solid var(--accent, var(--text));
+    opacity: 0;
+    scale: 0.9;
+    transition:
+      opacity var(--normal) var(--ease),
+      scale var(--normal) var(--ease);
+    pointer-events: none;
+  }
+  .float.picked::after {
+    opacity: 0.9;
+    scale: 1;
   }
   .float.f0 {
     right: 8px;
