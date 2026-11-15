@@ -100,7 +100,7 @@
 
 `SONAR_FERNET_KEY`, `SONAR_BOT_TOKEN`, `SONAR_OWNER_TG_ID`, `SONAR_PUBLIC_URL`,
 `LASTFM_API_KEY`, `LASTFM_API_SECRET`, `YANDEX_OAUTH_CLIENT_ID`, `CF_TUNNEL_TOKEN`, `PORT`,
-`YANDEX_PROXY` (необязательный, см. §3.7а).
+`YANDEX_PROXY` (необязательный, см. §3.7а), `SUPPORT_GROUP_ID`, `SONAR_LOG_CHAT_ID`. Пример с пояснениями — `server/env.example`.
 
 ### 3.4. Аутентификация
 
