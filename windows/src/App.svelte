@@ -40,6 +40,8 @@
   /** Страницы со своей шапкой в верхней строке (вкладки медиатеки как у Dotify): кнопки окна
    *  висят поверх справа, а страница начинается от самого верха. */
   const ownHeader: Page[] = ['library']
+  /** Страницы, где шапка стоит на месте, а прокручивается только список треков (как у Dotify). */
+  const fixedPages: Page[] = ['playlist']
   /** Строки поиска нет — кнопки окна висят поверх в углу, страница начинается от самого верха. */
   const floatHeader = $derived(ownHeader.includes(router.page) || !withSearch.includes(router.page))
 
@@ -95,7 +97,7 @@
 <div class="shell" class:away={settingsPanel.open} class:solo={settings.get('mini.style') === 'off' || !player.current || router.page === 'player'} inert={settingsPanel.open}>
   <Rail />
 
-  <main class="card" class:own-head={floatHeader}>
+  <main class="card" class:own-head={floatHeader} class:fixed-page={fixedPages.includes(router.page)}>
     {#if floatHeader}<div class="drag-strip" data-tauri-drag-region></div>{/if}
     <header class="top" data-tauri-drag-region>
       {#if withSearch.includes(router.page)}
@@ -245,6 +247,18 @@
   }
   .own-head .page {
     padding-top: 14px;
+  }
+  .fixed-page .scroll {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .fixed-page .page {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0;
   }
   .scroll {
     flex: 1;

@@ -213,49 +213,52 @@
   {/snippet}
 </CollectionHeader>
 
-{#if error}
-  <EmptyState icon="key" title="Не получилось открыть" text={error} />
-{:else if loading}
-  <div class="skeleton">{#each { length: 8 } as _, i (i)}<div class="sk"></div>{/each}</div>
-{:else if !items.length}
-  <EmptyState
-    icon={kind === 'favorites' ? 'heart' : 'music'}
-    title="Пока пусто"
-    text={kind === 'favorites' ? 'Нажми на сердце у трека — он появится здесь.' : 'Добавляй треки через меню трека: «Добавить в плейлист».'}
-  />
-{:else if !visible.length}
-  <EmptyState icon="search" title="Ничего не нашлось" text={`В «${title}» нет «${filter.trim()}».`} />
-{:else}
-  <div class="list" use:cascade>
-    {#each visible as t, i (t.item_id ?? t.ref + i)}
-      <div
-        class="drag"
-        class:over={dragOver === i && dragFrom !== i}
-        draggable={canReorder}
-        role="listitem"
-        ondragstart={(e) => {
-          dragFrom = i
-          e.dataTransfer?.setData('text/plain', String(i))
-        }}
-        ondragover={(e) => {
-          if (dragFrom === null) return
-          e.preventDefault()
-          dragOver = i
-        }}
-        ondragend={() => (dragFrom = dragOver = null)}
-        ondrop={(e) => (e.preventDefault(), drop(i))}
-      >
-        <TrackRow
-          track={t}
-          addedAt={t.added_at}
-          playlistId={kind === 'own' ? id : undefined}
-          itemId={kind === 'own' ? t.item_id : undefined}
-          onplay={() => play(i)}
-        />
-      </div>
-    {/each}
-  </div>
-{/if}
+<!-- прокручиваются только треки, шапка и кнопки стоят на месте; справа — ползунок, его можно тянуть -->
+<div class="tracks app-scroll">
+  {#if error}
+    <EmptyState icon="key" title="Не получилось открыть" text={error} />
+  {:else if loading}
+    <div class="skeleton">{#each { length: 8 } as _, i (i)}<div class="sk"></div>{/each}</div>
+  {:else if !items.length}
+    <EmptyState
+      icon={kind === 'favorites' ? 'heart' : 'music'}
+      title="Пока пусто"
+      text={kind === 'favorites' ? 'Нажми на сердце у трека — он появится здесь.' : 'Добавляй треки через меню трека: «Добавить в плейлист».'}
+    />
+  {:else if !visible.length}
+    <EmptyState icon="search" title="Ничего не нашлось" text={`В «${title}» нет «${filter.trim()}».`} />
+  {:else}
+    <div class="list" use:cascade>
+      {#each visible as t, i (t.item_id ?? t.ref + i)}
+        <div
+          class="drag"
+          class:over={dragOver === i && dragFrom !== i}
+          draggable={canReorder}
+          role="listitem"
+          ondragstart={(e) => {
+            dragFrom = i
+            e.dataTransfer?.setData('text/plain', String(i))
+          }}
+          ondragover={(e) => {
+            if (dragFrom === null) return
+            e.preventDefault()
+            dragOver = i
+          }}
+          ondragend={() => (dragFrom = dragOver = null)}
+          ondrop={(e) => (e.preventDefault(), drop(i))}
+        >
+          <TrackRow
+            track={t}
+            addedAt={t.added_at}
+            playlistId={kind === 'own' ? id : undefined}
+            itemId={kind === 'own' ? t.item_id : undefined}
+            onplay={() => play(i)}
+          />
+        </div>
+      {/each}
+    </div>
+  {/if}
+</div>
 
 <style>
   .find {
@@ -296,6 +299,13 @@
   }
   :global(.tool.danger) {
     color: var(--danger) !important;
+  }
+  .tracks {
+    flex: 1;
+    min-height: 0;
+    margin: 8px -14px 0 0;
+    padding: 0 8px 24px 0;
+    overflow-y: auto;
   }
   .list {
     display: flex;
