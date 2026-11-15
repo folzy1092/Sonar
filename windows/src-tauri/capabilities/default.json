@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Права главного окна: своё оформление окна (перетаскивание, свернуть, развернуть, закрыть)",
+  "description": "Права главного окна: своё оформление окна (перетаскивание, свернуть, развернуть, закрыть), автообновление и перезапуск после него",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -9,6 +9,8 @@
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-is-maximized",
-    "core:window:allow-close"
+    "core:window:allow-close",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

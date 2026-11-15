@@ -6,6 +6,8 @@
   import { api } from '../../lib/api'
   import { settings } from '../../lib/settings.svelte'
   import { toast } from '../../lib/toast.svelte'
+  import { updater } from '../../lib/updater.svelte'
+  import { settingsPanel } from '../settings-section.svelte'
 
   const CHANNEL = 'https://t.me/SonarUpdates'
   let confirm = $state(false)
@@ -26,9 +28,16 @@
   <img src={logo} alt="" />
   <div>
     <b>Sonar</b>
-    <small>Версия 0.1.0 · автономный режим</small>
+    <small>Версия {updater.current} · автономный режим</small>
   </div>
 </div>
+
+<Group title="Обновления">
+  <button class="btn" onclick={() => settingsPanel.show('system', 'update')}>
+    <Icon name="download" size={16} />
+    {updater.phase === 'available' || updater.phase === 'ready' ? `Доступна версия ${updater.version}` : 'Проверить обновления'}
+  </button>
+</Group>
 
 <Group title="Новости">
   <button class="btn" onclick={() => api.openUrl(CHANNEL).catch(() => toast.show(CHANNEL))}>

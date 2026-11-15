@@ -15,6 +15,8 @@
   import AlbumPage from './pages/AlbumPage.svelte'
   import TrackMenu from './app/TrackMenu.svelte'
   import Toast from './app/Toast.svelte'
+  import UpdatePopup from './app/UpdatePopup.svelte'
+  import { updater } from './lib/updater.svelte'
   import { library } from './lib/library.svelte'
   import { onMount } from 'svelte'
   import { player } from './player/player.svelte'
@@ -46,6 +48,7 @@
     theme.init()
     lyrics.init()
     void library.load()
+    updater.init()
   })
 
   /** Боковые кнопки мыши: «назад» (button 3) и «вперёд» (button 4). В полноэкранном
@@ -124,6 +127,7 @@
 <svelte:document onvisibilitychange={() => (hidden = document.hidden)} />
 
 <TrackMenu />
+<UpdatePopup />
 <Toast />
 
 <style>

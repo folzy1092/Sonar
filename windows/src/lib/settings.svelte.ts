@@ -42,6 +42,9 @@ export const DEFAULTS = {
   'system.autostart': true,
   'system.tray': true,
   'system.power_saving': 'background' as 'off' | 'minimized' | 'background',
+  'update.auto_check': true,
+  'update.auto_download': true,
+  'update.channel': 'stable' as 'stable' | 'beta',
 }
 export type SettingKey = keyof typeof DEFAULTS
 type Value<K extends SettingKey> = (typeof DEFAULTS)[K]

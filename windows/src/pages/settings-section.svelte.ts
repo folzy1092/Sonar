@@ -46,6 +46,7 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
   system: [
     { id: 'general', title: 'Общее', icon: 'adjustments' },
     { id: 'storage', title: 'Хранилище', icon: 'database' },
+    { id: 'update', title: 'Автообновление', icon: 'download' },
     { id: 'about', title: 'О приложении', icon: 'info' },
   ],
 }

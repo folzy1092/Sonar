@@ -24,6 +24,9 @@ pub fn run() {
     .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)))
     // автозапуск с Windows; `--autostart` — стартовать сразу в трее, без окна
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--autostart"])))
+    // автообновление из GitHub Releases (ROADMAP W6): проверка и установка — из интерфейса
+    .plugin(tauri_plugin_updater::Builder::new().build())
+    .plugin(tauri_plugin_process::init())
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(

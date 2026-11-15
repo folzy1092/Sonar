@@ -11,6 +11,7 @@
   import Integrations from './settings/Integrations.svelte'
   import General from './settings/General.svelte'
   import Storage from './settings/Storage.svelte'
+  import Update from './settings/Update.svelte'
   import About from './settings/About.svelte'
   import TabsView from './settings/TabsView.svelte'
   import Queue from './settings/Queue.svelte'
@@ -97,6 +98,8 @@
           <General />
         {:else if sub === 'storage'}
           <Storage />
+        {:else if sub === 'update'}
+          <Update />
         {:else if sub === 'about'}
           <About />
         {/if}
