@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sonar — макет бота @SonarMusicApp</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<aside class="side">
+  <div class="side-head">
+    <img src="logo.svg" class="side-logo" alt="">
+    <div>
+      <div class="side-title">Макет бота</div>
+      <div class="side-sub">@SonarMusicApp · docs/BOT.md</div>
+    </div>
+  </div>
+
+  <div class="side-group">
+    <div class="side-label">Экраны</div>
+    <div class="side-list" id="jump"></div>
+  </div>
+
+  <div class="side-group">
+    <div class="side-label">Кто пишет боту</div>
+    <div class="seg" id="who">
+      <button data-v="guest">Гость</button>
+      <button data-v="user" class="on">Folzy</button>
+      <button data-v="owner">Владелец</button>
+    </div>
+  </div>
+
+  <div class="side-group">
+    <div class="side-label">/status — состояние</div>
+    <div class="seg" id="health">
+      <button data-v="ok" class="on">Всё ок</button>
+      <button data-v="partial">Перебои</button>
+      <button data-v="down">Сбой</button>
+    </div>
+  </div>
+
+  <div class="side-group" id="support-tools" hidden>
+    <div class="side-label">Сторона поддержки</div>
+    <div class="side-list">
+      <button class="side-btn" data-sup="reply">💬 Ответить в теме</button>
+      <button class="side-btn" data-sup="accept">Принять</button>
+      <button class="side-btn" data-sup="reject">Отклонить</button>
+      <button class="side-btn" data-sup="close">Закрыть обращение</button>
+      <button class="side-btn" data-sup="fixed">Исправлено в 0.2.0</button>
+    </div>
+  </div>
+
+  <p class="side-note">Кнопки под сообщениями кликаются. Навигация правит то же сообщение,
+    шаги ввода — короткими сообщениями. Пиши в поле внизу: логин, пароль, текст репорта,
+    <code>/start</code>, <code>/status</code>. Пароль <code>0000</code> — «неверный».
+    Значки — первые кадры анимированных премиум-эмодзи.</p>
+</aside>
+
+<main class="chat">
+  <header class="chat-head">
+    <div class="avatar"><img src="logo.svg" alt=""></div>
+    <div>
+      <div class="chat-name">Sonar</div>
+      <div class="chat-sub">бот</div>
+    </div>
+    <button class="head-btn" id="clear" title="Очистить чат">Очистить</button>
+  </header>
+
+  <div class="feed" id="feed"></div>
+
+  <form class="composer" id="composer" autocomplete="off">
+    <button type="button" class="menu-btn" id="cmd-btn">Меню</button>
+    <div class="cmd-pop" id="cmd-pop" hidden>
+      <button type="button" data-cmd="/start"><b>/start</b><span>Главное меню</span></button>
+      <button type="button" data-cmd="/status"><b>/status</b><span>Состояние Sonar</span></button>
+    </div>
+    <button type="button" class="clip" id="clip" title="Прикрепить скриншот">
+      <img src="emoji/attached.png" alt="">
+    </button>
+    <input id="input" placeholder="Сообщение">
+    <button class="send" title="Отправить">
+      <svg viewBox="0 0 24 24"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
+    </button>
+  </form>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+
+<div class="auth" id="auth" hidden>
+  <div class="auth-card">
+    <div class="auth-title"><img src="emoji/warning.png" alt="">Авторизация в аккаунт</div>
+    <p>Разрешить доступ к аккаунту <b>@folzy</b> для:<br><b>Telegram @cocainemodel</b> (бот Sonar)</p>
+    <p class="auth-time">Запрос создан только что · ещё <span id="auth-left">4:59</span></p>
+    <p class="auth-warn">Если тебе прислали эту ссылку и просят нажать — не разрешай.
+      Так получают доступ к чужим аккаунтам.</p>
+    <div class="auth-btns">
+      <button class="auth-no" id="auth-no">Отклонить</button>
+      <button class="auth-yes" id="auth-yes" disabled><span class="fill"></span><span class="lbl">Разрешить · 3</span></button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

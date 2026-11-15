@@ -191,7 +191,6 @@
     grid-template-columns: var(--rail-w) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
     height: 100vh;
-    transition: grid-template-rows var(--normal) var(--ease);
     padding: 0 var(--gap) var(--gap) 0;
     gap: var(--gap);
   }
