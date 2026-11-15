@@ -162,7 +162,8 @@ fn buckets(period: &str, rows: &[Row], now: i64, tz: i64) -> Vec<Bucket> {
         .collect();
       if period == "all" {
         // всё время: без пустых месяцев в начале
-        let first = out.iter().position(|b| b.value_ms > 0).unwrap_or(out.len().saturating_sub(1));
+        // всё время: без пустых месяцев в начале, но не меньше полугода — график читается
+        let first = out.iter().position(|b| b.value_ms > 0).unwrap_or(out.len()).min(out.len().saturating_sub(6));
         out.drain(..first);
       }
       out

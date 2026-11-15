@@ -180,6 +180,26 @@ CREATE TABLE lyrics_cache (                     -- только на клиен�
   used_at       INTEGER                         -- последнее прослушивание; хранится 7 дней, у Любимых 14
 );
 
+CREATE TABLE dislikes (                         -- 👎 своей волны (SPEC §3.7): трек больше не ставится
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ref           TEXT NOT NULL,
+  artist        TEXT NOT NULL,
+  added_at      INTEGER NOT NULL,
+  deleted       INTEGER NOT NULL DEFAULT 0,     -- снятый 👎 — tombstone для синка
+  rev           INTEGER NOT NULL,
+  PRIMARY KEY (user_id, ref)
+);
+
+CREATE TABLE skips (                            -- пропуск в первые 30 с в волне — минус артисту
+  id            INTEGER PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ref           TEXT NOT NULL,
+  artist        TEXT NOT NULL,
+  played_ms     INTEGER NOT NULL,
+  at            INTEGER NOT NULL
+);
+CREATE INDEX skips_user_time ON skips(user_id, at);
+
 CREATE TABLE notifications (
   id            TEXT PRIMARY KEY,
   user_id       TEXT REFERENCES users(id) ON DELETE CASCADE,   -- NULL = всем (рассылка)

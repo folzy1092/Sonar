@@ -237,7 +237,7 @@
   .chip.on {
     background: var(--text);
     border-color: var(--text);
-    color: var(--accent-ink);
+    color: var(--on-text);
   }
   .chip .del {
     display: grid;
@@ -270,7 +270,7 @@
     padding: 0 12px;
     border-radius: 10px;
     background: var(--text);
-    color: var(--accent-ink);
+    color: var(--on-text);
     font-size: 12px;
     font-weight: 600;
   }
@@ -311,7 +311,7 @@
     margin-top: 12px;
     border-radius: 10px;
     background: var(--text);
-    color: var(--accent-ink);
+    color: var(--on-text);
     font-size: 13px;
     font-weight: 600;
   }

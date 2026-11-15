@@ -27,9 +27,23 @@
 </script>
 
 <aside class="panel" class:open={settingsPanel.open} inert={!settingsPanel.open} aria-label="Настройки">
-  <nav class="tabs" data-tauri-drag-region use:indicator={{ key: settingsPanel.tab }}>
+  <nav
+    class="tabs"
+    data-tauri-drag-region
+    use:indicator={{ key: settingsPanel.tab }}
+    onwheel={(e) => {
+      // колесо над вкладками листает их вбок — «Система» не прячется за краем
+      if (e.deltaY) e.currentTarget.scrollBy({ left: e.deltaY, behavior: 'smooth' })
+    }}
+  >
     {#each TABS as t (t.id)}
-      <button class:on={settingsPanel.tab === t.id} onclick={() => settingsPanel.show(t.id)}>{t.title}</button>
+      <button
+        class:on={settingsPanel.tab === t.id}
+        onclick={(e) => {
+          settingsPanel.show(t.id)
+          e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
+        }}>{t.title}</button
+      >
     {/each}
   </nav>
 
@@ -90,7 +104,7 @@
   }
   .tabs {
     display: flex;
-    gap: 22px;
+    gap: 18px;
     padding: 14px 16px 0;
     overflow-x: auto;
     scrollbar-width: none;
@@ -137,7 +151,7 @@
     color: var(--text);
   }
   .sub.on {
-    color: var(--accent-ink);
+    color: var(--on-text);
     font-weight: 600;
   }
   .subs :global(.tab-ind.pill) {

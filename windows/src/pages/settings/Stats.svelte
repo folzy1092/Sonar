@@ -35,6 +35,13 @@
   })
 
   const hours = (ms: number) => Math.floor(ms / 3_600_000)
+  /** «57 часов» или, если меньше часа, «12 минут». */
+  function timeText(ms: number) {
+    const h = hours(ms)
+    if (h) return `${h} ${plural(h, ['час', 'часа', 'часов'])}`
+    const m = Math.round(ms / 60_000)
+    return `${m} ${plural(m, ['минута', 'минуты', 'минут'])}`
+  }
   const max = $derived(Math.max(1, ...(stats?.buckets.map((b) => b.value_ms) ?? [1])))
   const artists = $derived(stats ? [stats.top_artist, ...stats.more_artists].filter((a) => !!a) : [])
 
@@ -74,7 +81,11 @@
     <div class="main">
       <div><b><CountUp value={stats.plays} /></b><span>{plural(stats.plays, ['Прослушивание', 'Прослушивания', 'Прослушиваний'])}</span></div>
       <div><b><CountUp value={stats.tracks} /></b><span>{plural(stats.tracks, ['Трек', 'Трека', 'Треков'])}</span></div>
-      <div><b><CountUp value={hours(stats.total_ms)} /></b><span>{plural(hours(stats.total_ms), ['час', 'часа', 'часов'])}</span></div>
+      {#if stats.total_ms >= 3_600_000}
+        <div><b><CountUp value={hours(stats.total_ms)} /></b><span>{plural(hours(stats.total_ms), ['час', 'часа', 'часов'])}</span></div>
+      {:else}
+        <div><b><CountUp value={Math.round(stats.total_ms / 60_000)} /></b><span>{plural(Math.round(stats.total_ms / 60_000), ['минута', 'минуты', 'минут'])}</span></div>
+      {/if}
     </div>
     <div class="minor">
       <div><b><CountUp value={stats.streak_days} /></b><span>{plural(stats.streak_days, ['день', 'дня', 'дней'])} подряд</span></div>
@@ -107,7 +118,7 @@
             {#if a.avatar_url}<img class="fade-img" src={a.avatar_url} alt="" onload={(e) => e.currentTarget.classList.add('loaded')} />{:else}<Icon name="user" size={34} />{/if}
           </span>
           <b>{a.name}</b>
-          <small>{hours(a.ms)} {plural(hours(a.ms), ['час', 'часа', 'часов'])}</small>
+          <small>{timeText(a.ms)}</small>
           <small>{a.plays} {plural(a.plays, ['раз', 'раза', 'раз'])}</small>
         </button>
       {/each}
@@ -143,7 +154,7 @@
     transition: color var(--fast) var(--ease);
   }
   .periods button.on {
-    color: var(--accent-ink);
+    color: var(--on-text);
     font-weight: 600;
   }
   .card {
@@ -211,12 +222,14 @@
   .chart {
     display: flex;
     align-items: flex-end;
+    justify-content: center;
     gap: 3px;
     height: 70px;
     margin-top: 18px;
   }
   .bar {
     flex: 1;
+    max-width: 22px;
     height: max(3px, var(--h));
     border-radius: 3px;
     background: var(--text);

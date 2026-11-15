@@ -20,7 +20,7 @@
   import { player } from './player/player.svelte'
   import FullPlayer from './player/FullPlayer.svelte'
   import { lyrics } from './lyrics/lyrics.svelte'
-  import { wave } from './player/wave.svelte'
+  import { wave } from './player/my-wave.svelte'
   import { theme } from './theme/theme.svelte'
   import { settings } from './lib/settings.svelte'
 

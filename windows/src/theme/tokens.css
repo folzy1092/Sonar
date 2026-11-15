@@ -43,6 +43,8 @@
 
   --accent: #f5f5f6;
   --accent-ink: #0a0a0b;
+  /* текст на светлой капсуле (фон --text) — всегда тёмный, независимо от темы */
+  --on-text: #0a0a0b;
   --accent-soft: rgba(245, 245, 246, 0.1);
   --tint: #0b0b0d;
   --online: #22c55e;

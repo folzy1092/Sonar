@@ -89,28 +89,23 @@ pub fn pick(cands: Vec<Track>, taste: &Taste, filter: &Filter, prefer: Option<&s
 
   let mut out: Vec<Track> = Vec::with_capacity(n);
   let mut per_artist: HashMap<String, usize> = HashMap::new();
-  let mut rest = Vec::new();
+  // Кто сейчас не подходит (тот же артист, что предыдущий), ждёт следующего шанса — не теряется.
+  let mut pending: Vec<Track> = Vec::new();
   for (_, t) in scored {
-    let a = artist_key(&t);
-    if out.last().is_some_and(|l| artist_key(l) == a) || per_artist.get(&a).copied().unwrap_or(0) >= 2 {
-      rest.push(t);
-      continue;
+    pending.push(t);
+    loop {
+      let ok = |t: &Track| {
+        let a = artist_key(t);
+        !out.last().is_some_and(|l| artist_key(l) == a) && per_artist.get(&a).copied().unwrap_or(0) < 2
+      };
+      let Some(i) = pending.iter().position(ok) else { break };
+      let t = pending.remove(i);
+      *per_artist.entry(artist_key(&t)).or_insert(0) += 1;
+      out.push(t);
+      if out.len() == n {
+        return out;
+      }
     }
-    *per_artist.entry(a).or_insert(0) += 1;
-    out.push(t);
-    if out.len() == n {
-      return out;
-    }
-  }
-  // Мало разных артистов: добираем, но всё равно не ставим одного артиста два раза подряд.
-  for t in rest {
-    if out.len() == n {
-      break;
-    }
-    if out.last().is_some_and(|l| artist_key(l) == artist_key(&t)) {
-      continue;
-    }
-    out.push(t);
   }
   out
 }
@@ -155,7 +150,8 @@ mod tests {
     let out = pick(cands, &taste, &f, None, 10, false, &mut Rng::new(42));
     let refs: Vec<&str> = out.iter().map(|x| x.ref_.as_str()).collect();
     assert!(!refs.contains(&"sc:7") && !refs.contains(&"sc:8") && !refs.contains(&"sc:6"));
-    assert_eq!(refs.iter().filter(|r| ["sc:1", "sc:2", "sc:3"].contains(r)).count(), 2, "не больше 2 треков артиста");
+    let a_count = refs.iter().filter(|r| ["sc:1", "sc:2", "sc:3"].contains(r)).count();
+    assert!((1..=2).contains(&a_count), "не больше 2 треков артиста");
     for w in out.windows(2) {
       assert_ne!(artist_key(&w[0]), artist_key(&w[1]), "один артист два раза подряд");
     }

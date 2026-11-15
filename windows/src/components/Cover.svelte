@@ -12,13 +12,11 @@
 
   let { url, size, radius = 'var(--radius-s)', source = null }: Props = $props()
   let failed = $state(false)
-  let loaded = $state(false)
   const src = $derived(source?.startsWith('sc:') ? 'sc' : source?.startsWith('ym:') ? 'ym' : null)
 
   $effect(() => {
     url
     failed = false
-    loaded = false
   })
 </script>
 
@@ -31,8 +29,7 @@
         alt=""
         loading="lazy"
         draggable="false"
-        class:loaded
-        onload={() => (loaded = true)}
+        onload={(e) => e.currentTarget.classList.add('loaded')}
         onerror={() => (failed = true)}
         out:xfade={{ duration: 380 }}
       />
@@ -70,7 +67,7 @@
     opacity: 0;
     transition: opacity 0.32s var(--ease);
   }
-  img.loaded {
+  img:global(.loaded) {
     opacity: 1;
   }
   .src {

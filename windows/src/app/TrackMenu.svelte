@@ -10,7 +10,7 @@
   import { player } from '../player/player.svelte'
   import { openRef } from './router.svelte'
   import { pop } from '../lib/motion'
-  import { wave } from '../player/wave.svelte'
+  import { wave } from '../player/my-wave.svelte'
 
   const W = 280
   let el: HTMLElement | undefined = $state()

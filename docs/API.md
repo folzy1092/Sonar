@@ -148,12 +148,17 @@
  "is_playing": true, "position_ms": 41000, "queue": ["sc:1", "ym:2"], "queue_index": 0,
  "shuffle": false, "repeat": "off", "client_ts": 1794340534779}
 
-// Stats
+// Stats (Windows-клиент считает так же из локальной plays — store/stats.rs)
 {"period": "week", "total_ms": 140520000, "delta_pct": 20,
  "buckets": [{"label": "пт", "value_ms": 21000000}],
- "top_artist": {"name": "ONDA ANDAR", "avatar_url": "...", "ms": 184320000},
+ "top_artist": {"name": "ONDA ANDAR", "avatar_url": "...", "ref": "sca:1", "ms": 184320000, "plays": 1753},
  "top_context": {"title": "park music", "owner": "type_0", "tracks": 71},
- "more_artists": [{"name": "cowboyclicker", "ms": 71520000}]}
+ "more_artists": [{"name": "cowboyclicker", "avatar_url": null, "ref": null, "ms": 71520000, "plays": 863}],
+ "top_tracks": [{"ref": "sc:1", "title": "zombie", "artist": "cowboyclicker", "cover_url": "...", "plays": 52, "ms": 9360000}],
+ "plays": 6701, "tracks": 450, "artists": 10, "streak_days": 36, "peak_hour": 14, "per_day": 192,
+ "fav_weekday": 5}
+// buckets: day — 24 часа, week — 7 дней, month — 30 дней, half_year/year — месяцы, all — до 24 месяцев.
+// peak_hour и fav_weekday (0 = пн) — в часовом поясе клиента.
 ```
 
 ## 6. Синхронизация и настройки

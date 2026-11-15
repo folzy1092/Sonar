@@ -6,7 +6,7 @@
   import PlayPause from '../components/PlayPause.svelte'
   import { pulse } from '../lib/pulse'
   import { replay } from '../lib/replay'
-  import { wave } from '../player/wave.svelte'
+  import { wave } from '../player/my-wave.svelte'
   import { settings } from '../lib/settings.svelte'
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'

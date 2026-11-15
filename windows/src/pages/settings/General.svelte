@@ -6,7 +6,7 @@
   import Group from '../../components/settings/Group.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { api } from '../../lib/api'
-  import { wave } from '../../player/wave.svelte'
+  import { wave } from '../../player/my-wave.svelte'
   import { onMount } from 'svelte'
 
   // автозапуск — реальное состояние из реестра Windows, а не только настройка

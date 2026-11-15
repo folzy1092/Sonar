@@ -11,8 +11,8 @@
   import { cascade } from '../lib/cascade'
   import { openRef } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
-  import { wave } from '../player/wave.svelte'
-  import { home } from './home.svelte'
+  import { wave } from '../player/my-wave.svelte'
+  import { home } from './home-data.svelte'
 
   function greeting(hour: number) {
     if (hour < 5) return 'Доброй ночи'

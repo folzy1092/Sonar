@@ -12,7 +12,8 @@
   let confirmPrefs = $state(false)
 
   const mb = (b: number) => b / 1_048_576
-  const mbText = (b: number) => `${mb(b) < 10 ? mb(b).toFixed(1) : Math.round(mb(b))} МБ`
+  const mbText = (b: number) =>
+    b < 1_048_576 ? `${Math.max(1, Math.round(b / 1024))} КБ` : `${mb(b) < 10 ? mb(b).toFixed(1) : Math.round(mb(b))} МБ`
   const total = $derived(usage ? usage.covers_bytes + usage.lyrics_bytes + usage.db_bytes : 0)
   const part = (b: number) => (total ? Math.max(2, (b / total) * 100) : 0)
 
