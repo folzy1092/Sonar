@@ -42,6 +42,18 @@ pub async fn connect_yandex(core: State<'_, Arc<Core>>, token: String) -> Res<Se
   core.connect_yandex(yandex::Creds { token: token.trim().to_owned() }).await.map_err(err)
 }
 
+/// Подключить сервис в один клик: окно входа самого сервиса, ключи Sonar забирает сам (login.rs).
+#[tauri::command]
+pub async fn login_service(app: tauri::AppHandle, core: State<'_, Arc<Core>>, service: String) -> Res<ServiceStatus> {
+  let core = core.inner().clone();
+  match service.as_str() {
+    "yandex" => crate::login::yandex(app, core).await,
+    "soundcloud" => crate::login::soundcloud(app, core).await,
+    _ => Err(anyhow::anyhow!("Неизвестный сервис: {service}")),
+  }
+  .map_err(err)
+}
+
 #[tauri::command]
 pub async fn disconnect_service(core: State<'_, Arc<Core>>, service: String) -> Res<()> {
   core.disconnect(&service).await.map_err(err)

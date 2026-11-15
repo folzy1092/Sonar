@@ -24,6 +24,8 @@ export interface Track {
   url: string | null
   explicit: boolean
   available: boolean
+  /** Прослушивания на сервисе (SoundCloud), у Яндекса нет. */
+  plays?: number
 }
 
 export interface Album {
@@ -184,6 +186,8 @@ export const api = {
   connectSoundcloud: (clientId: string, oauthToken: string | null) =>
     call<ServiceStatus>('connect_soundcloud', { clientId, oauthToken }),
   connectYandex: (token: string) => call<ServiceStatus>('connect_yandex', { token }),
+  /** Вход в один клик: окно входа сервиса, ключи Sonar забирает сам. */
+  loginService: (service: 'soundcloud' | 'yandex') => call<ServiceStatus>('login_service', { service }),
   disconnectService: (service: 'soundcloud' | 'yandex') => call<void>('disconnect_service', { service }),
 
   search: (q: string, src: Source, limit = 30) => call<Track[]>('search', { q, src, limit }),

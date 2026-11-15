@@ -165,6 +165,9 @@
   }
   .mini.bg-cover {
     background: #000;
+    /* второстепенный текст и значки поверх обложки — светлее, чтобы читались на любой картинке */
+    --text-2: rgba(255, 255, 255, 0.88);
+    --text-3: rgba(255, 255, 255, 0.74);
   }
   .cover-bg {
     position: absolute;
@@ -173,7 +176,7 @@
     height: 100%;
     object-fit: cover;
     object-position: center 40%;
-    filter: brightness(0.62);
+    filter: brightness(0.82);
     pointer-events: none;
     animation: xfade-in 0.6s var(--ease);
   }
@@ -181,7 +184,23 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: linear-gradient(90deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.25) 35%, rgba(0, 0, 0, 0.25) 65%, rgba(0, 0, 0, 0.5) 100%);
+    background:
+      linear-gradient(90deg, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.42) 20%, rgba(0, 0, 0, 0.12) 42%, rgba(0, 0, 0, 0.12) 62%, rgba(0, 0, 0, 0.4) 100%);
+  }
+  /* на светлой обложке название, артист и кнопки должны читаться: белый текст с мягкой тенью */
+  .mini.bg-cover .title {
+    color: #fff;
+  }
+  .mini.bg-cover .artist {
+    color: rgba(255, 255, 255, 0.8);
+  }
+  .mini.bg-cover .meta {
+    text-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.6),
+      0 0 14px rgba(0, 0, 0, 0.45);
+  }
+  .mini.bg-cover :global(button svg) {
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.55));
   }
   @keyframes xfade-in {
     from {

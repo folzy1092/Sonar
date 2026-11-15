@@ -335,6 +335,7 @@ mod tests {
       url: None,
       explicit: false,
       available: true,
+      plays: None,
     };
     s.upsert_tracks(&[t("sc:1", "A"), t("sc:2", "B")]).unwrap();
     for (i, (r, a)) in [("sc:1", "A"), ("sc:1", "A"), ("sc:2", "B")].iter().enumerate() {

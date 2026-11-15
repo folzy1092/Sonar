@@ -21,6 +21,9 @@ pub struct Track {
   pub url: Option<String>,
   pub explicit: bool,
   pub available: bool,
+  /// Сколько раз трек слушали на сервисе (SoundCloud `playback_count`; Яндекс не отдаёт).
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub plays: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

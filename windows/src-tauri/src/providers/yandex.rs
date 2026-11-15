@@ -377,6 +377,7 @@ pub fn track_from_json(j: &Value) -> Option<Track> {
     cover_url: j["coverUri"].as_str().or(album["coverUri"].as_str()).map(cover),
     explicit: j["contentWarning"].as_str() == Some("explicit"),
     available: j["available"].as_bool().unwrap_or(true),
+    plays: None,
   })
 }
 

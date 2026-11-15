@@ -258,6 +258,7 @@ impl Store {
           url,
           explicit: false,
           available: true,
+          plays: None,
         });
       }
     }
@@ -707,6 +708,7 @@ mod tests {
       url: None,
       explicit: false,
       available: true,
+      plays: None,
     }
   }
 

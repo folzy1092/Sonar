@@ -126,6 +126,7 @@ mod tests {
       url: None,
       explicit: false,
       available: true,
+      plays: None,
     }
   }
 

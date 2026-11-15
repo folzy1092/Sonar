@@ -1,6 +1,6 @@
 <script lang="ts">
   // Строка трека (pc/Screenshot_28): обложка со значком источника, название, исполнители
-  // (ссылки на их страницы), ❤, длительность, ⋮. Правый клик — то же меню трека.
+  // (ссылки на их страницы), прослушивания, ❤, длительность, ⋮. Правый клик — то же меню трека.
   import Cover from './Cover.svelte'
   import Icon from './Icon.svelte'
   import { pulse } from '../lib/pulse'
@@ -11,6 +11,7 @@
   import { openRef } from '../app/router.svelte'
   import { formatTime, player } from '../player/player.svelte'
   import { settings } from '../lib/settings.svelte'
+  import { compact } from '../lib/format'
 
   interface Props {
     track: Track
@@ -98,6 +99,12 @@
     <span class="album">{track.album?.title ?? ''}</span>
   {/if}
   <span class="end">
+    {#if track.plays && variant !== 'queue'}
+      <!-- число прослушиваний на сервисе (SoundCloud отдаёт, Яндекс — нет) -->
+      <span class="plays" title="{track.plays.toLocaleString('ru-RU')} прослушиваний">
+        <Icon name="play" size={11} filled stroke={0} />{compact(track.plays)}
+      </span>
+    {/if}
     {#if variant !== 'album'}
     <button
       class="like"
@@ -291,6 +298,16 @@
     color: var(--text-2);
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+  .plays {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 54px;
+    justify-content: flex-end;
+    font-size: 12px;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
   }
   .dur {
     min-width: 36px;

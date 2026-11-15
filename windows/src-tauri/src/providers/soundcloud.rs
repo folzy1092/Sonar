@@ -279,6 +279,7 @@ pub fn track_from_json(j: &Value) -> Option<Track> {
     url: j["permalink_url"].as_str().map(str::to_owned),
     explicit: j["publisher_metadata"]["explicit"].as_bool().unwrap_or(false),
     available: j["policy"].as_str() != Some("BLOCK"),
+    plays: j["playback_count"].as_u64(),
   })
 }
 

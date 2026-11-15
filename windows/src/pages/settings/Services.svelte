@@ -1,6 +1,8 @@
 <script lang="ts">
-  // Сервисы: SoundCloud (client_id + OAuth) и Яндекс Музыка (токен). Хранятся в Диспетчере
-  // учётных данных Windows (Rust, keyring), в интерфейс обратно не отдаются.
+  // Сервисы: вход в один клик (окно входа самого сервиса, ключи Sonar забирает сам — login.rs) или
+  // вручную: SoundCloud (client_id + OAuth), Яндекс Музыка (токен). Хранятся в Диспетчере учётных
+  // данных Windows (Rust, keyring), в интерфейс обратно не отдаются.
+  import { slide } from 'svelte/transition'
   import { onMount } from 'svelte'
   import Icon from '../../components/Icon.svelte'
   import { api, errorText, type ServicesStatus } from '../../lib/api'
@@ -14,6 +16,25 @@
   let busy = $state<'sc' | 'ym' | null>(null)
   let scError = $state<string | null>(null)
   let ymError = $state<string | null>(null)
+  /** Ручной ввод ключей раскрыт. */
+  let manual = $state<{ sc: boolean; ym: boolean }>({ sc: false, ym: false })
+  let waiting = $state<'sc' | 'ym' | null>(null)
+
+  async function login(svc: 'soundcloud' | 'yandex') {
+    const key = svc === 'soundcloud' ? 'sc' : 'ym'
+    waiting = key
+    if (key === 'sc') scError = null
+    else ymError = null
+    try {
+      const s = await api.loginService(svc)
+      status = { ...status!, [svc]: s }
+    } catch (e) {
+      if (key === 'sc') scError = errorText(e)
+      else ymError = errorText(e)
+    } finally {
+      waiting = null
+    }
+  }
 
   onMount(async () => {
     try {
@@ -81,6 +102,15 @@
     {/if}
   </header>
 
+  <div class="one">
+    <button class="primary big" disabled={waiting !== null} onclick={() => login('soundcloud')}>
+      {waiting === 'sc' ? 'Войди в открывшемся окне…' : status?.soundcloud.name ? 'Войти заново' : 'Войти через SoundCloud'}
+    </button>
+    <button class="toggle" class:on={manual.sc} onclick={() => (manual.sc = !manual.sc)}>Вручную</button>
+  </div>
+  {#if scError && !manual.sc}<p class="error">{scError}</p>{/if}
+  {#if manual.sc}
+  <div transition:slide={{ duration: 260 }}>
   <form onsubmit={connectSc}>
     <label>
       <span>client_id</span>
@@ -100,6 +130,8 @@
       {busy === 'sc' ? 'Проверяю…' : status?.soundcloud.connected ? 'Заменить ключи' : 'Подключить'}
     </button>
   </form>
+  </div>
+  {/if}
 </section>
 
 <section class="svc">
@@ -120,22 +152,59 @@
     {/if}
   </header>
 
+  <div class="one">
+    <button class="primary big" disabled={waiting !== null} onclick={() => login('yandex')}>
+      {waiting === 'ym' ? 'Войди в открывшемся окне…' : status?.yandex.connected ? 'Войти заново' : 'Войти через Яндекс'}
+    </button>
+    <button class="toggle" class:on={manual.ym} onclick={() => (manual.ym = !manual.ym)}>Вручную</button>
+  </div>
+  {#if ymError && !manual.ym}<p class="error">{ymError}</p>{/if}
+  {#if manual.ym}
+  <div transition:slide={{ duration: 260 }}>
   <form onsubmit={connectYm}>
     <label>
       <span>Токен</span>
       <input bind:value={ymToken} type="password" placeholder="y0_…" autocomplete="off" spellcheck="false" required />
     </label>
-    <p class="hint">Токен вида <code>y0_…</code> (подходит и старый <code>AQAAAA…</code>). Вход «в один клик» — позже.</p>
+    <p class="hint">Токен вида <code>y0_…</code> (подходит и старый <code>AQAAAA…</code>). </p>
     {#if ymError}<p class="error">{ymError}</p>{/if}
     <button class="primary" disabled={busy !== null || !ymToken.trim()}>
       {busy === 'ym' ? 'Проверяю…' : status?.yandex.connected ? 'Заменить токен' : 'Подключить'}
     </button>
   </form>
+  </div>
+  {/if}
 </section>
 
-<p class="safe"><Icon name="key" size={16} /> Ключи хранятся в Диспетчере учётных данных Windows и никуда не отправляются.</p>
+<p class="safe"><Icon name="key" size={16} /> Вход идёт на сайте самого сервиса — Sonar пароль не видит. Ключи хранятся в Диспетчере учётных данных Windows и никуда не отправляются.</p>
 
 <style>
+  .one {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .primary.big {
+    height: 40px;
+    padding: 0 20px;
+  }
+  .toggle {
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-3);
+    transition:
+      color var(--fast) var(--ease),
+      background var(--fast) var(--ease);
+  }
+  .toggle:hover,
+  .toggle.on {
+    color: var(--text);
+    background: var(--hover);
+  }
   .svc {
     max-width: 620px;
     padding: 18px 20px 20px;

@@ -1,5 +1,6 @@
 mod commands;
 mod discord;
+mod login;
 mod lyrics;
 mod media;
 mod providers;
@@ -95,6 +96,7 @@ pub fn run() {
       commands::services_status,
       commands::connect_soundcloud,
       commands::connect_yandex,
+      commands::login_service,
       commands::disconnect_service,
       commands::search,
       commands::stream_url,
