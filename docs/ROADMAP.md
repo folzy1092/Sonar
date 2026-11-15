@@ -139,7 +139,7 @@ MingCute (контур, выбранная — заливка цветом те�
       без прокси; GitHub → Settings → Pages → Custom domain `sonar.folzy.ru`, Enforce HTTPS.
 - [ ] Бот в @BotFather, токен → `SONAR_BOT_TOKEN`; бот — админ лог-группы (для тем «Tests»).
 - [ ] Ключи Last.fm API (last.fm/api/account/create).
-- [ ] Секрет GitHub Actions `TAURI_SIGNING_PRIVATE_KEY` — ключ подписи обновлений Windows (см. W6).
+- [x] Секрет `TAURI_SIGNING_PRIVATE_KEY` — в окружении `default` (workflow берёт его оттуда), 2026-11-15.
 - [ ] Иконка приложения (1024×1024).
 
 ## Этап 1. Сервер: каркас (дни 1–3)

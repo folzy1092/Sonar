@@ -13,8 +13,8 @@
 обложку и готовые темы, разделы настроек и Хранилище, Discord RPC, меню трея, автозапуск) и W6
 (автообновление `tauri-plugin-updater` из релиза `windows-latest`, Система → Автообновление,
 всплывашка «Доступно обновление», CI-релиз `windows-v<версия>`, версия 0.1.0) — 2026-11-15.
-Ключ подписи обновлений — только `C:\Users\Folzy\.tauri\sonar-updater.key` и секрет
-`TAURI_SIGNING_PRIVATE_KEY` (в репо — лишь открытый ключ в `tauri.conf.json`); новая версия —
+Ключ подписи обновлений — только `C:\Users\Folzy\.tauri\sonar-updater.key` и секрет окружения
+`default` `TAURI_SIGNING_PRIVATE_KEY` (в репо — лишь открытый ключ в `tauri.conf.json`); новая версия —
 `version` в `tauri.conf.json` / `Cargo.toml` / `package.json` + запись в `updates/changelog.json`.
 Следующий шаг — сервер (после покупки Velt), см. `docs/ROADMAP.md`.
 Текст песен — формулы Dotify в `lyrics/core/motion.ts`, фон плеера — WebGL `player/art-field.ts`,
