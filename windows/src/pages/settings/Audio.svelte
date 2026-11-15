@@ -69,7 +69,7 @@
     { id: 'low', label: 'Низкое', sub: '192 кбит/с', icon: 'music' },
     { id: 'medium', label: 'Среднее', sub: '256 кбит/с', icon: 'headphones' },
     { id: 'high', label: 'Высокое', sub: '320 кбит/с', icon: 'equalizer' },
-    { id: 'max', label: 'Максимальное', sub: 'от 1411 кбит/с', icon: 'sparkles' },
+    { id: 'max', label: 'Максимальное', sub: 'от 1411 кбит/с', icon: 'disc' },
   ]}
   onchange={setQuality}
 />

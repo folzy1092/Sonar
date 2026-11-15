@@ -73,7 +73,7 @@
   <Group title="Что нового в {updater.version}">
     <ul class="notes" use:cascade={updater.version}>
       {#each updater.notes as n, i (i)}
-        <li><Icon name="sparkles" size={14} /> {n}</li>
+        <li>{n}</li>
       {/each}
     </ul>
   </Group>
@@ -248,17 +248,20 @@
     list-style: none;
   }
   .notes li {
-    display: flex;
-    gap: 10px;
-    align-items: baseline;
-    padding: 5px 0;
+    position: relative;
+    padding: 4px 0 4px 14px;
     font-size: 13px;
     line-height: 1.45;
   }
-  .notes li :global(svg) {
-    flex: none;
-    color: var(--accent);
-    translate: 0 2px;
+  .notes li::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 12px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
   }
   .empty {
     margin: 4px 0;

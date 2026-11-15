@@ -1,18 +1,18 @@
 <script lang="ts">
-  import Icon from '../components/Icon.svelte'
-  import type { IconName } from '../components/icons'
+  import NavIcon from '../components/NavIcon.svelte'
+  import type { NavIconName } from '../components/nav-icons'
   import { router, type Page } from './router.svelte'
   import logo from '../assets/logo-mark.svg'
   import { settingsPanel } from '../pages/settings-section.svelte'
 
-  const middle: { page: Page; icon: IconName; label: string }[] = [
+  const middle: { page: Page; icon: NavIconName; label: string }[] = [
     { page: 'player', icon: 'player', label: 'Плеер' },
     { page: 'search', icon: 'search', label: 'Поиск' },
     { page: 'library', icon: 'library', label: 'Медиатека' },
   ]
 </script>
 
-{#snippet item(page: Page, icon: IconName, label: string)}
+{#snippet item(page: Page, icon: NavIconName, label: string)}
   {@const on = router.page === page || (page === 'library' && ['playlist', 'artist', 'album'].includes(router.page))}
   <button
     class="item"
@@ -25,7 +25,7 @@
       router.go(page)
     }}
   >
-    <Icon name={icon} size={22} />
+    <NavIcon name={icon} active={on} />
   </button>
 {/snippet}
 
@@ -50,10 +50,10 @@
       aria-expanded={settingsPanel.open}
       onclick={() => settingsPanel.toggle()}
     >
-      <Icon name="settings" size={22} />
+      <NavIcon name="settings" active={settingsPanel.open} />
     </button>
     <button class="avatar" aria-label="Профиль" title="Профиль — вход появится вместе с сервером">
-      <Icon name="user" size={18} />
+      <NavIcon name="user" size={20} />
       <span class="online" aria-hidden="true"></span>
     </button>
   </div>
@@ -87,40 +87,16 @@
     place-items: center;
     width: 44px;
     height: 44px;
-    border-radius: var(--radius-m);
-    color: var(--text-3);
+    color: var(--text-2);
     transition:
       color var(--fast) var(--ease),
-      background var(--fast) var(--ease),
       transform var(--fast) var(--ease);
   }
   .item:hover {
     color: var(--text);
-    background: var(--hover);
   }
   .item:active {
-    transform: scale(0.92);
-  }
-  .item.active {
-    color: var(--accent);
-    background: var(--accent-soft);
-  }
-  .item.active::before {
-    content: '';
-    position: absolute;
-    left: -12px;
-    top: 12px;
-    bottom: 12px;
-    width: 3px;
-    border-radius: 0 3px 3px 0;
-    background: var(--accent);
-    animation: rail-mark 0.3s var(--ease);
-  }
-  @keyframes rail-mark {
-    from {
-      transform: scaleY(0);
-      opacity: 0;
-    }
+    transform: scale(0.9);
   }
   .avatar {
     position: relative;

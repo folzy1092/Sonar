@@ -221,7 +221,7 @@
   <EmptyState
     icon={kind === 'favorites' ? 'heart' : 'music'}
     title="Пока пусто"
-    text={kind === 'favorites' ? 'Жми ❤ у трека — он появится здесь.' : 'Добавляй треки через меню ⋮ → «Добавить в плейлист».'}
+    text={kind === 'favorites' ? 'Нажми на сердце у трека — он появится здесь.' : 'Добавляй треки через меню трека: «Добавить в плейлист».'}
   />
 {:else if !visible.length}
   <EmptyState icon="search" title="Ничего не нашлось" text={`В «${title}» нет «${filter.trim()}».`} />

@@ -11,15 +11,15 @@ const app = mount(App, {
   target: document.getElementById('app')!,
 })
 
-// Заставка из index.html: держим хотя бы 900 мс с начала загрузки страницы, чтобы анимация логотипа успела сыграть.
+// Заставка из index.html: знак раскручивается и тает ~1,25 с; фон заставки уходит, пока знак растворяется.
 const splash = document.getElementById('splash')
 if (splash) {
   setTimeout(
     () => {
       splash.classList.add('out')
-      setTimeout(() => splash.remove(), 400)
+      setTimeout(() => splash.remove(), 500)
     },
-    Math.max(0, 900 - performance.now()),
+    Math.max(0, 1000 - performance.now()),
   )
 }
 
