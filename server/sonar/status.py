@@ -39,6 +39,7 @@ class Status:
     def __init__(self, con: sqlite3.Connection, data_dir, settings, bot=None):
         self.con, self.data_dir, self.settings, self.bot = con, data_dir, settings, bot
         self.last: dict[str, Item] = {}
+        self.on_change = None  # async (key, old_state, new_state) — смена ✅/⚠️/❌ (сообщение в лог)
         self.checked_at = 0.0
 
     # ---- проверки ----
@@ -96,7 +97,16 @@ class Status:
         self.con.executemany("INSERT INTO status_checks (ts, item, state, ms) VALUES (?,?,?,?)",
                              [(ts, i.key, i.state, i.ms) for i in items])
         self.con.execute("DELETE FROM status_checks WHERE ts < ?", (ts - 30 * 86400_000,))
-        self.last = {i.key: self._smooth(i) for i in items}
+        new = {i.key: self._smooth(i) for i in items}
+        if self.on_change and self.last:
+            for k, i in new.items():
+                old = self.last.get(k)
+                if old and old.state != i.state:
+                    try:
+                        await self.on_change(k, old.state, i.state)
+                    except Exception:  # noqa: BLE001
+                        pass
+        self.last = new
         self.checked_at = time.monotonic()
         return self.last
 

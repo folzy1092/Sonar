@@ -19,6 +19,7 @@ from aiogram.types import CallbackQuery, Message
 from ..accounts import AccountError, Accounts, User, looks_like_token
 from ..config import Settings
 from ..db import now_ms
+from ..logs import LogGroup
 from ..status import Status
 from . import screens as S
 from .emoji import e
@@ -52,6 +53,7 @@ class Ctx:
     shower: Shower
     status: Status
     support: Support
+    logs: LogGroup
     bot_username: str = "SonarMusicApp"
 
     def is_owner(self, tg_id: int) -> bool:
@@ -170,6 +172,7 @@ async def on_button(q: CallbackQuery, state: FSMContext, ctx: Ctx):
             ctx.accounts.unlink_tg(user)
         except AccountError as err:
             return await say(ctx, msg.chat.id, S.ERRORS[err.code])
+        await ctx.logs.event("🚪", "Выход из бота", q.from_user, [f"Аккаунт: <code>@{user.username}</code>"])
         return await edit(S.guest())
     if head == "stats":
         period = rest if rest in S.PERIODS else "week"
@@ -276,6 +279,7 @@ async def login_password(msg: Message, state: FSMContext, ctx: Ctx):
         return await say(ctx, msg.chat.id, S.ERRORS.get(err.code, S.ERRORS["bad_password"]))
     await state.clear()
     user = ctx.accounts.link_tg(user, msg.from_user.id, msg.from_user.username)
+    await ctx.logs.event("🔑", "Вход в боте", msg.from_user, [f"Аккаунт: <code>@{user.username}</code> · #{user.number}"])
     await ctx.shower.send(msg.chat.id, S.success_linked(user.login))
     await asyncio.sleep(1.5)
     await ctx.shower.send(msg.chat.id, S.main(user, ctx.settings))
@@ -318,6 +322,8 @@ async def reg_again(msg: Message, state: FSMContext, ctx: Ctx):
         return await say(ctx, msg.chat.id, S.ERRORS[err.code])
     await state.clear()
     user = ctx.accounts.link_tg(user, msg.from_user.id, msg.from_user.username)
+    await ctx.logs.event("👋", "Регистрация", msg.from_user, [f"Аккаунт: <code>@{user.username}</code> · #{user.number}",
+                                                            "По приглашению" if data.get("ref") else None])
     await ctx.shower.send(msg.chat.id, S.registered(user.login, ctx.settings))
     await asyncio.sleep(1.5)
     await ctx.shower.send(msg.chat.id, S.main(user, ctx.settings))
@@ -348,6 +354,9 @@ async def report_first(msg: Message, state: FSMContext, ctx: Ctx):
     await state.clear()
     user = ctx.accounts.by_tg(msg.from_user.id)
     tid = await ctx.support.create(user, msg, data.get("kind", "bug"), data.get("platform", "windows"))
+    kind = data.get("kind", "bug")
+    await ctx.logs.event("🐞" if kind == "bug" else "💡", "Новое обращение", msg.from_user,
+                         [f"<code>#{tid}</code> · {S.PLATFORMS.get(data.get('platform', 'windows'))}"])
     await ctx.shower.send(msg.chat.id, S.ticket_opened(tid))
 
 

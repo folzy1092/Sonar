@@ -26,6 +26,7 @@ class Settings:
     download_url: str = "https://github.com/folzy1092/Sonar/releases/latest"
     support_group_id: int | None = None
     log_chat_id: int | None = None
+    data_thread_id: int | None = None   # тема «Data» лог-группы (бэкапы), создана другим ботом
     lastfm_api_key: str = ""
     port: int = 8080
     data_dir: Path = field(default_factory=lambda: SERVER_DIR / "data")
@@ -44,6 +45,7 @@ def load(env_file: Path | None = None) -> Settings:
         public_url=os.getenv("SONAR_PUBLIC_URL", "").strip().rstrip("/"),
         support_group_id=_int("SUPPORT_GROUP_ID"),
         log_chat_id=_int("SONAR_LOG_CHAT_ID"),
+        data_thread_id=_int("SONAR_DATA_THREAD_ID"),
         lastfm_api_key=os.getenv("LASTFM_API_KEY", "").strip(),
         port=_int("PORT") or 8080,
     )
