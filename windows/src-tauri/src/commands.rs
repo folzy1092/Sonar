@@ -444,7 +444,30 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   };
 
   let has_ym = core.has_yandex().await;
-  let seeds: Vec<String> = seeds.into_iter().filter(|r| has_ym || !r.starts_with("ym:")).collect();
+  let mut seeds: Vec<String> = seeds.into_iter().filter(|r| has_ym || !r.starts_with("ym:")).collect();
+  let mut taste = taste;
+  // Новичок: в Sonar ни лайков, ни прослушиваний — волна стартует от лайков (а если их нет —
+  // от плейлистов) в выбранном сервисе. Их артисты считаются любимыми.
+  if seeds.is_empty() {
+    let svc = if has_ym && platform.as_deref() == Some("yandex") { "yandex" } else { "soundcloud" };
+    let pl = if svc == "yandex" { "ympl:likes" } else { "scpl:likes" };
+    let mut pool: Vec<Track> = core.service_playlist(pl).await.map(|p| p.tracks).unwrap_or_default();
+    if pool.is_empty() {
+      if let Ok(lists) = core.service_playlists(svc).await {
+        for l in lists.iter().filter(|l| !l.ref_.ends_with("likes")).take(3) {
+          if let Ok(p) = core.service_playlist(&l.ref_).await {
+            pool.extend(p.tracks);
+          }
+        }
+      }
+    }
+    pool.truncate(300);
+    for t in &pool {
+      taste.liked_artists.insert(crate::wave::artist_key(t));
+    }
+    let refs: Vec<String> = pool.iter().take(60).map(|t| t.ref_.clone()).collect();
+    seeds = rng.sample(&refs, 6);
+  }
   if seeds.is_empty() {
     return Err("Волне пока не от чего оттолкнуться — лайкни или послушай пару треков.".into());
   }

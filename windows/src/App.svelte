@@ -90,7 +90,7 @@
 <SettingsPanel />
 
 <div class="stage">
-<div class="shell" class:away={settingsPanel.open} inert={settingsPanel.open}>
+<div class="shell" class:away={settingsPanel.open} class:solo={settings.get('mini.style') === 'off' || !player.current} inert={settingsPanel.open}>
   <Rail />
 
   <main class="card" class:own-head={ownHeader.includes(router.page)}>
@@ -111,7 +111,8 @@
     </div>
   </main>
 
-  {#if settings.get('mini.style') !== 'off'}
+  <!-- пока ничего не играло — плеера снизу нет, главная на весь экран; появился трек — плеер выезжает -->
+  {#if settings.get('mini.style') !== 'off' && player.current}
     <div class="player-slot" transition:slide={{ duration: 280 }}>
       <MiniPlayer />
     </div>
@@ -190,6 +191,7 @@
     grid-template-columns: var(--rail-w) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
     height: 100vh;
+    transition: grid-template-rows var(--normal) var(--ease);
     padding: 0 var(--gap) var(--gap) 0;
     gap: var(--gap);
   }
@@ -251,5 +253,10 @@
       opacity: 0;
       transform: translateY(6px);
     }
+  }
+  /* без плеера снизу — карточка занимает всю высоту */
+  .shell.solo {
+    grid-template-rows: minmax(0, 1fr) 0;
+    row-gap: 0;
   }
 </style>
