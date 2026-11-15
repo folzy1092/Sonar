@@ -6,6 +6,7 @@ import './app.css'
 import App from './App.svelte'
 import { player } from './player/player.svelte'
 import { router } from './app/router.svelte'
+import { lyrics } from './lyrics/lyrics.svelte'
 
 const app = mount(App, {
   target: document.getElementById('app')!,
@@ -24,6 +25,6 @@ if (splash) {
 }
 
 // dev: доступ из консоли для отладки вёрстки (window.__sonar.player)
-if (import.meta.env.DEV) Object.assign(window, { __sonar: { player, router } })
+if (import.meta.env.DEV) Object.assign(window, { __sonar: { player, router, lyrics } })
 
 export default app

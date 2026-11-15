@@ -17,7 +17,8 @@
 `TAURI_SIGNING_PRIVATE_KEY` (в репо — лишь открытый ключ в `tauri.conf.json`); новая версия —
 `version` в `tauri.conf.json` / `Cargo.toml` / `package.json` + запись в `updates/changelog.json`.
 Следующий шаг — сервер (после покупки Velt), см. `docs/ROADMAP.md`.
-Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`),
+Текст песен — формулы Dotify в `lyrics/core/motion.ts`, фон плеера — WebGL `player/art-field.ts`,
+иконки левой панели — MingCute (`components/nav-icons.ts`, Apache-2.0). Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`),
 новые экраны собирать на них; настройки — `lib/settings.svelte.ts` (ключи и значения по умолчанию).
 Discord RPC: ID приложения Discord пользователь **не вводит** — до сервера он вшит в сборку
 (`discord.rs` `APP_ID`, ждёт ID от владельца), потом приходит с сервера (`GET /config`). Тесты Windows: `npm test` (vitest),
