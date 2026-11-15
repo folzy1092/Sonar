@@ -130,7 +130,6 @@ pub fn set_setting(
     "integrations.discord.enabled" => flag(&discord.enabled),
     "integrations.discord.cover" => flag(&discord.cover),
     "integrations.discord.progress" => flag(&discord.progress),
-    "integrations.discord.app_id" => discord.set_app_id(value.as_str().unwrap_or("").to_owned()),
     "system.tray" => crate::tray::HIDE_ON_CLOSE.store(value.as_bool().unwrap_or(true), Ordering::Relaxed),
     _ => {}
   }

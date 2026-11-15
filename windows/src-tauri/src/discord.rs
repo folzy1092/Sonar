@@ -1,8 +1,9 @@
 //! Discord Rich Presence («Слушает …» в профиле Discord), `integrations.discord.*` (SETTINGS.md).
 //! Работает в своём потоке: Discord может быть не запущен — тогда тихо пробуем подключиться раз
 //! в 15 с. Данные — те же, что для плашки Windows (`media_update`).
-//! Нужен ID приложения Discord (discord.com/developers → New Application «Sonar»):
-//! `integrations.discord.app_id` или константа `APP_ID`.
+//! ID приложения Discord пользователь **не вводит**: сейчас он вшит в сборку (`APP_ID`, это не
+//! секрет — его видит любой RPC-клиент), с появлением сервера приходит оттуда (`GET /config` →
+//! `discord_app_id`, API.md §7) и подменяется через `set_app_id`.
 
 use crate::media::MediaInfo;
 use discord_rich_presence::activity::{Activity, ActivityType, Assets, StatusDisplayType, Timestamps};
@@ -12,7 +13,8 @@ use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
 use std::sync::Mutex;
 use std::time::Duration;
 
-/// ID приложения «Sonar» в Discord. Пусто — пока владелец его не создал (см. ROADMAP).
+/// ID приложения «Sonar» в Discord (discord.com/developers → Applications). Пусто — пока владелец
+/// его не создал (ROADMAP): тогда статус просто не показывается.
 pub const APP_ID: &str = "";
 
 enum Msg {
@@ -29,7 +31,7 @@ pub struct Discord {
 }
 
 impl Discord {
-  pub fn start(app_id: Option<String>) -> std::sync::Arc<Self> {
+  pub fn start() -> std::sync::Arc<Self> {
     let (tx, rx) = channel::<Msg>();
     let me = std::sync::Arc::new(Self {
       tx: Mutex::new(tx),
@@ -38,7 +40,7 @@ impl Discord {
       progress: AtomicBool::new(true),
     });
     let state = me.clone();
-    let mut app_id = app_id.filter(|s| !s.trim().is_empty()).unwrap_or_else(|| APP_ID.to_owned());
+    let mut app_id = APP_ID.to_owned();
     std::thread::Builder::new()
       .name("discord-rpc".into())
       .spawn(move || {
@@ -106,6 +108,8 @@ impl Discord {
     self.send(Msg::Update(info.clone()));
   }
 
+  /// ID с сервера (`GET /config`) — когда сервер появится. Пустой — вернуть вшитый `APP_ID`.
+  #[allow(dead_code)]
   pub fn set_app_id(&self, id: String) {
     self.send(Msg::AppId(id));
   }

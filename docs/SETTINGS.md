@@ -181,6 +181,9 @@
 | `integrations.discord.cover` (PC) | bool | `true` | да |
 | `integrations.discord.progress` (PC) | bool | `true` | да |
 
+ID приложения Discord — **не настройка**: пользователь ничего не вписывает. До сервера он вшит
+в сборку (`windows/src-tauri/src/discord.rs` `APP_ID`), потом приходит с сервера (`GET /config`).
+
 Ключ API (для selfbot и `GET /oauth/now`) — создать / перевыпустить / удалить, показывается
 один раз. OBS-плашка (`pc/15`) — после MVP, тем же ключом.
 

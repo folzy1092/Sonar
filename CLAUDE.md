@@ -14,7 +14,8 @@
 Следующий шаг — W6 (автообновление `tauri-plugin-updater`, версия 0.1.0), см. `docs/ROADMAP.md`.
 Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`),
 новые экраны собирать на них; настройки — `lib/settings.svelte.ts` (ключи и значения по умолчанию).
-Discord RPC ждёт от владельца ID приложения Discord (Настройки → Интеграции). Тесты Windows: `npm test` (vitest),
+Discord RPC: ID приложения Discord пользователь **не вводит** — до сервера он вшит в сборку
+(`discord.rs` `APP_ID`, ждёт ID от владельца), потом приходит с сервера (`GET /config`). Тесты Windows: `npm test` (vitest),
 `cargo test` в `src-tauri`; живые проверки SC — `SC_CLIENT_ID=… cargo test -- --ignored`.
 Запуск без команд — батники в корне: «Собрать и запустить.bat» (`tauri build --no-bundle` + запуск),
 «Запустить.bat». Окно Sonar только одно (single-instance), при запуске и Ctrl+R — заставка с лого.

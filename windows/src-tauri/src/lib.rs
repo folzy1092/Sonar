@@ -69,8 +69,7 @@ pub fn run() {
 
       // Discord RPC
       let flag = |k: &str| db.setting(k).ok().flatten().and_then(|v| v.as_bool()).unwrap_or(true);
-      let app_id = db.setting("integrations.discord.app_id").ok().flatten().and_then(|v| v.as_str().map(str::to_owned));
-      let rpc = discord::Discord::start(app_id);
+      let rpc = discord::Discord::start();
       rpc.enabled.store(flag("integrations.discord.enabled"), std::sync::atomic::Ordering::Relaxed);
       rpc.cover.store(flag("integrations.discord.cover"), std::sync::atomic::Ordering::Relaxed);
       rpc.progress.store(flag("integrations.discord.progress"), std::sync::atomic::Ordering::Relaxed);

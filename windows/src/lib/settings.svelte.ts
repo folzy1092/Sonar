@@ -17,7 +17,6 @@ export const DEFAULTS = {
   'integrations.discord.enabled': true,
   'integrations.discord.cover': true,
   'integrations.discord.progress': true,
-  'integrations.discord.app_id': '' as string,
   'system.autostart': true,
   'system.tray': true,
   'system.power_saving': 'background' as 'off' | 'minimized' | 'background',

@@ -183,6 +183,7 @@
 | DELETE | `/integrations/lastfm` | → `204` |
 | POST | `/integrations/api-key` | создать/перевыпустить → `{key: "sk_...", created_at}` (показывается **один раз**) |
 | DELETE | `/integrations/api-key` | → `204` |
+| GET | `/config` (без авт.) | → `{discord_app_id, site_url, telegram_url}` — общие настройки клиентов: ID приложения Discord для RPC пользователь не вводит, клиент берёт отсюда (до сервера — вшит в сборку) |
 | GET | `/oauth/profile?token=sk_…` (ключ API) | → `{username, display_name, avatar_url}` — для selfbot и «Интеграции» в боте (BOT.md §2.6а) |
 
 ### `GET /oauth/now` — формат Dotify
