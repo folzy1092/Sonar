@@ -178,6 +178,7 @@
 | DELETE | `/integrations/lastfm` | → `204` |
 | POST | `/integrations/api-key` | создать/перевыпустить → `{key: "sk_...", created_at}` (показывается **один раз**) |
 | DELETE | `/integrations/api-key` | → `204` |
+| GET | `/oauth/profile?token=sk_…` (ключ API) | → `{username, display_name, avatar_url}` — для selfbot и «Интеграции» в боте (BOT.md §2.6а) |
 
 ### `GET /oauth/now` — формат Dotify
 
