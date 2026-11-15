@@ -11,6 +11,9 @@
   import { cascade } from '../lib/cascade'
   import { openRef } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
+  import { WAVE_MODES } from '../player/my-wave.svelte'
+  import { reducedMotion } from '../lib/motion'
+  import { cubicOut, cubicIn } from 'svelte/easing'
   import { hscroll } from '../lib/hscroll'
   import { wave } from '../player/my-wave.svelte'
   import { home } from './home-data.svelte'
@@ -75,6 +78,26 @@
   function openAlbum(a: Album) {
     openRef(a.ref)
   }
+
+  const mode = $derived(WAVE_MODES.find((m) => m.id === wave.mode) ?? WAVE_MODES[0])
+
+  /** Полу-3D переворот подписи режима: новая выезжает снизу, поворачиваясь к нам, старая уходит вверх. */
+  function flipIn(_n: Element) {
+    if (reducedMotion()) return { duration: 160, css: (t: number) => `opacity:${t}` }
+    return {
+      duration: 420,
+      easing: cubicOut,
+      css: (t: number, u: number) => `opacity:${t};transform:rotateX(${-80 * u}deg) translateY(${6 * u}px)`,
+    }
+  }
+  function flipOut(_n: Element) {
+    if (reducedMotion()) return { duration: 120, css: (t: number) => `opacity:${t}` }
+    return {
+      duration: 300,
+      easing: cubicIn,
+      css: (t: number, u: number) => `opacity:${t};transform:rotateX(${80 * u}deg) translateY(${-6 * u}px)`,
+    }
+  }
 </script>
 
 <!-- Герой как у Dotify: без карточки; слева обложка и «Моя волна» (Roboto Flex), справа — сцена
@@ -86,10 +109,15 @@
     </button>
     <div class="wave-text">
       <h1 class="font-wave"><span>Моя</span><span>волна</span></h1>
-      <span class="mode">
-        <Icon name="bolt" size={15} />
-        {#if wave.loading && !wave.active}Подбираю…{:else if wave.active}{player.contextTitle ?? 'Играет'}{:else}Своя, по твоим лайкам{/if}
-      </span>
+      <!-- режим волны: клик — следующий (Своя → Жёсткая → Спокойная → …), карточка переворачивается -->
+      <button class="mode" title="Режим волны — нажми, чтобы сменить" onclick={() => wave.nextMode()}>
+        {#key mode.id}
+          <span class="flip" in:flipIn out:flipOut>
+            <Icon name={mode.icon} size={15} />
+            <b>{mode.title}</b>{#if wave.loading}<span class="sub">· подбираю…</span>{:else}<span class="sub">· {mode.sub}</span>{/if}
+          </span>
+        {/key}
+      </button>
     </div>
   </div>
 
@@ -229,12 +257,42 @@
     letter-spacing: -0.02em;
   }
   .mode {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+    display: inline-grid;
+    justify-items: start;
+    margin-left: -8px;
+    padding: 5px 10px;
+    border-radius: 10px;
     color: var(--text-2);
     font-size: 13px;
     white-space: nowrap;
+    perspective: 420px;
+    transition:
+      background var(--fast) var(--ease),
+      color var(--fast) var(--ease);
+  }
+  .mode:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
+  .mode:active .flip {
+    scale: 0.96;
+  }
+  /* старая и новая подпись стоят в одной клетке и переворачиваются вокруг горизонтальной оси */
+  .flip {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transform-origin: 50% 50% -10px;
+    backface-visibility: hidden;
+    transition: scale var(--fast) var(--ease);
+  }
+  .flip b {
+    font-weight: 700;
+    color: var(--text);
+  }
+  .flip .sub {
+    color: var(--text-3);
   }
   /* сцена справа: 288×224, обложки 64 px, кнопка 80 px (размеры Dotify) */
   .scene {

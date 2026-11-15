@@ -24,6 +24,9 @@ pub struct Track {
   /// Сколько раз трек слушали на сервисе (SoundCloud `playback_count`; Яндекс не отдаёт).
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub plays: Option<u64>,
+  /// Жанр и теги (SoundCloud — жанр и теги, Яндекс — жанр альбома), для режимов волны.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub tags: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

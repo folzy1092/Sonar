@@ -259,6 +259,7 @@ impl Store {
           explicit: false,
           available: true,
           plays: None,
+          tags: None,
         });
       }
     }
@@ -709,6 +710,7 @@ mod tests {
       explicit: false,
       available: true,
       plays: None,
+      tags: None,
     }
   }
 

@@ -178,7 +178,10 @@
 
     {#if withText}
       <section class="lyrics-col">
-        <LyricsView />
+        <!-- на каждый текст — свежий экран: прокрутка, часы и текущая строка не тянутся с прошлого трека -->
+        {#key lyrics.data}
+          <div class="lyr-in"><LyricsView /></div>
+        {/key}
       </section>
     {/if}
   </div>
@@ -210,6 +213,16 @@
 </div>
 
 <style>
+  .lyr-in {
+    height: 100%;
+    min-height: 0;
+    animation: lyr-in 0.45s var(--ease);
+  }
+  @keyframes lyr-in {
+    from {
+      opacity: 0;
+    }
+  }
   .fs {
     position: fixed;
     inset: 0;

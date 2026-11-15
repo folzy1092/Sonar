@@ -379,6 +379,12 @@ pub struct WaveRequest {
   /// «Волна по треку»: сид — только этот трек.
   seed: Option<Track>,
   n: Option<usize>,
+  /// Режим волны (`wave::MODES`), по умолчанию «своя».
+  #[serde(default)]
+  mode: Option<String>,
+  /// Смещение часового пояса (`Date.getTimezoneOffset()`) — для времени суток.
+  #[serde(default)]
+  tz_min: Option<i64>,
 }
 
 /// Следующая порция своей волны.
@@ -403,7 +409,9 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
         if fresh.is_empty() {
           fresh = store.recent_play_refs(10).map_err(err)?;
         }
-        let mut seeds = rng.sample(&fresh, 5);
+        // настроение — больше сидов, чтобы было из чего выбрать подходящее
+        let wide = req.mode.as_deref().is_some_and(|m| m != "own");
+        let mut seeds = rng.sample(&fresh, if wide { 8 } else { 5 });
         // 10–20 % «разведки»: похожие от случайного старого лайка
         let old = store.old_like_refs(15, 300).map_err(err)?;
         seeds.extend(rng.sample(&old, 1));
@@ -417,7 +425,9 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
       paused_artists: req.paused_artists.iter().map(|a| a.to_lowercase()).collect(),
     };
     let platform = store.setting("general.platform").ok().flatten().and_then(|v| v.as_str().map(str::to_owned));
-    (seeds, store.taste().map_err(err)?, filter, platform)
+    let mut taste = store.taste().map_err(err)?;
+    taste.hour_share = store.hour_share(req.tz_min.unwrap_or(0)).unwrap_or_default();
+    (seeds, taste, filter, platform)
   };
 
   let has_ym = core.has_yandex().await;
@@ -425,7 +435,8 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   if seeds.is_empty() {
     return Err("Волне пока не от чего оттолкнуться — лайкни или послушай пару треков.".into());
   }
-  let results = futures_util::future::join_all(seeds.iter().map(|r| core.similar(r, 25))).await;
+  let mode = req.mode.as_deref().filter(|m| crate::wave::MODES.contains(m)).unwrap_or("own").to_owned();
+  let results = futures_util::future::join_all(seeds.iter().map(|r| core.similar(r, if mode == "own" { 25 } else { 35 }))).await;
   let mut cands = Vec::new();
   let mut first_err = None;
   for r in results {
@@ -441,9 +452,9 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   }
   let prefer = if has_ym && platform.as_deref() == Some("yandex") { "ym" } else { "sc" };
   let n = req.n.unwrap_or(PORTION);
-  let mut out = pick(cands.clone(), &taste, &filter, Some(prefer), n, false, &mut rng);
+  let mut out = pick(cands.clone(), &taste, &filter, Some(prefer), &mode, n, false, &mut rng);
   if out.len() < 3 {
-    out = pick(cands, &taste, &filter, Some(prefer), n, true, &mut rng);
+    out = pick(cands, &taste, &filter, Some(prefer), &mode, n, true, &mut rng);
   }
   db.0.lock().unwrap().upsert_tracks(&out).map_err(err)?;
   Ok(out)

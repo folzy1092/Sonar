@@ -125,6 +125,7 @@ mod tests {
       explicit: false,
       available: true,
       plays: None,
+      tags: None,
     }
   }
 

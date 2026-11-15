@@ -280,6 +280,7 @@ pub fn track_from_json(j: &Value) -> Option<Track> {
     explicit: j["publisher_metadata"]["explicit"].as_bool().unwrap_or(false),
     available: j["policy"].as_str() != Some("BLOCK"),
     plays: j["playback_count"].as_u64(),
+    tags: sc_tags(j),
   })
 }
 
@@ -453,4 +454,18 @@ mod tests {
     assert_eq!(t.artists[0].ref_, "sca:5");
     assert!(t.available);
   }
+}
+
+/// Жанр и теги трека SoundCloud одной строкой в нижнем регистре — по ним волна понимает настроение.
+fn sc_tags(j: &Value) -> Option<String> {
+  let mut out = String::new();
+  for k in ["genre", "tag_list"] {
+    if let Some(v) = j[k].as_str().filter(|v| !v.trim().is_empty()) {
+      if !out.is_empty() {
+        out.push(' ');
+      }
+      out.push_str(&v.to_lowercase());
+    }
+  }
+  (!out.is_empty()).then_some(out)
 }

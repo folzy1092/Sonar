@@ -230,7 +230,7 @@ export const api = {
   trackEq: (trackRef: string) => call<number[] | null>('track_eq', { trackRef }),
   setTrackEq: (trackRef: string, gains: number[] | null) => call<void>('set_track_eq', { trackRef, gains }),
 
-  wavePortion: (req: { exclude?: string[]; paused_artists?: string[]; seed?: Track | null; n?: number }) =>
+  wavePortion: (req: { exclude?: string[]; paused_artists?: string[]; seed?: Track | null; n?: number; mode?: string; tz_min?: number }) =>
     call<Track[]>('wave_portion', { req }),
   waveFeedback: (event: 'dislike' | 'undislike' | 'skip', track: Track, playedMs?: number) =>
     call<void>('wave_feedback', { event, track, playedMs }),

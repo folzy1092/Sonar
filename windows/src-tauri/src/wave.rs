@@ -58,9 +58,70 @@ pub fn artist_key(t: &Track) -> String {
   t.artist.to_lowercase()
 }
 
+/// Режим волны (кнопка под «Моя волна»): `own` — своя по лайкам, настроения `hard` / `calm` /
+/// `sad` / `fun` и `new` — незнакомое. Настроение угадываем по жанру, тегам и названию трека.
+pub const MODES: [&str; 6] = ["own", "hard", "calm", "sad", "fun", "new"];
+
+const MOODS: [(&str, &[&str]); 4] = [
+  (
+    "hard",
+    &[
+      "phonk", "drift", "hardstyle", "hardcore", "drill", "trap", "rage", "metal", "rock", "punk", "dubstep", "dnb",
+      "drum & bass", "drum and bass", "breakcore", "jersey", "hard", "aggressive", "brazilian", "funk", "techno", "industrial",
+      "rusrap", "hip-hop", "hiphop", "rap",
+    ],
+  ),
+  (
+    "calm",
+    &[
+      "lofi", "lo-fi", "chill", "ambient", "acoustic", "piano", "jazz", "sleep", "calm", "relax", "study", "classical",
+      "instrumental", "soul", "r&b", "rnb", "downtempo", "bossa", "folk",
+    ],
+  ),
+  (
+    "sad",
+    &[
+      "sad", "emo", "depress", "melanchol", "slowed", "reverb", "heartbreak", "lonely", "cry", "alone", "grief", "tears",
+      "cloud rap", "cloudrap", "dark", "грус", "одинок", "слёз", "слез",
+    ],
+  ),
+  (
+    "fun",
+    &[
+      "pop", "dance", "house", "disco", "party", "happy", "summer", "hyperpop", "electro", "edm", "club", "remix",
+      "sped up", "nightcore", "funk", "k-pop", "kpop", "весел", "лето",
+    ],
+  ),
+];
+
+/// Насколько трек подходит настроению: совпал по жанру/тегам/названию — плюс, похож на другое
+/// настроение — минус, ничего не известно — ноль.
+pub fn mood_fit(mood: &str, t: &Track) -> f64 {
+  let text = format!("{} {}", t.tags.as_deref().unwrap_or(""), t.title.to_lowercase());
+  let hits = |words: &[&str]| words.iter().filter(|w| text.contains(**w)).count();
+  let mut own = 0;
+  let mut other = 0;
+  for (m, words) in MOODS {
+    let n = hits(words);
+    if m == mood {
+      own = n;
+    } else {
+      other = other.max(n);
+    }
+  }
+  if own > 0 {
+    1.6 + 0.3 * (own.min(3) as f64 - 1.0) - if other > own { 0.4 } else { 0.0 }
+  } else if other > 0 {
+    -0.8
+  } else {
+    0.0
+  }
+}
+
 /// Оценка кандидата: лайкнутый артист ×2, доля дослушанного минус доля пропусков,
-/// бонус своей платформе (`general.platform`), немного случайности.
-fn score(t: &Track, taste: &Taste, prefer: Option<&str>, rng: &mut Rng) -> f64 {
+/// бонус своей платформе (`general.platform`), время суток (кого слушаешь в эти часы),
+/// настроение режима, немного случайности. «Незнакомое» — наоборот, знакомые артисты внизу.
+fn score(t: &Track, taste: &Taste, prefer: Option<&str>, mode: &str, rng: &mut Rng) -> f64 {
   let a = artist_key(t);
   let plays = *taste.plays.get(&a).unwrap_or(&0) as f64;
   let skips = *taste.skips.get(&a).unwrap_or(&0) as f64;
@@ -70,12 +131,21 @@ fn score(t: &Track, taste: &Taste, prefer: Option<&str>, rng: &mut Rng) -> f64 {
     Some(p) if t.ref_.starts_with(&format!("{p}:")) => 0.6,
     _ => 0.0,
   };
-  liked + plays / total - skips / total + platform + rng.unit() * 0.5
+  let hour = taste.hour_share.get(&a).copied().unwrap_or(0.0);
+  let noise = rng.unit() * 0.5;
+  match mode {
+    "new" => {
+      let known = liked > 0.0 || plays > 0.0;
+      (if known { -2.5 } else { 1.0 }) - skips / total + platform * 0.5 + noise
+    }
+    "hard" | "calm" | "sad" | "fun" => mood_fit(mode, t) * 1.5 + liked * 0.5 + plays / total - skips / total + platform * 0.5 + hour * 0.4 + noise,
+    _ => liked + plays / total - skips / total + platform + hour * 1.2 + noise,
+  }
 }
 
 /// Порция из `n` треков: без дублей и фильтрованных, не два одинаковых артиста подряд,
 /// не больше двух треков артиста. `relaxed` — разрешить недавно слушанное (когда кандидатов мало).
-pub fn pick(cands: Vec<Track>, taste: &Taste, filter: &Filter, prefer: Option<&str>, n: usize, relaxed: bool, rng: &mut Rng) -> Vec<Track> {
+pub fn pick(cands: Vec<Track>, taste: &Taste, filter: &Filter, prefer: Option<&str>, mode: &str, n: usize, relaxed: bool, rng: &mut Rng) -> Vec<Track> {
   let mut seen = HashSet::new();
   let mut scored: Vec<(f64, Track)> = cands
     .into_iter()
@@ -83,7 +153,7 @@ pub fn pick(cands: Vec<Track>, taste: &Taste, filter: &Filter, prefer: Option<&s
     .filter(|t| !filter.banned.contains(&t.ref_) && !filter.exclude.contains(&t.ref_))
     .filter(|t| relaxed || !filter.recent.contains(&t.ref_))
     .filter(|t| !filter.paused_artists.contains(&artist_key(t)))
-    .map(|t| (score(&t, taste, prefer, rng), t))
+    .map(|t| (score(&t, taste, prefer, mode, rng), t))
     .collect();
   scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
@@ -127,7 +197,20 @@ mod tests {
       explicit: false,
       available: true,
       plays: None,
+      tags: None,
     }
+  }
+
+  #[test]
+  fn mood_by_tags_and_title() {
+    let mut a = t("sc:1", "A");
+    a.tags = Some("phonk drift".into());
+    let mut b = t("sc:2", "B");
+    b.title = "sad song (slowed)".into();
+    assert!(mood_fit("hard", &a) > 1.0);
+    assert!(mood_fit("sad", &a) < 0.0);
+    assert!(mood_fit("sad", &b) > 1.0);
+    assert_eq!(mood_fit("calm", &t("sc:3", "C")), 0.0);
   }
 
   #[test]
@@ -148,7 +231,7 @@ mod tests {
     f.paused_artists.insert("paused".into());
     f.recent.insert("sc:6".into());
     let taste = Taste::default();
-    let out = pick(cands, &taste, &f, None, 10, false, &mut Rng::new(42));
+    let out = pick(cands, &taste, &f, None, "own", 10, false, &mut Rng::new(42));
     let refs: Vec<&str> = out.iter().map(|x| x.ref_.as_str()).collect();
     assert!(!refs.contains(&"sc:7") && !refs.contains(&"sc:8") && !refs.contains(&"sc:6"));
     let a_count = refs.iter().filter(|r| ["sc:1", "sc:2", "sc:3"].contains(r)).count();
@@ -166,9 +249,9 @@ mod tests {
     taste.liked_artists.insert("fav".into());
     let mut f = Filter::default();
     f.recent.insert("sc:2".into());
-    let out = pick(vec![t("sc:1", "x"), t("sc:2", "Fav")], &taste, &f, None, 1, true, &mut Rng::new(7));
+    let out = pick(vec![t("sc:1", "x"), t("sc:2", "Fav")], &taste, &f, None, "own", 1, true, &mut Rng::new(7));
     assert_eq!(out[0].ref_, "sc:2");
-    let out = pick(vec![t("sc:1", "x"), t("sc:2", "Fav")], &taste, &f, None, 2, false, &mut Rng::new(7));
+    let out = pick(vec![t("sc:1", "x"), t("sc:2", "Fav")], &taste, &f, None, "own", 2, false, &mut Rng::new(7));
     assert_eq!(out.len(), 1);
   }
 

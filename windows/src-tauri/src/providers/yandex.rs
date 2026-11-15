@@ -378,6 +378,7 @@ pub fn track_from_json(j: &Value) -> Option<Track> {
     explicit: j["contentWarning"].as_str() == Some("explicit"),
     available: j["available"].as_bool().unwrap_or(true),
     plays: None,
+    tags: j["albums"][0]["genre"].as_str().filter(|g| !g.is_empty()).map(|g| g.to_lowercase()),
   })
 }
 

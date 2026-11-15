@@ -8,6 +8,24 @@ import { player } from './player.svelte'
 import { settings } from '../lib/settings.svelte'
 
 export const WAVE_CONTEXT = 'wave'
+
+/** Режимы волны — кнопка под «Моя волна» на главной (клик — следующий). Настроение Rust угадывает
+ *  по жанру, тегам и названию (wave.rs `mood_fit`), «Незнакомое» — артисты, которых ты не слушал.
+ *  Во всех режимах учитывается время суток: кого ты обычно слушаешь в эти часы. */
+export const WAVE_MODES = [
+  { id: 'own', title: 'Своя', sub: 'по твоим лайкам', icon: 'heart' },
+  { id: 'hard', title: 'Жёсткая', sub: 'фонк, рэйдж, рок', icon: 'bolt' },
+  { id: 'calm', title: 'Спокойная', sub: 'чилл, лоу-фай, акустика', icon: 'moon' },
+  { id: 'sad', title: 'Грустная', sub: 'когда накрыло', icon: 'cloudDown' },
+  { id: 'fun', title: 'Весёлая', sub: 'поп, хаус, движ', icon: 'sun' },
+  { id: 'new', title: 'Незнакомое', sub: 'новые для тебя артисты', icon: 'disc' },
+] as const
+export type WaveMode = (typeof WAVE_MODES)[number]['id']
+
+/** Режим и часовой пояс — в каждый запрос порции. */
+function ctx() {
+  return { mode: settings.get('wave.mode'), tz_min: new Date().getTimezoneOffset() }
+}
 const SKIP_MS = 30_000
 /** Догружать, когда до конца очереди осталось столько треков. */
 const PREFETCH_LEFT = 3
@@ -56,7 +74,7 @@ class Wave {
     if (this.loading || (!force && this.preview.length && Date.now() - this.previewAt < 600_000)) return
     this.loading = true
     try {
-      this.preview = await api.wavePortion({ exclude: [], paused_artists: [] })
+      this.preview = await api.wavePortion({ exclude: [], paused_artists: [], ...ctx() })
       this.previewAt = Date.now()
       this.error = null
     } catch (e) {
@@ -78,7 +96,7 @@ class Wave {
     } else {
       this.loading = true
       try {
-        tracks = await api.wavePortion({ seed: seed ?? null })
+        tracks = await api.wavePortion({ seed: seed ?? null, ...ctx() })
         this.error = null
       } catch (e) {
         this.error = errorText(e)
@@ -102,6 +120,20 @@ class Wave {
     await player.playList(list, 0, WAVE_CONTEXT, seed ? `Волна по «${seed.title}»` : 'Моя волна')
   }
 
+  get mode(): WaveMode {
+    return settings.get('wave.mode')
+  }
+
+  /** Следующий режим по кругу. Волна играет — сразу переключается на новый режим, иначе
+   *  заранее подбирается порция под него (обложки на главной). */
+  async nextMode() {
+    const i = WAVE_MODES.findIndex((m) => m.id === this.mode)
+    settings.set('wave.mode', WAVE_MODES[(i + 1) % WAVE_MODES.length].id)
+    this.preview = []
+    if (this.active) await this.start()
+    else await this.prefetch(true)
+  }
+
   /** Играет волна — пауза/продолжить, иначе — включить. */
   toggle() {
     if (this.active && player.current) player.toggle()
@@ -113,7 +145,7 @@ class Wave {
     if (this.loading) return
     this.loading = true
     try {
-      const tracks = await api.wavePortion({ exclude: [...this.served], paused_artists: [...this.paused] })
+      const tracks = await api.wavePortion({ exclude: [...this.served], paused_artists: [...this.paused], ...ctx() })
       if (player.context !== WAVE_CONTEXT) return
       const fresh = tracks.filter((t) => !this.served.has(t.ref))
       for (const t of fresh) this.served.add(t.ref)

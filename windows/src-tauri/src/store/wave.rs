@@ -14,6 +14,8 @@ pub struct Taste {
   pub liked_artists: HashSet<String>,
   pub plays: HashMap<String, u32>,
   pub skips: HashMap<String, u32>,
+  /// Доля прослушиваний артиста в это время суток (±2 ч от текущего часа, за 60 дней), 0…1.
+  pub hour_share: HashMap<String, f64>,
 }
 
 impl Store {
@@ -91,6 +93,30 @@ impl Store {
   }
 
   /// Сигналы вкуса за последние 90 дней.
+  /// Время суток: кого ты слушаешь в эти часы (±2 ч) чаще, чем обычно. `tz_min` — смещение
+  /// часового пояса как у `Date.getTimezoneOffset()` (минуты, UTC минус местное).
+  pub fn hour_share(&self, tz_min: i64) -> Result<HashMap<String, f64>> {
+    let since = now_ms() - 60 * DAY;
+    let local_ms = now_ms() - tz_min * 60_000;
+    let hour = (local_ms / 3_600_000).rem_euclid(24);
+    let mut st = self.db.prepare(
+      "SELECT artist, ((played_at - ?3 * 60000) / 3600000) % 24 AS h FROM plays WHERE user_id = ?1 AND played_at >= ?2",
+    )?;
+    let rows = st.query_map(params![LOCAL_USER, since, tz_min], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+    let mut near: HashMap<String, f64> = HashMap::new();
+    let mut all: HashMap<String, f64> = HashMap::new();
+    for row in rows {
+      let (a, h) = row?;
+      let a = a.to_lowercase();
+      *all.entry(a.clone()).or_insert(0.0) += 1.0;
+      let d = (h.rem_euclid(24) - hour).rem_euclid(24);
+      if d <= 2 || d >= 22 {
+        *near.entry(a).or_insert(0.0) += 1.0;
+      }
+    }
+    Ok(near.into_iter().filter_map(|(a, n)| all.get(&a).filter(|&&t| t >= 3.0).map(|t| (a, n / t))).collect())
+  }
+
   pub fn taste(&self) -> Result<Taste> {
     let since = now_ms() - 90 * DAY;
     let mut t = Taste::default();
