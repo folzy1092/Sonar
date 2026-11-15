@@ -33,6 +33,8 @@ export interface Album {
   artists: ArtistRef[]
   cover_url: string | null
   year: number | null
+  /** Дата выхода `YYYY-MM-DD` (если известна). */
+  released?: string | null
   track_count: number
   url: string | null
 }

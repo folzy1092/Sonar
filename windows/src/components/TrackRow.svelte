@@ -14,8 +14,9 @@
   interface Props {
     track: Track
     index?: number
-    /** list — поиск и списки (колонка альбома); queue — очередь плеера (компактно); top — популярное артиста. */
-    variant?: 'list' | 'queue' | 'top'
+    /** list — поиск и списки (колонка альбома); queue — очередь плеера (компактно); top — популярное артиста;
+     *  album — внутри альбома (pc/album.png): номер, без обложки и ❤, длительность в капсуле. */
+    variant?: 'list' | 'queue' | 'top' | 'album'
     /** Когда добавлен (Любимые, плейлист) — для шапки меню. */
     addedAt?: number
     /** Строка своего плейлиста — в меню появится «Убрать из плейлиста». */
@@ -72,10 +73,12 @@
       {/if}
     </span>
   {/if}
-  <span class="art">
-    <Cover url={track.cover_url} size={variant === 'list' ? 44 : 42} source={track.ref} />
-    <span class="hover-play"><Icon name={isCurrent && player.playing ? 'pause' : 'play'} size={16} filled /></span>
-  </span>
+  {#if variant !== 'album'}
+    <span class="art">
+      <Cover url={track.cover_url} size={variant === 'list' ? 44 : 42} source={track.ref} />
+      <span class="hover-play"><Icon name={isCurrent && player.playing ? 'pause' : 'play'} size={16} filled /></span>
+    </span>
+  {/if}
   <span class="meta">
     <span class="title">{track.title}{#if track.explicit}<span class="e" title="Нецензурная лексика">E</span>{/if}</span>
     <span class="artist">
@@ -92,6 +95,7 @@
     <span class="album">{track.album?.title ?? ''}</span>
   {/if}
   <span class="end">
+    {#if variant !== 'album'}
     <button
       class="like"
       class:on={liked}
@@ -101,6 +105,7 @@
     >
       <span class="ic" use:pulse={liked}><Icon name="heart" size={15} filled={liked} /></span>
     </button>
+    {/if}
     {#if variant === 'list'}
       <span class="dur">{formatTime(track.duration_ms)}</span>
     {:else}
@@ -148,6 +153,17 @@
   .row.queue.numbered,
   .row.top.numbered {
     grid-template-columns: auto auto minmax(0, 1fr) auto;
+  }
+  .row.album {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 18px;
+    padding: 9px 8px 9px 4px;
+  }
+  .row.album .title {
+    font-weight: 500;
+  }
+  .row.album .dots {
+    opacity: 1;
   }
   .row:hover {
     background: var(--hover);

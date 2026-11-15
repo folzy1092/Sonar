@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compact, durationText, plural, tracksText } from './format'
+import { compact, dateLong, durationLong, durationText, plural, tracksText } from './format'
 
 describe('format', () => {
   it('склоняет', () => {
@@ -20,5 +20,11 @@ describe('format', () => {
     expect(compact(9400)).toBe('9.4K')
     expect(compact(773_600)).toBe('774K')
     expect(compact(1_600_000)).toBe('1.6M')
+  })
+
+  it('альбом: длительность и дата', () => {
+    expect(durationLong(1_244_000)).toBe('20 мин 44 сек')
+    expect(durationLong(3_780_000)).toBe('1 час 3 мин')
+    expect(dateLong('2025-06-20')).toBe('20 июня 2025')
   })
 })

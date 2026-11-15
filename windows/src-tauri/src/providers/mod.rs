@@ -48,6 +48,9 @@ pub struct Album {
   pub artists: Vec<ArtistRef>,
   pub cover_url: Option<String>,
   pub year: Option<u32>,
+  /// Дата выхода `YYYY-MM-DD`, если сервис её знает (шапка альбома: «20 июня 2025»).
+  #[serde(default)]
+  pub released: Option<String>,
   pub track_count: u32,
   pub url: Option<String>,
 }

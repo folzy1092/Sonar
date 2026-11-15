@@ -312,6 +312,7 @@ pub fn album_from_json(p: &Value) -> Option<Album> {
       .unwrap_or_default(),
     cover_url: playlist_cover(p),
     year: date.get(..4).and_then(|y| y.parse().ok()),
+    released: date.get(..10).filter(|d| d.as_bytes().get(4) == Some(&b'-')).map(str::to_owned),
     track_count: p["track_count"].as_u64().unwrap_or(0) as u32,
     url: p["permalink_url"].as_str().map(str::to_owned),
   })

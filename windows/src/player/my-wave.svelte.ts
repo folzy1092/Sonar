@@ -67,7 +67,7 @@ class Wave {
   }
 
   /** Включить волну. `seed` — «Волна по треку»: только похожие на него; `withSeed` — он играет первым. */
-  async start(seed?: Track, withSeed = true) {
+  async start(seed?: Track, withSeed = true, firstRef?: string) {
     this.served = new Set()
     this.paused = new Set()
     this.skipRun = new Map()
@@ -89,7 +89,10 @@ class Wave {
       }
     }
     const rest = seed ? tracks.filter((t) => t.ref !== seed.ref) : tracks
-    const list = seed && withSeed ? [seed, ...rest] : rest
+    let list = seed && withSeed ? [seed, ...rest] : rest
+    // «С этого трека» — клик по обложке на главной: он играет первым, остальные — следом
+    const at = firstRef ? list.findIndex((t) => t.ref === firstRef) : -1
+    if (at > 0) list = [list[at], ...list.slice(0, at), ...list.slice(at + 1)]
     if (!list.length) {
       toast.show('Волне пока нечего предложить')
       return

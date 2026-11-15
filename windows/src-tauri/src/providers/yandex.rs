@@ -332,6 +332,7 @@ pub fn album_from_json(a: &Value) -> Option<Album> {
     artists,
     cover_url: a["coverUri"].as_str().or(a["ogImage"].as_str()).map(cover),
     year: a["year"].as_u64().map(|y| y as u32),
+    released: a["releaseDate"].as_str().and_then(|d| d.get(..10)).map(str::to_owned),
     track_count: a["trackCount"].as_u64().unwrap_or(0) as u32,
     url: Some(format!("https://music.yandex.ru/album/{id}")),
   })

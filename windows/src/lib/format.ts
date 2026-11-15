@@ -21,6 +21,24 @@ export function durationText(ms: number): string {
   return `${h} ${plural(h, ['час', 'часа', 'часов'])}${m ? ` ${m} мин` : ''}`
 }
 
+/** Длительность альбома: «20 мин 44 сек», «1 час 3 мин». */
+export function durationLong(ms: number): string {
+  const s = Math.round(ms / 1000)
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h) return `${h} ${plural(h, ['час', 'часа', 'часов'])}${m ? ` ${m} мин` : ''}`
+  return `${m} мин${sec ? ` ${sec} сек` : ''}`
+}
+
+/** «2025-06-20» → «20 июня 2025». */
+export function dateLong(iso: string): string {
+  const [y, mo, d] = iso.split('-').map(Number)
+  if (!y || !mo || !d) return iso
+  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
+  return `${d} ${months[mo - 1]} ${y}`
+}
+
 /** 9400 → «9.4K», 1600000 → «1.6M». */
 export function compact(n: number): string {
   if (n < 1000) return String(n)

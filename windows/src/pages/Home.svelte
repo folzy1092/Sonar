@@ -13,6 +13,7 @@
   import { player } from '../player/player.svelte'
   import { wave } from '../player/my-wave.svelte'
   import { home } from './home-data.svelte'
+  import { flyTo } from '../lib/fly'
 
   function greeting(hour: number) {
     if (hour < 5) return 'Доброй ночи'
@@ -43,6 +44,19 @@
       .join(', '),
   )
 
+  let playBtn: HTMLButtonElement | undefined = $state()
+
+  /** Клик по обложке волны: обложка летит в кнопку, трек играет. */
+  function playCover(e: MouseEvent, t: Track | undefined) {
+    if (playBtn) flyTo(e.currentTarget as Element, playBtn, t?.cover_url ?? waveCover)
+    if (!t || (wave.active && player.current?.ref === t.ref)) return wave.toggle()
+    if (wave.active) {
+      const i = player.upNext.findIndex((x) => x.ref === t.ref)
+      if (i >= 0) return void player.jumpTo(i)
+    }
+    void wave.start(undefined, true, t.ref)
+  }
+
   function playRecent(i: number) {
     void player.playList(home.recent, i, 'recent', 'Недавнее')
   }
@@ -55,9 +69,9 @@
 </script>
 
 <section class="wave" class:on={wave.active}>
-  <div class="art">
+  <button class="art" aria-label="Играть волну" onclick={(e) => playCover(e, waveTracks[0])}>
     <Cover url={waveCover} size={158} radius="var(--radius-l)" />
-  </div>
+  </button>
   <div class="wave-text">
     <h1>Моя<br />волна</h1>
     <span class="mode">
@@ -66,13 +80,16 @@
     </span>
   </div>
 
-  <div class="floats" aria-hidden="true">
+  <div class="floats">
     {#each waveTracks.slice(1, 3) as t, i (t.ref)}
-      <span class="float f{i}"><Cover url={t.cover_url} size={i ? 58 : 66} radius="12px" /></span>
+      <button class="float f{i}" aria-label="Играть «{t.title}»" title="{t.artist} — {t.title}" onclick={(e) => playCover(e, t)}>
+        <Cover url={t.cover_url} size={i ? 58 : 66} radius="12px" />
+      </button>
     {/each}
   </div>
 
   <button
+    bind:this={playBtn}
     class="wave-play"
     class:busy={wave.loading && !wave.active}
     aria-label={playingWave ? 'Пауза' : 'Включить волну'}
@@ -172,6 +189,19 @@
   }
   .wave.on .art {
     transform: rotate(-2deg) scale(1.02);
+  }
+  .art:hover {
+    transform: scale(1.03);
+  }
+  .art:active {
+    transform: scale(0.96);
+  }
+  .float {
+    cursor: pointer;
+    transition: filter var(--fast) var(--ease);
+  }
+  .float:hover {
+    filter: brightness(1.15);
   }
   .wave-text {
     display: flex;
