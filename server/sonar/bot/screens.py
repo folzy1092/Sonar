@@ -327,13 +327,15 @@ def status(items: dict[str, Item], online: int, users: int, uptime: float | None
         extra = g(k).note if (k == "storage" and owner and g(k)) else ""
         infra.append(f"{e(icons[k])} {names[k]}: {_st(g(k), ms=owner and k != 'storage', extra=extra)}")
     up = "—" if uptime is None else f"{uptime:.2f}%"
-    html = (f"{head}\n\n{e('listening')} Слушают онлайн: <b>{online}</b>\n{e('users')} Пользователей: <b>{users}</b>\n"
-            f"{e('time')} Аптайм: <b>{up}</b>\n\n<b>Инфраструктура:</b>\n{_tree(infra)}\n\n<b>Музыкальные платформы:</b>\n"
-            + _tree([f"{e('logo_soundcloud')} SoundCloud: {_mark(g('soundcloud'))}",
-                     f"{e('logo_yandex_music')} Яндекс Музыка: {_mark(g('yandex'))}"]))
+    html = (f"{head}\n"
+            + quote(f"{e('listening')} Слушают онлайн: <b>{online}</b>\n{e('users')} Пользователей: <b>{users}</b>\n"
+                    f"{e('time')} Аптайм: <b>{up}</b>")
+            + quote(_tree(infra), "Инфраструктура:")
+            + quote(_tree([f"{e('logo_soundcloud')} SoundCloud: {_mark(g('soundcloud'))}",
+                           f"{e('logo_yandex_music')} Яндекс Музыка: {_mark(g('yandex'))}"]), "Музыкальные платформы:"))
     if owner:
         other = [f"{e('lyrics')} lrclib: {_mark(g('lrclib'))} · Genius: {_mark(g('genius'))}"]
         tail = f"{e('logo_telegram')} Telegram: {_mark(g('telegram'))}"
         other.append((f"{e('logo_lastfm')} Last.fm: {_mark(g('lastfm'))} · " if g("lastfm") else "") + tail)
-        html += f"\n\n<b>Тексты и прочее:</b>\n{_tree(other)}"
+        html += quote(_tree(other), "Тексты и прочее:")
     return Screen(html=html, kb=[[Btn("Обновить", "refresh", "status"), Btn("Страница статуса", "web", url="https://sonar.folzy.ru/status")]])
