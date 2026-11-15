@@ -57,6 +57,7 @@ function kbEl(msg, rows) {
     for (const b of row) {
       const el = document.createElement('button');
       if (b.sel) el.classList.add('sel');
+      if (b.soon) el.classList.add('soon');
       el.innerHTML = `${b.i ? `<img src="emoji/${b.i}.png" class="${b.i.startsWith('logo_') ? 'logo' : ''}" alt="">` : ''}<span>${b.t}</span>${b.url ? '<span class="arrow">↗</span>' : ''}`;
       el.addEventListener('click', (ev) => {
         ripple(el, ev);
@@ -159,6 +160,16 @@ function remove(row, delay = 650) {
   setTimeout(() => { row.style.maxHeight = `${row.offsetHeight}px`; row.classList.add('leave'); setTimeout(() => row.remove(), 320); }, delay);
 }
 const later = (ms, fn) => setTimeout(fn, ms);
+
+/** Всплывашка answerCallbackQuery(show_alert) — окно по центру с кнопкой OK. */
+function alertBox(text) {
+  const box = document.createElement('div');
+  box.className = 'alert';
+  box.innerHTML = `<div class="alert-card"><p>${text}</p><button>OK</button></div>`;
+  const close = () => { box.classList.add('closing'); setTimeout(() => box.remove(), 160); };
+  box.querySelector('button').onclick = close;
+  document.body.append(box);
+}
 
 let toastTimer;
 function toast(text) {
@@ -335,8 +346,9 @@ const scr = {
   reportPlatform: (kind) => ({
     banner: 'main',
     html: kind === 'bug' ? `<b>Где произошёл баг?</b>` : `<b>В какое приложение добавить?</b>`,
-    kb: [[B(kind === 'bug' ? 'Телефон' : 'Мобильное', 'mobile', (m) => go.reportPrompt(m, kind, 'mobile')),
-      B(kind === 'bug' ? 'Компьютер' : 'Компьютерное', 'desktop', (m) => go.reportPrompt(m, kind, 'desktop'))],
+    kb: [[B('Windows', 'logo_windows', (m) => go.reportPrompt(m, kind, 'windows')),
+      B('iOS', 'logo_apple', (m) => go.reportPrompt(m, kind, 'ios'))],
+    [B('Android · в разработке', 'logo_android', () => alertBox('Android-версия Sonar в разработке'), { soon: true })],
     [back((m) => edit(m, scr.reportKind()))]],
   }),
 

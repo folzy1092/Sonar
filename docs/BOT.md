@@ -65,7 +65,7 @@ ID сняты ботом `@TgEmojis` по порядку из сообщений
 | `services` | 📦 | Сервисы | `5778672437122045013` |
 | `bug` | 🔧 | Баг / Идея, баг | `5962952497197748583` |
 | `idea` | 💡 | Идея | `5891120964468480450` |
-| `mobile` | 🍏 | Телефон / мобильное | `5775870512127283512` |
+| `mobile` | 🍏 | Телефон (запасной; в репортах — логотипы систем) | `5775870512127283512` |
 | `desktop` | 🖥 | Компьютер / Основной (статус) | `5942734685976138521` |
 | `referral` | 🎁 | Рефералка | `5773677501825945508` |
 | `integration` | 🔗 | Интеграция / ссылка | `5210970420215320683` |
@@ -285,15 +285,16 @@ Telegram (`createNewStickerSet`, `sticker_type: custom_emoji`, `needs_repainting
 
 **Шаги пользователя:**
 1. Главное меню → «⚠️ Баг / Идея» → баннер «Sonar», «Баг или идея?» [**🐞 Баг**] [**💡 Идея**] [**◀️ Назад**].
-2. Баг → «Где произошёл баг?» [**📱 Телефон**] [**💻 Компьютер**] [**◀️ Назад**]
-   (callback `report_platform_mobile` / `report_platform_desktop`).
-   Идея → «В какое приложение добавить?» [**📱 Мобильное**] [**💻 Компьютерное**] [**◀️ Назад**]
-   (те же `report_platform_*`).
+2. Баг → «Где произошёл баг?», идея → «В какое приложение добавить?» — кнопки по системам
+   (решение владельца 2026-11-15): [**Windows**] [**iOS**] [**Android · в разработке**] [**◀️ Назад**]
+   с логотипами (`logo_windows`, `logo_apple`, `logo_android`). Callback `report_platform_windows` /
+   `report_platform_ios`. **Android** пока не выбирается: кнопка приглушена, по нажатию — только
+   всплывашка (`answerCallbackQuery(show_alert=True)`) «Android-версия Sonar в разработке», экран не меняется.
 3. Баннер «Sonar»: «**Что случилось?**\nМожно приложить скриншот или видео.» (для идеи —
    «**Расскажи идею**\nМожно приложить картинку.») + [**✖️ Отмена**] → «Ок, в другой раз 👋».
 4. Первое сообщение (текст, фото, видео, файл, голосовое — что угодно) **создаёт обращение**:
-   - в группе поддержки появляется тема «`#053d4a74` · 🐞 Баг · 💻 ПК — Folzy (@folzy)» (идея —
-     «💡 Идея · 📱 Телефон»), в ней карточка (кто, логин, версия приложения и ОС, если известны,
+   - в группе поддержки появляется тема «`#053d4a74` · 🐞 Баг · Windows — Folzy (@folzy)» (идея —
+     «💡 Идея · iOS»), в ней карточка (кто, логин, версия приложения и ОС, если известны,
      ссылка на профиль) и само сообщение;
    - пользователю: «**Отправлено!** ✨» + цитата «Обращение `#053d4a74` создано. Пиши сюда — всё
      уйдёт в поддержку.» + кнопка [**✖️ Закрыть обращение**].
@@ -432,7 +433,7 @@ API (дополняет API.md §1):
 | GET | `/auth/link/{code}/poll` (без авт.) | → `{status: pending\|approved\|rejected\|expired, session?, user?}` |
 | GET | `/auth/link/{code}` | (вошедший) → `{for: {kind: telegram\|device, name}, created_at, expires_at}` — для окна подтверждения |
 | POST | `/auth/link/{code}/approve` · `/reject` | (вошедший) → `204` |
-| POST | `/reports` | `{kind: bug\|idea, platform: mobile\|desktop, text, app_version?, os?, log?}` + файлы → `{id: "053d4a74"}` — обращение и тема (§2.10) |
+| POST | `/reports` | `{kind: bug\|idea, platform: windows\|ios\|android, text, app_version?, os?, log?}` + файлы → `{id: "053d4a74"}` — обращение и тема (§2.10) |
 | GET | `/oauth/profile?token=` | → `{username, display_name, avatar_url}` (§2.6а) |
 
 Таблицы (дополняют DB.md):
@@ -452,7 +453,7 @@ CREATE TABLE tickets (            -- обращение = тема в групп
   user_id     TEXT REFERENCES users(id),
   tg_id       INTEGER NOT NULL,
   kind        TEXT NOT NULL,        -- bug | idea
-  platform    TEXT NOT NULL,        -- mobile | desktop
+  platform    TEXT NOT NULL,        -- windows | ios (android — когда появится)
   topic_id    INTEGER,              -- message_thread_id темы в SUPPORT_GROUP_ID
   status      TEXT NOT NULL,        -- open | accepted | rejected | closed | fixed
   app_version TEXT, os TEXT,

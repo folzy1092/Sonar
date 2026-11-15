@@ -139,6 +139,16 @@ blockquote .qh { font-weight: 600; }
 .kb button .ripple { position: absolute; border-radius: 50%; background: rgba(255, 255, 255, .25);
   transform: scale(0); animation: ripple .5s ease-out forwards; pointer-events: none; }
 @keyframes ripple { to { transform: scale(2.6); opacity: 0; } }
+.kb button.soon { opacity: .5; }
+.kb button.soon:hover { background: var(--btn); }
+.alert { position: fixed; inset: 0; display: grid; place-items: center; z-index: 25; background: rgba(0, 0, 0, .35); animation: fade .2s ease; }
+.alert.closing { animation: fade-out .16s ease forwards; }
+.alert-card { background: var(--panel); border-radius: 14px; padding: 18px 20px 10px; width: min(320px, 90vw);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .5); animation: card-in .25s var(--ease); }
+.alert-card p { margin: 0 0 12px; }
+.alert-card button { float: right; color: var(--accent); font-weight: 600; padding: 6px 10px; border-radius: 8px; }
+.alert-card button:hover { background: rgba(106, 179, 243, .1); }
+.alert-card::after { content: ""; display: block; clear: both; }
 .kb.dim { opacity: .45; pointer-events: none; transition: opacity .3s; }
 
 /* фото во вложении */
