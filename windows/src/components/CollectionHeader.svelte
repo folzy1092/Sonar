@@ -28,7 +28,7 @@
 </script>
 
 <header class="head">
-  <div class="cover" class:round>
+  <div class="cover" class:round class:heart={icon === 'heart'}>
     {#if image && !failed}
       <img src={image} alt="" draggable="false" onerror={() => (failed = true)} />
     {:else if covers.length >= 4}
@@ -77,6 +77,10 @@
   }
   .cover.round {
     border-radius: 50%;
+  }
+  /* сердце Любимых — в цвет темы, как у Dotify */
+  .cover.heart {
+    color: var(--accent);
   }
   img {
     width: 100%;
@@ -132,10 +136,12 @@
       transform var(--fast) var(--ease),
       background var(--fast) var(--ease);
   }
+  /* «Слушать» — белая, как у Dotify (не в цвет темы) */
   .listen {
     padding: 0 20px;
-    background: var(--accent);
-    color: var(--accent-ink);
+    border-radius: 10px;
+    background: var(--text);
+    color: var(--on-text);
   }
   .pill {
     padding: 0 16px;

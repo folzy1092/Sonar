@@ -83,7 +83,7 @@
   <div class="bg" aria-hidden="true">
     {#key track?.cover_url}
       {#if track?.cover_url}
-        <div class="layer" transition:fade={{ duration: 700 }}>
+        <div class="layer idle-pause" transition:fade={{ duration: 700 }}>
           <img class="base" src={track.cover_url} alt="" />
           <img class="float" src={track.cover_url} alt="" />
         </div>

@@ -94,7 +94,7 @@
 
   <div class="scene">
     {#each waveTracks.slice(1, 3) as t, i (t.ref)}
-      <button class="float f{i}" aria-label="Играть «{t.title}»" title="{t.artist} — {t.title}" onclick={(e) => playCover(e, t)}>
+      <button class="float f{i} idle-pause" aria-label="Играть «{t.title}»" title="{t.artist} — {t.title}" onclick={(e) => playCover(e, t)}>
         <Cover url={t.cover_url} size={64} radius="16px" />
       </button>
     {/each}

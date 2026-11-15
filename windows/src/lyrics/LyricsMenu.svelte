@@ -31,7 +31,7 @@
     { id: 'cover', icon: 'eyeClosed', title: 'Только обложка' },
     { id: 'lyrics', icon: 'textLines', title: 'Только текст' },
   ]
-  const sizeFont = { S: 12, M: 15, L: 18, XL: 21 } as const
+  const sizeFont = { S: 10, M: 12, L: 14, XL: 17 } as const
 
   /** Ползунок смещения: ±2 с, точнее — колесом по 10 мс; двойной клик по значению — сброс. */
   const RANGE_MS = 2000
@@ -88,7 +88,7 @@
   <div class="row views" role="radiogroup" aria-label="Вид">
     {#each views as v (v.id)}
       <button class:on={lyrics.view === v.id} aria-label={v.title} title={v.title} onclick={() => lyrics.setView(v.id)}>
-        <Icon name={v.icon} size={20} />
+        <Icon name={v.icon} size={16} />
       </button>
     {/each}
   </div>
@@ -142,10 +142,10 @@
   </div>
 
   <button class="wide" disabled title="Перевод — после MVP">
-    <Icon name="language" size={17} /> Перевести
+    <Icon name="language" size={14} /> Перевести
   </button>
   <button class="wide" onclick={() => lyrics.reload()} title="Искать текст заново, мимо кэша">
-    <Icon name="refresh" size={17} /> Найти текст заново
+    <Icon name="refresh" size={14} /> Найти текст заново
   </button>
 </div>
 
@@ -153,9 +153,10 @@
   .menu {
     position: fixed;
     z-index: 60;
-    width: 256px;
-    padding: 10px;
-    border-radius: 18px;
+    /* компактно, как у Dotify (~206 px) */
+    width: 206px;
+    padding: 8px;
+    border-radius: 14px;
     background: rgba(44, 44, 48, 0.82);
     backdrop-filter: blur(28px) saturate(140%);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -168,18 +169,18 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     align-items: center;
-    padding: 4px 0 10px;
+    padding: 2px 0 7px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
   .row.views {
     grid-template-columns: repeat(3, 1fr);
-    padding-top: 10px;
+    padding-top: 7px;
   }
   .row button {
     display: grid;
     place-items: center;
-    height: 34px;
-    border-radius: 10px;
+    height: 28px;
+    border-radius: 8px;
     color: rgba(255, 255, 255, 0.4);
     font-weight: 600;
     transition:
@@ -198,16 +199,16 @@
     transform: scale(0.92);
   }
   .list {
-    padding: 8px 0 4px;
+    padding: 6px 0 2px;
   }
   .item {
     display: flex;
     justify-content: space-between;
     align-items: center;
     width: 100%;
-    padding: 8px 6px;
-    border-radius: 10px;
-    font-size: 13px;
+    padding: 6px 5px;
+    border-radius: 8px;
+    font-size: 11px;
     text-align: left;
     transition: background var(--fast) var(--ease);
   }
@@ -245,8 +246,8 @@
   }
   .offset input::-webkit-slider-thumb {
     appearance: none;
-    width: 14px;
-    height: 14px;
+    width: 11px;
+    height: 11px;
     border-radius: 50%;
     background: #fff;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
@@ -261,11 +262,11 @@
     justify-content: center;
     gap: 8px;
     width: 100%;
-    height: 42px;
-    margin-top: 6px;
-    border-radius: 12px;
+    height: 32px;
+    margin-top: 5px;
+    border-radius: 9px;
     background: rgba(255, 255, 255, 0.08);
-    font-size: 13px;
+    font-size: 11px;
     font-weight: 500;
     color: #fff;
     transition:

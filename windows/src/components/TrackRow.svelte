@@ -67,7 +67,7 @@
   {#if index !== undefined}
     <span class="num">
       {#if isCurrent && player.playing}
-        <span class="eq" aria-label="Играет"><i></i><i></i><i></i></span>
+        <span class="eq idle-pause" aria-label="Играет"><i></i><i></i><i></i></span>
       {:else}
         {index + 1}
       {/if}
@@ -111,7 +111,7 @@
     {:else}
       <span class="pill">
         {#if isCurrent && player.playing}
-          <span class="eq small"><i></i><i></i><i></i></span>
+          <span class="eq small idle-pause"><i></i><i></i><i></i></span>
         {:else}
           {formatTime(track.duration_ms)}
         {/if}
