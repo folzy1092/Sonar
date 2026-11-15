@@ -24,7 +24,11 @@
     }
     try {
       const list = await navigator.mediaDevices.enumerateDevices()
-      const outs = list.filter((d) => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications')
+      // без разрешения id бывают пустыми — такие и повторы пропускаем
+      const seen = new Set([''])
+      const outs = list.filter(
+        (d) => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications' && !seen.has(d.deviceId) && !!seen.add(d.deviceId),
+      )
       devices = [devices[0], ...outs.map((d, i) => ({ id: d.deviceId, label: d.label || `Устройство ${i + 1}`, sub: 'Устройство вывода' }))]
     } catch {
       // нет доступа к списку устройств — только системное

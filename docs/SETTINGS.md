@@ -61,7 +61,7 @@
 | `appearance.background` | `standard` (тема) / `cover_color` / `cover` (сама обложка, размытая) / `custom` (свой фон) | `cover_color` | да |
 | `appearance.progress_indicator` | `none` / `line` (линия внизу мини-плеера) / `fill` (заливка фона) / `ring` (кольцо на обложке) | `ring` | да |
 | `appearance.cover_shape` | `rounded` / `circle` / `hidden` (обложка в мини-плеере) | `circle` | да |
-| `appearance.corner_radius` | `none` / `soft` / `rounded` / `pill` | `pill` | да |
+| `appearance.corner_radius` | `none` / `soft` / `rounded` / `pill` (Нет / Маленькое / Среднее / Большое) | `rounded` | да |
 | `appearance.glass` | bool — прозрачность | `true` | да |
 | `appearance.glass_type` | `balance` / `ultra` / `no_blur` | `ultra` | да |
 | `appearance.opacity` | 0–100 % | `100` | да |
@@ -73,7 +73,7 @@
 | `appearance.font_size` | 12 / 14 / 16 / 18 / 20 | `16` | да |
 | `appearance.font_weight` (PC) | `auto` / 400 / 500 / 600 / 700 | `auto` | да |
 | `appearance.scale_window` (PC) | 75–125 % (зум WebView) | `100` | нет |
-| `appearance.scale_fullscreen` (PC) | 75–125 % | `90` | нет |
+| `appearance.scale_fullscreen` (PC) | 75–125 % — когда окно развёрнуто | `100` | нет |
 
 Каждый выбор с несколькими вариантами открывается **нижним листом** (`photo_20..25`): иконка,
 название, галочка у выбранного. Тогглы и ползунки — прямо в списке.
@@ -160,7 +160,7 @@
 |---|---|---|
 | `mini.style` | `off` / `full` / `rounded` / `hybrid` / `deck` — пресет, выставляет фон/прогресс/обложку/форму (`PLATFORMS.md`) | `hybrid` |
 | `mini.position` | `top` / `bottom` / `bottom_inset` / `floating` | `bottom` |
-| `mini.background` | `theme` / `cover` / `cover_color` | `cover_color` |
+| `mini.background` | `theme` / `cover` / `cover_color` | `theme` (пресет «Гибрид») |
 | `mini.progress` | `line` / `background` (без `around_cover`) | `background` |
 | `mini.cover_shape` | `default` / `circle` | `circle` |
 | `mini.shape` | `default` / `capsule` | `capsule` |
