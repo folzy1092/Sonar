@@ -112,6 +112,43 @@ export interface StreamUrl {
   quality: string
 }
 
+export type StatsPeriod = 'day' | 'week' | 'month' | 'half_year' | 'year' | 'all'
+
+export interface ArtistStat {
+  name: string
+  avatar_url: string | null
+  ref: string | null
+  ms: number
+  plays: number
+}
+
+export interface TrackStat {
+  ref: string
+  title: string
+  artist: string
+  cover_url: string | null
+  plays: number
+  ms: number
+}
+
+/** `Stats` из docs/API.md §5 + поля экрана «Статистика» (pc/Screenshot_32). */
+export interface Stats {
+  period: StatsPeriod
+  total_ms: number
+  delta_pct: number | null
+  buckets: { label: string; value_ms: number }[]
+  top_artist: ArtistStat | null
+  more_artists: ArtistStat[]
+  top_tracks: TrackStat[]
+  plays: number
+  tracks: number
+  artists: number
+  streak_days: number
+  peak_hour: number | null
+  per_day: number
+  fav_weekday: number | null
+}
+
 export interface MediaInfo {
   title?: string
   artist?: string
@@ -184,8 +221,10 @@ export const api = {
     call<void>('wave_feedback', { event, track, playedMs }),
   dislikedRefs: () => call<string[]>('disliked_refs'),
   similarTracks: (trackRef: string, limit = 20) => call<Track[]>('similar_tracks', { trackRef, limit }),
+  cachedTracks: (refs: string[]) => call<Track[]>('cached_tracks', { refs }),
   recentTracks: (limit = 20) => call<Track[]>('recent_tracks', { limit }),
   homeReleases: () => call<Album[]>('home_releases'),
+  stats: (period: StatsPeriod) => call<Stats>('stats', { period, tzMin: -new Date().getTimezoneOffset() }),
 
   mediaUpdate: (info: MediaInfo) => (isTauri ? invoke<void>('media_update', { info }) : Promise.resolve()),
 }

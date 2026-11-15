@@ -8,7 +8,9 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+mod stats;
 mod wave;
+pub use stats::Stats;
 pub use wave::Taste;
 
 pub const LOCAL_USER: &str = "u_local";

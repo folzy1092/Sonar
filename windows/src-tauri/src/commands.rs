@@ -453,6 +453,12 @@ pub async fn similar_tracks(core: State<'_, Arc<Core>>, db: State<'_, Db>, track
   Ok(tracks)
 }
 
+/// Треки из локального кэша по ref (в том же порядке).
+#[tauri::command]
+pub fn cached_tracks(db: State<'_, Db>, refs: Vec<String>) -> Res<Vec<Track>> {
+  db.0.lock().unwrap().tracks(&refs).map_err(err)
+}
+
 /// Недавно игравшие треки (свежие первыми, без повторов).
 #[tauri::command]
 pub fn recent_tracks(db: State<'_, Db>, limit: Option<usize>) -> Res<Vec<Track>> {
@@ -481,4 +487,10 @@ pub async fn home_releases(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res
     }
   }
   Ok(albums)
+}
+
+/// Статистика из локальной истории (`GET /stats` в API.md §5). `tz_min` — смещение часового пояса.
+#[tauri::command]
+pub fn stats(db: State<'_, Db>, period: String, tz_min: Option<i64>) -> Res<crate::store::Stats> {
+  db.0.lock().unwrap().stats(&period, tz_min.unwrap_or(0)).map_err(err)
 }

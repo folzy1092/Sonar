@@ -6,6 +6,7 @@
   import Icon from '../components/Icon.svelte'
   import type { IconName } from '../components/icons'
   import Services from './settings/Services.svelte'
+  import Stats from './settings/Stats.svelte'
   import { api } from '../lib/api'
   import { settingsPanel, type SettingsTab } from './settings-section.svelte'
   import { indicator } from '../lib/indicator'
@@ -30,7 +31,6 @@
   let scViaYandex = $state(true)
 
   const later: Partial<Record<SettingsTab, string>> = {
-    account: 'Профиль, статистика и вход появятся вместе с сервером.',
     interface: 'Тема под обложку, фон, вкладки и стиль мини-плеера — в W5.',
     integrations: 'Discord RPC («Слушает в Sonar») и Last.fm — в W5.',
   }
@@ -108,6 +108,11 @@
           <i class="switch" class:on={scViaYandex} aria-hidden="true"></i>
         </button>
       </section>
+    {:else if settingsPanel.tab === 'account'}
+      <div class="subs">
+        <span class="sub on"><Icon name="history" size={15} /> Статистика</span>
+      </div>
+      <Stats />
     {:else if settingsPanel.tab === 'services'}
       <section>
         <Services />

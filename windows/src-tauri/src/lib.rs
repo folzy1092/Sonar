@@ -103,6 +103,8 @@ pub fn run() {
       commands::similar_tracks,
       commands::recent_tracks,
       commands::home_releases,
+      commands::stats,
+      commands::cached_tracks,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");
