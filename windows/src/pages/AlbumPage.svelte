@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { cascade } from '../lib/cascade'
   // Альбом: обложка, название, исполнители (ссылки), год · треков · длительность; ❤ альбома
   // (вкладка «Альбомы» в медиатеке) и нумерованный список треков.
   import CollectionHeader from '../components/CollectionHeader.svelte'
   import EmptyState from '../components/EmptyState.svelte'
   import Icon from '../components/Icon.svelte'
+  import { pulse } from '../lib/pulse'
   import TrackRow from '../components/TrackRow.svelte'
   import { api, errorText, type Album, type Track } from '../lib/api'
   import { durationText, tracksText } from '../lib/format'
@@ -34,7 +36,7 @@
 {#if error}
   <EmptyState icon="disc" title="Не получилось открыть альбом" text={error} />
 {:else if !album}
-  <div class="sk"></div>
+  <div class="sk skel"></div>
 {:else}
   {@const al = album}
   <CollectionHeader
@@ -52,16 +54,18 @@
     {/snippet}
     {#snippet actions()}
       <button class="tool" class:on={liked} aria-label={liked ? 'Убрать из медиатеки' : 'В медиатеку'} title={liked ? 'Убрать из медиатеки' : 'В медиатеку'} onclick={() => library.toggleLike(al)}>
-        <Icon name="heart" size={15} filled={liked} />
+        <span class="ic" use:pulse={liked}><Icon name="heart" size={15} filled={liked} /></span>
       </button>
     {/snippet}
   </CollectionHeader>
 
+  <div use:cascade>
   {#each tracks as t, i (t.ref + i)}
     <TrackRow track={t} index={i} onplay={() => player.playList(tracks, i, context, al.title)} />
   {:else}
     <p class="none">В альбоме нет доступных треков.</p>
   {/each}
+  </div>
 {/if}
 
 <style>
@@ -82,5 +86,9 @@
     margin-top: 8px;
     border-radius: var(--radius-l);
     background: var(--plate);
+  }
+  .ic {
+    display: grid;
+    place-items: center;
   }
 </style>

@@ -3,6 +3,8 @@
   // не открывает. Колесо мыши над значком или ползунком меняет громкость.
   import Icon from '../components/Icon.svelte'
   import { player } from './player.svelte'
+  import { slide } from 'svelte/transition'
+  import { reducedMotion } from '../lib/motion'
 
   let open = $state(false)
 </script>
@@ -27,6 +29,7 @@
       value={player.volume}
       aria-label="Громкость"
       style:--fill="{player.volume * 100}%"
+      transition:slide={{ axis: 'x', duration: reducedMotion() ? 0 : 220 }}
       oninput={(e) => player.setVolume(Number(e.currentTarget.value))}
     />
   {/if}
@@ -58,22 +61,10 @@
     border-radius: 3px;
     background: linear-gradient(to right, var(--text) var(--fill), var(--surface-3) var(--fill));
     cursor: pointer;
-    animation: grow var(--normal) var(--ease);
   }
   input::-webkit-slider-thumb {
     appearance: none;
     width: 3px;
     height: 3px;
-  }
-  @keyframes grow {
-    from {
-      width: 0;
-      opacity: 0;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    input {
-      animation: none;
-    }
   }
 </style>

@@ -4,12 +4,14 @@
   import Icon from '../components/Icon.svelte'
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
+  import PlayPause from '../components/PlayPause.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
   import Volume from '../player/Volume.svelte'
   import { player } from '../player/player.svelte'
   import { openRef, router } from './router.svelte'
   import { library } from '../lib/library.svelte'
   import { hasSelection } from '../lib/selection'
+  import { replay } from '../lib/replay'
   import { lyrics } from '../lyrics/lyrics.svelte'
 
   const track = $derived(player.current)
@@ -63,7 +65,7 @@
         <Cover url={track?.cover_url} size={46} />
         <span class="expand" aria-hidden="true"><Icon name="expand" size={18} /></span>
       </button>
-      <span class="meta selectable">
+      <span class="meta selectable" use:replay={track?.ref}>
         <span class="title" role="link" tabindex="-1" onclick={openPlayer} onkeydown={() => {}}>{track?.title ?? 'Ничего не играет'}</span>
         {#if player.error}
           <span class="artist err" title={player.error}>{player.error}</span>
@@ -83,7 +85,7 @@
       </span>
     </div>
     {#if track}
-      <IconButton icon="heart" label={liked ? 'Удалить из Любимых' : 'В Любимые'} size={17} filled={liked} active={liked} onclick={() => library.toggleLike(track)} />
+      <IconButton icon="heart" label={liked ? 'Удалить из Любимых' : 'В Любимые'} size={17} filled={liked} active={liked} pulse={liked} onclick={() => library.toggleLike(track)} />
     {/if}
   </div>
 
@@ -105,7 +107,7 @@
       disabled={!track}
       onclick={() => player.toggle()}
     >
-      <Icon name={player.playing ? 'pause' : 'play'} size={22} filled />
+      <PlayPause playing={player.playing} size={22} />
     </button>
     <IconButton icon="next" label="Вперёд" size={18} filled disabled={!track} onclick={() => player.next()} />
     <IconButton icon="shuffle" label="Перемешать" size={18} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />

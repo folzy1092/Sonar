@@ -8,6 +8,7 @@
   import Services from './settings/Services.svelte'
   import { api } from '../lib/api'
   import { settingsPanel, type SettingsTab } from './settings-section.svelte'
+  import { indicator } from '../lib/indicator'
 
   const tabs: { id: SettingsTab; title: string }[] = [
     { id: 'account', title: 'Аккаунт' },
@@ -65,14 +66,16 @@
   })
 </script>
 
-<aside class="panel" aria-label="Настройки">
-  <nav class="tabs" data-tauri-drag-region>
+<aside class="panel" class:open={settingsPanel.open} inert={!settingsPanel.open} aria-label="Настройки">
+  <nav class="tabs" data-tauri-drag-region use:indicator={{ key: settingsPanel.tab }}>
     {#each tabs as t (t.id)}
       <button class:on={settingsPanel.tab === t.id} onclick={() => (settingsPanel.tab = t.id)}>{t.title}</button>
     {/each}
   </nav>
 
   <div class="scroll" bind:this={scroller}>
+    {#key settingsPanel.tab}
+    <div class="tab-in">
     {#if settingsPanel.tab === 'player'}
       <div class="subs">
         <span class="sub on"><Icon name="volume" size={15} /> Аудио</span>
@@ -117,6 +120,8 @@
     {:else}
       <p class="later">{later[settingsPanel.tab]}</p>
     {/if}
+    </div>
+    {/key}
   </div>
 </aside>
 
@@ -130,6 +135,13 @@
     width: var(--settings-w);
     background: var(--surface-0);
     border-right: 1px solid var(--border);
+    /* как в Dotify: панель выезжает слева одновременно с уходом окна вглубь и так же уезжает */
+    transform: translateX(-100%);
+    transition: transform var(--settings-t) var(--settings-ease);
+    will-change: transform;
+  }
+  .panel.open {
+    transform: none;
   }
   .tabs {
     display: flex;
@@ -153,16 +165,6 @@
   .tabs button.on {
     color: var(--text);
     font-weight: 700;
-  }
-  .tabs button.on::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -1px;
-    height: 2px;
-    border-radius: 2px;
-    background: var(--text);
   }
   .scroll {
     flex: 1;

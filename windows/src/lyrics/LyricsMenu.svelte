@@ -5,6 +5,7 @@
   // Закрывается только кликом мимо.
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
+  import { pop } from '../lib/motion'
   import type { IconName } from '../components/icons'
   import { toMs } from './core/offset'
   import {
@@ -68,6 +69,8 @@
   style:top="{pos.top}px"
   role="menu"
   tabindex="-1"
+  in:pop|global={{ y: -6, scale: 0.95, duration: 220 }}
+  out:pop|global={{ y: -6, scale: 0.95, duration: 220 }}
   oncontextmenu={(e) => e.preventDefault()}
 >
   <div class="row sizes" role="radiogroup" aria-label="Размер текста">
@@ -159,14 +162,7 @@
     box-shadow: 0 18px 48px -12px rgba(0, 0, 0, 0.6);
     color: #fff;
     font-family: var(--font);
-    animation: menu-in 0.2s var(--ease);
     transform-origin: top left;
-  }
-  @keyframes menu-in {
-    from {
-      opacity: 0;
-      transform: scale(0.96);
-    }
   }
   .row {
     display: grid;

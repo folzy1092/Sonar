@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from './Icon.svelte'
+  import { xfade } from '../lib/motion'
 
   interface Props {
     url: string | null | undefined
@@ -11,20 +12,34 @@
 
   let { url, size, radius = 'var(--radius-s)', source = null }: Props = $props()
   let failed = $state(false)
+  let loaded = $state(false)
   const src = $derived(source?.startsWith('sc:') ? 'sc' : source?.startsWith('ym:') ? 'ym' : null)
 
   $effect(() => {
     url
     failed = false
+    loaded = false
   })
 </script>
 
 <div class="cover" style:width="{size}px" style:height="{size}px" style:border-radius={radius}>
-  {#if url && !failed}
-    <img src={url} alt="" loading="lazy" draggable="false" onerror={() => (failed = true)} />
-  {:else}
-    <Icon name="music" size={Math.round(size * 0.42)} stroke={1.6} />
-  {/if}
+  <!-- смена обложки — кроссфейд: старая гаснет, новая проявляется, когда загрузится -->
+  {#key url && !failed ? url : ''}
+    {#if url && !failed}
+      <img
+        src={url}
+        alt=""
+        loading="lazy"
+        draggable="false"
+        class:loaded
+        onload={() => (loaded = true)}
+        onerror={() => (failed = true)}
+        out:xfade={{ duration: 380 }}
+      />
+    {:else}
+      <span class="ph" in:xfade><Icon name="music" size={Math.round(size * 0.42)} stroke={1.6} /></span>
+    {/if}
+  {/key}
   {#if src}
     <span class="src {src}" title={src === 'sc' ? 'SoundCloud' : 'Яндекс Музыка'}>{src === 'sc' ? 'SC' : 'Я'}</span>
   {/if}
@@ -40,10 +55,23 @@
     background: linear-gradient(135deg, var(--surface-3), var(--surface-2));
     color: var(--text-3);
   }
+  .cover > img,
+  .ph {
+    grid-area: 1 / 1;
+  }
+  .ph {
+    display: grid;
+    place-items: center;
+  }
   img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.32s var(--ease);
+  }
+  img.loaded {
+    opacity: 1;
   }
   .src {
     position: absolute;

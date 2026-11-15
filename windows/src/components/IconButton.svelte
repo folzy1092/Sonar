@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from './Icon.svelte'
   import type { IconName } from './icons'
+  import { pulse as pulseOn } from '../lib/pulse'
 
   interface Props {
     icon: IconName
@@ -9,14 +10,16 @@
     filled?: boolean
     active?: boolean
     disabled?: boolean
+    /** «Пульс», когда становится true (лайк). */
+    pulse?: boolean
     onclick?: () => void
   }
 
-  let { icon, label, size = 20, filled = false, active = false, disabled = false, onclick }: Props = $props()
+  let { icon, label, size = 20, filled = false, active = false, disabled = false, pulse, onclick }: Props = $props()
 </script>
 
 <button class="icon-btn" class:active aria-label={label} title={label} {disabled} {onclick}>
-  <Icon name={icon} {size} {filled} />
+  <span class="ic" use:pulseOn={pulse}><Icon name={icon} {size} {filled} /></span>
 </button>
 
 <style>
@@ -41,6 +44,10 @@
   }
   .icon-btn.active {
     color: var(--accent);
+  }
+  .ic {
+    display: grid;
+    place-items: center;
   }
   .icon-btn:disabled {
     opacity: 0.35;

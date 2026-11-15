@@ -1,7 +1,11 @@
 <script lang="ts">
+  import { cascade } from '../lib/cascade'
   // Страница «Сейчас играет» по Dotify (reference/pc/Screenshot_22): обложка слева, справа название
   // по центру, ползунок на всю ширину, волна по звуку, блок кнопок, строка громкости; ниже — очередь.
   import Icon from '../components/Icon.svelte'
+  import PlayPause from '../components/PlayPause.svelte'
+  import { pulse } from '../lib/pulse'
+  import { replay } from '../lib/replay'
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
   import TrackRow from '../components/TrackRow.svelte'
@@ -51,13 +55,13 @@
         title={liked ? 'Удалить из Любимых' : 'В Любимые'}
         onclick={() => track && library.toggleLike(track)}
       >
-        <Icon name="heart" size={18} filled={liked} />
+        <span class="ic" use:pulse={liked}><Icon name="heart" size={18} filled={liked} /></span>
       </button>
     {/if}
   </div>
 
   <div class="side">
-    <div class="head">
+    <div class="head" use:replay={track?.ref}>
       <h1 class="selectable" title={track?.title}>{track?.title ?? 'Ничего не играет'}</h1>
       <p class="artist selectable">
         {#if avatar}<img src={avatar} alt="" />{/if}
@@ -100,7 +104,7 @@
         />
         <IconButton icon="prev" label="Назад" filled disabled={!track} onclick={() => player.prev()} />
         <button class="play" class:loading={player.loading} aria-label={player.playing ? 'Пауза' : 'Играть'} disabled={!track} onclick={() => player.toggle()}>
-          <Icon name={player.playing ? 'pause' : 'play'} size={26} filled />
+          <PlayPause playing={player.playing} size={26} />
         </button>
         <IconButton icon="next" label="Вперёд" filled disabled={!track} onclick={() => player.next()} />
         <IconButton icon="shuffle" label="Перемешать" active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
@@ -142,9 +146,11 @@
 
   <h3>Далее</h3>
   {#if player.upNext.length}
+    <div use:cascade={player.current?.ref}>
     {#each player.upNext as t, i (t.ref + i)}
       <TrackRow track={t} variant="queue" onplay={() => player.jumpTo(i)} />
     {/each}
+    </div>
   {:else}
     <p class="empty">Очередь пуста — включи трек из поиска.</p>
   {/if}
@@ -382,5 +388,9 @@
     .play.loading {
       animation: none;
     }
+  }
+  .ic {
+    display: grid;
+    place-items: center;
   }
 </style>

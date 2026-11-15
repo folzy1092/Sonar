@@ -114,6 +114,13 @@
     width: 3px;
     border-radius: 0 3px 3px 0;
     background: var(--accent);
+    animation: rail-mark 0.3s var(--ease);
+  }
+  @keyframes rail-mark {
+    from {
+      transform: scaleY(0);
+      opacity: 0;
+    }
   }
   .avatar {
     position: relative;

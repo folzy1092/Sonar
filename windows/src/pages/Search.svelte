@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { cascade } from '../lib/cascade'
+  import { indicator } from '../lib/indicator'
   import EmptyState from '../components/EmptyState.svelte'
   import TrackRow from '../components/TrackRow.svelte'
   import Tile from '../components/Tile.svelte'
@@ -58,7 +60,7 @@
   }
 </script>
 
-<div class="chips">
+<div class="chips" use:indicator={{ key: tab, kind: 'pill' }}>
   {#each tabs as t (t)}
     <button class="chip" class:on={tab === t} onclick={() => (tab = t)}>{t}</button>
   {/each}
@@ -81,9 +83,10 @@
   <EmptyState icon="search" title="Ничего не нашлось" text={`По запросу «${search.query.trim()}» в ${sourceName} пусто.`} />
 {:else}
   {@const all = tab === 'Все'}
+  {#key tab}<div class="tab-in">
   {#if (all || tab === 'Треки') && results.length}
     <h2>Треки {#if all && results.length > 5}<button class="more" onclick={() => (tab = 'Треки')}>Показать все</button>{/if}</h2>
-    <div class="list" class:stale={loading}>
+    <div class="list" class:stale={loading} use:cascade={results}>
       {#each all ? results.slice(0, 5) : results as t, i (t.ref)}
         <TrackRow track={t} index={i} onplay={() => player.playList(results, i, 'search')} />
       {/each}
@@ -91,7 +94,7 @@
   {/if}
   {#if (all || tab === 'Артисты') && more.artists.length}
     <h2>Артисты</h2>
-    <div class:row={all} class:grid={!all}>
+    <div class:row={all} class:grid={!all} use:cascade={more}>
       {#each more.artists as a (a.ref)}
         <Tile
           title={a.name}
@@ -106,7 +109,7 @@
   {/if}
   {#if (all || tab === 'Альбомы') && more.albums.length}
     <h2>Альбомы</h2>
-    <div class:row={all} class:grid={!all}>
+    <div class:row={all} class:grid={!all} use:cascade={more}>
       {#each more.albums as a (a.ref)}
         <Tile title={a.title} subtitle={a.artist} meta={a.year ? String(a.year) : undefined} image={a.cover_url} icon="disc" onclick={() => openRef(a.ref)} />
       {/each}
@@ -114,7 +117,7 @@
   {/if}
   {#if (all || tab === 'Плейлисты') && more.playlists.length}
     <h2>Плейлисты</h2>
-    <div class:row={all} class:grid={!all}>
+    <div class:row={all} class:grid={!all} use:cascade={more}>
       {#each more.playlists as p (p.ref)}
         <Tile title={p.title} subtitle={p.owner} meta={p.track_count ? tracksText(p.track_count) : undefined} image={p.cover_url} onclick={() => openRef(p.ref)} />
       {/each}
@@ -123,6 +126,7 @@
   {#if !all && ((tab === 'Треки' && !results.length) || (tab === 'Артисты' && !more.artists.length) || (tab === 'Альбомы' && !more.albums.length) || (tab === 'Плейлисты' && !more.playlists.length))}
     <EmptyState icon="search" title="Ничего не нашлось" text={`${tab} по запросу «${search.query.trim()}» не нашлись.`} />
   {/if}
+  </div>{/key}
 {/if}
 
 <style>
@@ -147,9 +151,13 @@
     background: var(--hover);
   }
   .chip.on {
-    background: var(--accent);
+    /* сама капсула — индикатор (lib/indicator), он переезжает между чипами */
+    background: transparent;
     border-color: transparent;
     color: var(--accent-ink);
+  }
+  .chips :global(.tab-ind.pill) {
+    background: var(--accent);
   }
   h2 {
     display: flex;

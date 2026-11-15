@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { cascade } from '../lib/cascade'
   // Исполнитель (pc/Screenshot_19): круглый аватар, имя, подписчики; Слушать · Подписаться ·
   // перемешать · в очередь; «Популярные» и «Альбомы». «Подписаться» = лайк исполнителя (вкладка
   // «Исполнители» в медиатеке). Окраска шапки под аватар — вместе с темой под обложку (W5).
@@ -67,17 +68,19 @@
         <button class="all" onclick={() => (showAll = !showAll)}>{showAll ? 'Свернуть' : 'Показать все'}</button>
       {/if}
     </div>
+    <div use:cascade>
     {#each shown as t, i (t.ref)}
       <TrackRow track={t} index={i} variant="top" onplay={() => player.playList(top, i, context, a.name)} />
     {:else}
       <p class="none">Треков нет.</p>
     {/each}
+    </div>
   </section>
 
   {#if albums.length}
     <section>
       <h2>Альбомы</h2>
-      <div class="grid">
+      <div class="grid" use:cascade>
         {#each albums as al (al.ref)}
           <Tile title={al.title} subtitle={al.year ? String(al.year) : al.artist} image={al.cover_url} icon="disc" onclick={() => openRef(al.ref)} />
         {/each}

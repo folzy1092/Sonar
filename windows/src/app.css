@@ -78,11 +78,177 @@ h3 {
   background: transparent;
 }
 
+/* Полоска-индикатор вкладок (lib/indicator.ts) */
+.has-ind {
+  position: relative;
+}
+.has-ind > :not(.tab-ind) {
+  position: relative;
+  z-index: 1;
+}
+.tab-ind {
+  position: absolute;
+  left: 0;
+  z-index: 0;
+  pointer-events: none;
+  transition:
+    transform var(--normal) var(--ease),
+    width var(--normal) var(--ease),
+    opacity var(--fast) var(--ease);
+}
+.tab-ind.line {
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text);
+}
+.tab-ind.pill {
+  top: 0;
+  border-radius: 999px;
+  background: var(--text);
+}
+
+/* Нажатие — лёгкое сжатие (PLATFORMS.md «Анимации»: 0.92–0.96) */
+.press {
+  transition: transform var(--fast) var(--ease);
+}
+.press:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+/* Скелетон с переливом (загрузка без «прыжков» вёрстки) */
+.skel {
+  background: linear-gradient(90deg, var(--plate) 0%, var(--hover) 50%, var(--plate) 100%);
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.2s linear infinite;
+}
+@keyframes skel-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Появление содержимого вкладки (кроссфейд) */
+.tab-in {
+  animation: tab-in var(--normal) var(--ease);
+}
+@keyframes tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* «Пульс» лайка */
+.like-pop {
+  animation: like-pop 0.42s var(--ease);
+}
+@keyframes like-pop {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.32);
+  }
+  60% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    transition-duration: 0ms !important;
+    transition-property: opacity, color, background-color, border-color !important;
     animation-duration: 0ms !important;
   }
+}
+/* выключатель `appearance.animations` — то же, что «Меньше движения» */
+:root.no-motion *,
+:root.no-motion *::before,
+:root.no-motion *::after {
+  transition-property: opacity, color, background-color, border-color !important;
+  animation-duration: 0ms !important;
+}
+
+/* Картинка проявляется, когда загрузилась (без «вспышки» пустого места) */
+img.fade-img {
+  opacity: 0;
+  transition: opacity 0.32s var(--ease);
+}
+img.fade-img.loaded {
+  opacity: 1;
+}
+
+/* Название и артист при смене трека — мягкое проявление (как track-fade-in у Dotify) */
+.track-in {
+  animation: track-in 0.32s var(--ease) both;
+}
+@keyframes track-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+/* Каскад: строки списков и плитки появляются по очереди, 25 мс между ними (класс на контейнере) */
+.cascade > * {
+  animation: cascade-in 0.42s var(--ease) both;
+}
+@keyframes cascade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+.cascade > :nth-child(2) {
+  animation-delay: 25ms;
+}
+.cascade > :nth-child(3) {
+  animation-delay: 50ms;
+}
+.cascade > :nth-child(4) {
+  animation-delay: 75ms;
+}
+.cascade > :nth-child(5) {
+  animation-delay: 100ms;
+}
+.cascade > :nth-child(6) {
+  animation-delay: 125ms;
+}
+.cascade > :nth-child(7) {
+  animation-delay: 150ms;
+}
+.cascade > :nth-child(8) {
+  animation-delay: 175ms;
+}
+.cascade > :nth-child(9) {
+  animation-delay: 200ms;
+}
+.cascade > :nth-child(10) {
+  animation-delay: 225ms;
+}
+.cascade > :nth-child(11) {
+  animation-delay: 250ms;
+}
+.cascade > :nth-child(12) {
+  animation-delay: 275ms;
+}
+.cascade > :nth-child(13) {
+  animation-delay: 300ms;
+}
+.cascade > :nth-child(14) {
+  animation-delay: 325ms;
+}
+.cascade > :nth-child(15) {
+  animation-delay: 350ms;
+}
+.cascade > :nth-child(16) {
+  animation-delay: 375ms;
+}
+.cascade > :nth-child(n + 17) {
+  animation-delay: 400ms;
 }

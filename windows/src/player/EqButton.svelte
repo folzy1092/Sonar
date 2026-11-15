@@ -4,6 +4,7 @@
   // кривая для этого трека. Открывается и закрывается только кликом (правило владельца).
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
+  import { pop } from '../lib/motion'
   import { player } from './player.svelte'
   import { EQ_FREQS, EQ_MAX_DB, eq, freqLabel } from './eq.svelte'
 
@@ -102,7 +103,7 @@
   </button>
 
   {#if open}
-    <div class="pop" role="dialog" aria-label="Эквалайзер">
+    <div class="pop" role="dialog" aria-label="Эквалайзер" in:pop={{ y: 8 }} out:pop={{ y: 8 }}>
       <div class="presets">
         {#if naming}
           <form class="name" onsubmit={savePreset}>
@@ -193,13 +194,7 @@
     background: var(--surface-1);
     border: 1px solid var(--border-strong);
     box-shadow: 0 18px 44px -12px rgba(0, 0, 0, 0.7);
-    animation: pop-in 0.16s var(--ease);
-  }
-  @keyframes pop-in {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
+    transform-origin: bottom right;
   }
   .presets {
     display: flex;

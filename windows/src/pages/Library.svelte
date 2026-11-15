@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { cascade } from '../lib/cascade'
+  import { indicator } from '../lib/indicator'
   // Медиатека (pc/Screenshot_21): вкладки Все / Плейлисты / Альбомы / Исполнители, «Вы вошли как»,
   // Любимые и свои плейлисты, плейлисты сервисов «фантомом» (открыть или перенести в Sonar),
   // сохранённые альбомы и исполнители; внизу слева — создать · импорт · обновить.
@@ -78,7 +80,7 @@
   }
 </script>
 
-<div class="tabs" role="tablist">
+<div class="tabs" role="tablist" use:indicator={{ key: tab }}>
   {#each tabs as t (t)}
     <button class="tab" class:on={tab === t} role="tab" aria-selected={tab === t} onclick={() => (tab = t)}>{t}</button>
   {/each}
@@ -113,7 +115,7 @@
 {#if tab === 'Все' || tab === 'Плейлисты'}
   <section class="block">
     <h2>Плейлисты {#if tab === 'Все'}<button class="more" aria-label="Все плейлисты" onclick={() => (tab = 'Плейлисты')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
-    <div class:row={tab === 'Все'} class:grid={tab !== 'Все'}>
+    <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab}>
       <Tile title="Любимые" subtitle="Лайкнутые треки" meta={tracksText(favCount)} icon="heart" onclick={() => router.go('playlist', 'favorites')} />
       {#each own as p (p.id)}
         <Tile title={p.name} subtitle={p.hidden ? 'Скрыт' : 'Sonar'} meta={tracksText(p.track_count)} covers={p.covers} dim={p.hidden} onclick={() => router.go('playlist', p.id)} />
@@ -136,7 +138,7 @@
         <section class="block">
           <h2>{g.name}</h2>
           <p class="hint">Открой, чтобы послушать, или перенеси в Sonar кнопкой на странице плейлиста.</p>
-          <div class="grid">{#each g.list as p (p.ref)}{@render phantomTile(p)}{/each}</div>
+          <div class="grid" use:cascade>{#each g.list as p (p.ref)}{@render phantomTile(p)}{/each}</div>
         </section>
       {/if}
     {/each}
@@ -144,7 +146,7 @@
   {:else if phantom.sc.length || phantom.ym.length}
     <section class="block">
       <h2>Из сервисов <button class="more" aria-label="Все плейлисты сервисов" onclick={() => (tab = 'Плейлисты')}><Icon name="chevronRight" size={18} /></button></h2>
-      <div class="row">{#each [...phantom.sc, ...phantom.ym] as p (p.ref)}{@render phantomTile(p)}{/each}</div>
+      <div class="row" use:cascade>{#each [...phantom.sc, ...phantom.ym] as p (p.ref)}{@render phantomTile(p)}{/each}</div>
     </section>
   {/if}
 {/if}
@@ -154,7 +156,7 @@
     <section class="block">
       <h2>Альбомы {#if tab === 'Все'}<button class="more" aria-label="Все альбомы" onclick={() => (tab = 'Альбомы')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
       {#if albums.length}
-        <div class:row={tab === 'Все'} class:grid={tab !== 'Все'}>
+        <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab}>
           {#each albums as a (a.ref)}
             <Tile title={a.title} subtitle={a.artist} meta={a.year ? String(a.year) : undefined} image={a.cover_url} icon="disc" source={a.ref} onclick={() => openRef(a.ref)} />
           {/each}
@@ -170,7 +172,7 @@
   <section class="block">
     <h2>Исполнители {#if tab === 'Все'}<button class="more" aria-label="Все исполнители" onclick={() => (tab = 'Исполнители')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
     {#if artists.length}
-      <div class:row={tab === 'Все'} class:grid={tab !== 'Все'}>
+      <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab}>
         {#each artists as a (a.ref)}
           <Tile title={a.name} image={a.avatar_url} icon="user" round onclick={() => openRef(a.ref)} />
         {/each}
@@ -191,6 +193,7 @@
   .tabs {
     display: flex;
     gap: 18px;
+    padding-bottom: 6px;
   }
   .tab {
     font-family: var(--font-display);

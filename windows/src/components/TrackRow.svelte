@@ -3,6 +3,7 @@
   // (ссылки на их страницы), ❤, длительность, ⋮. Правый клик — то же меню трека.
   import Cover from './Cover.svelte'
   import Icon from './Icon.svelte'
+  import { pulse } from '../lib/pulse'
   import type { Track } from '../lib/api'
   import { library } from '../lib/library.svelte'
   import { trackMenu } from '../lib/menu.svelte'
@@ -98,7 +99,7 @@
       title={liked ? 'Удалить из Любимых' : 'В Любимые'}
       onclick={(e) => (e.stopPropagation(), library.toggleLike(track))}
     >
-      <Icon name="heart" size={15} filled={liked} />
+      <span class="ic" use:pulse={liked}><Icon name="heart" size={15} filled={liked} /></span>
     </button>
     {#if variant === 'list'}
       <span class="dur">{formatTime(track.duration_ms)}</span>
@@ -305,5 +306,9 @@
     50% {
       height: 100%;
     }
+  }
+  .ic {
+    display: grid;
+    place-items: center;
   }
 </style>

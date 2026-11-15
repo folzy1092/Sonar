@@ -111,6 +111,9 @@
      и поворачивается вглубь на ~15° (левый край дальше), затемняется; панель слева — плоская. */
   :global(:root) {
     --settings-w: 440px;
+    /* окно и панель едут одним движением (пружина Dotify: damping 28, stiffness 240) */
+    --settings-t: 0.52s;
+    --settings-ease: cubic-bezier(0.2, 0.9, 0.25, 1);
   }
   .stage {
     position: relative;
@@ -133,9 +136,10 @@
     background: var(--bg);
     transform-origin: left center;
     transition:
-      transform 0.38s var(--ease),
-      filter 0.38s var(--ease),
-      border-radius 0.38s var(--ease);
+      transform var(--settings-t) var(--settings-ease),
+      filter var(--settings-t) var(--settings-ease),
+      border-radius var(--settings-t) var(--settings-ease),
+      box-shadow var(--settings-t) var(--settings-ease);
   }
   .shell.away {
     transform: translateX(calc(var(--settings-w) + 24px)) rotateY(-15deg) scale(0.9);

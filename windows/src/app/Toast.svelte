@@ -1,10 +1,12 @@
 <script lang="ts">
+  // Тост выезжает снизу и уезжает вниз (PLATFORMS.md «Анимации»).
   import { toast } from '../lib/toast.svelte'
+  import { pop } from '../lib/motion'
 </script>
 
 {#if toast.text}
   {#key toast.text}
-    <div class="toast" role="status">{toast.text}</div>
+    <div class="toast" role="status" in:pop={{ y: 14, scale: 0.94, duration: 260 }} out:pop={{ y: 14, scale: 0.94, duration: 260 }}>{toast.text}</div>
   {/key}
 {/if}
 
@@ -13,7 +15,7 @@
     position: fixed;
     left: 50%;
     bottom: calc(var(--player-h) + 22px);
-    transform: translateX(-50%);
+    translate: -50% 0;
     z-index: 60;
     max-width: min(520px, 80vw);
     padding: 10px 18px;
@@ -22,12 +24,5 @@
     border: 1px solid var(--border-strong);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
     font-weight: 600;
-    animation: toast-in var(--normal) var(--ease);
-  }
-  @keyframes toast-in {
-    from {
-      opacity: 0;
-      transform: translate(-50%, 8px);
-    }
   }
 </style>

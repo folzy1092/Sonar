@@ -8,6 +8,9 @@
   import { cubicOut } from 'svelte/easing'
   import { fade } from 'svelte/transition'
   import Icon from '../components/Icon.svelte'
+  import PlayPause from '../components/PlayPause.svelte'
+  import { pulse } from '../lib/pulse'
+  import { replay } from '../lib/replay'
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
   import WindowControls from '../app/WindowControls.svelte'
@@ -119,7 +122,7 @@
             title={liked ? 'Удалить из Любимых' : 'В Любимые'}
             onclick={() => track && library.toggleLike(track)}
           >
-            <Icon name="heart" size={18} filled={liked} />
+            <span class="ic" use:pulse={liked}><Icon name="heart" size={18} filled={liked} /></span>
           </button>
           <button class="on-cover right" aria-label="Не нравится" title="Не нравится — вместе со своей волной (W5)" disabled>
             <Icon name="dislike" size={18} />
@@ -127,8 +130,8 @@
         {/if}
       </div>
 
-      <h1 class="selectable" title={track?.title}>{track?.title ?? ''}</h1>
-      <p class="artist selectable">
+      <h1 class="selectable" title={track?.title} use:replay={track?.ref}>{track?.title ?? ''}</h1>
+      <p class="artist selectable" use:replay={track?.ref}>
         {#if avatar}<img src={avatar} alt="" />{/if}
         {#if track}
           {#each track.artists as a, i (a.ref + i)}{#if i},&nbsp;{/if}<span
@@ -160,7 +163,7 @@
           disabled={!track}
           onclick={() => player.toggle()}
         >
-          <Icon name={player.playing ? 'pause' : 'play'} size={30} filled />
+          <PlayPause playing={player.playing} size={30} />
         </button>
         <IconButton icon="next" label="Вперёд" filled disabled={!track} onclick={() => player.next()} />
         <IconButton icon="shuffle" label="Перемешать" active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
@@ -553,5 +556,9 @@
     .play.loading {
       animation: none;
     }
+  }
+  .ic {
+    display: grid;
+    place-items: center;
   }
 </style>

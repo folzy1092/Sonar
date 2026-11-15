@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { cascade } from '../lib/cascade'
   // Плейлист / Любимые (pc/Screenshot_28). Параметр роутера:
   //   favorites — свои лайки; pl_… — плейлист Sonar (правка, скрыть, удалить, порядок перетаскиванием);
   //   scpl:… / ympl:… — плейлист сервиса «фантомом», с кнопкой «Перенести в Sonar».
@@ -225,7 +226,7 @@
 {:else if !visible.length}
   <EmptyState icon="search" title="Ничего не нашлось" text={`В «${title}» нет «${filter.trim()}».`} />
 {:else}
-  <div class="list">
+  <div class="list" use:cascade>
     {#each visible as t, i (t.item_id ?? t.ref + i)}
       <div
         class="drag"

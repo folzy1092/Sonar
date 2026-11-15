@@ -43,7 +43,7 @@
 <button class="tile" class:ghost class:dim {onclick} {oncontextmenu} title={title}>
   <span class="cover" class:round>
     {#if image && !failed}
-      <img src={image} alt="" loading="lazy" draggable="false" onerror={() => (failed = true)} />
+      <img src={image} alt="" loading="lazy" draggable="false" class="fade-img" onload={(e) => e.currentTarget.classList.add('loaded')} onerror={() => (failed = true)} />
     {:else if covers.length >= 4}
       <span class="collage">
         {#each covers.slice(0, 4) as c, i (i)}<img src={c} alt="" loading="lazy" draggable="false" />{/each}

@@ -9,6 +9,7 @@
   import { toast } from '../lib/toast.svelte'
   import { player } from '../player/player.svelte'
   import { openRef } from './router.svelte'
+  import { pop } from '../lib/motion'
 
   const W = 280
   let el: HTMLElement | undefined = $state()
@@ -91,6 +92,8 @@
     style:left="{pos.left}px"
     style:top="{pos.top}px"
     style:width="{W}px"
+    in:pop={{ y: -6 }}
+    out:pop={{ y: -6 }}
     oncontextmenu={(e) => e.preventDefault()}
   >
     <div class="head">
@@ -161,13 +164,7 @@
     border: 1px solid var(--border-strong);
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
     backdrop-filter: blur(16px);
-    animation: menu-in var(--fast) var(--ease);
-  }
-  @keyframes menu-in {
-    from {
-      opacity: 0;
-      transform: scale(0.97);
-    }
+    transform-origin: top left;
   }
   .head {
     display: flex;
