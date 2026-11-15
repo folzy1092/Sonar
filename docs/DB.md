@@ -196,6 +196,8 @@ CREATE TABLE notification_reads (
 
 CREATE TABLE sync_rev (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER NOT NULL);
 
+-- Быстрые ссылки входа и репорты — схема в BOT.md §6 (auth_links, reports)
+
 -- Статус (SPEC §3.11), только на сервере
 CREATE TABLE status_checks (                    -- сырые проверки раз в 5 мин, хранятся 7 дней
   at            INTEGER NOT NULL,               -- мс

@@ -19,6 +19,11 @@
 | POST | `/auth/logout` | — → `204` |
 | POST | `/auth/telegram/start` | `{purpose: "login"\|"link", device?}` → `{request_id, link, expires_at}` (для `login` — без авт.) |
 | GET | `/auth/telegram/poll/{request_id}` | → `{status: "pending"\|"approved"\|"rejected"\|"expired", session?, user?}` |
+| POST | `/auth/link` (без авт.) | быстрая ссылка (5 мин): `{device}` или `{telegram}` → `{code, url, expires_at}` — BOT.md §3, §6 |
+| GET | `/auth/link/{code}/poll` (без авт.) | → `{status, session?, user?}` |
+| GET | `/auth/link/{code}` | (вошедший) кто просит доступ → `{for, created_at, expires_at}` |
+| POST | `/auth/link/{code}/approve` · `/reject` | (вошедший) → `204` |
+| POST | `/reports` | баг / идея из приложения → `{id}` (BOT.md §2.10) |
 | DELETE | `/auth/telegram` | отвязать (только если есть пароль) → `204` |
 | PUT | `/me/password` | `{old_password?, new_password}` → `204` (`old` не нужен, если пароля не было) |
 | GET | `/me` | → `User` |

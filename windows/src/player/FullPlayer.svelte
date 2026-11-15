@@ -34,10 +34,20 @@
     openRef(ref)
   }
 
+  /** Меню — только когда у трека есть текст (решение владельца 2026-11-15): без текста правый
+   *  клик ничего не открывает. */
+  const hasLyrics = $derived(lyrics.status === 'ready' && !!lyrics.data?.lines.length)
+
   function openMenu(e: MouseEvent) {
     e.preventDefault()
+    if (!hasLyrics) return
     menuAt = { x: e.clientX, y: e.clientY }
   }
+
+  // текст пропал (сменился трек без текста) — меню закрыть
+  $effect(() => {
+    if (!hasLyrics) menuAt = null
+  })
 
   /** Появление: лёгкое приближение + проявление. */
   function zoom(_node: Element, { duration = 280 } = {}) {
