@@ -1,0 +1,29 @@
+<script lang="ts">
+  // Пометка «Скоро» (ещё не сделано или нужен сервер) или замок «В разработке» (приватность).
+  import Icon from '../Icon.svelte'
+  let { lock = false }: { lock?: boolean } = $props()
+</script>
+
+<span class="soon" title={lock ? 'В разработке' : 'Скоро'}>
+  {#if lock}<Icon name="lock" size={11} /> В разработке{:else}Скоро{/if}
+</span>
+
+<style>
+  .soon {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 18px;
+    padding: 0 7px;
+    margin-left: 8px;
+    border-radius: 999px;
+    background: var(--plate);
+    border: 1px solid var(--border);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-3);
+    vertical-align: 2px;
+    white-space: nowrap;
+  }
+</style>

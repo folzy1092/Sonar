@@ -75,9 +75,15 @@
   $effect(() => {
     if (!track) lyrics.close()
   })
+
+  // Как в Dotify: курсор ушёл с окна — кнопки окна, ❤/👎 на обложке, управление и громкость плавно
+  // прячутся, остаются обложка, название, таймлайн и текст; курсор вернулся — показываются.
+  let away = $state(false)
 </script>
 
-<div class="fs" transition:zoom role="dialog" aria-label="Полноэкранный плеер" tabindex="-1" oncontextmenu={openMenu}>
+<svelte:document onmouseleave={() => (away = true)} onmouseenter={() => (away = false)} />
+
+<div class="fs" class:away onmousemove={() => (away = false)} transition:zoom role="dialog" aria-label="Полноэкранный плеер" tabindex="-1" oncontextmenu={openMenu}>
   <!-- фон как в Dotify: одна огромная, сильно размытая копия обложки медленно плывёт и
        поворачивается — тянется силуэт, саму картинку не разобрать; под ней — средний цвет обложки -->
   <div class="bg" aria-hidden="true">
@@ -428,7 +434,8 @@
     color: rgba(255, 255, 255, 0.8);
     transition:
       transform var(--fast) var(--ease),
-      color var(--fast) var(--ease);
+      color var(--fast) var(--ease),
+      opacity 0.35s var(--ease);
   }
   .on-cover.left {
     left: 12px;
@@ -568,5 +575,23 @@
   .ic {
     display: grid;
     place-items: center;
+  }
+  /* курсор вне окна — прячем управление (как в Dotify) */
+  .win,
+  .controls,
+  .volume {
+    transition:
+      opacity 0.35s var(--ease),
+      transform 0.35s var(--ease);
+  }
+  .away .win,
+  .away .on-cover,
+  .away .controls,
+  .away .volume {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .away .controls {
+    transform: translateY(6px);
   }
 </style>

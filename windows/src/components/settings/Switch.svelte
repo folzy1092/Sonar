@@ -1,11 +1,20 @@
 <script lang="ts">
-  // Строка настройки с переключателем (pc/Screenshot_14, 16): название, подсказка, тумблер справа.
-  let { title, hint, on, onchange }: { title: string; hint?: string; on: boolean; onchange: (v: boolean) => void } = $props()
+  // Строка настройки с переключателем (pc/Screenshot_4, 14, 16): название, подсказка, тумблер справа.
+  // `soon` — пункт есть на референсе, но ещё не работает: неактивен и с пометкой «Скоро».
+  import Soon from './Soon.svelte'
+  interface Props {
+    title: string
+    hint?: string
+    on: boolean
+    onchange?: (v: boolean) => void
+    soon?: boolean
+  }
+  let { title, hint, on, onchange, soon = false }: Props = $props()
 </script>
 
-<button class="row" role="switch" aria-checked={on} onclick={() => onchange(!on)}>
+<button class="row" class:soon role="switch" aria-checked={on} disabled={soon} onclick={() => onchange?.(!on)}>
   <span class="text">
-    <b>{title}</b>
+    <b>{title}{#if soon}<Soon />{/if}</b>
     {#if hint}<small>{hint}</small>{/if}
   </span>
   <i class="switch" class:on aria-hidden="true"></i>
@@ -17,8 +26,15 @@
     align-items: center;
     gap: 16px;
     width: 100%;
-    padding: 10px 0;
+    padding: 9px 0;
     text-align: left;
+  }
+  .row:disabled {
+    cursor: default;
+  }
+  .row.soon .switch,
+  .row.soon small {
+    opacity: 0.45;
   }
   .text {
     flex: 1;
@@ -38,7 +54,7 @@
   .switch {
     position: relative;
     flex-shrink: 0;
-    width: 42px;
+    width: 44px;
     height: 24px;
     border-radius: 999px;
     background: var(--surface-3);
@@ -58,17 +74,17 @@
       background var(--normal) var(--ease),
       width var(--fast) var(--ease);
   }
-  .row:active .switch::after {
+  .row:active:not(:disabled) .switch::after {
     width: 22px;
   }
   .switch.on {
     background: var(--accent);
   }
   .switch.on::after {
-    transform: translateX(18px);
+    transform: translateX(20px);
     background: var(--accent-ink);
   }
-  .row:active .switch.on::after {
-    transform: translateX(14px);
+  .row:active:not(:disabled) .switch.on::after {
+    transform: translateX(16px);
   }
 </style>
