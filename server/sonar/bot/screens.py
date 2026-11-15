@@ -13,6 +13,8 @@ from .ui import Btn, Screen, code, quote
 MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
 DAYS = ["воскресенье", "понедельник", "вторник", "среду", "четверг", "пятницу", "субботу"]
 PERIODS = {"day": ("День", 1), "week": ("Неделя", 7), "month": ("Месяц", 30), "half": ("Полгода", 182), "year": ("Год", 365)}
+# «Last.fm» Telegram сам делает ссылкой (как домен) — разрываем невидимым word joiner.
+LASTFM = "Last⁠.fm"
 PLATFORMS = {"windows": "Windows", "ios": "iOS", "android": "Android"}
 
 
@@ -123,7 +125,7 @@ def profile(user: User, services: dict[str, bool], week: tuple[int, int], s: Set
     svc = [f"{e('logo_soundcloud')} SoundCloud {mark(services['soundcloud'])}",
            f"{e('logo_yandex_music')} Яндекс Музыка {mark(services['yandex'])}"]
     if s.lastfm_api_key:
-        svc.append(f"{e('logo_lastfm')} Last.fm {mark(services['lastfm'])}")
+        svc.append(f"{e('logo_lastfm')} {LASTFM} {mark(services['lastfm'])}")
     html = (f"{e('profile')} <b>Твой профиль</b>\n"
             + quote(f"Имя: <b>{h(user.display_name)}</b>\nЛогин: {code('@' + user.username)} · {code(f'#{user.number}')}\n"
                     f"{e('date')} с {date_ru(user.created_at)}", "Аккаунт")
@@ -336,6 +338,6 @@ def status(items: dict[str, Item], online: int, users: int, uptime: float | None
     if owner:
         other = [f"{e('lyrics')} lrclib: {_mark(g('lrclib'))} · Genius: {_mark(g('genius'))}"]
         tail = f"{e('logo_telegram')} Telegram: {_mark(g('telegram'))}"
-        other.append((f"{e('logo_lastfm')} Last.fm: {_mark(g('lastfm'))} · " if g("lastfm") else "") + tail)
+        other.append((f"{e('logo_lastfm')} {LASTFM}: {_mark(g('lastfm'))} · " if g("lastfm") else "") + tail)
         html += quote(_tree(other), "Тексты и прочее:")
     return Screen(html=html, kb=[[Btn("Обновить", "refresh", "status"), Btn("Страница статуса", "web", url="https://sonar.folzy.ru/status")]])
