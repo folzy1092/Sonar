@@ -1,5 +1,5 @@
 // CI (windows.yml): собирает latest.json для tauri-plugin-updater из подписанного установщика NSIS.
-// Заметки берутся из updates/changelog.json (запись этой версии). Запуск из windows/:
+// Заметки берутся из updates/changelog.json (запись этой версии), иначе из env RELEASE_NOTES. Запуск из windows/:
 //   node scripts/latest-json.mjs <tag> > latest.json
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -22,6 +22,8 @@ try {
 } catch {
   // без заметок — клиент покажет «Описание обновления отсутствует»
 }
+// авто-версия из CI (нет записи в changelog) — сообщения коммитов с прошлого релиза
+if (!notes && process.env.RELEASE_NOTES) notes = process.env.RELEASE_NOTES.trim()
 
 const asset = exe.replaceAll(' ', '.')
 const out = {

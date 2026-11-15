@@ -1,10 +1,14 @@
 name: Windows
 
-# Сборка ПК-клиента (Tauri 2) → установщик NSIS (артефакт). Если в секретах есть ключ подписи
-# обновлений и версии из tauri.conf.json ещё нет в релизах — публикуем релиз `windows-v<версия>`
-# (установщик + подпись) и обновляем latest.json в релизе `windows-latest`: его читает
-# автообновление клиентов (tauri-plugin-updater, ROADMAP W6). Новая версия = поднять `version`
-# в tauri.conf.json, Cargo.toml, package.json и добавить запись в updates/changelog.json.
+# Сборка ПК-клиента (Tauri 2) → установщик NSIS. КАЖДЫЙ пуш в main с изменениями windows/ публикует
+# релиз `windows-v<версия>` (помечен Latest) — в Releases всегда самая свежая сборка, постоянная ссылка:
+#   https://github.com/folzy1092/Sonar/releases/latest/download/Sonar-setup.exe
+# Версия: если `version` из tauri.conf.json ещё не выпущена — она (заметки из updates/changelog.json);
+# иначе автоматически <major>.<minor>.<patch + номер запуска> (заметки — сообщения коммитов с прошлого
+# релиза). С ключом подписи в секретах обновляем ещё latest.json в релизе `windows-latest`: его читает
+# автообновление клиентов (tauri-plugin-updater), так что установленный Sonar сам подтянет сборку.
+# Крупная версия с описанием = поднять `version` в tauri.conf.json, Cargo.toml, package.json и
+# добавить запись в updates/changelog.json.
 on:
   push:
     branches: [main]
@@ -36,6 +40,9 @@ jobs:
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          # вся история и теги — для заметок «что изменилось с прошлого релиза»
+          fetch-depth: 0
 
       - uses: actions/setup-node@v5
         with:
@@ -62,21 +69,33 @@ jobs:
         run: cargo test
         working-directory: windows/src-tauri
 
-      - name: Версия и нужен ли релиз
+      - name: Версия релиза
         id: ver
         run: |
-          V=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          BASE=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if gh release view "windows-v$BASE" > /dev/null 2>&1; then
+            # базовая версия уже выпущена — авто-патч: растёт с каждым запуском, semver-больше прошлых
+            V=$(node -e "const [a,b,c]='$BASE'.split('.').map(Number);console.log(a+'.'+b+'.'+(c+${{ github.run_number }}))")
+          else
+            V=$BASE
+          fi
+          while gh release view "windows-v$V" > /dev/null 2>&1; do   # перезапуск того же run
+            V=$(node -e "const [a,b,c]='$V'.split('.').map(Number);console.log(a+'.'+b+'.'+(c+1))")
+          done
+          echo "Версия сборки: $V (в tauri.conf.json: $BASE)"
+          # только для сборки в CI, в репозиторий не коммитится
+          node -e "const f='src-tauri/tauri.conf.json',fs=require('fs'),c=JSON.parse(fs.readFileSync(f));c.version='$V';fs.writeFileSync(f,JSON.stringify(c,null,2))"
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "tag=windows-v$V" >> "$GITHUB_OUTPUT"
-          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            echo "Ключа подписи нет в секретах — только сборка, без релиза"
-            echo "release=false" >> "$GITHUB_OUTPUT"
-          elif gh release view "windows-v$V" > /dev/null 2>&1; then
-            echo "Релиз windows-v$V уже есть — только сборка"
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
             echo "release=false" >> "$GITHUB_OUTPUT"
           else
             echo "release=true" >> "$GITHUB_OUTPUT"
           fi
+          # заметки: сообщения коммитов клиента с прошлого windows-релиза
+          PREV=$(git tag -l 'windows-v*' --sort=-v:refname | head -1)
+          RANGE=${PREV:+$PREV..}HEAD
+          git log "$RANGE" --no-merges --pretty='- %s' -n 30 -- . ../updates > ../commit-notes.md || true
 
       - name: Сборка
         run: |
@@ -97,12 +116,29 @@ jobs:
         run: |
           TAG='${{ steps.ver.outputs.tag }}'
           V='${{ steps.ver.outputs.version }}'
-          node scripts/latest-json.mjs "$TAG" > latest.json
-          node -e "process.stdout.write(require('./latest.json').notes || 'Sonar $V для Windows')" > notes.md
-          gh release create "$TAG" src-tauri/target/release/bundle/nsis/*-setup.exe src-tauri/target/release/bundle/nsis/*-setup.exe.sig \
+          NSIS=src-tauri/target/release/bundle/nsis
+          EXE=$(ls "$NSIS"/*"_${V}_"*-setup.exe | head -1)
+          # постоянное имя: .../releases/latest/download/Sonar-setup.exe всегда отдаёт свежую сборку
+          cp "$EXE" Sonar-setup.exe
+          ASSETS=("$EXE" Sonar-setup.exe)
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            ASSETS+=("$EXE.sig")
+            RELEASE_NOTES="$(cat ../commit-notes.md)" node scripts/latest-json.mjs "$TAG" > latest.json
+            node -e "process.stdout.write(require('./latest.json').notes || 'Sonar $V для Windows')" > notes.md
+          else
+            echo "Ключа подписи нет в секретах — релиз без автообновления (latest.json не трогаем)"
+            node -e "
+              const fs=require('fs');let n='';
+              try{const e=JSON.parse(fs.readFileSync('../updates/changelog.json','utf8')).find(e=>e.version==='$V');if(e)n=e.changes.map(c=>'- '+c).join('\\n')}catch{}
+              if(!n)n=fs.readFileSync('../commit-notes.md','utf8').trim();
+              process.stdout.write(n||'Sonar $V для Windows')" > notes.md
+          fi
+          gh release create "$TAG" "${ASSETS[@]}" --target "$GITHUB_SHA" \
             --title "Sonar $V для Windows" --notes-file notes.md --latest
-          # постоянный адрес для автообновления: .../releases/download/windows-latest/latest.json
-          gh release view windows-latest > /dev/null 2>&1 || \
-            gh release create windows-latest --title "Автообновление Windows" --latest=false \
-              --notes "Служебный релиз: latest.json для автообновления Sonar. Установщик — в релизе $TAG."
-          gh release upload windows-latest latest.json --clobber
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            # постоянный адрес для автообновления: .../releases/download/windows-latest/latest.json
+            gh release view windows-latest > /dev/null 2>&1 || \
+              gh release create windows-latest --title "Автообновление Windows" --latest=false \
+                --notes "Служебный релиз: latest.json для автообновления Sonar. Установщик — в последнем релизе windows-v*."
+            gh release upload windows-latest latest.json --clobber
+          fi
