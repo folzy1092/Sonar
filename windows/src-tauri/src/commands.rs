@@ -416,6 +416,13 @@ pub struct WaveRequest {
 }
 
 /// Следующая порция своей волны.
+/// Синхронизация сейчас (API.md §6): отправить своё, забрать с других устройств. До сервера — ошибка
+/// «ещё не подключён».
+#[tauri::command]
+pub async fn sync_now(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<crate::sync::SyncReport> {
+  crate::sync::sync_now(&core.http, &db.0).await.map_err(err)
+}
+
 /// Вес сида при выборе (docs/WAVE.md 4.3): `0.85 ^ место` (0 — самый свежий), × 1.5 — и лайкнут, и
 /// дослушан, × 0.3 — его предложения в волне чаще всего пропускали.
 fn seed_weights(fresh: &[String], both: &[String], weak: &std::collections::HashSet<String>) -> Vec<(String, f64)> {

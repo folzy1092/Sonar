@@ -1,6 +1,7 @@
 //! Журнал выдачи и исходов своей волны (docs/WAVE.md, этап 6): что выдали, с какими признаками и
-//! чем кончилось. По нему считается `wave_stats`, а позже — подбор весов. Таблица только локальная,
-//! в синхронизацию не идёт.
+//! чем кончилось. По нему считается `wave_stats`, а позже — подбор весов. С миграции № 8 события
+//! едут в синк аккаунта (docs/WAVE.md §3а): текстовый `id`, `device_id`, `rev` — выдача и исход
+//! поднимают `rev`, `features_json` в синк не идёт.
 
 use super::{now_ms, Store, LOCAL_USER};
 use anyhow::Result;
@@ -54,13 +55,28 @@ impl Store {
   pub fn log_wave_served(&mut self, session_id: &str, mode: &str, items: &[ServedEvent]) -> Result<()> {
     let tx = self.db.transaction()?;
     {
+      let device: String = tx.query_row("SELECT value FROM sync_state WHERE key = 'device_id'", [], |r| r.get(0)).unwrap_or_default();
+      let rev: i64 = tx.query_row("UPDATE sync_rev SET value = value + 1 WHERE id = 1 RETURNING value", [], |r| r.get(0))?;
       let mut st = tx.prepare(
-        "INSERT INTO wave_events (user_id, session_id, ref, artist, mode, source, seed_ref, features_json, served_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO wave_events (id, user_id, device_id, session_id, ref, artist, mode, source, seed_ref, features_json, served_at, rev)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
       )?;
       let now = now_ms();
       for e in items {
-        st.execute(params![LOCAL_USER, session_id, e.ref_, e.artist, mode, e.source, e.seed_ref, e.features_json, now])?;
+        st.execute(params![
+          super::new_id("we"),
+          LOCAL_USER,
+          device,
+          session_id,
+          e.ref_,
+          e.artist,
+          mode,
+          e.source,
+          e.seed_ref,
+          e.features_json,
+          now,
+          rev
+        ])?;
       }
     }
     tx.commit()?;
@@ -70,12 +86,13 @@ impl Store {
   /// Записать исход трека: к последней выдаче этого трека в сессии, у которой исхода ещё нет.
   /// Вернёт `false`, если подходящей строки нет (трек выдан не волной или до журнала).
   pub fn finish_wave_event(&self, session_id: &str, r: &str, reward: f64, listened_ms: i64) -> Result<bool> {
+    let rev = self.next_rev()?;
     let n = self.db.execute(
-      "UPDATE wave_events SET reward = ?4, listened_ms = ?5, ended_at = ?6
-       WHERE id = (SELECT id FROM wave_events
-                   WHERE user_id = ?1 AND session_id = ?2 AND ref = ?3 AND ended_at IS NULL
-                   ORDER BY served_at DESC, id DESC LIMIT 1)",
-      params![LOCAL_USER, session_id, r, reward, listened_ms, now_ms()],
+      "UPDATE wave_events SET reward = ?4, listened_ms = ?5, ended_at = ?6, rev = ?7
+       WHERE rowid = (SELECT rowid FROM wave_events
+                      WHERE user_id = ?1 AND session_id = ?2 AND ref = ?3 AND ended_at IS NULL
+                      ORDER BY served_at DESC, rowid DESC LIMIT 1)",
+      params![LOCAL_USER, session_id, r, reward, listened_ms, now_ms(), rev],
     )?;
     Ok(n > 0)
   }
@@ -157,8 +174,8 @@ mod tests {
     std::thread::sleep(std::time::Duration::from_millis(2));
     s.log_wave_served("s1", "own", &[ev("sc:1", "similar")]).unwrap();
     assert!(s.finish_wave_event("s1", "sc:1", 1.0, 100_000).unwrap());
-    let latest: Option<i64> = s.db.query_row("SELECT ended_at FROM wave_events WHERE id = 2", [], |r| r.get(0)).unwrap();
-    let first: Option<i64> = s.db.query_row("SELECT ended_at FROM wave_events WHERE id = 1", [], |r| r.get(0)).unwrap();
+    let latest: Option<i64> = s.db.query_row("SELECT ended_at FROM wave_events WHERE rowid = 2", [], |r| r.get(0)).unwrap();
+    let first: Option<i64> = s.db.query_row("SELECT ended_at FROM wave_events WHERE rowid = 1", [], |r| r.get(0)).unwrap();
     assert!(latest.is_some() && first.is_none());
     // чужая сессия и трек без выдачи — ничего не меняется
     assert!(!s.finish_wave_event("other", "sc:1", 1.0, 1).unwrap());
