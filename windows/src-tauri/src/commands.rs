@@ -663,7 +663,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
     }
   }
   let mode = req.mode.as_deref().filter(|m| crate::wave::MODES.contains(m)).unwrap_or("own").to_owned();
-  let (seeds, taste, filter, platform) = {
+  let (seeds, taste, filter, platform, fav_artists) = {
     let mut store = db.0.lock().unwrap();
     if !req.session.is_empty() {
       store.upsert_tracks(&req.session).map_err(err)?;
@@ -711,11 +711,26 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
         seeds
       }
     };
+    // знакомое и новое по режиму: «Своя» — не больше 3 незнакомых артистов на 10 треков и без
+    // малоизвестных заливов SoundCloud от незнакомых (жалоба владельца «люди, которых я не знаю»)
+    let (max_unknown, min_plays_unknown) = crate::wave::familiarity(&mode, req.seed.is_some(), req.n.unwrap_or(PORTION));
     let filter = Filter {
       recent: store.played_since_days(7).map_err(err)?,
       banned: store.disliked_refs().map_err(err)?.into_iter().collect(),
       exclude: req.exclude.into_iter().collect(),
       paused_artists: req.paused_artists.iter().map(|a| a.to_lowercase()).collect(),
+      max_unknown,
+      min_plays_unknown,
+    };
+    // знакомое в котёл: популярные треки 1–2 любимых / слушаемых артистов, у волны по треку —
+    // артиста этого трека (его другие треки); в «Незнакомом» — нет
+    let fav_artists: Vec<String> = match &req.seed {
+      _ if mode == "new" => vec![],
+      Some(s) => s.artists.first().map(|a| vec![a.ref_.clone()]).unwrap_or_default(),
+      None => {
+        let all = store.favorite_artist_refs(15).unwrap_or_default();
+        rng.sample(&all, if mode == "own" { 2 } else { 1 })
+      }
     };
     let platform = store.setting("general.platform").ok().flatten().and_then(|v| v.as_str().map(str::to_owned));
     let mut taste = store.taste().map_err(err)?;
@@ -725,7 +740,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
     if matches!(mode.as_str(), "hard" | "calm" | "sad" | "fun") {
       taste.mode_tag_profile = store.tag_profile(Some(&mode)).unwrap_or_default();
     }
-    (seeds, taste, filter, platform)
+    (seeds, taste, filter, platform, fav_artists)
   };
 
   let has_ym = core.has_yandex().await;
@@ -757,7 +772,11 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
     return Err("Волне пока не от чего оттолкнуться — лайкни или послушай пару треков.".into());
   }
   let limit = if mode == "own" { 25 } else { 35 };
-  let results = futures_util::future::join_all(seeds.iter().map(|r| similar_cached(&core, &db, r, limit))).await;
+  let fav_artists: Vec<String> = fav_artists.into_iter().filter(|r| has_ym || !r.starts_with("yma:")).collect();
+  let (results, tops) = futures_util::join!(
+    futures_util::future::join_all(seeds.iter().map(|r| similar_cached(&core, &db, r, limit))),
+    futures_util::future::join_all(fav_artists.iter().map(|a| core.artist_top(a, 10))),
+  );
   let mut cands = Vec::new();
   let mut origin = Origin::default();
   let mut first_err = None;
@@ -770,6 +789,12 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
       Err(e) => {
         first_err.get_or_insert_with(|| e.to_string());
       }
+    }
+  }
+  for (artist, top) in fav_artists.iter().zip(tops) {
+    if let Ok(v) = top {
+      origin.add_artist(artist, &v);
+      cands.extend(v);
     }
   }
   if cands.is_empty() {
@@ -812,8 +837,13 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   let prefer = if has_ym && platform.as_deref() == Some("yandex") { "ym" } else { "sc" };
   let n = req.n.unwrap_or(PORTION);
   let mut out = pick_with(cands.clone(), &taste, &origin, &session, &filter, Some(prefer), &mode, n, false, &mut rng);
+  // знакомого не хватило — лучше незнакомые, чем пустая волна
+  let open = Filter { max_unknown: None, ..filter.clone() };
+  if out.len() < n / 2 {
+    out = pick_with(cands.clone(), &taste, &origin, &session, &open, Some(prefer), &mode, n, false, &mut rng);
+  }
   if out.len() < 3 {
-    out = pick_with(cands, &taste, &origin, &session, &filter, Some(prefer), &mode, n, true, &mut rng);
+    out = pick_with(cands, &taste, &origin, &session, &open, Some(prefer), &mode, n, true, &mut rng);
   }
   // свои забытые лайки (docs/WAVE.md 4.1): «Своя» — 3 из 10, настроение — до 2, на места 2, 5, 8
   let k = crate::wave::liked_share(&mode, req.seed.is_some());

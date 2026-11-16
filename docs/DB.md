@@ -212,7 +212,7 @@ CREATE TABLE wave_events (                      -- журнал волны (WAVE
   ref           TEXT NOT NULL,
   artist        TEXT NOT NULL,                  -- главный артист, нижний регистр
   mode          TEXT NOT NULL,                  -- own | hard | calm | sad | fun | new
-  source        TEXT NOT NULL,                  -- similar | hop2 | liked | seed
+  source        TEXT NOT NULL,                  -- similar | hop2 | liked | artist | seed
   seed_ref      TEXT,                           -- от какого сида пришёл
   features_json TEXT,                           -- Features на момент выдачи (wave.rs), по ним подбирают веса
   served_at     INTEGER NOT NULL,
