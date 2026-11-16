@@ -161,6 +161,7 @@ export default {
   'Выбранный раздел': 'Selected section',
   'Как отмечен раздел в левой панели': 'How the active section is marked in the sidebar',
   'Точка': 'Dot',
+  'Заливка': 'Fill',
   'Капсула': 'Capsule',
   'Плашка': 'Plate',
   'Утопленная': 'Inset',

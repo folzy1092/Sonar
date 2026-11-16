@@ -45,6 +45,23 @@ class Library {
     }
   }
 
+  /** Лайкнуть все треки разом (меню плейлиста Sonar); вернёт, сколько добавилось в Любимые. */
+  async likeAll(tracks: Track[]) {
+    const fresh = tracks.filter((x, i) => !this.liked.has(x.ref) && tracks.findIndex((y) => y.ref === x.ref) === i)
+    if (!fresh.length) return 0
+    const next = new Set(this.liked)
+    for (const x of fresh) next.add(x.ref)
+    this.liked = next
+    try {
+      for (const x of fresh) await api.setLike(x.ref, true, x)
+    } catch (e) {
+      toast.show(errorText(e))
+      await this.load(true)
+    }
+    this.version++
+    return fresh.length
+  }
+
   async refreshPlaylists() {
     try {
       this.playlists = await api.playlists()

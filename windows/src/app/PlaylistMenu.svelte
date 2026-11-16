@@ -1,18 +1,19 @@
 <script lang="ts">
-  // Меню плейлиста сервиса (правый клик по плитке «фантомного» плейлиста SoundCloud / Яндекса в
-  // медиатеке): открыть, слушать, перемешать, следующими, в очередь, перенести в Sonar, скопировать
-  // название, открыть на сайте сервиса. Треки грузятся один раз и запоминаются.
+  // Меню плейлиста (правый клик по плитке в медиатеке): открыть, слушать, перемешать, следующими, в
+  // очередь, скопировать название. У плейлиста сервиса ещё «Перенести в Sonar» и сайт сервиса, у своего
+  // плейлиста Sonar — «Лайкнуть все треки» и внизу «Скрыть плейлист» / «Показать плейлист»
+  // (решение владельца 2026-11-17). Треки сервиса грузятся один раз и запоминаются.
   import Cover from '../components/Cover.svelte'
   import Icon from '../components/Icon.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
   import type { IconName } from '../components/icons'
   import { playlistMenu } from '../lib/playlist-menu.svelte'
-  import { api, errorText, type ServicePlaylist, type Track } from '../lib/api'
+  import { api, errorText, type Playlist, type ServicePlaylist, type Track } from '../lib/api'
   import { library } from '../lib/library.svelte'
   import { toast } from '../lib/toast.svelte'
   import { tracksText } from '../lib/format'
   import { player } from '../player/player.svelte'
-  import { openRef } from './router.svelte'
+  import { openRef, router } from './router.svelte'
   import { pop } from '../lib/motion'
   import { t } from '../lib/i18n.svelte'
 
@@ -20,6 +21,7 @@
   let el: HTMLElement | undefined = $state()
   let pos = $state({ left: 0, top: 0 })
   const p = $derived(playlistMenu.target)
+  const own = $derived(playlistMenu.own)
   const sc = $derived(!!p?.ref.startsWith('sc'))
 
   const cache = new Map<string, Promise<Track[]>>()
@@ -35,7 +37,7 @@
 
   // не вылезать за окно
   $effect(() => {
-    if (!p || !el) return
+    if ((!p && !own) || !el) return
     const h = el.offsetHeight
     const left = Math.min(Math.max(8, playlistMenu.x), innerWidth - W - 8)
     const top = Math.min(playlistMenu.y, innerHeight - h - 8)
@@ -43,7 +45,7 @@
   })
 
   function onPointerDown(e: PointerEvent) {
-    if (p && el && !el.contains(e.target as Node)) playlistMenu.close()
+    if ((p || own) && el && !el.contains(e.target as Node)) playlistMenu.close()
   }
 
   /** Действие с треками плейлиста: меню закрывается сразу, треки догружаются в фоне. */
@@ -58,6 +60,49 @@
         if (done) toast.show(done)
       })
       .catch((e) => toast.show(errorText(e)))
+  }
+
+  /** То же для своего плейлиста: треки берутся из базы при каждом действии (список мог поменяться). */
+  function withOwn(fn: (tracks: Track[], pl: Playlist) => unknown, done?: string) {
+    const pl = own
+    if (!pl) return
+    playlistMenu.close()
+    api
+      .playlist(pl.id)
+      .then((full) => {
+        const tracks = full.tracks ?? []
+        if (!tracks.length) return toast.show(t('В плейлисте нет треков'))
+        return Promise.resolve(fn(tracks, full)).then((r) => {
+          if (typeof r === 'string') toast.show(r)
+          else if (done) toast.show(done)
+        })
+      })
+      .catch((e) => toast.show(errorText(e)))
+  }
+
+  async function toggleHidden() {
+    const pl = own
+    if (!pl) return
+    playlistMenu.close()
+    try {
+      await api.updatePlaylist(pl.id, { hidden: !pl.hidden })
+      toast.show(pl.hidden ? t('Плейлист снова виден') : t('Плейлист скрыт из «Все»'))
+      await library.refreshPlaylists()
+    } catch (e) {
+      toast.show(errorText(e))
+    }
+  }
+
+  async function copyOwnTitle() {
+    const pl = own
+    playlistMenu.close()
+    if (!pl) return
+    try {
+      await navigator.clipboard.writeText(pl.name)
+      toast.show(t('Название скопировано'))
+    } catch {
+      toast.show(t('Не получилось скопировать'))
+    }
   }
 
   async function importIt() {
@@ -104,7 +149,50 @@
   </button>
 {/snippet}
 
-{#if p}
+{#if own}
+  {@const ctx = `playlist:${own.id}`}
+  <div
+    class="menu"
+    role="menu"
+    tabindex="-1"
+    bind:this={el}
+    style:left="{pos.left}px"
+    style:top="{pos.top}px"
+    style:width="{W}px"
+    in:pop={{ y: -6 }}
+    out:pop={{ y: -6 }}
+    oncontextmenu={(e) => e.preventDefault()}
+  >
+    <div class="head">
+      <Cover url={own.covers[0]} size={44} />
+      <div class="meta">
+        <b>{own.name}</b>
+        <span>{own.hidden ? t('Скрыт') : 'Sonar'}</span>
+        {#if own.track_count}<small>{tracksText(own.track_count)}</small>{/if}
+      </div>
+    </div>
+
+    {@render item('chevronRight', t('Открыть'), () => {
+      playlistMenu.close()
+      router.go('playlist', own.id)
+    })}
+    {@render item('play', t('Слушать'), () => withOwn((list, pl) => player.playList(list, 0, ctx, pl.name)))}
+    {@render item('shuffle', t('Слушать вперемешку'), () => withOwn((list, pl) => player.playShuffled(list, ctx, pl.name)))}
+    <hr />
+    {@render item('playNext', t('Следующими'), () => withOwn((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
+    {@render item('queue', t('В очередь'), () => withOwn((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}
+    <hr />
+    {@render item('heart', t('Лайкнуть все треки'), () =>
+      withOwn(async (list) => {
+        const n = await library.likeAll(list)
+        return n ? t('{tracks} — в Любимых', { tracks: tracksText(n) }) : t('Все треки уже в Любимых')
+      }),
+    )}
+    {@render item('copy', t('Копировать название'), copyOwnTitle)}
+    <hr />
+    {@render item(own.hidden ? 'eye' : 'eyeOff', own.hidden ? t('Показать плейлист') : t('Скрыть плейлист'), toggleHidden)}
+  </div>
+{:else if p}
   {@const ctx = `playlist:${p.ref}`}
   <div
     class="menu"

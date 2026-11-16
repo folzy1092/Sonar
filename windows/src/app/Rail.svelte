@@ -122,8 +122,8 @@
   .item:hover {
     color: var(--text);
   }
-  /* Выбранный раздел (appearance.anim_nav): точка акцента слева / капсула акцента / плашка
-     поверхности 2 с гранью и бликом / утопленная плашка. Сама иконка двигает деталь (NavIcon). */
+  /* Выбранный раздел (appearance.anim_nav): только залитая иконка (без точки — решение владельца
+     2026-11-17) / капсула акцента / плашка поверхности 2 с гранью и бликом / утопленная плашка. */
   .item {
     border-radius: var(--radius-m);
     --knob-fill: var(--surface-1);
@@ -135,26 +135,6 @@
   }
   .item.active {
     color: var(--text);
-  }
-  .item::before {
-    content: '';
-    position: absolute;
-    left: -5px;
-    top: 50%;
-    width: 5px;
-    height: 5px;
-    margin-top: -2.5px;
-    border-radius: 50%;
-    background: var(--accent);
-    opacity: 0;
-    scale: 0;
-    transition:
-      opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-      scale 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  :global(:root[data-nav='dot']) .item.active::before {
-    opacity: 1;
-    scale: 1;
   }
   :global(:root[data-nav='capsule']) .item.active {
     background-color: var(--accent);
@@ -254,19 +234,6 @@
   :global(.shell.tabs-bottom) .avatar {
     margin: 0 0 0 8px;
   }
-  /* точка выбранного раздела в горизонтальной панели — снизу */
-  :global(.shell.tabs-top) .item::before,
-  :global(.shell.tabs-bottom) .item::before {
-    left: 50%;
-    top: auto;
-    bottom: -5px;
-    margin: 0 0 0 -2.5px;
-  }
-  :global(.shell.tabs-right) .item::before {
-    left: auto;
-    right: -5px;
-  }
-
   /* ---- стиль вкладок (tabs.style) ---- */
   /* компактный — уже и плотнее */
   :global(.shell.tstyle-compact) {

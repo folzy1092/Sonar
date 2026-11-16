@@ -223,7 +223,7 @@
   fill
   value={axes.anim_nav}
   options={[
-    { id: 'dot' as const, label: t('Точка') },
+    { id: 'dot' as const, label: t('Заливка') },
     { id: 'capsule' as const, label: t('Капсула') },
     { id: 'plate' as const, label: t('Плашка') },
     { id: 'inset' as const, label: t('Утопленная') },

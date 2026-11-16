@@ -27,7 +27,7 @@
     </svg>
   {:else if name === 'player'}
     <svg class="cu" viewBox="0 0 24 24">
-      <path class="tri" d="M7.4 4.6a1.4 1.4 0 0 1 2.1-1.2l10.2 6.4a2.5 2.5 0 0 1 0 4.4L9.5 20.6a1.4 1.4 0 0 1-2.1-1.2Z" transform="translate(-0.4 0)" />
+      <path class="tri" d="M7.4 4.6a1.4 1.4 0 0 1 2.1-1.2l10.2 6.4a2.5 2.5 0 0 1 0 4.4L9.5 20.6a1.4 1.4 0 0 1-2.1-1.2Z" transform="translate(-1.3 0)" />
     </svg>
   {:else if name === 'search'}
     <svg class="cu" viewBox="0 0 24 24">
