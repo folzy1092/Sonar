@@ -157,7 +157,7 @@
     background: rgba(18, 18, 21, 0.96);
     border: 1px solid var(--border-strong);
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(16px);
+    backdrop-filter: blur(var(--menu-blur, 16px));
     transform-origin: top left;
   }
   .head {

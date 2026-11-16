@@ -84,9 +84,32 @@
 
 <Divider />
 
-<Switch title="Прозрачность" hint="Эффекты прозрачности и размытия окна" on={false} soon />
-<Slider title="Непрозрачность" value={100} min={0} max={100} unit="%" onchange={() => {}} soon />
-<Slider title="Размытие стекла" hint="Радиус размытия заднего плана под окном" value={0} min={0} max={40} unit="px" onchange={() => {}} soon />
+<Switch
+  title="Прозрачность"
+  hint="Под окном — системное стекло (Windows 11 — Mica, Windows 10 — Acrylic)"
+  on={settings.get('appearance.glass')}
+  onchange={(v) => settings.set('appearance.glass', v)}
+/>
+{#if settings.get('appearance.glass')}
+  <Slider
+    title="Непрозрачность"
+    hint="Насколько плотные фон окна и карточки"
+    value={settings.get('appearance.opacity')}
+    min={15}
+    max={100}
+    unit="%"
+    onchange={(v) => settings.set('appearance.opacity', v)}
+  />
+  <Slider
+    title="Размытие стекла"
+    hint="Радиус размытия под панелями и меню"
+    value={settings.get('appearance.glass_blur')}
+    min={0}
+    max={40}
+    unit="px"
+    onchange={(v) => settings.set('appearance.glass_blur', v)}
+  />
+{/if}
 
 <Divider />
 

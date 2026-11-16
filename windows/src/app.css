@@ -428,3 +428,18 @@ img.fade-img.loaded {
   cursor: grabbing;
   user-select: none;
 }
+
+/* Прозрачность окна (Интерфейс → Вид, appearance.glass): под окном системное стекло (Mica / Acrylic,
+   glass.rs), фон и поверхности с альфой (theme.svelte.ts), панели размывают то, что под ними */
+:root.glass,
+:root.glass body {
+  background: transparent;
+}
+:root.glass #app {
+  background: var(--bg);
+}
+:root.glass main.card,
+:root.glass .rail,
+:root.glass .mini {
+  backdrop-filter: blur(var(--glass-blur, 16px));
+}

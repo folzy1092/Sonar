@@ -5,7 +5,7 @@
 import { api } from '../lib/api'
 import { isTauri } from '../lib/tauri'
 import { player } from '../player/player.svelte'
-import { DECOR_VARS, pickAccent, themeFrom, type RGB, type Surface } from './palette'
+import { DECOR_VARS, oklch, pickAccent, themeFrom, type RGB, type Surface } from './palette'
 import { settings } from '../lib/settings.svelte'
 import { setAnimations } from '../lib/motion'
 import { CUSTOM_PREFIX, fontStack, RADII, WIDE_FONTS } from './look'
@@ -92,8 +92,9 @@ class Theme {
         const preset = settings.get('appearance.preset')
         const surface = settings.get('appearance.surface')
         const light = this.light
+        const glass = settings.get('appearance.glass') ? Math.max(0.15, Math.min(1, settings.get('appearance.opacity') / 100)) : 1
         const url = on ? (player.current?.cover_url ?? null) : null
-        void this.apply(on, url, preset, surface, light)
+        void this.apply(on, url, preset, surface, light, glass)
       })
       $effect(() => {
         setAnimations(settings.get('appearance.animations'))
@@ -122,6 +123,17 @@ class Theme {
         set('--display-wdth', tune.wdth ? String(tune.wdth) : null)
         set('--display-weight', tune.weight ? String(tune.weight) : null)
         set('--display-tracking', tune.tracking)
+      })
+      // прозрачность окна: системный эффект под окном (Mica / Acrylic, glass.rs) и размытие у панелей
+      $effect(() => {
+        const on = settings.get('appearance.glass')
+        const root = document.documentElement
+        root.classList.toggle('glass', on)
+        root.style.setProperty('--glass-blur', `${settings.get('appearance.glass_blur')}px`)
+        // меню и подсказки размываются так же, как стекло
+        if (on) root.style.setProperty('--menu-blur', `${Math.max(6, settings.get('appearance.glass_blur'))}px`)
+        else root.style.removeProperty('--menu-blur')
+        if (isTauri) void api.setGlass(on).catch(() => {})
       })
       // выбранный стиль следит за осями: ручная правка любой оси (в «Стиле» или «Виде») — «Свой»,
       // оси совпали с готовым или сохранённым стилем — он
@@ -223,7 +235,8 @@ class Theme {
     return mode === 'light' || (mode === 'system' && this.systemLight)
   }
 
-  private async apply(cover: boolean, url: string | null, preset: string, surface: Surface, light: boolean) {
+  /** `glass` — альфа фона и поверхностей при прозрачности окна (1 — непрозрачно). */
+  private async apply(cover: boolean, url: string | null, preset: string, surface: Surface, light: boolean, glass = 1) {
     const my = ++this.seq
     const p = PRESETS.find((x) => x.id === preset) ?? PRESETS[0]
     const c = cover ? (url ? await colorOf(url) : null) : p.accent
@@ -241,6 +254,14 @@ class Theme {
     const t = themeFrom(c, surface in SURFACE_IDS ? surface : 'monolith', light)
     root.dataset.surface = surface
     for (const k of DECOR_VARS) if (!(k in t.vars)) st.removeProperty(k)
+    // прозрачность: фон окна — с альфой непрозрачности, карточки чуть плотнее (текст читается)
+    if (glass < 1) {
+      t.vars['--bg'] = oklch(t.lch.bg, glass)
+      t.vars['--surface-0'] = oklch(t.lch.s0, Math.min(1, glass + 0.08))
+      t.vars['--surface-1'] = oklch(t.lch.s1, Math.min(1, glass + 0.12))
+      t.vars['--surface-2'] = oklch(t.lch.s2, Math.min(1, glass + 0.16))
+      t.vars['--surface-3'] = oklch(t.lch.s3, Math.min(1, glass + 0.2))
+    }
     // AMOLED — свой чистый чёрный фон и поверхности (tokens.css), их не трогаем
     const black = root.classList.contains('amoled')
     for (const [k, v] of Object.entries(t.vars)) {

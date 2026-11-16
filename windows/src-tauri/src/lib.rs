@@ -6,6 +6,7 @@ mod login;
 mod lyrics;
 mod media;
 mod calls;
+mod glass;
 mod mini;
 mod obs;
 mod providers;
@@ -144,6 +145,7 @@ pub fn run() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
+      glass::set_glass,
       commands::services_status,
       commands::sync_now,
       commands::artist_tracks,
