@@ -186,6 +186,16 @@
 
 ### Этап 4. Кандидаты: свои лайки, второй шаг, взвешенные сиды, кэш похожих
 
+> **Доработка после этапов (2026-11-16, жалоба владельца «в волне люди, которых я даже не знаю»):**
+> - лимит незнакомых артистов в порции (`wave::familiarity`, `Filter.max_unknown`): «Своя» ≤ 30 %,
+>   настроения ≤ 40 %, волна по треку ≤ 50 %, «Незнакомое» — без лимита. Знакомого не хватило на
+>   половину порции — лимит снимается (лучше незнакомые, чем пустая волна);
+> - треки SoundCloud незнакомых артистов с < 1000 прослушиваний (волна по треку — < 300) не берём
+>   (`Filter.min_plays_unknown`): в «похожих» SoundCloud много случайных заливов;
+> - знакомый артист — плюс в оценке: вес `known` 0.8 в «Своей», 0.4 в настроениях;
+> - популярные треки 1–2 любимых / слушаемых артистов в котле (`Core::artist_top`,
+>   `Origin::add_artist`, источник `artist` в `wave_events`); у волны по треку — артиста трека.
+
 **4.1. «Забытые любимые».** Запрос в `store/wave.rs`: лайкнутые треки, которые не играли 30 дней
 (или ни разу), без 👎, не из `exclude`, с записью в `tracks`. Из них взять до 40, оценить
 `affinity + profile_fit + session_tags + hour` (те же функции), отобрать по правилам разнообразия.
@@ -258,7 +268,7 @@
 CREATE TABLE wave_events (
   id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, session_id TEXT NOT NULL, ref TEXT NOT NULL,
   artist TEXT NOT NULL, mode TEXT NOT NULL,
-  source TEXT NOT NULL,            -- similar / hop2 / liked / seed
+  source TEXT NOT NULL,            -- similar / hop2 / liked / artist / seed
   seed_ref TEXT,                   -- от какого сида пришёл
   features_json TEXT,              -- Features на момент выдачи
   served_at INTEGER NOT NULL,

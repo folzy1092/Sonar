@@ -63,7 +63,7 @@ impl Rng {
 }
 
 /// Что нельзя ставить в порцию.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Filter {
   /// Слушали за 7 дней.
   pub recent: HashSet<String>,
@@ -73,6 +73,30 @@ pub struct Filter {
   pub exclude: HashSet<String>,
   /// Артисты на паузе до конца сессии (два пропуска подряд), в нижнем регистре.
   pub paused_artists: HashSet<String>,
+  /// Сколько треков **незнакомых** артистов (ни лайка, ни прослушиваний) пускать в порцию: «Своя»
+  /// волна — в основном знакомое, как у Яндекса. `None` — без лимита. См. [`familiarity`].
+  pub max_unknown: Option<usize>,
+  /// Трек SoundCloud незнакомого артиста с меньшим числом прослушиваний не берём: в «похожих»
+  /// SoundCloud много случайных заливов. 0 — без порога.
+  pub min_plays_unknown: u64,
+}
+
+/// Знакомое и новое по режиму: (сколько незнакомых артистов в порции из `n`, порог прослушиваний
+/// для треков SoundCloud незнакомых). «Своя» — до 30 %, настроения — до 40 %, волна по треку —
+/// до 50 %, «Незнакомое» — без лимита и порога (оно про новых).
+pub fn familiarity(mode: &str, by_seed: bool, n: usize) -> (Option<usize>, u64) {
+  let share = |k: f64| Some(((n as f64) * k).round() as usize);
+  match mode {
+    "new" => (None, 0),
+    _ if by_seed => (share(0.5), 300),
+    "own" => (share(0.3), 1000),
+    _ => (share(0.4), 1000),
+  }
+}
+
+/// Знакомый артист трека: лайкнут или его слушали (по любому из артистов трека).
+pub fn is_known(t: &Track, taste: &Taste) -> bool {
+  artist_keys(t).iter().any(|k| taste.liked_artists.contains(k) || taste.plays.get(k).is_some_and(|&p| p > 0.0))
 }
 
 /// Главный артист трека (первый из `artist_keys`) — по нему лимиты разнообразия, пауза, сессия.
@@ -351,12 +375,29 @@ pub struct Origin {
   pub seed_of: HashMap<String, String>,
   /// Пришли только вторым шагом — от похожих на похожие (разведка, docs/WAVE.md 4.2).
   pub hop2: HashSet<String>,
+  /// Популярные треки любимых / слушаемых артистов (у волны по треку — артиста трека): знакомое
+  /// в котле, чтобы волна не состояла из одних чужих «похожих».
+  pub artist_top: HashSet<String>,
 }
 
 impl Origin {
   /// Учесть список похожих от одного сида (`seed` — его ref).
   pub fn add(&mut self, seed: &str, list: &[Track], session: bool) {
     self.add_scaled(seed, list, session, 1.0);
+  }
+
+  /// Популярные треки артиста (`seed` — ref артиста): место в списке весит `× 0.5`, голосом не
+  /// считаются (это не «похожие»). Треки, которых в похожих не было, помечаются как `artist`.
+  pub fn add_artist(&mut self, artist: &str, list: &[Track]) {
+    let len = list.len().max(1) as f64;
+    for (i, t) in list.iter().enumerate() {
+      if !self.votes.contains_key(&t.ref_) {
+        self.artist_top.insert(t.ref_.clone());
+        self.votes.insert(t.ref_.clone(), 1);
+        self.rank.insert(t.ref_.clone(), 0.5 * (1.0 - i as f64 / len));
+        self.seed_of.insert(t.ref_.clone(), artist.to_owned());
+      }
+    }
   }
 
   /// Второй шаг разведки: список похожих от кандидата первого круга, место в нём весит `× 0.6`.
@@ -523,6 +564,8 @@ pub fn weights(mode: &str) -> Weights {
     "hard" | "calm" | "sad" | "fun" => Weights {
       mood: 1.5,
       liked_artist: 1.0,
+      // знакомый артист — плюс: волна должна звучать твоей, а не чужими «похожими»
+      known: 0.4,
       affinity: 0.6,
       platform: 0.3,
       hour: 0.4,
@@ -530,7 +573,7 @@ pub fn weights(mode: &str) -> Weights {
       mode_profile: 1.5,
       ..common
     },
-    _ => Weights { liked_artist: 2.0, affinity: 1.0, platform: 0.6, hour: 1.2, profile_fit: 1.2, ..common },
+    _ => Weights { liked_artist: 2.0, known: 0.8, affinity: 1.0, platform: 0.6, hour: 1.2, profile_fit: 1.2, ..common },
   }
 }
 
@@ -647,6 +690,8 @@ pub fn pick_with(
     .filter(|t| relaxed || !filter.recent.contains(&t.ref_))
     .filter(|t| !filter.paused_artists.contains(&artist_key(t)))
     .filter(|t| session.served.get(&artist_key(t)).copied().unwrap_or(0) < SESSION_ARTIST_CAP)
+    // случайные заливы незнакомых авторов SoundCloud (мало прослушиваний) — мимо
+    .filter(|t| filter.min_plays_unknown == 0 || is_known(t, taste) || t.plays.is_none_or(|p| p >= filter.min_plays_unknown))
     .collect();
   if matches!(mode, "hard" | "calm" | "sad" | "fun") {
     let fits = pool.iter().filter(|t| mood_fit(mode, t) > 0.0).count();
@@ -659,7 +704,13 @@ pub fn pick_with(
     .into_iter()
     .map(|track| {
       let features = features(&track, taste, origin, session, prefer, mode, rng);
-      let source = if origin.hop2.contains(&track.ref_) { "hop2" } else { "similar" };
+      let source = if origin.hop2.contains(&track.ref_) {
+        "hop2"
+      } else if origin.artist_top.contains(&track.ref_) {
+        "artist"
+      } else {
+        "similar"
+      };
       (w.dot(&features) + rng.unit() * 0.3, Picked { track, features, source })
     })
     .collect();
@@ -669,6 +720,8 @@ pub fn pick_with(
   let mut per_artist: HashMap<String, usize> = HashMap::new();
   let mut per_seed: HashMap<String, usize> = HashMap::new();
   let seed_of = |p: &Picked| origin.seed_of.get(&p.track.ref_).cloned();
+  let max_unknown = filter.max_unknown.unwrap_or(usize::MAX);
+  let mut unknown = 0usize;
   // только что звучавшие артисты (хвост прошлой порции) — не первым треком новой
   let tail: Vec<&String> = session.recent_artists.iter().rev().take(3).collect();
   // Кто сейчас не подходит (тот же артист, что предыдущий), ждёт следующего шанса — не теряется.
@@ -684,6 +737,7 @@ pub fn pick_with(
           let a = artist_key(&p.track);
           let just_played = out.is_empty() && tail.iter().any(|x| **x == a);
           !just_played
+            && (unknown < max_unknown || p.features.known > 0.0)
             && !out.last().is_some_and(|l| artist_key(&l.track) == a)
             && per_artist.get(&a).copied().unwrap_or(0) < 2
             && per_artist.get(&a).copied().unwrap_or(0) + session.served.get(&a).copied().unwrap_or(0) < SESSION_ARTIST_CAP
@@ -691,6 +745,9 @@ pub fn pick_with(
         };
         let Some(i) = pending.iter().position(ok) else { break };
         let p = pending.remove(i);
+        if p.features.known == 0.0 {
+          unknown += 1;
+        }
         *per_artist.entry(artist_key(&p.track)).or_insert(0) += 1;
         if let Some(s) = seed_of(&p) {
           *per_seed.entry(s).or_insert(0) += 1;
@@ -1041,12 +1098,61 @@ mod tests {
             let (mut r1, mut r2) = (Rng::new(seed), Rng::new(seed));
             let old = legacy_score(c, &taste, &origin, session, prefer, mode, &mut r1);
             let f = features(c, &taste, &origin, session, prefer, mode, &mut r2);
-            let new = weights(mode).dot(&f) + r2.unit() * 0.3;
+            // «знакомый артист» в «Своей» и настроениях добавлен после (меньше незнакомых) — без него формула прежняя
+            let mut w = weights(mode);
+            if mode != "new" {
+              w.known = 0.0;
+            }
+            let new = w.dot(&f) + r2.unit() * 0.3;
             assert!((old - new).abs() < 1e-9, "{mode} {prefer:?} {}: {old} ≠ {new}", c.ref_);
           }
         }
       }
     }
+  }
+
+  #[test]
+  fn own_wave_mostly_familiar() {
+    let mut taste = Taste::default();
+    for i in 1..=7 {
+      taste.plays.insert(format!("k{i}"), 3.0);
+    }
+    let mut cands: Vec<Track> = (0..20).map(|i| t(&format!("sc:u{i}"), &format!("u{i}"))).collect();
+    cands.extend((1..=7).map(|i| t(&format!("sc:k{i}"), &format!("k{i}"))));
+    let (max_unknown, min_plays_unknown) = familiarity("own", false, 10);
+    let f = Filter { max_unknown, min_plays_unknown, ..Default::default() };
+    let out = pick(cands, &taste, &Origin::default(), &Session::default(), &f, None, "own", 10, false, &mut Rng::new(1));
+    assert_eq!(out.len(), 10);
+    let unknown = out.iter().filter(|x| !is_known(x, &taste)).count();
+    assert!(unknown <= 3, "незнакомых {unknown}");
+  }
+
+  #[test]
+  fn obscure_unknown_uploads_dropped() {
+    let mut taste = Taste::default();
+    taste.plays.insert("fav".into(), 1.0);
+    let mut obscure = t("sc:1", "nobody");
+    obscure.plays = Some(40);
+    let mut popular = t("sc:2", "stranger");
+    popular.plays = Some(50_000);
+    let mut mine = t("sc:3", "fav");
+    mine.plays = Some(10);
+    let f = Filter { min_plays_unknown: 1000, ..Default::default() };
+    let out = pick(vec![obscure, popular, mine], &taste, &Origin::default(), &Session::default(), &f, None, "own", 10, false, &mut Rng::new(2));
+    let refs: Vec<&str> = out.iter().map(|x| x.ref_.as_str()).collect();
+    assert!(!refs.contains(&"sc:1") && refs.contains(&"sc:2") && refs.contains(&"sc:3"));
+    assert_eq!(familiarity("new", false, 10), (None, 0));
+    assert_eq!(familiarity("own", false, 10), (Some(3), 1000));
+  }
+
+  #[test]
+  fn artist_top_marked_and_not_counted_as_vote() {
+    let mut o = Origin::default();
+    o.add("s1", &[t("sc:1", "a")], false);
+    o.add_artist("sca:9", &[t("sc:1", "a"), t("sc:2", "fav")]);
+    assert!(o.artist_top.contains("sc:2") && !o.artist_top.contains("sc:1"));
+    assert_eq!(o.votes["sc:1"], 1);
+    assert!(o.rank["sc:2"] <= 0.5);
   }
 
   #[test]

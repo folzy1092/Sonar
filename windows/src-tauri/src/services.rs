@@ -337,6 +337,25 @@ impl Core {
     }
   }
 
+  /// Популярные треки исполнителя — «знакомое» для своей волны (одна просьба к сервису).
+  pub async fn artist_top(&self, artist_ref: &str, limit: u32) -> Result<Vec<Track>> {
+    let (kind, id) = artist_ref.split_once(':').ok_or_else(|| anyhow!("плохой ref {artist_ref}"))?;
+    match kind {
+      "sca" => {
+        let http = &self.http;
+        let raw = self.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.top_tracks(id, limit).await }).await?;
+        Ok(self.sc_keep(raw))
+      }
+      "yma" => {
+        let s = self.ym_creds().await?;
+        let (_, mut top, _) = yandex::Yandex { http: &self.http, creds: &s.creds }.artist(id).await?;
+        top.truncate(limit as usize);
+        Ok(top)
+      }
+      _ => bail!("неизвестный исполнитель {artist_ref}"),
+    }
+  }
+
   /// Яндекс подключён — можно брать его похожие и новинки.
   pub async fn has_yandex(&self) -> bool {
     self.ym.read().await.is_some()
