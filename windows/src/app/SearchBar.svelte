@@ -10,6 +10,7 @@
   import { openRef } from './router.svelte'
   import { playStation } from '../player/autoplay.svelte'
   import { api, type Track } from '../lib/api'
+  import { t } from '../lib/i18n.svelte'
 
   // недавнее под пустым полем: открывается кликом по полю, закрывается кликом мимо (или выбором)
   let open = $state(false)
@@ -34,12 +35,13 @@
     if (!e.ref) return
     if (e.kind === 'track') {
       // трек из истории: сначала из кэша треков (полные данные), иначе — по сохранённому
-      const t = { ref: e.ref, title: e.title ?? '', artist: e.subtitle ?? '', artists: [], album: null, duration_ms: 0, cover_url: e.cover_url ?? null, url: null, explicit: false, available: true } as unknown as Track
+      const stub = { ref: e.ref, title: e.title ?? '', artist: e.subtitle ?? '', artists: [], album: null, duration_ms: 0, cover_url: e.cover_url ?? null, url: null, explicit: false, available: true } as unknown as Track
       const [full] = await api.cachedTracks([e.ref]).catch(() => [] as Track[])
-      void playStation(full ?? t)
+      void playStation(full ?? stub)
     } else openRef(e.ref)
   }
 
+  // title — ключ перевода, t() — при выводе
   const sources: { id: Source; label: string; title: string }[] = [
     { id: 'sc', label: 'SC', title: 'SoundCloud' },
     { id: 'ym', label: 'Я', title: 'Яндекс Музыка' },
@@ -55,7 +57,7 @@
     <Icon name="search" size={18} />
     <input
       type="text"
-      placeholder="Что включить?"
+      placeholder={t('Что включить?')}
       spellcheck="false"
       bind:value={search.query}
       oninput={onInput}
@@ -68,8 +70,8 @@
   {#if showRecent}
     <div class="recent" transition:fly={{ y: -6, duration: 200 }}>
       <div class="r-head">
-        <b>Недавнее</b>
-        <button class="r-clear" onclick={() => void searchHistory.clear()}>Очистить</button>
+        <b>{t('Недавнее')}</b>
+        <button class="r-clear" onclick={() => void searchHistory.clear()}>{t('Очистить')}</button>
       </div>
       {#each searchHistory.items.slice(0, 8) as e (e.kind + (e.ref ?? e.query))}
         <button class="r-item" onclick={() => pick(e)}>
@@ -80,7 +82,7 @@
             <span class="r-cover" class:round={e.kind === 'artist'}><Cover url={e.cover_url ?? null} size={32} radius={e.kind === 'artist' ? '50%' : '7px'} /></span>
             <span class="r-text">
               <span class="r-title">{e.title}</span>
-              <span class="r-sub">{e.kind === 'track' ? 'Трек' : e.kind === 'artist' ? 'Исполнитель' : e.kind === 'album' ? 'Альбом' : 'Плейлист'}{#if e.subtitle}&nbsp;· {e.subtitle}{/if}</span>
+              <span class="r-sub">{e.kind === 'track' ? t('Трек') : e.kind === 'artist' ? t('Исполнитель') : e.kind === 'album' ? t('Альбом') : t('Плейлист')}{#if e.subtitle}&nbsp;· {e.subtitle}{/if}</span>
             </span>
           {/if}
         </button>
@@ -88,14 +90,14 @@
     </div>
   {/if}
 
-  <div class="sources" role="radiogroup" aria-label="Источник поиска">
+  <div class="sources" role="radiogroup" aria-label={t('Источник поиска')}>
     {#each sources as s (s.id)}
       <button
         class="src"
         class:on={search.source === s.id}
         role="radio"
         aria-checked={search.source === s.id}
-        title={s.title}
+        title={t(s.title)}
         onclick={() => (search.source = s.id)}
       >
         <SourceIcon kind={s.id} size={16} plain />

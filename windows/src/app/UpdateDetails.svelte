@@ -11,6 +11,7 @@
   import { updater } from '../lib/updater.svelte'
   import { pendingEntries } from '../lib/update-core'
   import { settingsPanel } from '../pages/settings-section.svelte'
+  import { t, lang } from '../lib/i18n.svelte'
 
   let { onclose }: { onclose: () => void } = $props()
 
@@ -19,9 +20,10 @@
   const p = $derived(updater.phase)
   const entries = $derived(updater.changelog ? pendingEntries(updater.changelog, updater.current, updater.version) : [])
 
+  const LOCALES = { ru: 'ru-RU', en: 'en-GB', uk: 'uk-UA' } as const
   const dateText = (d: string) => {
-    const t = Date.parse(d)
-    return Number.isNaN(t) ? '' : new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+    const ms = Date.parse(d)
+    return Number.isNaN(ms) ? '' : new Date(ms).toLocaleDateString(LOCALES[lang()], { day: 'numeric', month: 'long', year: 'numeric' })
   }
 
   function allVersions() {
@@ -32,16 +34,16 @@
 </script>
 
 <div class="veil" role="presentation" onclick={(e) => e.target === e.currentTarget && onclose()}>
-  <div class="box" role="dialog" aria-label="Обновление Sonar {updater.version}" in:pop={{ y: 14, scale: 0.95, duration: 300 }} out:pop={{ y: 14, scale: 0.95, duration: 220 }}>
+  <div class="box" role="dialog" aria-label={t('Обновление Sonar {version}', { version: updater.version })} in:pop={{ y: 14, scale: 0.95, duration: 300 }} out:pop={{ y: 14, scale: 0.95, duration: 220 }}>
     <header>
       <LogoMark size={40} spin={false} />
       <div class="h">
         <b>Sonar {updater.version}</b>
         <small>
-          {`у тебя ${updater.current}`}{#if dateText(updater.date)}{` · вышла ${dateText(updater.date)}`}{/if}
+          {t('у тебя {version}', { version: updater.current })}{#if dateText(updater.date)}{` · ${t('вышла {date}', { date: dateText(updater.date) })}`}{/if}
         </small>
       </div>
-      <button class="x" aria-label="Закрыть" onclick={onclose}><Icon name="x" size={16} /></button>
+      <button class="x" aria-label={t('Закрыть')} onclick={onclose}><Icon name="x" size={16} /></button>
     </header>
 
     <div class="body app-scroll">
@@ -65,7 +67,7 @@
         <!-- найденная версия — авто-патч поверх записи истории: его заметки отдельным блоком -->
         {#if updater.notes.length && !entries.some((e) => e.version === updater.version)}
           <article>
-            <div class="eh"><span class="ver">мелочи</span><b>Исправления и доработки</b></div>
+            <div class="eh"><span class="ver">{t('мелочи')}</span><b>{t('Исправления и доработки')}</b></div>
             <ul>
               {#each updater.notes as n, i (i)}<li>{n}</li>{/each}
             </ul>
@@ -76,18 +78,18 @@
           {#each updater.notes as n, i (i)}<li>{n}</li>{/each}
         </ul>
       {:else}
-        <p class="empty">Исправления и небольшие доработки.</p>
+        <p class="empty">{t('Исправления и небольшие доработки.')}</p>
       {/if}
     </div>
 
     <footer>
-      <button class="btn" onclick={allVersions}>Все версии</button>
+      <button class="btn" onclick={allVersions}>{t('Все версии')}</button>
       {#if p === 'downloading'}
-        <button class="btn primary" disabled>Загрузка {Math.round(updater.progress * 100)}%</button>
+        <button class="btn primary" disabled>{t('Загрузка {percent}%', { percent: Math.round(updater.progress * 100) })}</button>
       {:else if p === 'ready' || p === 'installing'}
-        <button class="btn primary" disabled={p === 'installing'} onclick={() => updater.install()}>Установить</button>
+        <button class="btn primary" disabled={p === 'installing'} onclick={() => updater.install()}>{t('Установить')}</button>
       {:else if p === 'available' || p === 'error'}
-        <button class="btn primary" onclick={() => (p === 'error' ? updater.retry() : updater.download())}>Обновить</button>
+        <button class="btn primary" onclick={() => (p === 'error' ? updater.retry() : updater.download())}>{t('Обновить')}</button>
       {/if}
     </footer>
   </div>

@@ -19,6 +19,7 @@
   import { player } from '../player/player.svelte'
   import { colorOf } from '../theme/theme.svelte'
   import { css } from '../theme/palette'
+  import { t } from '../lib/i18n.svelte'
 
   const ref = router.param ?? ''
   let album = $state<Album | null>(null)
@@ -55,15 +56,15 @@
     if (!album?.url) return
     try {
       await navigator.clipboard.writeText(album.url)
-      toast.show('Ссылка скопирована')
+      toast.show(t('Ссылка скопирована'))
     } catch {
-      toast.show('Не получилось скопировать')
+      toast.show(t('Не получилось скопировать'))
     }
   }
 </script>
 
 {#if error}
-  <EmptyState icon="disc" title="Не получилось открыть альбом" text={error} />
+  <EmptyState icon="disc" title={t('Не получилось открыть альбом')} text={error} />
 {:else if !album}
   <div class="head">
     <div class="cover skel"></div>
@@ -95,30 +96,30 @@
   <div class="bar">
     <button class="listen" disabled={!tracks.length} onclick={listen}>
       <PlayPause {playing} size={16} />
-      {playing ? 'Пауза' : 'Слушать'}
+      {playing ? t('Пауза') : t('Слушать')}
     </button>
-    <button class="pill" disabled={!tracks.length} onclick={() => player.addToQueue(tracks, false)}><Icon name="queue" size={16} /> В очередь</button>
+    <button class="pill" disabled={!tracks.length} onclick={() => player.addToQueue(tracks, false)}><Icon name="queue" size={16} /> {t('В очередь')}</button>
     <span class="group">
-      <button aria-label="Перемешать" title="Перемешать" disabled={!tracks.length} onclick={() => player.playShuffled(tracks, context, al.title)}><Icon name="shuffle" size={16} /></button>
+      <button aria-label={t('Перемешать')} title={t('Перемешать')} disabled={!tracks.length} onclick={() => player.playShuffled(tracks, context, al.title)}><Icon name="shuffle" size={16} /></button>
       <button
         class:on={liked}
-        aria-label={liked ? 'Убрать из медиатеки' : 'Сохранить в медиатеку'}
-        title={liked ? 'Убрать из медиатеки' : 'Сохранить в медиатеку'}
+        aria-label={liked ? t('Убрать из медиатеки') : t('Сохранить в медиатеку')}
+        title={liked ? t('Убрать из медиатеки') : t('Сохранить в медиатеку')}
         onclick={() => library.toggleLike(al)}
       >
         <span class="ic" use:pulse={liked}><Icon name="bookmark" size={16} filled={liked} /></span>
       </button>
     </span>
     {#if al.url}
-      <button class="round" aria-label="Поделиться" title="Скопировать ссылку" onclick={share}><Icon name="share" size={16} /></button>
+      <button class="round" aria-label={t('Поделиться')} title={t('Скопировать ссылку')} onclick={share}><Icon name="share" size={16} /></button>
     {/if}
   </div>
 
   <div class="list" use:cascade>
-    {#each tracks as t, i (t.ref + i)}
-      <TrackRow track={t} index={i} variant="album" onplay={() => player.playList(tracks, i, context, al.title)} />
+    {#each tracks as tr, i (tr.ref + i)}
+      <TrackRow track={tr} index={i} variant="album" onplay={() => player.playList(tracks, i, context, al.title)} />
     {:else}
-      <p class="none">В альбоме нет доступных треков.</p>
+      <p class="none">{t('В альбоме нет доступных треков.')}</p>
     {/each}
   </div>
 {/if}

@@ -1,4 +1,6 @@
 // Сдвиг текста на трек (LYRICS.md §5): секунды −15..+15, 3 знака; в базе — мс, 0 → нет записи.
+import { t } from '../../lib/i18n.svelte'
+
 export const OFFSET_MAX = 15
 
 export function clampOffset(sec: number): number {
@@ -13,5 +15,5 @@ export const fromMs = (ms: number | null | undefined) => clampOffset((ms ?? 0) /
 export function formatOffset(sec: number): string {
   const v = clampOffset(sec)
   const sign = v > 0 ? '+' : v < 0 ? '−' : ''
-  return `${sign}${Math.abs(v).toFixed(3)} с`
+  return `${sign}${t('{sec} с', { sec: Math.abs(v).toFixed(3) })}`
 }

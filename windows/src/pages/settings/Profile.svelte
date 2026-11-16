@@ -4,6 +4,7 @@
   // остальные); с сервером профиль приходит из GET /me и меняется PATCH /me (docs/API.md).
   // Пусто — как раньше: имя и аватар из подключённого сервиса.
   import Icon from '../../components/Icon.svelte'
+  import { t } from '../../lib/i18n.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { avatarFromFile, cleanUsername, USERNAME_RE } from '../../lib/avatar'
   import { toast } from '../../lib/toast.svelte'
@@ -23,9 +24,9 @@
     if (!file) return
     try {
       settings.set('profile.avatar', await avatarFromFile(file))
-      toast.show('Аватар обновлён')
+      toast.show(t('Аватар обновлён'))
     } catch {
-      toast.show('Не получилось открыть картинку')
+      toast.show(t('Не получилось открыть картинку'))
     }
   }
   function saveName() {
@@ -38,7 +39,7 @@
 </script>
 
 <div class="head">
-  <button class="ava" title="Выбрать аватар" onclick={() => pick?.click()}>
+  <button class="ava" title={t('Выбрать аватар')} onclick={() => pick?.click()}>
     {#if avatar}
       <img src={avatar} alt="" />
     {:else if fallback?.avatar_url}
@@ -49,23 +50,23 @@
     <span class="edit"><Icon name="pencil" size={14} /></span>
   </button>
   <div class="who">
-    <b>{name.trim() || fallback?.name || 'Без имени'}</b>
-    <small>{username.trim() ? `@${cleanUsername(username)}` : 'без @username'}</small>
-    {#if avatar}<button class="link" onclick={() => settings.set('profile.avatar', '')}>Убрать аватар</button>{/if}
+    <b>{name.trim() || fallback?.name || t('Без имени')}</b>
+    <small>{username.trim() ? `@${cleanUsername(username)}` : t('без @username')}</small>
+    {#if avatar}<button class="link" onclick={() => settings.set('profile.avatar', '')}>{t('Убрать аватар')}</button>{/if}
   </div>
   <input bind:this={pick} type="file" accept="image/*" hidden onchange={onFile} />
 </div>
 
 <label class="field">
-  <span class="text"><b>Отображаемое имя</b><small>Его видно на главной: «Добрый вечер, …»{#if fallback?.name} · пусто — «{fallback.name}» из сервиса{/if}</small></span>
-  <input maxlength="40" placeholder={fallback?.name ?? 'Как тебя называть'} bind:value={name} onblur={saveName} onkeydown={(e) => e.key === 'Enter' && saveName()} />
+  <span class="text"><b>{t('Отображаемое имя')}</b><small>{#if fallback?.name}{t('Его видно на главной: «Добрый вечер, …» · пусто — «{name}» из сервиса', { name: fallback.name })}{:else}{t('Его видно на главной: «Добрый вечер, …»')}{/if}</small></span>
+  <input maxlength="40" placeholder={fallback?.name ?? t('Как тебя называть')} bind:value={name} onblur={saveName} onkeydown={(e) => e.key === 'Enter' && saveName()} />
 </label>
 <label class="field" class:bad={!userOk}>
-  <span class="text"><b>Имя пользователя</b><small>{userOk ? 'Латиница, цифры и «_», 3–32 знака' : 'Только латиница, цифры и «_», от 3 до 32 знаков'}</small></span>
+  <span class="text"><b>{t('Имя пользователя')}</b><small>{userOk ? t('Латиница, цифры и «_», 3–32 знака') : t('Только латиница, цифры и «_», от 3 до 32 знаков')}</small></span>
   <span class="at"><i>@</i><input maxlength="33" placeholder="username" bind:value={username} onblur={saveUser} onkeydown={(e) => e.key === 'Enter' && saveUser()} /></span>
 </label>
 
-<p class="note">Сейчас профиль хранится на этом компьютере и в синхронизации настроек. С сервером Sonar он станет общим для всех устройств и друзей.</p>
+<p class="note">{t('Сейчас профиль хранится на этом компьютере и в синхронизации настроек. С сервером Sonar он станет общим для всех устройств и друзей.')}</p>
 
 <style>
   .head {

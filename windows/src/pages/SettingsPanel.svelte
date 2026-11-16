@@ -21,6 +21,7 @@
   import Mini from './settings/Mini.svelte'
   import { settingsPanel, SUBS, TABS } from './settings-section.svelte'
   import { indicator } from '../lib/indicator'
+  import { t } from '../lib/i18n.svelte'
 
   let scroller: HTMLDivElement | undefined = $state()
   let tabsEl: HTMLElement | undefined = $state()
@@ -53,7 +54,7 @@
   })
 </script>
 
-<aside class="panel" class:open={settingsPanel.open} inert={!settingsPanel.open} aria-label="Настройки">
+<aside class="panel" class:open={settingsPanel.open} inert={!settingsPanel.open} aria-label={t('Настройки')}>
   <div class="tabs-wrap">
   <nav
     class="tabs"
@@ -63,20 +64,20 @@
     use:hscroll={{ wheel: true }}
     use:edges={(l, r) => (more = { l, r })}
   >
-    {#each TABS as t (t.id)}
+    {#each TABS as tb (tb.id)}
       <button
-        class:on={settingsPanel.tab === t.id}
+        class:on={settingsPanel.tab === tb.id}
         onclick={(e) => {
-          settingsPanel.show(t.id)
+          settingsPanel.show(tb.id)
           e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
-        }}>{t.title}</button
+        }}>{t(tb.title)}</button
       >
     {/each}
   </nav>
-    <button class="more l" class:show={more.l} tabindex="-1" aria-label="Вкладки левее" onclick={() => nudge(-1)}>
+    <button class="more l" class:show={more.l} tabindex="-1" aria-label={t('Вкладки левее')} onclick={() => nudge(-1)}>
       <Icon name="chevronLeft" size={16} />
     </button>
-    <button class="more r" class:show={more.r} tabindex="-1" aria-label="Ещё вкладки" onclick={() => nudge(1)}>
+    <button class="more r" class:show={more.r} tabindex="-1" aria-label={t('Ещё вкладки')} onclick={() => nudge(1)}>
       <Icon name="chevronRight" size={16} />
     </button>
   </div>
@@ -90,13 +91,13 @@
             class:on={sub === s.id}
             class:off={s.soon || s.lock}
             disabled={s.soon || s.lock}
-            title={s.lock ? `${s.title} — в разработке` : s.soon ? `${s.title} — скоро, вместе с сервером` : s.title}
+            title={s.lock ? t('{title} — в разработке', { title: t(s.title) }) : s.soon ? t('{title} — скоро, вместе с сервером', { title: t(s.title) }) : t(s.title)}
             onclick={(e) => {
               settingsPanel.sub = s.id
               e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
             }}
           >
-            <Icon name={s.lock ? 'lock' : s.icon} size={15} /> {s.title}
+            <Icon name={s.lock ? 'lock' : s.icon} size={15} /> {t(s.title)}
           </button>
         {/each}
       </div>

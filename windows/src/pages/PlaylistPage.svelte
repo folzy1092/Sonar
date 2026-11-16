@@ -14,11 +14,14 @@
   import { toast } from '../lib/toast.svelte'
   import { router } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
+  import { t } from '../lib/i18n.svelte'
 
   const id = router.param ?? 'favorites'
   const kind: 'favorites' | 'own' | 'service' = id === 'favorites' ? 'favorites' : id.startsWith('pl_') ? 'own' : 'service'
 
   let title = $state(kind === 'favorites' ? 'Любимые' : '')
+  /** Заголовок на экране: «Любимые» переводятся на лету, остальное — название как есть. */
+  const heading = $derived(kind === 'favorites' ? t('Любимые') : title)
   let owner = $state('')
   let covers = $state<string[]>([])
   let image = $state<string | null>(null)
@@ -87,7 +90,7 @@
   })
   if (kind === 'service') void load()
 
-  const play = (i: number) => player.playList(visible, i, context, title)
+  const play = (i: number) => player.playList(visible, i, context, heading)
 
   async function rename() {
     const name = newName.trim()
@@ -106,7 +109,7 @@
     try {
       await api.updatePlaylist(id, { hidden: !hidden })
       hidden = !hidden
-      toast.show(hidden ? 'Плейлист скрыт из «Все»' : 'Плейлист снова виден')
+      toast.show(hidden ? t('Плейлист скрыт из «Все»') : t('Плейлист снова виден'))
       await library.refreshPlaylists()
     } catch (e) {
       toast.show(errorText(e))
@@ -121,7 +124,7 @@
     try {
       await api.deletePlaylist(id)
       await library.refreshPlaylists()
-      toast.show(`Плейлист «${title}» удалён`)
+      toast.show(t('Плейлист «{title}» удалён', { title }))
       router.back()
     } catch (e) {
       toast.show(errorText(e))
@@ -133,7 +136,7 @@
     try {
       const p = await api.importPlaylist(id)
       await library.refreshPlaylists()
-      toast.show(`«${p.name}» теперь в Sonar — ${tracksText(p.track_count)}`)
+      toast.show(t('«{name}» теперь в Sonar — {tracks}', { name: p.name, tracks: tracksText(p.track_count) }))
       router.go('playlist', p.id)
     } catch (e) {
       toast.show(errorText(e))
@@ -165,25 +168,25 @@
 </script>
 
 <CollectionHeader
-  {title}
+  title={heading}
   {image}
   {covers}
   icon={kind === 'favorites' ? 'heart' : 'music'}
   meta={loading ? '' : `${tracksText(items.length)}${items.length ? `, ${durationText(total)}` : ''}`}
   disabled={!visible.length}
   onplay={() => play(0)}
-  onshuffle={() => player.playShuffled(visible, context, title)}
+  onshuffle={() => player.playShuffled(visible, context, heading)}
   onqueue={() => player.addToQueue(visible, false)}
 >
   {#snippet subtitle()}
-    {#if kind === 'favorites'}Лайкнутые треки
-    {:else if kind === 'own'}Плейлист Sonar{#if hidden} · скрыт{/if}
-    {:else}{owner ? `${owner} · ` : ''}{id.startsWith('sc') ? 'SoundCloud' : 'Яндекс Музыка'}{/if}
+    {#if kind === 'favorites'}{t('Лайкнутые треки')}
+    {:else if kind === 'own'}{t('Плейлист Sonar')}{#if hidden} · {t('скрыт')}{/if}
+    {:else}{owner ? `${owner} · ` : ''}{id.startsWith('sc') ? 'SoundCloud' : t('Яндекс Музыка')}{/if}
   {/snippet}
   {#snippet actions()}
     {#if kind === 'service'}
       <button class="tool" disabled={importing || !items.length} onclick={importToSonar}>
-        <Icon name="download" size={16} /> {importing ? 'Переношу…' : 'Перенести в Sonar'}
+        <Icon name="download" size={16} /> {importing ? t('Переношу…') : t('Перенести в Sonar')}
       </button>
     {/if}
   {/snippet}
@@ -193,24 +196,24 @@
         <form class="rename" onsubmit={(e) => (e.preventDefault(), rename())}>
           <!-- svelte-ignore a11y_autofocus -->
           <input bind:value={newName} autofocus spellcheck="false" onkeydown={(e) => e.key === 'Escape' && (editing = false)} />
-          <button class="tool" type="submit">Сохранить</button>
+          <button class="tool" type="submit">{t('Сохранить')}</button>
         </form>
       {:else}
-        <button class="tool plain" aria-label="Переименовать" title="Переименовать" onclick={() => ((newName = title), (editing = true))}><Icon name="pencil" size={16} /></button>
+        <button class="tool plain" aria-label={t('Переименовать')} title={t('Переименовать')} onclick={() => ((newName = title), (editing = true))}><Icon name="pencil" size={16} /></button>
       {/if}
-      <button class="tool plain" aria-label={hidden ? 'Показать' : 'Скрыть'} title={hidden ? 'Показать в «Все»' : 'Скрыть из «Все»'} onclick={toggleHidden}>
+      <button class="tool plain" aria-label={hidden ? t('Показать') : t('Скрыть')} title={hidden ? t('Показать в «Все»') : t('Скрыть из «Все»')} onclick={toggleHidden}>
         <Icon name={hidden ? 'eye' : 'eyeOff'} size={16} />
       </button>
-      <button class="tool plain" class:danger={confirmDelete} title="Удалить плейлист" onclick={remove} onblur={() => (confirmDelete = false)}>
-        <Icon name="trash" size={16} />{#if confirmDelete} Удалить?{/if}
+      <button class="tool plain" class:danger={confirmDelete} title={t('Удалить плейлист')} onclick={remove} onblur={() => (confirmDelete = false)}>
+        <Icon name="trash" size={16} />{#if confirmDelete} {t('Удалить?')}{/if}
       </button>
     {/if}
-    <button class="tool plain" class:on={sortIdx > 0} title="Сортировка: {sort.label}" onclick={() => (sortIdx = (sortIdx + 1) % sorts.length)}>
-      <Icon name="sort" size={16} />{#if sortIdx > 0} {sort.label}{/if}
+    <button class="tool plain" class:on={sortIdx > 0} title={t('Сортировка: {sort}', { sort: t(sort.label) })} onclick={() => (sortIdx = (sortIdx + 1) % sorts.length)}>
+      <Icon name="sort" size={16} />{#if sortIdx > 0} {t(sort.label)}{/if}
     </button>
     <label class="find">
       <Icon name="search" size={15} />
-      <input placeholder="Найти" bind:value={filter} spellcheck="false" />
+      <input placeholder={t('Найти')} bind:value={filter} spellcheck="false" />
     </label>
   {/snippet}
 </CollectionHeader>
@@ -220,17 +223,17 @@
 <ScrollStick target={tracksEl} />
 <div class="tracks" id="tracks" bind:this={tracksEl}>
   {#if error}
-    <EmptyState icon="key" title="Не получилось открыть" text={error} />
+    <EmptyState icon="key" title={t('Не получилось открыть')} text={error} />
   {:else if loading}
     <div class="skeleton">{#each { length: 8 } as _, i (i)}<div class="sk"></div>{/each}</div>
   {:else if !items.length}
     <EmptyState
       icon={kind === 'favorites' ? 'heart' : 'music'}
-      title="Пока пусто"
-      text={kind === 'favorites' ? 'Нажми на сердце у трека — он появится здесь.' : 'Добавляй треки через меню трека: «Добавить в плейлист».'}
+      title={t('Пока пусто')}
+      text={kind === 'favorites' ? t('Нажми на сердце у трека — он появится здесь.') : t('Добавляй треки через меню трека: «Добавить в плейлист».')}
     />
   {:else if !visible.length}
-    <EmptyState icon="search" title="Ничего не нашлось" text={`В «${title}» нет «${filter.trim()}».`} />
+    <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('В «{title}» нет «{query}».', { title: heading, query: filter.trim() })} />
   {:else}
     <div class="list" use:cascade>
       {#each visible as t, i (t.item_id ?? t.ref + i)}

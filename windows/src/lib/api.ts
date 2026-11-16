@@ -2,6 +2,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { isTauri } from './tauri'
+import { t } from './i18n.svelte'
 import type { Lyrics } from '../lyrics/core/types'
 
 export type Source = 'sc' | 'ym'
@@ -207,12 +208,24 @@ export interface MediaInfo {
 }
 
 function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  if (!isTauri) return Promise.reject(new Error('Работает только в приложении (npm run tauri dev)'))
+  if (!isTauri) return Promise.reject(new Error(t('Работает только в приложении (npm run tauri dev)')))
   return invoke<T>(cmd, args)
 }
 
-/** Текст ошибки из Rust (строка) или из JS (Error). */
-export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+/** Текст ошибки из Rust (строка) или из JS (Error) — на языке интерфейса: известные сообщения Rust
+ *  есть в словарях (i18n/<язык>/player.ts), ошибка сервиса `http_error` (providers/mod.rs) —
+ *  «Сервис: причина (HTTP 429)» — переводится по частям. Неизвестное — как есть. */
+/** Исходный текст ошибки (до перевода) — чтобы узнавать её по словам, не завися от языка. */
+export function rawError(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}
+
+export function errorText(e: unknown): string {
+  const s = e instanceof Error ? e.message : String(e)
+  const http = /^(.+?): (.+) \(HTTP (\d+)\)$/.exec(s)
+  if (http) return `${t(http[1])}: ${t(http[2])} (HTTP ${http[3]})`
+  return t(s)
+}
 
 /** Что нашлось по ссылке из строки поиска (services.rs `LinkItem`). */
 export type LinkItem =

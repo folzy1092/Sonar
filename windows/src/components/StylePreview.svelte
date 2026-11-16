@@ -7,14 +7,15 @@
   import { DISPLAY_TUNING, type StyleAxes } from '../theme/style'
   import Icon from './Icon.svelte'
   import NavIcon from './NavIcon.svelte'
+  import { t } from '../lib/i18n.svelte'
 
   let { axes, accent, play = 0, light = false }: { axes: StyleAxes; accent: RGB | null; play?: number; light?: boolean } = $props()
 
   const vars = $derived.by(() => {
-    const t = themeFrom(accent, axes.surface, light)
+    const theme = themeFrom(accent, axes.surface, light)
     const tune = DISPLAY_TUNING[axes.font_display] ?? {}
     const v: Record<string, string> = {
-      ...t.vars,
+      ...theme.vars,
       '--icon-stroke': String(axes.icon_stroke),
       '--sp-font': fontStack(axes.font) ?? 'var(--font)',
       '--sp-display': fontStack(axes.font_display) ?? fontStack(axes.font) ?? 'var(--font-display)',
@@ -39,7 +40,7 @@
     <div class="mini" class:run={play > 0}>
       <span class="cover"><span class="rings"><i></i><i></i></span></span>
       <span class="meta">
-        <b class:editorial={axes.title_style === 'editorial'}>Моя волна</b>
+        <b class:editorial={axes.title_style === 'editorial'}>{t('Моя волна')}</b>
         <small>Sonar</small>
       </span>
       <span class="ctrls">

@@ -9,6 +9,7 @@
   import { pop } from '../lib/motion'
   import { indicator } from '../lib/indicator'
   import { cascade } from '../lib/cascade'
+  import { t } from '../lib/i18n.svelte'
   import { EQ_FREQS, EQ_GROUPS, EQ_MAX_DB, PRESET_GROUPS, eq, freqLabel, type EqGroup } from './eq.svelte'
 
   let open = $state(false)
@@ -92,21 +93,21 @@
 </script>
 
 <div class="eq" bind:this={root}>
-  <button class="icon-btn" class:active class:open aria-label="Эквалайзер" title="Эквалайзер" aria-expanded={open} onclick={toggle}>
+  <button class="icon-btn" class:active class:open aria-label={t('Эквалайзер')} title={t('Эквалайзер')} aria-expanded={open} onclick={toggle}>
     <Icon name="adjustments" size={18} />
   </button>
 
   {#if open}
-    <div class="pop" class:down style:max-height="{room}px" role="dialog" aria-label="Эквалайзер" in:pop={{ y: down ? -8 : 8 }} out:pop={{ y: down ? -8 : 8 }}>
+    <div class="pop" class:down style:max-height="{room}px" role="dialog" aria-label={t('Эквалайзер')} in:pop={{ y: down ? -8 : 8 }} out:pop={{ y: down ? -8 : 8 }}>
       <button class="head" role="switch" aria-checked={eq.enabled} onclick={() => eq.setEnabled(!eq.enabled)}>
-        <span class="ht"><b>Эквалайзер</b><small>Настройка звука по частотам</small></span>
+        <span class="ht"><b>{t('Эквалайзер')}</b><small>{t('Настройка звука по частотам')}</small></span>
         <i class="switch" class:on={eq.enabled} aria-hidden="true"></i>
       </button>
 
       <div class="body" class:off={!eq.enabled}>
         <div class="tabs" use:indicator={{ key: group, kind: 'pill' }}>
           {#each EQ_GROUPS as g (g.id)}
-            <button class:on={group === g.id} onclick={() => (group = g.id)}>{g.label}</button>
+            <button class:on={group === g.id} onclick={() => (group = g.id)}>{t(g.label)}</button>
           {/each}
         </div>
 
@@ -114,9 +115,9 @@
           <div class="grid" use:cascade>
             {#each list as p (p.name)}
               <span class="chip" class:on={eq.activePreset === p.name}>
-                <button class="pick" onclick={() => eq.set(p.gains)}>{p.name}</button>
+                <button class="pick" onclick={() => eq.set(p.gains)}>{p.builtin ? t(p.name) : p.name}</button>
                 {#if group === 'mine'}
-                  <button class="del" aria-label="Удалить пресет «{p.name}»" title="Удалить" onclick={() => eq.removePreset(p.name)}><Icon name="x" size={11} /></button>
+                  <button class="del" aria-label={t('Удалить пресет «{name}»', { name: p.name })} title={t('Удалить')} onclick={() => eq.removePreset(p.name)}><Icon name="x" size={11} /></button>
                 {/if}
               </span>
             {/each}
@@ -124,14 +125,14 @@
               {#if naming}
                 <form class="name" onsubmit={savePreset}>
                   <!-- svelte-ignore a11y_autofocus -->
-                  <input bind:value={newName} placeholder="Название" maxlength="24" autofocus />
-                  <button type="submit" aria-label="Сохранить пресет" disabled={!newName.trim()}><Icon name="check" size={14} /></button>
+                  <input bind:value={newName} placeholder={t('Название')} maxlength="24" autofocus />
+                  <button type="submit" aria-label={t('Сохранить пресет')} disabled={!newName.trim()}><Icon name="check" size={14} /></button>
                 </form>
               {:else}
-                <button class="chip add" onclick={() => (naming = true)}><Icon name="plus" size={14} /> Сохранить текущий</button>
+                <button class="chip add" onclick={() => (naming = true)}><Icon name="plus" size={14} /> {t('Сохранить текущий')}</button>
               {/if}
               {#if !eq.userPresets.length && !naming}
-                <p class="mine-hint">Подвигай полосы и сохрани кривую — она появится здесь</p>
+                <p class="mine-hint">{t('Подвигай полосы и сохрани кривую — она появится здесь')}</p>
               {/if}
             {/if}
           </div>
@@ -147,7 +148,7 @@
                 class:drag={drag === i}
                 role="slider"
                 tabindex="-1"
-                aria-label="{freqLabel(f)} Гц"
+                aria-label={t('{f} Гц', { f: freqLabel(f) })}
                 aria-valuenow={g}
                 aria-valuemin={-EQ_MAX_DB}
                 aria-valuemax={EQ_MAX_DB}
@@ -171,7 +172,7 @@
 
         <button class="save" class:on={justSaved && !eq.dirty} disabled={!eq.dirty && !justSaved} onclick={save}>
           {#key justSaved && !eq.dirty}
-            <span class="lbl">{#if justSaved && !eq.dirty}<Icon name="check" size={15} /> Сохранено{:else}Сохранить для всех треков{/if}</span>
+            <span class="lbl">{#if justSaved && !eq.dirty}<Icon name="check" size={15} /> {t('Сохранено')}{:else}{t('Сохранить для всех треков')}{/if}</span>
           {/key}
         </button>
       </div>

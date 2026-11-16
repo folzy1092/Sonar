@@ -7,6 +7,7 @@
   import Soon from './Soon.svelte'
   import { hscroll } from '../../lib/hscroll'
   import { edges } from '../../lib/edges'
+  import { t } from '../../lib/i18n.svelte'
 
   interface Props {
     title?: string
@@ -33,7 +34,7 @@
         class:off={o.soon}
         disabled={soon || o.soon}
         onclick={() => onchange?.(o.id)}
-        title={o.soon ? `${o.label} — скоро` : o.label}
+        title={o.soon ? t('{label} — скоро', { label: o.label }) : o.label}
       >
         {#if o.icon}<span class="ic"><Icon name={o.icon} size={list ? 17 : 16} /></span>{/if}
         <span class="txt">

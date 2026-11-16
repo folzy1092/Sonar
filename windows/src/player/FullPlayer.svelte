@@ -25,6 +25,7 @@
   import { library } from '../lib/library.svelte'
   import { hasSelection } from '../lib/selection'
   import { openRef } from '../app/router.svelte'
+  import { t } from '../lib/i18n.svelte'
 
   const track = $derived(player.current)
   const liked = $derived(library.isLiked(track?.ref))
@@ -84,13 +85,13 @@
 
 <svelte:document onmouseleave={() => (away = true)} onmouseenter={() => (away = false)} />
 
-<div class="fs" class:away onmousemove={() => (away = false)} transition:zoom role="dialog" aria-label="Полноэкранный плеер" tabindex="-1" oncontextmenu={openMenu}>
+<div class="fs" class:away onmousemove={() => (away = false)} transition:zoom role="dialog" aria-label={t('Полноэкранный плеер')} tabindex="-1" oncontextmenu={openMenu}>
   <ArtBackdrop />
 
   <header data-tauri-drag-region>
     <!-- «чёлки» по углам, как у главного окна: слева — свернуть, справа — кнопки окна -->
     <div class="notch left">
-      <button class="collapse" aria-label="Свернуть" title="Свернуть" onclick={() => lyrics.close()}>
+      <button class="collapse" aria-label={t('Свернуть')} title={t('Свернуть')} onclick={() => lyrics.close()}>
         <Icon name="chevronDown" size={20} />
       </button>
     </div>
@@ -118,8 +119,8 @@
           <button
             class="on-cover left"
             class:on={liked}
-            aria-label={liked ? 'Удалить из Любимых' : 'В Любимые'}
-            title={liked ? 'Удалить из Любимых' : 'В Любимые'}
+            aria-label={liked ? t('Удалить из Любимых') : t('В Любимые')}
+            title={liked ? t('Удалить из Любимых') : t('В Любимые')}
             onclick={() => track && library.toggleLike(track)}
           >
             <span class="ic" use:pulse={liked}><Icon name="heart" size={18} filled={liked} /></span>
@@ -127,8 +128,8 @@
           <button
             class="on-cover right"
             class:on={wave.isDisliked(track.ref)}
-            aria-label="Не нравится"
-            title={wave.isDisliked(track.ref) ? 'Снова можно ставить в волну' : 'Не нравится — больше не ставить'}
+            aria-label={t('Не нравится')}
+            title={wave.isDisliked(track.ref) ? t('Снова можно ставить в волну') : t('Не нравится — больше не ставить')}
             onclick={() => track && wave.dislike(track)}
           >
             <span class="ic" use:pulse={wave.isDisliked(track.ref)}><Icon name="dislike" size={18} filled={wave.isDisliked(track.ref)} /></span>
@@ -155,24 +156,24 @@
       <div class="controls">
         <IconButton
           icon={player.repeat === 'one' ? 'repeatOnce' : player.repeat === 'all' ? 'repeat' : 'repeatOff'}
-          label={player.repeat === 'off' ? 'Повтор: выкл' : player.repeat === 'all' ? 'Повтор: всё' : 'Повтор: трек'}
+          label={player.repeat === 'off' ? t('Повтор: выкл') : player.repeat === 'all' ? t('Повтор: всё') : t('Повтор: трек')}
           active={player.repeat !== 'off'}
           disabled={!track}
           onclick={() => player.cycleRepeat()}
         />
-        <IconButton icon="prev" label="Назад" filled disabled={!track} onclick={() => player.prev()} />
+        <IconButton icon="prev" label={t('Назад')} filled disabled={!track} onclick={() => player.prev()} />
         <button
           class="play"
           class:loading={player.loading}
-          aria-label={player.playing ? 'Пауза' : 'Играть'}
-          title={player.playing ? 'Пауза' : 'Играть'}
+          aria-label={player.playing ? t('Пауза') : t('Играть')}
+          title={player.playing ? t('Пауза') : t('Играть')}
           disabled={!track}
           onclick={() => player.toggle()}
         >
           <PlayPause playing={player.playing} size={30} />
         </button>
-        <IconButton icon="next" label="Вперёд" filled disabled={!track} onclick={() => player.next()} />
-        <IconButton icon="shuffle" label="Перемешать" active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
+        <IconButton icon="next" label={t('Вперёд')} filled disabled={!track} onclick={() => player.next()} />
+        <IconButton icon="shuffle" label={t('Перемешать')} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
       </div>
       {#if player.error}<p class="err">{player.error}</p>{/if}
     </section>
@@ -192,7 +193,7 @@
     <div></div>
     <div
       class="volume"
-      title="Громкость {Math.round(player.volume * 100)}%"
+      title={t('Громкость {n}%', { n: Math.round(player.volume * 100) })}
       onwheel={(e) => player.setVolume(player.volume + (e.deltaY < 0 ? 0.05 : -0.05))}
     >
       <input
@@ -201,7 +202,7 @@
         max="1"
         step="0.01"
         value={player.volume}
-        aria-label="Громкость"
+        aria-label={t('Громкость')}
         style:--fill="{player.volume * 100}%"
         oninput={(e) => player.setVolume(Number(e.currentTarget.value))}
       />

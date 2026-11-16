@@ -5,6 +5,7 @@
   import { player } from './player.svelte'
   import { slide } from 'svelte/transition'
   import { reducedMotion } from '../lib/motion'
+  import { t } from '../lib/i18n.svelte'
 
   let open = $state(false)
 </script>
@@ -13,9 +14,9 @@
   <button
     class="ico"
     class:open
-    aria-label="Громкость"
+    aria-label={t('Громкость')}
     aria-expanded={open}
-    title="Громкость {Math.round(player.volume * 100)}%"
+    title={t('Громкость {n}%', { n: Math.round(player.volume * 100) })}
     onclick={() => (open = !open)}
   >
     <Icon name={player.volume === 0 ? 'volumeOff' : 'volume'} size={17} />
@@ -27,7 +28,7 @@
       max="1"
       step="0.01"
       value={player.volume}
-      aria-label="Громкость"
+      aria-label={t('Громкость')}
       style:--fill="{player.volume * 100}%"
       transition:slide={{ axis: 'x', duration: reducedMotion() ? 0 : 220 }}
       oninput={(e) => player.setVolume(Number(e.currentTarget.value))}

@@ -24,6 +24,7 @@
   import { flyOrb } from '../lib/fly'
   import { colorOf } from '../theme/theme.svelte'
   import { css, inkFor, type RGB } from '../theme/palette'
+  import { t } from '../lib/i18n.svelte'
 
   const part = DAYPART_TEXT[daypart(new Date().getHours())]
   const hello = part.hello
@@ -84,13 +85,13 @@
   }
 
   function playMix(i: number) {
-    void player.playList(home.mix, i, 'daypart', part.mix)
+    void player.playList(home.mix, i, 'daypart', t(part.mix))
   }
   function playRecent(i: number) {
-    void player.playList(home.recent, i, 'recent', 'Недавнее')
+    void player.playList(home.recent, i, 'recent', t('Недавнее'))
   }
   function playSimilar(i: number) {
-    void player.playList(home.similar, i, 'similar', 'Похожее')
+    void player.playList(home.similar, i, 'similar', t('Похожее'))
   }
   function openAlbum(a: Album) {
     openRef(a.ref)
@@ -121,19 +122,19 @@
      с двумя обложками следующих треков и большой кнопкой. -->
 <section class="wave" class:on={wave.active}>
   <div class="lead">
-    <button class="art" data-fx-cover aria-label="Играть волну" onclick={(e) => playCover(e, waveTracks[0], false)}>
+    <button class="art" data-fx-cover aria-label={t('Играть волну')} onclick={(e) => playCover(e, waveTracks[0], false)}>
       <Cover url={waveCover} size={158} radius="26px" />
       <!-- загрузка трека волны — на обложке героя, если волна играет -->
       <LoadFx on={wave.active} url={player.current?.cover_url} />
     </button>
     <div class="wave-text">
-      <h1 class="font-wave" data-fx-title><span>Моя</span><span>волна</span></h1>
+      <h1 class="font-wave" data-fx-title>{#each t('Моя волна').split(' ') as w, i (i)}<span>{w}</span>{/each}</h1>
       <!-- режим волны: клик — следующий (Своя → Жёсткая → Спокойная → …), карточка переворачивается -->
-      <button class="mode" title="Режим волны — нажми, чтобы сменить" onclick={() => wave.nextMode()}>
+      <button class="mode" title={t('Режим волны — нажми, чтобы сменить')} onclick={() => wave.nextMode()}>
         {#key mode.id}
           <span class="flip" in:flipIn out:flipOut>
             <Icon name={mode.icon} size={15} />
-            <b>{mode.title}</b>{#if wave.loading}<span class="sub">· подбираю…</span>{:else if wave.active && wave.seed}<span class="sub">· в стиле «{wave.seed.title}»</span>{:else}<span class="sub">· {mode.sub}</span>{/if}
+            <b>{t(mode.title)}</b>{#if wave.loading}<span class="sub">· {t('подбираю…')}</span>{:else if wave.active && wave.seed}<span class="sub">· {t('в стиле «{title}»', { title: wave.seed.title })}</span>{:else}<span class="sub">· {t(mode.sub)}</span>{/if}
           </span>
         {/key}
       </button>
@@ -141,15 +142,15 @@
   </div>
 
   <div class="scene" class:still={!player.playing}>
-    {#each waveTracks.slice(1, 3) as t, i (t.ref)}
+    {#each waveTracks.slice(1, 3) as tr, i (tr.ref)}
       <button
         class="float f{i} idle-pause"
-        class:picked={wave.active && wave.seed?.ref === t.ref}
-        aria-label="Волна в стиле «{t.title}»"
-        title="Волна в стиле: {t.artist} — {t.title}"
-        onclick={(e) => playCover(e, t, true)}
+        class:picked={wave.active && wave.seed?.ref === tr.ref}
+        aria-label={t('Волна в стиле «{title}»', { title: tr.title })}
+        title={t('Волна в стиле: {artist} — {title}', { artist: tr.artist, title: tr.title })}
+        onclick={(e) => playCover(e, tr, true)}
       >
-        <Cover url={t.cover_url} size={64} radius="16px" />
+        <Cover url={tr.cover_url} size={64} radius="16px" />
       </button>
     {/each}
     <button
@@ -158,8 +159,8 @@
       class:busy={wave.loading && !wave.active}
       style:background-color={btnColor ? css(btnColor) : null}
       style:color={ink}
-      aria-label={playingWave ? 'Пауза' : 'Включить волну'}
-      title={wave.error && !wave.active ? wave.error : playingWave ? 'Пауза' : 'Включить волну'}
+      aria-label={playingWave ? t('Пауза') : t('Включить волну')}
+      title={wave.error && !wave.active ? wave.error : playingWave ? t('Пауза') : t('Включить волну')}
       onclick={() => wave.toggle()}
     >
       <PlayPause playing={playingWave} size={38} />
@@ -168,7 +169,7 @@
 </section>
 
 <section class="block">
-  <h2>{hello}{#if me.name},
+  <h2>{t(hello)}{#if me.name},
       <span class="who">
         {#if me.avatar}<img src={me.avatar} alt="" />{/if}
         {me.name}
@@ -178,10 +179,10 @@
       <!-- первым — подборка под время суток (что слушаешь в эти часы + лайки), за ней «Недавнее»;
            обе — веером из трёх обложек, как у Dotify -->
       {#if home.mix.length}
-        {@render fan(home.mix, part.mix, `подборка · ${tracksText(home.mix.length)}`, () => playMix(0), titles(home.mix))}
+        {@render fan(home.mix, t(part.mix), t('подборка · {tracks}', { tracks: tracksText(home.mix.length) }), () => playMix(0), titles(home.mix))}
       {/if}
       {#if home.recent.length}
-        {@render fan(home.recent, 'Недавнее', tracksText(home.recent.length), () => playRecent(0), recentTitle)}
+        {@render fan(home.recent, t('Недавнее'), tracksText(home.recent.length), () => playRecent(0), recentTitle)}
       {/if}
       {#each home.mix.length ? home.mix : home.recent as t, i (t.ref)}
         <Tile title={t.title} subtitle={t.artist} image={t.cover_url} source={t.ref} onclick={() => (home.mix.length ? playMix(i) : playRecent(i))} />
@@ -190,12 +191,12 @@
   {:else if home.loading}
     {@render skeleton()}
   {:else}
-    <p class="empty">Послушай что-нибудь — здесь соберётся подборка под утро, день, вечер и ночь.</p>
+    <p class="empty">{t('Послушай что-нибудь — здесь соберётся подборка под утро, день, вечер и ночь.')}</p>
   {/if}
 </section>
 
 <section class="block">
-  <h2>{week.length || !home.releases.length ? 'Релизы недели' : 'Свежие релизы'}</h2>
+  <h2>{week.length || !home.releases.length ? t('Релизы недели') : t('Свежие релизы')}</h2>
   {#if releases.length}
     <Shelf>
       {#each releases as a (a.ref)}
@@ -205,13 +206,13 @@
   {:else if home.releasesLoading}
     {@render skeleton()}
   {:else}
-    <p class="empty">Лайкай треки и исполнителей — здесь появятся их новые релизы за неделю.</p>
+    <p class="empty">{t('Лайкай треки и исполнителей — здесь появятся их новые релизы за неделю.')}</p>
   {/if}
 </section>
 
 {#if home.similar.length || home.similarLoading}
   <section class="block">
-    <h2>Похожее{#if home.similarTo}<small> на «{home.similarTo.title}»</small>{/if}</h2>
+    <h2>{t('Похожее')}{#if home.similarTo}<small> {t('на «{title}»', { title: home.similarTo.title })}</small>{/if}</h2>
     {#if home.similar.length}
       <Shelf>
         {#each home.similar as t, i (t.ref)}
@@ -226,25 +227,25 @@
 
 <!-- Что слушают в Sonar: с сервера (API.md §5а). Пока его нет — ряды с заготовкой, без выдумок. -->
 <section class="block">
-  <h2>Тренды Sonar<small>что слушают в приложении</small></h2>
-  {@render soon('trending', 'Появятся вместе с сервером Sonar: треки, которые чаще всего слушают все.')}
+  <h2>{t('Тренды Sonar')}<small>{t('что слушают в приложении')}</small></h2>
+  {@render soon('trending', t('Появятся вместе с сервером Sonar: треки, которые чаще всего слушают все.'))}
 </section>
 
 <section class="block">
-  <h2>Плейлисты пользователей<small>по популярности</small></h2>
-  {@render soon('playlist', 'Плейлисты других пользователей — самые слушаемые и сохраняемые. Ждут сервер.')}
+  <h2>{t('Плейлисты пользователей')}<small>{t('по популярности')}</small></h2>
+  {@render soon('playlist', t('Плейлисты других пользователей — самые слушаемые и сохраняемые. Ждут сервер.'))}
 </section>
 
 <section class="block">
   <div class="head">
-    <h2>Чарты Sonar</h2>
+    <h2>{t('Чарты Sonar')}</h2>
     <div class="periods" use:indicator={{ key: chartPeriod, kind: 'pill' }}>
       {#each CHART_PERIODS as p (p.id)}
-        <button class="period press" class:on={chartPeriod === p.id} onclick={() => (chartPeriod = p.id)}>{p.label}</button>
+        <button class="period press" class:on={chartPeriod === p.id} onclick={() => (chartPeriod = p.id)}>{t(p.label)}</button>
       {/each}
     </div>
   </div>
-  {@render soon('chart', 'Треки, исполнители, альбомы и плейлисты, которые чаще всего слушают в Sonar.')}
+  {@render soon('chart', t('Треки, исполнители, альбомы и плейлисты, которые чаще всего слушают в Sonar.'))}
 </section>
 
 {#snippet soon(icon: 'trending' | 'playlist' | 'chart', text: string)}
@@ -267,7 +268,7 @@
 {/snippet}
 
 {#snippet skeleton()}
-  <div class="row" aria-label="Загрузка…">
+  <div class="row" aria-label={t('Загрузка…')}>
     {#each { length: 7 } as _, i (i)}
       <div class="sk-tile"><div class="sk-cover skel"></div><div class="sk-line skel"></div><div class="sk-line short skel"></div></div>
     {/each}

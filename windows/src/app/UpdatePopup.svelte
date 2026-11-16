@@ -9,6 +9,7 @@
   import { player } from '../player/player.svelte'
   import { settings } from '../lib/settings.svelte'
   import UpdateDetails from './UpdateDetails.svelte'
+  import { t } from '../lib/i18n.svelte'
 
   const p = $derived(updater.phase)
   /** «Подробнее» — окно со всеми изменениями до найденной версии. */
@@ -21,17 +22,17 @@
 
 {#if updater.popup}
   <!-- нижнего плеера нет (страница плеера, ничего не играет) — всплывашка плавно опускается ниже -->
-  <div class="pop" class:low={router.page === 'player' || !player.current || settings.get('mini.style') === 'off'} role="dialog" aria-label="Доступно обновление" in:pop={{ y: 16, scale: 0.94, duration: 280 }} out:pop={{ y: 16, scale: 0.94, duration: 280 }}>
+  <div class="pop" class:low={router.page === 'player' || !player.current || settings.get('mini.style') === 'off'} role="dialog" aria-label={t('Доступно обновление')} in:pop={{ y: 16, scale: 0.94, duration: 280 }} out:pop={{ y: 16, scale: 0.94, duration: 280 }}>
     <div class="top">
       <span class="ic"><Icon name="download" size={18} /></span>
       <div class="txt">
-        <b>Доступно обновление</b>
+        <b>{t('Доступно обновление')}</b>
         <small>
           Sonar {updater.version}
-          {#if p === 'downloading'}· загрузка {Math.round(updater.progress * 100)}%{:else if p === 'ready'}· скачано{/if}
+          {#if p === 'downloading'}· {t('загрузка {percent}%', { percent: Math.round(updater.progress * 100) })}{:else if p === 'ready'}· {t('скачано')}{/if}
         </small>
       </div>
-      <button class="x" aria-label="Позже" onclick={() => updater.later()}><Icon name="x" size={16} /></button>
+      <button class="x" aria-label={t('Позже')} onclick={() => updater.later()}><Icon name="x" size={16} /></button>
     </div>
 
     {#if updater.notes.length}
@@ -45,11 +46,11 @@
     {/if}
 
     <div class="btns">
-      <button class="btn" onclick={() => (more = true)}>Подробнее</button>
+      <button class="btn" onclick={() => (more = true)}>{t('Подробнее')}</button>
       {#if p === 'ready' || p === 'installing'}
-        <button class="btn primary" disabled={p === 'installing'} onclick={() => updater.install()}>Установить</button>
+        <button class="btn primary" disabled={p === 'installing'} onclick={() => updater.install()}>{t('Установить')}</button>
       {:else if p === 'available' || p === 'error'}
-        <button class="btn primary" onclick={() => (p === 'error' ? updater.retry() : updater.download())}>Обновить</button>
+        <button class="btn primary" onclick={() => (p === 'error' ? updater.retry() : updater.download())}>{t('Обновить')}</button>
       {/if}
     </div>
   </div>

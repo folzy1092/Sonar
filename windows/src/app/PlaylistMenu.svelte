@@ -14,6 +14,7 @@
   import { player } from '../player/player.svelte'
   import { openRef } from './router.svelte'
   import { pop } from '../lib/motion'
+  import { t } from '../lib/i18n.svelte'
 
   const W = 260
   let el: HTMLElement | undefined = $state()
@@ -23,13 +24,13 @@
 
   const cache = new Map<string, Promise<Track[]>>()
   function tracksOf(pl: ServicePlaylist): Promise<Track[]> {
-    let t = cache.get(pl.ref)
-    if (!t) {
-      t = api.servicePlaylist(pl.ref).then((r) => r.tracks)
-      t.catch(() => cache.delete(pl.ref))
-      cache.set(pl.ref, t)
+    let list = cache.get(pl.ref)
+    if (!list) {
+      list = api.servicePlaylist(pl.ref).then((r) => r.tracks)
+      list.catch(() => cache.delete(pl.ref))
+      cache.set(pl.ref, list)
     }
-    return t
+    return list
   }
 
   // не вылезать за окно
@@ -46,14 +47,14 @@
   }
 
   /** Действие с треками плейлиста: меню закрывается сразу, треки догружаются в фоне. */
-  function withTracks(fn: (t: Track[], pl: ServicePlaylist) => unknown, done?: string) {
+  function withTracks(fn: (tracks: Track[], pl: ServicePlaylist) => unknown, done?: string) {
     const pl = p
     if (!pl) return
     playlistMenu.close()
     tracksOf(pl)
-      .then((t) => {
-        if (!t.length) return toast.show('В плейлисте нет треков')
-        fn(t, pl)
+      .then((tracks) => {
+        if (!tracks.length) return toast.show(t('В плейлисте нет треков'))
+        fn(tracks, pl)
         if (done) toast.show(done)
       })
       .catch((e) => toast.show(errorText(e)))
@@ -66,7 +67,7 @@
     try {
       const r = await api.importPlaylist(pl.ref)
       await library.refreshPlaylists()
-      toast.show(`Плейлист «${r.name}» теперь в Sonar`)
+      toast.show(t('Плейлист «{name}» теперь в Sonar', { name: r.name }))
     } catch (e) {
       toast.show(errorText(e))
     }
@@ -78,9 +79,9 @@
     if (!pl) return
     try {
       await navigator.clipboard.writeText(pl.owner ? `${pl.title} — ${pl.owner}` : pl.title)
-      toast.show('Название скопировано')
+      toast.show(t('Название скопировано'))
     } catch {
-      toast.show('Не получилось скопировать')
+      toast.show(t('Не получилось скопировать'))
     }
   }
 
@@ -121,26 +122,26 @@
       <Cover url={p.cover_url} size={44} source={p.ref} />
       <div class="meta">
         <b>{p.title}</b>
-        <span><SourceIcon kind={sc ? 'sc' : 'ym'} size={12} plain /> {p.owner || (sc ? 'SoundCloud' : 'Яндекс Музыка')}</span>
+        <span><SourceIcon kind={sc ? 'sc' : 'ym'} size={12} plain /> {p.owner || (sc ? 'SoundCloud' : t('Яндекс Музыка'))}</span>
         {#if p.track_count}<small>{tracksText(p.track_count)}</small>{/if}
       </div>
     </div>
 
-    {@render item('chevronRight', 'Открыть', () => {
+    {@render item('chevronRight', t('Открыть'), () => {
       playlistMenu.close()
       openRef(p.ref)
     })}
-    {@render item('play', 'Слушать', () => withTracks((t, pl) => player.playList(t, 0, ctx, pl.title)))}
-    {@render item('shuffle', 'Слушать вперемешку', () => withTracks((t, pl) => player.playShuffled(t, ctx, pl.title)))}
+    {@render item('play', t('Слушать'), () => withTracks((list, pl) => player.playList(list, 0, ctx, pl.title)))}
+    {@render item('shuffle', t('Слушать вперемешку'), () => withTracks((list, pl) => player.playShuffled(list, ctx, pl.title)))}
     <hr />
-    {@render item('playNext', 'Следующими', () => withTracks((t) => player.addToQueue(t, true), 'Треки будут играть следующими'))}
-    {@render item('queue', 'В очередь', () => withTracks((t) => player.addToQueue(t, false), 'Треки добавлены в очередь'))}
+    {@render item('playNext', t('Следующими'), () => withTracks((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
+    {@render item('queue', t('В очередь'), () => withTracks((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}
     <hr />
-    {@render item('playlistAdd', 'Перенести в Sonar', importIt)}
-    {@render item('copy', 'Копировать название', copyTitle)}
+    {@render item('playlistAdd', t('Перенести в Sonar'), importIt)}
+    {@render item('copy', t('Копировать название'), copyTitle)}
     {#if webUrl}
       {@const url = webUrl}
-      {@render item('link', sc ? 'Открыть в SoundCloud' : 'Открыть в Яндекс Музыке', () => {
+      {@render item('link', sc ? t('Открыть в SoundCloud') : t('Открыть в Яндекс Музыке'), () => {
         playlistMenu.close()
         void api.openUrl(url).catch(() => {})
       })}

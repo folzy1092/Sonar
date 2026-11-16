@@ -58,49 +58,49 @@
   onchange={(v) => settings.set('general.language', v)}
 />
 <Choice
-  title="Платформа"
-  hint="Откуда главная берёт волну и рекомендации"
+  title={t('Платформа')}
+  hint={t('Откуда главная берёт волну и рекомендации')}
   value={settings.get('general.platform')}
   options={[
     { id: 'soundcloud', label: 'SoundCloud' },
-    { id: 'yandex', label: 'Яндекс' },
+    { id: 'yandex', label: t('Яндекс') },
   ]}
   onchange={setPlatform}
 />
 
-<Group title="Медиатека">
+<Group title={t('Медиатека')}>
   <Choice
-    title="Добавление"
-    hint="Куда добавлять новые треки в плейлистах"
+    title={t('Добавление')}
+    hint={t('Куда добавлять новые треки в плейлистах')}
     value={settings.get('general.add_position')}
     options={[
-      { id: 'start', label: 'В начало' },
-      { id: 'end', label: 'В конец' },
+      { id: 'start', label: t('В начало') },
+      { id: 'end', label: t('В конец') },
     ]}
     onchange={(v) => settings.set('general.add_position', v)}
   />
   <button class="cloud" disabled>
     <Icon name="cloudUp" size={18} />
-    <span><b>Сохранить в облако <Soon /></b><small>Лайки и плейлисты с этого устройства</small></span>
+    <span><b>{t('Сохранить в облако')} <Soon /></b><small>{t('Лайки и плейлисты с этого устройства')}</small></span>
   </button>
   <button class="cloud" disabled>
     <Icon name="cloudDown" size={18} />
-    <span><b>Загрузить из облака <Soon /></b><small>Заменит лайки и плейлисты здесь</small></span>
+    <span><b>{t('Загрузить из облака')} <Soon /></b><small>{t('Заменит лайки и плейлисты здесь')}</small></span>
   </button>
 </Group>
 
-<Group title="Запуск">
-  <Switch title="Автозапуск" hint="Открывать Sonar при входе в систему" on={autostart} onchange={setAutostart} />
-  <Switch title="Сворачивать в трей" hint="Крестик прячет окно, музыка играет дальше" on={settings.get('system.tray')} onchange={setTray} />
+<Group title={t('Запуск')}>
+  <Switch title={t('Автозапуск')} hint={t('Открывать Sonar при входе в систему')} on={autostart} onchange={setAutostart} />
+  <Switch title={t('Сворачивать в трей')} hint={t('Крестик прячет окно, музыка играет дальше')} on={settings.get('system.tray')} onchange={setTray} />
   <Choice
-    title="Экономия ресурсов"
-    hint="Когда упрощать эффекты, чтобы не нагружать компьютер"
+    title={t('Экономия ресурсов')}
+    hint={t('Когда упрощать эффекты, чтобы не нагружать компьютер')}
     wide
     value={settings.get('system.power_saving')}
     options={[
-      { id: 'off', label: 'Выключено' },
-      { id: 'minimized', label: 'При сворачивании' },
-      { id: 'background', label: 'В фоне' },
+      { id: 'off', label: t('Выключено') },
+      { id: 'minimized', label: t('При сворачивании') },
+      { id: 'background', label: t('В фоне') },
     ]}
     onchange={(v) => settings.set('system.power_saving', v)}
   />

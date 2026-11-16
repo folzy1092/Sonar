@@ -1,11 +1,12 @@
 <script lang="ts">
   // Пометка «Скоро» (ещё не сделано или нужен сервер) или замок «В разработке» (приватность).
   import Icon from '../Icon.svelte'
+  import { t } from '../../lib/i18n.svelte'
   let { lock = false }: { lock?: boolean } = $props()
 </script>
 
-<span class="soon" title={lock ? 'В разработке' : 'Скоро'}>
-  {#if lock}<Icon name="lock" size={11} /> В разработке{:else}Скоро{/if}
+<span class="soon" title={lock ? t('В разработке') : t('Скоро')}>
+  {#if lock}<Icon name="lock" size={11} /> {t('В разработке')}{:else}{t('Скоро')}{/if}
 </span>
 
 <style>

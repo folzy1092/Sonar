@@ -19,6 +19,7 @@
   import SourceIcon from '../components/SourceIcon.svelte'
   import { reducedMotion } from '../lib/motion'
   import { cubicOut } from 'svelte/easing'
+  import { t } from '../lib/i18n.svelte'
 
   const tabs = ['Все', 'Плейлисты', 'Альбомы', 'Исполнители'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
@@ -45,7 +46,7 @@
   let svc = $state<'sc' | 'ym'>('sc')
   /** Куда едет свайп: 1 — следующий справа налево. */
   let dir = $state(1)
-  const svcName = $derived(SERVICES.find((x) => x.id === svc)!.name)
+  const svcName = $derived(t(SERVICES.find((x) => x.id === svc)!.name))
   const svcConnected = $derived(svc === 'sc' ? !!status?.soundcloud.connected : !!status?.yandex.connected)
   /** Плейлисты выбранного сервиса, ещё не перенесённые в Sonar (перенесённые уже есть среди своих). */
   const services = $derived(phantom[svc].filter((p) => !imported.has(p.ref)))
@@ -123,29 +124,29 @@
 </script>
 
 <div class="tabs" role="tablist" data-tauri-drag-region>
-  {#each tabs as t (t)}
-    <button class="tab" class:on={tab === t} role="tab" aria-selected={tab === t} onclick={() => (tab = t)}>{t}</button>
+  {#each tabs as tb (tb)}
+    <button class="tab" class:on={tab === tb} role="tab" aria-selected={tab === tb} onclick={() => (tab = tb)}>{t(tb)}</button>
   {/each}
 </div>
 
 {#if accounts.length}
   <p class="who">
-    Вы вошли как
+    {t('Вы вошли как')}
     <span class="avatars">
       {#each accounts as a, i (i)}
         <span class="av">{#if a.avatar_url}<img src={a.avatar_url} alt="" />{:else}{(a.name ?? '?').slice(0, 1).toUpperCase()}{/if}</span>
       {/each}
     </span>
-    <b>{accounts.map((a) => a.name ?? 'аккаунт').join(', ')}</b>
+    <b>{accounts.map((a) => a.name ?? t('аккаунт')).join(', ')}</b>
   </p>
 {:else}
-  <p class="who">Свои плейлисты сервисов появятся здесь после входа: <button class="link" onclick={openServices}>Настройки → Сервисы</button></p>
+  <p class="who">{t('Свои плейлисты сервисов появятся здесь после входа:')} <button class="link" onclick={openServices}>{t('Настройки → Сервисы')}</button></p>
 {/if}
 
 {#snippet phantomTile(p: ServicePlaylist)}
   <Tile
     title={p.title}
-    subtitle={p.owner || (p.ref.startsWith('sc') ? 'SoundCloud' : 'Яндекс Музыка')}
+    subtitle={p.owner || (p.ref.startsWith('sc') ? 'SoundCloud' : t('Яндекс Музыка'))}
     meta={p.track_count ? tracksText(p.track_count) : undefined}
     image={p.cover_url}
     icon={p.ref.endsWith('likes') ? 'heart' : 'music'}
@@ -165,12 +166,12 @@
 {#if tab === 'Все' || tab === 'Плейлисты'}
   <section class="block">
     {#if tab === 'Все'}
-      <h2>Плейлисты <button class="more" aria-label="Все плейлисты" onclick={() => (tab = 'Плейлисты')}><Icon name="chevronRight" size={18} /></button></h2>
+      <h2>{t('Плейлисты')} <button class="more" aria-label={t('Все плейлисты')} onclick={() => (tab = 'Плейлисты')}><Icon name="chevronRight" size={18} /></button></h2>
     {/if}
     <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll use:edges>
-      <Tile title="Любимые" subtitle="Лайкнутые треки" meta={tracksText(favCount)} art={favArt} onclick={() => router.go('playlist', 'favorites')} />
+      <Tile title={t('Любимые')} subtitle={t('Лайкнутые треки')} meta={tracksText(favCount)} art={favArt} onclick={() => router.go('playlist', 'favorites')} />
       {#each own as p (p.id)}
-        <Tile title={p.name} subtitle={p.hidden ? 'Скрыт' : 'Sonar'} meta={tracksText(p.track_count)} covers={p.covers} dim={p.hidden} onclick={() => router.go('playlist', p.id)} />
+        <Tile title={p.name} subtitle={p.hidden ? t('Скрыт') : 'Sonar'} meta={tracksText(p.track_count)} covers={p.covers} dim={p.hidden} onclick={() => router.go('playlist', p.id)} />
       {/each}
     </div>
   </section>
@@ -178,7 +179,7 @@
   <!-- плейлисты сервисов — свой ряд, сервис переключается по кругу кликом по названию -->
   <section class="block">
     <h2 class="svc-head">
-      <button class="svc press" title="Следующий сервис" onclick={nextService}>
+      <button class="svc press" title={t('Следующий сервис')} onclick={nextService}>
         {#key svc}
           <span class="svc-face" in:swipe out:swipe={{ out: true }}>
             <SourceIcon kind={svc} size={20} />
@@ -194,13 +195,13 @@
           {#if !status && !servicesTried}
             <div class="row"><div class="sk-tile skel"></div><div class="sk-tile skel"></div><div class="sk-tile skel"></div></div>
           {:else if !svcConnected}
-            <p class="hint">{svcName} {svc === 'sc' ? 'не подключён' : 'не подключена'} — <button class="link" onclick={openServices}>Настройки → Сервисы</button></p>
+            <p class="hint">{svc === 'sc' ? t('{service} не подключён', { service: svcName }) : t('{service} не подключена', { service: svcName })} — <button class="link" onclick={openServices}>{t('Настройки → Сервисы')}</button></p>
           {:else if services.length}
             <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={svc} use:hscroll use:edges>
               {#each services as p (p.ref)}{@render phantomTile(p)}{/each}
             </div>
           {:else}
-            <p class="hint">Все плейлисты {svcName} уже перенесены в Sonar.</p>
+            <p class="hint">{t('Все плейлисты {service} уже перенесены в Sonar.', { service: svcName })}</p>
           {/if}
         </div>
       {/key}
@@ -212,7 +213,7 @@
 {#if tab === 'Все' || tab === 'Альбомы'}
   {#if albums.length || tab === 'Альбомы'}
     <section class="block">
-      <h2>Альбомы {#if tab === 'Все'}<button class="more" aria-label="Все альбомы" onclick={() => (tab = 'Альбомы')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
+      <h2>{t('Альбомы')} {#if tab === 'Все'}<button class="more" aria-label={t('Все альбомы')} onclick={() => (tab = 'Альбомы')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
       {#if albums.length}
         <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll use:edges>
           {#each albums as a (a.ref)}
@@ -220,7 +221,7 @@
           {/each}
         </div>
       {:else}
-        <p class="hint">Нажми на сердце на странице альбома — он появится здесь.</p>
+        <p class="hint">{t('Нажми на сердце на странице альбома — он появится здесь.')}</p>
       {/if}
     </section>
   {/if}
@@ -228,7 +229,7 @@
 
 {#if tab === 'Все' || tab === 'Исполнители'}
   <section class="block">
-    <h2>Исполнители {#if tab === 'Все'}<button class="more" aria-label="Все исполнители" onclick={() => (tab = 'Исполнители')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
+    <h2>{t('Исполнители')} {#if tab === 'Все'}<button class="more" aria-label={t('Все исполнители')} onclick={() => (tab = 'Исполнители')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
     {#if artists.length}
       <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll use:edges>
         {#each artists as a (a.ref)}
@@ -236,7 +237,7 @@
         {/each}
       </div>
     {:else}
-      <p class="hint">Нажми «Подписаться» на странице исполнителя — он появится здесь.</p>
+      <p class="hint">{t('Нажми «Подписаться» на странице исполнителя — он появится здесь.')}</p>
     {/if}
   </section>
 {/if}
@@ -244,19 +245,19 @@
 <div class="dock">
   {#if creating}
     <form class="create" onsubmit={(e) => (e.preventDefault(), create())} in:pop={{ y: 8 }} out:pop={{ y: 8 }}>
-      <b>Новый плейлист</b>
+      <b>{t('Новый плейлист')}</b>
       <!-- svelte-ignore a11y_autofocus -->
-      <input placeholder="Название" bind:value={newName} autofocus spellcheck="false" onkeydown={(e) => e.key === 'Escape' && (creating = false)} />
+      <input placeholder={t('Название')} bind:value={newName} autofocus spellcheck="false" onkeydown={(e) => e.key === 'Escape' && (creating = false)} />
       <div class="btns">
-        <button type="button" class="ghost" onclick={() => (creating = false)}>Отмена</button>
-        <button type="submit" class="primary" disabled={!newName.trim()}>Создать</button>
+        <button type="button" class="ghost" onclick={() => (creating = false)}>{t('Отмена')}</button>
+        <button type="submit" class="primary" disabled={!newName.trim()}>{t('Создать')}</button>
       </div>
     </form>
   {/if}
   <div class="actions">
-    <button class:on={creating} aria-label="Создать плейлист" title="Создать плейлист" onclick={() => (creating = !creating)}><NavIcon name="add" size={18} /></button>
-    <button aria-label="Перенос плейлистов сервисов" title="Перенос плейлистов сервисов" onclick={() => (tab = 'Плейлисты')}><NavIcon name="transfer" size={18} /></button>
-    <button aria-label="Обновить" title="Обновить" onclick={refresh}><NavIcon name="refresh" size={18} /></button>
+    <button class:on={creating} aria-label={t('Создать плейлист')} title={t('Создать плейлист')} onclick={() => (creating = !creating)}><NavIcon name="add" size={18} /></button>
+    <button aria-label={t('Перенос плейлистов сервисов')} title={t('Перенос плейлистов сервисов')} onclick={() => (tab = 'Плейлисты')}><NavIcon name="transfer" size={18} /></button>
+    <button aria-label={t('список::Обновить')} title={t('список::Обновить')} onclick={refresh}><NavIcon name="refresh" size={18} /></button>
   </div>
 </div>
 

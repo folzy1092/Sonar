@@ -27,6 +27,7 @@
   import { hasSelection } from '../lib/selection'
   import { openRef } from '../app/router.svelte'
   import { lyrics } from '../lyrics/lyrics.svelte'
+  import { t } from '../lib/i18n.svelte'
 
   const track = $derived(player.current)
   // стиль страницы (Плеер → Вид): обычный — обложка 320 px; большой — на всю колонку; пластинка —
@@ -44,7 +45,7 @@
   const liked = $derived(library.isLiked(track?.ref))
   const contextTitle = $derived(
     player.contextTitle ??
-      (player.context === 'search' ? 'Из поиска' : player.context === 'favorites' ? 'Любимые' : 'Очередь'),
+      (player.context === 'search' ? t('Из поиска') : player.context === 'favorites' ? t('Любимые') : t('Очередь')),
   )
   const contextIcon = $derived<'search' | 'heart' | 'queue'>(
     player.context === 'search' ? 'search' : player.context === 'favorites' ? 'heart' : 'queue',
@@ -72,7 +73,7 @@
         <rect x="18" y="118" width="14" height="18" rx="3" transform="rotate(28 25 127)" />
       </svg>
     {/if}
-    <button class="open-full" aria-label="Полноэкранный плеер" title="Полноэкранный плеер" disabled={!track} onclick={() => lyrics.open()}>
+    <button class="open-full" aria-label={t('Полноэкранный плеер')} title={t('Полноэкранный плеер')} disabled={!track} onclick={() => lyrics.open()}>
       <Cover url={track?.cover_url} size={coverSize} radius={pstyle === 'vinyl' ? '50%' : '18px'} />
       <LoadFx url={track?.cover_url} />
       {#if settings.get('player.visualizer') === 'cover'}
@@ -92,8 +93,8 @@
       <button
         class="on-cover left"
         class:on={liked}
-        aria-label={liked ? 'Удалить из Любимых' : 'В Любимые'}
-        title={liked ? 'Удалить из Любимых' : 'В Любимые'}
+        aria-label={liked ? t('Удалить из Любимых') : t('В Любимые')}
+        title={liked ? t('Удалить из Любимых') : t('В Любимые')}
         onclick={() => track && library.toggleLike(track)}
       >
         <span class="ic" use:pulse={liked}><Icon name="heart" size={18} filled={liked} /></span>
@@ -101,8 +102,8 @@
       <button
         class="on-cover right"
         class:on={wave.isDisliked(track.ref)}
-        aria-label="Не нравится"
-        title={wave.isDisliked(track.ref) ? 'Снова можно ставить в волну' : 'Не нравится — больше не ставить'}
+        aria-label={t('Не нравится')}
+        title={wave.isDisliked(track.ref) ? t('Снова можно ставить в волну') : t('Не нравится — больше не ставить')}
         onclick={() => track && wave.dislike(track)}
       >
         <span class="ic" use:pulse={wave.isDisliked(track.ref)}><Icon name="dislike" size={18} filled={wave.isDisliked(track.ref)} /></span>
@@ -112,7 +113,7 @@
 
   <div class="side">
     <div class="head" style:--align={align} style:--justify={align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'} use:replay={track?.ref}>
-      <h1 class="selectable" data-fx-title title={track?.title}>{track?.title ?? 'Ничего не играет'}</h1>
+      <h1 class="selectable" data-fx-title title={track?.title}>{track?.title ?? t('Ничего не играет')}</h1>
       <p class="artist selectable">
         {#if avatar}<img src={avatar} alt="" />{/if}
         {#if track}
@@ -124,14 +125,14 @@
               onkeydown={(e) => e.key === 'Enter' && openRef(a.ref)}>{a.name}</span
             >{:else}{track.artist}{/each}
         {:else}
-          Найди трек в поиске
+          {t('Найди трек в поиске')}
         {/if}
       </p>
       <NextUp />
       <!-- что реально играет — своё место под артистом, а не под полосой -->
       {#if player.quality}
         {#key player.quality}
-          <span class="quality" title="Что реально играет">{player.quality}</span>
+          <span class="quality" title={t('Что реально играет')}>{player.quality}</span>
         {/key}
       {/if}
     </div>
@@ -151,25 +152,25 @@
     {#if settings.get('player.visualizer') === 'bar'}<Wave height={52} />{/if}
 
     <div class="panel controls">
-      <button class="menu-btn" aria-label="Меню трека" title="Меню трека" disabled={!track} onclick={(e) => track && trackMenu.openAt({ track }, e.currentTarget)}>
+      <button class="menu-btn" aria-label={t('Меню трека')} title={t('Меню трека')} disabled={!track} onclick={(e) => track && trackMenu.openAt({ track }, e.currentTarget)}>
         <Icon name="dots" size={18} />
       </button>
       <div class="main">
         <IconButton
           icon={player.repeat === 'one' ? 'repeatOnce' : player.repeat === 'all' ? 'repeat' : 'repeatOff'}
-          label={player.repeat === 'off' ? 'Повтор: выкл' : player.repeat === 'all' ? 'Повтор: всё' : 'Повтор: трек'}
+          label={player.repeat === 'off' ? t('Повтор: выкл') : player.repeat === 'all' ? t('Повтор: всё') : t('Повтор: трек')}
           active={player.repeat !== 'off'}
           disabled={!track}
           onclick={() => player.cycleRepeat()}
         />
-        <IconButton icon="prev" label="Назад" filled disabled={!track} onclick={() => player.prev()} />
-        <button class="play" class:loading={player.loading} aria-label={player.playing ? 'Пауза' : 'Играть'} disabled={!track} onclick={() => player.toggle()}>
+        <IconButton icon="prev" label={t('Назад')} filled disabled={!track} onclick={() => player.prev()} />
+        <button class="play" class:loading={player.loading} aria-label={player.playing ? t('Пауза') : t('Играть')} disabled={!track} onclick={() => player.toggle()}>
           <PlayPause playing={player.playing} size={26} />
         </button>
-        <IconButton icon="next" label="Вперёд" filled disabled={!track} onclick={() => player.next()} />
-        <IconButton icon="shuffle" label="Перемешать" active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
+        <IconButton icon="next" label={t('Вперёд')} filled disabled={!track} onclick={() => player.next()} />
+        <IconButton icon="shuffle" label={t('Перемешать')} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
       </div>
-      <IconButton icon="dislike" label="Не нравится — W5" size={18} disabled />
+      <IconButton icon="dislike" label={t('Не нравится — W5')} size={18} disabled />
     </div>
 
     <div class="row">
@@ -181,7 +182,7 @@
           max="1"
           step="0.01"
           value={player.volume}
-          aria-label="Громкость"
+          aria-label={t('Громкость')}
           style:--fill="{player.volume * 100}%"
           oninput={(e) => player.setVolume(Number(e.currentTarget.value))}
         />
@@ -189,7 +190,7 @@
       <div class="panel extra">
         <SpeedButton />
         <EqButton />
-        <IconButton icon="layoutFloat" label={mini.open ? 'Закрыть мини-окно' : 'Мини-окно поверх всех окон'} size={17} active={mini.open} onclick={() => mini.toggle()} />
+        <IconButton icon="layoutFloat" label={mini.open ? t('Закрыть мини-окно') : t('Мини-окно поверх всех окон')} size={17} active={mini.open} onclick={() => mini.toggle()} />
       </div>
     </div>
 
@@ -199,14 +200,14 @@
 
 {#if settings.get('queue.show')}
 <section class="panel queue" class:compact={settings.get('queue.view') === 'normal'} transition:slide={{ duration: 260 }}>
-  <button class="chip" onclick={openContext} title="Открыть источник очереди"><Icon name={contextIcon} size={14} filled={contextIcon === 'heart'} /> {contextTitle}{#if player.shuffle}<Icon name="shuffle" size={14} />{/if}</button>
+  <button class="chip" onclick={openContext} title={t('Открыть источник очереди')}><Icon name={contextIcon} size={14} filled={contextIcon === 'heart'} /> {contextTitle}{#if player.shuffle}<Icon name="shuffle" size={14} />{/if}</button>
 
   {#if track}
-    <h3>Сейчас играет</h3>
+    <h3>{t('Сейчас играет')}</h3>
     <TrackRow {track} variant="queue" onplay={() => player.toggle()} />
   {/if}
 
-  <h3>Далее</h3>
+  <h3>{t('Далее')}</h3>
   {#if ownNext.length}
     <div use:cascade={player.current?.ref}>
     {#each ownNext as t, i (t.ref + i)}
@@ -214,12 +215,12 @@
     {/each}
     </div>
   {:else if !autoNext.length && !autoplay.on}
-    <p class="empty">Очередь пуста — включи трек из поиска.</p>
+    <p class="empty">{t('Очередь пуста — включи трек из поиска.')}</p>
   {/if}
   <!-- как «Autoplay related tracks» в SoundCloud: после очереди — похожие, они ниже тумблера -->
   {#if player.context !== WAVE_CONTEXT}
     <div class="auto">
-      <Switch title="Авто похожие" hint={autoplay.on ? (autoplay.loading && !autoNext.length ? 'Подбираю похожие…' : 'После очереди играют похожие треки') : 'Очередь доиграет и остановится'} on={autoplay.on} onchange={(v) => autoplay.set(v)} />
+      <Switch title={t('Авто похожие')} hint={autoplay.on ? (autoplay.loading && !autoNext.length ? t('Подбираю похожие…') : t('После очереди играют похожие треки')) : t('Очередь доиграет и остановится')} on={autoplay.on} onchange={(v) => autoplay.set(v)} />
     </div>
     {#if autoNext.length}
       <div class="auto-list" use:cascade={autoNext[0]?.ref}>

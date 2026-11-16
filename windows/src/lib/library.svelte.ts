@@ -2,6 +2,8 @@
 // локальная база (команды Rust); здесь — копия для сердечек и меню «Добавить в плейлист».
 import { api, errorText, type Album, type Artist, type Playlist, type Track } from './api'
 import { toast } from './toast.svelte'
+import { t } from './i18n.svelte'
+import { tracksText } from './format'
 
 type Likeable = Track | Album | Artist
 
@@ -56,7 +58,7 @@ class Library {
     try {
       const p = await api.createPlaylist(name, tracks)
       await this.refreshPlaylists()
-      toast.show(`Плейлист «${p.name}» создан`)
+      toast.show(t('Плейлист «{name}» создан', { name: p.name }))
       return p
     } catch (e) {
       toast.show(errorText(e))
@@ -69,7 +71,11 @@ class Library {
       const pos = (await api.getSetting<'start' | 'end'>('general.add_position').catch(() => null)) ?? 'start'
       await api.addToPlaylist(p.id, tracks, pos)
       await this.refreshPlaylists()
-      toast.show(tracks.length === 1 ? `Добавлено в «${p.name}»` : `${tracks.length} треков добавлено в «${p.name}»`)
+      toast.show(
+        tracks.length === 1
+          ? t('Добавлено в «{name}»', { name: p.name })
+          : t('{tracks} добавлено в «{name}»', { tracks: tracksText(tracks.length), name: p.name }),
+      )
     } catch (e) {
       toast.show(errorText(e))
     }

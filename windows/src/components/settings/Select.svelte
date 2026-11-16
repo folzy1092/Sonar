@@ -5,6 +5,7 @@
   import Icon from '../Icon.svelte'
   import { pop } from '../../lib/motion'
   import Flag from '../Flag.svelte'
+  import { t } from '../../lib/i18n.svelte'
 
   interface Props {
     title: string
@@ -49,12 +50,12 @@
             role="option"
             aria-selected={o.id === value}
             disabled={o.soon}
-            title={o.soon ? `${o.label} — скоро` : undefined}
+            title={o.soon ? t('{label} — скоро', { label: o.label }) : undefined}
             onclick={() => {
               onchange(o.id)
               open = false
             }}
-            >{#if o.flag}<Flag lang={o.flag} size={18} />{/if}<span>{o.label}</span>{#if o.soon}<i class="soon">скоро</i>{/if}</button
+            >{#if o.flag}<Flag lang={o.flag} size={18} />{/if}<span>{o.label}</span>{#if o.soon}<i class="soon">{t('скоро')}</i>{/if}</button
           >
         {/each}
       </div>

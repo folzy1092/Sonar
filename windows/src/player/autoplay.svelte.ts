@@ -10,6 +10,7 @@ import { api, type Track } from '../lib/api'
 import { settings } from '../lib/settings.svelte'
 import { player } from './player.svelte'
 import { WAVE_CONTEXT, wave } from './my-wave.svelte'
+import { t } from '../lib/i18n.svelte'
 
 /** Догружать, когда до конца очереди осталось меньше стольких треков. */
 const LEFT = 3
@@ -102,6 +103,6 @@ class Autoplay {
 export const autoplay = new Autoplay()
 
 /** Трек из поиска, как в SoundCloud: играет он, а следом — похожие на него (автоплей допишет). */
-export async function playStation(t: Track, context: string | null = 'search') {
-  await player.playList([t], 0, context, `Похожее на «${t.title}»`)
+export async function playStation(track: Track, context: string | null = 'search') {
+  await player.playList([track], 0, context, t('Похожее на «{title}»', { title: track.title }))
 }

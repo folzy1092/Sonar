@@ -7,6 +7,7 @@
   import Group from '../../components/settings/Group.svelte'
   import Soon from '../../components/settings/Soon.svelte'
   import { settings } from '../../lib/settings.svelte'
+  import { t } from '../../lib/i18n.svelte'
 
   const sliders: { id: 'normal' | 'thin' | 'smooth' | 'wavy' | 'wave_bars'; label: string; soon?: boolean }[] = [
     { id: 'normal', label: 'Обычный' },
@@ -20,67 +21,67 @@
 </script>
 
 <Cards
-  title="Стиль плеера"
-  hint="Выберите визуальный стиль плеера"
+  title={t('Стиль плеера')}
+  hint={t('Выберите визуальный стиль плеера')}
   value={settings.get('player.style')}
   options={[
-    { id: 'standard' as const, label: 'Обычный', icon: 'grid' },
-    { id: 'vinyl' as const, label: 'Пластинка', icon: 'vinyl' },
-    { id: 'large' as const, label: 'Большой', icon: 'photo' },
+    { id: 'standard' as const, label: t('Обычный'), icon: 'grid' },
+    { id: 'vinyl' as const, label: t('Пластинка'), icon: 'vinyl' },
+    { id: 'large' as const, label: t('Большой'), icon: 'photo' },
   ]}
   onchange={(v) => settings.set('player.style', v)}
 />
 
 <Choice
-  title="Выравнивание заголовка"
-  hint="Выберите выравнивание названия трека"
+  title={t('Выравнивание заголовка')}
+  hint={t('Выберите выравнивание названия трека')}
   icons
   value={settings.get('player.title_align')}
   options={[
-    { id: 'left', label: 'Слева', icon: 'alignLeft' },
-    { id: 'center', label: 'По центру', icon: 'alignCenter' },
-    { id: 'right', label: 'Справа', icon: 'alignRight' },
+    { id: 'left', label: t('Слева'), icon: 'alignLeft' },
+    { id: 'center', label: t('По центру'), icon: 'alignCenter' },
+    { id: 'right', label: t('Справа'), icon: 'alignRight' },
   ]}
   onchange={(v) => settings.set('player.title_align', v)}
 />
 <Switch
-  title="Аватарки артистов"
-  hint="Отображать аватарки исполнителей перед их именами в плеере и мини плеере"
+  title={t('Аватарки артистов')}
+  hint={t('Отображать аватарки исполнителей перед их именами в плеере и мини плеере')}
   on={settings.get('player.artist_avatars')}
   onchange={(v) => settings.set('player.artist_avatars', v)}
 />
 <Choice
-  title="Визуализатор"
-  hint="Где показывать визуализацию звука"
+  title={t('Визуализатор')}
+  hint={t('Где показывать визуализацию звука')}
   wide
   fill
   value={settings.get('player.visualizer')}
   options={[
-    { id: 'off', label: 'Выкл', icon: 'x' },
-    { id: 'bar', label: 'Полоса', icon: 'line' },
-    { id: 'cover', label: 'На обложке', icon: 'photo' },
-    { id: 'slider', label: 'На ползунке', icon: 'adjustments' },
+    { id: 'off', label: t('Выкл'), icon: 'x' },
+    { id: 'bar', label: t('Полоса'), icon: 'line' },
+    { id: 'cover', label: t('На обложке'), icon: 'photo' },
+    { id: 'slider', label: t('На ползунке'), icon: 'adjustments' },
   ]}
   onchange={(v) => settings.set('player.visualizer', v)}
 />
 <Choice
-  title="Стиль"
-  hint="Выберите стиль визуализации аудио"
+  title={t('Стиль')}
+  hint={t('Выберите стиль визуализации аудио')}
   value={settings.get('player.visualizer_style')}
   options={[
-    { id: 'wave', label: 'Волна', icon: 'waveform' },
-    { id: 'bars', label: 'Столбцы', icon: 'bars' },
+    { id: 'wave', label: t('Волна'), icon: 'waveform' },
+    { id: 'bars', label: t('Столбцы'), icon: 'bars' },
   ]}
   onchange={(v) => settings.set('player.visualizer_style', v)}
 />
 
 <div class="block">
-  <b>Тип ползунка</b>
-  <small>Выберите стиль ползунка прогресса</small>
+  <b>{t('Тип ползунка')}</b>
+  <small>{t('Выберите стиль ползунка прогресса')}</small>
   <div class="sliders">
     {#each sliders as s (s.id)}
-      <button class="sl" class:on={s.id === settings.get('player.slider')} disabled={s.soon} title={s.label} onclick={() => settings.set('player.slider', s.id)}>
-        <span class="name">{s.label}{#if s.soon}<Soon />{/if}</span>
+      <button class="sl" class:on={s.id === settings.get('player.slider')} disabled={s.soon} title={t(s.label)} onclick={() => settings.set('player.slider', s.id)}>
+        <span class="name">{t(s.label)}{#if s.soon}<Soon />{/if}</span>
         <span class="preview {s.id}">
           {#if s.id === 'wavy'}
             <svg viewBox="0 0 200 12" preserveAspectRatio="none"><path d="M0 6 Q 6.25 0 12.5 6 T 25 6 T 37.5 6 T 50 6 T 62.5 6 T 75 6 T 87.5 6 T 100 6" /><line x1="100" y1="6" x2="200" y2="6" /></svg>
@@ -95,18 +96,18 @@
   </div>
 </div>
 
-<Group title="Обложка">
+<Group title={t('Обложка')}>
   <Choice
-    title="Позиция обложки"
-    hint="Выберите где отображается обложка"
+    title={t('Позиция обложки')}
+    hint={t('Выберите где отображается обложка')}
     value={settings.get('player.cover_position')}
     options={[
-      { id: 'left', label: 'Слева', icon: 'layoutLeft' },
-      { id: 'right', label: 'Справа', icon: 'layoutRight' },
+      { id: 'left', label: t('Слева'), icon: 'layoutLeft' },
+      { id: 'right', label: t('Справа'), icon: 'layoutRight' },
     ]}
     onchange={(v) => settings.set('player.cover_position', v)}
   />
-  <Switch title="Обложка в обложке" hint="Отображать меньшую обложку внутри основной" on={settings.get('player.pip_cover')} onchange={(v) => settings.set('player.pip_cover', v)} />
+  <Switch title={t('Обложка в обложке')} hint={t('Отображать меньшую обложку внутри основной')} on={settings.get('player.pip_cover')} onchange={(v) => settings.set('player.pip_cover', v)} />
 </Group>
 
 <style>

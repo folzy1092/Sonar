@@ -8,6 +8,7 @@
   import { api, errorText, type CrashReport } from '../lib/api'
   import { isTauri } from '../lib/tauri'
   import { updater } from '../lib/updater.svelte'
+  import { t } from '../lib/i18n.svelte'
 
   let report = $state<CrashReport | null>(null)
   let phase = $state<'idle' | 'sending' | 'sent' | 'saved' | 'error'>('idle')
@@ -20,13 +21,13 @@
     }
     if (!isTauri) return
     // чуть позже заставки — плашка не должна прыгать на загрузке
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       void api
         .reportPending()
         .then((r) => (report = r))
         .catch(() => {})
     }, 1600)
-    return () => clearTimeout(t)
+    return () => clearTimeout(timer)
   })
 
   async function send() {
@@ -48,7 +49,7 @@
 </script>
 
 {#if report}
-  <div class="pop" class:lift={updater.popup} role="dialog" aria-label="Отчёт об ошибке" in:pop={{ y: 16, scale: 0.94, duration: 280 }} out:pop={{ y: 16, scale: 0.94, duration: 240 }}>
+  <div class="pop" class:lift={updater.popup} role="dialog" aria-label={t('Отчёт об ошибке')} in:pop={{ y: 16, scale: 0.94, duration: 280 }} out:pop={{ y: 16, scale: 0.94, duration: 240 }}>
     <div class="top">
       <span class="ic" class:ok={phase === 'sent' || phase === 'saved'}>
         {#key phase === 'sent' || phase === 'saved'}
@@ -57,17 +58,17 @@
       </span>
       <div class="txt">
         <b>
-          {#if phase === 'sent'}Отправлено, спасибо!{:else if phase === 'saved'}Лог сохранён{:else if report.crashed}Sonar закрылся с ошибкой{:else}В прошлый раз были ошибки{/if}
+          {#if phase === 'sent'}{t('Отправлено, спасибо!')}{:else if phase === 'saved'}{t('Лог сохранён')}{:else if report.crashed}{t('Sonar закрылся с ошибкой')}{:else}{t('В прошлый раз были ошибки')}{/if}
         </b>
         <small>
-          {#if phase === 'sent'}Разберёмся и починим
-          {:else if phase === 'saved'}Файл в «Загрузках» — перешли его Folzy
+          {#if phase === 'sent'}{t('Разберёмся и починим')}
+          {:else if phase === 'saved'}{t('Файл в «Загрузках» — перешли его Folzy')}
           {:else if phase === 'error'}{error}
-          {:else}Отправь лог — так быстрее найдём причину{/if}
+          {:else}{t('Отправь лог — так быстрее найдём причину')}{/if}
         </small>
       </div>
       {#if phase !== 'sent' && phase !== 'saved'}
-        <button class="x" aria-label="Закрыть" onclick={close}><Icon name="x" size={16} /></button>
+        <button class="x" aria-label={t('Закрыть')} onclick={close}><Icon name="x" size={16} /></button>
       {/if}
     </div>
     {#if report.last && phase !== 'sent' && phase !== 'saved'}
@@ -76,7 +77,7 @@
     {#if phase !== 'sent' && phase !== 'saved'}
       <div class="btns">
         <button class="btn primary" disabled={phase === 'sending'} onclick={send}>
-          {phase === 'sending' ? 'Отправляю…' : phase === 'error' ? 'Ещё раз' : 'Отправить лог'}
+          {phase === 'sending' ? t('Отправляю…') : phase === 'error' ? t('Ещё раз') : t('Отправить лог')}
         </button>
       </div>
     {/if}

@@ -4,6 +4,9 @@ import type { IconName } from '../components/icons'
 
 export type SettingsTab = 'account' | 'interface' | 'player' | 'services' | 'integrations' | 'system'
 
+// Названия вкладок и подразделов — по-русски: это ключи перевода, `t()` при показе (SettingsPanel),
+// чтобы смена языка подхватывалась сразу.
+
 export const TABS: { id: SettingsTab; title: string }[] = [
   { id: 'account', title: 'Аккаунт' },
   { id: 'interface', title: 'Интерфейс' },

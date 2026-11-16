@@ -7,6 +7,7 @@
   import type { IconName } from '../icons'
   import Soon from './Soon.svelte'
   import Flag from '../Flag.svelte'
+  import { t } from '../../lib/i18n.svelte'
 
   interface Props {
     title: string
@@ -35,7 +36,7 @@
         class:off={o.soon}
         disabled={soon || o.soon}
         onclick={() => onchange?.(o.id)}
-        title={o.soon ? `${o.label} — скоро` : o.label}
+        title={o.soon ? t('{label} — скоро', { label: o.label }) : o.label}
         aria-label={o.label}
       >
         {#if o.flag}<Flag lang={o.flag} size={18} />{:else if o.icon}<Icon name={o.icon} size={15} />{/if}

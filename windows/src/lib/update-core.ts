@@ -1,5 +1,6 @@
 // Чистая логика автообновления (ROADMAP W6): сравнение версий Г.О.Ф, разбор `updates/changelog.json`
-// и заметок релиза. Без Tauri — покрыто тестами.
+// и заметок релиза. Без Tauri — покрыто тестами. Подписи — на языке интерфейса (lib/i18n.svelte.ts).
+import { t } from './i18n.svelte'
 
 /** Запись `updates/changelog.json`. `platform` нет — запись общая для всех клиентов. */
 export interface ChangelogEntry {
@@ -86,15 +87,15 @@ export function noteLines(notes: string | undefined | null): string[] {
 /** «только что», «5 мин назад», «3 ч назад», «2 дн назад». */
 export function agoText(ts: number, now = Date.now()): string {
   const min = Math.floor((now - ts) / 60_000)
-  if (min < 1) return 'только что'
-  if (min < 60) return `${min} мин назад`
+  if (min < 1) return t('только что')
+  if (min < 60) return t('{n} мин назад', { n: min })
   const h = Math.floor(min / 60)
-  if (h < 24) return `${h} ч назад`
-  return `${Math.floor(h / 24)} дн назад`
+  if (h < 24) return t('{n} ч назад', { n: h })
+  return t('{n} дн назад', { n: Math.floor(h / 24) })
 }
 
 /** «12.4 из 18.0 МБ». */
 export function sizeText(got: number, total: number | null): string {
   const mb = (b: number) => (b / 1_048_576).toFixed(1)
-  return total ? `${mb(got)} из ${mb(total)} МБ` : `${mb(got)} МБ`
+  return total ? t('{got} из {total} МБ', { got: mb(got), total: mb(total) }) : t('{n} МБ', { n: mb(got) })
 }

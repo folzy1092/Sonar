@@ -6,6 +6,7 @@
   import { slide } from 'svelte/transition'
   import { onMount } from 'svelte'
   import Icon from '../../components/Icon.svelte'
+  import { t } from '../../lib/i18n.svelte'
   import { api, errorText, type ServicesStatus } from '../../lib/api'
 
   let status = $state<ServicesStatus | null>(null)
@@ -92,22 +93,22 @@
       <h2>SoundCloud</h2>
       <p>
         {#if status?.soundcloud.connected}
-          Подключён{status.soundcloud.name ? ` как ${status.soundcloud.name}` : ' (без входа — только открытые треки)'}
+          {status.soundcloud.name ? t('Подключён как {name}', { name: status.soundcloud.name }) : t('Подключён (без входа — только открытые треки)')}
         {:else}
-          Без входа: поиск и открытые треки работают сами
+          {t('Без входа: поиск и открытые треки работают сами')}
         {/if}
       </p>
     </div>
     {#if status?.soundcloud.connected}
-      <button class="ghost" onclick={() => disconnect('soundcloud')}>Отключить</button>
+      <button class="ghost" onclick={() => disconnect('soundcloud')}>{t('Отключить')}</button>
     {/if}
   </header>
 
   <div class="one">
     <button class="primary big" disabled={waiting !== null} onclick={() => login('soundcloud')}>
-      {waiting === 'sc' ? 'Войди в открывшемся окне…' : status?.soundcloud.name ? 'Войти заново' : 'Войти через SoundCloud'}
+      {waiting === 'sc' ? t('Войди в открывшемся окне…') : status?.soundcloud.name ? t('Войти заново') : t('Войти через SoundCloud')}
     </button>
-    <button class="toggle" class:on={manual.sc} onclick={() => (manual.sc = !manual.sc)}>Вручную</button>
+    <button class="toggle" class:on={manual.sc} onclick={() => (manual.sc = !manual.sc)}>{t('Вручную')}</button>
   </div>
   {#if scError && !manual.sc}<p class="error">{scError}</p>{/if}
   {#if manual.sc}
@@ -115,20 +116,20 @@
   <form onsubmit={connectSc}>
     <label>
       <span>client_id</span>
-      <input bind:value={scClientId} placeholder="32 символа" autocomplete="off" spellcheck="false" required />
+      <input bind:value={scClientId} placeholder={t('32 символа')} autocomplete="off" spellcheck="false" required />
     </label>
     <label>
-      <span>OAuth-токен <em>необязательно</em></span>
+      <span>{t('OAuth-токен')} <em>{t('необязательно')}</em></span>
       <input bind:value={scToken} type="password" placeholder="2-123456-…" autocomplete="off" spellcheck="false" />
     </label>
     <p class="hint">
-      Ключи нужны, чтобы играли и твои закрытые треки, а в W3 — подтянуть лайки и плейлисты.
-      soundcloud.com → F12 → Сеть → любой запрос к api-v2: <code>client_id</code> в адресе, токен — в
-      заголовке <code>Authorization: OAuth …</code>.
+      {t('Ключи нужны, чтобы играли и твои закрытые треки, а в W3 — подтянуть лайки и плейлисты.')}
+      {t('soundcloud.com → F12 → Сеть → любой запрос к api-v2:')} <code>client_id</code> {t('в адресе, токен — в заголовке')}
+      <code>Authorization: OAuth …</code>.
     </p>
     {#if scError}<p class="error">{scError}</p>{/if}
     <button class="primary" disabled={busy !== null || !scClientId.trim()}>
-      {busy === 'sc' ? 'Проверяю…' : status?.soundcloud.connected ? 'Заменить ключи' : 'Подключить'}
+      {busy === 'sc' ? t('Проверяю…') : status?.soundcloud.connected ? t('Заменить ключи') : t('Подключить')}
     </button>
   </form>
   </div>
@@ -139,45 +140,45 @@
   <header>
     <span class="logo ym"><SourceIcon kind="ym" size={26} plain /></span>
     <div>
-      <h2>Яндекс Музыка</h2>
+      <h2>{t('Яндекс Музыка')}</h2>
       <p>
         {#if status?.yandex.connected}
-          Подключена{status.yandex.name ? ` как ${status.yandex.name}` : ''}
+          {status.yandex.name ? t('Подключена как {name}', { name: status.yandex.name }) : t('Подключена')}
         {:else}
-          Не подключена
+          {t('Не подключена')}
         {/if}
       </p>
     </div>
     {#if status?.yandex.connected}
-      <button class="ghost" onclick={() => disconnect('yandex')}>Отключить</button>
+      <button class="ghost" onclick={() => disconnect('yandex')}>{t('Отключить')}</button>
     {/if}
   </header>
 
   <div class="one">
     <button class="primary big" disabled={waiting !== null} onclick={() => login('yandex')}>
-      {waiting === 'ym' ? 'Войди в открывшемся окне…' : status?.yandex.connected ? 'Войти заново' : 'Войти через Яндекс'}
+      {waiting === 'ym' ? t('Войди в открывшемся окне…') : status?.yandex.connected ? t('Войти заново') : t('Войти через Яндекс')}
     </button>
-    <button class="toggle" class:on={manual.ym} onclick={() => (manual.ym = !manual.ym)}>Вручную</button>
+    <button class="toggle" class:on={manual.ym} onclick={() => (manual.ym = !manual.ym)}>{t('Вручную')}</button>
   </div>
   {#if ymError && !manual.ym}<p class="error">{ymError}</p>{/if}
   {#if manual.ym}
   <div transition:slide={{ duration: 260 }}>
   <form onsubmit={connectYm}>
     <label>
-      <span>Токен</span>
+      <span>{t('Токен')}</span>
       <input bind:value={ymToken} type="password" placeholder="y0_…" autocomplete="off" spellcheck="false" required />
     </label>
-    <p class="hint">Токен вида <code>y0_…</code> (подходит и старый <code>AQAAAA…</code>). </p>
+    <p class="hint">{t('Токен вида')} <code>y0_…</code> ({t('подходит и старый')} <code>AQAAAA…</code>). </p>
     {#if ymError}<p class="error">{ymError}</p>{/if}
     <button class="primary" disabled={busy !== null || !ymToken.trim()}>
-      {busy === 'ym' ? 'Проверяю…' : status?.yandex.connected ? 'Заменить токен' : 'Подключить'}
+      {busy === 'ym' ? t('Проверяю…') : status?.yandex.connected ? t('Заменить токен') : t('Подключить')}
     </button>
   </form>
   </div>
   {/if}
 </section>
 
-<p class="safe"><Icon name="key" size={16} /> Вход идёт на сайте самого сервиса — Sonar пароль не видит. Ключи хранятся в Диспетчере учётных данных Windows и никуда не отправляются.</p>
+<p class="safe"><Icon name="key" size={16} /> {t('Вход идёт на сайте самого сервиса — Sonar пароль не видит. Ключи хранятся в Диспетчере учётных данных Windows и никуда не отправляются.')}</p>
 
 <style>
   .one {

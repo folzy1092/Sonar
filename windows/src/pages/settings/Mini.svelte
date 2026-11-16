@@ -9,26 +9,27 @@
   import Icon from '../../components/Icon.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { player } from '../../player/player.svelte'
+  import { t } from '../../lib/i18n.svelte'
 
   // живой пример: пока тянут ползунок — показываем значение под пальцем, отпустили — сохраняем
   let capLive = $state<number | null>(null)
   let coverLive = $state<number | null>(null)
   const cap = $derived((capLive ?? settings.get('mini.shape_round')) / 100)
   const cov = $derived((coverLive ?? settings.get('mini.cover_round')) / 100)
-  const t = $derived(player.current)
+  const cur = $derived(player.current)
 </script>
 
 <Cards
-  title="Стиль"
-  hint="Как выглядит мини плеер"
+  title={t('Стиль')}
+  hint={t('Как выглядит мини плеер')}
   scroll
   value={settings.get('mini.style')}
   options={[
-    { id: 'off', label: 'Отключено', icon: 'x' },
-    { id: 'full', label: 'Полный', icon: 'grid' },
-    { id: 'rounded', label: 'Закругленный', icon: 'circle' },
-    { id: 'hybrid', label: 'Гибрид', icon: 'vinyl' },
-    { id: 'deck', label: 'Дек', icon: 'photo' },
+    { id: 'off', label: t('Отключено'), icon: 'x' },
+    { id: 'full', label: t('Полный'), icon: 'grid' },
+    { id: 'rounded', label: t('Закругленный'), icon: 'circle' },
+    { id: 'hybrid', label: t('Гибрид'), icon: 'vinyl' },
+    { id: 'deck', label: t('Дек'), icon: 'photo' },
   ]}
   onchange={(v) => settings.setMiniStyle(v)}
 />
@@ -36,37 +37,37 @@
 <Divider />
 
 <Choice
-  title="Позиция"
-  hint="Выберите, где будет отображаться мини плеер"
+  title={t('Позиция')}
+  hint={t('Выберите, где будет отображаться мини плеер')}
   icons
   value={settings.get('mini.position')}
   options={[
-    { id: 'top' as const, label: 'Сверху', icon: 'layoutTop' },
-    { id: 'bottom' as const, label: 'Снизу', icon: 'layoutBottom' },
-    { id: 'bottom_inset' as const, label: 'Снизу внутри', icon: 'layoutFloat' },
-    { id: 'floating' as const, label: 'Плавающий — можно перетащить', icon: 'maximize' },
+    { id: 'top' as const, label: t('Сверху'), icon: 'layoutTop' },
+    { id: 'bottom' as const, label: t('Снизу'), icon: 'layoutBottom' },
+    { id: 'bottom_inset' as const, label: t('Снизу внутри'), icon: 'layoutFloat' },
+    { id: 'floating' as const, label: t('Плавающий — можно перетащить'), icon: 'maximize' },
   ]}
   onchange={(v) => settings.set('mini.position', v)}
 />
 <Cards
-  title="Фон"
-  hint="Выберите источник фона мини плеера"
+  title={t('Фон')}
+  hint={t('Выберите источник фона мини плеера')}
   value={settings.get('mini.background')}
   options={[
-    { id: 'theme', label: 'Тема', icon: 'grid' },
-    { id: 'cover', label: 'Обложка', icon: 'photo' },
-    { id: 'cover_color', label: 'Цвет обложки', icon: 'vinyl' },
+    { id: 'theme', label: t('Тема'), icon: 'grid' },
+    { id: 'cover', label: t('Обложка'), icon: 'photo' },
+    { id: 'cover_color', label: t('Цвет обложки'), icon: 'vinyl' },
   ]}
   onchange={(v) => settings.set('mini.background', v)}
 />
 <Cards
-  title="Прогресс"
-  hint="Выберите, как отображать прогресс трека"
+  title={t('Прогресс')}
+  hint={t('Выберите, как отображать прогресс трека')}
   value={settings.get('mini.progress')}
   options={[
-    { id: 'line', label: 'Линия', icon: 'line' },
-    { id: 'background', label: 'Фоном', icon: 'layoutTop' },
-    { id: 'cover', label: 'Вокруг обложки', icon: 'circle' },
+    { id: 'line', label: t('Линия'), icon: 'line' },
+    { id: 'background', label: t('Фоном'), icon: 'layoutTop' },
+    { id: 'cover', label: t('Вокруг обложки'), icon: 'circle' },
   ]}
   onchange={(v) => settings.set('mini.progress', v)}
 />
@@ -75,15 +76,15 @@
 <!-- пример: мини-плеер в миниатюре — видны оба конца и прямая середина между ними -->
 <div class="preview" aria-hidden="true">
   <div class="cap" style:--k={cap}>
-    <span class="cov" style:--c={cov}><Cover url={t?.cover_url} size={38} radius="calc(50% * var(--c))" /></span>
-    <span class="txt"><b>{t?.title ?? 'Название трека'}</b><small>{t?.artist ?? 'Исполнитель'}</small></span>
+    <span class="cov" style:--c={cov}><Cover url={cur?.cover_url} size={38} radius="calc(50% * var(--c))" /></span>
+    <span class="txt"><b>{cur?.title ?? t('Название трека')}</b><small>{cur?.artist ?? t('Исполнитель')}</small></span>
     <span class="mid"><Icon name="play" size={16} filled /></span>
     <span class="end"><Icon name="volume" size={15} /></span>
   </div>
 </div>
 <Slider
-  title="Форма"
-  hint="Скругление концов мини плеера и левой панели: 100% — капсула"
+  title={t('Форма')}
+  hint={t('Скругление концов мини плеера и левой панели: 100% — капсула')}
   value={settings.get('mini.shape_round')}
   min={0}
   max={100}
@@ -96,8 +97,8 @@
   }}
 />
 <Slider
-  title="Обложка"
-  hint="Скругление обложки в мини плеере: 100% — круг"
+  title={t('Обложка')}
+  hint={t('Скругление обложки в мини плеере: 100% — круг')}
   value={settings.get('mini.cover_round')}
   min={0}
   max={100}

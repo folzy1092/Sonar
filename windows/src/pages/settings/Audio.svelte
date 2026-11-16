@@ -11,11 +11,12 @@
   import { api } from '../../lib/api'
   import { settings } from '../../lib/settings.svelte'
   import { player } from '../../player/player.svelte'
+  import { t } from '../../lib/i18n.svelte'
 
   type Quality = 'low' | 'medium' | 'high' | 'max'
   let quality = $state<Quality>('max')
   let scViaYandex = $state(true)
-  let devices = $state<{ id: string; label: string; sub: string }[]>([{ id: '', label: 'По умолчанию', sub: 'Системное устройство' }])
+  let devices = $state<{ id: string; label: string; sub: string; n?: number }[]>([{ id: '', label: 'По умолчанию', sub: 'Системное устройство' }])
 
   /** Устройства вывода. WebView2 отдаёт их id и названия только с разрешением на звук: флаг
    *  `--use-fake-ui-for-media-stream` (как у Dotify) выдаёт его без окна; если список всё равно
@@ -31,13 +32,14 @@
     if (!outs.length || outs.every((d) => !d.label)) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        stream.getTracks().forEach((t) => t.stop())
+        stream.getTracks().forEach((tr) => tr.stop())
         outs = await read()
       } catch {
         // доступа нет — остаётся системное устройство
       }
     }
-    return outs.map((d, i) => ({ id: d.deviceId, label: d.label || `Устройство ${i + 1}`, sub: 'Устройство вывода' }))
+    // подписи по-русски — переводятся при выводе (t), чтобы смена языка подхватывалась сразу
+    return outs.map((d, i) => ({ id: d.deviceId, label: d.label, n: i + 1, sub: 'Устройство вывода' }))
   }
 
   onMount(() => {
@@ -83,55 +85,55 @@
 </script>
 
 <Cards
-  title="Устройство вывода"
-  hint="Выберите аудиоустройство для воспроизведения музыки на этом компьютере"
+  title={t('Устройство вывода')}
+  hint={t('Выберите аудиоустройство для воспроизведения музыки на этом компьютере')}
   scroll
   value={settings.get('audio.output_device')}
-  options={devices.map((d) => ({ id: d.id, label: d.label, sub: d.sub, icon: 'speaker' as const }))}
+  options={devices.map((d) => ({ id: d.id, label: !d.id ? t(d.label) : d.label || t('Устройство {n}', { n: d.n ?? 1 }), sub: t(d.sub), icon: 'speaker' as const }))}
   onchange={setDevice}
 />
 
 <Cards
-  title="Качество аудио"
-  hint="Выберите предпочтительное качество воспроизведения"
+  title={t('Качество аудио')}
+  hint={t('Выберите предпочтительное качество воспроизведения')}
   scroll
   value={quality}
   options={[
-    { id: 'low', label: 'Низкое', sub: '192 кбит/с', icon: 'music' },
-    { id: 'medium', label: 'Среднее', sub: '256 кбит/с', icon: 'headphones' },
-    { id: 'high', label: 'Высокое', sub: '320 кбит/с', icon: 'equalizer' },
-    { id: 'max', label: 'Максимальное', sub: 'от 1411 кбит/с', icon: 'disc' },
+    { id: 'low', label: t('Низкое'), sub: t('{n} кбит/с', { n: 192 }), icon: 'music' },
+    { id: 'medium', label: t('Среднее'), sub: t('{n} кбит/с', { n: 256 }), icon: 'headphones' },
+    { id: 'high', label: t('Высокое'), sub: t('{n} кбит/с', { n: 320 }), icon: 'equalizer' },
+    { id: 'max', label: t('Максимальное'), sub: t('от {n} кбит/с', { n: 1411 }), icon: 'disc' },
   ]}
   onchange={setQuality}
 />
 
-<Group title="Громкость и переходы">
+<Group title={t('Громкость и переходы')}>
   <Switch
-    title="Нормализация громкости"
-    hint="Тихие и громкие треки звучат ровно — без докручивания громкости"
+    title={t('Нормализация громкости')}
+    hint={t('Тихие и громкие треки звучат ровно — без докручивания громкости')}
     on={settings.get('audio.normalize')}
     onchange={(v) => settings.set('audio.normalize', v)}
   />
   <Switch
-    title="Бесшовное воспроизведение"
-    hint="Следующий трек начинается без паузы — заранее подгружается"
+    title={t('Бесшовное воспроизведение')}
+    hint={t('Следующий трек начинается без паузы — заранее подгружается')}
     on={settings.get('audio.gapless')}
     onchange={(v) => settings.set('audio.gapless', v)}
   />
   <Switch
-    title="Кроссфейд"
-    hint="Плавное затухание в конце трека и нарастание в начале следующего"
+    title={t('Кроссфейд')}
+    hint={t('Плавное затухание в конце трека и нарастание в начале следующего')}
     on={settings.get('audio.crossfade') > 0}
     onchange={(v) => settings.set('audio.crossfade', v ? 6 : 0)}
   />
   {#if settings.get('audio.crossfade') > 0}
     <div transition:slide={{ duration: 220 }}>
-      <Slider title="Длительность кроссфейда" value={settings.get('audio.crossfade')} min={1} max={12} unit=" с" onchange={(v) => settings.set('audio.crossfade', v)} />
+      <Slider title={t('Длительность кроссфейда')} value={settings.get('audio.crossfade')} min={1} max={12} unit=" {t('с')}" onchange={(v) => settings.set('audio.crossfade', v)} />
     </div>
   {/if}
   <Switch
-    title="Тише во время звонков"
-    hint="Музыка стихает до 20 %, пока другое приложение занимает микрофон: звонок, голосовой чат Discord или Telegram"
+    title={t('Тише во время звонков')}
+    hint={t('Музыка стихает до 20 %, пока другое приложение занимает микрофон: звонок, голосовой чат Discord или Telegram')}
     on={settings.get('audio.duck_calls')}
     onchange={(v) => {
       settings.set('audio.duck_calls', v)
@@ -142,8 +144,8 @@
 
 <Group title="SoundCloud">
   <Switch
-    title="SoundCloud в качестве Яндекса"
-    hint="Если тот же трек есть на Яндексе (исполнитель, название и длительность совпадают), играть его оттуда — в качестве выше. Иначе SoundCloud: AAC 160 кбит/с, с Go+ — 256."
+    title={t('SoundCloud в качестве Яндекса')}
+    hint={t('Если тот же трек есть на Яндексе (исполнитель, название и длительность совпадают), играть его оттуда — в качестве выше. Иначе SoundCloud: AAC 160 кбит/с, с Go+ — 256.')}
     on={scViaYandex}
     onchange={setVia}
   />

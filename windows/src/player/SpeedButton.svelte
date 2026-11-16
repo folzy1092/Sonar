@@ -11,6 +11,7 @@
   import { indicator } from '../lib/indicator'
   import { slide } from 'svelte/transition'
   import Ruler from '../components/Ruler.svelte'
+  import { t } from '../lib/i18n.svelte'
   import { PITCH_MAX, PITCH_MIN, SPEED_MAX, SPEED_MIN, SPEED_PRESETS, tempo } from './tempo.svelte'
 
   let open = $state(false)
@@ -52,9 +53,9 @@
     <span class="sl-label">{label}</span>
     <Ruler {value} {min} {max} {step} {reset} {major} px={6} onchange={set} />
     <div class="sl-line">
-      <button class="pm press" aria-label="{label}: меньше" onclick={() => set(value - step)}><Icon name="minus" size={15} /></button>
+      <button class="pm press" aria-label={t('{label}: меньше', { label })} onclick={() => set(value - step)}><Icon name="minus" size={15} /></button>
       {#key text}<span class="val">{text}</span>{/key}
-      <button class="pm press" aria-label="{label}: больше" onclick={() => set(value + step)}><Icon name="plus" size={15} /></button>
+      <button class="pm press" aria-label={t('{label}: больше', { label })} onclick={() => set(value + step)}><Icon name="plus" size={15} /></button>
     </div>
   </div>
 {/snippet}
@@ -64,8 +65,8 @@
     class="speed"
     class:active={tempo.active}
     class:open
-    title={tempo.active ? `Скорость и тональность: ${fmtRate(tempo.rate)}` : 'Скорость и тональность'}
-    aria-label="Скорость и тональность"
+    title={tempo.active ? t('Скорость и тональность: {rate}', { rate: fmtRate(tempo.rate) }) : t('Скорость и тональность')}
+    aria-label={t('Скорость и тональность')}
     aria-expanded={open}
     onclick={toggle}
   >
@@ -77,25 +78,25 @@
   </button>
 
   {#if open}
-    <div class="pop" class:down style:max-height="{room}px" role="dialog" aria-label="Скорость и тональность" in:pop={{ y: down ? -8 : 8 }} out:pop={{ y: down ? -8 : 8 }}>
+    <div class="pop" class:down style:max-height="{room}px" role="dialog" aria-label={t('Скорость и тональность')} in:pop={{ y: down ? -8 : 8 }} out:pop={{ y: down ? -8 : 8 }}>
       <div class="presets" use:indicator={{ key: tempo.rate, kind: 'pill' }}>
         {#each SPEED_PRESETS as p (p)}
           <button class:on={tempo.rate === p} onclick={() => tempo.setRate(p)}>x{p === 1 ? '1.0' : p}</button>
         {/each}
       </div>
 
-      {@render drum('Скорость', tempo.rate, SPEED_MIN, SPEED_MAX, 0.01, `x${tempo.rate.toFixed(2)}`, (v) => tempo.setRate(v), 1, 10)}
-      {@render drum('Питч', tempo.semitones, PITCH_MIN, PITCH_MAX, 0.1, `${fmtPitch(tempo.semitones)} st`, (v) => tempo.setPitch(v), 0, 10)}
+      {@render drum(t('Скорость'), tempo.rate, SPEED_MIN, SPEED_MAX, 0.01, `x${tempo.rate.toFixed(2)}`, (v) => tempo.setRate(v), 1, 10)}
+      {@render drum(t('Питч'), tempo.semitones, PITCH_MIN, PITCH_MAX, 0.1, `${fmtPitch(tempo.semitones)} st`, (v) => tempo.setPitch(v), 0, 10)}
 
       <div class="switches">
-        <Switch title="Связать скорость с питчем" hint="Режим винила / кассеты: скорость меняет высоту звука" on={tempo.linked} onchange={(v) => tempo.setLinked(v)} />
-        <Switch title="Сохранять для след. треков" hint="Иначе новый трек играет в x1.0" on={tempo.keep} onchange={(v) => tempo.setKeep(v)} />
-        <Switch title="Реверберация ✦" hint="Атмосферное пространство и объёмная глубина" on={tempo.reverbOn} onchange={(v) => tempo.setReverbOn(v)} />
+        <Switch title={t('Связать скорость с питчем')} hint={t('Режим винила / кассеты: скорость меняет высоту звука')} on={tempo.linked} onchange={(v) => tempo.setLinked(v)} />
+        <Switch title={t('Сохранять для след. треков')} hint={t('Иначе новый трек играет в x1.0')} on={tempo.keep} onchange={(v) => tempo.setKeep(v)} />
+        <Switch title={t('Реверберация ✦')} hint={t('Атмосферное пространство и объёмная глубина')} on={tempo.reverbOn} onchange={(v) => tempo.setReverbOn(v)} />
       </div>
 
       {#if tempo.reverbOn}
         <div class="rev" transition:slide={{ duration: 260 }}>
-          {@render drum('Реверберация', Math.round(tempo.reverb * 100), 0, 100, 1, `${Math.round(tempo.reverb * 100)}%`, (v) => tempo.setReverb(v / 100), 35, 10)}
+          {@render drum(t('Реверберация'), Math.round(tempo.reverb * 100), 0, 100, 1, `${Math.round(tempo.reverb * 100)}%`, (v) => tempo.setReverb(v / 100), 35, 10)}
         </div>
       {/if}
     </div>

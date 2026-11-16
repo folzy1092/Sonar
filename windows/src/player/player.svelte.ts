@@ -10,6 +10,7 @@ import { Leveler } from './leveler'
 import { Effects } from './effects'
 import { pitchRatio, tempo } from './tempo.svelte'
 import { settings } from '../lib/settings.svelte'
+import { t } from '../lib/i18n.svelte'
 import { Clock } from '../lyrics/core/clock'
 import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
 
@@ -170,7 +171,7 @@ class Player {
     )
     addEventListener('ratechange', tick(() => this.clock.setRate(a.playbackRate, a.currentTime, now())))
     addEventListener('ended', () => this.onEnded())
-    addEventListener('error', () => this.onError(a.error?.message || 'не удалось воспроизвести'))
+    addEventListener('error', () => this.onError(a.error?.message || t('не удалось воспроизвести')))
   }
 
   private initRest() {

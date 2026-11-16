@@ -5,7 +5,9 @@
   import LogoMark from '../components/LogoMark.svelte'
   import { settingsPanel } from '../pages/settings-section.svelte'
   import { settings } from '../lib/settings.svelte'
+  import { t } from '../lib/i18n.svelte'
 
+  // подписи — ключи перевода, t() — при выводе
   const middle: { page: Page; icon: NavIconName; label: string }[] = [
     { page: 'player', icon: 'player', label: 'Плеер' },
     { page: 'search', icon: 'search', label: 'Поиск' },
@@ -34,12 +36,12 @@
   <div class="group" data-tauri-drag-region>
     <!-- за лого окно тоже таскается, как за пустое место панели -->
     <span class="logo" role="img" aria-label="Sonar" data-tauri-drag-region><LogoMark size={30} /></span>
-    {@render item('home', 'home', 'Главная')}
+    {@render item('home', 'home', t('Главная'))}
   </div>
 
   <div class="group" data-tauri-drag-region>
     {#each middle as m (m.page)}
-      {@render item(m.page, m.icon, m.label)}
+      {@render item(m.page, m.icon, t(m.label))}
     {/each}
   </div>
 
@@ -47,14 +49,14 @@
     <button
       class="item"
       class:active={settingsPanel.open}
-      aria-label="Настройки"
-      title="Настройки"
+      aria-label={t('Настройки')}
+      title={t('Настройки')}
       aria-expanded={settingsPanel.open}
       onclick={() => settingsPanel.toggle()}
     >
       <NavIcon name="settings" active={settingsPanel.open} />
     </button>
-    <button class="avatar" aria-label="Профиль" title="Профиль" onclick={() => settingsPanel.show('account', 'profile')}>
+    <button class="avatar" aria-label={t('Профиль')} title={t('Профиль')} onclick={() => settingsPanel.show('account', 'profile')}>
       {#if settings.get('profile.avatar')}
         <img class="me" src={settings.get('profile.avatar')} alt="" />
       {:else}

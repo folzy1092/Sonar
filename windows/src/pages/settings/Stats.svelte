@@ -4,7 +4,7 @@
   import CountUp from '../../components/CountUp.svelte'
   import Icon from '../../components/Icon.svelte'
   import { api, type Stats, type StatsPeriod } from '../../lib/api'
-  import { plural } from '../../lib/format'
+  import { t, tn } from '../../lib/i18n.svelte'
   import { cascade } from '../../lib/cascade'
   import { openRef } from '../../app/router.svelte'
   import { settingsPanel } from '../settings-section.svelte'
@@ -32,9 +32,9 @@
   /** «57 часов» или, если меньше часа, «12 минут». */
   function timeText(ms: number) {
     const h = hours(ms)
-    if (h) return `${h} ${plural(h, ['час', 'часа', 'часов'])}`
+    if (h) return `${h} ${tn(h, ['час', 'часа', 'часов'])}`
     const m = Math.round(ms / 60_000)
-    return `${m} ${plural(m, ['минута', 'минуты', 'минут'])}`
+    return `${m} ${tn(m, ['минута', 'минуты', 'минут'])}`
   }
   const artists = $derived(stats ? [stats.top_artist, ...stats.more_artists].filter((a) => !!a) : [])
 
@@ -46,51 +46,51 @@
 
   async function playTop(i: number) {
     if (!stats) return
-    const refs = stats.top_tracks.map((t) => t.ref)
+    const refs = stats.top_tracks.map((tr) => tr.ref)
     // полные данные треков — из локального кэша
     const list = await api.cachedTracks(refs).catch(() => [])
-    const at = list.findIndex((t) => t.ref === refs[i])
-    if (list.length) void player.playList(list, Math.max(0, at), 'stats', 'Любимые треки')
+    const at = list.findIndex((tr) => tr.ref === refs[i])
+    if (list.length) void player.playList(list, Math.max(0, at), 'stats', t('Любимые треки'))
   }
 </script>
 
 {#if error}
-  <p class="hint">{error}</p>
+  <p class="hint">{t(error)}</p>
 {:else if !stats}
   <div class="card skel big"></div>
 {:else if !stats.plays}
   <div class="card empty">
     <Icon name="headphones" size={26} />
-    <p>Пока пусто. Слушай музыку — засчитывается трек, прослушанный хотя бы наполовину (или 30 секунд).</p>
+    <p>{t('Пока пусто. Слушай музыку — засчитывается трек, прослушанный хотя бы наполовину (или 30 секунд).')}</p>
   </div>
 {:else}
   <div class="card">
     <div class="main">
-      <div><b><CountUp value={stats.plays} /></b><span>{plural(stats.plays, ['Прослушивание', 'Прослушивания', 'Прослушиваний'])}</span></div>
-      <div><b><CountUp value={stats.tracks} /></b><span>{plural(stats.tracks, ['Трек', 'Трека', 'Треков'])}</span></div>
+      <div><b><CountUp value={stats.plays} /></b><span>{tn(stats.plays, ['Прослушивание', 'Прослушивания', 'Прослушиваний'])}</span></div>
+      <div><b><CountUp value={stats.tracks} /></b><span>{tn(stats.tracks, ['Трек', 'Трека', 'Треков'])}</span></div>
       {#if stats.total_ms >= 3_600_000}
-        <div><b><CountUp value={hours(stats.total_ms)} /></b><span>{plural(hours(stats.total_ms), ['час', 'часа', 'часов'])}</span></div>
+        <div><b><CountUp value={hours(stats.total_ms)} /></b><span>{tn(hours(stats.total_ms), ['час', 'часа', 'часов'])}</span></div>
       {:else}
-        <div><b><CountUp value={Math.round(stats.total_ms / 60_000)} /></b><span>{plural(Math.round(stats.total_ms / 60_000), ['минута', 'минуты', 'минут'])}</span></div>
+        <div><b><CountUp value={Math.round(stats.total_ms / 60_000)} /></b><span>{tn(Math.round(stats.total_ms / 60_000), ['минута', 'минуты', 'минут'])}</span></div>
       {/if}
     </div>
     <div class="minor">
-      <div><b><CountUp value={stats.streak_days} /></b><span>{plural(stats.streak_days, ['день', 'дня', 'дней'])} подряд</span></div>
-      <div><b>{stats.peak_hour != null ? `${String(stats.peak_hour).padStart(2, '0')}:00` : '—'}</b><span>пик прослушивания</span></div>
-      <div><b><CountUp value={stats.per_day} /></b><span>{plural(stats.per_day, ['трек', 'трека', 'треков'])} в день</span></div>
-      <div><b><CountUp value={stats.artists} /></b><span>{plural(stats.artists, ['артист', 'артиста', 'артистов'])} всего</span></div>
-      <div><b>{stats.fav_weekday != null ? weekdays[stats.fav_weekday] : '—'}</b><span>любимый день недели</span></div>
+      <div><b><CountUp value={stats.streak_days} /></b><span>{tn(stats.streak_days, ['день подряд', 'дня подряд', 'дней подряд'])}</span></div>
+      <div><b>{stats.peak_hour != null ? `${String(stats.peak_hour).padStart(2, '0')}:00` : '—'}</b><span>{t('пик прослушивания')}</span></div>
+      <div><b><CountUp value={stats.per_day} /></b><span>{tn(stats.per_day, ['трек в день', 'трека в день', 'треков в день'])}</span></div>
+      <div><b><CountUp value={stats.artists} /></b><span>{tn(stats.artists, ['артист всего', 'артиста всего', 'артистов всего'])}</span></div>
+      <div><b>{stats.fav_weekday != null ? t(weekdays[stats.fav_weekday]) : '—'}</b><span>{t('любимый день недели')}</span></div>
       {#if stats.delta_pct != null}
         <div>
           <b class:up={stats.delta_pct > 0} class:down={stats.delta_pct < 0}>{stats.delta_pct > 0 ? '+' : ''}<CountUp value={stats.delta_pct} />%</b>
-          <span>к прошлому периоду</span>
+          <span>{t('к прошлому периоду')}</span>
         </div>
       {/if}
     </div>
   </div>
 
   {#if artists.length}
-    <h2>Любимые артисты</h2>
+    <h2>{t('Любимые артисты')}</h2>
     <div class="artists" use:cascade={period}>
       {#each artists as a (a.name)}
         <button class="artist" onclick={() => openArtist(a.ref)} disabled={!a.ref}>
@@ -99,20 +99,20 @@
           </span>
           <b>{a.name}</b>
           <small>{timeText(a.ms)}</small>
-          <small>{a.plays} {plural(a.plays, ['раз', 'раза', 'раз'])}</small>
+          <small>{a.plays} {tn(a.plays, ['раз', 'раза', 'раз'])}</small>
         </button>
       {/each}
     </div>
   {/if}
 
   {#if stats.top_tracks.length}
-    <h2>Любимые треки</h2>
+    <h2>{t('Любимые треки')}</h2>
     <div class="tracks" use:cascade={period}>
-      {#each stats.top_tracks as t, i (t.ref)}
+      {#each stats.top_tracks as tr, i (tr.ref)}
         <button class="track" onclick={() => playTop(i)}>
-          {#if t.cover_url}<img class="fade-img" src={t.cover_url} alt="" onload={(e) => e.currentTarget.classList.add('loaded')} />{:else}<span class="ph"></span>{/if}
-          <span class="name"><span class="dim">{t.artist} —</span> {t.title}</span>
-          <span class="n">{t.plays}</span>
+          {#if tr.cover_url}<img class="fade-img" src={tr.cover_url} alt="" onload={(e) => e.currentTarget.classList.add('loaded')} />{:else}<span class="ph"></span>{/if}
+          <span class="name"><span class="dim">{tr.artist} —</span> {tr.title}</span>
+          <span class="n">{tr.plays}</span>
         </button>
       {/each}
     </div>

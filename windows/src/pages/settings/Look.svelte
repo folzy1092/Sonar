@@ -15,6 +15,7 @@
   import { CUSTOM_PREFIX, FONT_CATEGORIES, FONTS, fontCategory, fontLabel, fontStack, type FontCategory } from '../../theme/look'
   import { saveCustomFont } from '../../theme/custom-font'
   import { toast } from '../../lib/toast.svelte'
+  import { t } from '../../lib/i18n.svelte'
 
   const cover = $derived(settings.get('appearance.cover_theme'))
   const preset = $derived(settings.get('appearance.preset'))
@@ -24,8 +25,8 @@
   /** Образец темы: два кружка — фон и акцент (как в Dotify). */
   function swatch(c: RGB | null, black = false): [string, string] {
     if (!c) return ['#f5f5f6', black ? '#000' : '#26262b']
-    const t = themeFrom(c, settings.get('appearance.surface'), theme.light)
-    return [css(t.accent), css(t.bg)]
+    const th = themeFrom(c, settings.get('appearance.surface'), theme.light)
+    return [css(th.accent), css(th.bg)]
   }
 
   function setScale(key: 'appearance.scale_window' | 'appearance.scale_fullscreen', v: number) {
@@ -45,9 +46,9 @@
     try {
       const name = await saveCustomFont(file)
       settings.set('appearance.font', CUSTOM_PREFIX + name)
-      toast.show(`Шрифт «${name}» подключён`)
+      toast.show(t('Шрифт «{name}» подключён', { name }))
     } catch {
-      toast.show('Не получилось прочитать шрифт — нужен файл .ttf, .otf, .woff или .woff2')
+      toast.show(t('Не получилось прочитать шрифт — нужен файл .ttf, .otf, .woff или .woff2'))
     }
   }
 
@@ -62,21 +63,21 @@
 {/snippet}
 
 <Choice
-  title="Тема"
-  hint="Выберите цветовую схему интерфейса"
+  title={t('Тема')}
+  hint={t('Выберите цветовую схему интерфейса')}
   icons
   value={settings.get('appearance.mode')}
   options={[
-    { id: 'dark' as const, label: 'Тёмная', icon: 'moon' },
-    { id: 'light' as const, label: 'Светлая', icon: 'sun' },
-    { id: 'system' as const, label: 'Как в системе', icon: 'monitor' },
+    { id: 'dark' as const, label: t('Тёмная'), icon: 'moon' },
+    { id: 'light' as const, label: t('Светлая'), icon: 'sun' },
+    { id: 'system' as const, label: t('Как в системе'), icon: 'monitor' },
   ]}
   onchange={(v) => settings.set('appearance.mode', v)}
 />
 
-<p class="caption">Готовые темы</p>
+<p class="caption">{t('Готовые темы')}</p>
 <div class="themes">
-  {@render tile('Под трек', swatch(theme.accent ?? [196, 164, 132]), cover, () => theme.setEnabled(true))}
+  {@render tile(t('Под трек'), swatch(theme.accent ?? [196, 164, 132]), cover, () => theme.setEnabled(true))}
   {#each PRESETS as p (p.id)}
     {@render tile(p.title, swatch(p.accent, p.black), !cover && preset === p.id, () => theme.setPreset(p.id))}
   {/each}
@@ -85,15 +86,15 @@
 <Divider />
 
 <Switch
-  title="Прозрачность"
-  hint="Под окном — системное стекло (Windows 11 — Mica, Windows 10 — Acrylic)"
+  title={t('Прозрачность')}
+  hint={t('Под окном — системное стекло (Windows 11 — Mica, Windows 10 — Acrylic)')}
   on={settings.get('appearance.glass')}
   onchange={(v) => settings.set('appearance.glass', v)}
 />
 {#if settings.get('appearance.glass')}
   <Slider
-    title="Непрозрачность"
-    hint="Насколько плотные фон окна и карточки"
+    title={t('Непрозрачность')}
+    hint={t('Насколько плотные фон окна и карточки')}
     value={settings.get('appearance.opacity')}
     min={15}
     max={100}
@@ -101,8 +102,8 @@
     onchange={(v) => settings.set('appearance.opacity', v)}
   />
   <Slider
-    title="Размытие стекла"
-    hint="Радиус размытия под панелями и меню"
+    title={t('Размытие стекла')}
+    hint={t('Радиус размытия под панелями и меню')}
     value={settings.get('appearance.glass_blur')}
     min={0}
     max={40}
@@ -114,73 +115,73 @@
 <Divider />
 
 <div class="block">
-  <b>Шрифт</b>
-  <small>Семейство шрифта</small>
+  <b>{t('Шрифт')}</b>
+  <small>{t('Семейство шрифта')}</small>
   <div class="cats" use:indicator={{ key: category, kind: 'pill' }}>
     {#each FONT_CATEGORIES as c (c.id)}
-      <button class:on={category === c.id} onclick={() => (category = c.id)}>{c.label}</button>
+      <button class:on={category === c.id} onclick={() => (category = c.id)}>{t(c.label)}</button>
     {/each}
   </div>
   {#key category}
     <div class="chips tab-in">
       {#each FONTS[category] as f (f)}
         <button class="chip" class:on={font === f} style:font-family={fontStack(f) ?? 'var(--font)'} onclick={() => settings.set('appearance.font', f)}>
-          {fontLabel(f)}
+          {t(fontLabel(f))}
         </button>
       {/each}
       {#if custom}
         <button class="chip on" style:font-family={fontStack(font)}>{fontLabel(font)}</button>
       {/if}
-      <button class="chip" title="Свой шрифт с компьютера (.ttf, .otf, .woff, .woff2)" onclick={() => filePick?.click()}>
-        <Icon name="cloudUp" size={13} /> Свой
+      <button class="chip" title={t('Свой шрифт с компьютера (.ttf, .otf, .woff, .woff2)')} onclick={() => filePick?.click()}>
+        <Icon name="cloudUp" size={13} /> {t('Свой')}
       </button>
     </div>
   {/key}
   <input bind:this={filePick} type="file" accept=".ttf,.otf,.woff,.woff2" hidden onchange={pickFont} />
-  <div class="sample" style:font-family={fontStack(font) ?? 'var(--font)'}>Sonar — Съешь ещё этих мягких французских булок да выпей же чаю</div>
+  <div class="sample" style:font-family={fontStack(font) ?? 'var(--font)'}>{t('Sonar — Съешь ещё этих мягких французских булок да выпей же чаю')}</div>
 </div>
 
 <Choice
-  title="Размер шрифта"
-  hint="Базовый размер шрифта интерфейса"
+  title={t('Размер шрифта')}
+  hint={t('Базовый размер шрифта интерфейса')}
   wide
   fill
   value={settings.get('appearance.font_size')}
-  options={[12, 14, 16, 18, 20].map((n) => ({ id: n, label: String(n), sub: n === 16 ? 'Авто' : undefined }))}
+  options={[12, 14, 16, 18, 20].map((n) => ({ id: n, label: String(n), sub: n === 16 ? t('Авто') : undefined }))}
   onchange={(v) => settings.set('appearance.font_size', v)}
 />
 <Choice
-  title="Жирность шрифта"
-  hint="Плотность начертания обычного текста"
+  title={t('Жирность шрифта')}
+  hint={t('Плотность начертания обычного текста')}
   wide
   fill
   value={settings.get('appearance.font_weight')}
-  options={[{ id: 'auto' as const, label: 'Авто' }, ...(['400', '500', '600', '700'] as const).map((n) => ({ id: n, label: n }))]}
+  options={[{ id: 'auto' as const, label: t('Авто') }, ...(['400', '500', '600', '700'] as const).map((n) => ({ id: n, label: n }))]}
   onchange={(v) => settings.set('appearance.font_weight', v)}
 />
 
 <Divider />
 
 <Cards
-  title="Скругление углов"
-  hint="Радиус скругления элементов интерфейса и карточек"
+  title={t('Скругление углов')}
+  hint={t('Радиус скругления элементов интерфейса и карточек')}
   scroll
   value={settings.get('appearance.corner_radius')}
   options={[
-    { id: 'none', label: 'Нет' },
-    { id: 'soft', label: 'Маленькое' },
-    { id: 'rounded', label: 'Среднее' },
-    { id: 'pill', label: 'Большое' },
+    { id: 'none', label: t('Нет') },
+    { id: 'soft', label: t('Маленькое') },
+    { id: 'rounded', label: t('Среднее') },
+    { id: 'pill', label: t('Большое') },
   ]}
   onchange={(v) => settings.set('appearance.corner_radius', v)}
 />
 
 <Divider />
 
-<Choice title="Масштаб в окне" hint="Размер интерфейса в обычном окне" wide value={settings.get('appearance.scale_window')} options={scales} onchange={(v) => setScale('appearance.scale_window', v)} />
+<Choice title={t('Масштаб в окне')} hint={t('Размер интерфейса в обычном окне')} wide value={settings.get('appearance.scale_window')} options={scales} onchange={(v) => setScale('appearance.scale_window', v)} />
 <Choice
-  title="Масштаб на весь экран"
-  hint="Размер интерфейса, когда окно развёрнуто"
+  title={t('Масштаб на весь экран')}
+  hint={t('Размер интерфейса, когда окно развёрнуто')}
   wide
   value={settings.get('appearance.scale_fullscreen')}
   options={scales}
@@ -190,8 +191,8 @@
 <Divider />
 
 <Switch
-  title="Анимации"
-  hint="Плавные переходы, появление списков, всплывашки. Выключено (или «Меньше движения» в Windows) — только прозрачность."
+  title={t('Анимации')}
+  hint={t('Плавные переходы, появление списков, всплывашки. Выключено (или «Меньше движения» в Windows) — только прозрачность.')}
   on={settings.get('appearance.animations')}
   onchange={(v) => settings.set('appearance.animations', v)}
 />

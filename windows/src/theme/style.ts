@@ -3,6 +3,7 @@
 // раздела, вид прогресса и загрузки. Готовый стиль ставит все оси; изменение любой оси вручную
 // делает стиль «Своим» (без сохранения), его можно сохранить под своим именем.
 import type { Surface } from './palette'
+import { t } from '../lib/i18n.svelte'
 
 export type AnimTrack = Surface | 'fade'
 export type AnimLike = Surface | 'pop'
@@ -149,7 +150,7 @@ export function nearestPreset(axes: StyleAxes): StylePreset {
 
 /** Новый свой стиль с уникальным id; имя обрезано, пустое — «Мой стиль N». */
 export function newCustom(name: string, axes: StyleAxes, customs: CustomStyle[], rand = Math.random): CustomStyle {
-  const base = name.trim().slice(0, 40) || `Мой стиль ${customs.length + 1}`
+  const base = name.trim().slice(0, 40) || t('Мой стиль {n}', { n: customs.length + 1 })
   let id = ''
   do id = Math.floor(rand() * 36 ** 6).toString(36).padStart(6, '0')
   while (customs.some((c) => c.id === id))

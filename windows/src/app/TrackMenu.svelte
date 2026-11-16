@@ -11,6 +11,7 @@
   import { openRef } from './router.svelte'
   import { pop } from '../lib/motion'
   import { wave } from '../player/my-wave.svelte'
+  import { t, lang } from '../lib/i18n.svelte'
 
   const W = 280
   let el: HTMLElement | undefined = $state()
@@ -18,15 +19,16 @@
   let newName = $state('')
   let pos = $state({ left: 0, top: 0 })
 
-  const t = $derived(trackMenu.target)
-  const liked = $derived(t ? library.isLiked(t.track.ref) : false)
+  const LOCALES = { ru: 'ru-RU', en: 'en-GB', uk: 'uk-UA' } as const
+  const target = $derived(trackMenu.target)
+  const liked = $derived(target ? library.isLiked(target.track.ref) : false)
   const added = $derived(
-    t?.addedAt ? new Date(t.addedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : null,
+    target?.addedAt ? new Date(target.addedAt).toLocaleDateString(LOCALES[lang()], { day: 'numeric', month: 'long', year: 'numeric' }) : null,
   )
-  const playlists = $derived(library.playlists.filter((p) => p.id !== t?.playlistId))
+  const playlists = $derived(library.playlists.filter((p) => p.id !== target?.playlistId))
 
   $effect(() => {
-    if (!t) return
+    if (!target) return
     view = trackMenu.startView
     newName = ''
     void library.load()
@@ -34,7 +36,7 @@
 
   // Не вылезать за окно: сначала ставим по клику, после отрисовки — сдвигаем внутрь.
   $effect(() => {
-    if (!t || !el) return
+    if (!target || !el) return
     view
     const h = el.offsetHeight
     const left = Math.min(Math.max(8, trackMenu.x - (trackMenu.x + W > innerWidth - 8 ? W : 0)), innerWidth - W - 8)
@@ -45,11 +47,11 @@
   function onPointerDown(e: PointerEvent) {
     // нажатие по той же ⋮ не закрываем здесь — её клик сам закроет меню (иначе оно закрылось бы и открылось снова)
     if (trackMenu.anchor?.contains(e.target as Node)) return
-    if (t && el && !el.contains(e.target as Node)) trackMenu.close()
+    if (target && el && !el.contains(e.target as Node)) trackMenu.close()
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && t) {
+    if (e.key === 'Escape' && target) {
       if (view === 'playlists') view = 'main'
       else trackMenu.close()
     }
@@ -65,13 +67,13 @@
       await navigator.clipboard.writeText(text)
       toast.show(done)
     } catch {
-      toast.show('Не получилось скопировать')
+      toast.show(t('Не получилось скопировать'))
     }
   }
 
   async function createWithTrack() {
-    if (!t || !newName.trim()) return
-    const tracks = [t.track]
+    if (!target || !newName.trim()) return
+    const tracks = [target.track]
     trackMenu.close()
     await library.createPlaylist(newName.trim(), tracks)
   }
@@ -86,7 +88,7 @@
   </button>
 {/snippet}
 
-{#if t}
+{#if target}
   <div
     class="menu"
     role="menu"
@@ -100,59 +102,59 @@
     oncontextmenu={(e) => e.preventDefault()}
   >
     <div class="head">
-      <Cover url={t.track.cover_url} size={44} source={t.track.ref} />
+      <Cover url={target.track.cover_url} size={44} source={target.track.ref} />
       <div class="meta">
-        <b>{t.track.title}</b>
-        <span>{t.track.artist}</span>
-        {#if added}<small>Добавлен <b>{added}</b></small>{/if}
+        <b>{target.track.title}</b>
+        <span>{target.track.artist}</span>
+        {#if added}<small>{t('Добавлен')} <b>{added}</b></small>{/if}
       </div>
     </div>
 
     {#if view === 'main'}
-      {@render item('playNext', 'Следующим', () => player.addToQueue([t.track], true))}
-      {@render item('queue', 'В очередь', () => player.addToQueue([t.track], false))}
-      {@render item('bolt', 'Волна по треку', () => wave.start(t.track))}
+      {@render item('playNext', t('Следующим'), () => player.addToQueue([target.track], true))}
+      {@render item('queue', t('В очередь'), () => player.addToQueue([target.track], false))}
+      {@render item('bolt', t('Волна по треку'), () => wave.start(target.track))}
       <hr />
-      {@render item('heart', liked ? 'Удалить из Любимых' : 'В Любимые', () => library.toggleLike(t.track), liked)}
-      {@render item('dislike', wave.isDisliked(t.track.ref) ? 'Убрать из «Не нравится»' : 'Не нравится', () => wave.dislike(t.track), wave.isDisliked(t.track.ref))}
+      {@render item('heart', liked ? t('Удалить из Любимых') : t('В Любимые'), () => library.toggleLike(target.track), liked)}
+      {@render item('dislike', wave.isDisliked(target.track.ref) ? t('Убрать из «Не нравится»') : t('Не нравится'), () => wave.dislike(target.track), wave.isDisliked(target.track.ref))}
       <button class="item" role="menuitem" onclick={() => (view = 'playlists')}>
         <Icon name="playlistAdd" size={17} />
-        <span>Добавить в плейлист</span>
+        <span>{t('Добавить в плейлист')}</span>
         <Icon name="chevronRight" size={15} />
       </button>
-      {#if t.playlistId && t.itemId}
-        {@const pid = t.playlistId}
-        {@const iid = t.itemId}
-        {@render item('trash', 'Убрать из плейлиста', () => library.removeFromPlaylist(pid, [iid]))}
+      {#if target.playlistId && target.itemId}
+        {@const pid = target.playlistId}
+        {@const iid = target.itemId}
+        {@render item('trash', t('Убрать из плейлиста'), () => library.removeFromPlaylist(pid, [iid]))}
       {/if}
       <hr />
-      {#each t.track.artists.slice(0, 3) as a (a.ref)}
-        {@render item('user', t.track.artists.length > 1 ? a.name : 'Перейти к исполнителю', () => openRef(a.ref))}
+      {#each target.track.artists.slice(0, 3) as a (a.ref)}
+        {@render item('user', target.track.artists.length > 1 ? a.name : t('Перейти к исполнителю'), () => openRef(a.ref))}
       {/each}
-      {#if t.track.album}
-        {@const album = t.track.album}
-        {@render item('disc', 'Перейти к альбому', () => openRef(album.ref))}
+      {#if target.track.album}
+        {@const album = target.track.album}
+        {@render item('disc', t('Перейти к альбому'), () => openRef(album.ref))}
       {/if}
       <hr />
-      {@render item('copy', 'Копировать название', () => copy(`${t.track.artist} — ${t.track.title}`, 'Название скопировано'))}
-      {#if t.track.url}
-        {@const url = t.track.url}
-        {@render item('share', 'Поделиться', () => copy(url, 'Ссылка скопирована'))}
+      {@render item('copy', t('Копировать название'), () => copy(`${target.track.artist} — ${target.track.title}`, t('Название скопировано')))}
+      {#if target.track.url}
+        {@const url = target.track.url}
+        {@render item('share', t('Поделиться'), () => copy(url, t('Ссылка скопирована')))}
       {/if}
     {:else}
       <button class="item back" onclick={() => (view = 'main')}>
         <Icon name="chevronLeft" size={17} />
-        <span>Добавить в плейлист</span>
+        <span>{t('Добавить в плейлист')}</span>
       </button>
       <form class="new" onsubmit={(e) => (e.preventDefault(), createWithTrack())}>
-        <input placeholder="Новый плейлист…" bind:value={newName} spellcheck="false" />
-        <button type="submit" aria-label="Создать" title="Создать" disabled={!newName.trim()}><Icon name="plus" size={16} /></button>
+        <input placeholder={t('Новый плейлист…')} bind:value={newName} spellcheck="false" />
+        <button type="submit" aria-label={t('Создать')} title={t('Создать')} disabled={!newName.trim()}><Icon name="plus" size={16} /></button>
       </form>
       <div class="lists">
         {#each playlists as p (p.id)}
-          {@render item('music', p.name, () => library.addToPlaylist(p, [t.track]))}
+          {@render item('music', p.name, () => library.addToPlaylist(p, [target.track]))}
         {:else}
-          <p class="none">Своих плейлистов пока нет</p>
+          <p class="none">{t('Своих плейлистов пока нет')}</p>
         {/each}
       </div>
     {/if}

@@ -14,6 +14,7 @@ import { toast } from '../lib/toast.svelte'
 import { player } from './player.svelte'
 import { settings } from '../lib/settings.svelte'
 import { library } from '../lib/library.svelte'
+import { t } from '../lib/i18n.svelte'
 import { artistKey, reward } from './reward'
 import { SkipSeries } from './skip-series'
 
@@ -190,14 +191,14 @@ class Wave {
     const at = firstRef ? list.findIndex((t) => t.ref === firstRef) : -1
     if (at > 0) list = [list[at], ...list.slice(0, at), ...list.slice(at + 1)]
     if (!list.length) {
-      toast.show('Волне пока нечего предложить')
+      toast.show(t('Волне пока нечего предложить'))
       return
     }
     for (const t of list) this.serve(t)
     // обложки — только если их ещё нет: клик по обложке выбирает стиль, сами обложки остаются
     if (!this.covers.length) this.covers = list.slice(0, 3)
     player.shuffle = false
-    await player.playList(list, 0, WAVE_CONTEXT, seed ? `Волна по «${seed.title}»` : 'Моя волна')
+    await player.playList(list, 0, WAVE_CONTEXT, seed ? t('Волна по «{title}»', { title: seed.title }) : t('Моя волна'))
   }
 
   get mode(): WaveMode {
@@ -295,10 +296,10 @@ class Wave {
       return
     }
     if (!on) {
-      toast.show('Трек снова может попасть в волну')
+      toast.show(t('Трек снова может попасть в волну'))
       return
     }
-    toast.show('Больше не поставим этот трек')
+    toast.show(t('Больше не поставим этот трек'))
     if (player.current?.ref === track.ref) void player.next()
   }
 
