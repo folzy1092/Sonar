@@ -5,6 +5,8 @@
 //! - `/seg?u=…` — кусок HLS с CDN SoundCloud (`*.sndcdn.com`, `*.soundcloud.cloud`).
 //! - `/cover?u=…` — обложка с CDN SoundCloud/Яндекса с кэшем на диске (`<кэш>/covers`) и CORS —
 //!   из неё интерфейс берёт цвет темы (SPEC §4.4); размер и очистка — экран «Хранилище».
+//! Кэш треков (`track_cache.rs`): трек на диске — `/file` отдаёт его с диска (Range — кусками);
+//! файл, прочитанный с начала до конца, ложится в кэш на лету; HLS — фоновая загрузка и склейка.
 
 use crate::providers::{Source, UA};
 use crate::services::Core;
@@ -15,7 +17,8 @@ use axum::routing::get;
 use axum::Router;
 use serde::Deserialize;
 use std::path::PathBuf;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
+use crate::track_cache;
 
 /// Папка кэша обложек (`%LOCALAPPDATA%/com.folzy.sonar/covers`), задаётся при запуске.
 static COVER_DIR: OnceLock<PathBuf> = OnceLock::new();
@@ -91,15 +94,126 @@ async fn proxy(core: &Core, url: &str, range: Option<&HeaderValue>) -> Result<Re
   Ok(cors(res.body(Body::from_stream(up.bytes_stream())).unwrap_or_else(|_| Response::new(Body::empty()))))
 }
 
+/// Трек из кэша на диске: без Range — целиком, с Range — кусками до 8 МБ (206).
+fn serve_cached(path: &std::path::Path, mime: &str, total: u64, range: Option<&HeaderValue>) -> Response<Body> {
+  let asked = range.and_then(|h| h.to_str().ok());
+  let (start, end, partial) = match track_cache::parse_range(asked, total) {
+    Some((a, b)) => (a, b, true),
+    None if asked.is_some() => {
+      let mut r = plain(StatusCode::RANGE_NOT_SATISFIABLE, "");
+      if let Ok(v) = HeaderValue::from_str(&format!("bytes */{total}")) {
+        r.headers_mut().insert(header::CONTENT_RANGE, v);
+      }
+      return r;
+    }
+    None => (0, total.saturating_sub(1), false),
+  };
+  let data = if partial { track_cache::read_range(path, start, end) } else { std::fs::read(path) };
+  let Ok(data) = data else { return plain(StatusCode::INTERNAL_SERVER_ERROR, "кэш не читается") };
+  let len = data.len() as u64;
+  let mut r = Response::new(Body::from(data));
+  let h = r.headers_mut();
+  h.insert(header::CONTENT_TYPE, HeaderValue::from_str(mime).unwrap_or(HeaderValue::from_static("audio/mpeg")));
+  h.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+  h.insert(header::CONTENT_LENGTH, HeaderValue::from(len));
+  if partial {
+    if let Ok(v) = HeaderValue::from_str(&format!("bytes {start}-{}/{total}", start + len.saturating_sub(1))) {
+      h.insert(header::CONTENT_RANGE, v);
+    }
+    *r.status_mut() = StatusCode::PARTIAL_CONTENT;
+  }
+  cors(r)
+}
+
+/// Как `proxy`, но если ответ — весь файл с начала, тело по пути пишется в кэш треков.
+async fn proxy_cached(core: &Core, url: &str, range: Option<&HeaderValue>, track_ref: &str) -> Result<Response<Body>, reqwest::Error> {
+  use futures_util::StreamExt;
+  let mut req = core.http.get(url).header("User-Agent", UA);
+  if let Some(r) = range {
+    req = req.header(header::RANGE, r.as_bytes());
+  }
+  let up = req.send().await?;
+  let status = up.status().as_u16();
+  let hv = |n: header::HeaderName| up.headers().get(n.as_str()).and_then(|v| v.to_str().ok()).map(str::to_owned);
+  let len: Option<u64> = hv(header::CONTENT_LENGTH).and_then(|v| v.parse().ok());
+  // весь файл: 200 или 206 «bytes 0-(N-1)/N»
+  let whole = status == 200
+    || (status == 206
+      && hv(header::CONTENT_RANGE).is_some_and(|cr| {
+        let cr = cr.trim_start_matches("bytes ");
+        cr.split_once('/').is_some_and(|(span, total)| span.split_once('-').is_some_and(|(a, b)| a == "0" && b.parse::<u64>().ok().map(|b| b + 1) == total.parse().ok()))
+      }));
+  let mime = hv(header::CONTENT_TYPE).unwrap_or_else(|| "audio/mpeg".into());
+  let writer = if whole { track_cache::Writer::new(track_ref, &mime, len) } else { None };
+  let mut res = Response::builder().status(status);
+  for h in [header::CONTENT_TYPE, header::CONTENT_LENGTH, header::CONTENT_RANGE, header::ACCEPT_RANGES] {
+    if let Some(v) = up.headers().get(h.as_str()) {
+      res = res.header(h, v.as_bytes());
+    }
+  }
+  let Some(w) = writer else {
+    return Ok(cors(res.body(Body::from_stream(up.bytes_stream())).unwrap_or_else(|_| Response::new(Body::empty()))));
+  };
+  let w = Arc::new(Mutex::new(Some(w)));
+  let w1 = w.clone();
+  let body = up.bytes_stream().map(move |chunk| {
+    match &chunk {
+      Ok(b) => {
+        if let Some(w) = w1.lock().unwrap().as_mut() {
+          w.write(b)
+        }
+      }
+      // оборвалось — недописанный файл удалит Drop
+      Err(_) => drop(w1.lock().unwrap().take()),
+    }
+    chunk
+  });
+  let tail = futures_util::stream::once(async move {
+    let done = w.lock().unwrap().take();
+    if let Some(done) = done {
+      done.finish();
+    }
+    Ok::<_, reqwest::Error>(axum::body::Bytes::new())
+  });
+  Ok(cors(res.body(Body::from_stream(body.chain(tail))).unwrap_or_else(|_| Response::new(Body::empty()))))
+}
+
+/// HLS SoundCloud в кэш: скачать init-кусок и все куски по порядку и склеить в один файл (в фоне).
+async fn cache_hls(core: Arc<Core>, track_ref: String, playlist: String, base: url::Url) {
+  let fetch_all = async {
+    let (init, segs, mime) = track_cache::hls_parts(&playlist, &base)?;
+    let mut w = track_cache::Writer::new(&track_ref, mime, None)?;
+    for u in init.into_iter().chain(segs) {
+      let r = core.http.get(&u).header("User-Agent", UA).send().await.ok()?;
+      if !r.status().is_success() {
+        return None;
+      }
+      w.write(&r.bytes().await.ok()?);
+    }
+    w.finish();
+    Some(())
+  };
+  if fetch_all.await.is_none() {
+    log::info!("кэш: HLS {track_ref} не склеился");
+  }
+  track_cache::release(&track_ref);
+}
+
 async fn file(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>, headers: HeaderMap) -> Response<Body> {
   let range = headers.get(header::RANGE);
+  // трек уже на диске — без сети
+  if let Some((path, mime, total)) = track_cache::lookup(&q.ref_) {
+    return serve_cached(&path, &mime, total, range);
+  }
+  let from_start = range.is_none_or(|r| r.as_bytes() == b"bytes=0-");
   for fresh in [false, true] {
     let url = match core.resolve(&q.ref_, fresh).await {
       Ok(Source::File { url, .. }) => url,
       Ok(Source::Hls { .. }) => return plain(StatusCode::BAD_REQUEST, "этот трек — HLS, нужен /hls"),
       Err(e) => return plain(StatusCode::BAD_GATEWAY, e.to_string()),
     };
-    match proxy(&core, &url, range).await {
+    let res = if track_cache::enabled() && from_start { proxy_cached(&core, &url, range, &q.ref_).await } else { proxy(&core, &url, range).await };
+    match res {
       // 403/410 — ссылка протухла: один раз берём новую
       Ok(r) if !fresh && matches!(r.status().as_u16(), 403 | 404 | 410) => continue,
       Ok(r) => return r,
@@ -128,6 +242,10 @@ async fn hls(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>) -> Respon
     }
     let base = up.url().clone();
     let text = up.text().await.unwrap_or_default();
+    // кэш треков: в фоне скачать и склеить весь трек, в следующий раз он сыграет файлом с диска
+    if track_cache::enabled() && track_cache::claim(&q.ref_) {
+      tokio::spawn(cache_hls(core.clone(), q.ref_.clone(), text.clone(), base.clone()));
+    }
     let mut r = Response::new(Body::from(rewrite_m3u8(&text, &base)));
     r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("application/vnd.apple.mpegurl"));
     r.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));

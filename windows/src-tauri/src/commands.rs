@@ -83,6 +83,15 @@ pub struct StreamUrl {
 /// Адрес на локальном аудио-сервере для `<audio>` (file) или hls.js (hls).
 #[tauri::command]
 pub async fn stream_url(core: State<'_, Arc<Core>>, port: State<'_, StreamPort>, track_ref: String) -> Res<StreamUrl> {
+  // трек в кэше на диске — играет файлом оттуда (и HLS, уже склеенный)
+  if let Some((_, mime, _)) = crate::track_cache::lookup(&track_ref) {
+    let quality = match mime.as_str() {
+      "audio/flac" | "audio/x-flac" => "FLAC · кэш",
+      "audio/mp4" | "audio/aac" => "AAC · кэш",
+      _ => "MP3 · кэш",
+    };
+    return Ok(StreamUrl { kind: "file", url: format!("http://127.0.0.1:{}/file?ref={}", port.0, urlencoding::encode(&track_ref)), quality: quality.into() });
+  }
   let src = core.resolve(&track_ref, false).await.map_err(err)?;
   let (kind, path, quality) = match src {
     Source::File { quality, .. } => ("file", "file", quality),
@@ -1024,6 +1033,8 @@ pub fn reset_settings(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<()> 
 pub struct StorageUsage {
   covers: u64,
   covers_bytes: u64,
+  tracks: u64,
+  tracks_bytes: u64,
   lyrics: i64,
   lyrics_bytes: i64,
   track_prefs: i64,
@@ -1051,6 +1062,7 @@ fn dir_usage(dir: &std::path::Path) -> (u64, u64) {
 pub fn storage_usage(app: tauri::AppHandle, db: State<'_, Db>) -> Res<StorageUsage> {
   use tauri::Manager;
   let (covers, covers_bytes) = crate::stream::cover_dir().map(|d| dir_usage(d)).unwrap_or((0, 0));
+  let (tracks, tracks_bytes) = crate::track_cache::usage();
   let store = db.0.lock().unwrap();
   let (lyrics, lyrics_bytes) = store.lyrics_usage().map_err(err)?;
   let db_bytes = app
@@ -1060,7 +1072,7 @@ pub fn storage_usage(app: tauri::AppHandle, db: State<'_, Db>) -> Res<StorageUsa
     .and_then(|d| std::fs::metadata(d.join("sonar.db")).ok())
     .map(|m| m.len())
     .unwrap_or(0);
-  Ok(StorageUsage { covers, covers_bytes, lyrics, lyrics_bytes, track_prefs: store.track_prefs_count().map_err(err)?, db_bytes })
+  Ok(StorageUsage { covers, covers_bytes, tracks, tracks_bytes, lyrics, lyrics_bytes, track_prefs: store.track_prefs_count().map_err(err)?, db_bytes })
 }
 
 /// Очистить: `covers` | `lyrics` | `track_prefs` | `all` (обложки и тексты).
@@ -1078,15 +1090,23 @@ pub fn clear_storage(db: State<'_, Db>, kind: String) -> Res<()> {
   let store = db.0.lock().unwrap();
   match kind.as_str() {
     "covers" => clear_covers(),
+    "tracks" => crate::track_cache::clear(),
     "lyrics" => store.clear_lyrics_cache().map_err(err)?,
     "track_prefs" => store.reset_track_prefs().map_err(err)?,
     "all" => {
       clear_covers();
+      crate::track_cache::clear();
       store.clear_lyrics_cache().map_err(err)?;
     }
     _ => return Err(format!("неизвестно, что чистить: {kind}")),
   }
   Ok(())
+}
+
+/// Кэш треков (Хранилище): включить / выключить и лимит, МБ.
+#[tauri::command]
+pub fn set_track_cache(on: bool, limit_mb: u64) {
+  crate::track_cache::configure(on, limit_mb);
 }
 
 /// Открыть ссылку в браузере (только https; «О приложении»: канал, сайт).

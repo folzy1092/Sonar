@@ -1,11 +1,13 @@
 <script lang="ts">
   // Система → Хранилище (pc/Screenshot_18): сколько занято (полоса по типам), очистка обложек и
-  // текстов, сброс настроек треков. Аудио на диск не кэшируется — строки «Треки» нет.
+  // текстов, сброс настроек треков, кэш треков (вкл., лимит, сколько занято, очистка — track_cache.rs).
   import { onMount } from 'svelte'
   import Group from '../../components/settings/Group.svelte'
   import CountUp from '../../components/CountUp.svelte'
   import Switch from '../../components/settings/Switch.svelte'
+  import Choice from '../../components/settings/Choice.svelte'
   import Soon from '../../components/settings/Soon.svelte'
+  import { settings } from '../../lib/settings.svelte'
   import { api, type StorageUsage } from '../../lib/api'
   import { plural } from '../../lib/format'
   import { toast } from '../../lib/toast.svelte'
@@ -16,7 +18,7 @@
   const mb = (b: number) => b / 1_048_576
   const mbText = (b: number) =>
     b < 1_048_576 ? `${Math.max(1, Math.round(b / 1024))} КБ` : `${mb(b) < 10 ? mb(b).toFixed(1) : Math.round(mb(b))} МБ`
-  const total = $derived(usage ? usage.covers_bytes + usage.lyrics_bytes + usage.db_bytes : 0)
+  const total = $derived(usage ? usage.tracks_bytes + usage.covers_bytes + usage.lyrics_bytes + usage.db_bytes : 0)
   const part = (b: number) => (total ? Math.max(2, (b / total) * 100) : 0)
 
   async function refresh() {
@@ -28,7 +30,7 @@
   }
   onMount(refresh)
 
-  async function clear(kind: 'covers' | 'lyrics' | 'track_prefs' | 'all', done: string) {
+  async function clear(kind: 'covers' | 'tracks' | 'lyrics' | 'track_prefs' | 'all', done: string) {
     try {
       await api.clearStorage(kind)
       toast.show(done)
@@ -46,21 +48,36 @@
     <span>Занято</span>
   </div>
   <div class="bar" aria-hidden="true">
+    {#if usage.tracks_bytes}<i class="tracks" style:width="{part(usage.tracks_bytes)}%"></i>{/if}
     <i class="covers" style:width="{part(usage.covers_bytes)}%"></i>
     <i class="lyrics" style:width="{part(usage.lyrics_bytes)}%"></i>
     <i class="db" style:width="{part(usage.db_bytes)}%"></i>
   </div>
 
-  <Switch title="Кеширование треков" hint="Все треки будут сохранены в кеш для быстрого воспроизведения" on={false} soon />
+  <Switch
+    title="Кеширование треков"
+    hint="Прослушанные треки сохраняются на диск и в следующий раз играют без сети"
+    on={settings.get('storage.cache_tracks')}
+    onchange={(v) => settings.set('storage.cache_tracks', v)}
+  />
+  {#if settings.get('storage.cache_tracks')}
+    <Choice
+      title="Размер кэша треков"
+      hint="Сверх лимита удаляются давно не игравшие"
+      value={settings.get('storage.cache_limit_mb')}
+      options={[512, 1024, 2048, 5120, 10240].map((n) => ({ id: n, label: n < 1024 ? `${n} МБ` : `${n / 1024} ГБ` }))}
+      onchange={(v) => settings.set('storage.cache_limit_mb', v)}
+    />
+  {/if}
 
   <Group title="Очистка кеша">
     {#snippet action()}
       <button class="link" onclick={() => clear('all', 'Кэш очищен')}>Очистить всё</button>
     {/snippet}
-    <div class="row off">
+    <div class="row">
       <span class="dot tracks"></span>
-      <span class="text"><b>Треки <Soon /></b><small>0 треков, 0 МБ</small></span>
-      <button class="link" disabled>Очистить</button>
+      <span class="text"><b>Треки</b><small>{usage.tracks} {plural(usage.tracks, ['трек', 'трека', 'треков'])}, {mbText(usage.tracks_bytes)}</small></span>
+      <button class="link" disabled={!usage.tracks} onclick={() => clear('tracks', 'Кэш треков очищен')}>Очистить</button>
     </div>
     <div class="row">
       <span class="dot covers"></span>

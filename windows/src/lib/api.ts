@@ -176,6 +176,8 @@ export interface Stats {
 export interface StorageUsage {
   covers: number
   covers_bytes: number
+  tracks: number
+  tracks_bytes: number
   lyrics: number
   lyrics_bytes: number
   track_prefs: number
@@ -340,7 +342,9 @@ export const api = {
   allSettings: () => call<Record<string, unknown>>('all_settings'),
   resetSettings: () => call<void>('reset_settings'),
   storageUsage: () => call<StorageUsage>('storage_usage'),
-  clearStorage: (kind: 'covers' | 'lyrics' | 'track_prefs' | 'all') => call<void>('clear_storage', { kind }),
+  clearStorage: (kind: 'covers' | 'tracks' | 'lyrics' | 'track_prefs' | 'all') => call<void>('clear_storage', { kind }),
+  /** Кэш треков на диске (Хранилище): включить и лимит, МБ (track_cache.rs). */
+  setTrackCache: (on: boolean, limitMb: number) => call<void>('set_track_cache', { on, limitMb }),
   openUrl: (url: string) => call<void>('open_url', { url }),
   /** Ярлык Sonar в меню «Пуск»; true — создан сейчас, false — уже был. */
   addToStartMenu: () => call<boolean>('add_to_start_menu'),
