@@ -482,6 +482,12 @@ pub async fn lyrics_annotations(core: State<'_, Arc<Core>>, track: Track) -> Res
   lyrics::genius::annotations(&core.http, &m.artist, &m.title).await.map_err(err)
 }
 
+/// Перевод строк текста на язык интерфейса (меню текста → «Перевести»).
+#[tauri::command]
+pub async fn lyrics_translate(core: State<'_, Arc<Core>>, lines: Vec<String>, to: String) -> Res<lyrics::translate::Translation> {
+  lyrics::translate::translate(&core.http, &lines, &to).await.map_err(err)
+}
+
 #[tauri::command]
 pub fn lyrics_offset(db: State<'_, Db>, track_ref: String) -> Res<i64> {
   db.0.lock().unwrap().lyrics_offset(&track_ref).map_err(err)

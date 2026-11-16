@@ -199,7 +199,6 @@ export default {
   'Смещение': 'Offset',
   'Двойной клик — сбросить': 'Double-click to reset',
   'Смещение текста, мс': 'Lyrics offset, ms',
-  'Перевод — после MVP': 'Translation — after MVP',
   'Перевести': 'Translate',
   'Искать текст заново, мимо кэша': 'Search for lyrics again, bypassing the cache',
   'Найти текст заново': 'Find lyrics again',
