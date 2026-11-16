@@ -34,8 +34,7 @@
 
 - (добавлены владельцем 2026-11-16) `SONAR_REPORT_BOT_TOKEN`, `SONAR_REPORT_CHAT`, `SONAR_REPORT_THREAD` — отдельный бот отчётов
   (не @SonarMusicApp), админ лог-группы, тема «Sonar ошибки». Без них «Отправить лог» кладёт файл в «Загрузки».
-- `SONAR_LASTFM_KEY`, `SONAR_LASTFM_SECRET` — last.fm/api/account/create. Без них «Войти через Last.fm» —
-  «появится в обновлении».
+- (добавлены владельцем 2026-11-17) `SONAR_LASTFM_KEY`, `SONAR_LASTFM_SECRET` — вход через Last.fm в один клик.
 
 ## 3. Не проверено вживую (Sonar владельца был запущен, второе окно не открыть)
 

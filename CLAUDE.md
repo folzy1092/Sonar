@@ -18,7 +18,9 @@
 с изменениями `windows/` сам выпускает релиз (авто-патч `<major>.<minor>.<patch+run_number>`, Latest,
 `releases/latest/download/Sonar-setup.exe`); крупная версия с описанием —
 `version` в `tauri.conf.json` / `Cargo.toml` / `package.json` + запись в `updates/changelog.json`.
-Следующий шаг — сервер (после покупки Velt), см. `docs/ROADMAP.md`. До сервера — «Моя волна 2» по спеке
+**iOS начата автономно, до сервера** (решение владельца 2026-11-17): каркас `ios/` (XcodeGen, свой таб-бар,
+CI `ios.yml` → неподписанная `Sonar.ipa`, подписывает каждый пользователь сам), задание с этапами и
+автообновлением как в Shadow — `docs/IOS_PROMPT.md`. Сервер — после покупки Velt, см. `docs/ROADMAP.md`. До сервера — «Моя волна 2» по спеке
 `docs/WAVE.md` (шесть этапов, отметки в ROADMAP; сделаны 1, 5, 6 и профиль тегов по режимам из этапа 2 — 2026-11-16). Бот `@SonarMusicApp` уже написан
 (`server/sonar`, aiogram 3 + SQLite, без API) и пока крутится на ПК владельца: «Запустить бота.bat» в корне
 (создаёт `server/.env` из `server/env.example`, токен вписывает владелец). Файлы `.env*` агенту закрыты.
