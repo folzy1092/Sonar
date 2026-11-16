@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Знак Sonar с «душой»: заливка — перелив от белого к цвету темы (под обложку), под ним мягкое
+  // Знак Sonar с «душой»: заливка — перелив в цвете темы (под обложку) целиком, под ним мягкое
   // свечение того же цвета; при наведении знак делает пол-оборота, как пропеллер на заставке.
   import raw from '../assets/logo-mark.svg?raw'
 
@@ -39,14 +39,16 @@
     height: 100%;
     overflow: visible;
   }
+  /* весь знак — в цвете темы: сверху чуть светлее (блик), снизу — сам цвет и чуть глубже;
+     белого угла больше нет (при монохромной теме цвет темы и есть белый) */
   .a {
-    stop-color: #ffffff;
+    stop-color: color-mix(in srgb, var(--accent) 82%, #ffffff);
   }
   .b {
-    stop-color: color-mix(in srgb, var(--accent) 45%, #ffffff);
+    stop-color: var(--accent);
   }
   .c {
-    stop-color: var(--accent);
+    stop-color: color-mix(in srgb, var(--accent) 78%, #000000);
   }
   .mark.spin:hover {
     rotate: 180deg;
