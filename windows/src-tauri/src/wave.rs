@@ -98,7 +98,6 @@ pub fn artist_names(artist: &str, artists: &[ArtistRef]) -> Vec<String> {
 /// | сменился не пропуском, `f < 0.8` | 0 |
 ///
 /// Длительность неизвестна (0) — по секундам: < 30 с — ранний пропуск, ≥ 150 с — дослушан.
-#[allow(dead_code)] // вкус по оценкам — этап 2 (docs/WAVE.md)
 pub fn reward(listened_ms: u64, duration_ms: u64, manual_skip: bool, liked: bool, disliked: bool) -> f64 {
   if disliked {
     return -2.0;
@@ -131,7 +130,7 @@ pub fn reward(listened_ms: u64, duration_ms: u64, manual_skip: bool, liked: bool
 }
 
 /// Ранний пропуск (оценка −1 без 👎) — два подряд ставят артиста на паузу.
-#[allow(dead_code)] // интерфейс считает то же в `reward.ts`; в Rust — с этапа 2
+#[cfg(test)]
 pub fn is_early_skip(listened_ms: u64, duration_ms: u64, manual_skip: bool) -> bool {
   reward(listened_ms, duration_ms, manual_skip, false, false) <= -1.0
 }
@@ -200,16 +199,122 @@ pub fn mood_fit(mood: &str, t: &Track) -> f64 {
   }
 }
 
-/// Теги трека словами (жанр + теги SoundCloud / жанры Яндекса), в нижнем регистре.
-pub fn tag_words(t: &Track) -> Vec<String> {
-  t.tags
-    .as_deref()
-    .unwrap_or("")
-    .to_lowercase()
-    .split(|c: char| c == ',' || c == '"' || c.is_whitespace())
-    .filter(|w| w.chars().count() >= 3)
-    .map(str::to_owned)
-    .collect()
+/// Склейка написаний одного тега: слева как пишут (слова через пробел, нижний регистр), справа — тег.
+const TAG_ALIASES: &[(&str, &str)] = &[
+  ("hip-hop", "hiphop"),
+  ("hip hop", "hiphop"),
+  ("lo-fi", "lofi"),
+  ("lo fi", "lofi"),
+  ("r&b", "rnb"),
+  ("r & b", "rnb"),
+  ("drum & bass", "dnb"),
+  ("drum and bass", "dnb"),
+  ("drum n bass", "dnb"),
+  ("drumandbass", "dnb"),
+  ("k-pop", "kpop"),
+  ("k pop", "kpop"),
+  ("cloud rap", "cloudrap"),
+  ("hyper pop", "hyperpop"),
+  ("hyper-pop", "hyperpop"),
+];
+
+/// Слова-пустышки: по ним ничего не понять ни о звуке, ни о сцене.
+const JUNK_TAGS: &[&str] =
+  &["music", "new", "free", "download", "soundcloud", "official", "audio", "song", "track", "beat", "beats", "prod", "remix"];
+
+/// Больше тегов с одного трека не берём — дальше обычно спам ключевыми словами.
+const MAX_TAGS: usize = 8;
+
+fn is_year(t: &str) -> bool {
+  t.len() == 4 && t.parse::<u16>().is_ok_and(|y| (1960..=2039).contains(&y))
+}
+
+/// Теги трека из строки «жанр + теги SoundCloud / жанр Яндекса» (docs/WAVE.md 2.4, нижний регистр).
+/// - фраза в кавычках — один тег (`"drift phonk"`, `"lil peep"`), остальное режется по пробелам, запятым и «/»;
+/// - разные написания склеиваются (`hip-hop` / `hip hop` / `hiphop`, `lo-fi` / `lofi`, `drum & bass` / `dnb`…);
+/// - **годы остаются** (`2016` — метка эпохи и сцены), остальные числа, слова короче трёх знаков и
+///   пустышки (`music`, `free`, `beat`…) выбрасываются;
+/// - имя собственного артиста трека (`own_artists`) выбрасывается, а на чужом треке — остаётся:
+///   тег `lil peep` у другого исполнителя говорит о сцене;
+/// - не больше восьми тегов, порядок как в строке, повторы убираются.
+pub fn parse_tags(tags: &str, own_artists: &[String]) -> Vec<String> {
+  // 1. куски: (текст, был ли в кавычках)
+  let mut parts: Vec<(String, bool)> = Vec::new();
+  let mut cur = String::new();
+  let mut quoted = false;
+  let flush = |cur: &mut String, quoted: bool, parts: &mut Vec<(String, bool)>| {
+    let text = cur.split_whitespace().collect::<Vec<_>>().join(" ");
+    if !text.is_empty() {
+      parts.push((text, quoted));
+    }
+    cur.clear();
+  };
+  for ch in tags.to_lowercase().chars() {
+    match ch {
+      '"' => {
+        flush(&mut cur, quoted, &mut parts);
+        quoted = !quoted;
+      }
+      ',' | ';' | '/' if !quoted => flush(&mut cur, false, &mut parts),
+      c if c.is_whitespace() && !quoted => flush(&mut cur, false, &mut parts),
+      c => cur.push(c),
+    }
+  }
+  flush(&mut cur, quoted, &mut parts);
+
+  // 2. склейка написаний: фраза в кавычках — целиком, слова без кавычек — до трёх подряд
+  let alias = |key: &str| TAG_ALIASES.iter().find(|(k, _)| *k == key).map(|(_, v)| (*v).to_owned());
+  let mut raw: Vec<String> = Vec::new();
+  let mut i = 0;
+  while i < parts.len() {
+    let (text, q) = &parts[i];
+    if *q {
+      raw.push(alias(text).unwrap_or_else(|| text.clone()));
+      i += 1;
+      continue;
+    }
+    let mut taken = 1;
+    let mut tag = text.clone();
+    for len in (2..=3).rev() {
+      if i + len <= parts.len() && parts[i..i + len].iter().all(|(_, q)| !q) {
+        let key = parts[i..i + len].iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>().join(" ");
+        if let Some(a) = alias(&key) {
+          tag = a;
+          taken = len;
+          break;
+        }
+      }
+    }
+    if taken == 1 {
+      tag = alias(&tag).unwrap_or(tag);
+    }
+    raw.push(tag);
+    i += taken;
+  }
+
+  // 3. чистка
+  let mut out: Vec<String> = Vec::new();
+  for tag in raw {
+    let tag = tag.trim_matches(|c: char| matches!(c, '#' | '.' | ',' | '!' | '?' | ':' | ';' | '\'' | '-' | ' ')).to_owned();
+    let digits = !tag.is_empty() && tag.chars().all(|c| c.is_ascii_digit());
+    let drop = tag.chars().count() < 3
+      || !tag.chars().any(char::is_alphanumeric)
+      || (digits && !is_year(&tag))
+      || JUNK_TAGS.contains(&tag.as_str())
+      || own_artists.iter().any(|a| *a == tag);
+    if !drop && !out.contains(&tag) {
+      out.push(tag);
+      if out.len() == MAX_TAGS {
+        break;
+      }
+    }
+  }
+  out
+}
+
+/// Теги трека (`parse_tags`): свои артисты из тегов выбрасываются.
+pub fn tag_set(t: &Track) -> Vec<String> {
+  parse_tags(t.tags.as_deref().unwrap_or(""), &artist_keys(t))
 }
 
 /// Откуда кандидат: сколько сидов его предложили («голоса» — совпадение графов похожих, главный
@@ -256,7 +361,7 @@ pub struct Session {
   pub served: HashMap<String, usize>,
   /// Последние выданные артисты (новые в конце) — не ставить их в начало новой порции.
   pub recent_artists: Vec<String>,
-  /// Теги треков, которые зашли в сессии (дослушаны / лайкнуты), с весом.
+  /// Теги сессии с весом: треков, что зашли (дослушаны / лайкнуты), — плюс; пропущенных — минус.
   pub tags: HashMap<String, f64>,
 }
 
@@ -298,8 +403,14 @@ pub struct Features {
   pub from_session: f64,
   /// Артист пропущен в этой сессии, 0 / 1.
   pub session_skipped: f64,
-  /// Теги как у зашедших (плюс) и как у пропущенных (минус) в этой сессии.
+  /// Теги как у зашедших (плюс) и как у пропущенных (минус) в этой сессии, −0.9 … 0.9.
   pub session_tags: f64,
+  /// Долгий профиль тегов: чем кончались треки с такими тегами за всё время (лайки, прослушивания,
+  /// пропуски, 👎), −1 … 1; нет известных тегов — 0.
+  pub profile_fit: f64,
+  /// Профиль тегов **этого режима**: чем кончались треки с такими тегами именно в «Грустной» /
+  /// «Жёсткой» / … волне (`wave_events`), −1 … 1. Учит режим тому, что в нём заходит тебе.
+  pub mode_profile: f64,
   /// Трек с платформы, которую выбрал пользователь, 0 / 1.
   pub platform: f64,
   /// Доля прослушиваний артиста в это время суток, 0 … 1.
@@ -323,6 +434,8 @@ pub struct Weights {
   pub from_session: f64,
   pub session_skipped: f64,
   pub session_tags: f64,
+  pub profile_fit: f64,
+  pub mode_profile: f64,
   pub platform: f64,
   pub hour: f64,
   pub mood: f64,
@@ -340,6 +453,8 @@ impl Weights {
       + self.from_session * f.from_session
       + self.session_skipped * f.session_skipped
       + self.session_tags * f.session_tags
+      + self.profile_fit * f.profile_fit
+      + self.mode_profile * f.mode_profile
       + self.platform * f.platform
       + self.hour * f.hour
       + self.mood * f.mood
@@ -359,9 +474,19 @@ pub fn weights(mode: &str) -> Weights {
     ..Default::default()
   };
   match mode {
-    "new" => Weights { known: -2.5, fresh: 1.0, skip_rate: -1.0, platform: 0.3, ..common },
-    "hard" | "calm" | "sad" | "fun" => Weights { mood: 1.5, liked_artist: 1.0, affinity: 0.6, platform: 0.3, hour: 0.4, ..common },
-    _ => Weights { liked_artist: 2.0, affinity: 1.0, platform: 0.6, hour: 1.2, ..common },
+    "new" => Weights { known: -2.5, fresh: 1.0, skip_rate: -1.0, platform: 0.3, profile_fit: 0.6, ..common },
+    // настроение: словарь `mood_fit` — подсказка на старте, профиль режима — то, чему он научился у тебя
+    "hard" | "calm" | "sad" | "fun" => Weights {
+      mood: 1.5,
+      liked_artist: 1.0,
+      affinity: 0.6,
+      platform: 0.3,
+      hour: 0.4,
+      profile_fit: 0.8,
+      mode_profile: 1.5,
+      ..common
+    },
+    _ => Weights { liked_artist: 2.0, affinity: 1.0, platform: 0.6, hour: 1.2, profile_fit: 1.2, ..common },
   }
 }
 
@@ -385,11 +510,12 @@ fn features(t: &Track, taste: &Taste, origin: &Origin, session: &Session, prefer
   let liked = keys.iter().any(|k| taste.liked_artists.contains(k));
   let known = liked || plays > 0;
   let platform = matches!(prefer, Some(p) if t.ref_.starts_with(&format!("{p}:")));
+  let tags = tag_set(t);
   let session_tags = if session.tags.is_empty() {
     0.0
   } else {
-    let fit: f64 = tag_words(t).iter().filter_map(|w| session.tags.get(w)).sum();
-    (0.3 * fit).min(0.9)
+    let fit: f64 = tags.iter().filter_map(|w| session.tags.get(w)).sum();
+    (0.3 * fit).clamp(-0.9, 0.9)
   };
   Features {
     affinity,
@@ -401,11 +527,23 @@ fn features(t: &Track, taste: &Taste, origin: &Origin, session: &Session, prefer
     from_session: origin.from_session.contains(&t.ref_) as u8 as f64,
     session_skipped: session.skipped_artists.contains(&a) as u8 as f64,
     session_tags,
+    profile_fit: tags_fit(&taste.tag_profile, &tags),
+    mode_profile: tags_fit(&taste.mode_tag_profile, &tags),
     platform: platform as u8 as f64,
     hour: keys.iter().filter_map(|k| taste.hour_share.get(k).copied()).fold(0.0, f64::max),
     mood: if matches!(mode, "hard" | "calm" | "sad" | "fun") { mood_fit(mode, t) } else { 0.0 },
     skip_rate: skips as f64 / (plays + skips + 1) as f64,
   }
+}
+
+/// Насколько теги трека нравятся по профилю (`tag → оценка −1…1`): среднее по известным тегам × 2,
+/// обрезанное до −1…1. Ни один тег не известен — 0 (профиль ничего не знает, а не «не нравится»).
+pub fn tags_fit(profile: &HashMap<String, f64>, tags: &[String]) -> f64 {
+  let known: Vec<f64> = tags.iter().filter_map(|t| profile.get(t).copied()).collect();
+  if known.is_empty() {
+    return 0.0;
+  }
+  (2.0 * known.iter().sum::<f64>() / known.len() as f64).clamp(-1.0, 1.0)
 }
 
 /// Кандидат с признаками, с которыми он выбран.
@@ -696,6 +834,18 @@ mod tests {
     assert!(is_early_skip(10_000, d, true) && !is_early_skip(10_000, d, false));
   }
 
+  /// Разбор тегов до `parse_tags` (по пробелам и кавычкам) — для сверки со старой оценкой.
+  fn legacy_tag_words(t: &Track) -> Vec<String> {
+    t.tags
+      .as_deref()
+      .unwrap_or("")
+      .to_lowercase()
+      .split(|c: char| c == ',' || c == '"' || c.is_whitespace())
+      .filter(|w| w.chars().count() >= 3)
+      .map(str::to_owned)
+      .collect()
+  }
+
   /// Оценка до разбиения на признаки и веса — для сверки, что поведение волны не поменялось.
   fn legacy_score(t: &Track, taste: &Taste, origin: &Origin, session: &Session, prefer: Option<&str>, mode: &str, rng: &mut Rng) -> f64 {
     let keys = artist_keys(t);
@@ -722,7 +872,7 @@ mod tests {
       live -= 0.9;
     }
     if !session.tags.is_empty() {
-      let fit: f64 = tag_words(t).iter().filter_map(|w| session.tags.get(w)).sum();
+      let fit: f64 = legacy_tag_words(t).iter().filter_map(|w| session.tags.get(w)).sum();
       live += (0.3 * fit).min(0.9);
     }
     let noise = rng.unit() * 0.3;
@@ -807,6 +957,130 @@ mod tests {
     // признаки сериализуются целиком — их читает wave_events.features_json
     let json = serde_json::to_string(&two.features).unwrap();
     assert!(json.contains("\"affinity\"") && json.contains("\"session_tags\""));
+  }
+
+  fn names(v: &[&str]) -> Vec<String> {
+    v.iter().map(|s| (*s).to_owned()).collect()
+  }
+
+  #[test]
+  fn parse_tags_phrases_junk_and_years() {
+    // фраза в кавычках — один тег; пустышки и «#» уходят; год остаётся — это метка эпохи
+    assert_eq!(parse_tags("trap \"drift phonk\" 2016 music #new free", &[]), names(&["trap", "drift phonk", "2016"]));
+    // остальные числа, слишком новые «годы» и короткие слова — мусор
+    assert_eq!(parse_tags("2016 808 123 1999 2077 ab", &[]), names(&["2016", "1999"]));
+    // жанр + теги через запятую и разный регистр
+    assert_eq!(parse_tags("Hip-hop & Rap, Cloud Rap", &[]), names(&["hiphop", "rap", "cloudrap"]));
+    // жанр через «/» делится на два тега, написания склеиваются
+    assert_eq!(parse_tags("R&B/Soul", &[]), names(&["rnb", "soul"]));
+    // кириллица
+    assert_eq!(parse_tags("русский рэп \"грустный рэп\"", &[]), names(&["русский", "рэп", "грустный рэп"]));
+    assert!(parse_tags("", &[]).is_empty());
+    assert!(parse_tags("\"\" \" \"", &[]).is_empty());
+  }
+
+  #[test]
+  fn parse_tags_merges_spellings() {
+    for s in ["hip-hop", "hip hop", "hiphop", "\"hip hop\"", "Hip-Hop"] {
+      assert_eq!(parse_tags(s, &[]), names(&["hiphop"]), "{s}");
+    }
+    for s in ["lo-fi", "lofi", "lo fi"] {
+      assert_eq!(parse_tags(s, &[]), names(&["lofi"]), "{s}");
+    }
+    for s in ["r&b", "rnb", "r & b"] {
+      assert_eq!(parse_tags(s, &[]), names(&["rnb"]), "{s}");
+    }
+    for s in ["drum & bass", "drum and bass", "dnb", "\"drum & bass\"", "drumandbass"] {
+      assert_eq!(parse_tags(s, &[]), names(&["dnb"]), "{s}");
+    }
+    for s in ["k-pop", "kpop", "k pop"] {
+      assert_eq!(parse_tags(s, &[]), names(&["kpop"]), "{s}");
+    }
+    // разные написания одного — один тег, соседние теги не склеиваются
+    assert_eq!(parse_tags("hip-hop hiphop lofi trap", &[]), names(&["hiphop", "lofi", "trap"]));
+    assert_eq!(parse_tags("drum trap bass", &[]), names(&["drum", "trap", "bass"]));
+  }
+
+  #[test]
+  fn parse_tags_own_artist_only() {
+    // тег с именем артиста на его же треке — шум; на чужом треке — метка сцены
+    let tags = "\"lil peep\" gothboiclique 2016";
+    assert_eq!(parse_tags(tags, &names(&["lil peep"])), names(&["gothboiclique", "2016"]));
+    assert_eq!(parse_tags(tags, &names(&["lil tracy"])), names(&["lil peep", "gothboiclique", "2016"]));
+    // через трек: артисты берутся из `artists`
+    let mut x = with_artists(t("sc:1", "Lil Peep"), &["Lil Peep"]);
+    x.tags = Some(tags.into());
+    assert_eq!(tag_set(&x), names(&["gothboiclique", "2016"]));
+  }
+
+  #[test]
+  fn parse_tags_cap_and_dedup() {
+    let many = "aaa bbb ccc ddd eee fff ggg hhh iii jjj aaa";
+    let out = parse_tags(many, &[]);
+    assert_eq!(out.len(), 8);
+    assert_eq!(out[0], "aaa");
+    assert_eq!(parse_tags("aaa aaa AAA", &[]), names(&["aaa"]));
+  }
+
+  #[test]
+  fn tags_fit_averages_known_tags_only() {
+    let mut p = HashMap::new();
+    p.insert("a".to_owned(), 0.4);
+    p.insert("b".to_owned(), -0.2);
+    assert_eq!(tags_fit(&p, &names(&["x", "y"])), 0.0, "ничего не известно — ноль, не минус");
+    assert!((tags_fit(&p, &names(&["a", "x"])) - 0.8).abs() < 1e-9, "неизвестные не разбавляют");
+    assert!((tags_fit(&p, &names(&["a", "b"])) - 0.2).abs() < 1e-9);
+    p.insert("c".to_owned(), 0.9);
+    assert_eq!(tags_fit(&p, &names(&["c"])), 1.0, "обрезается по 1");
+    assert_eq!(tags_fit(&p, &[]), 0.0);
+  }
+
+  #[test]
+  fn session_tags_go_both_ways() {
+    let taste = Taste::default();
+    let o = Origin::default();
+    let mut s = Session::default();
+    s.tags.insert("emo".into(), 1.0);
+    s.tags.insert("polka".into(), -2.0);
+    let mut like = t("sc:1", "a");
+    like.tags = Some("emo".into());
+    let mut dislike = t("sc:2", "b");
+    dislike.tags = Some("polka".into());
+    let f = |x: &Track| features(x, &taste, &o, &s, None, "own", &mut Rng::new(1)).session_tags;
+    assert!((f(&like) - 0.3).abs() < 1e-9);
+    assert!((f(&dislike) + 0.6).abs() < 1e-9);
+    s.tags.insert("polka".into(), -50.0);
+    let f = |x: &Track| features(x, &taste, &o, &s, None, "own", &mut Rng::new(1)).session_tags;
+    assert_eq!(f(&dislike), -0.9, "минус тоже обрезается");
+  }
+
+  #[test]
+  fn profile_moves_ranking_and_mode_profile_teaches_mood() {
+    let mut taste = Taste::default();
+    taste.tag_profile.insert("gothboiclique".into(), 0.4);
+    taste.tag_profile.insert("polka".into(), -0.4);
+    let mut a = t("sc:1", "a");
+    a.tags = Some("gothboiclique".into());
+    let mut b = t("sc:2", "b");
+    b.tags = Some("polka".into());
+    let o = Origin::default();
+    let s = Session::default();
+    // «Незнакомое»: вкус к артисту не участвует, поэтому порядок определяет профиль
+    for seed in 1..20 {
+      let out = pick(vec![b.clone(), a.clone()], &taste, &o, &s, &Filter::default(), None, "new", 2, false, &mut Rng::new(seed));
+      assert_eq!(out[0].ref_, "sc:1", "seed {seed}");
+    }
+    // режим научился: gothboiclique в «Грустной» заходит, но слова «sad» в тегах нет — словарь молчит
+    taste.mode_tag_profile.insert("gothboiclique".into(), 0.5);
+    let f = features(&a, &taste, &o, &s, None, "sad", &mut Rng::new(3));
+    assert_eq!(f.mood, 0.0, "словарь не знает этот тег");
+    assert!((f.mode_profile - 1.0).abs() < 1e-9);
+    assert!((f.profile_fit - 0.8).abs() < 1e-9);
+    let w = weights("sad");
+    assert!(w.mode_profile > 0.0 && weights("own").mode_profile == 0.0, "профиль режима — только у настроений");
+    // и признаки целиком попадают в журнал
+    let json = serde_json::to_string(&f).unwrap();
+    assert!(json.contains("\"profile_fit\"") && json.contains("\"mode_profile\""));
   }
 
   #[test]

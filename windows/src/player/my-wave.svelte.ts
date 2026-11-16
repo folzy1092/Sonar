@@ -4,8 +4,8 @@
 // `skips`, два ранних пропуска артиста подряд — пауза, оценка ≥ +1 — «зашло»; 👎 — трек больше не
 // попадёт в волну, текущий — сразу дальше. Артист везде — главный (`artistKey`, как в Rust).
 // Волна учится на ходу (как у Яндекса): дослушанные и лайкнутые в этой сессии треки становятся
-// сидами следующих порций, однократно пропущенные артисты теряют вес, частые артисты сессии
-// уступают место другим. Стиль сессии (режим и «волна по треку») держится, пока волна играет —
+// сидами следующих порций, однократно пропущенные артисты теряют вес, теги пропущенных треков
+// идут в минус (теги зашедших — в плюс), частые артисты сессии уступают место другим. Стиль сессии (режим и «волна по треку») держится, пока волна играет —
 // перемотка меняет трек, а не стиль. Два ранних пропуска подряд (`skip-series.ts`) пересобирают
 // «Далее»: ещё не игравшие треки волны уходят, кроме ближайшего, и тут же приходит новая порция.
 import { untrack } from 'svelte'
@@ -45,6 +45,8 @@ const newSessionId = () =>
 const PREFETCH_LEFT = 3
 /** Сколько последних «хороших» треков сессии отправлять сидами. */
 const SESSION_SEEDS = 4
+/** Сколько последних пропущенных треков сессии отправлять — их теги идут в минус. */
+const SESSION_BAD = 6
 
 class Wave {
   loading = $state(false)
@@ -68,6 +70,8 @@ class Wave {
   private good: Track[] = []
   /** Артисты, пропущенные в сессии хотя бы раз, — мягкий минус. */
   private skipped = new Set<string>()
+  /** Треки с оценкой исхода < 0 (новые в конце): теги пропущенного — в минус следующим порциям. */
+  private bad: Track[] = []
   /** Сколько раз артист уже звучал в сессии. */
   private servedArtists: string[] = []
   private previewAt = 0
@@ -131,6 +135,7 @@ class Wave {
     this.paused = new Set()
     this.skipRun = new Map()
     this.good = []
+    this.bad = []
     this.skipped = new Set()
     this.servedArtists = []
     this.series.reset()
@@ -215,6 +220,7 @@ class Wave {
         seed: this.seed,
         session: this.good.slice(-SESSION_SEEDS),
         skipped_artists: [...this.skipped],
+        skipped_tracks: this.bad.slice(-SESSION_BAD),
         served_artists: [...this.servedArtists],
         ...ctx(this.sid),
       })
@@ -300,7 +306,10 @@ class Wave {
     if (this.sid) void api.waveFeedback('end', t, listened, { sessionId: this.sid, reward: r }).catch(() => {})
     // ручной пропуск с минусом — в `skips` (минус артисту и треку)
     if (skipped && r < 0) void api.waveFeedback('skip', t, listened).catch(() => {})
-    if (r < 0) this.skipped.add(artist)
+    if (r < 0) {
+      this.skipped.add(artist)
+      this.bad = [...this.bad.filter((x) => x.ref !== t.ref), t].slice(-SESSION_BAD * 2)
+    }
     // пауза артиста — два ранних пропуска подряд (−1; 👎 — тоже не «зашло», но считаем отдельно)
     if (r === -1) {
       const n = (this.skipRun.get(artist) ?? 0) + 1
@@ -312,6 +321,7 @@ class Wave {
     // зашло (≥ +1: дослушал или лайкнул) — волна дальше тянется к этому треку
     if (r >= 1) {
       this.skipped.delete(artist)
+      this.bad = this.bad.filter((x) => x.ref !== t.ref)
       this.good = [...this.good.filter((x) => x.ref !== t.ref), t]
     }
     // два ранних пропуска подряд — пересобрать «Далее». Хук зовётся до смены трека (`next`, `jumpTo`),

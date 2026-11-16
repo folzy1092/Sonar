@@ -186,3 +186,31 @@ describe('Моя волна: журнал исходов (wave_events)', () => {
     expect(second).not.toBe(first)
   })
 })
+
+describe('Моя волна: пропущенное уходит в минус следующей порции', () => {
+  it('пропущенные треки сессии едут в запросе (теги — в минус), дослушанный пропущенный уходит из списка', async () => {
+    api.wavePortion.mockResolvedValueOnce(batch('a', 12)).mockResolvedValueOnce(batch('b', 2))
+    await wave.start()
+    skip() // a0 — ранний пропуск
+    // a1 — слушали четверть трека: мягкий минус, тоже в списке пропущенного
+    player.hook!(player.current as never, 60_000, true)
+    player.pos++
+    // a2 — дослушан: в минус не попадает
+    player.hook!(player.current as never, 200_000, false)
+    player.pos++
+    await wave.more()
+    const req = api.wavePortion.mock.calls[1][0]
+    expect(req.skipped_tracks.map((t: { ref: string }) => t.ref)).toEqual(['a0', 'a1'])
+    expect(req.session.map((t: { ref: string }) => t.ref)).toEqual(['a2'])
+  })
+
+  it('трек, пропущенный раньше и потом дослушанный, из минуса уходит', async () => {
+    api.wavePortion.mockResolvedValueOnce(batch('a', 12)).mockResolvedValueOnce(batch('b', 2))
+    await wave.start()
+    const first = player.current as never
+    skip()
+    player.hook!(first, 200_000, false) // тот же трек потом дослушали
+    await wave.more()
+    expect(api.wavePortion.mock.calls[1][0].skipped_tracks).toEqual([])
+  })
+})

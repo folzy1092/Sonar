@@ -397,6 +397,9 @@ pub struct WaveRequest {
   /// Артисты, пропущенные в сессии хотя бы раз.
   #[serde(default)]
   skipped_artists: Vec<String>,
+  /// Пропущенные в сессии треки (оценка исхода < 0): их теги идут в минус следующим порциям.
+  #[serde(default)]
+  skipped_tracks: Vec<Track>,
   /// Артисты всех выданных в сессии треков (с повторами, по порядку).
   #[serde(default)]
   served_artists: Vec<String>,
@@ -416,7 +419,7 @@ pub struct WaveRequest {
 #[tauri::command]
 pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: WaveRequest) -> Res<Vec<Track>> {
   use crate::store::ServedEvent;
-  use crate::wave::{artist_key, pick_with, tag_words, Filter, Origin, Rng, Session, PORTION};
+  use crate::wave::{artist_key, pick_with, tag_set, Filter, Origin, Rng, Session, PORTION};
   let mut rng = Rng::new(crate::store::now_ms() as u64);
   // что зашло в сессии — свежие в конце; берём до трёх последних
   let live: Vec<String> = req.session.iter().rev().take(3).map(|t| t.ref_.clone()).collect();
@@ -431,10 +434,18 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   for (i, t) in req.session.iter().rev().enumerate() {
     // свежее зашедшее весит больше
     let w = 1.0 / (1.0 + i as f64 * 0.5);
-    for tag in tag_words(t) {
+    for tag in tag_set(t) {
       *session.tags.entry(tag).or_insert(0.0) += w;
     }
   }
+  // теги пропущенных — в минус, вдвое слабее, чем теги зашедших (докажет ещё один пропуск — потянет сильнее)
+  for (i, t) in req.skipped_tracks.iter().rev().enumerate() {
+    let w = 0.5 / (1.0 + i as f64 * 0.5);
+    for tag in tag_set(t) {
+      *session.tags.entry(tag).or_insert(0.0) -= w;
+    }
+  }
+  let mode = req.mode.as_deref().filter(|m| crate::wave::MODES.contains(m)).unwrap_or("own").to_owned();
   let (seeds, taste, filter, platform) = {
     let mut store = db.0.lock().unwrap();
     if !req.session.is_empty() {
@@ -486,6 +497,11 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
     let platform = store.setting("general.platform").ok().flatten().and_then(|v| v.as_str().map(str::to_owned));
     let mut taste = store.taste().map_err(err)?;
     taste.hour_share = store.hour_share(req.tz_min.unwrap_or(0)).unwrap_or_default();
+    // профили тегов: общий и (для настроений) режима — по ним `profile_fit` / `mode_profile`; сбой не ломает волну
+    taste.tag_profile = store.tag_profile(None).unwrap_or_default();
+    if matches!(mode.as_str(), "hard" | "calm" | "sad" | "fun") {
+      taste.mode_tag_profile = store.tag_profile(Some(&mode)).unwrap_or_default();
+    }
     (seeds, taste, filter, platform)
   };
 
@@ -517,7 +533,6 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   if seeds.is_empty() {
     return Err("Волне пока не от чего оттолкнуться — лайкни или послушай пару треков.".into());
   }
-  let mode = req.mode.as_deref().filter(|m| crate::wave::MODES.contains(m)).unwrap_or("own").to_owned();
   let results = futures_util::future::join_all(seeds.iter().map(|r| core.similar(r, if mode == "own" { 25 } else { 35 }))).await;
   let mut cands = Vec::new();
   let mut origin = Origin::default();
