@@ -203,7 +203,7 @@ CREATE TABLE skips (                            -- ручной пропуск �
 );
 CREATE INDEX skips_user_time ON skips(user_id, at);
 
-CREATE TABLE wave_events (                      -- журнал волны (WAVE.md, этап 6). ТОЛЬКО ЛОКАЛЬНО, в синк не идёт;
+CREATE TABLE wave_events (                      -- журнал волны (WAVE.md, этап 6). Сейчас локально; в синк аккаунта войдёт (WAVE.md §3а: id → текстовый, +device_id, +rev, миграция № 8);
   id            INTEGER PRIMARY KEY,            -- строки старше 180 дней удаляются при запуске
   user_id       TEXT NOT NULL,
   session_id    TEXT NOT NULL,                  -- сессия волны (создаёт клиент)
