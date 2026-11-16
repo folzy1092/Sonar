@@ -70,11 +70,46 @@
 | `appearance.bg_blur` | 0–40 px | `0` | да |
 | `appearance.bg_dim` | 0–90 % | `0` | да |
 | `appearance.bg_custom` | id своего фона на сервере (картинка или видео ≤ 10 с) / null | `null` | да |
-| `appearance.font` | `default`, имя шрифта из списка ниже или `custom:<имя>` (свой файл, PC — в IndexedDB) | `default` | да |
+| `appearance.font` | `default`, имя шрифта из списка ниже или `custom:<имя>` (свой файл, PC — в IndexedDB); ось стиля «шрифт интерфейса» | `Golos Text Variable` (стиль Sonar) | да |
 | `appearance.font_size` | 12 / 14 / 16 / 18 / 20 | `16` | да |
 | `appearance.font_weight` (PC) | `auto` / 400 / 500 / 600 / 700 | `auto` | да |
 | `appearance.scale_window` (PC) | 75–125 % (зум WebView) | `100` | нет |
 | `appearance.scale_fullscreen` (PC) | 75–125 % — когда окно развёрнуто | `100` | нет |
+
+### Стиль — `appearance.*` (Интерфейс → Стиль, 2026-11-16)
+
+Стиль — набор **независимых осей**. Готовый стиль ставит все оси; правка любой оси вручную (в
+«Стиле» или «Виде») делает стиль «Своим» (несохранённым), совпали оси с готовым или сохранённым —
+снова он. Тема под обложку и готовые темы остаются: стиль задаёт **формулы**, тема — **исходный цвет**.
+Скругления (`corner_radius`) — тоже строка «Своего», но готовые стили их не меняют.
+Код: Windows — `windows/src/theme/style.ts` (оси, готовые стили, `matchStyle`), `theme/palette.ts`
+(`SURFACES`, `SURFACE_DECOR`), анимации — `lib/track-fx.svelte.ts`, `lib/like-fx.ts`, `theme/fx.css`,
+`components/LoadFx.svelte`, экран — `pages/settings/Style.svelte`.
+
+| Ключ | Значения | По умолчанию | Синк |
+|---|---|---|---|
+| `appearance.style` | `sonar` / `echo` / `signal` / `edge` / `tactile` / `monolith` / `custom:<id>` (сохранённый) / `custom` (несохранённый «Свой») | `sonar` | да |
+| `appearance.surface` | `echo` / `signal` / `edge` / `tactile` / `monolith` — формулы фона, поверхностей, границ (OKLCH), тени и блики, вид кнопок | `monolith` | да |
+| `appearance.font_display` | имя шрифта — заголовки («Моя волна», страницы, разделы) со своей шириной / жирностью | `Unbounded Variable` | да |
+| `appearance.title_style` | `plain` / `editorial` (капсом, крупно, номера разделов «02», линейка над разделом) | `plain` | да |
+| `appearance.icon_stroke` | `1.5` / `1.75` / `2` — толщина линий иконок панели и кнопок плеера | `2` | да |
+| `appearance.anim_track` | `echo` / `signal` / `edge` / `tactile` / `monolith` / `fade` — анимация смены трека | `edge` | да |
+| `appearance.anim_like` | `echo` / `signal` / `edge` / `tactile` / `monolith` / `pop` — анимация лайка | `signal` | да |
+| `appearance.anim_nav` | `dot` / `capsule` / `plate` / `inset` — как отмечен выбранный раздел | `dot` | да |
+| `appearance.progress_look` | `line` / `wave` / `groove` — как нарисован прогресс (место — `mini.progress`; вид из «Плеер → Вид» главнее) | `line` | да |
+| `appearance.loading` | `color` (обложка из ч/б в цвет полосой) / `ring` (сектор в круге) — загрузка трека | `color` | да |
+| `appearance.custom_styles` | список `{ id, name, axes }` — свои сохранённые стили | `[]` | да |
+
+Готовые стили:
+
+| Стиль | surface | шрифт / заголовки | линия | смена трека | лайк | раздел | прогресс | загрузка |
+|---|---|---|---|---|---|---|---|---|
+| **Sonar** | monolith | Golos Text / Unbounded | 2 | edge | signal | dot | line | color |
+| Эхо | echo | Onest / Science Gothic (wdth 165) | 1.75 | echo | echo | dot | line | ring |
+| Сигнал | signal | Golos Text / Unbounded | 2 | signal | signal | capsule | wave | ring |
+| Грань | edge | Geist / Geist | 1.75 | edge | edge | plate | line | color |
+| Тактиль | tactile | IBM Plex Sans / IBM Plex Sans (wdth 78) | 2 | tactile | tactile | inset | groove | ring |
+| Монолит | monolith | Inter Tight / Inter Tight 900 | 2 | monolith | monolith | dot | line | color |
 
 Каждый выбор с несколькими вариантами открывается **нижним листом** (`photo_20..25`): иконка,
 название, галочка у выбранного. Тогглы и ползунки — прямо в списке.
