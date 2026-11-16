@@ -98,7 +98,9 @@ export const DEFAULTS = {
   'mini.cover_round': 100 as number,
   'player.title_align': 'center' as 'left' | 'center' | 'right',
   'player.artist_avatars': true,
-  'player.visualizer': 'bar' as 'off' | 'bar',
+  'player.visualizer': 'bar' as 'off' | 'bar' | 'cover' | 'slider',
+  /** Стиль страницы плеера: обычный / пластинка (винил крутится, игла) / большой (обложка на всю высоту). */
+  'player.style': 'standard' as 'standard' | 'vinyl' | 'large',
   /** Стиль визуализатора: волна или столбцы. */
   'player.visualizer_style': 'wave' as 'wave' | 'bars',
   /** Тип ползунка прогресса (Плеер → Вид). */

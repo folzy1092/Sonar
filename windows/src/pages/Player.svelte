@@ -29,6 +29,11 @@
   import { lyrics } from '../lyrics/lyrics.svelte'
 
   const track = $derived(player.current)
+  // стиль страницы (Плеер → Вид): обычный — обложка 320 px; большой — на всю колонку; пластинка —
+  // круглая наклейка на виниле (≈ 62 % диска)
+  const pstyle = $derived(settings.get('player.style'))
+  let artW = $state(320)
+  const coverSize = $derived(pstyle === 'large' ? Math.max(320, artW) : pstyle === 'vinyl' ? Math.round(artW * 0.62) : 320)
   // «Далее» делится как в SoundCloud: своя очередь, ниже тумблер «Авто похожие» и похожие автоплея
   const autoAt = $derived(player.upNext.findIndex((t) => player.autoRefs.has(t.ref)))
   const ownNext = $derived(autoAt < 0 ? player.upNext : player.upNext.slice(0, autoAt))
@@ -56,11 +61,24 @@
 </script>
 
 <div class="layout q-{settings.get('queue.position')}" class:with-queue={settings.get('queue.show')}>
-<div class="top" class:flip={settings.get('player.cover_position') === 'right'}>
-  <div class="art" data-fx-cover data-fx-frame>
+<div class="top st-{settings.get('player.style')}" class:flip={settings.get('player.cover_position') === 'right'}>
+  <div class="art" class:vinyl={pstyle === 'vinyl'} class:spin={player.playing} bind:clientWidth={artW} data-fx-cover data-fx-frame>
+    {#if settings.get('player.style') === 'vinyl'}
+      <!-- «Пластинка»: диск с бороздками, обложка — наклейка в центре; крутится, пока играет -->
+      <span class="disc" aria-hidden="true"></span>
+      <svg class="arm" class:on={player.playing} viewBox="0 0 60 140" aria-hidden="true">
+        <circle cx="44" cy="14" r="9" />
+        <path d="M44 14 L38 104 L26 124" />
+        <rect x="18" y="118" width="14" height="18" rx="3" transform="rotate(28 25 127)" />
+      </svg>
+    {/if}
     <button class="open-full" aria-label="Полноэкранный плеер" title="Полноэкранный плеер" disabled={!track} onclick={() => lyrics.open()}>
-      <Cover url={track?.cover_url} size={320} radius="18px" />
+      <Cover url={track?.cover_url} size={coverSize} radius={pstyle === 'vinyl' ? '50%' : '18px'} />
       <LoadFx url={track?.cover_url} />
+      {#if settings.get('player.visualizer') === 'cover'}
+        <!-- визуализатор поверх низа обложки -->
+        <span class="viz-cover"><Wave height={70} /></span>
+      {/if}
       <!-- при наведении — две стрелки (как у обложки в нижнем плеере): откроется полноэкранный плеер -->
       <span class="expand" aria-hidden="true"><Icon name="expand" size={30} /></span>
     </button>
@@ -118,7 +136,11 @@
       {/if}
     </div>
 
-    <div class="seek">
+    <div class="seek" class:viz-under={settings.get('player.visualizer') === 'slider'}>
+      {#if settings.get('player.visualizer') === 'slider'}
+        <!-- визуализатор прямо под ползунком, за ним -->
+        <span class="viz-slider"><Wave height={34} /></span>
+      {/if}
       <SeekBar times={false} />
       <div class="times">
         <span>{formatTime(player.positionMs)}</span>
@@ -126,7 +148,7 @@
       </div>
     </div>
 
-    {#if settings.get('player.visualizer') !== 'off'}<Wave height={52} />{/if}
+    {#if settings.get('player.visualizer') === 'bar'}<Wave height={52} />{/if}
 
     <div class="panel controls">
       <button class="menu-btn" aria-label="Меню трека" title="Меню трека" disabled={!track} onclick={(e) => track && trackMenu.openAt({ track }, e.currentTarget)}>
@@ -212,6 +234,109 @@
 </div>
 
 <style>
+  /* ---- стиль плеера (Плеер → Вид, player.style) ---- */
+  /* «Большой»: обложка на всю высоту — колонка шире, обложка растягивается по ней */
+  .top.st-large {
+    grid-template-columns: minmax(320px, 48%) minmax(0, 1fr);
+  }
+
+  /* «Пластинка»: обложка — круглая наклейка на виниле, диск крутится, пока играет, игла опускается */
+  .art.vinyl {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    overflow: visible;
+    border-radius: 50%;
+  }
+  .art.vinyl .disc {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle, transparent 0 30%, oklch(0 0 0 / 0) 30%),
+      repeating-radial-gradient(circle, #111 0 2px, #1b1b1d 2px 3px),
+      #111;
+    box-shadow:
+      0 18px 40px oklch(0 0 0 / 0.55),
+      inset 0 0 0 1px oklch(1 0 0 / 0.06);
+  }
+  .art.vinyl .open-full {
+    z-index: 1;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 6px oklch(0 0 0 / 0.35);
+  }
+  .art.vinyl .open-full,
+  .art.vinyl .disc {
+    animation: vinyl-spin 2.4s linear infinite;
+    animation-play-state: paused;
+  }
+  .art.vinyl.spin .open-full,
+  .art.vinyl.spin .disc {
+    animation-play-state: running;
+  }
+
+  @keyframes vinyl-spin {
+    to {
+      rotate: 1turn;
+    }
+  }
+  .arm {
+    position: absolute;
+    top: -4%;
+    right: -6%;
+    z-index: 3;
+    width: 18%;
+    fill: var(--surface-3);
+    stroke: var(--text-2);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transform-origin: 73% 10%;
+    rotate: -24deg;
+    transition: rotate 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+  .arm path {
+    fill: none;
+  }
+  .arm.on {
+    rotate: 0deg;
+  }
+  .art.vinyl .on-cover {
+    display: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .art.vinyl .open-full,
+    .art.vinyl .disc {
+      animation: none;
+    }
+  }
+  /* визуализатор на обложке и на ползунке */
+  .viz-cover {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+    pointer-events: none;
+    color: oklch(1 0 0 / 0.6);
+  }
+  .viz-cover :global(canvas) {
+    color: oklch(1 0 0 / 0.55);
+  }
+  .seek.viz-under {
+    position: relative;
+  }
+  .viz-slider {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 50%;
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
   /* очередь снизу (как было) или колонкой слева / справа от плеера (Плеер → Очередь) */
   .layout.with-queue.q-left,
   .layout.with-queue.q-right {

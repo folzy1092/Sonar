@@ -22,12 +22,13 @@
 <Cards
   title="Стиль плеера"
   hint="Выберите визуальный стиль плеера"
-  value="standard"
+  value={settings.get('player.style')}
   options={[
-    { id: 'standard', label: 'Обычный', icon: 'grid' },
-    { id: 'vinyl', label: 'Пластинка', icon: 'vinyl', soon: true },
-    { id: 'large', label: 'Большой', icon: 'photo', soon: true },
+    { id: 'standard' as const, label: 'Обычный', icon: 'grid' },
+    { id: 'vinyl' as const, label: 'Пластинка', icon: 'vinyl' },
+    { id: 'large' as const, label: 'Большой', icon: 'photo' },
   ]}
+  onchange={(v) => settings.set('player.style', v)}
 />
 
 <Choice
@@ -57,10 +58,10 @@
   options={[
     { id: 'off', label: 'Выкл', icon: 'x' },
     { id: 'bar', label: 'Полоса', icon: 'line' },
-    { id: 'cover', label: 'На обложке', icon: 'photo', soon: true },
-    { id: 'slider', label: 'На ползунке', icon: 'adjustments', soon: true },
+    { id: 'cover', label: 'На обложке', icon: 'photo' },
+    { id: 'slider', label: 'На ползунке', icon: 'adjustments' },
   ]}
-  onchange={(v) => settings.set('player.visualizer', v as 'off' | 'bar')}
+  onchange={(v) => settings.set('player.visualizer', v)}
 />
 <Choice
   title="Стиль"
