@@ -17,9 +17,10 @@
 </script>
 
 {#if mc}
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">{@html filled ? mc.fill : mc.line}</svg>
+  <svg class="i-{name}" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">{@html filled ? mc.fill : mc.line}</svg>
 {:else}
   <svg
+    class="i-{name}"
     width={size}
     height={size}
     viewBox="0 0 24 24"
