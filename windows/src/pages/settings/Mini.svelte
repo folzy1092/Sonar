@@ -39,13 +39,14 @@
   title="Позиция"
   hint="Выберите, где будет отображаться мини плеер"
   icons
-  value="bottom"
+  value={settings.get('mini.position')}
   options={[
-    { id: 'top', label: 'Сверху', icon: 'layoutTop', soon: true },
-    { id: 'bottom', label: 'Снизу', icon: 'layoutBottom' },
-    { id: 'bottom_inset', label: 'Снизу внутри', icon: 'layoutFloat', soon: true },
-    { id: 'floating', label: 'Плавающий', icon: 'maximize', soon: true },
+    { id: 'top' as const, label: 'Сверху', icon: 'layoutTop' },
+    { id: 'bottom' as const, label: 'Снизу', icon: 'layoutBottom' },
+    { id: 'bottom_inset' as const, label: 'Снизу внутри', icon: 'layoutFloat' },
+    { id: 'floating' as const, label: 'Плавающий — можно перетащить', icon: 'maximize' },
   ]}
+  onchange={(v) => settings.set('mini.position', v)}
 />
 <Cards
   title="Фон"

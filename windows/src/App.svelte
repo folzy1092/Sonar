@@ -36,6 +36,7 @@
   import { settings } from './lib/settings.svelte'
   import { slide } from 'svelte/transition'
   import { notch } from './lib/notch'
+  import { floating } from './lib/floating'
 
   const pages = {
     home: Home,
@@ -137,7 +138,7 @@
 <SettingsPanel />
 
 <div class="stage">
-<div class="shell tabs-{settings.get('tabs.position')} tstyle-{settings.get('tabs.style')}" class:away={settingsPanel.open} class:solo={settings.get('mini.style') === 'off' || !player.current || router.page === 'player'} inert={settingsPanel.open}>
+<div class="shell tabs-{settings.get('tabs.position')} tstyle-{settings.get('tabs.style')} mini-{settings.get('mini.position')}" class:away={settingsPanel.open} class:solo={settings.get('mini.style') === 'off' || !player.current || router.page === 'player'} inert={settingsPanel.open}>
   <Rail />
 
   <!-- панель сверху — кнопки окна на её правом конце, карточке вырез не нужен -->
@@ -165,7 +166,7 @@
 
   <!-- пока ничего не играло — плеера снизу нет, главная на весь экран; появился трек — плеер выезжает -->
   {#if settings.get('mini.style') !== 'off' && player.current && router.page !== 'player'}
-    <div class="player-slot" transition:slide={{ duration: 280 }}>
+    <div class="player-slot" transition:slide={{ duration: 280 }} use:floating={settings.get('mini.position') === 'floating'}>
       <MiniPlayer />
     </div>
   {/if}
@@ -353,6 +354,89 @@
     row-gap: 0;
   }
 
+  /* ---- позиция мини-плеера (Плеер → Мини плеер, mini.position) ---- */
+  /* сверху: плеер над карточкой, кнопки окна остаются справа — плеер им уступает место */
+  .shell.mini-top {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .shell.mini-top.solo {
+    grid-template-rows: 0 minmax(0, 1fr);
+  }
+  .mini-top .player-slot {
+    grid-row: 1;
+    margin-top: var(--gap);
+    margin-right: 150px;
+  }
+  .mini-top .card {
+    grid-row: 2;
+    margin-top: 0;
+  }
+  .shell.tabs-top.mini-top {
+    grid-template-rows: var(--rail-w) auto minmax(0, 1fr);
+  }
+  .tabs-top.mini-top .player-slot {
+    grid-row: 2;
+    margin-right: 0;
+  }
+  .tabs-top.mini-top .card {
+    grid-row: 3;
+  }
+  .shell.tabs-bottom.mini-top {
+    grid-template-rows: auto minmax(0, 1fr) var(--rail-w);
+  }
+  .tabs-bottom.mini-top .card {
+    grid-row: 2;
+  }
+  /* снизу внутри и плавающий: карточка на всю высоту, плеер парит над её низом */
+  .shell.mini-bottom_inset,
+  .shell.mini-floating {
+    grid-template-rows: minmax(0, 1fr) 0;
+    row-gap: 0;
+  }
+  .shell.tabs-top.mini-bottom_inset,
+  .shell.tabs-top.mini-floating {
+    grid-template-rows: var(--rail-w) minmax(0, 1fr) 0;
+  }
+  .shell.tabs-bottom.mini-bottom_inset,
+  .shell.tabs-bottom.mini-floating {
+    grid-template-rows: minmax(0, 1fr) 0 var(--rail-w);
+  }
+  /* карточка держит свою ячейку — плеер ложится поверх её низа */
+  .mini-bottom_inset .card {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .mini-bottom_inset .player-slot {
+    grid-row: 1;
+    grid-column: 2;
+    align-self: end;
+    margin: 0 14px 14px;
+    filter: drop-shadow(0 14px 30px oklch(0 0 0 / 0.45));
+  }
+  .tabs-right.mini-bottom_inset .player-slot,
+  .tabs-bottom.mini-bottom_inset .player-slot {
+    grid-column: 1;
+  }
+  .tabs-top.mini-bottom_inset .player-slot {
+    grid-row: 2;
+    grid-column: 1;
+  }
+  /* под парящим плеером страница не прячет низ */
+  .mini-bottom_inset .page,
+  .mini-floating .page {
+    padding-bottom: calc(var(--player-h) + 48px);
+  }
+  .mini-floating .player-slot {
+    position: fixed;
+    z-index: 20;
+    width: min(760px, calc(100vw - 120px));
+    cursor: grab;
+    filter: drop-shadow(0 18px 36px oklch(0 0 0 / 0.5));
+  }
+  .mini-floating .player-slot:global(.dragging) {
+    cursor: grabbing;
+  }
+
   /* ---- позиция вкладок (Интерфейс → Вкладки, tabs.position) ---- */
   /* справа: зеркально — карточка и плеер слева, панель справа на всю высоту */
   .shell.tabs-right {
@@ -395,6 +479,7 @@
   }
   .tabs-top .card {
     grid-row: 2;
+    grid-column: 1;
   }
   .tabs-top .player-slot {
     grid-row: 3;
@@ -415,6 +500,7 @@
   }
   .tabs-bottom .card {
     grid-row: 1;
+    grid-column: 1;
   }
   .tabs-bottom .player-slot {
     grid-row: 2;

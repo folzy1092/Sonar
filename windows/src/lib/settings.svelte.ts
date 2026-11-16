@@ -77,6 +77,11 @@ export const DEFAULTS = {
   'queue.show': true,
   'queue.add_following': true,
   'mini.style': 'hybrid' as MiniStyle,
+  /** Где мини-плеер: снизу (под карточкой) / сверху / снизу внутри карточки / плавающий. */
+  'mini.position': 'bottom' as 'top' | 'bottom' | 'bottom_inset' | 'floating',
+  /** Плавающий мини-плеер: центр капсулы в долях окна. */
+  'mini.float_x': 0.5 as number,
+  'mini.float_y': 0.86 as number,
   'mini.background': 'theme' as 'theme' | 'cover' | 'cover_color',
   'mini.progress': 'background' as 'line' | 'background' | 'cover',
   'mini.cover_shape': 'default' as 'default' | 'circle',
