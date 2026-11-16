@@ -19,6 +19,7 @@
   import CrashNotice from './app/CrashNotice.svelte'
   import { updater } from './lib/updater.svelte'
   import { mini } from './lib/mini.svelte'
+  import { startThumbbar } from './lib/thumbbar.svelte'
   import { library } from './lib/library.svelte'
   import { onMount } from 'svelte'
   import { player } from './player/player.svelte'
@@ -64,6 +65,8 @@
     void library.load()
     updater.init()
     mini.start()
+    // кнопки в превью на панели задач — когда окно уже показано
+    setTimeout(() => void startThumbbar(), 1500)
   })
 
   /** Боковые кнопки мыши: «назад» (button 3) и «вперёд» (button 4). В полноэкранном

@@ -41,3 +41,7 @@ discord-rich-presence = "1.1"
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+
+# Кнопки «назад / пауза / вперёд» в превью окна на панели задач (thumbbar.rs) — та же версия, что у Tauri
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_Com", "Win32_Graphics_Gdi"] }
