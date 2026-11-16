@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countsAsPlay, enqueue, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
+import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
 
 describe('makeOrder', () => {
   it('без перемешивания — по порядку', () => {
@@ -60,5 +60,27 @@ describe('enqueue', () => {
   })
   it('пустая очередь — один трек', () => {
     expect(enqueue([], 0, 0, true)).toEqual([0])
+  })
+})
+
+describe('enqueueAt и dropUpcoming (автоплей похожих)', () => {
+  it('enqueueAt вставляет на место и не вылезает за края', () => {
+    expect(enqueueAt([0, 1, 2], 2, 9)).toEqual([0, 1, 9, 2])
+    expect(enqueueAt([0, 1], 10, 9)).toEqual([0, 1, 9])
+  })
+  it('dropUpcoming убирает только будущие подходящие и пересчитывает индексы', () => {
+    const tracks = ['a', 'x1', 'b', 'x2', 'c']
+    // порядок перемешан: c, x1 (сыграны), a (текущий), x2, b
+    const order = [4, 1, 0, 3, 2]
+    const out = dropUpcoming(tracks, order, 2, (t) => t.startsWith('x'))
+    expect(out.tracks).toEqual(['a', 'x1', 'b', 'c'])
+    expect(out.order.map((i) => out.tracks[i])).toEqual(['c', 'x1', 'a', 'b'])
+  })
+  it('нечего убирать — те же массивы', () => {
+    const tracks = ['a', 'b']
+    const order = [0, 1]
+    const out = dropUpcoming(tracks, order, 0, () => false)
+    expect(out.tracks).toBe(tracks)
+    expect(out.order).toBe(order)
   })
 })

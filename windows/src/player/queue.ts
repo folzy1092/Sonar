@@ -46,3 +46,28 @@ export function enqueue(order: number[], pos: number, newIndex: number, next: bo
   out.splice(next ? pos + 1 : out.length, 0, newIndex)
   return out
 }
+
+/** Вставить индекс в порядок на место `at` (свои «В очередь» встают перед похожими автоплея). */
+export function enqueueAt(order: number[], at: number, newIndex: number): number[] {
+  const out = order.slice()
+  out.splice(Math.max(0, Math.min(at, out.length)), 0, newIndex)
+  return out
+}
+
+/**
+ * Убрать из очереди ещё не игравшие треки (после `pos`), подходящие под `drop`, — например,
+ * похожие автоплея, когда его выключили. Треки вычёркиваются и из списка, индексы порядка
+ * пересчитываются; текущий и сыгранные не трогаются, `pos` не меняется.
+ */
+export function dropUpcoming<T>(tracks: T[], order: number[], pos: number, drop: (t: T) => boolean): { tracks: T[]; order: number[] } {
+  const gone = new Set(order.slice(pos + 1).filter((i) => drop(tracks[i])))
+  if (!gone.size) return { tracks, order }
+  const remap = new Map<number, number>()
+  const kept: T[] = []
+  tracks.forEach((t, i) => {
+    if (gone.has(i)) return
+    remap.set(i, kept.length)
+    kept.push(t)
+  })
+  return { tracks: kept, order: order.filter((i) => !gone.has(i)).map((i) => remap.get(i)!) }
+}

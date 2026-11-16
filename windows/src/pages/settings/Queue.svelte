@@ -44,7 +44,7 @@
 />
 <Switch
   title="Авто похожие"
-  hint="Трек из поиска играет, а следом — похожие на него; когда очередь кончилась, догружаются похожие"
+  hint="Как в SoundCloud: после любой очереди — поиска, Любимых, плейлиста — играют похожие треки"
   on={settings.get('general.similar_autoplay')}
   onchange={(v) => settings.set('general.similar_autoplay', v)}
 />

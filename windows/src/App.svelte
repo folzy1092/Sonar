@@ -23,6 +23,7 @@
   import FullPlayer from './player/FullPlayer.svelte'
   import { lyrics } from './lyrics/lyrics.svelte'
   import { wave } from './player/my-wave.svelte'
+  import { autoplay } from './player/autoplay.svelte'
   import { theme } from './theme/theme.svelte'
   import { settings } from './lib/settings.svelte'
   import { slide } from 'svelte/transition'
@@ -55,6 +56,7 @@
     void settings.load()
     player.init()
     wave.init()
+    autoplay.init()
     theme.init()
     lyrics.init()
     void library.load()

@@ -7,7 +7,7 @@ import { untrack } from 'svelte'
 import { api, errorText, onMediaControl, type PlayerState, type Repeat, type Track } from '../lib/api'
 import { eq } from './eq.svelte'
 import { Clock } from '../lyrics/core/clock'
-import { countsAsPlay, enqueue, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
+import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
 
 /** Режимы скорости кнопки рядом с громкостью: тон меняется вместе со скоростью (slowed / sped up). */
 export const speedModes = {
@@ -42,6 +42,10 @@ class Player {
   speedMode = $state<SpeedMode>('normal')
 
   current = $derived<Track | null>(this.tracks[this.order[this.pos]] ?? null)
+  /** Треки, которые дописал автоплей похожих (`autoplay.svelte.ts`), — в «Далее» они идут
+   *  отдельным блоком под тумблером, свои «В очередь» встают перед ними. Новая очередь — пусто. */
+  autoRefs = $state(new Set<string>())
+
   /** «Далее» — треки после текущего в порядке воспроизведения. */
   upNext = $derived(this.order.slice(this.pos + 1).map((i) => this.tracks[i]))
 
@@ -178,6 +182,7 @@ class Player {
     this.tracks = tracks
     this.context = context
     this.contextTitle = title
+    this.autoRefs = new Set()
     this.order = makeOrder(tracks.length, index, this.shuffle)
     this.pos = this.shuffle ? 0 : index
     void api.cacheTracks(tracks).catch(() => {})
@@ -191,20 +196,37 @@ class Player {
     await this.playList(tracks, Math.floor(Math.random() * tracks.length), context, title)
   }
 
-  /** «Следующим» (`next`) или «В очередь» (в конец). Пустая очередь — сразу играет. */
-  async addToQueue(tracks: Track[], next: boolean) {
+  /** «Следующим» (`next`) или «В очередь» (в конец, но перед похожими автоплея). Пустая очередь —
+   *  сразу играет. `auto` — дописывает автоплей: в самый конец, с отметкой. */
+  async addToQueue(tracks: Track[], next: boolean, auto = false) {
     if (!tracks.length) return
     if (!this.current) return this.playList(tracks, 0, 'queue')
     void api.cacheTracks(tracks).catch(() => {})
     let order = this.order
     const pos = this.pos
     const list = this.tracks.slice()
+    // первое ещё не игравшее похожее автоплея — свои треки встают перед ним
+    const firstAuto = next || auto ? -1 : order.findIndex((i, k) => k > pos && this.autoRefs.has(list[i]?.ref))
+    let at = firstAuto
     for (const t of next ? [...tracks].reverse() : tracks) {
       list.push(t)
-      order = enqueue(order, pos, list.length - 1, next)
+      if (at >= 0) order = enqueueAt(order, at++, list.length - 1)
+      else order = enqueue(order, pos, list.length - 1, next)
     }
+    if (auto) this.autoRefs = new Set([...this.autoRefs, ...tracks.map((t) => t.ref)])
     this.tracks = list
     this.order = order
+    this.saveState()
+  }
+
+  /** Убрать из «Далее» похожие автоплея (тумблер выключили). Текущий и сыгранные остаются. */
+  dropAuto() {
+    const auto = this.autoRefs
+    if (!auto.size) return
+    const out = dropUpcoming(this.tracks, this.order, this.pos, (t) => auto.has(t.ref))
+    this.tracks = out.tracks
+    this.order = out.order
+    this.autoRefs = new Set()
     this.saveState()
   }
 

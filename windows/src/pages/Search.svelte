@@ -13,7 +13,7 @@
   import { settingsPanel } from './settings-section.svelte'
   import { api, errorText, type SearchMore, type Track } from '../lib/api'
   import { player } from '../player/player.svelte'
-  import { playStation } from '../player/station'
+  import { playStation } from '../player/autoplay.svelte'
   import { settings } from '../lib/settings.svelte'
 
   const tabs = ['Все', 'Треки', 'Артисты', 'Альбомы', 'Плейлисты'] as const
