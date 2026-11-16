@@ -26,7 +26,8 @@
     wordsOn ? lines.map((l, i) => (l.words?.length ? l.words : l.text ? synthWords(l, lines[i + 1]) : null)) : [],
   )
   const style = $derived(lyrics.style as TextStyle)
-  const anim = $derived(lyrics.animation as TextAnim)
+  // «Лесенка» — это прокрутка; сами строки и слова в ней ведут себя как в «Обычной»
+  const anim = $derived((lyrics.animation === 'ladder' ? 'normal' : lyrics.animation) as TextAnim)
 
   let active = $state(-1)
   let scroller: HTMLDivElement | undefined = $state()
@@ -57,7 +58,7 @@
     void tick().then(() => scroller?.scrollTo({ top: 0 }))
   })
 
-  // смена строки — прокрутка к ней: на шаг вперёд — «магнитом» лесенкой, далеко — плавным переездом
+  // смена строки — прокрутка к ней: в анимации «Лесенка» на шаг вперёд — «магнитом», иначе плавным переездом блоком
   let lastActive = -1
 
   /** Строка, у которой развёрнут свиток аннотации Genius (наведение; работает и на паузе, и на
@@ -83,7 +84,7 @@
     if (noteOpen !== null) return
     const el = i >= 0 ? els[i] : null
     const top = Math.max(0, el ? el.offsetTop - scroller.clientHeight * 0.32 : 0)
-    if (!reduced && prev >= 0 && i > prev && i - prev <= 3) magnet(top, prev)
+    if (!reduced && lyrics.animation === 'ladder' && prev >= 0 && i > prev && i - prev <= 3) magnet(top, prev)
     else glide(top)
   })
 
@@ -241,6 +242,9 @@
     const frame = (ts: number) => {
       raf = requestAnimationFrame(frame)
       if (!synced || !lines.length || document.hidden) return
+      // читают аннотацию Genius — текст замирает целиком (строка, слова, прокрутка); убрали курсор —
+      // следующий кадр найдёт текущую строку, и текст «примагнитится» к ней (решение владельца 2026-11-16)
+      if (noteOpen !== null) return
       const t = clock.read(ts) + lyrics.offset
       const i = findLine(lines, t, active)
       if (i !== active) active = i
