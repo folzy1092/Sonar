@@ -6,7 +6,6 @@
   import Icon from '../../components/Icon.svelte'
   import Group from '../../components/settings/Group.svelte'
   import Switch from '../../components/settings/Switch.svelte'
-  import Choice from '../../components/settings/Choice.svelte'
   import logo from '../../assets/logo-mark.svg'
   import { settings } from '../../lib/settings.svelte'
   import { updater } from '../../lib/updater.svelte'
@@ -120,16 +119,6 @@
     hint="Обновление скачается само, установится только по кнопке «Установить»"
     on={settings.get('update.auto_download')}
     onchange={(v) => settings.set('update.auto_download', v)}
-  />
-  <Choice
-    title="Канал"
-    hint="Бета — ранние сборки для тех, кто хочет новое первым"
-    value={settings.get('update.channel')}
-    options={[
-      { id: 'stable', label: 'Стабильный' },
-      { id: 'beta', label: 'Бета', soon: true },
-    ]}
-    onchange={(v) => settings.set('update.channel', v)}
   />
 </Group>
 

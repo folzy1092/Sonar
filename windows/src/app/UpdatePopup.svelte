@@ -5,6 +5,9 @@
   import Icon from '../components/Icon.svelte'
   import { pop } from '../lib/motion'
   import { updater } from '../lib/updater.svelte'
+  import { router } from './router.svelte'
+  import { player } from '../player/player.svelte'
+  import { settings } from '../lib/settings.svelte'
   import UpdateDetails from './UpdateDetails.svelte'
 
   const p = $derived(updater.phase)
@@ -17,7 +20,8 @@
 {/if}
 
 {#if updater.popup}
-  <div class="pop" role="dialog" aria-label="Доступно обновление" in:pop={{ y: 16, scale: 0.94, duration: 280 }} out:pop={{ y: 16, scale: 0.94, duration: 280 }}>
+  <!-- нижнего плеера нет (страница плеера, ничего не играет) — всплывашка плавно опускается ниже -->
+  <div class="pop" class:low={router.page === 'player' || !player.current || settings.get('mini.style') === 'off'} role="dialog" aria-label="Доступно обновление" in:pop={{ y: 16, scale: 0.94, duration: 280 }} out:pop={{ y: 16, scale: 0.94, duration: 280 }}>
     <div class="top">
       <span class="ic"><Icon name="download" size={18} /></span>
       <div class="txt">
@@ -52,11 +56,15 @@
 {/if}
 
 <style>
+  .pop.low {
+    bottom: 18px;
+  }
   .pop {
     position: fixed;
     right: 18px;
     bottom: calc(var(--player-h) + 22px);
     z-index: 55;
+    transition: bottom 0.5s cubic-bezier(0.32, 0.72, 0, 1);
     width: 320px;
     padding: 14px;
     border-radius: 18px;

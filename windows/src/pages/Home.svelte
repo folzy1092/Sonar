@@ -40,7 +40,7 @@
 
   onMount(() => {
     void home.load()
-    if (!wave.active) void wave.prefetch()
+    wave.ensureCovers()
   })
 
   // Обложки волны — «лицо» её стиля (wave.covers): от перемотки треков не меняются.

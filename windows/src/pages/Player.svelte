@@ -57,6 +57,8 @@
   <div class="art">
     <button class="open-full" aria-label="Полноэкранный плеер" title="Полноэкранный плеер" disabled={!track} onclick={() => lyrics.open()}>
       <Cover url={track?.cover_url} size={320} radius="18px" />
+      <!-- при наведении — две стрелки (как у обложки в нижнем плеере): откроется полноэкранный плеер -->
+      <span class="expand" aria-hidden="true"><Icon name="expand" size={30} /></span>
     </button>
     {#if settings.get('player.pip_cover') && track?.cover_url}
       <!-- «обложка в обложке»: маленькая чёткая копия в углу поверх большой -->
@@ -223,8 +225,29 @@
     overflow: hidden;
   }
   .open-full {
+    position: relative;
     display: block;
-    cursor: zoom-in;
+    cursor: pointer;
+  }
+  .expand {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, 0.32);
+    color: #fff;
+    opacity: 0;
+    transition: opacity var(--normal) var(--ease);
+  }
+  .expand :global(svg) {
+    transform: scale(0.8);
+    transition: transform var(--normal) var(--ease);
+  }
+  .open-full:hover:not(:disabled) .expand {
+    opacity: 1;
+  }
+  .open-full:hover:not(:disabled) .expand :global(svg) {
+    transform: none;
   }
   .pip {
     position: absolute;
