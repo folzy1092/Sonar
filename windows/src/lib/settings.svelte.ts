@@ -42,6 +42,12 @@ export const DEFAULTS = {
   'player.title_align': 'center' as 'left' | 'center' | 'right',
   'player.artist_avatars': true,
   'player.visualizer': 'bar' as 'off' | 'bar',
+  /** Стиль визуализатора: волна или столбцы. */
+  'player.visualizer_style': 'wave' as 'wave' | 'bars',
+  /** Тип ползунка прогресса (Плеер → Вид). */
+  'player.slider': 'normal' as 'normal' | 'thin' | 'smooth' | 'wavy' | 'wave_bars',
+  /** Маленькая копия обложки в углу большой. */
+  'player.pip_cover': false,
   'integrations.discord.enabled': true,
   'integrations.discord.cover': true,
   'integrations.discord.progress': true,

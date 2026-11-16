@@ -3,6 +3,7 @@
   // басы слева. На паузе плавно опадает. Рисуется только пока страница открыта.
   import { onMount } from 'svelte'
   import { player } from './player.svelte'
+  import { settings } from '../lib/settings.svelte'
 
   interface Props {
     height?: number
@@ -55,6 +56,20 @@
       for (let i = 0; i < POINTS; i++) peak = Math.max(peak, levels[i])
       if (peak < 0.004) return // тишина — без полоски на дне
 
+      if (settings.get('player.visualizer_style') === 'bars') {
+        // столбцы: по одному на полосу частот, скруглённые, с зазором
+        const gap = 3
+        const bw = Math.max(2, (w - gap * (POINTS - 1)) / POINTS)
+        g.fillStyle = color
+        for (let i = 0; i < POINTS; i++) {
+          const bh = Math.max(2, levels[i] * (h - 2))
+          const x = i * (bw + gap)
+          g.beginPath()
+          g.roundRect(x, h - bh, bw, bh, Math.min(bw / 2, 3))
+          g.fill()
+        }
+        return
+      }
       // плавная кривая через середины отрезков
       const step = w / (POINTS - 1)
       const y = (i: number) => h - levels[i] * (h - 4)
