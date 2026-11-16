@@ -6,13 +6,14 @@
   import PlayPause from '../components/PlayPause.svelte'
   import { pulse } from '../lib/pulse'
   import { replay } from '../lib/replay'
-  import { wave } from '../player/my-wave.svelte'
+  import { WAVE_CONTEXT, wave } from '../player/my-wave.svelte'
   import { settings } from '../lib/settings.svelte'
   import { slide } from 'svelte/transition'
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
   import TrackRow from '../components/TrackRow.svelte'
   import Switch from '../components/settings/Switch.svelte'
+  import { autoplay } from '../player/autoplay.svelte'
   import SeekBar from '../player/SeekBar.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
   import EqButton from '../player/EqButton.svelte'
@@ -25,6 +26,10 @@
   import { lyrics } from '../lyrics/lyrics.svelte'
 
   const track = $derived(player.current)
+  // «Далее» делится как в SoundCloud: своя очередь, ниже тумблер «Авто похожие» и похожие автоплея
+  const autoAt = $derived(player.upNext.findIndex((t) => player.autoRefs.has(t.ref)))
+  const ownNext = $derived(autoAt < 0 ? player.upNext : player.upNext.slice(0, autoAt))
+  const autoNext = $derived(autoAt < 0 ? [] : player.upNext.slice(autoAt))
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
   const avatar = $derived(settings.get('player.artist_avatars') ? (track?.artists[0]?.avatar_url ?? null) : null)
   const align = $derived(settings.get('player.title_align'))
@@ -160,22 +165,27 @@
   {/if}
 
   <h3>Далее</h3>
-  <!-- как «Autoplay related tracks» в SoundCloud: следом за треком — похожие на него -->
-  <div class="auto">
-    <Switch
-      title="Авто похожие"
-      on={settings.get('general.similar_autoplay')}
-      onchange={(v) => settings.set('general.similar_autoplay', v)}
-    />
-  </div>
-  {#if player.upNext.length}
+  {#if ownNext.length}
     <div use:cascade={player.current?.ref}>
-    {#each player.upNext as t, i (t.ref + i)}
+    {#each ownNext as t, i (t.ref + i)}
       <TrackRow track={t} variant="queue" onplay={() => player.jumpTo(i)} />
     {/each}
     </div>
-  {:else}
+  {:else if !autoNext.length && !autoplay.on}
     <p class="empty">Очередь пуста — включи трек из поиска.</p>
+  {/if}
+  <!-- как «Autoplay related tracks» в SoundCloud: после очереди — похожие, они ниже тумблера -->
+  {#if player.context !== WAVE_CONTEXT}
+    <div class="auto">
+      <Switch title="Авто похожие" hint={autoplay.on ? (autoplay.loading && !autoNext.length ? 'Подбираю похожие…' : 'После очереди играют похожие треки') : 'Очередь доиграет и остановится'} on={autoplay.on} onchange={(v) => autoplay.set(v)} />
+    </div>
+    {#if autoNext.length}
+      <div class="auto-list" use:cascade={autoNext[0]?.ref}>
+      {#each autoNext as t, i (t.ref + i)}
+        <TrackRow track={t} variant="queue" onplay={() => player.jumpTo(ownNext.length + i)} />
+      {/each}
+      </div>
+    {/if}
   {/if}
 </section>
 {/if}
@@ -418,7 +428,9 @@
     color: var(--text-3);
   }
   .auto {
-    margin: 0 6px 4px;
+    margin: 10px 6px 4px;
+    padding-top: 6px;
+    border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
     font-size: 13px;
   }
   .empty {
