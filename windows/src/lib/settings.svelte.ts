@@ -21,6 +21,11 @@ export const DEFAULTS = {
   'general.add_position': 'start' as 'start' | 'end',
   /** Тема: тёмная / светлая / как в системе (меняется на лету). */
   'appearance.mode': 'dark' as 'dark' | 'light' | 'system',
+  /** Профиль (Аккаунт → Профиль) до сервера: имя, @username, аватар (WebP data URL 256×256, круг).
+   *  С сервером — из GET /me. Пусто — имя и аватар из подключённого сервиса. */
+  'profile.name': '' as string,
+  'profile.username': '' as string,
+  'profile.avatar': '' as string,
   'appearance.cover_theme': true,
   /** Прозрачность окна (Mica / Acrylic под окном, glass.rs). */
   'appearance.glass': false,

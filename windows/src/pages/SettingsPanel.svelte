@@ -10,6 +10,7 @@
   import Audio from './settings/Audio.svelte'
   import Look from './settings/Look.svelte'
   import Style from './settings/Style.svelte'
+  import Profile from './settings/Profile.svelte'
   import PlayerView from './settings/PlayerView.svelte'
   import Integrations from './settings/Integrations.svelte'
   import General from './settings/General.svelte'
@@ -107,6 +108,8 @@
       <div class="tab-in">
         {#if sub === 'stats'}
           <Stats />
+        {:else if sub === 'profile'}
+          <Profile />
         {:else if sub === 'style'}
           <Style />
         {:else if sub === 'look'}
