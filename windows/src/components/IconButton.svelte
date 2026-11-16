@@ -18,7 +18,7 @@
   let { icon, label, size = 20, filled = false, active = false, disabled = false, pulse, onclick }: Props = $props()
 </script>
 
-<button class="icon-btn" class:active aria-label={label} title={label} {disabled} {onclick}>
+<button class="icon-btn" class:active class:bare={icon === 'heart'} aria-label={label} title={label} {disabled} {onclick}>
   <span class="ic" use:pulseOn={pulse}><Icon name={icon} {size} {filled} /></span>
 </button>
 
@@ -38,6 +38,10 @@
   .icon-btn:hover:not(:disabled) {
     color: var(--text);
     background: var(--hover);
+  }
+  /* лайк — без подложки: наведение показывает само сердечко (app.css, «Лайк: наведение») */
+  .icon-btn.bare:hover:not(:disabled) {
+    background: none;
   }
   .icon-btn:active:not(:disabled) {
     transform: scale(0.92);
