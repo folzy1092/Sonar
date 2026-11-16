@@ -41,6 +41,7 @@ export default {
   'Все треки уже в Любимых': 'All tracks are already in Favorites',
   'Скрыть плейлист': 'Hide playlist',
   'Показать плейлист': 'Show playlist',
+  'Точно удалить?': 'Delete for sure?',
   'Не получилось скопировать': "Couldn't copy",
   'Яндекс Музыка': 'Yandex Music',
   'Открыть': 'Open',
