@@ -57,6 +57,13 @@ export const DEFAULTS = {
   /** Как показана загрузка трека: обложка из ч/б в цвет или кольцо-сектор. */
   'appearance.loading': 'color' as LoadingLook,
   'appearance.custom_styles': [] as CustomStyle[],
+  /** Панель вкладок (Интерфейс → Вкладки): где она, какая, подстраивается ли под страницу. */
+  'tabs.position': 'left' as 'left' | 'top' | 'bottom' | 'right',
+  'tabs.style': 'default' as 'default' | 'compact' | 'full' | 'round' | 'floating',
+  /** Подстраивать вкладки: цвет панели — от страницы (подкраска обложки). */
+  'tabs.adapt': false,
+  /** Скрытие элементов: мышь не двигается 3 с — панель вкладок и мини-плеер гаснут. */
+  'tabs.autohide': false,
   'audio.output_device': '' as string,
   /** Нормализация громкости (player/leveler.ts) — выравнивание тихих и громких треков. */
   'audio.normalize': false,

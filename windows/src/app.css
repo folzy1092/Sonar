@@ -443,3 +443,11 @@ img.fade-img.loaded {
 :root.glass .mini {
   backdrop-filter: blur(var(--glass-blur, 16px));
 }
+
+/* Скрытие элементов (Интерфейс → Вкладки, tabs.autohide): мышь замерла — мини-плеер гаснет */
+.mini {
+  transition-property: background, border-radius, opacity;
+}
+:root.tabs-autohide.ui-still .mini:not(:hover) {
+  opacity: 0;
+}

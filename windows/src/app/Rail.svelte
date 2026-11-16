@@ -194,4 +194,138 @@
     background: var(--online);
     border: 2px solid var(--surface-1);
   }
+
+  /* ---- позиция вкладок (tabs.position, сетка — App.svelte) ---- */
+  :global(.shell.tabs-right) .rail {
+    margin: var(--gap) var(--gap) 0 0;
+  }
+  :global(.shell.tabs-top) .rail,
+  :global(.shell.tabs-bottom) .rail {
+    flex-direction: row;
+    width: 100%;
+    height: calc(var(--rail-w) - var(--gap));
+    padding: 0 14px;
+    border-radius: max(var(--radius-l), calc((var(--rail-w) - var(--gap)) / 2 * var(--cap-k, 1)));
+  }
+  :global(.shell.tabs-top) .rail {
+    margin: var(--gap) 0 0;
+    /* правый конец — под кнопки окна */
+    padding-right: 150px;
+  }
+  :global(.shell.tabs-bottom) .rail {
+    margin: 0;
+  }
+  :global(.shell.tabs-top) .group,
+  :global(.shell.tabs-bottom) .group {
+    flex-direction: row;
+  }
+  :global(.shell.tabs-top) .logo,
+  :global(.shell.tabs-bottom) .logo {
+    margin: 0 8px 0 0;
+  }
+  :global(.shell.tabs-top) .avatar,
+  :global(.shell.tabs-bottom) .avatar {
+    margin: 0 0 0 8px;
+  }
+  /* точка выбранного раздела в горизонтальной панели — снизу */
+  :global(.shell.tabs-top) .item::before,
+  :global(.shell.tabs-bottom) .item::before {
+    left: 50%;
+    top: auto;
+    bottom: -5px;
+    margin: 0 0 0 -2.5px;
+  }
+  :global(.shell.tabs-right) .item::before {
+    left: auto;
+    right: -5px;
+  }
+
+  /* ---- стиль вкладок (tabs.style) ---- */
+  /* компактный — уже и плотнее */
+  :global(.shell.tstyle-compact) {
+    --rail-w: 56px;
+  }
+  :global(.shell.tstyle-compact) .item {
+    width: 38px;
+    height: 38px;
+  }
+  :global(.shell.tstyle-compact) .group {
+    gap: 2px;
+  }
+  /* полный — во всю высоту окна, прижат к краю, без капсулы */
+  :global(.shell.tstyle-full) .rail {
+    margin: 0;
+    height: 100%;
+    border-radius: 0;
+    border-width: 0 1px 0 0;
+  }
+  :global(.shell.tstyle-full.tabs-right) .rail {
+    border-width: 0 0 0 1px;
+  }
+  :global(.shell.tstyle-full.tabs-top) .rail,
+  :global(.shell.tstyle-full.tabs-bottom) .rail {
+    width: calc(100% + 2 * var(--gap));
+    height: calc(var(--rail-w) - var(--gap) / 2);
+    margin: 0 calc(-1 * var(--gap));
+    border-width: 0 0 1px;
+  }
+  :global(.shell.tstyle-full.tabs-bottom) .rail {
+    border-width: 1px 0 0;
+  }
+  /* круглый — каждая вкладка в круге */
+  :global(.shell.tstyle-round) .item {
+    border-radius: 50%;
+    background-color: var(--surface-2);
+  }
+  :global(.shell.tstyle-round) .item.active {
+    border-radius: 50%;
+  }
+  /* плавающий — островок по размеру содержимого, парит над фоном */
+  :global(.shell.tstyle-floating) .rail {
+    align-self: center;
+    justify-content: center;
+    gap: 22px;
+    height: auto;
+    padding: 12px 0;
+    margin-top: 0;
+    box-shadow:
+      0 18px 40px oklch(0 0 0 / 0.35),
+      var(--sheen);
+  }
+  :global(.shell.tstyle-floating.tabs-top) .rail,
+  :global(.shell.tstyle-floating.tabs-bottom) .rail {
+    justify-self: center;
+    width: auto;
+    padding: 0 14px;
+    gap: 22px;
+  }
+  :global(.shell.tstyle-floating.tabs-top) .rail {
+    padding-right: 14px;
+  }
+
+  /* подстраивать вкладки — цвет панели от страницы (подкраска обложки) */
+  :global(:root.tabs-adapt) .rail {
+    background: color-mix(in oklch, var(--tint) 55%, var(--surface-1));
+  }
+  /* скрытие элементов — мышь замерла: панель гаснет, наведение возвращает */
+  .rail {
+    transition:
+      background 0.4s var(--ease),
+      border-radius 0.4s var(--ease),
+      opacity 0.4s var(--ease),
+      translate 0.4s var(--ease);
+  }
+  :global(:root.tabs-autohide.ui-still) .rail:not(:hover) {
+    opacity: 0;
+    translate: -6px 0;
+  }
+  :global(:root.tabs-autohide.ui-still .shell.tabs-right) .rail:not(:hover) {
+    translate: 6px 0;
+  }
+  :global(:root.tabs-autohide.ui-still .shell.tabs-top) .rail:not(:hover) {
+    translate: 0 -6px;
+  }
+  :global(:root.tabs-autohide.ui-still .shell.tabs-bottom) .rail:not(:hover) {
+    translate: 0 6px;
+  }
 </style>
