@@ -11,6 +11,7 @@ use crate::services::{Core, ServiceStatus};
 use anyhow::{anyhow, bail, Result};
 use std::sync::Arc;
 use std::time::Duration;
+use tauri::webview::NewWindowResponse;
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 use tokio::sync::mpsc;
 
@@ -42,7 +43,12 @@ fn window<'a>(app: &'a AppHandle, label: &str, title: &str, url: &str) -> Result
     .inner_size(480.0, 720.0)
     .min_inner_size(400.0, 560.0)
     .center()
-    .focused(true);
+    .focused(true)
+    // Вход через Apple / Google / Facebook открывается всплывающим окном (`window.open`) и
+    // возвращает результат через `window.opener`. Без обработчика WebView2 такие окна режет —
+    // SoundCloud пишет «Please enable popup windows». Разрешаем: окно открывается в том же
+    // окружении WebView2, а после входа закрывается само.
+    .on_new_window(|_url, _features| NewWindowResponse::Allow);
   Ok(b)
 }
 

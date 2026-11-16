@@ -22,6 +22,16 @@ export function compareVersions(a: string, b: string): number {
   return 0
 }
 
+/** Бета-сборка: «0.2.0-beta.1», «0.2.0-rc1» и т.п. Стабильный канал такие не предлагает. */
+export function isBeta(version: string): boolean {
+  return /-(?:alpha|beta|rc|pre|dev)/i.test(version)
+}
+
+/** Записи истории, которые придут с обновлением: новее установленной и не новее найденной. */
+export function pendingEntries(log: ChangelogEntry[], current: string, target: string): ChangelogEntry[] {
+  return log.filter((e) => compareVersions(e.version, current) > 0 && compareVersions(e.version, target) <= 0)
+}
+
 /** Записи для Windows (и общие), новые сверху, без мусора. */
 export function parseChangelog(raw: unknown): ChangelogEntry[] {
   if (!Array.isArray(raw)) return []

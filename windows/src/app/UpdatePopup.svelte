@@ -1,18 +1,20 @@
 <script lang="ts">
   // Всплывашка «Доступно обновление» (как у Dotify): выезжает справа над мини-плеером, когда фоновая
   // проверка нашла новую версию. Закрывается только кликом — «Позже» или после установки.
+  // «Подробнее» — окно UpdateDetails со всеми изменениями.
   import Icon from '../components/Icon.svelte'
   import { pop } from '../lib/motion'
   import { updater } from '../lib/updater.svelte'
-  import { settingsPanel } from '../pages/settings-section.svelte'
+  import UpdateDetails from './UpdateDetails.svelte'
 
   const p = $derived(updater.phase)
-
-  function details() {
-    updater.popup = false
-    settingsPanel.show('system', 'update')
-  }
+  /** «Подробнее» — окно со всеми изменениями до найденной версии. */
+  let more = $state(false)
 </script>
+
+{#if more && updater.popup}
+  <UpdateDetails onclose={() => (more = false)} />
+{/if}
 
 {#if updater.popup}
   <div class="pop" role="dialog" aria-label="Доступно обновление" in:pop={{ y: 16, scale: 0.94, duration: 280 }} out:pop={{ y: 16, scale: 0.94, duration: 280 }}>
@@ -39,7 +41,7 @@
     {/if}
 
     <div class="btns">
-      <button class="btn" onclick={details}>Что нового</button>
+      <button class="btn" onclick={() => (more = true)}>Подробнее</button>
       {#if p === 'ready' || p === 'installing'}
         <button class="btn primary" disabled={p === 'installing'} onclick={() => updater.install()}>Установить</button>
       {:else if p === 'available' || p === 'error'}

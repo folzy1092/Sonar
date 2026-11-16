@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agoText, compareVersions, noteLines, parseChangelog, sizeText } from './update-core'
+import { agoText, compareVersions, isBeta, noteLines, parseChangelog, pendingEntries, sizeText } from './update-core'
 
 describe('compareVersions', () => {
   it('сравнивает Г.О.Ф по частям', () => {
@@ -44,5 +44,22 @@ describe('agoText и sizeText', () => {
     expect(agoText(now - 2 * 86_400_000, now)).toBe('2 дн назад')
     expect(sizeText(1_048_576 * 1.5, 1_048_576 * 18)).toBe('1.5 из 18.0 МБ')
     expect(sizeText(0, null)).toBe('0.0 МБ')
+  })
+})
+
+describe('бета и ожидающие записи', () => {
+  it('узнаёт бета-сборки', () => {
+    expect(isBeta('0.2.0-beta.1')).toBe(true)
+    expect(isBeta('0.2.0-rc1')).toBe(true)
+    expect(isBeta('0.1.25')).toBe(false)
+  })
+  it('берёт записи между установленной и найденной версией', () => {
+    const log = parseChangelog([
+      { version: '0.3.0', changes: ['c'] },
+      { version: '0.2.0', changes: ['b'] },
+      { version: '0.1.1', changes: ['a'] },
+    ])
+    expect(pendingEntries(log, '0.1.1', '0.2.5').map((e) => e.version)).toEqual(['0.2.0'])
+    expect(pendingEntries(log, '0.1.0', '0.3.0').map((e) => e.version)).toEqual(['0.3.0', '0.2.0', '0.1.1'])
   })
 })
