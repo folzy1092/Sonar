@@ -30,7 +30,7 @@
 | `general.restore` | `none` / `track` / `queue` | `queue` | да |
 | `general.similar_autoplay` | bool | `true` | да |
 | `general.add_position` | `start` / `end` | `start` | да |
-| `general.language` | `system` / `ru` / `en` | `system` | нет |
+| `general.language` | `ru` / `en` / `uk` — язык интерфейса, меняется на лету (Windows: `lib/i18n.svelte.ts`, ключ перевода — русская строка, словари `src/i18n/{en,uk}/*.ts`) | `ru` | нет |
 
 Кнопки «Отправить на сервер» / «Получить с сервера» — действия, не настройки.
 `general.platform` — откуда главная берёт волну и рекомендации.
@@ -64,7 +64,7 @@
 
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
-| `appearance.mode` | `system` / `dark` / `light` | `dark` | да |
+| `appearance.mode` | `system` / `dark` / `light` — светлая: формулы `palette.ts SURFACES_LIGHT`, «как в системе» — `prefers-color-scheme` на лету | `dark` | да |
 | `appearance.cover_theme` | bool — тема под обложку | `true` | да |
 | `appearance.preset` | `neutral`, `amoled`, `crimson`, `nord`, `sky`, `mint`, `violet`, `blossom`, `sakura`, `terminal`, `aqua`, `sunset`, `slate` — выбор готовой темы выключает «Под трек» | `neutral` | да |
 | `appearance.animations` | bool — выключено: только прозрачность, как «Меньше движения» | `true` | да |
@@ -74,10 +74,10 @@
 | `appearance.progress_indicator` | `none` / `line` (линия внизу мини-плеера) / `fill` (заливка фона) / `ring` (кольцо на обложке) | `ring` | да |
 | `appearance.cover_shape` | `rounded` / `circle` / `hidden` (обложка в мини-плеере) | `circle` | да |
 | `appearance.corner_radius` | `none` / `soft` / `rounded` / `pill` (Нет / Маленькое / Среднее / Большое) | `rounded` | да |
-| `appearance.glass` | bool — прозрачность | `true` | да |
+| `appearance.glass` | bool — прозрачность окна: Windows 11 — Mica, Windows 10 — Acrylic (`glass.rs`) | `false` (PC) | да |
 | `appearance.glass_type` | `balance` / `ultra` / `no_blur` | `ultra` | да |
-| `appearance.opacity` | 0–100 % | `100` | да |
-| `appearance.glass_blur` | 0–40 px | `0` | да |
+| `appearance.opacity` | 15–100 % — альфа фона окна и карточек при прозрачности | `80` (PC) | да |
+| `appearance.glass_blur` | 0–40 px — радиус размытия у панелей и меню | `16` (PC) | да |
 | `appearance.bg_blur` | 0–40 px | `0` | да |
 | `appearance.bg_dim` | 0–90 % | `0` | да |
 | `appearance.bg_custom` | id своего фона на сервере (картинка или видео ≤ 10 с) / null | `null` | да |
@@ -140,7 +140,8 @@
 
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
-| `player.style` | `standard` / `vinyl` / `large` | `large` | да |
+| `player.style` | `standard` / `vinyl` (винил крутится, игла) / `large` (обложка на всю колонку) | `standard` (PC) | да |
+| `player.visualizer` (PC) | `off` / `bar` / `cover` (на обложке) / `slider` (на ползунке) | `bar` | да |
 | `player.queue_view` | `normal` / `extended` | `extended` | да |
 | `player.background` | `none` / `cover_blur` / `cover_color` | `none` | да |
 | `player.title_align` | `left` / `center` / `right` | `center` | да |
@@ -178,7 +179,8 @@
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
 | `queue.show` (PC) | bool | `true` | да |
-| `queue.next_preview` | bool — «Далее: …» в плеере | `true` | да |
+| `queue.preview` | bool — карточка «Дальше» за 10 с до конца (мини-плеер и плеер) | `true` | да |
+| `queue.view` (PC) | `normal` (компактно, без обложек) / `extended` | `extended` | да |
 | `queue.position` (PC) | `bottom` / `left` / `right` | `bottom` | да |
 | `queue.add_following` | bool — тап по треку ставит и следующие за ним | `true` | да |
 
@@ -201,12 +203,21 @@
 
 Все — sync. `delete` в Медиатеке = убрать из плейлиста/лайков (с «Отменить» 4 с).
 
+## Вкладки PC — `tabs.*` (Интерфейс → Вкладки, 2026-11-16)
+
+| Ключ | Значения | По умолчанию | Синк |
+|---|---|---|---|
+| `tabs.position` | `left` / `right` / `top` (полоса, кнопки окна на её конце) / `bottom` | `left` | да |
+| `tabs.style` | `default` / `compact` / `full` (во всю высоту, у края) / `round` / `floating` (островок) | `default` | да |
+| `tabs.adapt` | bool — цвет панели от подкраски страницы | `false` | да |
+| `tabs.autohide` | bool — мышь замерла 3 с: панель и мини-плеер гаснут | `false` | да |
+
 ## Мини-плеер PC — `mini.*` (`pc/8, 9`)
 
 | Ключ | Значения | По умолч. |
 |---|---|---|
 | `mini.style` | `off` / `full` / `rounded` / `hybrid` / `deck` — пресет, выставляет фон/прогресс/обложку/форму (`PLATFORMS.md`) | `hybrid` |
-| `mini.position` | `top` / `bottom` / `bottom_inset` / `floating` | `bottom` |
+| `mini.position` | `top` / `bottom` / `bottom_inset` / `floating` (перетаскивается, `mini.float_x` / `mini.float_y` — доли окна) | `bottom` |
 | `mini.background` | `theme` / `cover` / `cover_color` | `theme` (пресет «Гибрид») |
 | `mini.progress` | `line` / `background` (без `around_cover`) | `background` |
 | `mini.cover_shape` | `default` / `circle` | `circle` |
@@ -244,8 +255,8 @@ ID приложения Discord — **не настройка**: пользов�
 
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
-| `storage.cache_tracks` | bool | `false` | нет |
-| `storage.cache_limit_mb` | 500 / 1000 / 2000 / 5000 | `1000` | нет |
+| `storage.cache_tracks` | bool — прослушанное на диск (`track_cache.rs`: файлы на лету, HLS — склейкой) | `false` | нет |
+| `storage.cache_limit_mb` | 512 / 1024 / 2048 / 5120 / 10240 — сверх лимита вытесняются давно не игравшие | `2048` | нет |
 
 Экран: занято всего (полоса по типам), «Треки N, X МБ», «Обложки», «Тексты» — «Очистить» у
 каждого и «Очистить всё»; «История поиска — Очистить»; «Настройки треков — Сбросить»
