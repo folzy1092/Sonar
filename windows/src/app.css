@@ -147,21 +147,31 @@ svg.i-heart {
   stroke: currentColor;
   stroke-width: 0;
   stroke-linejoin: round;
+  /* масштаб строго от центра самого сердечка — иначе при наведении и нажатии оно «ездит» вбок */
+  transform-box: border-box;
+  transform-origin: 50% 50%;
   transition:
-    transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+    scale 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
     stroke-width 0.25s var(--ease);
 }
 button:hover:not(:disabled) > .ic > svg.i-heart,
 button:focus-visible > .ic > svg.i-heart {
   stroke-width: 1.5;
-  transform: scale(1.05);
+  scale: 1.05;
+}
+/* нажатие: сердечко чуть сжимается на месте (сама кнопка лайка не сжимается) */
+button:active:not(:disabled) > .ic > svg.i-heart {
+  stroke-width: 1.5;
+  scale: 0.94;
+  transition-duration: 0.12s;
 }
 @media (prefers-reduced-motion: reduce) {
   svg.i-heart {
     transition: stroke-width 0.2s linear;
   }
-  button:hover:not(:disabled) > .ic > svg.i-heart {
-    transform: none;
+  button:hover:not(:disabled) > .ic > svg.i-heart,
+  button:active:not(:disabled) > .ic > svg.i-heart {
+    scale: none;
   }
 }
 

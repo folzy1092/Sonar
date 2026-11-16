@@ -203,7 +203,6 @@
   .dots:hover {
     color: var(--text);
   }
-  .like:active,
   .dots:active {
     transform: scale(0.88);
   }
