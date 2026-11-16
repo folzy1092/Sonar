@@ -135,6 +135,12 @@ class Theme {
         else root.style.removeProperty('--menu-blur')
         if (isTauri) void api.setGlass(on).catch(() => {})
       })
+      // кэш треков на диске (Система → Хранилище) — настройки уходят в Rust при запуске и при смене
+      $effect(() => {
+        const on = settings.get('storage.cache_tracks')
+        const limit = settings.get('storage.cache_limit_mb')
+        if (isTauri) void api.setTrackCache(on, limit).catch(() => {})
+      })
       // выбранный стиль следит за осями: ручная правка любой оси (в «Стиле» или «Виде») — «Свой»,
       // оси совпали с готовым или сохранённым стилем — он
       $effect(() => {

@@ -7,6 +7,7 @@ mod lyrics;
 mod media;
 mod calls;
 mod glass;
+mod track_cache;
 mod mini;
 mod obs;
 mod providers;
@@ -71,6 +72,7 @@ pub fn run() {
       }
       if let Ok(cache) = app.path().app_cache_dir() {
         stream::set_cover_dir(cache.join("covers"));
+        track_cache::set_dir(cache.join("tracks"));
       }
       let port = tauri::async_runtime::block_on(stream::start(core.clone()))?;
 
@@ -146,6 +148,7 @@ pub fn run() {
     })
     .invoke_handler(tauri::generate_handler![
       glass::set_glass,
+      commands::set_track_cache,
       commands::services_status,
       commands::sync_now,
       commands::artist_tracks,

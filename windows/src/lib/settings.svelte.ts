@@ -64,6 +64,10 @@ export const DEFAULTS = {
   'tabs.adapt': false,
   /** Скрытие элементов: мышь не двигается 3 с — панель вкладок и мини-плеер гаснут. */
   'tabs.autohide': false,
+  /** Кеширование треков: прослушанное складывается на диск и играет оттуда (track_cache.rs). */
+  'storage.cache_tracks': false,
+  /** Лимит кэша треков, МБ; сверх — вытесняются давно не игравшие. */
+  'storage.cache_limit_mb': 2048 as number,
   'audio.output_device': '' as string,
   /** Нормализация громкости (player/leveler.ts) — выравнивание тихих и громких треков. */
   'audio.normalize': false,
