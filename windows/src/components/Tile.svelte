@@ -57,7 +57,8 @@
     {:else if art}
       {@render art()}
     {:else}
-      <Icon name={icon} size={36} stroke={1.6} />
+      <!-- пустая обложка — значок цветом темы, как сердце «Любимых» -->
+      <span class="ph"><Icon name={icon} size={40} filled /></span>
     {/if}
     {#if src}
       <span class="src"><SourceIcon kind={src} size={18} /></span>
@@ -180,5 +181,10 @@
     margin-top: 1px;
     font-size: calc(11px * var(--fs, 1));
     color: var(--text-3);
+  }
+  .ph {
+    display: grid;
+    color: var(--accent);
+    transition: color 0.6s var(--ease);
   }
 </style>
