@@ -166,7 +166,8 @@
     padding: 14px 16px;
     border-radius: 16px;
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     overflow: hidden;
     transition:
       border-color var(--normal) var(--ease),
@@ -226,7 +227,8 @@
     padding: 0 16px;
     border-radius: 12px;
     background: var(--surface-3);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     white-space: nowrap;
@@ -305,7 +307,8 @@
   article {
     padding: 12px 14px;
     border-radius: 14px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     transition: border-color var(--fast) var(--ease);
   }
   article:hover {

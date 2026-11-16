@@ -231,7 +231,8 @@
     padding: 3px;
     border-radius: 999px;
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
   }
   .sort {
     position: relative;

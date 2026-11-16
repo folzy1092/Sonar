@@ -124,7 +124,8 @@
     padding: 18px;
     border-radius: 16px;
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
   }
   .card.big {
     height: 260px;

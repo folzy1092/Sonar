@@ -223,6 +223,7 @@
     position: relative;
     border-radius: 18px;
     overflow: hidden;
+    box-shadow: var(--mono-glow, none);
   }
   .open-full {
     position: relative;
@@ -392,7 +393,8 @@
     color: var(--text-2);
   }
   .panel {
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     border-radius: 16px;
     background: var(--plate);
   }

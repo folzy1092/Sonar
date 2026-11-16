@@ -85,6 +85,7 @@
     appearance: none;
     border-radius: 5px;
     background: linear-gradient(to right, var(--text) var(--fill), var(--surface-3) var(--fill));
+    box-shadow: var(--well);
     cursor: pointer;
   }
   input::-webkit-slider-thumb {

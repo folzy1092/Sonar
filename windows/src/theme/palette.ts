@@ -210,6 +210,31 @@ export const SURFACES: Record<Surface, SurfaceFormula> = {
   monolith: { bgL: 0.1, bgC: 0, bgMax: 0, sL: [0.145, 0.185, 0.23], sC: 0, sMax: 0, bdL: 0.27, bdC: 0, bdMax: 0, txL: 0.98, t2L: 0.76, t3L: 0.62, accL: 0.78, accMax: 0.2, softA: 0.2, grayText: true },
 }
 
+/**
+ * Особенности поверхности, которые не цвет: рамка карточек, блик, выпуклые кнопки и утопленные
+ * дорожки, фон мини-плеера, тень обложки. Компоненты берут их переменными (по умолчанию —
+ * tokens.css), поэтому смена поверхности не трогает вёрстку.
+ * - Сигнал: у карточек и мини-плеера нет рамки, мини-плеер — поверхность 2;
+ * - Грань: у каждой поверхности блик сверху;
+ * - Тактиль: кнопки выпуклые (при нажатии −2 px), дорожки и выбранное утоплены;
+ * - Монолит: цвет обложки — только свечение за обложкой (blur 28 px) и прогресс.
+ */
+export const SURFACE_DECOR: Record<Surface, Record<string, string>> = {
+  echo: {},
+  signal: { '--card-line': 'transparent', '--mini-bg': 'var(--surface-2)' },
+  edge: { '--sheen': 'inset 0 1px 0 oklch(1 0 0 / 0.07)' },
+  tactile: {
+    '--key': '0 2px 0 oklch(0 0 0 / 0.55), 0 3px 6px oklch(0 0 0 / 0.25), inset 0 1px 0 oklch(1 0 0 / 0.08)',
+    '--key-down': 'inset 0 1px 2px oklch(0 0 0 / 0.5)',
+    '--key-shift': '2px',
+    '--well': 'inset 0 2px 4px oklch(0 0 0 / 0.45)',
+  },
+  monolith: { '--cover-glow': '0 0 28px var(--glow)', '--mono-glow': '0 0 28px var(--glow)' },
+}
+
+/** Все переменные особенностей — чтобы при смене поверхности снимать прошлые. */
+export const DECOR_VARS = ['--card-line', '--mini-bg', '--sheen', '--key', '--key-down', '--key-shift', '--well', '--cover-glow', '--mono-glow']
+
 /** Ниже этой насыщенности обложка считается монохромной. */
 export const MONO_C = 0.03
 
@@ -267,10 +292,12 @@ export function themeFrom(src: RGB | null, surface: Surface = 'echo'): ThemeToke
     '--accent': s(lch.accent),
     '--accent-ink': s(lch.ink),
     '--accent-soft': mono ? 'oklch(0.95 0 0 / 0.12)' : s(lch.accent, k.softA),
-    '--tint': s(ok(0.2, cc(0.6, 0.09))),
+    // подкраска верха страницы; у Монолита поверхности серые — цвет обложки только в свечении и прогрессе
+    '--tint': s(ok(0.2, gray ? 0 : cc(0.6, 0.09))),
     '--track': s(lch.track),
     // свечение за обложкой (поверхность и смена трека «Монолит»)
     '--glow': mono ? 'oklch(0.7 0 0 / 0.25)' : s(ok(0.62, Math.min(c, 0.2)), 0.55),
+    ...SURFACE_DECOR[surface],
   }
   return { lch, mono, vars, accent: oklchToRgb(lch.accent), bg: oklchToRgb(lch.bg), ink: oklchToRgb(lch.ink) }
 }

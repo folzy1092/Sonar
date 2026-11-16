@@ -121,7 +121,8 @@
     padding: 0 16px 0 calc(8px + 4px * var(--k));
     border-radius: max(var(--radius-l), calc(27px * var(--k)));
     background: var(--surface-2);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     transition: border-radius 0.25s var(--ease);
   }
   .cov {

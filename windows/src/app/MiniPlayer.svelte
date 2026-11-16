@@ -184,8 +184,10 @@
     /* концы капсулы: --cap-k (0 — прямые углы, 1 — полукруг), середина — прямая */
     border-radius: max(var(--radius-l), calc(var(--player-h) / 2 * var(--cap-k, 1)));
     padding-left: calc(8px + 4px * var(--cap-k, 1));
-    background: var(--surface-1);
-    border: 1px solid var(--border);
+    /* «Сигнал»: мини-плеер — поверхность 2 (palette.ts SURFACE_DECOR) */
+    background: var(--mini-bg);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     transition:
       background 0.4s var(--ease),
       border-radius 0.4s var(--ease);
@@ -326,6 +328,8 @@
     display: grid;
     border-radius: calc(50% * var(--cover-k, 1));
     overflow: hidden;
+    /* «Монолит»: свечение цвета обложки за обложкой */
+    box-shadow: var(--mono-glow, none);
   }
   .expand {
     border-radius: calc(50% * var(--cover-k, 1));
@@ -400,7 +404,7 @@
     transition: transform var(--fast) var(--ease);
   }
   .play:active:not(:disabled) {
-    transform: scale(0.9);
+    transform: scale(0.9) translateY(var(--key-shift));
   }
   .play:disabled {
     opacity: 0.35;

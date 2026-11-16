@@ -151,7 +151,8 @@
     padding: 18px;
     border-radius: var(--radius-xl);
     background: linear-gradient(135deg, var(--plate), transparent);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     animation: card-in var(--normal) var(--ease);
   }
   @keyframes card-in {

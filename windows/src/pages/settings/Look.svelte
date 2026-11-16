@@ -240,7 +240,8 @@
     margin-top: 10px;
     padding: 3px;
     border-radius: 10px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
   }
   .cats :global(.tab-ind.pill) {
     border-radius: 7px;

@@ -74,7 +74,8 @@
     padding: 14px 0 12px;
     border-radius: max(var(--radius-l), calc((var(--rail-w) - var(--gap)) / 2 * var(--cap-k, 1)));
     background: var(--surface-1);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     transition:
       background 0.4s var(--ease),
       border-radius 0.4s var(--ease);
