@@ -172,7 +172,7 @@ struct OptionTile: View {
     var subtitle: String?
     var selected = false
     var soon = false
-    var action: () -> Void = {}
+    var action: @MainActor () -> Void = {}
 
     var body: some View {
         Button(action: action) {
@@ -218,7 +218,7 @@ struct PrimaryButton: View {
     let title: String
     var icon: String?
     var enabled = true
-    let action: () -> Void
+    let action: @MainActor () -> Void
 
     var body: some View {
         Button(action: action) {
@@ -242,7 +242,7 @@ struct SecondaryButton: View {
     let title: String
     var icon: String?
     var role: ButtonRole?
-    let action: () -> Void
+    let action: @MainActor () -> Void
 
     var body: some View {
         Button(role: role, action: action) {
