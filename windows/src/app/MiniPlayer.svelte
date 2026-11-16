@@ -105,6 +105,12 @@
           <span class="artist err" title={player.error}>{player.error}</span>
         {:else if track}
           <span class="artist">
+            <!-- мини-аватарка главного артиста перед именем (решение владельца 2026-11-16) -->
+            {#if track.artists[0]?.avatar_url}
+              {#key track.artists[0].avatar_url}
+                <img class="ava" src={track.artists[0].avatar_url} alt="" draggable="false" />
+              {/key}
+            {/if}
             {#each track.artists as a, i (a.ref + i)}{#if i},&nbsp;{/if}<span
                 class="link"
                 role="link"
@@ -349,6 +355,22 @@
   .artist {
     font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
+  }
+  .ava {
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    margin: 0 6px -3px 0;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent);
+    animation: ava-in var(--normal) var(--ease);
+  }
+  @keyframes ava-in {
+    from {
+      opacity: 0;
+      scale: 0.6;
+    }
   }
   .artist.err {
     color: var(--danger);

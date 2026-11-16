@@ -128,7 +128,10 @@
                   <button type="submit" aria-label="Сохранить пресет" disabled={!newName.trim()}><Icon name="check" size={14} /></button>
                 </form>
               {:else}
-                <button class="chip add" onclick={() => (naming = true)}><Icon name="plus" size={14} /> Свой</button>
+                <button class="chip add" onclick={() => (naming = true)}><Icon name="plus" size={14} /> Сохранить текущий</button>
+              {/if}
+              {#if !eq.userPresets.length && !naming}
+                <p class="mine-hint">Подвигай полосы и сохрани кривую — она появится здесь</p>
               {/if}
             {/if}
           </div>
@@ -361,12 +364,19 @@
     opacity: 1;
   }
   .chip.add {
-    gap: 5px;
+    grid-column: 1 / -1;
+    gap: 6px;
     border-style: dashed;
+  }
+  .mine-hint {
+    grid-column: 1 / -1;
+    margin: 2px 2px 0;
+    font-size: calc(12px * var(--fs, 1));
+    color: var(--text-3);
   }
   .name {
     display: flex;
-    grid-column: span 2;
+    grid-column: 1 / -1;
     gap: 4px;
   }
   .name input {

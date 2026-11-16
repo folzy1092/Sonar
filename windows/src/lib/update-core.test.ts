@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agoText, compareVersions, isBeta, noteLines, parseChangelog, pendingEntries, sizeText } from './update-core'
+import { agoText, compareVersions, isBeta, mergeReleases, noteLines, parseChangelog, pendingEntries, sizeText } from './update-core'
 
 describe('compareVersions', () => {
   it('сравнивает Г.О.Ф по частям', () => {
@@ -61,5 +61,21 @@ describe('бета и ожидающие записи', () => {
     ])
     expect(pendingEntries(log, '0.1.1', '0.2.5').map((e) => e.version)).toEqual(['0.2.0'])
     expect(pendingEntries(log, '0.1.0', '0.3.0').map((e) => e.version)).toEqual(['0.3.0', '0.2.0', '0.1.1'])
+  })
+})
+
+describe('история версий из релизов', () => {
+  it('добавляет авто-патчи, changelog главнее, служебный релиз мимо', () => {
+    const log = parseChangelog([{ version: '0.1.1', title: 'Плавнее', changes: ['a'] }])
+    const all = mergeReleases(log, [
+      { tag_name: 'windows-v0.1.55', published_at: '2026-11-16T20:00:00Z', body: '- windows: эквалайзер\n- вкладки' },
+      { tag_name: 'windows-v0.1.1', body: '- дубль' },
+      { tag_name: 'windows-latest', body: 'служебный' },
+      { tag_name: 'windows-v0.1.42', published_at: '2026-11-16T10:00:00Z', body: '' },
+    ])
+    expect(all.map((e) => e.version)).toEqual(['0.1.55', '0.1.42', '0.1.1'])
+    expect(all[0].changes).toEqual(['windows: эквалайзер', 'вкладки'])
+    expect(all[0].date).toBe('2026-11-16')
+    expect(all[2].title).toBe('Плавнее')
   })
 })
