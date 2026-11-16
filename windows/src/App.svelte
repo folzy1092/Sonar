@@ -100,6 +100,30 @@
     document.documentElement.classList.toggle('idle', idle)
   })
 
+  // Вкладки: подстройка цвета под страницу и автоскрытие панелей, когда мышь замерла на 3 с
+  $effect(() => {
+    const root = document.documentElement
+    root.classList.toggle('tabs-adapt', settings.get('tabs.adapt'))
+    const hide = settings.get('tabs.autohide')
+    root.classList.toggle('tabs-autohide', hide)
+    if (!hide) return root.classList.remove('ui-still')
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const wake = () => {
+      root.classList.remove('ui-still')
+      clearTimeout(timer)
+      timer = setTimeout(() => root.classList.add('ui-still'), 3000)
+    }
+    wake()
+    window.addEventListener('mousemove', wake, { passive: true })
+    window.addEventListener('keydown', wake)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('mousemove', wake)
+      window.removeEventListener('keydown', wake)
+      root.classList.remove('ui-still')
+    }
+  })
+
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape' && settingsPanel.open && !lyrics.fullscreen) settingsPanel.close()
   }
@@ -113,10 +137,11 @@
 <SettingsPanel />
 
 <div class="stage">
-<div class="shell" class:away={settingsPanel.open} class:solo={settings.get('mini.style') === 'off' || !player.current || router.page === 'player'} inert={settingsPanel.open}>
+<div class="shell tabs-{settings.get('tabs.position')} tstyle-{settings.get('tabs.style')}" class:away={settingsPanel.open} class:solo={settings.get('mini.style') === 'off' || !player.current || router.page === 'player'} inert={settingsPanel.open}>
   <Rail />
 
-  <main class="card" class:own-head={floatHeader} class:fixed-page={fixedPages.includes(router.page)} use:notch={island}>
+  <!-- панель сверху — кнопки окна на её правом конце, карточке вырез не нужен -->
+  <main class="card" class:own-head={floatHeader} class:fixed-page={fixedPages.includes(router.page)} use:notch={settings.get('tabs.position') === 'top' ? undefined : island}>
     {#if floatHeader}<div class="drag-strip" data-tauri-drag-region></div>{/if}
     <header class="top" data-tauri-drag-region>
       {#if withSearch.includes(router.page)}
@@ -326,5 +351,72 @@
   .shell.solo {
     grid-template-rows: minmax(0, 1fr) 0;
     row-gap: 0;
+  }
+
+  /* ---- позиция вкладок (Интерфейс → Вкладки, tabs.position) ---- */
+  /* справа: зеркально — карточка и плеер слева, панель справа на всю высоту */
+  .shell.tabs-right {
+    grid-template-columns: minmax(0, 1fr) var(--rail-w);
+    padding: 0 0 var(--gap) var(--gap);
+  }
+  .tabs-right :global(.rail) {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+  .tabs-right .card,
+  .tabs-right .player-slot {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .tabs-right .card {
+    grid-row: 1;
+  }
+  .tabs-right .player-slot {
+    grid-row: 2;
+  }
+  .tabs-right .island {
+    right: calc(var(--rail-w) + var(--gap));
+  }
+  /* сверху / снизу: панель — горизонтальная полоса во всю ширину */
+  .shell.tabs-top,
+  .shell.tabs-bottom {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0 var(--gap) var(--gap);
+  }
+  .shell.tabs-top {
+    grid-template-rows: var(--rail-w) minmax(0, 1fr) auto;
+  }
+  .shell.tabs-top.solo {
+    grid-template-rows: var(--rail-w) minmax(0, 1fr) 0;
+  }
+  .tabs-top :global(.rail) {
+    grid-row: 1;
+    grid-column: 1;
+  }
+  .tabs-top .card {
+    grid-row: 2;
+  }
+  .tabs-top .player-slot {
+    grid-row: 3;
+  }
+  .tabs-top .island {
+    top: calc(var(--gap) + (var(--rail-w) - var(--gap) - 40px) / 2);
+    right: calc(var(--gap) + 8px);
+  }
+  .shell.tabs-bottom {
+    grid-template-rows: minmax(0, 1fr) auto var(--rail-w);
+  }
+  .shell.tabs-bottom.solo {
+    grid-template-rows: minmax(0, 1fr) 0 var(--rail-w);
+  }
+  .tabs-bottom :global(.rail) {
+    grid-row: 3;
+    grid-column: 1;
+  }
+  .tabs-bottom .card {
+    grid-row: 1;
+  }
+  .tabs-bottom .player-slot {
+    grid-row: 2;
   }
 </style>
