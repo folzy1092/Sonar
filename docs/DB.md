@@ -65,7 +65,9 @@ CREATE TABLE tracks (                           -- кэш метаданных
   duration_ms   INTEGER NOT NULL,
   cover_url     TEXT,
   url           TEXT,
-  fetched_at    INTEGER NOT NULL
+  fetched_at    INTEGER NOT NULL,
+  tags          TEXT                            -- жанр + теги SoundCloud / жанр Яндекса (миграция 6);
+                                                -- пустое значение при upsert старые теги не затирает
 );
 
 CREATE TABLE likes (                            -- треки, альбомы, исполнители
@@ -191,7 +193,7 @@ CREATE TABLE dislikes (                         -- 👎 своей волны (S
   PRIMARY KEY (user_id, ref)
 );
 
-CREATE TABLE skips (                            -- пропуск в первые 30 с в волне — минус артисту
+CREATE TABLE skips (                            -- ручной пропуск в волне с оценкой < 0 (WAVE.md 1.3) — минус артисту и треку
   id            INTEGER PRIMARY KEY,
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   ref           TEXT NOT NULL,

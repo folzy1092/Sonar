@@ -1,6 +1,8 @@
 // Своя «Моя волна» (SPEC §3.7): порции по 10 треков от Rust (`wave_portion`), сессия — здесь:
 // что уже выдано, какие артисты на паузе (два пропуска подряд), догрузка, когда очередь кончается.
-// Сигналы: пропуск в первые 30 с, 👎 (трек больше не попадёт в волну, текущий — сразу дальше).
+// Сигналы — оценка исхода трека (`reward.ts`, docs/WAVE.md 1.3): ручной пропуск с минусом пишется в
+// `skips`, два ранних пропуска артиста подряд — пауза, оценка ≥ +1 — «зашло»; 👎 — трек больше не
+// попадёт в волну, текущий — сразу дальше. Артист везде — главный (`artistKey`, как в Rust).
 // Волна учится на ходу (как у Яндекса): дослушанные и лайкнутые в этой сессии треки становятся
 // сидами следующих порций, однократно пропущенные артисты теряют вес, частые артисты сессии
 // уступают место другим. Стиль сессии (режим и «волна по треку») держится, пока волна играет —
@@ -11,6 +13,7 @@ import { toast } from '../lib/toast.svelte'
 import { player } from './player.svelte'
 import { settings } from '../lib/settings.svelte'
 import { library } from '../lib/library.svelte'
+import { artistKey, reward } from './reward'
 
 export const WAVE_CONTEXT = 'wave'
 
@@ -31,7 +34,6 @@ export type WaveMode = (typeof WAVE_MODES)[number]['id']
 function ctx() {
   return { mode: settings.get('wave.mode'), tz_min: new Date().getTimezoneOffset() }
 }
-const SKIP_MS = 30_000
 /** Догружать, когда до конца очереди осталось столько треков. */
 const PREFETCH_LEFT = 3
 /** Сколько последних «хороших» треков сессии отправлять сидами. */
@@ -220,24 +222,32 @@ class Wave {
 
   private serve(t: Track) {
     this.served.add(t.ref)
-    this.servedArtists.push(t.artist.toLowerCase())
+    this.servedArtists.push(artistKey(t))
   }
 
   private onEnd(t: Track, listened: number, skipped: boolean) {
     if (player.context !== WAVE_CONTEXT) return
-    const artist = t.artist.toLowerCase()
-    if (skipped && listened < SKIP_MS && !library.isLiked(t.ref)) {
-      void api.waveFeedback('skip', t, listened).catch(() => {})
-      this.skipped.add(artist)
+    const artist = artistKey(t)
+    const r = reward({
+      listenedMs: listened,
+      durationMs: t.duration_ms,
+      manualSkip: skipped,
+      liked: library.isLiked(t.ref),
+      disliked: this.disliked.has(t.ref),
+    })
+    // ручной пропуск с минусом — в `skips` (минус артисту и треку)
+    if (skipped && r < 0) void api.waveFeedback('skip', t, listened).catch(() => {})
+    if (r < 0) this.skipped.add(artist)
+    // пауза артиста — два ранних пропуска подряд (−1; 👎 — тоже не «зашло», но считаем отдельно)
+    if (r === -1) {
       const n = (this.skipRun.get(artist) ?? 0) + 1
       this.skipRun.set(artist, n)
       if (n >= 2) this.paused.add(artist)
-      return
+    } else {
+      this.skipRun.delete(artist)
     }
-    this.skipRun.delete(artist)
-    // зашло: дослушал (≥ 80 %) или лайкнул — волна дальше тянется к этому треку
-    const finished = t.duration_ms > 0 && listened >= t.duration_ms * 0.8
-    if (finished || library.isLiked(t.ref)) {
+    // зашло (≥ +1: дослушал или лайкнул) — волна дальше тянется к этому треку
+    if (r >= 1) {
       this.skipped.delete(artist)
       this.good = [...this.good.filter((x) => x.ref !== t.ref), t]
     }

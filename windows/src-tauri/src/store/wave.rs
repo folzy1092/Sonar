@@ -7,8 +7,15 @@ use std::collections::{HashMap, HashSet};
 
 const DAY: i64 = 24 * 3600 * 1000;
 
+/// Артисты строки истории: из `artists_json` кэша треков (совместный трек — все), а если записи
+/// нет — сохранённая строка `artist` (как `wave::artist_names`).
+fn row_artists(artist: &str, json: Option<String>) -> Vec<String> {
+  let list: Vec<crate::providers::ArtistRef> = json.and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default();
+  crate::wave::artist_names(artist, &list)
+}
+
 /// Вкус по истории: лайкнутые исполнители, сколько дослушано и сколько пропущено (по имени артиста
-/// в нижнем регистре).
+/// в нижнем регистре; у совместного трека засчитывается каждому артисту — `wave::artist_keys`).
 #[derive(Debug, Default, Clone)]
 pub struct Taste {
   pub liked_artists: HashSet<String>,
@@ -83,7 +90,7 @@ impl Store {
     Ok(())
   }
 
-  /// Пропуск в первые 30 с — минус артисту.
+  /// Ручной пропуск в волне с оценкой < 0 (`wave::reward`) — минус артисту и треку.
   pub fn add_skip(&self, r: &str, artist: &str, played_ms: i64) -> Result<()> {
     self.db.execute(
       "INSERT INTO skips (user_id, ref, artist, played_ms, at) VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -100,18 +107,22 @@ impl Store {
     let local_ms = now_ms() - tz_min * 60_000;
     let hour = (local_ms / 3_600_000).rem_euclid(24);
     let mut st = self.db.prepare(
-      "SELECT artist, ((played_at - ?3 * 60000) / 3600000) % 24 AS h FROM plays WHERE user_id = ?1 AND played_at >= ?2",
+      "SELECT p.artist, t.artists_json, ((p.played_at - ?3 * 60000) / 3600000) % 24 AS h
+       FROM plays p LEFT JOIN tracks t ON t.ref = p.ref WHERE p.user_id = ?1 AND p.played_at >= ?2",
     )?;
-    let rows = st.query_map(params![LOCAL_USER, since, tz_min], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+    let rows = st.query_map(params![LOCAL_USER, since, tz_min], |r| {
+      Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, i64>(2)?))
+    })?;
     let mut near: HashMap<String, f64> = HashMap::new();
     let mut all: HashMap<String, f64> = HashMap::new();
     for row in rows {
-      let (a, h) = row?;
-      let a = a.to_lowercase();
-      *all.entry(a.clone()).or_insert(0.0) += 1.0;
+      let (artist, json, h) = row?;
       let d = (h.rem_euclid(24) - hour).rem_euclid(24);
-      if d <= 2 || d >= 22 {
-        *near.entry(a).or_insert(0.0) += 1.0;
+      for a in row_artists(&artist, json) {
+        *all.entry(a.clone()).or_insert(0.0) += 1.0;
+        if d <= 2 || d >= 22 {
+          *near.entry(a).or_insert(0.0) += 1.0;
+        }
       }
     }
     Ok(near.into_iter().filter_map(|(a, n)| all.get(&a).filter(|&&t| t >= 3.0).map(|t| (a, n / t))).collect())
@@ -120,24 +131,36 @@ impl Store {
   pub fn taste(&self) -> Result<Taste> {
     let since = now_ms() - 90 * DAY;
     let mut t = Taste::default();
+    // артисты — из кэша треков (совместный трек засчитывается каждому), нет записи — строка из истории
     let count = |sql: &str| -> Result<HashMap<String, u32>> {
       let mut st = self.db.prepare(sql)?;
-      let rows = st.query_map(params![LOCAL_USER, since], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+      let rows = st.query_map(params![LOCAL_USER, since], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, i64>(2)?))
+      })?;
       let mut m = HashMap::new();
       for row in rows {
-        let (a, n) = row?;
-        *m.entry(a.to_lowercase()).or_insert(0) += n.max(0) as u32;
+        let (artist, json, n) = row?;
+        for a in row_artists(&artist, json) {
+          *m.entry(a).or_insert(0) += n.max(0) as u32;
+        }
       }
       Ok(m)
     };
-    t.plays = count("SELECT artist, COUNT(*) FROM plays WHERE user_id = ?1 AND played_at >= ?2 GROUP BY artist")?;
-    t.skips = count("SELECT artist, COUNT(*) FROM skips WHERE user_id = ?1 AND at >= ?2 GROUP BY artist")?;
+    t.plays = count(
+      "SELECT p.artist, t.artists_json, COUNT(*) FROM plays p LEFT JOIN tracks t ON t.ref = p.ref
+       WHERE p.user_id = ?1 AND p.played_at >= ?2 GROUP BY p.ref, p.artist",
+    )?;
+    t.skips = count(
+      "SELECT s.artist, t.artists_json, COUNT(*) FROM skips s LEFT JOIN tracks t ON t.ref = s.ref
+       WHERE s.user_id = ?1 AND s.at >= ?2 GROUP BY s.ref, s.artist",
+    )?;
     let mut st = self.db.prepare(
-      "SELECT t.artist FROM likes l JOIN tracks t ON t.ref = l.ref
+      "SELECT t.artist, t.artists_json FROM likes l JOIN tracks t ON t.ref = l.ref
        WHERE l.user_id = ?1 AND l.kind = 'track' AND l.deleted = 0",
     )?;
-    for a in st.query_map([LOCAL_USER], |r| r.get::<_, String>(0))? {
-      t.liked_artists.insert(a?.to_lowercase());
+    for row in st.query_map([LOCAL_USER], |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?)))? {
+      let (artist, json) = row?;
+      t.liked_artists.extend(row_artists(&artist, json));
     }
     Ok(t)
   }
@@ -274,6 +297,40 @@ mod tests {
     assert_eq!(t.plays.get("art"), Some(&1));
     assert!(s.played_since_days(7).unwrap().contains("sc:5"));
     assert_eq!(s.recent_play_refs(5).unwrap(), vec!["sc:5".to_owned()]);
+  }
+
+  #[test]
+  fn taste_counts_every_artist_of_joint_track() {
+    use crate::providers::{ArtistRef, Track};
+    let mut s = Store::memory().unwrap();
+    let joint = Track {
+      ref_: "ym:1".into(),
+      title: "t".into(),
+      artist: "A, B".into(),
+      artists: ["A", "B"].iter().map(|n| ArtistRef { ref_: format!("yma:{n}"), name: (*n).into(), avatar_url: None }).collect(),
+      album: None,
+      duration_ms: 200_000,
+      cover_url: None,
+      url: None,
+      explicit: false,
+      available: true,
+      plays: None,
+      tags: None,
+    };
+    s.upsert_tracks(&[joint]).unwrap();
+    s.add_play(&Play { ref_: "ym:1".into(), artist: "A, B".into(), context: None, played_at: now_ms(), listened_ms: 200_000 }).unwrap();
+    s.add_skip("ym:1", "A, B", 5000).unwrap();
+    s.set_like("ym:1", true).unwrap();
+    // трека без записи в кэше — по строке из истории
+    s.add_play(&Play { ref_: "sc:7".into(), artist: "Solo".into(), context: None, played_at: now_ms(), listened_ms: 60_000 }).unwrap();
+    let t = s.taste().unwrap();
+    assert_eq!(t.plays.get("a"), Some(&1));
+    assert_eq!(t.plays.get("b"), Some(&1));
+    assert_eq!(t.plays.get("a, b"), None);
+    assert_eq!(t.skips.get("b"), Some(&1));
+    assert!(t.liked_artists.contains("a") && t.liked_artists.contains("b"));
+    assert_eq!(t.plays.get("solo"), Some(&1));
+    assert!(s.hour_share(0).unwrap().is_empty(), "меньше трёх прослушиваний — без доли");
   }
 
   #[test]

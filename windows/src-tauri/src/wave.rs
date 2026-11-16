@@ -3,7 +3,7 @@
 //! (не играть прослушанное за 7 дней, дизлайки, артисты на паузе) и выбор порции с разнообразием.
 //! Сессию (что уже выдано, кто на паузе) держит интерфейс и передаёт сюда — ядро без состояния.
 
-use crate::providers::Track;
+use crate::providers::{ArtistRef, Track};
 use crate::store::Taste;
 use std::collections::{HashMap, HashSet};
 
@@ -54,8 +54,85 @@ pub struct Filter {
   pub paused_artists: HashSet<String>,
 }
 
+/// Главный артист трека (первый из `artist_keys`) — по нему лимиты разнообразия, пауза, сессия.
 pub fn artist_key(t: &Track) -> String {
-  t.artist.to_lowercase()
+  artist_keys(t).swap_remove(0)
+}
+
+/// Артисты трека: имена из `artists` (нижний регистр, без крайних пробелов), а если списка нет —
+/// строка `artist` целиком. Первый — главный. Имена **не режутся** по запятым и `&`
+/// («Tyler, The Creator», «Simon & Garfunkel»): совместный трек Яндекса и так приходит списком.
+pub fn artist_keys(t: &Track) -> Vec<String> {
+  artist_names(&t.artist, &t.artists)
+}
+
+/// То же по сохранённым полям (строка `artist` и список из `artists_json`).
+pub fn artist_names(artist: &str, artists: &[ArtistRef]) -> Vec<String> {
+  let mut out: Vec<String> = Vec::with_capacity(artists.len().max(1));
+  for a in artists {
+    let k = a.name.trim().to_lowercase();
+    if !k.is_empty() && !out.contains(&k) {
+      out.push(k);
+    }
+  }
+  if out.is_empty() {
+    out.push(artist.trim().to_lowercase());
+  }
+  out
+}
+
+/// Оценка исхода трека — одна шкала для всех сигналов волны (та же функция в
+/// `src/player/reward.ts`, тесты на обе). `listened_ms` — сколько прослушано, `manual_skip` —
+/// трек пропустили вручную (а не закончился сам или сменился иначе), `liked` — лайкнут во время
+/// трека или уже в Любимых, `disliked` — 👎.
+///
+/// | исход | оценка |
+/// |---|---|
+/// | 👎 | −2 |
+/// | лайк | +1.5 (отменяет минусы) |
+/// | пропуск, `f < 0.25` или < 30 с — ранний | −1 |
+/// | пропуск, `0.25 ≤ f < 0.5` | −0.4 |
+/// | пропуск, `0.5 ≤ f < 0.8` | 0 |
+/// | `f ≥ 0.8` | +1 |
+/// | сменился не пропуском, `f < 0.8` | 0 |
+///
+/// Длительность неизвестна (0) — по секундам: < 30 с — ранний пропуск, ≥ 150 с — дослушан.
+#[allow(dead_code)] // вкус по оценкам — этап 2 (docs/WAVE.md)
+pub fn reward(listened_ms: u64, duration_ms: u64, manual_skip: bool, liked: bool, disliked: bool) -> f64 {
+  if disliked {
+    return -2.0;
+  }
+  if liked {
+    return 1.5;
+  }
+  let early = listened_ms < 30_000;
+  if duration_ms == 0 {
+    return if listened_ms >= 150_000 {
+      1.0
+    } else if manual_skip && early {
+      -1.0
+    } else {
+      0.0
+    };
+  }
+  let f = listened_ms as f64 / duration_ms as f64;
+  if f >= 0.8 {
+    1.0
+  } else if !manual_skip {
+    0.0
+  } else if f < 0.25 || early {
+    -1.0
+  } else if f < 0.5 {
+    -0.4
+  } else {
+    0.0
+  }
+}
+
+/// Ранний пропуск (оценка −1 без 👎) — два подряд ставят артиста на паузу.
+#[allow(dead_code)] // интерфейс считает то же в `reward.ts`; в Rust — с этапа 2
+pub fn is_early_skip(listened_ms: u64, duration_ms: u64, manual_skip: bool) -> bool {
+  reward(listened_ms, duration_ms, manual_skip, false, false) <= -1.0
 }
 
 /// Режим волны (кнопка под «Моя волна»): `own` — своя по лайкам, настроения `hard` / `calm` /
@@ -201,16 +278,24 @@ pub fn beta(a: u32, b: u32, rng: &mut Rng) -> f64 {
 /// пробует новых, а не крутит одних и тех же. Плюс: лайкнутый артист, голоса и место в похожих,
 /// «зашло в сессии», теги как у зашедших, своя платформа, время суток, настроение режима.
 fn score(t: &Track, taste: &Taste, origin: &Origin, session: &Session, prefer: Option<&str>, mode: &str, rng: &mut Rng) -> f64 {
-  let a = artist_key(t);
-  let plays = *taste.plays.get(&a).unwrap_or(&0);
-  let skips = *taste.skips.get(&a).unwrap_or(&0);
+  let keys = artist_keys(t);
+  let a = keys[0].clone();
+  // вкус — по лучшему из артистов трека (совместный трек любимого артиста — тоже «свой»)
+  let (plays, skips) = keys
+    .iter()
+    .map(|k| (*taste.plays.get(k).unwrap_or(&0), *taste.skips.get(k).unwrap_or(&0)))
+    .max_by(|x, y| {
+      let m = |(p, s): &(u32, u32)| (1.0 + *p as f64) / (2.0 + (*p + *s) as f64);
+      m(x).partial_cmp(&m(y)).unwrap_or(std::cmp::Ordering::Equal).then(x.0.cmp(&y.0))
+    })
+    .unwrap_or((0, 0));
   let affinity = 2.0 * beta(1 + plays, 1 + skips, rng) - 1.0; // −1 … 1
-  let liked = if taste.liked_artists.contains(&a) { 2.0 } else { 0.0 };
+  let liked = if keys.iter().any(|k| taste.liked_artists.contains(k)) { 2.0 } else { 0.0 };
   let platform = match prefer {
     Some(p) if t.ref_.starts_with(&format!("{p}:")) => 0.6,
     _ => 0.0,
   };
-  let hour = taste.hour_share.get(&a).copied().unwrap_or(0.0);
+  let hour = keys.iter().filter_map(|k| taste.hour_share.get(k).copied()).fold(0.0, f64::max);
   let votes = *origin.votes.get(&t.ref_).unwrap_or(&1) as f64;
   let sim = 0.6 * (votes - 1.0).min(3.0) + 0.5 * origin.rank.get(&t.ref_).copied().unwrap_or(0.0);
   let mut live = if origin.from_session.contains(&t.ref_) { 0.7 } else { 0.0 };
@@ -431,6 +516,62 @@ mod tests {
     let lo: f64 = (0..400).map(|_| beta(2, 30, &mut r)).sum::<f64>() / 400.0;
     assert!(hi > 0.8 && lo < 0.2, "{hi} {lo}");
     assert!((0.0..=1.0).contains(&beta(500, 500, &mut r)));
+  }
+
+  fn with_artists(mut x: Track, names: &[&str]) -> Track {
+    x.artists = names.iter().map(|n| ArtistRef { ref_: format!("yma:{n}"), name: (*n).into(), avatar_url: None }).collect();
+    x
+  }
+
+  #[test]
+  fn artist_keys_joint_and_empty() {
+    // совместный трек Яндекса: «A, B» строкой, артисты списком — два ключа, главный первый
+    let joint = with_artists(t("ym:1", "Oxxxymiron, Markul"), &["Oxxxymiron", " Markul "]);
+    assert_eq!(artist_keys(&joint), vec!["oxxxymiron".to_owned(), "markul".to_owned()]);
+    assert_eq!(artist_key(&joint), "oxxxymiron");
+    // списка нет — строка целиком, по запятым и & не режем
+    assert_eq!(artist_keys(&t("sc:1", "Tyler, The Creator")), vec!["tyler, the creator".to_owned()]);
+    assert_eq!(artist_keys(&t("sc:2", "Simon & Garfunkel")), vec!["simon & garfunkel".to_owned()]);
+    // повтор имени в списке — один ключ
+    assert_eq!(artist_keys(&with_artists(t("ym:2", "A"), &["A", "a"])).len(), 1);
+  }
+
+  #[test]
+  fn taste_by_best_artist_and_diversity_by_main() {
+    let mut taste = Taste::default();
+    taste.liked_artists.insert("markul".into());
+    let f = Filter::default();
+    // совместный трек с любимым вторым артистом обходит чужой трек
+    let joint = with_artists(t("ym:1", "X, Markul"), &["X", "Markul"]);
+    let out = pick(vec![t("sc:9", "Other"), joint], &taste, &Origin::default(), &Session::default(), &f, None, "own", 1, false, &mut Rng::new(4));
+    assert_eq!(out[0].ref_, "ym:1");
+    // пауза — по главному артисту
+    let mut f = Filter::default();
+    f.paused_artists.insert("x".into());
+    let joint = with_artists(t("ym:1", "X, Markul"), &["X", "Markul"]);
+    let out = pick(vec![joint], &taste, &Origin::default(), &Session::default(), &f, None, "own", 1, false, &mut Rng::new(4));
+    assert!(out.is_empty());
+  }
+
+  #[test]
+  fn reward_table() {
+    const MIN: u64 = 60_000;
+    let d = 4 * MIN;
+    assert_eq!(reward(d, d, false, false, true), -2.0, "👎");
+    assert_eq!(reward(10_000, d, true, true, false), 1.5, "лайк отменяет минусы");
+    assert_eq!(reward(10_000, d, true, false, false), -1.0, "ранний пропуск по секундам");
+    assert_eq!(reward(50_000, d, true, false, false), -1.0, "f < 0.25");
+    assert_eq!(reward(35_000, 100_000, true, false, false), -0.4, "0.25 ≤ f < 0.5, но ≥ 30 с");
+    assert_eq!(reward(25_000, 100_000, true, false, false), -1.0, "f ≥ 0.25, но < 30 с — ранний");
+    assert_eq!(reward(2 * MIN, d, true, false, false), 0.0, "0.5 ≤ f < 0.8");
+    assert_eq!(reward(d * 8 / 10, d, true, false, false), 1.0, "f ≥ 0.8 даже пропуском");
+    assert_eq!(reward(d, d, false, false, false), 1.0, "дослушан");
+    assert_eq!(reward(10_000, d, false, false, false), 0.0, "сменился не пропуском");
+    // длительность неизвестна
+    assert_eq!(reward(10_000, 0, true, false, false), -1.0);
+    assert_eq!(reward(60_000, 0, true, false, false), 0.0);
+    assert_eq!(reward(150_000, 0, false, false, false), 1.0);
+    assert!(is_early_skip(10_000, d, true) && !is_early_skip(10_000, d, false));
   }
 
   #[test]

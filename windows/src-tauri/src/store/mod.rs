@@ -88,6 +88,8 @@ CREATE TABLE skips (
   artist TEXT NOT NULL, played_ms INTEGER NOT NULL, at INTEGER NOT NULL
 );
 CREATE INDEX skips_user_time ON skips(user_id, at);
+"#, r#"
+ALTER TABLE tracks ADD COLUMN tags TEXT;
 "#];
 
 pub fn now_ms() -> i64 {
@@ -201,10 +203,11 @@ impl Store {
     let tx = self.db.transaction()?;
     {
       let mut st = tx.prepare(
-        "INSERT INTO tracks (ref, title, artist, artists_json, album_json, duration_ms, cover_url, url, fetched_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+        // теги: пустое значение старые не затирает (трек из кэша или очереди приходит без тегов)
+        "INSERT INTO tracks (ref, title, artist, artists_json, album_json, duration_ms, cover_url, url, fetched_at, tags)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULLIF(?10, ''))
          ON CONFLICT(ref) DO UPDATE SET title = ?2, artist = ?3, artists_json = ?4, album_json = ?5,
-           duration_ms = ?6, cover_url = ?7, url = ?8, fetched_at = ?9",
+           duration_ms = ?6, cover_url = ?7, url = ?8, fetched_at = ?9, tags = COALESCE(NULLIF(?10, ''), tags)",
       )?;
       let now = now_ms();
       for t in tracks {
@@ -217,7 +220,8 @@ impl Store {
           t.duration_ms as i64,
           t.cover_url,
           t.url,
-          now
+          now,
+          t.tags.as_deref().map(str::trim)
         ])?;
       }
     }
@@ -228,7 +232,7 @@ impl Store {
   /// Треки из кэша в том же порядке, что `refs`; которых нет — пропускаются.
   pub fn tracks(&self, refs: &[String]) -> Result<Vec<Track>> {
     let mut st = self.db.prepare(
-      "SELECT ref, title, artist, artists_json, album_json, duration_ms, cover_url, url FROM tracks WHERE ref = ?1",
+      "SELECT ref, title, artist, artists_json, album_json, duration_ms, cover_url, url, tags FROM tracks WHERE ref = ?1",
     )?;
     let mut out = Vec::with_capacity(refs.len());
     for r in refs {
@@ -243,10 +247,11 @@ impl Store {
             row.get::<_, i64>(5)?,
             row.get::<_, Option<String>>(6)?,
             row.get::<_, Option<String>>(7)?,
+            row.get::<_, Option<String>>(8)?,
           ))
         })
         .optional()?;
-      if let Some((ref_, title, artist, artists, album, dur, cover_url, url)) = row {
+      if let Some((ref_, title, artist, artists, album, dur, cover_url, url, tags)) = row {
         out.push(Track {
           ref_,
           title,
@@ -259,7 +264,7 @@ impl Store {
           explicit: false,
           available: true,
           plays: None,
-          tags: None,
+          tags,
         });
       }
     }
@@ -712,6 +717,41 @@ mod tests {
       plays: None,
       tags: None,
     }
+  }
+
+  #[test]
+  fn tags_saved_and_not_wiped_by_empty() {
+    let mut s = Store::memory().unwrap();
+    let mut t = track("sc:1");
+    t.tags = Some("\"drift phonk\" trap".into());
+    s.upsert_tracks(&[t.clone()]).unwrap();
+    t.tags = None;
+    s.upsert_tracks(&[t.clone()]).unwrap();
+    t.tags = Some("  ".into());
+    s.upsert_tracks(&[t]).unwrap();
+    assert_eq!(s.tracks(&["sc:1".into()]).unwrap()[0].tags.as_deref(), Some("\"drift phonk\" trap"));
+  }
+
+  #[test]
+  fn migration_from_old_schema_adds_tags() {
+    // база со схемой до колонки тегов (5 миграций): трек сохраняется, теги появляются пустыми
+    let db = Connection::open_in_memory().unwrap();
+    for (i, sql) in MIGRATIONS.iter().take(5).enumerate() {
+      db.execute_batch(&format!("BEGIN; {sql} PRAGMA user_version = {}; COMMIT;", i + 1)).unwrap();
+    }
+    db.execute(
+      "INSERT INTO tracks (ref, title, artist, duration_ms, fetched_at) VALUES ('sc:1', 't', 'a', 1000, 0)",
+      [],
+    )
+    .unwrap();
+    let mut s = Store::init(db).unwrap();
+    let old = s.tracks(&["sc:1".into()]).unwrap();
+    assert_eq!(old.len(), 1);
+    assert_eq!(old[0].tags, None);
+    let mut t = track("sc:1");
+    t.tags = Some("lofi".into());
+    s.upsert_tracks(&[t]).unwrap();
+    assert_eq!(s.tracks(&["sc:1".into()]).unwrap()[0].tags.as_deref(), Some("lofi"));
   }
 
   #[test]
