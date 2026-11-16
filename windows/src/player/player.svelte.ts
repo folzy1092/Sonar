@@ -385,8 +385,30 @@ class Player {
   // ——— внутреннее ———
 
   private applyVolume() {
-    // квадрат — громкость на слух ровнее, чем линейная
-    for (const d of this.decks) d.volume = this.volume * this.volume
+    // квадрат — громкость на слух ровнее, чем линейная; duckK — приглушение на время звонка
+    for (const d of this.decks) d.volume = this.volume * this.volume * this.duckK
+  }
+
+  /** Множитель громкости на время звонка: плавно 1 ↔ 0.2 за ~0.8 с. */
+  private duckK = 1
+  private duckRaf = 0
+  /** Идёт ли звонок (calls.rs шлёт `call:active`, когда микрофон занят другим приложением). */
+  inCall = $state(false)
+
+  setCall(on: boolean) {
+    this.inCall = on
+    const target = on && settings.get('audio.duck_calls') ? 0.2 : 1
+    // таймер, а не кадры: окно может быть свёрнуто в трей, а кадры там не идут
+    clearTimeout(this.duckRaf)
+    const from = this.duckK
+    const t0 = performance.now()
+    const step = () => {
+      const k = Math.min(1, (performance.now() - t0) / 800)
+      this.duckK = from + (target - from) * (1 - (1 - k) ** 3)
+      this.applyVolume()
+      if (k < 1) this.duckRaf = window.setTimeout(step, 30)
+    }
+    step()
   }
 
   /** Скорость, тон и реверб из меню скорости (`tempo.svelte.ts`). Тон связан со скоростью — его

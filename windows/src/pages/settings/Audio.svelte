@@ -129,7 +129,15 @@
       <Slider title="Длительность кроссфейда" value={settings.get('audio.crossfade')} min={1} max={12} unit=" с" onchange={(v) => settings.set('audio.crossfade', v)} />
     </div>
   {/if}
-  <Switch title="Тише во время звонков" hint="Музыка стихает, пока идёт звонок или голосовой чат в другом приложении" on={true} soon />
+  <Switch
+    title="Тише во время звонков"
+    hint="Музыка стихает до 20 %, пока другое приложение занимает микрофон: звонок, голосовой чат Discord или Telegram"
+    on={settings.get('audio.duck_calls')}
+    onchange={(v) => {
+      settings.set('audio.duck_calls', v)
+      player.setCall(player.inCall)
+    }}
+  />
 </Group>
 
 <Group title="SoundCloud">

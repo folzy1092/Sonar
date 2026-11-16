@@ -5,6 +5,7 @@ mod lastfm;
 mod login;
 mod lyrics;
 mod media;
+mod calls;
 mod mini;
 mod obs;
 mod providers;
@@ -77,6 +78,16 @@ pub fn run() {
         tray::HIDE_ON_CLOSE.store(v.as_bool().unwrap_or(true), std::sync::atomic::Ordering::Relaxed);
       }
       tray::setup(app)?;
+      // Windows 10: у окна без рамки тень рисует белую рамку в 1 px по краю — там тень выключаем
+      // (на Windows 11 вместо неё скруглённые углы, тень остаётся)
+      #[cfg(windows)]
+      if windows_version::OsVersion::current().build < 22000 {
+        if let Some(w) = app.get_webview_window("main") {
+          let _ = w.set_shadow(false);
+        }
+      }
+      // «Тише во время звонков»: следим, занят ли микрофон другим приложением
+      calls::start(app.handle().clone());
       if std::env::args().any(|a| a == "--autostart") {
         if let Some(w) = app.get_webview_window("main") {
           let _ = w.hide();
