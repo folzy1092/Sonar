@@ -5,6 +5,7 @@ mod lastfm;
 mod login;
 mod lyrics;
 mod media;
+mod mini;
 mod obs;
 mod providers;
 mod secrets;
@@ -132,6 +133,8 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       commands::services_status,
       commands::sync_now,
+      commands::mini_window,
+      commands::show_main,
       commands::obs_new_token,
       commands::lastfm_status,
       commands::lastfm_login,

@@ -521,6 +521,18 @@ pub async fn resolve_link(core: State<'_, Arc<Core>>, db: State<'_, Db>, url: St
   Ok(item)
 }
 
+/// Мини-окно поверх всех окон: показать / закрыть (кнопка в плеере). Вернёт, открыто ли.
+#[tauri::command]
+pub fn mini_window(app: tauri::AppHandle, show: bool) -> Res<bool> {
+  crate::mini::toggle(&app, show).map_err(err)
+}
+
+/// Показать главное окно (из мини-окна: двойной клик по обложке).
+#[tauri::command]
+pub fn show_main(app: tauri::AppHandle) {
+  crate::tray::show_main(&app);
+}
+
 /// Синхронизация сейчас (API.md §6): отправить своё, забрать с других устройств. До сервера — ошибка
 /// «ещё не подключён».
 #[tauri::command]

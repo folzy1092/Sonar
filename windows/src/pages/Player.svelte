@@ -17,6 +17,7 @@
   import SeekBar from '../player/SeekBar.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
   import EqButton from '../player/EqButton.svelte'
+  import { mini } from '../lib/mini.svelte'
   import Wave from '../player/Wave.svelte'
   import { formatTime, player } from '../player/player.svelte'
   import { library } from '../lib/library.svelte'
@@ -148,6 +149,7 @@
       <div class="panel extra">
         <SpeedButton />
         <EqButton />
+        <IconButton icon="layoutFloat" label={mini.open ? 'Закрыть мини-окно' : 'Мини-окно поверх всех окон'} size={17} active={mini.open} onclick={() => mini.toggle()} />
       </div>
     </div>
 
