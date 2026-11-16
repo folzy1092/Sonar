@@ -423,6 +423,35 @@ pub async fn sync_now(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<crat
   crate::sync::sync_now(&core.http, &db.0).await.map_err(err)
 }
 
+/// Отчёт прошлого запуска (было падение или ошибки) — для плашки «Sonar закрылся с ошибкой».
+#[tauri::command]
+pub fn report_pending() -> Option<crate::crashlog::Pending> {
+  crate::crashlog::pending()
+}
+
+/// «Отправить лог»: в Telegram ботом отчётов (или в «Загрузки», если бот не вшит в сборку).
+#[tauri::command]
+pub async fn report_send(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<crate::crashlog::Sent> {
+  let device = db.0.lock().unwrap().device_id().map_err(err)?;
+  let sent = crate::crashlog::send(&core.http, &device).await.map_err(err)?;
+  if let crate::crashlog::Sent::Saved { path } = &sent {
+    // показать файл в Проводнике — его останется переслать
+    let _ = std::process::Command::new("explorer").arg(format!("/select,{path}")).spawn();
+  }
+  Ok(sent)
+}
+
+#[tauri::command]
+pub fn report_dismiss() {
+  crate::crashlog::dismiss()
+}
+
+/// Ошибка интерфейса — в журнал сессии.
+#[tauri::command]
+pub fn log_frontend(level: String, message: String) {
+  crate::crashlog::frontend(&level, &message)
+}
+
 /// Вес сида при выборе (docs/WAVE.md 4.3): `0.85 ^ место` (0 — самый свежий), × 1.5 — и лайкнут, и
 /// дослушан, × 0.3 — его предложения в волне чаще всего пропускали.
 fn seed_weights(fresh: &[String], both: &[String], weak: &std::collections::HashSet<String>) -> Vec<(String, f64)> {

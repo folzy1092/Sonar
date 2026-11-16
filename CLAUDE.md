@@ -27,6 +27,8 @@
 `components/mingcute.ts` из `windows/scripts/gen-icons.mjs` (Tabler `icons.ts` — только чего нет в MingCute).
 Шрифты интерфейса — `theme/look.ts` + `theme/fonts.css` из `windows/scripts/gen-fonts.mjs` (fontsource, латиница+кириллица). Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`),
 новые экраны собирать на них; настройки — `lib/settings.svelte.ts` (ключи и значения по умолчанию).
+Журнал ошибок — `windows/src-tauri/src/crashlog.rs` (плашка после сбоя, «Отправить лог» ботом отчётов из
+секретов CI `SONAR_REPORT_*`, токен в репо не класть). Синк на стороне клиента готов (`store/sync.rs`, `sync.rs`).
 Discord RPC: ID приложения Discord пользователь **не вводит** — до сервера он вшит в сборку
 (`discord.rs` `APP_ID` = 1571615944449466510, с 2026-11-15), потом приходит с сервера (`GET /config`). Тесты Windows: `npm test` (vitest),
 `cargo test` в `src-tauri`; живые проверки SC — `SC_CLIENT_ID=… cargo test -- --ignored`.
