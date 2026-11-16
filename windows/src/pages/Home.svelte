@@ -177,7 +177,7 @@
         {me.name}
       </span>{/if}</h2>
   {#if home.mix.length || home.recent.length}
-    <Shelf>
+    <Shelf wheel>
       <!-- первым — подборка под время суток (что слушаешь в эти часы + лайки), за ней «Недавнее»;
            обе — веером из трёх обложек, как у Dotify -->
       {#if home.mix.length}
@@ -200,7 +200,7 @@
 <section class="block">
   <h2>{week.length || !home.releases.length ? t('Релизы недели') : t('Свежие релизы')}</h2>
   {#if releases.length}
-    <Shelf>
+    <Shelf wheel>
       {#each releases as a (a.ref)}
         <Tile title={a.title} subtitle={a.artist} meta={releaseLabel(a.released) ?? (a.year ? String(a.year) : undefined)} image={a.cover_url} icon="disc" source={a.ref} onclick={() => openAlbum(a)} />
       {/each}
