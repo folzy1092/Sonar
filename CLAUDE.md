@@ -18,7 +18,8 @@
 с изменениями `windows/` сам выпускает релиз (авто-патч `<major>.<minor>.<patch+run_number>`, Latest,
 `releases/latest/download/Sonar-setup.exe`); крупная версия с описанием —
 `version` в `tauri.conf.json` / `Cargo.toml` / `package.json` + запись в `updates/changelog.json`.
-Следующий шаг — сервер (после покупки Velt), см. `docs/ROADMAP.md`. Бот `@SonarMusicApp` уже написан
+Следующий шаг — сервер (после покупки Velt), см. `docs/ROADMAP.md`. До сервера — «Моя волна 2» по спеке
+`docs/WAVE.md` (шесть этапов, отметки в ROADMAP). Бот `@SonarMusicApp` уже написан
 (`server/sonar`, aiogram 3 + SQLite, без API) и пока крутится на ПК владельца: «Запустить бота.bat» в корне
 (создаёт `server/.env` из `server/env.example`, токен вписывает владелец). Файлы `.env*` агенту закрыты.
 Текст песен — формулы Dotify в `lyrics/core/motion.ts`, фон плеера — WebGL `player/art-field.ts`,
