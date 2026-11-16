@@ -7,17 +7,12 @@ import { untrack } from 'svelte'
 import { api, errorText, onMediaControl, type PlayerState, type Repeat, type Track } from '../lib/api'
 import { eq } from './eq.svelte'
 import { Leveler } from './leveler'
+import { Effects } from './effects'
+import { pitchRatio, tempo } from './tempo.svelte'
 import { settings } from '../lib/settings.svelte'
 import { Clock } from '../lyrics/core/clock'
 import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
 
-/** Режимы скорости кнопки рядом с громкостью: тон меняется вместе со скоростью (slowed / sped up). */
-export const speedModes = {
-  normal: { label: 'Обычная', badge: '', rate: 1 },
-  slowed: { label: 'Slowed', badge: 'Slowed', rate: 0.8 },
-  speed: { label: 'Sped up', badge: 'Speed', rate: 1.25 },
-} as const
-export type SpeedMode = keyof typeof speedModes
 
 const HEARTBEAT_MS = 30_000
 
@@ -41,7 +36,6 @@ class Player {
   volume = $state(0.8)
   repeat = $state<Repeat>('off')
   shuffle = $state(false)
-  speedMode = $state<SpeedMode>('normal')
 
   current = $derived<Track | null>(this.tracks[this.order[this.pos]] ?? null)
   /** Треки, которые дописал автоплей похожих (`autoplay.svelte.ts`), — в «Далее» они идут
@@ -67,6 +61,7 @@ class Player {
   private ctx: AudioContext | null = null
   /** Нормализация громкости (`audio.normalize`). */
   leveler: Leveler | null = null
+  private effects: Effects | null = null
   /** Кто слушает конец трека (своя волна): трек, сколько прослушано, пропущен ли вручную. */
   private endHooks = new Set<(t: Track, listenedMs: number, skipped: boolean) => void>()
   /** Очередь доиграла до конца: вернуть true, если кто-то продолжил (похожие после очереди). */
@@ -136,6 +131,11 @@ class Player {
         const on = settings.get('audio.normalize')
         untrack(() => this.leveler?.setEnabled(on))
       })
+      // меню скорости: любое изменение — сразу в звук
+      $effect(() => {
+        void [tempo.rate, tempo.pitch, tempo.linked, tempo.reverb]
+        untrack(() => this.applySpeed())
+      })
     })
   }
 
@@ -162,10 +162,13 @@ class Player {
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 2048
       analyser.smoothingTimeConstant = 0.82
-      // источник → эквалайзер → выравниватель громкости → анализатор волны → выход
+      // источник → эквалайзер → выравниватель громкости → тон и реверб → анализатор волны → выход
       const leveler = new Leveler(ctx)
+      const effects = new Effects(ctx)
       eq.connect(ctx, ctx.createMediaElementSource(a), leveler.input)
-      leveler.node.connect(analyser)
+      leveler.node.connect(effects.input)
+      effects.output.connect(analyser)
+      this.effects = effects
       analyser.connect(ctx.destination)
       this.leveler = leveler
       this.ctx = ctx
@@ -337,12 +340,6 @@ class Player {
     }
   }
 
-  setSpeedMode(mode: SpeedMode) {
-    this.speedMode = mode
-    this.applySpeed()
-    void api.setSetting('player.speed_mode', mode).catch(() => {})
-  }
-
   // ——— внутреннее ———
 
   private applyVolume() {
@@ -350,16 +347,21 @@ class Player {
     if (this.audio) this.audio.volume = this.volume * this.volume
   }
 
+  /** Скорость, тон и реверб из меню скорости (`tempo.svelte.ts`). Тон связан со скоростью — его
+   *  двигает сам <audio> (slowed / sped up); не связан — <audio> держит тон, а сдвиг делает `effects`. */
   private applySpeed() {
     if (!this.audio) return
-    const rate = speedModes[this.speedMode].rate
-    this.audio.preservesPitch = false // slowed / sped up: тон вместе со скоростью
+    const rate = tempo.rate
+    this.audio.preservesPitch = !tempo.linked
     this.audio.defaultPlaybackRate = rate
     this.audio.playbackRate = rate
+    void this.effects?.setPitch(tempo.linked ? 1 : pitchRatio(tempo.pitch))
+    this.effects?.setReverb(tempo.reverb)
   }
 
   private async load(autoplay: boolean, startMs = 0) {
     this.leveler?.trackChanged()
+    tempo.trackChanged(this.current?.ref ?? null)
     const a = this.audio
     const track = this.current
     if (!a || !track) return
@@ -533,16 +535,15 @@ class Player {
   /** Настройки и последнее состояние: тот же трек и позиция, на паузе (`general.restore`). */
   private async restore() {
     try {
-      const [volume, speed, saved, mode, output] = await Promise.all([
+      const [volume, , saved, mode, output] = await Promise.all([
         api.getSetting<number>('player.volume'),
-        api.getSetting<SpeedMode>('player.speed_mode'),
+        tempo.load(),
         api.loadPlayerState(),
         api.getSetting<'none' | 'track' | 'queue'>('general.restore'),
         api.getSetting<string>('audio.output_device'),
       ])
       if (output) void this.setOutput(output)
       if (typeof volume === 'number') this.volume = volume
-      if (speed && speed in speedModes) this.speedMode = speed
       this.applyVolume()
       this.applySpeed()
       if (!saved || !saved.tracks.length || this.current || mode === 'none') return
