@@ -212,30 +212,31 @@
     if (el && lines.length) el.style.setProperty('--p', String(progress(0, lines[0].time, t)))
   }
 
-  onMount(() => {
+  // часы текста — от активного <audio>; после кроссфейда играет другой дек — переподписываемся
+  $effect(() => {
     const a = player.media
-    let raf = 0
-    if (a) {
-      clock.duration = Number.isFinite(a.duration) ? a.duration : Infinity
-      if (a.paused) clock.hold(a.currentTime)
-      else clock.play(a.currentTime, performance.now(), a.playbackRate)
+    if (!a) return
+    clock.duration = Number.isFinite(a.duration) ? a.duration : Infinity
+    if (a.paused) clock.hold(a.currentTime)
+    else clock.play(a.currentTime, performance.now(), a.playbackRate)
+    const on: [string, () => void][] = [
+      ['timeupdate', () => clock.sample(a.currentTime, performance.now())],
+      ['playing', () => clock.play(a.currentTime, performance.now(), a.playbackRate)],
+      ['pause', () => clock.hold(a.currentTime)],
+      ['waiting', () => clock.hold(a.currentTime)],
+      ['seeking', () => clock.seek(a.currentTime)],
+      ['seeked', () => (a.paused ? clock.hold(a.currentTime) : clock.play(a.currentTime, performance.now(), a.playbackRate))],
+      ['ratechange', () => clock.setRate(a.playbackRate, a.currentTime, performance.now())],
+      ['durationchange', () => (clock.duration = Number.isFinite(a.duration) ? a.duration : Infinity)],
+    ]
+    for (const [ev, fn] of on) a.addEventListener(ev, fn)
+    return () => {
+      for (const [ev, fn] of on) a.removeEventListener(ev, fn)
     }
-    const on: [string, () => void][] = a
-      ? [
-          ['timeupdate', () => clock.sample(a.currentTime, performance.now())],
-          ['playing', () => clock.play(a.currentTime, performance.now(), a.playbackRate)],
-          ['pause', () => clock.hold(a.currentTime)],
-          ['waiting', () => clock.hold(a.currentTime)],
-          ['seeking', () => clock.seek(a.currentTime)],
-          [
-            'seeked',
-            () => (a.paused ? clock.hold(a.currentTime) : clock.play(a.currentTime, performance.now(), a.playbackRate)),
-          ],
-          ['ratechange', () => clock.setRate(a.playbackRate, a.currentTime, performance.now())],
-          ['durationchange', () => (clock.duration = Number.isFinite(a.duration) ? a.duration : Infinity)],
-        ]
-      : []
-    for (const [ev, fn] of on) a!.addEventListener(ev, fn)
+  })
+
+  onMount(() => {
+    let raf = 0
 
     const frame = (ts: number) => {
       raf = requestAnimationFrame(frame)
@@ -250,7 +251,6 @@
 
     return () => {
       cancelAnimationFrame(raf)
-      for (const [ev, fn] of on) a!.removeEventListener(ev, fn)
     }
   })
 </script>

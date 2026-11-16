@@ -45,7 +45,18 @@ class Player {
   /** «Далее» — треки после текущего в порядке воспроизведения. */
   upNext = $derived(this.order.slice(this.pos + 1).map((i) => this.tracks[i]))
 
-  private audio: HTMLAudioElement | null = null
+  /** Активный «дек» — тот, что сейчас звучит и управляется. Реактивный: тексту песни нужно знать,
+   *  что после кроссфейда играет другой <audio>. */
+  private audio = $state.raw<HTMLAudioElement | null>(null)
+  /** Два дека для кроссфейда и бесшовного: следующий трек стартует на втором, пока первый затухает. */
+  private decks: HTMLAudioElement[] = []
+  /** Громкость каждого дека в Web Audio (кроссфейд меняет их местами). */
+  private deckGain = new Map<HTMLAudioElement, GainNode>()
+  /** Затухающий дек после перехода: остановится по таймеру. */
+  private fading: { el: HTMLAudioElement; hls: Hls | null; timer: ReturnType<typeof setTimeout> } | null = null
+  private crossing = false
+  /** Для какого следующего трека уже заранее запрошен поток. */
+  private warmedFor: string | null = null
   private hls: Hls | null = null
   private loadToken = 0
   private listenedMs = 0
@@ -76,24 +87,40 @@ class Player {
 
   init() {
     if (this.audio) return
-    const a = new Audio()
-    a.preload = 'auto'
-    // поток идёт с 127.0.0.1 с CORS — без этого Web Audio получит тишину
-    a.crossOrigin = 'anonymous'
-    this.audio = a
-    this.connectAnalyser(a)
+    const make = () => {
+      const el = new Audio()
+      el.preload = 'auto'
+      // поток идёт с 127.0.0.1 с CORS — без этого Web Audio получит тишину
+      el.crossOrigin = 'anonymous'
+      this.listen(el)
+      return el
+    }
+    this.decks = [make(), make()]
+    this.audio = this.decks[0]
+    this.connectAnalyser()
     this.applyVolume()
     this.applySpeed()
+    this.initRest()
+  }
 
-    a.addEventListener('play', () => this.setPlaying(true))
-    a.addEventListener('pause', () => this.setPlaying(false))
-    a.addEventListener('waiting', () => (this.loading = true))
-    a.addEventListener('playing', () => (this.loading = false))
-    a.addEventListener('canplay', () => (this.loading = false))
-    a.addEventListener('durationchange', () => {
+  /** События дека — только от активного: затухающий после кроссфейда не трогает плеер. */
+  private listen(a: HTMLAudioElement) {
+    const own =
+      <E extends Event>(fn: (e: E) => void) =>
+      (e: E) => {
+        if (a === this.audio) fn(e)
+      }
+    const addEventListener = (type: string, fn: (e: Event) => void) => a.addEventListener(type, own(fn))
+
+    addEventListener('play', () => this.setPlaying(true))
+    addEventListener('pause', () => this.setPlaying(false))
+    addEventListener('waiting', () => (this.loading = true))
+    addEventListener('playing', () => (this.loading = false))
+    addEventListener('canplay', () => (this.loading = false))
+    addEventListener('durationchange', () => {
       if (Number.isFinite(a.duration) && a.duration > 0) this.durationMs = a.duration * 1000
     })
-    a.addEventListener('timeupdate', () => this.onTime())
+    addEventListener('timeupdate', () => this.onTime())
     // до метаданных currentTime = 0 ничего не значит (смена src) — держим позицию из place()
     const tick = (fn: () => void) => () => {
       if (a.readyState === HTMLMediaElement.HAVE_NOTHING) return
@@ -101,19 +128,21 @@ class Player {
       this.syncFrames()
     }
     const now = () => performance.now()
-    a.addEventListener('timeupdate', tick(() => this.clock.sample(a.currentTime, now())))
-    a.addEventListener('playing', tick(() => this.clock.play(a.currentTime, now(), a.playbackRate)))
-    a.addEventListener('pause', tick(() => this.clock.hold(a.currentTime)))
-    a.addEventListener('waiting', tick(() => this.clock.hold(a.currentTime)))
-    a.addEventListener('seeking', tick(() => this.clock.seek(a.currentTime)))
-    a.addEventListener(
+    addEventListener('timeupdate', tick(() => this.clock.sample(a.currentTime, now())))
+    addEventListener('playing', tick(() => this.clock.play(a.currentTime, now(), a.playbackRate)))
+    addEventListener('pause', tick(() => this.clock.hold(a.currentTime)))
+    addEventListener('waiting', tick(() => this.clock.hold(a.currentTime)))
+    addEventListener('seeking', tick(() => this.clock.seek(a.currentTime)))
+    addEventListener(
       'seeked',
       tick(() => (a.paused ? this.clock.hold(a.currentTime) : this.clock.play(a.currentTime, now(), a.playbackRate))),
     )
-    a.addEventListener('ratechange', tick(() => this.clock.setRate(a.playbackRate, a.currentTime, now())))
-    a.addEventListener('ended', () => this.onEnded())
-    a.addEventListener('error', () => this.onError(a.error?.message || 'не удалось воспроизвести'))
+    addEventListener('ratechange', tick(() => this.clock.setRate(a.playbackRate, a.currentTime, now())))
+    addEventListener('ended', () => this.onEnded())
+    addEventListener('error', () => this.onError(a.error?.message || 'не удалось воспроизвести'))
+  }
 
+  private initRest() {
     this.offMedia = onMediaControl((action) => {
       if (action === 'play') void this.play()
       else if (action === 'pause' || action === 'stop') this.pause()
@@ -143,11 +172,13 @@ class Player {
   destroy() {
     this.hls?.destroy()
     this.hls = null
-    if (this.audio) {
-      this.audio.pause()
-      this.audio.removeAttribute('src')
-      this.audio.load()
+    for (const d of this.decks) {
+      d.pause()
+      d.removeAttribute('src')
+      d.load()
     }
+    if (this.fading) clearTimeout(this.fading.timer)
+    this.fading = null
     this.audio = null
     if (this.heartbeat) clearInterval(this.heartbeat)
     cancelAnimationFrame(this.raf)
@@ -156,16 +187,25 @@ class Player {
     void this.ctx?.close()
   }
 
-  private connectAnalyser(a: HTMLAudioElement) {
+  private connectAnalyser() {
     try {
       const ctx = new AudioContext()
+      // оба дека → свой регулятор (кроссфейд) → общий вход эквалайзера
+      const mix = ctx.createGain()
+      for (const d of this.decks) {
+        const g = ctx.createGain()
+        g.gain.value = d === this.audio ? 1 : 0
+        ctx.createMediaElementSource(d).connect(g)
+        g.connect(mix)
+        this.deckGain.set(d, g)
+      }
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 2048
       analyser.smoothingTimeConstant = 0.82
       // источник → эквалайзер → выравниватель громкости → тон и реверб → анализатор волны → выход
       const leveler = new Leveler(ctx)
       const effects = new Effects(ctx)
-      eq.connect(ctx, ctx.createMediaElementSource(a), leveler.input)
+      eq.connect(ctx, mix, leveler.input)
       leveler.node.connect(effects.input)
       effects.output.connect(analyser)
       this.effects = effects
@@ -305,6 +345,7 @@ class Player {
   }
 
   pause() {
+    this.endFade()
     this.audio?.pause()
   }
 
@@ -317,6 +358,7 @@ class Player {
     if (!this.audio) return
     const max = this.durationMs || this.current?.duration_ms || 0
     const t = Math.max(0, Math.min(ms, max))
+    this.endFade()
     this.place(t)
     if (this.audio.src) this.audio.currentTime = t / 1000
     this.saveState()
@@ -344,7 +386,7 @@ class Player {
 
   private applyVolume() {
     // квадрат — громкость на слух ровнее, чем линейная
-    if (this.audio) this.audio.volume = this.volume * this.volume
+    for (const d of this.decks) d.volume = this.volume * this.volume
   }
 
   /** Скорость, тон и реверб из меню скорости (`tempo.svelte.ts`). Тон связан со скоростью — его
@@ -359,7 +401,12 @@ class Player {
     this.effects?.setReverb(tempo.wet)
   }
 
-  private async load(autoplay: boolean, startMs = 0) {
+  /** `crossfade` — зовёт кроссфейд: старый дек ещё затухает, громкость нового выставит сам переход. */
+  private async load(autoplay: boolean, startMs = 0, crossfade = false) {
+    if (!crossfade) {
+      this.endFade()
+      this.gainTo(this.audio, 1, 0)
+    }
     this.leveler?.trackChanged()
     tempo.trackChanged(this.current?.ref ?? null)
     const a = this.audio
@@ -412,6 +459,79 @@ class Player {
     if (this.playing && delta > 0 && delta < 2000) this.listenedMs += delta
     this.lastTick = ms
     this.positionMs = ms
+    this.maybeCrossfade(a, ms)
+  }
+
+  /** Плавно (`sec`) выставить громкость дека в Web Audio; 0 с — сразу. */
+  private gainTo(el: HTMLAudioElement | null, v: number, sec: number) {
+    const g = el ? this.deckGain.get(el) : null
+    if (!g || !this.ctx) return
+    const t = this.ctx.currentTime
+    g.gain.cancelScheduledValues(t)
+    g.gain.setValueAtTime(g.gain.value, t)
+    if (sec > 0) g.gain.linearRampToValueAtTime(v, t + sec)
+    else g.gain.setValueAtTime(v, t)
+  }
+
+  /** Конец трека близко — кроссфейд (`audio.crossfade`, с) или бесшовная стыковка (`audio.gapless`).
+   *  За 6 с до перехода поток следующего трека запрашивается заранее, чтобы старт был мгновенным. */
+  private maybeCrossfade(a: HTMLAudioElement, ms: number) {
+    if (this.crossing || this.loading || !this.playing || !this.ctx || this.repeat === 'one') return
+    const dur = Number.isFinite(a.duration) && a.duration > 0 ? a.duration * 1000 : this.durationMs
+    if (!dur || dur < 20_000) return
+    const cf = Math.max(0, Number(settings.get('audio.crossfade')) || 0)
+    const span = cf > 0 ? cf * 1000 : settings.get('audio.gapless') ? 250 : 0
+    if (!span) return
+    const p = nextPos(this.pos, this.order.length, this.repeat, false)
+    if (p === null) return
+    const next = this.tracks[this.order[p]]
+    if (!next) return
+    const left = dur - ms
+    if (left < span + 6000 && this.warmedFor !== next.ref) {
+      this.warmedFor = next.ref
+      void api.streamUrl(next.ref).catch(() => {})
+    }
+    // timeupdate идёт ~4 раза в секунду — запас на один шаг
+    if (left <= span + 260) void this.crossfade(p, span)
+  }
+
+  /** Переход на следующий трек внахлёст: он стартует на втором деке с нуля громкости, громкости
+   *  плавно меняются местами, старый дек останавливается. Для приложения это обычный «следующий». */
+  private async crossfade(p: number, span: number) {
+    const old = this.audio
+    const neu = this.decks.find((d) => d !== old)
+    if (!old || !neu) return
+    this.crossing = true
+    this.endFade()
+    this.finishPlay(false)
+    const oldHls = this.hls
+    this.hls = null
+    this.gainTo(neu, 0, 0)
+    this.audio = neu
+    this.pos = p
+    try {
+      await this.load(true, 0, true)
+    } finally {
+      this.crossing = false
+    }
+    const sec = span / 1000
+    this.gainTo(neu, 1, sec)
+    this.gainTo(old, 0, sec)
+    this.fading = { el: old, hls: oldHls, timer: setTimeout(() => this.endFade(), span + 250) }
+  }
+
+  /** Остановить затухающий дек (переход закончился или его прервали пауза, перемотка, другой трек). */
+  private endFade() {
+    const f = this.fading
+    if (!f) return
+    this.fading = null
+    clearTimeout(f.timer)
+    f.el.pause()
+    f.hls?.destroy()
+    f.el.removeAttribute('src')
+    f.el.load()
+    this.gainTo(f.el, 0, 0)
+    this.gainTo(this.audio, 1, 0)
   }
 
   private onEnded() {

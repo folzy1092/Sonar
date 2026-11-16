@@ -24,7 +24,23 @@
   let tabsEl: HTMLElement | undefined = $state()
   /** Есть ли вкладки за краем строки — тогда край затухает и появляется стрелка (как у подразделов). */
   let more = $state({ l: false, r: false })
-  const nudge = (dir: 1 | -1) => tabsEl?.scrollBy({ left: dir * 160, behavior: 'smooth' })
+  /** Стрелка: плавно до другого конца строки вкладок (свой кадровый переезд — без smooth-скролла). */
+  let slideRaf = 0
+  function nudge(dir: 1 | -1) {
+    const el = tabsEl
+    if (!el) return
+    cancelAnimationFrame(slideRaf)
+    const from = el.scrollLeft
+    const to = dir > 0 ? el.scrollWidth - el.clientWidth : 0
+    const t0 = performance.now()
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / 420)
+      const e = 1 - Math.pow(1 - t, 3)
+      el.scrollLeft = from + (to - from) * e
+      if (t < 1) slideRaf = requestAnimationFrame(step)
+    }
+    slideRaf = requestAnimationFrame(step)
+  }
   const subs = $derived(SUBS[settingsPanel.tab])
   const sub = $derived(settingsPanel.sub)
 
@@ -152,17 +168,16 @@
     bottom: 0;
   }
   /* стрелка у края, за которым ещё вкладки: появляется вместе с затуханием */
+  /* просто стрелка — видна, но не спорит с вкладками: без кружка и заливки */
   .more {
     position: absolute;
-    top: 13px;
+    top: 14px;
+    z-index: 2;
     display: grid;
     place-items: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: var(--surface-2);
-    border: 1px solid var(--border-strong);
-    color: var(--text-2);
+    width: 22px;
+    height: 24px;
+    color: var(--text-3);
     opacity: 0;
     scale: 0.7;
     pointer-events: none;
@@ -178,11 +193,12 @@
     right: 8px;
   }
   .more.show {
-    opacity: 1;
+    opacity: 0.8;
     scale: 1;
     pointer-events: auto;
   }
   .more:hover {
+    opacity: 1;
     color: var(--text);
   }
   .tabs button {
