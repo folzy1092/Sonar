@@ -66,6 +66,11 @@ final class SigningTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: app.appendingPathComponent("_CodeSignature/CodeResources").path),
                       "после подписи есть _CodeSignature")
         XCTAssertEqual(try Data(contentsOf: app.appendingPathComponent("embedded.mobileprovision")), try Data(contentsOf: profile))
+        // профиль запечатан в подписи: без этого iOS сочтёт бандл изменённым
+        let resources = try PropertyListSerialization.propertyList(
+            from: Data(contentsOf: app.appendingPathComponent("_CodeSignature/CodeResources")), format: nil) as? [String: Any]
+        let files2 = try XCTUnwrap(resources?["files2"] as? [String: Any])
+        XCTAssertNotNil(files2["embedded.mobileprovision"], "embedded.mobileprovision есть в CodeResources")
     }
 
     func testSigningStoreImportsPair() throws {

@@ -181,7 +181,10 @@ bool ZBundle::GenerateCodeResources(const string& strFolder, jvalue& jvCodeRes)
 	jvCodeRes["files2"] = jvalue(jvalue::E_OBJECT);
 
 	for (string strKey : setFiles) {
-		if (m_bRemoveProvision && strKey == "embedded.mobileprovision") {
+		// Sonar: в этом форке bRemoveProvision = true значит «положить профиль» (так его пишут SignFolder,
+		// GetNodeChangedFiles и строка лога «Exclude MobileProvision»); здесь условие было перевёрнуто, и
+		// только что записанный embedded.mobileprovision удалялся — IPA уходила без профиля.
+		if (!m_bRemoveProvision && strKey == "embedded.mobileprovision") {
 			string strProvFile = strFolder + "/embedded.mobileprovision";
 			remove(strProvFile.c_str());
 			ZLog::Print(">>> Removed embedded.mobileprovision\n");
