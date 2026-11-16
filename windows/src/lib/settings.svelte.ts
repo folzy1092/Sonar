@@ -75,6 +75,12 @@ export const DEFAULTS = {
   'audio.duck_calls': true,
   'player.cover_position': 'left' as 'left' | 'right',
   'queue.show': true,
+  /** Предпросмотр следующего трека: карточка «Дальше» за 10 с до конца трека. */
+  'queue.preview': true,
+  /** Где очередь на странице плеера: снизу / слева / справа колонкой. */
+  'queue.position': 'bottom' as 'bottom' | 'left' | 'right',
+  /** Вид строк очереди: развёрнутый (с обложками) / обычный (компактно, без обложек). */
+  'queue.view': 'extended' as 'normal' | 'extended',
   'queue.add_following': true,
   'mini.style': 'hybrid' as MiniStyle,
   /** Где мини-плеер: снизу (под карточкой) / сверху / снизу внутри карточки / плавающий. */

@@ -12,6 +12,7 @@
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
   import LoadFx from '../components/LoadFx.svelte'
+  import NextUp from '../components/NextUp.svelte'
   import TrackRow from '../components/TrackRow.svelte'
   import Switch from '../components/settings/Switch.svelte'
   import { autoplay } from '../player/autoplay.svelte'
@@ -54,6 +55,7 @@
   }
 </script>
 
+<div class="layout q-{settings.get('queue.position')}" class:with-queue={settings.get('queue.show')}>
 <div class="top" class:flip={settings.get('player.cover_position') === 'right'}>
   <div class="art" data-fx-cover data-fx-frame>
     <button class="open-full" aria-label="Полноэкранный плеер" title="Полноэкранный плеер" disabled={!track} onclick={() => lyrics.open()}>
@@ -107,6 +109,7 @@
           Найди трек в поиске
         {/if}
       </p>
+      <NextUp />
       <!-- что реально играет — своё место под артистом, а не под полосой -->
       {#if player.quality}
         {#key player.quality}
@@ -173,7 +176,7 @@
 </div>
 
 {#if settings.get('queue.show')}
-<section class="panel queue" transition:slide={{ duration: 260 }}>
+<section class="panel queue" class:compact={settings.get('queue.view') === 'normal'} transition:slide={{ duration: 260 }}>
   <button class="chip" onclick={openContext} title="Открыть источник очереди"><Icon name={contextIcon} size={14} filled={contextIcon === 'heart'} /> {contextTitle}{#if player.shuffle}<Icon name="shuffle" size={14} />{/if}</button>
 
   {#if track}
@@ -206,8 +209,43 @@
   {/if}
 </section>
 {/if}
+</div>
 
 <style>
+  /* очередь снизу (как было) или колонкой слева / справа от плеера (Плеер → Очередь) */
+  .layout.with-queue.q-left,
+  .layout.with-queue.q-right {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    gap: 18px;
+    align-items: start;
+  }
+  .layout.with-queue.q-left {
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+  }
+  .layout.q-left .queue {
+    order: -1;
+  }
+  .layout.q-left .queue,
+  .layout.q-right .queue {
+    position: sticky;
+    top: 0;
+    max-height: calc(100vh - 140px);
+    margin-top: 0;
+    overflow-y: auto;
+  }
+  .layout.q-left .top,
+  .layout.q-right .top {
+    grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+  }
+  /* обычный вид очереди — компактные строки без обложек */
+  .queue.compact :global(.row .art) {
+    display: none;
+  }
+  .queue.compact :global(.row) {
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
   .top {
     display: grid;
     grid-template-columns: 320px minmax(0, 1fr);
