@@ -108,3 +108,50 @@ export const SURFACE_LABELS: Record<Surface, string> = {
   tactile: 'Тактиль',
   monolith: 'Монолит',
 }
+
+/** Значение `appearance.style` для несохранённого «Своего». */
+export const UNSAVED = 'custom'
+
+/** Оси выбранного стиля: готового, своего сохранённого; несохранённый «Свой» — null. */
+export function styleAxes(id: string, customs: CustomStyle[]): StyleAxes | null {
+  if (id.startsWith(CUSTOM_STYLE_PREFIX)) return customs.find((c) => CUSTOM_STYLE_PREFIX + c.id === id)?.axes ?? null
+  return STYLES.find((s) => s.id === id)?.axes ?? null
+}
+
+/**
+ * Какой стиль сейчас: выбранный, если его оси совпадают с текущими; иначе готовый или свой с такими
+ * же осями; иначе несохранённый «Свой». Так любая ручная правка оси (в «Стиле» или в «Виде»)
+ * переключает на «Свой», а возврат к значениям стиля — снова на него.
+ */
+export function matchStyle(current: string, axes: StyleAxes, customs: CustomStyle[]): string {
+  const cur = styleAxes(current, customs)
+  if (cur && sameAxes(cur, axes)) return current
+  const preset = STYLES.find((s) => sameAxes(s.axes, axes))
+  if (preset) return preset.id
+  const own = customs.find((c) => sameAxes(c.axes, axes))
+  if (own) return CUSTOM_STYLE_PREFIX + own.id
+  return UNSAVED
+}
+
+/** Готовый стиль, ближайший к осям (больше всего совпадений) — для «Сбросить к стилю …». */
+export function nearestPreset(axes: StyleAxes): StylePreset {
+  let best = DEFAULT_STYLE
+  let score = -1
+  for (const s of STYLES) {
+    const n = AXES.filter((k) => String(s.axes[k]) === String(axes[k])).length
+    if (n > score) {
+      score = n
+      best = s
+    }
+  }
+  return best
+}
+
+/** Новый свой стиль с уникальным id; имя обрезано, пустое — «Мой стиль N». */
+export function newCustom(name: string, axes: StyleAxes, customs: CustomStyle[], rand = Math.random): CustomStyle {
+  const base = name.trim().slice(0, 40) || `Мой стиль ${customs.length + 1}`
+  let id = ''
+  do id = Math.floor(rand() * 36 ** 6).toString(36).padStart(6, '0')
+  while (customs.some((c) => c.id === id))
+  return { id, name: base, axes: { ...axes } }
+}

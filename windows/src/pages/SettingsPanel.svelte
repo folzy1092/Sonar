@@ -9,6 +9,7 @@
   import Stats from './settings/Stats.svelte'
   import Audio from './settings/Audio.svelte'
   import Look from './settings/Look.svelte'
+  import Style from './settings/Style.svelte'
   import PlayerView from './settings/PlayerView.svelte'
   import Integrations from './settings/Integrations.svelte'
   import General from './settings/General.svelte'
@@ -106,6 +107,8 @@
       <div class="tab-in">
         {#if sub === 'stats'}
           <Stats />
+        {:else if sub === 'style'}
+          <Style />
         {:else if sub === 'look'}
           <Look />
         {:else if sub === 'tabs'}
@@ -241,7 +244,8 @@
     white-space: nowrap;
     transition: color var(--fast) var(--ease);
   }
-  .sub:hover:not(:disabled) {
+  /* выбранный — тёмный текст на светлой капсуле, наведение его не перекрашивает */
+  .sub:hover:not(:disabled):not(.on) {
     color: var(--text);
   }
   .sub.off {

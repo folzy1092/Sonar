@@ -32,6 +32,7 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
     { id: 'stats', title: 'Статистика', icon: 'bars' },
   ],
   interface: [
+    { id: 'style', title: 'Стиль', icon: 'sparkles' },
     { id: 'look', title: 'Вид', icon: 'palette' },
     { id: 'tabs', title: 'Вкладки', icon: 'grid' },
   ],

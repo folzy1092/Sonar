@@ -10,16 +10,18 @@
   import { settings } from '../lib/settings.svelte'
 
   /** `url` — обложка трека: для варианта `color` поверх кладутся её ч/б и цветная копии. */
-  let { on = true, url = null }: { on?: boolean; url?: string | null } = $props()
+  /** `demo` — показать на примере (экран «Стиль»): свой прогресс вместо плеера, без задержки 150 мс. */
+  let { on = true, url = null, demo }: { on?: boolean; url?: string | null; demo?: number | null } = $props()
 
   let shown = $state(false)
   let timer: ReturnType<typeof setTimeout> | null = null
-  const p = $derived(player.loadProgress)
+  const p = $derived(demo !== undefined ? demo : player.loadProgress)
   const active = $derived(on && p !== null && p < 1)
 
   $effect(() => {
     if (active) {
-      if (!shown && !timer) timer = setTimeout(() => ((shown = true), (timer = null)), 150)
+      if (demo !== undefined) shown = true
+      else if (!shown && !timer) timer = setTimeout(() => ((shown = true), (timer = null)), 150)
     } else {
       if (timer) clearTimeout(timer)
       timer = null

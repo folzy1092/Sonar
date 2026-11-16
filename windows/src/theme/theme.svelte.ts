@@ -9,7 +9,7 @@ import { DECOR_VARS, pickAccent, themeFrom, type RGB, type Surface } from './pal
 import { settings } from '../lib/settings.svelte'
 import { setAnimations } from '../lib/motion'
 import { CUSTOM_PREFIX, fontStack, RADII, WIDE_FONTS } from './look'
-import { DISPLAY_TUNING, WDTH_FONTS } from './style'
+import { AXES, axisKey, CUSTOM_STYLE_PREFIX, DISPLAY_TUNING, matchStyle, newCustom, styleAxes, WDTH_FONTS, type StyleAxes } from './style'
 import { loadCustomFont } from './custom-font'
 
 let port: number | null = null
@@ -118,6 +118,14 @@ class Theme {
         set('--display-weight', tune.weight ? String(tune.weight) : null)
         set('--display-tracking', tune.tracking)
       })
+      // выбранный стиль следит за осями: ручная правка любой оси (в «Стиле» или «Виде») — «Свой»,
+      // оси совпали с готовым или сохранённым стилем — он
+      $effect(() => {
+        const axes = this.axes
+        const cur = settings.get('appearance.style')
+        const next = matchStyle(cur, axes, settings.get('appearance.custom_styles'))
+        if (next !== cur) settings.set('appearance.style', next)
+      })
       // толщина линий иконок и как отмечен выбранный раздел левой панели (Интерфейс → Стиль)
       $effect(() => {
         const root = document.documentElement
@@ -150,6 +158,45 @@ class Theme {
         ;(['--radius-s', '--radius-m', '--radius-l', '--radius-xl'] as const).forEach((k, i) => st.setProperty(k, `${r[i]}px`))
       })
     })
+  }
+
+  /** Текущие оси стиля из настроек. */
+  get axes(): StyleAxes {
+    return Object.fromEntries(AXES.map((a) => [a, settings.get(axisKey(a))])) as unknown as StyleAxes
+  }
+
+  /** Выбрать готовый или свой стиль — ставит все оси. */
+  applyStyle(id: string) {
+    const axes = styleAxes(id, settings.get('appearance.custom_styles'))
+    if (!axes) return
+    for (const a of AXES) settings.set(axisKey(a), axes[a] as never)
+    settings.set('appearance.style', id)
+  }
+
+  /** Сохранить текущие оси своим стилем; вернёт его id (`custom:<id>`). */
+  saveStyle(name: string): string {
+    const list = settings.get('appearance.custom_styles')
+    const own = newCustom(name, this.axes, list)
+    settings.set('appearance.custom_styles', [...list, own])
+    settings.set('appearance.style', CUSTOM_STYLE_PREFIX + own.id)
+    return CUSTOM_STYLE_PREFIX + own.id
+  }
+
+  renameStyle(id: string, name: string) {
+    const clean = name.trim().slice(0, 40)
+    if (!clean) return
+    settings.set(
+      'appearance.custom_styles',
+      settings.get('appearance.custom_styles').map((c) => (CUSTOM_STYLE_PREFIX + c.id === id ? { ...c, name: clean } : c)),
+    )
+  }
+
+  deleteStyle(id: string) {
+    settings.set(
+      'appearance.custom_styles',
+      settings.get('appearance.custom_styles').filter((c) => CUSTOM_STYLE_PREFIX + c.id !== id),
+    )
+    if (settings.get('appearance.style') === id) settings.set('appearance.style', 'custom')
   }
 
   setEnabled(on: boolean) {
