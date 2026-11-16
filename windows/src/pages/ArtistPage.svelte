@@ -7,6 +7,7 @@
   import CollectionHeader from '../components/CollectionHeader.svelte'
   import EmptyState from '../components/EmptyState.svelte'
   import Icon from '../components/Icon.svelte'
+  import SourceIcon from '../components/SourceIcon.svelte'
   import Tile from '../components/Tile.svelte'
   import TrackRow from '../components/TrackRow.svelte'
   import { api, errorText, type Album, type Artist, type ArtistTrack, type Track } from '../lib/api'
@@ -131,7 +132,7 @@
     onshuffle={() => player.playShuffled(sorted, context, a.name)}
     onqueue={() => player.addToQueue(sorted, false)}
   >
-    {#snippet subtitle()}{ref.startsWith('sca') ? 'SoundCloud' : 'Яндекс Музыка'}{/snippet}
+    {#snippet subtitle()}<span class="svc">{ref.startsWith('sca') ? 'SoundCloud' : 'Яндекс Музыка'}<SourceIcon kind={ref.startsWith('sca') ? 'sc' : 'ym'} size={15} plain /></span>{/snippet}
     {#snippet actions()}
       <button class="tool" class:on={followed} onclick={() => library.toggleLike(a)}>
         <Icon name="heart" size={15} filled={followed} /> {followed ? 'Вы подписаны' : 'Подписаться'}
@@ -349,5 +350,10 @@
   }
   .tint.on {
     opacity: 1;
+  }
+  .svc {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
 </style>
