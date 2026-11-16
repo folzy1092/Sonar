@@ -20,27 +20,34 @@
   onchange={(v) => settings.set('general.restore', v)}
 />
 <Switch title="Показывать очередь" hint="Отображать панель очереди" on={settings.get('queue.show')} onchange={(v) => settings.set('queue.show', v)} />
-<Switch title="Предпросмотр следующего трека" hint="Показывать информацию о следующем треке" on={true} soon />
+<Switch
+  title="Предпросмотр следующего трека"
+  hint="За 10 секунд до конца — карточка «Дальше» с названием следующего"
+  on={settings.get('queue.preview')}
+  onchange={(v) => settings.set('queue.preview', v)}
+/>
 <Choice
   title="Положение очереди"
   hint="Выберите где отображать очередь воспроизведения"
   wide
-  value="bottom"
+  value={settings.get('queue.position')}
   options={[
-    { id: 'bottom', label: 'Снизу', icon: 'layoutBottom' },
-    { id: 'left', label: 'Слева', icon: 'layoutLeft', soon: true },
-    { id: 'right', label: 'Справа', icon: 'layoutRight', soon: true },
+    { id: 'bottom' as const, label: 'Снизу', icon: 'layoutBottom' },
+    { id: 'left' as const, label: 'Слева', icon: 'layoutLeft' },
+    { id: 'right' as const, label: 'Справа', icon: 'layoutRight' },
   ]}
+  onchange={(v) => settings.set('queue.position', v)}
 />
 <Cards
   title="Вид очереди"
   hint="Выберите режим отображения треков в списке очереди"
   cols={2}
-  value="extended"
+  value={settings.get('queue.view')}
   options={[
-    { id: 'normal', label: 'Обычный', icon: 'textLines', soon: true },
-    { id: 'extended', label: 'Развернутый', icon: 'queue' },
+    { id: 'normal' as const, label: 'Обычный', icon: 'textLines' },
+    { id: 'extended' as const, label: 'Развернутый', icon: 'queue' },
   ]}
+  onchange={(v) => settings.set('queue.view', v)}
 />
 <Switch
   title="Авто похожие"

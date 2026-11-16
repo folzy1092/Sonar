@@ -4,6 +4,7 @@
   import Icon from '../components/Icon.svelte'
   import IconButton from '../components/IconButton.svelte'
   import LoadFx from '../components/LoadFx.svelte'
+  import NextUp from '../components/NextUp.svelte'
   import Cover from '../components/Cover.svelte'
   import PlayPause from '../components/PlayPause.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
@@ -162,6 +163,7 @@
   </div>
 
   <div class="right">
+    <NextUp float />
     <!-- «Тактиль»: пять светодиодов, по ним бежит огонёк при смене трека (theme/fx.css) -->
     <span class="mini-leds" data-fx-leds aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     <div class="capsule">
