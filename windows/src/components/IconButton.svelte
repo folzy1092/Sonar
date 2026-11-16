@@ -42,7 +42,7 @@
     background: var(--hover);
   }
   /* лайк (.bare) — без подложки: наведение показывает само сердечко (app.css, «Лайк: наведение») */
-  .icon-btn:active:not(:disabled) {
+  .icon-btn:active:not(:disabled):not(.bare) {
     transform: scale(0.92);
   }
   .icon-btn.active {
