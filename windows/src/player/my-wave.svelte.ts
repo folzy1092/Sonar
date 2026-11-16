@@ -111,6 +111,22 @@ class Wave {
     })
   }
 
+  /** «Лицо» волны на главной (обложки), если его ещё нет. После перезапуска плеер мог восстановить
+   *  очередь волны — тогда обложки берём из неё (текущий и следующие), иначе подбираем порцию. */
+  ensureCovers() {
+    if (this.covers.length) return
+    if (this.active) {
+      const next = player.order.slice(player.pos, player.pos + 3).map((i) => player.tracks[i]).filter(Boolean)
+      if (next.length) {
+        this.covers = next
+        return
+      }
+    }
+    void this.prefetch()
+  }
+
+  private retries = 0
+
   /** Подобрать порцию заранее (главная), не чаще раза в 10 минут. */
   async prefetch(force = false) {
     if (this.loading || (!force && this.preview.length && Date.now() - this.previewAt < 600_000)) return
@@ -120,10 +136,16 @@ class Wave {
       this.preview = await api.wavePortion({ exclude: [], paused_artists: [], ...ctx(sid) })
       this.previewSid = sid
       this.previewAt = Date.now()
-      if (!this.active) this.covers = this.preview.slice(0, 3)
+      if (!this.active || !this.covers.length) this.covers = this.preview.slice(0, 3)
       this.error = null
+      this.retries = 0
     } catch (e) {
       this.error = errorText(e)
+      // на старте сервисы могут ещё подключаться — пробуем ещё пару раз, чтобы главная не осталась пустой
+      if (!this.covers.length && this.retries < 3) {
+        this.retries++
+        setTimeout(() => void this.prefetch(true), 4000 * this.retries)
+      }
     } finally {
       this.loading = false
     }
