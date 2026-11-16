@@ -25,9 +25,10 @@
     }
   })
 
+  /** Закрыть плашку — Sonar возвращается на экран. */
   function close() {
     void emit('mini:bye')
-    void getCurrentWindow().close()
+    void invoke('show_main').finally(() => getCurrentWindow().close())
   }
 </script>
 

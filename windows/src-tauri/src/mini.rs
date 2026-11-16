@@ -1,6 +1,7 @@
 //! Мини-окно (решение владельца 2026-11-16): маленькая плашка поверх всех окон — обложка, название,
 //! артист, лайк, назад / пауза / вперёд; перетаскивается мышью, перемотки нет. Открывается только
-//! кнопкой в плеере. Звук остаётся в главном окне: мини-окно получает состояние событием
+//! кнопкой на странице плеера: Sonar сворачивается, плашка встаёт сверху по центру экрана;
+//! закрыли плашку — Sonar возвращается. Звук остаётся в главном окне: мини-окно получает состояние событием
 //! `mini:state` и шлёт команды `mini:cmd` (интерфейс — `src/app/MiniWindow.svelte`).
 
 use anyhow::Result;
@@ -19,6 +20,7 @@ pub fn toggle(app: &AppHandle, show: bool) -> Result<bool> {
       return Ok(true);
     }
     let _ = w.close();
+    crate::tray::show_main(app);
     return Ok(false);
   }
   if !show {
@@ -42,14 +44,19 @@ pub fn toggle(app: &AppHandle, show: bool) -> Result<bool> {
     b = b.additional_browser_args(&a);
   }
   let w = b.build()?;
-  // в правый нижний угол экрана, над панелью задач
-  if let Ok(Some(m)) = w.current_monitor() {
+  // сверху по центру экрана, с отступом от края (решение владельца 2026-11-16)
+  let monitor = app.get_webview_window("main").and_then(|m| m.current_monitor().ok().flatten()).or_else(|| w.current_monitor().ok().flatten());
+  if let Some(m) = monitor {
     let sc = m.scale_factor();
     let size = m.size();
     let pos = m.position();
-    let x = pos.x as f64 / sc + size.width as f64 / sc - W - 24.0;
-    let y = pos.y as f64 / sc + size.height as f64 / sc - H - 72.0;
+    let x = pos.x as f64 / sc + (size.width as f64 / sc - W) / 2.0;
+    let y = pos.y as f64 / sc + 20.0;
     let _ = w.set_position(LogicalPosition::new(x, y));
+  }
+  // большое окно уходит — вместо него мини-окно
+  if let Some(main) = app.get_webview_window("main") {
+    let _ = main.minimize();
   }
   Ok(true)
 }

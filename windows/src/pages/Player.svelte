@@ -103,13 +103,18 @@
           Найди трек в поиске
         {/if}
       </p>
+      <!-- что реально играет — своё место под артистом, а не под полосой -->
+      {#if player.quality}
+        {#key player.quality}
+          <span class="quality" title="Что реально играет">{player.quality}</span>
+        {/key}
+      {/if}
     </div>
 
     <div class="seek">
       <SeekBar times={false} />
       <div class="times">
         <span>{formatTime(player.positionMs)}</span>
-        {#if player.quality}<span class="quality" title="Что реально играет">{player.quality}</span>{/if}
         <span>{formatTime(duration)}</span>
       </div>
     </div>
@@ -303,10 +308,18 @@
     flex-direction: column;
     gap: 12px;
     min-width: 0;
-    padding-top: 14px;
+    /* заголовок не жмётся к верху окна и чёлке */
+    padding-top: 30px;
   }
   .head {
+    display: flex;
+    flex-direction: column;
+    align-items: var(--justify, center);
+    gap: 2px;
     text-align: var(--align, center);
+  }
+  .head h1 {
+    max-width: 100%;
   }
   .head .artist {
     justify-content: var(--justify, center);
@@ -345,6 +358,8 @@
     font-variant-numeric: tabular-nums;
   }
   .quality {
+    margin-top: 8px;
+    animation: tab-in var(--normal) var(--ease);
     padding: 1px 7px;
     border-radius: 999px;
     border: 1px solid var(--border-strong);
