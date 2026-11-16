@@ -21,9 +21,8 @@ struct ProfileView: View {
         ("Плеер", [Item(icon: "speaker.wave.2", title: "Аудио"), Item(icon: "play.rectangle", title: "Вид плеера"),
                    Item(icon: "list.bullet", title: "Очередь"), Item(icon: "rectangle.bottomthird.inset.filled", title: "Мини-плеер"),
                    Item(icon: "hand.tap", title: "Жесты")]),
-        ("Сервисы", [Item(icon: "cloud", title: "SoundCloud"), Item(icon: "music.note", title: "Яндекс Музыка")]),
-        ("Интеграции", [Item(icon: "dot.radiowaves.left.and.right", title: "Last.fm"), Item(icon: "key.horizontal", title: "Ключ API")]),
     ]
+    private let integrations = [Item(icon: "dot.radiowaves.left.and.right", title: "Last.fm"), Item(icon: "key.horizontal", title: "Ключ API")]
 
     var body: some View {
         ScrollView {
@@ -40,6 +39,25 @@ struct ProfileView: View {
                     }
                     .cascade(index + 1)
                 }
+                SettingsSection(title: "Сервисы") {
+                    NavigationLink { ServicesView() } label: {
+                        SettingsRowLabel(icon: "cloud", title: "SoundCloud")
+                    }
+                    .buttonStyle(PressableStyle(scale: 0.99))
+                    RowDivider()
+                    NavigationLink { ServicesView() } label: {
+                        SettingsRowLabel(icon: "music.note", title: "Яндекс Музыка")
+                    }
+                    .buttonStyle(PressableStyle(scale: 0.99))
+                }
+                .cascade(sections.count)
+                SettingsSection(title: "Интеграции") {
+                    ForEach(Array(integrations.enumerated()), id: \.element.id) { row, item in
+                        if row > 0 { RowDivider() }
+                        SettingsRowLabel(icon: item.icon, title: item.title, value: "Скоро", chevron: false, dimmed: true)
+                    }
+                }
+                .cascade(sections.count + 1)
                 SettingsSection(title: "Система") {
                     SettingsRowLabel(icon: "gearshape", title: "Общее", value: "Скоро", chevron: false, dimmed: true)
                     RowDivider()
@@ -52,9 +70,9 @@ struct ProfileView: View {
                     RowDivider()
                     SettingsRowLabel(icon: "internaldrive", title: "Хранилище", value: "Скоро", chevron: false, dimmed: true)
                 }
-                .cascade(sections.count + 1)
+                .cascade(sections.count + 2)
                 about
-                    .cascade(sections.count + 2)
+                    .cascade(sections.count + 3)
             }
             .padding(.horizontal, Theme.gutter)
             .padding(.top, 8)

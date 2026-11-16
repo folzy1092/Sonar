@@ -34,3 +34,21 @@ final class ChromeStateTests: XCTestCase {
         XCTAssertNil(DeepLink(URL(string: "https://sonar.folzy.ru")!))
     }
 }
+
+@MainActor
+final class ChromeExpandTests: XCTestCase {
+    func testExpandButtonDoesNotRecollapseAtOnce() {
+        let chrome = ChromeState()
+        chrome.scrolled(to: 300)
+        XCTAssertTrue(chrome.collapsed)
+        chrome.expand()
+        chrome.scrolled(to: 302)
+        chrome.scrolled(to: 310)
+        XCTAssertFalse(chrome.collapsed, "после разворота кнопкой мелкая прокрутка не сворачивает")
+        chrome.scrolled(to: 340)
+        XCTAssertTrue(chrome.collapsed)
+        chrome.select(.library)
+        XCTAssertFalse(chrome.collapsed)
+        XCTAssertEqual(chrome.tab, .library)
+    }
+}
