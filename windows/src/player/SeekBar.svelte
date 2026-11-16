@@ -14,12 +14,18 @@
   const shown = $derived(dragging ? dragMs : player.positionMs)
   let input: HTMLInputElement | undefined = $state()
   let box: HTMLDivElement | undefined = $state()
-  const style = $derived(settings.get('player.slider'))
+  // Обычный ползунок рисуется по стилю (appearance.progress_look, Интерфейс → Стиль): line — линия 4 px
+  // с кружком, wave — 46 столбиков формы звука (пройденное — акцентом), groove — утопленная дорожка 8 px
+  // с заливкой акцентом и свечением. Другой вид в «Плеер → Вид» (тонкий, плавный, волнистый…) — главнее.
+  const look = $derived(settings.get('appearance.progress_look'))
+  const picked = $derived(settings.get('player.slider'))
+  const style = $derived(picked !== 'normal' ? picked : look === 'wave' ? 'wave_bars' : look === 'groove' ? 'groove' : 'normal')
+  const accentBars = $derived(picked === 'normal' && look === 'wave')
   // столбики «волнового» ползунка — постоянные для трека (из ref), чтобы не прыгали
   const bars = $derived.by(() => {
     let seed = 0
     for (const c of player.current?.ref ?? 'sonar') seed = (seed * 31 + c.charCodeAt(0)) >>> 0
-    return Array.from({ length: 72 }, (_, i) => {
+    return Array.from({ length: accentBars ? 46 : 72 }, (_, i) => {
       seed = (seed * 1103515245 + 12345) >>> 0
       const r = (seed >>> 8) / 0xffffff
       return 25 + Math.round(70 * (0.35 + 0.65 * Math.abs(Math.sin(i * 0.37 + r * 3)) * (0.6 + 0.4 * r)))
@@ -40,12 +46,14 @@
   })
 </script>
 
-<div class="seek s-{style}" class:playing={player.playing}>
+<div class="seek s-{style}" class:accent-bars={accentBars} class:playing={player.playing}>
   {#if times}<span class="t">{formatTime(shown)}</span>{/if}
   <div class="track" bind:this={box}>
     {#if style === 'wavy'}
       <!-- пройденное — волна, которая бежит, пока играет; остальное — ровная линия -->
       <span class="wave-past"></span><span class="wave-rest"></span>
+    {:else if style === 'groove'}
+      <span class="groove"><span class="gfill"></span></span>
     {:else if style === 'wave_bars'}
       <span class="bars">{#each bars as h, i (i)}<i style:height="{h}%"></i>{/each}</span>
       <span class="bars past">{#each bars as h, i (i)}<i style:height="{h}%"></i>{/each}</span>
@@ -203,6 +211,47 @@
   }
   .s-wave_bars .track {
     height: 22px;
+  }
+  /* «Сигнал»: пройденные столбики — акцентом */
+  .accent-bars .bars.past i {
+    background: var(--accent);
+  }
+  .accent-bars .bars {
+    justify-content: space-between;
+    gap: 0;
+  }
+  .accent-bars .bars i {
+    flex: 0 0 3px;
+  }
+  /* «Тактиль»: утопленная дорожка 8 px, заливка акцентом со свечением */
+  .s-groove input {
+    position: relative;
+    z-index: 1;
+    height: 14px;
+    background: transparent;
+    box-shadow: none;
+  }
+  .groove {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 8px;
+    translate: 0 -50%;
+    border-radius: 8px;
+    background: color-mix(in oklch, var(--surface-1) 70%, #000);
+    box-shadow: inset 0 2px 4px oklch(0 0 0 / 0.55);
+    pointer-events: none;
+  }
+  .gfill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--fill);
+    border-radius: inherit;
+    background: var(--accent);
+    box-shadow: 0 0 10px color-mix(in oklch, var(--accent) 70%, transparent);
   }
   @media (prefers-reduced-motion: reduce) {
     .playing .wave-past {
