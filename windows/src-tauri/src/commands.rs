@@ -527,6 +527,25 @@ pub fn mini_window(app: tauri::AppHandle, show: bool) -> Res<bool> {
   crate::mini::toggle(&app, show).map_err(err)
 }
 
+/// Кнопки «назад / пауза / вперёд» в превью окна на панели задач: `icons` — prev, play, pause, next
+/// (RGBA 32×32, рисует интерфейс из наших значков).
+#[tauri::command]
+pub fn thumbbar_init(app: tauri::AppHandle, icons: Vec<Vec<u8>>, playing: bool) -> Res<()> {
+  #[cfg(windows)]
+  crate::thumbbar::init(&app, icons, playing).map_err(err)?;
+  #[cfg(not(windows))]
+  let _ = (app, icons, playing);
+  Ok(())
+}
+
+#[tauri::command]
+pub fn thumbbar_state(app: tauri::AppHandle, playing: bool) {
+  #[cfg(windows)]
+  crate::thumbbar::set_playing(&app, playing);
+  #[cfg(not(windows))]
+  let _ = (app, playing);
+}
+
 /// Показать главное окно (из мини-окна: двойной клик по обложке).
 #[tauri::command]
 pub fn show_main(app: tauri::AppHandle) {

@@ -13,6 +13,8 @@ mod services;
 mod store;
 mod stream;
 mod sync;
+#[cfg(windows)]
+mod thumbbar;
 mod tray;
 mod wave;
 mod zoom;
@@ -134,6 +136,8 @@ pub fn run() {
       commands::services_status,
       commands::sync_now,
       commands::mini_window,
+      commands::thumbbar_init,
+      commands::thumbbar_state,
       commands::show_main,
       commands::obs_new_token,
       commands::lastfm_status,
