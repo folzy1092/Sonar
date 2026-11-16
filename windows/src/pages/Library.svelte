@@ -183,7 +183,18 @@
     <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll use:edges>
       <Tile title={t('Любимые')} subtitle={t('Лайкнутые треки')} meta={tracksText(favCount)} art={favArt} onclick={() => router.go('playlist', 'favorites')} />
       {#each own as p (p.id)}
-        <Tile title={p.name} subtitle={p.hidden ? t('Скрыт') : 'Sonar'} meta={tracksText(p.track_count)} covers={p.covers} dim={p.hidden} onclick={() => router.go('playlist', p.id)} />
+        <Tile
+          title={p.name}
+          subtitle={p.hidden ? t('Скрыт') : 'Sonar'}
+          meta={tracksText(p.track_count)}
+          covers={p.covers}
+          dim={p.hidden}
+          onclick={() => router.go('playlist', p.id)}
+          oncontextmenu={(e) => {
+            e.preventDefault()
+            playlistMenu.openOwn(p, e.clientX, e.clientY)
+          }}
+        />
       {/each}
     </div>
   </section>
