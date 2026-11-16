@@ -9,6 +9,7 @@
   // внизу слева — создать · перенос · обновить. Создание — всплывашка над «+» (только кликом).
   import Icon from '../components/Icon.svelte'
   import NavIcon from '../components/NavIcon.svelte'
+  import { playlistMenu } from '../lib/playlist-menu.svelte'
   import Tile from '../components/Tile.svelte'
   import { api, type Album, type Artist, type ServicePlaylist, type ServicesStatus } from '../lib/api'
   import { tracksText } from '../lib/format'
@@ -149,6 +150,10 @@
     image={p.cover_url}
     icon={p.ref.endsWith('likes') ? 'heart' : 'music'}
     onclick={() => openRef(p.ref)}
+    oncontextmenu={(e) => {
+      e.preventDefault()
+      playlistMenu.open(p, e.clientX, e.clientY)
+    }}
   />
 {/snippet}
 
