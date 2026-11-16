@@ -5,7 +5,7 @@
 import { api } from '../lib/api'
 import { isTauri } from '../lib/tauri'
 import { player } from '../player/player.svelte'
-import { css, pickAccent, themeFrom, type RGB } from './palette'
+import { pickAccent, themeFrom, type RGB } from './palette'
 import { settings } from '../lib/settings.svelte'
 import { setAnimations } from '../lib/motion'
 import { CUSTOM_PREFIX, fontStack, RADII } from './look'
@@ -147,21 +147,13 @@ class Theme {
     root.classList.toggle('amoled', !cover && !!p.black)
     const st = root.style
     const SHADE = ['--bg', '--surface-0', '--surface-1', '--surface-2', '--surface-3']
-    if (!c) {
-      for (const k of ['--accent', '--accent-ink', '--accent-soft', '--tint', ...SHADE]) st.removeProperty(k)
-      return
-    }
-    const t = themeFrom(c)
-    st.setProperty('--accent', css(t.accent))
-    st.setProperty('--accent-ink', css(t.ink))
-    st.setProperty('--accent-soft', css(t.accent, 0.14))
-    st.setProperty('--tint', css(t.bg))
-    // окно и поверхности — в оттенке обложки (AMOLED — свой чистый чёрный, его не трогаем)
-    if (root.classList.contains('amoled')) {
-      for (const k of SHADE) st.removeProperty(k)
-    } else {
-      st.setProperty('--bg', css(t.base))
-      t.surfaces.forEach((v, i) => st.setProperty(`--surface-${i}`, css(v)))
+    // все цвета — по формулам OKLCH (palette.ts): обложка или готовая тема дают оттенок, серая — монохром
+    const t = themeFrom(c, 'echo')
+    // AMOLED — свой чистый чёрный фон и поверхности (tokens.css), их не трогаем
+    const black = root.classList.contains('amoled')
+    for (const [k, v] of Object.entries(t.vars)) {
+      if (black && SHADE.includes(k)) st.removeProperty(k)
+      else st.setProperty(k, v)
     }
   }
 }
