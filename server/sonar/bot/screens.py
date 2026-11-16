@@ -189,8 +189,8 @@ def versions(s: Settings) -> Screen:
     kb = []
     if rel:
         changes = "\n".join(f"• {h(c)}" for c in rel.get("changes", [])[:4])
-        html += quote(f"{e('new')} <b>Что нового (v{h(rel['version'])}):</b>\n{changes}")
-        kb.append([Btn(f"Windows (v{rel['version']})", "logo_windows", url=s.download_url)])
+        html += quote(f"{e('new')} <b>Что нового:</b>\n{changes}")
+        kb.append([Btn("Windows", "logo_windows", url=s.download_url)])
     kb.append([back("profile")])
     return Screen(html=html, kb=kb)
 

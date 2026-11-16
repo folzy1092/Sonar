@@ -21,18 +21,18 @@ export const fx = $state({ barsStartedAt: 0 })
 /** Длительность анимации смены трека по стилю (для снятия класса). */
 const DURATION: Record<string, number> = { echo: 620, signal: 520, edge: 640, tactile: 520, monolith: 600, fade: 0 }
 
-export function trackChange() {
+export function trackChange(root: ParentNode = document) {
   const kind = settings.get('appearance.anim_track')
   document.documentElement.dataset.fxTrack = kind
   if (kind === 'fade') return
   const ms = DURATION[kind] ?? 600
   const calm = reducedMotion()
-  for (const el of document.querySelectorAll('[data-fx-cover], [data-fx-title], [data-fx-leds]')) restart(el, 'fx-run', ms)
+  for (const el of root.querySelectorAll('[data-fx-cover], [data-fx-title], [data-fx-leds]')) restart(el, 'fx-run', ms)
   if (calm) return
   if (kind === 'signal') fx.barsStartedAt = performance.now()
   if (kind === 'echo') {
     // три контурных кольца нового акцента от каждой видимой обложки
-    for (const el of document.querySelectorAll('[data-fx-cover]')) {
+    for (const el of root.querySelectorAll('[data-fx-cover]')) {
       const r = visible(el)
       if (!r) continue
       const radius = getComputedStyle(el).borderRadius
@@ -41,7 +41,7 @@ export function trackChange() {
   }
   if (kind === 'edge') {
     // световая дуга по рамке мини-плеера и обложки на странице плеера
-    for (const el of document.querySelectorAll('[data-fx-frame]')) {
+    for (const el of root.querySelectorAll('[data-fx-frame]')) {
       const r = visible(el)
       if (!r) continue
       spawn(r, '', 'fx-arc', 640, 0, { borderRadius: getComputedStyle(el).borderRadius })

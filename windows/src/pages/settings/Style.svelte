@@ -88,9 +88,11 @@
     steps.forEach((s, i) => setTimeout(() => (demo = s), i * 360))
     setTimeout(() => (demo = null), steps.length * 360 + 250)
   }
+  // демо смены трека — на своей обложке в кнопке, а не на окне, которое отъехало за настройками
+  let trackDemo = $state<HTMLElement>()
   function showTrack() {
     replay('now')
-    trackChange()
+    if (trackDemo) trackChange(trackDemo)
   }
 </script>
 
@@ -202,13 +204,17 @@
 
 <div class="axis">
   <Choice title={t('Смена трека')} hint={t('Как обложка и заголовок встречают новый трек')} wide fill value={axes.anim_track} options={[...ANIMS, { id: 'fade' as const, label: t('Плавно') }]} onchange={(v) => setAxis('anim_track', v)} />
-  <button class="show" onclick={showTrack}><Icon name="play" size={12} filled /> {t('Показать')}</button>
+  <button class="show" onclick={showTrack}>
+    <span class="demo-cover" bind:this={trackDemo}><span class="demo-frame" data-fx-cover data-fx-frame><Cover url={null} size={22} radius="6px" /></span></span> {t('Показать')}
+  </button>
 </div>
 <div class="axis">
   <Choice title={t('Лайк')} hint={t('Что происходит с сердцем, когда ставишь лайк')} wide fill value={axes.anim_like} options={[...ANIMS, { id: 'pop' as const, label: t('Прыжок') }]} onchange={(v) => setAxis('anim_like', v)} />
-  <button class="show" onclick={showLike}>
-    <span class="demo-heart" bind:this={heart}><Icon name="heart" size={15} filled={liked} /></span> {t('Показать')}
-  </button>
+  <!-- сердце стоит отдельно, справа от него — место под эффект лайка, чтобы он не ложился на подпись -->
+  <span class="show-row">
+    <span class="demo-heart" bind:this={heart}><Icon name="heart" size={15} filled={liked} /></span>
+    <button class="show" onclick={showLike}><Icon name="play" size={12} filled /> {t('Показать')}</button>
+  </span>
 </div>
 <Choice
   title={t('Выбранный раздел')}
@@ -390,9 +396,24 @@
     color: var(--text);
     background: var(--surface-3);
   }
+  .show-row {
+    position: absolute;
+    top: 9px;
+    right: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 40px;
+  }
+  .show-row .show {
+    position: static;
+  }
   .demo-heart {
     display: grid;
     color: var(--accent);
+  }
+  .demo-frame {
+    display: grid;
+    border-radius: 6px;
   }
   .demo-cover {
     position: relative;
