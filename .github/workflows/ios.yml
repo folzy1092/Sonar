@@ -38,6 +38,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
+    timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
     defaults:
@@ -64,7 +65,23 @@ jobs:
           echo "Sonar $VERSION ($BUILD)"
           xcodegen generate
 
+      - name: Тестовая пара для подписи
+        # самоподписанный сертификат на два дня — только для SigningTests (zsign подписывает фиктивный
+        # .app); настоящих P12 в репозитории нет. Системный LibreSSL: его .p12 (3DES/SHA1) iOS открывает сама.
+        run: |
+          D="$RUNNER_TEMP/sonar-signing"
+          mkdir -p "$D"
+          /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 2 -keyout "$D/key.pem" -out "$D/cert.pem" \
+            -subj "/CN=Sonar Test/OU=ABCDE12345/O=Sonar Test"
+          /usr/bin/openssl x509 -in "$D/cert.pem" -outform der -out "$D/cert.der"
+          /usr/bin/openssl pkcs12 -export -inkey "$D/key.pem" -in "$D/cert.pem" -out "$D/test.p12" -passout pass:sonar \
+            -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1
+          echo "SONAR_TEST_SIGNING=$D" >> "$GITHUB_ENV"
+
       - name: Тесты
+        env:
+          # переменные с префиксом TEST_RUNNER_ xcodebuild передаёт в процесс тестов без префикса
+          TEST_RUNNER_SONAR_TEST_SIGNING: ${{ env.SONAR_TEST_SIGNING }}
         run: |
           DEST=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']))")
           xcodebuild test -project Sonar.xcodeproj -scheme Sonar -destination "id=$DEST" \
@@ -90,7 +107,8 @@ jobs:
         run: |
           TAG="ios-build-$BUILD"
           # заметки — коммиты ios/ с прошлой iOS-сборки
-          PREV=$(git tag -l 'ios-build-*' --sort=-v:refname | grep -vx "$TAG" | head -1)
+          # первой сборке сравнивать не с чем: grep без совпадений не должен ронять шаг (pipefail)
+          PREV=$(git tag -l 'ios-build-*' --sort=-v:refname | { grep -vx "$TAG" || true; } | head -1)
           RANGE=${PREV:+$PREV..}HEAD
           git log --no-merges --format='- %s' $RANGE -- . ../.github/workflows/ios.yml | head -40 > ../notes.md
           [ -s ../notes.md ] || echo "- Сборка $BUILD" > ../notes.md
