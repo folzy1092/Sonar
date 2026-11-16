@@ -45,6 +45,35 @@ export function parseChangelog(raw: unknown): ChangelogEntry[] {
     .sort((a, b) => compareVersions(b.version, a.version))
 }
 
+/** Релиз GitHub (`/repos/…/releases`), нужные поля. */
+export interface GhRelease {
+  tag_name: string
+  published_at?: string | null
+  body?: string | null
+  draft?: boolean
+  prerelease?: boolean
+}
+
+/** История версий: записи `changelog.json` (с названиями) + каждый выпущенный релиз `windows-v*`
+ *  (авто-патчи с CI в changelog не попадают — их пункты берутся из заметок релиза). Новые сверху. */
+export function mergeReleases(log: ChangelogEntry[], releases: GhRelease[]): ChangelogEntry[] {
+  const have = new Set(log.map((e) => e.version))
+  const extra: ChangelogEntry[] = []
+  for (const r of releases) {
+    const m = /^windows-v(\d+\.\d+\.\d+[\w.-]*)$/.exec(r.tag_name ?? '')
+    if (!m || r.draft || have.has(m[1])) continue
+    have.add(m[1])
+    extra.push({
+      version: m[1],
+      date: (r.published_at ?? '').slice(0, 10),
+      platform: 'windows',
+      // авто-патч: первая строка коммита — заголовок, остальное — пункты
+      changes: noteLines(r.body).slice(0, 14),
+    })
+  }
+  return [...log, ...extra].sort((a, b) => compareVersions(b.version, a.version))
+}
+
 /** Заметки релиза (`notes` в latest.json) → пункты списка: строки «- …», «• …» или просто строки. */
 export function noteLines(notes: string | undefined | null): string[] {
   if (!notes) return []

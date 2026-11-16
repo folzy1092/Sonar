@@ -7,11 +7,12 @@ import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { isTauri } from './tauri'
 import { settings } from './settings.svelte'
-import { compareVersions, isBeta, noteLines, parseChangelog, type ChangelogEntry } from './update-core'
+import { compareVersions, isBeta, mergeReleases, noteLines, parseChangelog, type ChangelogEntry } from './update-core'
 
 export type UpdatePhase = 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'installing' | 'error'
 
 const CHANGELOG_URL = 'https://raw.githubusercontent.com/folzy1092/Sonar/main/updates/changelog.json'
+const RELEASES_URL = 'https://api.github.com/repos/folzy1092/Sonar/releases?per_page=60'
 const EVERY = 6 * 3_600_000
 const FIRST_DELAY = 8_000
 
@@ -134,8 +135,16 @@ class Updater {
   async loadChangelog() {
     if (this.changelog) return
     try {
-      const r = await fetch(CHANGELOG_URL, { cache: 'no-store' })
-      this.changelog = r.ok ? parseChangelog(await r.json()) : []
+      // changelog.json — версии с названием; релизы GitHub — все авто-патчи (0.1.42, 0.1.55 …)
+      const [log, rel] = await Promise.all([
+        fetch(CHANGELOG_URL, { cache: 'no-store' })
+          .then((r) => (r.ok ? r.json() : []))
+          .catch(() => []),
+        fetch(RELEASES_URL, { cache: 'no-store', headers: { Accept: 'application/vnd.github+json' } })
+          .then((r) => (r.ok ? r.json() : []))
+          .catch(() => []),
+      ])
+      this.changelog = mergeReleases(parseChangelog(log), Array.isArray(rel) ? rel : [])
     } catch {
       this.changelog = []
     }

@@ -104,6 +104,13 @@
     translate: 0 -50%;
     border-radius: 4px;
     background: color-mix(in srgb, var(--text) 55%, transparent);
+    /* палочка доезжает плавно, как мини-плеер в Dotify; пока тянешь — без задержки */
+    transition:
+      left 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      height var(--fast) var(--ease),
+      background var(--fast) var(--ease);
+  }
+  .stick-track.dragging .stick {
     transition:
       height var(--fast) var(--ease),
       background var(--fast) var(--ease);
