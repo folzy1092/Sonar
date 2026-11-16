@@ -65,8 +65,7 @@
 
 <footer
   class="mini bg-{settings.get('mini.background')} progress-{settings.get('mini.progress')}"
-  class:shape-capsule={settings.get('mini.shape') === 'capsule'}
-  class:round-cover={settings.get('mini.cover_shape') === 'circle'}
+  class:round-cover={settings.get('mini.cover_round') >= 100}
   class:seekable={!!track}
   bind:this={bar}
   onpointerdown={down}
@@ -97,7 +96,7 @@
         aria-label="Полноэкранный плеер"
         title="Полноэкранный плеер"
       >
-        <Cover url={track?.cover_url} size={46} radius={settings.get('mini.cover_shape') === 'circle' ? '50%' : 'var(--radius-s)'} />
+        <Cover url={track?.cover_url} size={46} radius="calc(50% * var(--cover-k, 1))" />
         {#if settings.get('mini.progress') === 'cover'}
           <!-- прогресс «Вокруг обложки»: кольцо -->
           <svg class="ring" viewBox="0 0 52 52" aria-hidden="true"><circle bind:this={ring} cx="26" cy="26" r="24.5" pathLength="100" stroke-dasharray="0 100" /></svg>
@@ -182,7 +181,9 @@
     gap: 16px;
     height: var(--player-h);
     padding: 0 12px 0 8px;
-    border-radius: var(--radius-l);
+    /* концы капсулы: --cap-k (0 — прямые углы, 1 — полукруг), середина — прямая */
+    border-radius: max(var(--radius-l), calc(var(--player-h) / 2 * var(--cap-k, 1)));
+    padding-left: calc(8px + 4px * var(--cap-k, 1));
     background: var(--surface-1);
     border: 1px solid var(--border);
     transition:
@@ -243,10 +244,6 @@
     from {
       opacity: 0;
     }
-  }
-  .mini.shape-capsule {
-    border-radius: 999px;
-    padding-left: 10px;
   }
   /* прогресс «Линия» — тонкая полоска внизу */
   .mini.progress-line .fill {
@@ -327,12 +324,11 @@
   .art {
     position: relative;
     display: grid;
-    border-radius: var(--radius-s);
+    border-radius: calc(50% * var(--cover-k, 1));
     overflow: hidden;
   }
-  .round-cover .art,
-  .round-cover .expand {
-    border-radius: 50%;
+  .expand {
+    border-radius: calc(50% * var(--cover-k, 1));
   }
   /* при наведении на обложку — две стрелки: откроется полноэкранный плеер */
   .expand {

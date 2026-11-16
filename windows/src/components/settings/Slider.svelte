@@ -12,8 +12,10 @@
     step?: number
     unit?: string
     onchange: (v: number) => void
+    /** Пока тянут ползунок (живой пример рядом). */
+    oninput?: (v: number) => void
   }
-  let { title, hint, value, min, max, step = 1, unit = '', onchange, soon = false }: Props = $props()
+  let { title, hint, value, min, max, step = 1, unit = '', onchange, oninput, soon = false }: Props = $props()
   let live = $state<number | null>(null)
   const shown = $derived(live ?? value)
 </script>
@@ -30,7 +32,10 @@
       value={shown}
       disabled={soon}
       style:--fill="{((shown - min) / (max - min)) * 100}%"
-      oninput={(e) => (live = Number(e.currentTarget.value))}
+      oninput={(e) => {
+        live = Number(e.currentTarget.value)
+        oninput?.(live)
+      }}
       onchange={(e) => {
         onchange(Number(e.currentTarget.value))
         live = null
