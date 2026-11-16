@@ -11,6 +11,7 @@
   import { slide } from 'svelte/transition'
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
+  import LoadFx from '../components/LoadFx.svelte'
   import TrackRow from '../components/TrackRow.svelte'
   import Switch from '../components/settings/Switch.svelte'
   import { autoplay } from '../player/autoplay.svelte'
@@ -54,9 +55,10 @@
 </script>
 
 <div class="top" class:flip={settings.get('player.cover_position') === 'right'}>
-  <div class="art">
+  <div class="art" data-fx-cover data-fx-frame>
     <button class="open-full" aria-label="Полноэкранный плеер" title="Полноэкранный плеер" disabled={!track} onclick={() => lyrics.open()}>
       <Cover url={track?.cover_url} size={320} radius="18px" />
+      <LoadFx url={track?.cover_url} />
       <!-- при наведении — две стрелки (как у обложки в нижнем плеере): откроется полноэкранный плеер -->
       <span class="expand" aria-hidden="true"><Icon name="expand" size={30} /></span>
     </button>
@@ -90,7 +92,7 @@
 
   <div class="side">
     <div class="head" style:--align={align} style:--justify={align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'} use:replay={track?.ref}>
-      <h1 class="selectable" title={track?.title}>{track?.title ?? 'Ничего не играет'}</h1>
+      <h1 class="selectable" data-fx-title title={track?.title}>{track?.title ?? 'Ничего не играет'}</h1>
       <p class="artist selectable">
         {#if avatar}<img src={avatar} alt="" />{/if}
         {#if track}

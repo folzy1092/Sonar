@@ -31,6 +31,7 @@
   import { lyrics } from './lyrics/lyrics.svelte'
   import { wave } from './player/my-wave.svelte'
   import { autoplay } from './player/autoplay.svelte'
+  import { initTrackFx } from './lib/track-fx.svelte'
   import { theme } from './theme/theme.svelte'
   import { settings } from './lib/settings.svelte'
   import { slide } from 'svelte/transition'
@@ -64,6 +65,7 @@
     player.init()
     wave.init()
     autoplay.init()
+    initTrackFx()
     theme.init()
     lyrics.init()
     void library.load()

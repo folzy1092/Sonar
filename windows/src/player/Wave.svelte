@@ -4,6 +4,7 @@
   import { onMount } from 'svelte'
   import { player } from './player.svelte'
   import { settings } from '../lib/settings.svelte'
+  import { fx } from '../lib/track-fx.svelte'
 
   interface Props {
     height?: number
@@ -52,6 +53,15 @@
         for (let i = 0; i < POINTS; i++) levels[i] *= 0.9
       }
 
+      // «Сигнал»: при смене трека столбики гаснут в линию и вырастают (scaleY .08→1, 420 мс, сдвиг
+      // 7 мс на столбик) — lib/track-fx.svelte.ts
+      const grow = fx.barsStartedAt ? performance.now() - fx.barsStartedAt : Infinity
+      if (grow < 420 + POINTS * 7) {
+        for (let i = 0; i < POINTS; i++) {
+          const k = Math.max(0, Math.min(1, (grow - i * 7) / 420))
+          levels[i] *= 0.08 + 0.92 * (1 - Math.pow(1 - k, 3))
+        }
+      }
       let peak = 0
       for (let i = 0; i < POINTS; i++) peak = Math.max(peak, levels[i])
       if (peak < 0.004) return // тишина — без полоски на дне

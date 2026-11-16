@@ -1,0 +1,303 @@
+/* Анимации стиля (Интерфейс → Стиль, STYLE_PROMPT §4): смена трека (lib/track-fx.svelte.ts), лайк
+   (lib/like-fx.ts), загрузка трека (components/LoadFx.svelte). Кривая — cubic-bezier(.22,1,.36,1),
+   длительности 150–600 мс. «Меньше движения» и выключенные анимации глушит общее правило app.css
+   (animation-duration: 0) — остаётся только обычный кроссфейд обложек. */
+
+.fx-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  overflow: hidden;
+  pointer-events: none;
+}
+.fx {
+  position: fixed;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+/* ---- смена трека: обложки и заголовки ---- */
+:root[data-fx-track='echo'] [data-fx-cover].fx-run {
+  animation: fx-cover-echo 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes fx-cover-echo {
+  from {
+    scale: 0.94;
+  }
+}
+/* «дыхание» заголовка по оси ширины — только у шрифтов заголовков с осью wdth */
+:root[data-fx-track='echo'].display-wdth [data-fx-title].fx-run {
+  animation: fx-breathe 0.56s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes fx-breathe {
+  45% {
+    font-stretch: 112%;
+  }
+}
+:root[data-fx-track='signal'] [data-fx-cover].fx-run,
+:root[data-fx-track='signal'] [data-fx-title].fx-run {
+  animation: fx-signal-in 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes fx-signal-in {
+  from {
+    opacity: 0.35;
+    scale: 0.96;
+  }
+}
+:root[data-fx-track='edge'] [data-fx-cover].fx-run {
+  animation: fx-reveal 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes fx-reveal {
+  from {
+    opacity: 0.2;
+  }
+}
+:root[data-fx-track='tactile'] [data-fx-cover].fx-run {
+  animation: fx-slot 0.46s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes fx-slot {
+  from {
+    translate: 0 -10px;
+    opacity: 0.3;
+  }
+}
+/* «Монолит»: свечение за обложкой разливается и оседает */
+:root[data-fx-track='monolith'] [data-fx-cover].fx-run {
+  animation: fx-pour 0.56s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes fx-pour {
+  0% {
+    box-shadow: 0 0 6px -8px var(--glow);
+  }
+  55% {
+    box-shadow: 0 0 44px 8px var(--glow);
+  }
+  100% {
+    box-shadow: var(--mono-glow, 0 0 28px transparent);
+  }
+}
+:root[data-fx-track='monolith'] [data-fx-title].fx-run {
+  animation: fx-rise8 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes fx-rise8 {
+  from {
+    translate: 0 8px;
+    opacity: 0.4;
+  }
+}
+
+/* «Эхо»: три контурных кольца нового акцента */
+.fx-rings i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px solid var(--accent);
+  opacity: 0;
+  animation: fx-ring 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.fx-rings i:nth-child(2) {
+  animation-delay: 0.09s;
+}
+.fx-rings i:nth-child(3) {
+  animation-delay: 0.18s;
+}
+@keyframes fx-ring {
+  from {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+/* «Грань»: световая дуга один раз обегает рамку (видна только кромка 1.5 px) */
+@property --fx-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.fx-arc {
+  padding: 1.5px;
+  background: conic-gradient(from var(--fx-angle), transparent 0 70%, var(--accent) 86%, oklch(1 0 0 / 0.9) 91%, transparent 96%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  animation: fx-arc 0.6s cubic-bezier(0.45, 0, 0.2, 1) both;
+}
+@keyframes fx-arc {
+  0% {
+    --fx-angle: 0deg;
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    --fx-angle: 360deg;
+    opacity: 0;
+  }
+}
+
+/* «Тактиль»: огонёк по пяти светодиодам мини-плеера */
+.mini-leds {
+  display: none;
+  gap: 3px;
+  align-items: center;
+}
+:root[data-fx-track='tactile'] .mini-leds {
+  display: flex;
+}
+.mini-leds i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  box-shadow: inset 0 1px 1px oklch(0 0 0 / 0.5);
+}
+.mini-leds.fx-run i {
+  animation: fx-led-run 0.22s ease-out both;
+}
+.mini-leds.fx-run i:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.mini-leds.fx-run i:nth-child(3) {
+  animation-delay: 0.12s;
+}
+.mini-leds.fx-run i:nth-child(4) {
+  animation-delay: 0.18s;
+}
+.mini-leds.fx-run i:nth-child(5) {
+  animation-delay: 0.24s;
+}
+@keyframes fx-led-run {
+  40% {
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+  }
+}
+
+/* ---- лайк ---- */
+.fx-heart-bounce {
+  animation: fx-heart 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes fx-heart {
+  0% {
+    scale: 0.84;
+  }
+  55% {
+    scale: 1.1;
+  }
+}
+.fx-like-ring {
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  animation: fx-lring 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.fx-like-ring.mono {
+  animation: fx-lring-mono 0.46s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes fx-lring {
+  from {
+    transform: scale(0.7);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+@keyframes fx-lring-mono {
+  from {
+    transform: scale(0.7);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+.fx-ecg svg,
+.fx-heart-draw svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.fx-ecg path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 60;
+  animation: fx-ecg 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes fx-ecg {
+  0% {
+    stroke-dashoffset: 60;
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+/* «Грань»: сердце обводится по контуру, потом заливается; настоящий значок пока спрятан */
+.fx-heart-hidden {
+  opacity: 0;
+}
+.fx-heart-draw path {
+  stroke: var(--accent);
+  stroke-width: var(--icon-stroke, 2);
+  stroke-linejoin: round;
+  stroke-dasharray: 60;
+  animation: fx-draw 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes fx-draw {
+  0% {
+    stroke-dashoffset: 60;
+    fill: transparent;
+  }
+  62% {
+    stroke-dashoffset: 0;
+    fill: transparent;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    fill: var(--accent);
+  }
+}
+/* «Тактиль»: светодиод над сердцем вспыхивает с послесвечением */
+.fx-led i {
+  position: absolute;
+  left: 50%;
+  top: -7px;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: fx-ledflash 0.6s ease-out both;
+}
+@keyframes fx-ledflash {
+  0% {
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+    box-shadow: 0 0 10px 2px var(--accent);
+  }
+  100% {
+    opacity: 0;
+    box-shadow: 0 0 2px var(--accent);
+  }
+}

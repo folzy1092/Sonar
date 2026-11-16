@@ -3,6 +3,7 @@
   // по центру простые значки без кругов, справа капсула скорость · громкость · очередь · текст.
   import Icon from '../components/Icon.svelte'
   import IconButton from '../components/IconButton.svelte'
+  import LoadFx from '../components/LoadFx.svelte'
   import Cover from '../components/Cover.svelte'
   import PlayPause from '../components/PlayPause.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
@@ -64,6 +65,7 @@
 </script>
 
 <footer
+  data-fx-frame
   class="mini bg-{settings.get('mini.background')} progress-{settings.get('mini.progress')}"
   class:round-cover={settings.get('mini.cover_round') >= 100}
   class:seekable={!!track}
@@ -91,12 +93,14 @@
     <div class="now">
       <button
         class="art"
+        data-fx-cover
         disabled={!track}
         onclick={() => lyrics.open()}
         aria-label="Полноэкранный плеер"
         title="Полноэкранный плеер"
       >
         <Cover url={track?.cover_url} size={46} radius="calc(50% * var(--cover-k, 1))" />
+        <LoadFx url={track?.cover_url} />
         {#if settings.get('mini.progress') === 'cover'}
           <!-- прогресс «Вокруг обложки»: кольцо -->
           <svg class="ring" viewBox="0 0 52 52" aria-hidden="true"><circle bind:this={ring} cx="26" cy="26" r="24.5" pathLength="100" stroke-dasharray="0 100" /></svg>
@@ -158,6 +162,8 @@
   </div>
 
   <div class="right">
+    <!-- «Тактиль»: пять светодиодов, по ним бежит огонёк при смене трека (theme/fx.css) -->
+    <span class="mini-leds" data-fx-leds aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     <div class="capsule">
       <EqButton />
       <SpeedButton />
@@ -420,7 +426,9 @@
   }
   .right {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
+    gap: 10px;
   }
   .capsule {
     display: flex;
