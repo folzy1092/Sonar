@@ -5,6 +5,7 @@
 
 use crate::providers::{ArtistRef, Track};
 use crate::store::Taste;
+use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 
 /// Порция волны.
@@ -220,11 +221,13 @@ pub struct Origin {
   pub rank: HashMap<String, f64>,
   /// Предложен треком, который зашёл в этой сессии.
   pub from_session: HashSet<String>,
+  /// Сид, в чьём списке трек стоял выше всего, — «от кого пришёл» (для `wave_events`).
+  pub seed_of: HashMap<String, String>,
 }
 
 impl Origin {
-  /// Учесть список похожих от одного сида.
-  pub fn add(&mut self, list: &[Track], session: bool) {
+  /// Учесть список похожих от одного сида (`seed` — его ref).
+  pub fn add(&mut self, seed: &str, list: &[Track], session: bool) {
     let len = list.len().max(1) as f64;
     let mut seen = HashSet::new();
     for (i, t) in list.iter().enumerate() {
@@ -233,8 +236,10 @@ impl Origin {
       }
       *self.votes.entry(t.ref_.clone()).or_insert(0) += 1;
       let r = 1.0 - i as f64 / len;
-      let e = self.rank.entry(t.ref_.clone()).or_insert(0.0);
-      *e = e.max(r);
+      if self.rank.get(&t.ref_).is_none_or(|best| r > *best) {
+        self.rank.insert(t.ref_.clone(), r);
+        self.seed_of.insert(t.ref_.clone(), seed.to_owned());
+      }
       if session {
         self.from_session.insert(t.ref_.clone());
       }
@@ -273,11 +278,98 @@ pub fn beta(a: u32, b: u32, rng: &mut Rng) -> f64 {
   u[a as usize - 1]
 }
 
-/// Оценка кандидата. Вкус к артисту — выборка Томпсона из Beta(1+дослушано, 1+пропущено): у
+/// Признаки кандидата на момент выдачи (docs/WAVE.md, этап 3). Оценка = Σ признак × вес режима +
+/// шум; признаки пишутся в `wave_events.features_json` — по ним потом можно подбирать веса по цифрам.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct Features {
+  /// Вкус к артисту — выборка Томпсона, −1 … 1.
+  pub affinity: f64,
+  /// Артист среди лайкнутых, 0 / 1.
+  pub liked_artist: f64,
+  /// Артист лайкнутый или слушанный, 0 / 1.
+  pub known: f64,
+  /// Артист совсем новый (1 − `known`), 0 / 1.
+  pub fresh: f64,
+  /// `min(голоса − 1, 3)`: сколько сидов предложили трек.
+  pub votes: f64,
+  /// Место в списке похожих, 0 … 1.
+  pub rank: f64,
+  /// Предложен треком, который зашёл в этой сессии, 0 / 1.
+  pub from_session: f64,
+  /// Артист пропущен в этой сессии, 0 / 1.
+  pub session_skipped: f64,
+  /// Теги как у зашедших (плюс) и как у пропущенных (минус) в этой сессии.
+  pub session_tags: f64,
+  /// Трек с платформы, которую выбрал пользователь, 0 / 1.
+  pub platform: f64,
+  /// Доля прослушиваний артиста в это время суток, 0 … 1.
+  pub hour: f64,
+  /// `mood_fit` режима, −0.8 … 2.2.
+  pub mood: f64,
+  /// Доля пропусков артиста.
+  pub skip_rate: f64,
+}
+
+/// Веса признаков режима. Стартовые значения — ровно те числа, что были в `score` до разбиения на
+/// признаки, поведение волны не менялось (тест `score_matches_legacy_formula`).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Weights {
+  pub affinity: f64,
+  pub liked_artist: f64,
+  pub known: f64,
+  pub fresh: f64,
+  pub votes: f64,
+  pub rank: f64,
+  pub from_session: f64,
+  pub session_skipped: f64,
+  pub session_tags: f64,
+  pub platform: f64,
+  pub hour: f64,
+  pub mood: f64,
+  pub skip_rate: f64,
+}
+
+impl Weights {
+  pub fn dot(&self, f: &Features) -> f64 {
+    self.affinity * f.affinity
+      + self.liked_artist * f.liked_artist
+      + self.known * f.known
+      + self.fresh * f.fresh
+      + self.votes * f.votes
+      + self.rank * f.rank
+      + self.from_session * f.from_session
+      + self.session_skipped * f.session_skipped
+      + self.session_tags * f.session_tags
+      + self.platform * f.platform
+      + self.hour * f.hour
+      + self.mood * f.mood
+      + self.skip_rate * f.skip_rate
+  }
+}
+
+/// Веса режима: «Незнакомое» — чужие артисты, настроения — `mood_fit` плюс вкус, остальное («Своя») —
+/// лайки, вкус и время суток. Общее для всех — «похожесть» и то, что зашло или не зашло в сессии.
+pub fn weights(mode: &str) -> Weights {
+  let common = Weights {
+    votes: 0.6,
+    rank: 0.5,
+    from_session: 0.7,
+    session_skipped: -0.9,
+    session_tags: 1.0,
+    ..Default::default()
+  };
+  match mode {
+    "new" => Weights { known: -2.5, fresh: 1.0, skip_rate: -1.0, platform: 0.3, ..common },
+    "hard" | "calm" | "sad" | "fun" => Weights { mood: 1.5, liked_artist: 1.0, affinity: 0.6, platform: 0.3, hour: 0.4, ..common },
+    _ => Weights { liked_artist: 2.0, affinity: 1.0, platform: 0.6, hour: 1.2, ..common },
+  }
+}
+
+/// Признаки кандидата. Вкус к артисту — выборка Томпсона из Beta(1+дослушано, 1+пропущено): у
 /// знакомых и любимых она стабильно высокая, у малознакомых — разбросана, поэтому волна иногда
 /// пробует новых, а не крутит одних и тех же. Плюс: лайкнутый артист, голоса и место в похожих,
 /// «зашло в сессии», теги как у зашедших, своя платформа, время суток, настроение режима.
-fn score(t: &Track, taste: &Taste, origin: &Origin, session: &Session, prefer: Option<&str>, mode: &str, rng: &mut Rng) -> f64 {
+fn features(t: &Track, taste: &Taste, origin: &Origin, session: &Session, prefer: Option<&str>, mode: &str, rng: &mut Rng) -> Features {
   let keys = artist_keys(t);
   let a = keys[0].clone();
   // вкус — по лучшему из артистов трека (совместный трек любимого артиста — тоже «свой»)
@@ -289,39 +381,45 @@ fn score(t: &Track, taste: &Taste, origin: &Origin, session: &Session, prefer: O
       m(x).partial_cmp(&m(y)).unwrap_or(std::cmp::Ordering::Equal).then(x.0.cmp(&y.0))
     })
     .unwrap_or((0, 0));
-  let affinity = 2.0 * beta(1 + plays, 1 + skips, rng) - 1.0; // −1 … 1
-  let liked = if keys.iter().any(|k| taste.liked_artists.contains(k)) { 2.0 } else { 0.0 };
-  let platform = match prefer {
-    Some(p) if t.ref_.starts_with(&format!("{p}:")) => 0.6,
-    _ => 0.0,
-  };
-  let hour = keys.iter().filter_map(|k| taste.hour_share.get(k).copied()).fold(0.0, f64::max);
-  let votes = *origin.votes.get(&t.ref_).unwrap_or(&1) as f64;
-  let sim = 0.6 * (votes - 1.0).min(3.0) + 0.5 * origin.rank.get(&t.ref_).copied().unwrap_or(0.0);
-  let mut live = if origin.from_session.contains(&t.ref_) { 0.7 } else { 0.0 };
-  if session.skipped_artists.contains(&a) {
-    live -= 0.9;
-  }
-  if !session.tags.is_empty() {
+  let affinity = 2.0 * beta(1 + plays, 1 + skips, rng) - 1.0;
+  let liked = keys.iter().any(|k| taste.liked_artists.contains(k));
+  let known = liked || plays > 0;
+  let platform = matches!(prefer, Some(p) if t.ref_.starts_with(&format!("{p}:")));
+  let session_tags = if session.tags.is_empty() {
+    0.0
+  } else {
     let fit: f64 = tag_words(t).iter().filter_map(|w| session.tags.get(w)).sum();
-    live += (0.3 * fit).min(0.9);
+    (0.3 * fit).min(0.9)
+  };
+  Features {
+    affinity,
+    liked_artist: liked as u8 as f64,
+    known: known as u8 as f64,
+    fresh: !known as u8 as f64,
+    votes: (*origin.votes.get(&t.ref_).unwrap_or(&1) as f64 - 1.0).min(3.0),
+    rank: origin.rank.get(&t.ref_).copied().unwrap_or(0.0),
+    from_session: origin.from_session.contains(&t.ref_) as u8 as f64,
+    session_skipped: session.skipped_artists.contains(&a) as u8 as f64,
+    session_tags,
+    platform: platform as u8 as f64,
+    hour: keys.iter().filter_map(|k| taste.hour_share.get(k).copied()).fold(0.0, f64::max),
+    mood: if matches!(mode, "hard" | "calm" | "sad" | "fun") { mood_fit(mode, t) } else { 0.0 },
+    skip_rate: skips as f64 / (plays + skips + 1) as f64,
   }
-  let noise = rng.unit() * 0.3;
-  let base = sim + live + noise;
-  match mode {
-    "new" => {
-      let known = liked > 0.0 || plays > 0;
-      base + (if known { -2.5 } else { 1.0 }) - skips as f64 / (plays + skips + 1) as f64 + platform * 0.5
-    }
-    "hard" | "calm" | "sad" | "fun" => base + mood_fit(mode, t) * 1.5 + liked * 0.5 + affinity * 0.6 + platform * 0.5 + hour * 0.4,
-    _ => base + liked + affinity + platform + hour * 1.2,
-  }
+}
+
+/// Кандидат с признаками, с которыми он выбран.
+pub struct Picked {
+  pub track: Track,
+  pub features: Features,
 }
 
 /// Порция из `n` треков: без дублей и фильтрованных, не два одинаковых артиста подряд (и не те,
 /// что звучали только что), не больше двух треков артиста в порции и четырёх за сессию.
 /// В режиме настроения, если подходящих хватает, неподходящие отбрасываются совсем.
 /// `relaxed` — разрешить недавно слушанное (когда кандидатов мало).
+/// Без признаков — для тестов; приложение зовёт [`pick_with`].
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 pub fn pick(
   cands: Vec<Track>,
@@ -335,6 +433,23 @@ pub fn pick(
   relaxed: bool,
   rng: &mut Rng,
 ) -> Vec<Track> {
+  pick_with(cands, taste, origin, session, filter, prefer, mode, n, relaxed, rng).into_iter().map(|p| p.track).collect()
+}
+
+/// То же, что [`pick`], но с признаками каждого выбранного трека (для `wave_events`).
+#[allow(clippy::too_many_arguments)]
+pub fn pick_with(
+  cands: Vec<Track>,
+  taste: &Taste,
+  origin: &Origin,
+  session: &Session,
+  filter: &Filter,
+  prefer: Option<&str>,
+  mode: &str,
+  n: usize,
+  relaxed: bool,
+  rng: &mut Rng,
+) -> Vec<Picked> {
   let mut seen = HashSet::new();
   let mut pool: Vec<Track> = cands
     .into_iter()
@@ -350,30 +465,37 @@ pub fn pick(
       pool.retain(|t| mood_fit(mode, t) >= 0.0);
     }
   }
-  let mut scored: Vec<(f64, Track)> = pool.into_iter().map(|t| (score(&t, taste, origin, session, prefer, mode, rng), t)).collect();
+  let w = weights(mode);
+  let mut scored: Vec<(f64, Picked)> = pool
+    .into_iter()
+    .map(|track| {
+      let features = features(&track, taste, origin, session, prefer, mode, rng);
+      (w.dot(&features) + rng.unit() * 0.3, Picked { track, features })
+    })
+    .collect();
   scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
-  let mut out: Vec<Track> = Vec::with_capacity(n);
+  let mut out: Vec<Picked> = Vec::with_capacity(n);
   let mut per_artist: HashMap<String, usize> = HashMap::new();
   // только что звучавшие артисты (хвост прошлой порции) — не первым треком новой
   let tail: Vec<&String> = session.recent_artists.iter().rev().take(3).collect();
   // Кто сейчас не подходит (тот же артист, что предыдущий), ждёт следующего шанса — не теряется.
-  let mut pending: Vec<Track> = Vec::new();
-  for (_, t) in scored {
-    pending.push(t);
+  let mut pending: Vec<Picked> = Vec::new();
+  for (_, p) in scored {
+    pending.push(p);
     loop {
-      let ok = |t: &Track| {
-        let a = artist_key(t);
+      let ok = |p: &Picked| {
+        let a = artist_key(&p.track);
         let just_played = out.is_empty() && tail.iter().any(|x| **x == a);
         !just_played
-          && !out.last().is_some_and(|l| artist_key(l) == a)
+          && !out.last().is_some_and(|l| artist_key(&l.track) == a)
           && per_artist.get(&a).copied().unwrap_or(0) < 2
           && per_artist.get(&a).copied().unwrap_or(0) + session.served.get(&a).copied().unwrap_or(0) < SESSION_ARTIST_CAP
       };
       let Some(i) = pending.iter().position(ok) else { break };
-      let t = pending.remove(i);
-      *per_artist.entry(artist_key(&t)).or_insert(0) += 1;
-      out.push(t);
+      let p = pending.remove(i);
+      *per_artist.entry(artist_key(&p.track)).or_insert(0) += 1;
+      out.push(p);
       if out.len() == n {
         return out;
       }
@@ -463,16 +585,16 @@ mod tests {
     let f = Filter::default();
     let mut origin = Origin::default();
     // sc:2 предложили три сида, sc:1 — один
-    origin.add(&[t("sc:1", "a"), t("sc:2", "b")], false);
-    origin.add(&[t("sc:2", "b")], false);
-    origin.add(&[t("sc:2", "b")], false);
+    origin.add("seed1", &[t("sc:1", "a"), t("sc:2", "b")], false);
+    origin.add("seed2", &[t("sc:2", "b")], false);
+    origin.add("seed3", &[t("sc:2", "b")], false);
     let out = pick(vec![t("sc:1", "a"), t("sc:2", "b")], &taste, &origin, &Session::default(), &f, None, "new", 1, false, &mut Rng::new(3));
     assert_eq!(out[0].ref_, "sc:2");
     // пропущенный в сессии артист уступает
     let mut s = Session::default();
     s.skipped_artists.insert("b".into());
     let mut o2 = Origin::default();
-    o2.add(&[t("sc:2", "b"), t("sc:1", "a")], false);
+    o2.add("seed1", &[t("sc:2", "b"), t("sc:1", "a")], false);
     let out = pick(vec![t("sc:1", "a"), t("sc:2", "b")], &taste, &o2, &s, &f, None, "new", 1, false, &mut Rng::new(3));
     assert_eq!(out[0].ref_, "sc:1");
   }
@@ -572,6 +694,119 @@ mod tests {
     assert_eq!(reward(60_000, 0, true, false, false), 0.0);
     assert_eq!(reward(150_000, 0, false, false, false), 1.0);
     assert!(is_early_skip(10_000, d, true) && !is_early_skip(10_000, d, false));
+  }
+
+  /// Оценка до разбиения на признаки и веса — для сверки, что поведение волны не поменялось.
+  fn legacy_score(t: &Track, taste: &Taste, origin: &Origin, session: &Session, prefer: Option<&str>, mode: &str, rng: &mut Rng) -> f64 {
+    let keys = artist_keys(t);
+    let a = keys[0].clone();
+    let (plays, skips) = keys
+      .iter()
+      .map(|k| (*taste.plays.get(k).unwrap_or(&0), *taste.skips.get(k).unwrap_or(&0)))
+      .max_by(|x, y| {
+        let m = |(p, s): &(u32, u32)| (1.0 + *p as f64) / (2.0 + (*p + *s) as f64);
+        m(x).partial_cmp(&m(y)).unwrap_or(std::cmp::Ordering::Equal).then(x.0.cmp(&y.0))
+      })
+      .unwrap_or((0, 0));
+    let affinity = 2.0 * beta(1 + plays, 1 + skips, rng) - 1.0;
+    let liked = if keys.iter().any(|k| taste.liked_artists.contains(k)) { 2.0 } else { 0.0 };
+    let platform = match prefer {
+      Some(p) if t.ref_.starts_with(&format!("{p}:")) => 0.6,
+      _ => 0.0,
+    };
+    let hour = keys.iter().filter_map(|k| taste.hour_share.get(k).copied()).fold(0.0, f64::max);
+    let votes = *origin.votes.get(&t.ref_).unwrap_or(&1) as f64;
+    let sim = 0.6 * (votes - 1.0).min(3.0) + 0.5 * origin.rank.get(&t.ref_).copied().unwrap_or(0.0);
+    let mut live = if origin.from_session.contains(&t.ref_) { 0.7 } else { 0.0 };
+    if session.skipped_artists.contains(&a) {
+      live -= 0.9;
+    }
+    if !session.tags.is_empty() {
+      let fit: f64 = tag_words(t).iter().filter_map(|w| session.tags.get(w)).sum();
+      live += (0.3 * fit).min(0.9);
+    }
+    let noise = rng.unit() * 0.3;
+    let base = sim + live + noise;
+    match mode {
+      "new" => {
+        let known = liked > 0.0 || plays > 0;
+        base + (if known { -2.5 } else { 1.0 }) - skips as f64 / (plays + skips + 1) as f64 + platform * 0.5
+      }
+      "hard" | "calm" | "sad" | "fun" => base + mood_fit(mode, t) * 1.5 + liked * 0.5 + affinity * 0.6 + platform * 0.5 + hour * 0.4,
+      _ => base + liked + affinity + platform + hour * 1.2,
+    }
+  }
+
+  #[test]
+  fn score_matches_legacy_formula() {
+    let mut taste = Taste::default();
+    taste.liked_artists.insert("fav".into());
+    taste.plays.insert("fav".into(), 12);
+    taste.skips.insert("fav".into(), 1);
+    taste.plays.insert("meh".into(), 2);
+    taste.skips.insert("meh".into(), 9);
+    taste.plays.insert("heard".into(), 3);
+    taste.hour_share.insert("fav".into(), 0.8);
+    taste.hour_share.insert("heard".into(), 0.3);
+    let mut origin = Origin::default();
+    origin.add("s1", &[t("sc:1", "fav"), t("sc:2", "meh"), t("ym:3", "heard"), t("sc:4", "stranger")], true);
+    origin.add("s2", &[t("sc:4", "stranger"), t("sc:1", "fav")], false);
+    let mut session = Session::default();
+    session.skipped_artists.insert("meh".into());
+    session.tags.insert("phonk".into(), 2.0);
+    let mut cands = vec![t("sc:1", "fav"), t("sc:2", "meh"), t("ym:3", "heard"), t("sc:4", "stranger"), t("sc:5", "new one")];
+    cands[2].tags = Some("sad emo".into());
+    cands[3].tags = Some("phonk drift".into());
+    cands[4].tags = Some("pop dance".into());
+    for mode in MODES {
+      for prefer in [None, Some("sc"), Some("ym")] {
+        for (i, c) in cands.iter().enumerate() {
+          for session in [&session, &Session::default()] {
+            let seed = 100 + i as u64;
+            let (mut r1, mut r2) = (Rng::new(seed), Rng::new(seed));
+            let old = legacy_score(c, &taste, &origin, session, prefer, mode, &mut r1);
+            let f = features(c, &taste, &origin, session, prefer, mode, &mut r2);
+            let new = weights(mode).dot(&f) + r2.unit() * 0.3;
+            assert!((old - new).abs() < 1e-9, "{mode} {prefer:?} {}: {old} ≠ {new}", c.ref_);
+          }
+        }
+      }
+    }
+  }
+
+  #[test]
+  fn origin_remembers_best_seed_and_pick_returns_features() {
+    let mut o = Origin::default();
+    // sc:2 у первого сида — на втором месте из трёх, у второго — первым: «пришёл» от второго
+    o.add("seedA", &[t("sc:1", "a"), t("sc:2", "b"), t("sc:3", "c")], false);
+    o.add("seedB", &[t("sc:2", "b")], false);
+    assert_eq!(o.seed_of.get("sc:1").map(String::as_str), Some("seedA"));
+    assert_eq!(o.seed_of.get("sc:2").map(String::as_str), Some("seedB"));
+    assert_eq!(o.votes["sc:2"], 2);
+    // равное место — остаётся первый сид
+    o.add("seedC", &[t("sc:1", "a")], false);
+    assert_eq!(o.seed_of.get("sc:1").map(String::as_str), Some("seedA"));
+
+    let out = pick_with(
+      vec![t("sc:1", "a"), t("sc:2", "b")],
+      &Taste::default(),
+      &o,
+      &Session::default(),
+      &Filter::default(),
+      Some("sc"),
+      "own",
+      2,
+      false,
+      &mut Rng::new(1),
+    );
+    let two = out.iter().find(|p| p.track.ref_ == "sc:2").unwrap();
+    assert_eq!(two.features.votes, 1.0, "два голоса — на один больше базового");
+    assert_eq!(two.features.platform, 1.0);
+    assert_eq!(two.features.known, 0.0);
+    assert_eq!(two.features.fresh, 1.0);
+    // признаки сериализуются целиком — их читает wave_events.features_json
+    let json = serde_json::to_string(&two.features).unwrap();
+    assert!(json.contains("\"affinity\"") && json.contains("\"session_tags\""));
   }
 
   #[test]

@@ -11,8 +11,10 @@ use std::path::Path;
 mod stats;
 mod system;
 mod wave;
+mod wave_events;
 pub use stats::Stats;
 pub use wave::Taste;
+pub use wave_events::{ServedEvent, WaveStats};
 
 pub const LOCAL_USER: &str = "u_local";
 
@@ -90,6 +92,14 @@ CREATE TABLE skips (
 CREATE INDEX skips_user_time ON skips(user_id, at);
 "#, r#"
 ALTER TABLE tracks ADD COLUMN tags TEXT;
+"#, r#"
+CREATE TABLE wave_events (
+  id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, session_id TEXT NOT NULL, ref TEXT NOT NULL,
+  artist TEXT NOT NULL, mode TEXT NOT NULL, source TEXT NOT NULL, seed_ref TEXT, features_json TEXT,
+  served_at INTEGER NOT NULL, reward REAL, listened_ms INTEGER, ended_at INTEGER
+);
+CREATE INDEX wave_events_time ON wave_events(user_id, served_at);
+CREATE INDEX wave_events_ref ON wave_events(session_id, ref);
 "#];
 
 pub fn now_ms() -> i64 {
@@ -191,7 +201,10 @@ impl Store {
     for (i, sql) in MIGRATIONS.iter().enumerate().skip(version as usize) {
       db.execute_batch(&format!("BEGIN; {sql} PRAGMA user_version = {}; COMMIT;", i + 1))?;
     }
-    Ok(Self { db })
+    let store = Self { db };
+    // журнал волны хранится полгода
+    store.prune_wave_events()?;
+    Ok(store)
   }
 
   /// Следующее значение глобального счётчика синхронизации (`sync_rev`).
@@ -752,6 +765,32 @@ mod tests {
     t.tags = Some("lofi".into());
     s.upsert_tracks(&[t]).unwrap();
     assert_eq!(s.tracks(&["sc:1".into()]).unwrap()[0].tags.as_deref(), Some("lofi"));
+  }
+
+  #[test]
+  fn migration_from_tags_schema_adds_wave_events() {
+    // база на схеме с тегами (6 миграций): журнал волны появляется пустым, старые данные целы
+    let db = Connection::open_in_memory().unwrap();
+    for (i, sql) in MIGRATIONS.iter().take(6).enumerate() {
+      db.execute_batch(&format!("BEGIN; {sql} PRAGMA user_version = {}; COMMIT;", i + 1)).unwrap();
+    }
+    db.execute(
+      "INSERT INTO tracks (ref, title, artist, duration_ms, fetched_at, tags) VALUES ('sc:1', 't', 'a', 1000, 0, 'lofi')",
+      [],
+    )
+    .unwrap();
+    let mut s = Store::init(db).unwrap();
+    assert_eq!(s.tracks(&["sc:1".into()]).unwrap()[0].tags.as_deref(), Some("lofi"));
+    let version: i64 = s.db.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+    assert_eq!(version as usize, MIGRATIONS.len());
+    assert!(s.wave_stats(30).unwrap().by_mode.is_empty());
+    s.log_wave_served(
+      "s",
+      "own",
+      &[ServedEvent { ref_: "sc:1".into(), artist: "a".into(), source: "similar".into(), seed_ref: None, features_json: None }],
+    )
+    .unwrap();
+    assert_eq!(s.wave_stats(30).unwrap().by_mode[0].served, 1);
   }
 
   #[test]

@@ -32,10 +32,15 @@ export const WAVE_MODES = [
 ] as const
 export type WaveMode = (typeof WAVE_MODES)[number]['id']
 
-/** Режим и часовой пояс — в каждый запрос порции. */
-function ctx() {
-  return { mode: settings.get('wave.mode'), tz_min: new Date().getTimezoneOffset() }
+/** Режим, часовой пояс и сессия — в каждый запрос порции (сессия нужна журналу `wave_events`). */
+function ctx(sid: string) {
+  return { mode: settings.get('wave.mode'), tz_min: new Date().getTimezoneOffset(), session_id: sid }
 }
+/** Id сессии волны. `crypto.randomUUID` есть только в безопасном контексте — на всякий случай запасной путь. */
+const newSessionId = () =>
+  typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 /** Догружать, когда до конца очереди осталось столько треков. */
 const PREFETCH_LEFT = 3
 /** Сколько последних «хороших» треков сессии отправлять сидами. */
@@ -66,6 +71,10 @@ class Wave {
   /** Сколько раз артист уже звучал в сессии. */
   private servedArtists: string[] = []
   private previewAt = 0
+  /** Сессия, под которой подобрана `preview` (её исходы лягут в тот же журнал). */
+  private previewSid = ''
+  /** Сессия играющей волны — id для `wave_events`. */
+  private sid = ''
   private started = false
   /** Серия ранних пропусков: две подряд пересобирают «Далее» (docs/WAVE.md, этап 5). */
   private series = new SkipSeries()
@@ -103,7 +112,9 @@ class Wave {
     if (this.loading || (!force && this.preview.length && Date.now() - this.previewAt < 600_000)) return
     this.loading = true
     try {
-      this.preview = await api.wavePortion({ exclude: [], paused_artists: [], ...ctx() })
+      const sid = newSessionId()
+      this.preview = await api.wavePortion({ exclude: [], paused_artists: [], ...ctx(sid) })
+      this.previewSid = sid
       this.previewAt = Date.now()
       if (!this.active) this.covers = this.preview.slice(0, 3)
       this.error = null
@@ -126,13 +137,16 @@ class Wave {
     this.epoch++
     this.seed = seed ?? null
     let tracks: Track[]
+    let sid: string
     if (!seed && this.preview.length) {
       tracks = this.preview
+      sid = this.previewSid
       this.preview = []
     } else {
+      sid = newSessionId()
       this.loading = true
       try {
-        tracks = await api.wavePortion({ seed: seed ?? null, ...ctx() })
+        tracks = await api.wavePortion({ seed: seed ?? null, ...ctx(sid) })
         this.error = null
       } catch (e) {
         this.error = errorText(e)
@@ -142,6 +156,7 @@ class Wave {
         this.loading = false
       }
     }
+    this.sid = sid
     const rest = seed ? tracks.filter((t) => t.ref !== seed.ref) : tracks
     let list = seed && withSeed ? [seed, ...rest] : rest
     // «С этого трека» — клик по обложке на главной: он играет первым, остальные — следом
@@ -201,7 +216,7 @@ class Wave {
         session: this.good.slice(-SESSION_SEEDS),
         skipped_artists: [...this.skipped],
         served_artists: [...this.servedArtists],
-        ...ctx(),
+        ...ctx(this.sid),
       })
       // очередь пересобрана или волна началась заново, пока шёл запрос, — порция подобрана под старое
       if (player.context !== WAVE_CONTEXT || epoch !== this.epoch) return
@@ -281,6 +296,8 @@ class Wave {
       liked: library.isLiked(t.ref),
       disliked: this.disliked.has(t.ref),
     })
+    // исход каждого трека волны — в журнал `wave_events` (по нему `wave_stats` и подбор весов)
+    if (this.sid) void api.waveFeedback('end', t, listened, { sessionId: this.sid, reward: r }).catch(() => {})
     // ручной пропуск с минусом — в `skips` (минус артисту и треку)
     if (skipped && r < 0) void api.waveFeedback('skip', t, listened).catch(() => {})
     if (r < 0) this.skipped.add(artist)

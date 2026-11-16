@@ -407,12 +407,16 @@ pub struct WaveRequest {
   /// Смещение часового пояса (`Date.getTimezoneOffset()`) — для времени суток.
   #[serde(default)]
   tz_min: Option<i64>,
+  /// Сессия волны (создаёт интерфейс) — выданные треки пишутся в журнал `wave_events` под этим id.
+  #[serde(default)]
+  session_id: Option<String>,
 }
 
 /// Следующая порция своей волны.
 #[tauri::command]
 pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: WaveRequest) -> Res<Vec<Track>> {
-  use crate::wave::{pick, tag_words, Filter, Origin, Rng, Session, PORTION};
+  use crate::store::ServedEvent;
+  use crate::wave::{artist_key, pick_with, tag_words, Filter, Origin, Rng, Session, PORTION};
   let mut rng = Rng::new(crate::store::now_ms() as u64);
   // что зашло в сессии — свежие в конце; берём до трёх последних
   let live: Vec<String> = req.session.iter().rev().take(3).map(|t| t.ref_.clone()).collect();
@@ -521,7 +525,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   for (seed, r) in seeds.iter().zip(results) {
     match r {
       Ok(v) => {
-        origin.add(&v, live.contains(seed));
+        origin.add(seed, &v, live.contains(seed));
         cands.extend(v)
       }
       Err(e) => {
@@ -534,17 +538,43 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   }
   let prefer = if has_ym && platform.as_deref() == Some("yandex") { "ym" } else { "sc" };
   let n = req.n.unwrap_or(PORTION);
-  let mut out = pick(cands.clone(), &taste, &origin, &session, &filter, Some(prefer), &mode, n, false, &mut rng);
+  let mut out = pick_with(cands.clone(), &taste, &origin, &session, &filter, Some(prefer), &mode, n, false, &mut rng);
   if out.len() < 3 {
-    out = pick(cands, &taste, &origin, &session, &filter, Some(prefer), &mode, n, true, &mut rng);
+    out = pick_with(cands, &taste, &origin, &session, &filter, Some(prefer), &mode, n, true, &mut rng);
   }
-  db.0.lock().unwrap().upsert_tracks(&out).map_err(err)?;
-  Ok(out)
+  let tracks: Vec<Track> = out.iter().map(|p| p.track.clone()).collect();
+  let mut store = db.0.lock().unwrap();
+  store.upsert_tracks(&tracks).map_err(err)?;
+  // журнал волны (docs/WAVE.md, этап 6): что выдали и с какими признаками. Сбой записи волну не ломает.
+  if let Some(sid) = req.session_id.as_deref().filter(|s| !s.is_empty()) {
+    let items: Vec<ServedEvent> = out
+      .iter()
+      .map(|p| ServedEvent {
+        ref_: p.track.ref_.clone(),
+        artist: artist_key(&p.track),
+        source: "similar".into(),
+        seed_ref: origin.seed_of.get(&p.track.ref_).cloned(),
+        features_json: serde_json::to_string(&p.features).ok(),
+      })
+      .collect();
+    if let Err(e) = store.log_wave_served(sid, &mode, &items) {
+      log::warn!("журнал волны: {e}");
+    }
+  }
+  Ok(tracks)
 }
 
-/// Сигнал волне: `dislike` / `undislike` (👎 и отмена), `skip` (пропуск в первые 30 с).
+/// Сигнал волне: `dislike` / `undislike` (👎 и отмена), `skip` (ручной пропуск с оценкой < 0),
+/// `end` — исход трека волны для журнала (`session_id`, `reward` по `reward.ts`, `played_ms`).
 #[tauri::command]
-pub fn wave_feedback(db: State<'_, Db>, event: String, track: Track, played_ms: Option<i64>) -> Res<()> {
+pub fn wave_feedback(
+  db: State<'_, Db>,
+  event: String,
+  track: Track,
+  played_ms: Option<i64>,
+  session_id: Option<String>,
+  reward: Option<f64>,
+) -> Res<()> {
   let mut store = db.0.lock().unwrap();
   match event.as_str() {
     "dislike" | "undislike" => {
@@ -552,8 +582,22 @@ pub fn wave_feedback(db: State<'_, Db>, event: String, track: Track, played_ms: 
       store.set_dislike(&track.ref_, &track.artist, event == "dislike").map_err(err)
     }
     "skip" => store.add_skip(&track.ref_, &track.artist, played_ms.unwrap_or(0)).map_err(err),
+    "end" => {
+      // без сессии или оценки (старый клиент) писать нечего
+      if let (Some(sid), Some(r)) = (session_id.as_deref().filter(|s| !s.is_empty()), reward) {
+        store.finish_wave_event(sid, &track.ref_, r, played_ms.unwrap_or(0)).map_err(err)?;
+      }
+      Ok(())
+    }
     _ => Err(format!("неизвестный сигнал {event}")),
   }
+}
+
+/// Сводка по журналу волны: по режимам и по источникам — сыграно, доля ранних пропусков, доля
+/// дослушанных, средняя оценка. Экрана нет (docs/WAVE.md, этап 6), только команда.
+#[tauri::command]
+pub fn wave_stats(db: State<'_, Db>, days: Option<i64>) -> Res<crate::store::WaveStats> {
+  db.0.lock().unwrap().wave_stats(days.unwrap_or(30)).map_err(err)
 }
 
 #[tauri::command]

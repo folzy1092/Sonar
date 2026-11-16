@@ -142,6 +142,7 @@ pub fn run() {
       commands::set_track_eq,
       commands::wave_portion,
       commands::wave_feedback,
+      commands::wave_stats,
       commands::disliked_refs,
       commands::similar_tracks,
       commands::recent_tracks,
