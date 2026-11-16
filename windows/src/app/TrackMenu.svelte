@@ -27,7 +27,7 @@
 
   $effect(() => {
     if (!t) return
-    view = 'main'
+    view = trackMenu.startView
     newName = ''
     void library.load()
   })

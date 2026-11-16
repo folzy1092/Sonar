@@ -16,19 +16,22 @@ class TrackMenu {
   y = $state(0)
   /** Кнопка ⋮, которой открыли меню: повторный клик по ней меню закрывает. */
   anchor: HTMLElement | null = null
+  /** С какого экрана меню открывается: кнопка «В плейлист» сразу показывает список плейлистов. */
+  startView: 'main' | 'playlists' = 'main'
 
-  open(target: MenuTarget, x: number, y: number, anchor: HTMLElement | null = null) {
+  open(target: MenuTarget, x: number, y: number, anchor: HTMLElement | null = null, view: 'main' | 'playlists' = 'main') {
     this.anchor = anchor
+    this.startView = view
     this.target = target
     this.x = x
     this.y = y
   }
 
   /** Открыть под кнопкой (⋮). */
-  openAt(target: MenuTarget, el: HTMLElement) {
+  openAt(target: MenuTarget, el: HTMLElement, view: 'main' | 'playlists' = 'main') {
     if (this.target && this.anchor === el) return this.close()
     const r = el.getBoundingClientRect()
-    this.open(target, r.right, r.bottom + 4, el)
+    this.open(target, view === 'playlists' ? r.left : r.right, r.bottom + 4, el, view)
   }
 
   close() {

@@ -12,6 +12,8 @@
   import { openRef } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
   import { tracksText } from '../lib/format'
+  import { trackMenu } from '../lib/menu.svelte'
+  import { pulse } from '../lib/pulse'
 
   let { url }: { url: string } = $props()
 
@@ -110,12 +112,30 @@
       <b class="selectable">{view.title}</b>
       <small>{view.sub}</small>
       <div class="btns">
+        {#if item?.kind === 'track'}
+          {@const tr = item.track}
+          <!-- трек: «Слушать», ❤ и «В плейлист» (решение владельца 2026-11-16) -->
+          <button class="btn primary press" onclick={open}><Icon name="play" size={15} filled /> Слушать</button>
+          <button
+            class="btn icon press"
+            class:liked={added}
+            aria-label={added ? 'Удалить из Любимых' : 'В Любимые'}
+            title={added ? 'Удалить из Любимых' : 'В Любимые'}
+            onclick={() => library.toggleLike(tr)}
+          >
+            <span class="ic" use:pulse={added}><Icon name="heart" size={17} filled={added} /></span>
+          </button>
+          <button class="btn press" onclick={(e) => trackMenu.openAt({ track: tr }, e.currentTarget, 'playlists')}>
+            <Icon name="plus" size={16} /> В плейлист
+          </button>
+        {:else}
         <button class="btn primary press" class:done={added} disabled={busy || (added && item?.kind === 'playlist')} onclick={add}>
           {#key added}
             <span class="lbl"><Icon name={added ? 'check' : item?.kind === 'artist' ? 'heart' : 'plus'} size={16} /> {addLabel}</span>
           {/key}
         </button>
-        <button class="btn press" onclick={open}>{item?.kind === 'track' ? 'Слушать' : 'Открыть'}</button>
+        <button class="btn press" onclick={open}>Открыть</button>
+        {/if}
       </div>
     </div>
   </div>
@@ -126,7 +146,8 @@
     display: flex;
     align-items: center;
     gap: 22px;
-    margin-top: 6px;
+    /* чипов «Все / Треки…» над ссылкой нет — карточка стоит под строкой поиска со своим воздухом */
+    margin-top: 22px;
     padding: 18px;
     border-radius: var(--radius-xl);
     background: linear-gradient(135deg, var(--plate), transparent);
@@ -196,8 +217,10 @@
     margin-top: 10px;
   }
   .btn {
-    display: inline-grid;
-    place-items: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     height: 38px;
     padding: 0 16px;
     border-radius: 12px;
@@ -215,6 +238,21 @@
   .btn.primary.done {
     background: color-mix(in srgb, var(--online) 22%, var(--surface-2));
     color: var(--text);
+  }
+  /* ❤ — круглая кнопка; наведение — само сердечко чуть толще и больше (app.css) */
+  .btn.icon {
+    width: 38px;
+    padding: 0;
+    border-radius: 50%;
+    color: var(--text-2);
+  }
+  .btn.icon:hover,
+  .btn.icon.liked {
+    color: var(--accent);
+  }
+  .ic {
+    display: grid;
+    place-items: center;
   }
   .btn:disabled {
     cursor: default;

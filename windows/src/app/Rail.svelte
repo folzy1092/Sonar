@@ -31,7 +31,8 @@
 
 <nav class="rail" data-tauri-drag-region>
   <div class="group" data-tauri-drag-region>
-    <span class="logo" role="img" aria-label="Sonar"><LogoMark size={30} /></span>
+    <!-- за лого окно тоже таскается, как за пустое место панели -->
+    <span class="logo" role="img" aria-label="Sonar" data-tauri-drag-region><LogoMark size={30} /></span>
     {@render item('home', 'home', 'Главная')}
   </div>
 
@@ -80,6 +81,14 @@
     width: 40px;
     height: 40px;
     margin-bottom: 8px;
+    cursor: default;
+  }
+  /* клик по знаку уходит в саму область перетаскивания; пол-оборота при наведении — от неё */
+  .logo :global(*) {
+    pointer-events: none;
+  }
+  .logo:hover :global(.mark.spin) {
+    rotate: 180deg;
   }
   .item {
     position: relative;

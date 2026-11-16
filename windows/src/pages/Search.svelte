@@ -75,11 +75,13 @@
   }
 </script>
 
-<div class="chips" use:indicator={{ key: tab, kind: 'pill' }}>
-  {#each tabs as t (t)}
-    <button class="chip" class:on={tab === t} onclick={() => (tab = t)}>{t}</button>
-  {/each}
-</div>
+{#if !link}
+  <div class="chips" use:indicator={{ key: tab, kind: 'pill' }}>
+    {#each tabs as t (t)}
+      <button class="chip" class:on={tab === t} onclick={() => (tab = t)}>{t}</button>
+    {/each}
+  </div>
+{/if}
 
 {#if link}
   <SearchLink url={link} />
