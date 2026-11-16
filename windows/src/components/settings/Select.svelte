@@ -4,18 +4,21 @@
   import { onMount } from 'svelte'
   import Icon from '../Icon.svelte'
   import { pop } from '../../lib/motion'
+  import Flag from '../Flag.svelte'
 
   interface Props {
     title: string
     hint?: string
     value: T
-    options: { id: T; label: string }[]
+    /** `flag` — флаг языка слева, `soon` — пункт виден, но выбрать нельзя. */
+    options: { id: T; label: string; flag?: string; soon?: boolean }[]
     onchange: (v: T) => void
   }
   let { title, hint, value, options, onchange }: Props = $props()
   let open = $state(false)
   let root: HTMLDivElement | undefined = $state()
-  const current = $derived(options.find((o) => o.id === value)?.label ?? '')
+  const cur = $derived(options.find((o) => o.id === value))
+  const current = $derived(cur?.label ?? '')
 
   onMount(() => {
     const outside = (e: MouseEvent) => {
@@ -26,13 +29,14 @@
   })
 </script>
 
-<div class="row">
+<div class="row" class:open>
   <span class="text">
     <b>{title}</b>
     {#if hint}<small>{hint}</small>{/if}
   </span>
   <div class="wrap" bind:this={root}>
     <button class="btn" class:open aria-haspopup="listbox" aria-expanded={open} onclick={() => (open = !open)}>
+      {#if cur?.flag}<Flag lang={cur.flag} size={18} />{/if}
       <span class="cur">{current}</span>
       <span class="chev"><Icon name="chevronDown" size={15} /></span>
     </button>
@@ -44,10 +48,13 @@
             class:on={o.id === value}
             role="option"
             aria-selected={o.id === value}
+            disabled={o.soon}
+            title={o.soon ? `${o.label} — скоро` : undefined}
             onclick={() => {
               onchange(o.id)
               open = false
-            }}>{o.label}</button
+            }}
+            >{#if o.flag}<Flag lang={o.flag} size={18} />{/if}<span>{o.label}</span>{#if o.soon}<i class="soon">скоро</i>{/if}</button
           >
         {/each}
       </div>
@@ -57,10 +64,15 @@
 
 <style>
   .row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 16px;
     padding: 9px 0;
+  }
+  /* открытый список — поверх следующих строк настроек */
+  .row.open {
+    z-index: 50;
   }
   .text {
     flex: 1;
@@ -128,6 +140,9 @@
     transform-origin: top right;
   }
   .opt {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     padding: 8px 10px;
     border-radius: 9px;
     text-align: left;
@@ -140,6 +155,20 @@
   .opt:hover {
     background: var(--hover);
     color: var(--text);
+  }
+  .opt:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+  .opt:disabled:hover {
+    background: none;
+    color: var(--text-2);
+  }
+  .soon {
+    margin-left: auto;
+    font-style: normal;
+    font-size: calc(11px * var(--fs, 1));
+    color: var(--text-3);
   }
   .opt.on {
     background: var(--surface-3);

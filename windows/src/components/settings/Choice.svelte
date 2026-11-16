@@ -38,7 +38,7 @@
         title={o.soon ? `${o.label} — скоро` : o.label}
         aria-label={o.label}
       >
-        {#if o.flag}<Flag lang={o.flag} size={17} />{:else if o.icon}<Icon name={o.icon} size={15} />{/if}
+        {#if o.flag}<Flag lang={o.flag} size={18} />{:else if o.icon}<Icon name={o.icon} size={15} />{/if}
         {#if !icons}<span>{o.label}{#if o.sub}<i>{o.sub}</i>{/if}</span>{/if}
       </button>
     {/each}

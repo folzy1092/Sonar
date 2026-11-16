@@ -6,6 +6,7 @@
   import Icon from '../../components/Icon.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Choice from '../../components/settings/Choice.svelte'
+  import Select from '../../components/settings/Select.svelte'
   import Group from '../../components/settings/Group.svelte'
   import Soon from '../../components/settings/Soon.svelte'
   import AboutBlock from './AboutBlock.svelte'
@@ -44,13 +45,16 @@
   }
 </script>
 
-<Choice
-  title="Язык приложения"
+<Select
+  title="Язык"
+  hint="Язык интерфейса"
   value="ru"
   options={[
     { id: 'ru', label: 'Русский', flag: 'ru' },
     { id: 'en', label: 'English', flag: 'en', soon: true },
+    { id: 'uk', label: 'Українська', flag: 'uk', soon: true },
   ]}
+  onchange={() => {}}
 />
 <Choice
   title="Платформа"

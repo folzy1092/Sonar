@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@iconify-json/circle-flags": "^1.2.14",
+    "@iconify-json/flag": "^1.2.15",
     "@iconify-json/mingcute": "^1.2.10",
     "@iconify-json/simple-icons": "^1.2.102",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
