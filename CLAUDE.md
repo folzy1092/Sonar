@@ -20,7 +20,13 @@
 `version` в `tauri.conf.json` / `Cargo.toml` / `package.json` + запись в `updates/changelog.json`.
 **iOS начата автономно, до сервера** (решение владельца 2026-11-17): каркас `ios/` (XcodeGen, свой таб-бар,
 CI `ios.yml` → неподписанная `Sonar.ipa`, подписывает каждый пользователь сам), задание с этапами и
-автообновлением как в Shadow — `docs/IOS_PROMPT.md`. Сервер — после покупки Velt, см. `docs/ROADMAP.md`. До сервера — «Моя волна 2» по спеке
+автообновлением как в Shadow — `docs/IOS_PROMPT.md` (ROADMAP «Блок I»). Сделано 2026-11-17: релизы `ios-build-<N>` +
+постоянная `releases/download/ios-latest/Sonar.ipa` (`--latest=false`, Latest — за Windows), «рубильник»
+`updates/ios-update.json` (ручной запуск `ios.yml` с `announce`); автообновление `ios/Sonar/Update/` (пара .p12 +
+.mobileprovision в «Система → Обновления → Сертификат», zsign `ios/Packages/Zsign` на Security.framework —
+**в нём исправлен перевёрнутый флаг профиля, не откатывать**, установка через itms-services + api.palera.in);
+ядро `ios/Sonar/Core/` (SoundCloud и Яндекс с телефона, MusicCore — порт `services.rs`); плеер `ios/Sonar/Playback/`.
+Каждая новая логика на iOS — с XCTest; Foundation-часть можно гонять Swift'ом для Linux, остальное — только CI. Сервер — после покупки Velt, см. `docs/ROADMAP.md`. До сервера — «Моя волна 2» по спеке
 `docs/WAVE.md` (шесть этапов, отметки в ROADMAP; сделаны 1, 5, 6 и профиль тегов по режимам из этапа 2 — 2026-11-16). Бот `@SonarMusicApp` уже написан
 (`server/sonar`, aiogram 3 + SQLite, без API) и пока крутится на ПК владельца: «Запустить бота.bat» в корне
 (создаёт `server/.env` из `server/env.example`, токен вписывает владелец). Файлы `.env*` агенту закрыты.
