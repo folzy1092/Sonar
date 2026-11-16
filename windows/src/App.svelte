@@ -19,6 +19,8 @@
   import UpdatePopup from './app/UpdatePopup.svelte'
   import CrashNotice from './app/CrashNotice.svelte'
   import { updater } from './lib/updater.svelte'
+  import { listen } from '@tauri-apps/api/event'
+  import { isTauri } from './lib/tauri'
   import { mini } from './lib/mini.svelte'
   import { startThumbbar } from './lib/thumbbar.svelte'
   import { library } from './lib/library.svelte'
@@ -66,6 +68,8 @@
     void library.load()
     updater.init()
     mini.start()
+    // «Тише во время звонков» (calls.rs): микрофон занят другим приложением — музыка стихает
+    if (isTauri) void listen<boolean>('call:active', (e) => player.setCall(e.payload))
     // кнопки в превью на панели задач — когда окно уже показано
     setTimeout(() => void startThumbbar(), 1500)
   })

@@ -1,6 +1,8 @@
 // Настройки (docs/SETTINGS.md) одним хранилищем: читаются один раз при запуске (`all_settings`),
 // меняются сразу в интерфейсе и пишутся в локальную базу. Значения по умолчанию — из каталога.
 import { api } from './api'
+import type { Surface } from '../theme/palette'
+import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook, ProgressLook, TitleStyle } from '../theme/style'
 
 export type MiniStyle = 'off' | 'full' | 'rounded' | 'hybrid' | 'deck'
 
@@ -28,6 +30,24 @@ export const DEFAULTS = {
   /** Жирность обычного текста; заголовки и выделенное — как в вёрстке. */
   'appearance.font_weight': 'auto' as 'auto' | '400' | '500' | '600' | '700',
   'appearance.corner_radius': 'rounded' as 'none' | 'soft' | 'rounded' | 'pill',
+  // ---- Стиль (Интерфейс → Стиль, theme/style.ts): готовый стиль ставит оси ниже ----
+  /** `sonar` / `echo` / `signal` / `edge` / `tactile` / `monolith` / `custom:<id>`. */
+  'appearance.style': 'sonar' as string,
+  /** Формулы фона, поверхностей, границ, теней и бликов (palette.ts SURFACES). */
+  'appearance.surface': 'monolith' as Surface,
+  /** Шрифт заголовков («Моя волна», названия страниц и разделов). */
+  'appearance.font_display': 'Unbounded Variable' as string,
+  'appearance.title_style': 'plain' as TitleStyle,
+  /** Толщина линий иконок левой панели и мини-плеера. */
+  'appearance.icon_stroke': 2 as IconStroke,
+  'appearance.anim_track': 'edge' as AnimTrack,
+  'appearance.anim_like': 'signal' as AnimLike,
+  'appearance.anim_nav': 'dot' as AnimNav,
+  /** Как нарисован прогресс (место — `mini.progress`). */
+  'appearance.progress_look': 'line' as ProgressLook,
+  /** Как показана загрузка трека: обложка из ч/б в цвет или кольцо-сектор. */
+  'appearance.loading': 'color' as LoadingLook,
+  'appearance.custom_styles': [] as CustomStyle[],
   'audio.output_device': '' as string,
   /** Нормализация громкости (player/leveler.ts) — выравнивание тихих и громких треков. */
   'audio.normalize': false,
@@ -35,6 +55,8 @@ export const DEFAULTS = {
   'audio.crossfade': 0 as number,
   /** Бесшовное: без кроссфейда следующий трек стыкуется без паузы (короткое перекрытие). */
   'audio.gapless': true,
+  /** Тише во время звонков: пока другое приложение пишет с микрофона, музыка на 20 % (calls.rs). */
+  'audio.duck_calls': true,
   'player.cover_position': 'left' as 'left' | 'right',
   'queue.show': true,
   'queue.add_following': true,

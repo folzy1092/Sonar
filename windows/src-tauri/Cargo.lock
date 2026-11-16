@@ -4114,6 +4114,7 @@ dependencies = [
  "url",
  "urlencoding",
  "windows",
+ "windows-version",
 ]
 
 [[package]]
