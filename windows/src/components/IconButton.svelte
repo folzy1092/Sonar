@@ -37,12 +37,11 @@
   }
   .icon-btn:hover:not(:disabled) {
     color: var(--text);
+  }
+  .icon-btn:hover:not(:disabled):not(.bare) {
     background: var(--hover);
   }
-  /* лайк — без подложки: наведение показывает само сердечко (app.css, «Лайк: наведение») */
-  .icon-btn.bare:hover:not(:disabled) {
-    background: none;
-  }
+  /* лайк (.bare) — без подложки: наведение показывает само сердечко (app.css, «Лайк: наведение») */
   .icon-btn:active:not(:disabled) {
     transform: scale(0.92);
   }
