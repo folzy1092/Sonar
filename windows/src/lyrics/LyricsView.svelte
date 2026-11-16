@@ -305,7 +305,6 @@
           <div class="note" class:open={noteOpen === i} role="note" onmouseenter={() => noteEnter(i)} onmouseleave={noteLeave}>
             <div class="note-in">
               <div class="note-body selectable">
-                {#if !n.reviewed}<span class="note-flag">аннотация не проверена</span>{/if}
                 {n.body}
               </div>
             </div>
@@ -507,14 +506,6 @@
   }
   .note.open .note-body {
     clip-path: inset(0 0 0 0);
-  }
-  .note-flag {
-    display: block;
-    margin-bottom: 4px;
-    font-size: 0.85em;
-    font-style: normal;
-    font-weight: 600;
-    color: rgba(255, 140, 160, 0.85);
   }
   @media (prefers-reduced-motion: reduce) {
     .note,

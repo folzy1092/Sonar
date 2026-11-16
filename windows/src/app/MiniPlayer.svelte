@@ -7,7 +7,7 @@
   import PlayPause from '../components/PlayPause.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
   import EqButton from '../player/EqButton.svelte'
-  import { mini } from '../lib/mini.svelte'
+  import { scale } from 'svelte/transition'
   import Volume from '../player/Volume.svelte'
   import { player } from '../player/player.svelte'
   import { openRef, router } from './router.svelte'
@@ -73,16 +73,20 @@
   onpointerup={up}
   onpointercancel={() => (press = null)}
 >
-  {#if settings.get('mini.background') === 'cover' && track?.cover_url}
-    <!-- фон «Обложка» как у Dotify: сама обложка, чёткая, на всю ширину, затемнена для читаемости -->
-    {#key track.cover_url}
-      <img class="cover-bg" src={track.cover_url} alt="" aria-hidden="true" />
-    {/key}
-    <span class="cover-shade" aria-hidden="true"></span>
-  {/if}
-  {#if settings.get('mini.progress') !== 'cover'}
-    <div class="fill" aria-hidden="true"></div>
-  {/if}
+  <!-- фон и полоса прогресса обрезаются по скруглению отдельным слоем: сам плеер не обрезает
+       содержимое, иначе всплывашки эквалайзера и скорости прятались бы под страницей -->
+  <div class="clip" aria-hidden="true">
+    {#if settings.get('mini.background') === 'cover' && track?.cover_url}
+      <!-- фон «Обложка» как у Dotify: сама обложка, чёткая, на всю ширину, затемнена для читаемости -->
+      {#key track.cover_url}
+        <img class="cover-bg" src={track.cover_url} alt="" />
+      {/key}
+      <span class="cover-shade"></span>
+    {/if}
+    {#if settings.get('mini.progress') !== 'cover'}
+      <div class="fill"></div>
+    {/if}
+  </div>
 
   <div class="left">
     <div class="now">
@@ -157,11 +161,14 @@
   <div class="right">
     <div class="capsule">
       <EqButton />
-      <IconButton icon="layoutFloat" label={mini.open ? 'Закрыть мини-окно' : 'Мини-окно поверх всех окон'} size={17} active={mini.open} onclick={() => mini.toggle()} />
       <SpeedButton />
       <Volume />
-      <IconButton icon="queue" label="Очередь" size={17} disabled={!track} onclick={() => router.go('player')} />
-      <IconButton icon="letterT" label="Текст и полноэкранный плеер" size={17} active={lyrics.fullscreen} disabled={!track} onclick={() => (lyrics.fullscreen ? lyrics.close() : lyrics.open())} />
+      <!-- текст и полноэкранный плеер — только когда у трека есть текст -->
+      {#if track && lyrics.status === 'ready'}
+        <span class="t-btn" transition:scale={{ duration: 200, start: 0.6 }}>
+          <IconButton icon="letterT" label="Текст и полноэкранный плеер" size={17} active={lyrics.fullscreen} onclick={() => (lyrics.fullscreen ? lyrics.close() : lyrics.open())} />
+        </span>
+      {/if}
     </div>
   </div>
 </footer>
@@ -178,10 +185,16 @@
     border-radius: var(--radius-l);
     background: var(--surface-1);
     border: 1px solid var(--border);
-    overflow: hidden;
     transition:
       background 0.4s var(--ease),
       border-radius 0.4s var(--ease);
+  }
+  .clip {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    overflow: hidden;
+    pointer-events: none;
   }
   /* mini.background (Настройки → Плеер → Мини плеер): тема / обложка / цвет обложки */
   .mini.bg-cover_color {

@@ -305,6 +305,11 @@
       transform: translateY(6px);
     }
   }
+  /* нижний плеер — над карточкой страницы: его всплывашки (эквалайзер, скорость) выше всего */
+  .player-slot {
+    position: relative;
+    z-index: 6;
+  }
   /* без плеера снизу — карточка занимает всю высоту */
   .shell.solo {
     grid-template-rows: minmax(0, 1fr) 0;

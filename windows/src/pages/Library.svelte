@@ -55,14 +55,15 @@
     svc = SERVICES[(i + 1) % SERVICES.length].id
   }
 
-  /** Свайп ряда: новый въезжает сбоку, старый уезжает в другую сторону; «меньше движения» — прозрачность. */
+  /** Смена сервиса снизу вверх (решение владельца 2026-11-16): прежний уходит вверх, следующий
+   *  поднимается снизу; «меньше движения» — только прозрачность. */
   function swipe(_n: Element, { out = false } = {}) {
     if (reducedMotion()) return { duration: 160, css: (t: number) => `opacity:${t}` }
     const sign = out ? -dir : dir
     return {
-      duration: 380,
+      duration: 420,
       easing: cubicOut,
-      css: (t: number, u: number) => `opacity:${t};transform:translateX(${sign * u * 60}px)`,
+      css: (t: number, u: number) => `opacity:${t};transform:translateY(${sign * u * 26}px)`,
     }
   }
   const accounts = $derived(
@@ -319,6 +320,7 @@
   }
   .svc {
     position: relative;
+    overflow: hidden;
     display: inline-grid;
     grid-template-columns: auto auto;
     align-items: center;
