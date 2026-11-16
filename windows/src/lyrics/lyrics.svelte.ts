@@ -31,6 +31,8 @@ export const lyricsAnimations = {
   float: 'Всплытие',
   drift: 'Дрифт',
   zoom: 'Глубина',
+  /** Строки подтягиваются вверх лесенкой — каждая следующая чуть позже («магнит», как в Liner). */
+  ladder: 'Лесенка',
 } as const
 export type LyricsAnimation = keyof typeof lyricsAnimations
 
