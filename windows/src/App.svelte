@@ -15,6 +15,7 @@
   import AlbumPage from './pages/AlbumPage.svelte'
   import TrackMenu from './app/TrackMenu.svelte'
   import Toast from './app/Toast.svelte'
+  import Tooltip from './app/Tooltip.svelte'
   import UpdatePopup from './app/UpdatePopup.svelte'
   import CrashNotice from './app/CrashNotice.svelte'
   import { updater } from './lib/updater.svelte'
@@ -153,6 +154,7 @@
 <UpdatePopup />
 <CrashNotice />
 <Toast />
+<Tooltip />
 
 <style>
   /* Открытие настроек (PLATFORMS.md, pc/Screenshot_30..32): окно уезжает вправо на ширину панели

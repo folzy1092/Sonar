@@ -559,6 +559,15 @@ pub fn show_main(app: tauri::AppHandle) {
   crate::tray::show_main(&app);
 }
 
+/// Все треки исполнителя (вкладка «Треки» на его странице): сначала самые прослушиваемые.
+#[tauri::command]
+pub async fn artist_tracks(core: State<'_, Arc<Core>>, db: State<'_, Db>, artist_ref: String) -> Res<Vec<crate::providers::ArtistTrack>> {
+  let list = core.artist_tracks(&artist_ref).await.map_err(err)?;
+  let tracks: Vec<Track> = list.iter().map(|t| t.track.clone()).collect();
+  db.0.lock().unwrap().upsert_tracks(&tracks).map_err(err)?;
+  Ok(list)
+}
+
 /// Синхронизация сейчас (API.md §6): отправить своё, забрать с других устройств. До сервера — ошибка
 /// «ещё не подключён».
 #[tauri::command]

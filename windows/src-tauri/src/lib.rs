@@ -135,6 +135,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       commands::services_status,
       commands::sync_now,
+      commands::artist_tracks,
       commands::mini_window,
       commands::thumbbar_init,
       commands::thumbbar_state,

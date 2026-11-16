@@ -81,6 +81,19 @@ impl SoundCloud<'_> {
   }
 
   /// Популярные треки пользователя (сырой JSON треков).
+  /// Все треки пользователя (до `max`), постранично по `next_href`.
+  pub async fn user_tracks(&self, id: &str, max: usize) -> Result<Vec<Value>> {
+    let mut out: Vec<Value> = Vec::new();
+    let mut v = self.get(&format!("{API}/users/{id}/tracks"), &[("limit", "200"), ("linked_partitioning", "true")]).await?;
+    loop {
+      out.extend(v["collection"].as_array().cloned().unwrap_or_default());
+      let Some(next) = v["next_href"].as_str().filter(|_| out.len() < max).map(str::to_owned) else { break };
+      v = self.get(&next, &[]).await?;
+    }
+    out.truncate(max);
+    Ok(out)
+  }
+
   pub async fn top_tracks(&self, id: &str, limit: u32) -> Result<Vec<Value>> {
     let limit = limit.to_string();
     let v = self.get(&format!("{API}/users/{id}/toptracks"), &[("limit", &limit)]).await?;

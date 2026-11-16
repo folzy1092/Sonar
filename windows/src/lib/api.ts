@@ -30,6 +30,9 @@ export interface WaveStats {
   by_source: WaveStatRow[]
 }
 
+/** Трек на странице исполнителя: плюс то, по чему сортируют «Треки». */
+export type ArtistTrack = Track & { likes: number | null; released: string | null }
+
 export interface Track {
   ref: string
   title: string
@@ -263,6 +266,8 @@ export const api = {
 
   searchMore: (q: string, src: Source, limit = 12) => call<SearchMore>('search_more', { q, src, limit }),
   artistPage: (artistRef: string) => call<{ artist: Artist; top: Track[]; albums: Album[] }>('artist_page', { artistRef }),
+  /** Все треки исполнителя (до 1000) — сначала самые прослушиваемые; лайки есть только у SoundCloud. */
+  artistTracks: (artistRef: string) => call<ArtistTrack[]>('artist_tracks', { artistRef }),
   albumPage: (albumRef: string) => call<{ album: Album; tracks: Track[] }>('album_page', { albumRef }),
   servicePlaylists: (service: Service) => call<ServicePlaylist[]>('service_playlists', { service }),
   servicePlaylist: (plRef: string) => call<{ playlist: ServicePlaylist; tracks: Track[] }>('service_playlist', { plRef }),

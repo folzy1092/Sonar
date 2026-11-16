@@ -2,7 +2,7 @@
 //! Команды интерфейса и локальный аудио-сервер ходят в сервисы только через него.
 
 use crate::providers::{
-  soundcloud, yandex, Account, Album, AlbumPage, Artist, ArtistPage, SearchResults, ServicePlaylist, Source, Track,
+  soundcloud, yandex, Account, Album, AlbumPage, Artist, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track,
 };
 use crate::secrets;
 use anyhow::{anyhow, bail, Result};
@@ -294,6 +294,44 @@ impl Core {
         let s = self.ym_creds().await?;
         let (artist, top, albums) = yandex::Yandex { http: &self.http, creds: &s.creds }.artist(id).await?;
         Ok(ArtistPage { artist, top, albums })
+      }
+      _ => bail!("неизвестный исполнитель {artist_ref}"),
+    }
+  }
+
+  /// Все треки исполнителя для вкладки «Треки» (до 1000), сначала самые прослушиваемые.
+  pub async fn artist_tracks(&self, artist_ref: &str) -> Result<Vec<ArtistTrack>> {
+    const MAX: usize = 1000;
+    let (kind, id) = artist_ref.split_once(':').ok_or_else(|| anyhow!("плохой ref {artist_ref}"))?;
+    match kind {
+      "sca" => {
+        let http = &self.http;
+        let raw = self.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.user_tracks(id, MAX).await }).await?;
+        let extra: Vec<(Option<u64>, Option<String>)> = raw
+          .iter()
+          .map(|j| {
+            let date = j["release_date"].as_str().or(j["display_date"].as_str()).or(j["created_at"].as_str());
+            (j["likes_count"].as_u64(), date.map(|d| d.chars().take(10).collect()))
+          })
+          .collect();
+        let ids: Vec<Option<u64>> = raw.iter().map(|j| j["id"].as_u64()).collect();
+        let tracks = self.sc_keep(raw);
+        // sc_keep может отбросить недоступные — сопоставляем по id
+        let mut out: Vec<ArtistTrack> = tracks
+          .into_iter()
+          .map(|t| {
+            let i = ids.iter().position(|x| x.map(|v| format!("sc:{v}")).as_deref() == Some(t.ref_.as_str()));
+            let (likes, released) = i.and_then(|i| extra.get(i).cloned()).unwrap_or((None, None));
+            ArtistTrack { track: t, likes, released }
+          })
+          .collect();
+        out.sort_by(|a, b| b.track.plays.unwrap_or(0).cmp(&a.track.plays.unwrap_or(0)));
+        Ok(out)
+      }
+      "yma" => {
+        let s = self.ym_creds().await?;
+        let list = yandex::Yandex { http: &self.http, creds: &s.creds }.artist_tracks(id, MAX).await?;
+        Ok(list.into_iter().map(|(track, released)| ArtistTrack { track, likes: None, released }).collect())
       }
       _ => bail!("неизвестный исполнитель {artist_ref}"),
     }

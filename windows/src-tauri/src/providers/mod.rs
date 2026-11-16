@@ -94,6 +94,18 @@ pub struct SearchResults {
 }
 
 /// Страница исполнителя: шапка, популярные треки, альбомы.
+/// Трек на странице исполнителя: сам трек и то, по чему сортируют «Треки» (решение владельца
+/// 2026-11-16): лайки и дата выхода. В JSON — один объект (поля трека + `likes`, `released`).
+#[derive(Debug, Clone, Serialize)]
+pub struct ArtistTrack {
+  #[serde(flatten)]
+  pub track: Track,
+  /// Лайки на сервисе (SoundCloud `likes_count`; у Яндекса нет).
+  pub likes: Option<u64>,
+  /// Дата выхода `YYYY-MM-DD` (SoundCloud — дата релиза или загрузки, Яндекс — альбома).
+  pub released: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ArtistPage {
   pub artist: Artist,

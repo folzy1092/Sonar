@@ -97,6 +97,33 @@ impl Yandex<'_> {
     ))
   }
 
+  /// Все треки исполнителя (до `max`) в порядке популярности Яндекса, с датой выхода альбома.
+  pub async fn artist_tracks(&self, id: &str, max: usize) -> Result<Vec<(Track, Option<String>)>> {
+    let mut out = Vec::new();
+    let mut page = 0;
+    loop {
+      let v = self.get(&format!("{API}/artists/{id}/tracks"), &[("page", &page.to_string()), ("page-size", "100")]).await?;
+      let list = v["tracks"].as_array().cloned().unwrap_or_default();
+      if list.is_empty() {
+        break;
+      }
+      for j in &list {
+        let a = &j["albums"][0];
+        let released = a["releaseDate"].as_str().map(|d| d.chars().take(10).collect()).or_else(|| a["year"].as_u64().map(|y| format!("{y}-01-01")));
+        if let Some(t) = track_from_json(j) {
+          out.push((t, released));
+        }
+      }
+      let total = v["pager"]["total"].as_u64().unwrap_or(0) as usize;
+      page += 1;
+      if out.len() >= max || out.len() >= total {
+        break;
+      }
+    }
+    out.truncate(max);
+    Ok(out)
+  }
+
   /// Артист: шапка, популярные треки, альбомы (`brief-info`).
   pub async fn artist(&self, id: &str) -> Result<(Artist, Vec<Track>, Vec<Album>)> {
     let v = self.get(&format!("{API}/artists/{id}/brief-info"), &[]).await?;
