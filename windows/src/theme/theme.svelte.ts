@@ -116,6 +116,12 @@ class Theme {
         set('--display-weight', tune.weight ? String(tune.weight) : null)
         set('--display-tracking', tune.tracking)
       })
+      // толщина линий иконок и как отмечен выбранный раздел левой панели (Интерфейс → Стиль)
+      $effect(() => {
+        const root = document.documentElement
+        root.style.setProperty('--icon-stroke', String(settings.get('appearance.icon_stroke') || 2))
+        root.dataset.nav = settings.get('appearance.anim_nav')
+      })
       // оформление заголовков: как есть или «журнальное» (капсом, крупно, номера разделов)
       $effect(() => {
         document.documentElement.classList.toggle('title-editorial', settings.get('appearance.title_style') === 'editorial')

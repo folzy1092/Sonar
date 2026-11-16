@@ -115,6 +115,57 @@
   .item:hover {
     color: var(--text);
   }
+  /* Выбранный раздел (appearance.anim_nav): точка акцента слева / капсула акцента / плашка
+     поверхности 2 с гранью и бликом / утопленная плашка. Сама иконка двигает деталь (NavIcon). */
+  .item {
+    border-radius: var(--radius-m);
+    --knob-fill: var(--surface-1);
+    transition:
+      color var(--fast) var(--ease),
+      background-color 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      transform var(--fast) var(--ease);
+  }
+  .item.active {
+    color: var(--text);
+  }
+  .item::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    width: 5px;
+    height: 5px;
+    margin-top: -2.5px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0;
+    scale: 0;
+    transition:
+      opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      scale 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  :global(:root[data-nav='dot']) .item.active::before {
+    opacity: 1;
+    scale: 1;
+  }
+  :global(:root[data-nav='capsule']) .item.active {
+    background-color: var(--accent);
+    color: var(--accent-ink);
+    --knob-fill: var(--accent);
+  }
+  :global(:root[data-nav='plate']) .item.active {
+    background-color: var(--surface-2);
+    box-shadow:
+      inset 0 0 0 1px var(--border),
+      inset 0 1px 0 oklch(1 0 0 / 0.07);
+    --knob-fill: var(--surface-2);
+  }
+  :global(:root[data-nav='inset']) .item.active {
+    background-color: color-mix(in oklch, var(--surface-1) 70%, #000);
+    box-shadow: inset 0 2px 4px oklch(0 0 0 / 0.5);
+    --knob-fill: color-mix(in oklch, var(--surface-1) 70%, #000);
+  }
   .item:active {
     transform: scale(0.9);
   }
