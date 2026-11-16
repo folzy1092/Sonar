@@ -8,6 +8,7 @@
   import Tile from '../components/Tile.svelte'
   import Shelf from '../components/Shelf.svelte'
   import Cover from '../components/Cover.svelte'
+  import LoadFx from '../components/LoadFx.svelte'
   import PlayPause from '../components/PlayPause.svelte'
   import { api, type Album, type Track } from '../lib/api'
   import { tracksText } from '../lib/format'
@@ -114,11 +115,13 @@
      с двумя обложками следующих треков и большой кнопкой. -->
 <section class="wave" class:on={wave.active}>
   <div class="lead">
-    <button class="art" aria-label="Играть волну" onclick={(e) => playCover(e, waveTracks[0], false)}>
+    <button class="art" data-fx-cover aria-label="Играть волну" onclick={(e) => playCover(e, waveTracks[0], false)}>
       <Cover url={waveCover} size={158} radius="26px" />
+      <!-- загрузка трека волны — на обложке героя, если волна играет -->
+      <LoadFx on={wave.active} url={player.current?.cover_url} />
     </button>
     <div class="wave-text">
-      <h1 class="font-wave"><span>Моя</span><span>волна</span></h1>
+      <h1 class="font-wave" data-fx-title><span>Моя</span><span>волна</span></h1>
       <!-- режим волны: клик — следующий (Своя → Жёсткая → Спокойная → …), карточка переворачивается -->
       <button class="mode" title="Режим волны — нажми, чтобы сменить" onclick={() => wave.nextMode()}>
         {#key mode.id}
@@ -286,7 +289,9 @@
     min-width: 0;
   }
   .art {
+    position: relative;
     flex-shrink: 0;
+    overflow: hidden;
     border-radius: 26px;
     /* обычная тень; «Монолит» — свечение цвета обложки (palette.ts SURFACE_DECOR) */
     box-shadow: var(--cover-glow);

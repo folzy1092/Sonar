@@ -5,6 +5,7 @@ import '@fontsource-variable/roboto-flex/full.css'
 // каталог шрифтов Интерфейс → Вид (латиница+кириллица; файл грузится, только когда шрифт показан)
 import './theme/fonts.css'
 import './app.css'
+import './theme/fx.css'
 import App from './App.svelte'
 import MiniWindow from './app/MiniWindow.svelte'
 import { player } from './player/player.svelte'

@@ -27,6 +27,24 @@ class Player {
 
   playing = $state(false)
   loading = $state(false)
+  /** Прогресс загрузки трека для анимации загрузки (components/LoadFx.svelte): `null` — не грузится,
+   *  0…1 — этапы (ссылка на поток → метаданные / манифест → первый фрагмент → можно играть),
+   *  −1 — сколько осталось, неизвестно (застряли посреди трека). */
+  loadProgress = $state<number | null>(null)
+  private loadDone: ReturnType<typeof setTimeout> | null = null
+
+  /** Отметить этап загрузки: прогресс только растёт; 1 — готово, через 250 мс сброс. */
+  private stage(p: number) {
+    if (this.loadDone) clearTimeout(this.loadDone)
+    this.loadDone = null
+    if (p < 0) {
+      this.loadProgress = -1
+      return
+    }
+    const cur = this.loadProgress ?? 0
+    this.loadProgress = p === 0 ? 0 : Math.max(cur < 0 ? 0 : cur, p)
+    if (p >= 1) this.loadDone = setTimeout(() => (this.loadProgress = null), 250)
+  }
   error = $state<string | null>(null)
   positionMs = $state(0)
   durationMs = $state(0)
@@ -114,9 +132,22 @@ class Player {
 
     addEventListener('play', () => this.setPlaying(true))
     addEventListener('pause', () => this.setPlaying(false))
-    addEventListener('waiting', () => (this.loading = true))
-    addEventListener('playing', () => (this.loading = false))
-    addEventListener('canplay', () => (this.loading = false))
+    addEventListener('waiting', () => {
+      this.loading = true
+      // буфер кончился посреди трека — сколько ждать, неизвестно
+      if (this.loadProgress === null) this.stage(-1)
+    })
+    addEventListener('playing', () => {
+      this.loading = false
+      if (this.loadProgress !== null) this.stage(1)
+    })
+    addEventListener('canplay', () => {
+      this.loading = false
+      if (this.loadProgress !== null) this.stage(1)
+    })
+    addEventListener('loadedmetadata', () => {
+      if (this.loadProgress !== null && this.loadProgress >= 0) this.stage(0.7)
+    })
     addEventListener('durationchange', () => {
       if (Number.isFinite(a.duration) && a.duration > 0) this.durationMs = a.duration * 1000
     })
@@ -437,6 +468,7 @@ class Player {
     const token = ++this.loadToken
     this.error = null
     this.loading = true
+    this.stage(0)
     this.durationMs = track.duration_ms
     this.place(startMs)
     this.hls?.destroy()
@@ -448,12 +480,15 @@ class Player {
     try {
       const s = await api.streamUrl(track.ref)
       if (token !== this.loadToken) return
+      this.stage(0.35)
       this.quality = s.quality
       if (s.kind === 'hls' && Hls.isSupported()) {
         const hls = new Hls({ startPosition: startMs / 1000 })
         hls.on(Hls.Events.ERROR, (_e, data) => {
           if (data.fatal && token === this.loadToken) this.onError(`HLS: ${data.details}`)
         })
+        hls.on(Hls.Events.MANIFEST_PARSED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.6))
+        hls.on(Hls.Events.FRAG_LOADED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.9))
         hls.loadSource(s.url)
         hls.attachMedia(a)
         this.hls = hls
@@ -466,7 +501,10 @@ class Player {
       this.startedAt = Date.now()
       this.lastTick = 0
       if (autoplay) await a.play()
-      else this.loading = false
+      else {
+        this.loading = false
+        this.stage(1)
+      }
       this.saveState()
     } catch (e) {
       if (token === this.loadToken) this.onError(errorText(e))
@@ -562,6 +600,8 @@ class Player {
 
   private onError(message: string) {
     this.loading = false
+    if (this.loadDone) clearTimeout(this.loadDone)
+    this.loadProgress = null
     this.error = message
     this.playing = false
     this.updateMedia()

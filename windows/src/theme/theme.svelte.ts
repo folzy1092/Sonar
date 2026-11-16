@@ -9,7 +9,7 @@ import { DECOR_VARS, pickAccent, themeFrom, type RGB, type Surface } from './pal
 import { settings } from '../lib/settings.svelte'
 import { setAnimations } from '../lib/motion'
 import { CUSTOM_PREFIX, fontStack, RADII, WIDE_FONTS } from './look'
-import { DISPLAY_TUNING } from './style'
+import { DISPLAY_TUNING, WDTH_FONTS } from './style'
 import { loadCustomFont } from './custom-font'
 
 let port: number | null = null
@@ -107,6 +107,8 @@ class Theme {
         root.classList.toggle('custom-font', !!f)
         root.classList.toggle('display-font', !!d)
         root.classList.toggle('display-wide', WIDE_FONTS.has(display))
+        // у шрифта заголовков есть ось ширины — заголовок «дышит» при смене трека (стиль «Эхо»)
+        root.classList.toggle('display-wdth', WDTH_FONTS.has(display))
         const set = (k: string, v: string | null | undefined) => (v ? st.setProperty(k, v) : st.removeProperty(k))
         set('--font', f)
         set('--font-display', d)
