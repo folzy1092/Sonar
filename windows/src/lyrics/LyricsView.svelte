@@ -57,15 +57,58 @@
     void tick().then(() => scroller?.scrollTo({ top: 0 }))
   })
 
-  // смена строки — прокрутка к ней
+  // смена строки — прокрутка к ней: на шаг вперёд — «магнитом» лесенкой, далеко — плавным переездом
+  let lastActive = -1
   $effect(() => {
     const i = active
+    const prev = lastActive
+    lastActive = i
     if (!synced || !scroller) return
     if (performance.now() - userScrollAt < USER_SCROLL_PAUSE) return
     const el = i >= 0 ? els[i] : null
-    const top = el ? el.offsetTop - scroller.clientHeight * 0.32 : 0
-    glide(Math.max(0, top))
+    const top = Math.max(0, el ? el.offsetTop - scroller.clientHeight * 0.32 : 0)
+    if (!reduced && prev >= 0 && i > prev && i - prev <= 3) magnet(top, prev)
+    else glide(top)
   })
+
+  /** «Магнит» (идея владельца 2026-11-16, как в Liner): прокрутка встаёт на место сразу, а строки
+   *  догоняют её сами — первой уходит только что спетая, каждая следующая на 70 мс позже, по
+   *  кривой с мягким разгоном и торможением. Текст подтягивается вверх лесенкой, а не блоком.
+   *  Двигается `translate` — он складывается со стилем строки (`transform`), не мешая ему. */
+  const MAGNET_MS = 780
+  const MAGNET_STEP = 70
+  const MAGNET_EASE = 'cubic-bezier(0.6, 0, 0.25, 1)'
+  function magnet(to: number, prev: number) {
+    const sc = scroller
+    if (!sc) return
+    cancelAnimationFrame(glideRaf)
+    const before = sc.scrollTop
+    sc.scrollTop = to
+    const moved = sc.scrollTop - before
+    if (Math.abs(moved) < 1) return
+    const view0 = sc.scrollTop - sc.clientHeight
+    const view1 = sc.scrollTop + sc.clientHeight * 2
+    els.forEach((line, j) => {
+      if (!line) return
+      // строка уже едет — продолжаем с того места, где она сейчас, без рывка
+      const running = line.getAnimations().find((a) => a.id === 'magnet')
+      let from = moved
+      if (running) {
+        const y = parseFloat(getComputedStyle(line).translate.split(' ')[1] ?? '0') || 0
+        from += y
+        running.cancel()
+      }
+      if (line.offsetTop + line.offsetHeight < view0 || line.offsetTop > view1) return
+      const order = Math.max(0, j - prev)
+      const a = line.animate([{ translate: `0 ${from}px` }, { translate: '0 0' }], {
+        duration: MAGNET_MS,
+        delay: Math.min(order, 10) * MAGNET_STEP,
+        easing: MAGNET_EASE,
+        fill: 'backwards',
+      })
+      a.id = 'magnet'
+    })
+  }
 
   /** Плавный переезд к строке (~1 с, мягкий разгон и торможение) вместо резкого системного
    *  smooth-скролла: прошлый текст спокойно уходит вверх, новый подтягивается снизу. */
