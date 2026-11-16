@@ -34,17 +34,17 @@ struct MiniPlayer: View {
                 .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                 Spacer(minLength: 4)
                 if !compact {
-                Button {
-                    withAnimation(Motion.spring) { library.toggleLike(track) }
-                } label: {
-                    Image(systemName: library.isLiked(track) ? "heart.fill" : "heart")
-                        .font(.system(size: 20))
-                        .foregroundStyle(library.isLiked(track) ? Theme.accent : Theme.text)
-                        .symbolEffect(.bounce, value: library.isLiked(track))
-                        .frame(width: 40, height: 44)
-                }
-                .buttonStyle(PressableStyle(scale: 0.85))
-                .transition(.scale.combined(with: .opacity))
+                    Button {
+                        withAnimation(Motion.spring) { library.toggleLike(track) }
+                    } label: {
+                        Image(systemName: library.isLiked(track) ? "heart.fill" : "heart")
+                            .font(.system(size: 20))
+                            .foregroundStyle(library.isLiked(track) ? Theme.accent : Theme.text)
+                            .symbolEffect(.bounce, value: library.isLiked(track))
+                            .frame(width: 40, height: 44)
+                    }
+                    .buttonStyle(PressableStyle(scale: 0.85))
+                    .transition(.scale.combined(with: .opacity))
                 }
                 Button {
                     engine.toggle()
