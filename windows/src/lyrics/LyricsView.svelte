@@ -289,7 +289,7 @@
           style:transition={look.transition}
           bind:this={els[i]}
           onclick={() => seekTo(line.time)}
-          class:noted={noteOpen === i}
+          class:noted={noteOpen === i && i <= active}
           onmouseenter={() => noteEnter(i)}
           onmouseleave={noteLeave}
         >
@@ -306,7 +306,16 @@
         {#if lyrics.notes.has(i)}
           {@const n = lyrics.notes.get(i)!}
           <!-- свиток: разворачивается сверху вниз под строкой, пока на ней (или на нём) курсор -->
-          <div class="note" class:open={noteOpen === i} role="note" onmouseenter={() => noteEnter(i)} onmouseleave={noteLeave}>
+          <!-- строка ещё впереди — свиток так же размыт и приглушён, как она (стиль текста) -->
+          <div
+            class="note"
+            class:open={noteOpen === i}
+            role="note"
+            style:filter={i > active ? look.filter : null}
+            style:opacity={i > active ? look.opacity : null}
+            onmouseenter={() => noteEnter(i)}
+            onmouseleave={noteLeave}
+          >
             <div class="note-in">
               <div class="note-body selectable">
                 {n.body}
@@ -481,11 +490,14 @@
   }
   /* свиток: высота 0 → по содержимому (grid 0fr → 1fr), сверху вниз проявляется текст */
   .note {
+    transition:
+      grid-template-rows 0.5s cubic-bezier(0.32, 0.72, 0, 1),
+      filter 0.4s var(--ease),
+      opacity 0.4s var(--ease);
     display: grid;
     grid-template-rows: 0fr;
     max-width: min(440px, 80%);
     margin: 0 0 0 0.25em;
-    transition: grid-template-rows 0.5s cubic-bezier(0.32, 0.72, 0, 1);
   }
   .note.open {
     grid-template-rows: 1fr;
