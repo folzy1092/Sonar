@@ -15,6 +15,9 @@
   import { library } from '../lib/library.svelte'
   import { openRef, router } from '../app/router.svelte'
   import { settingsPanel } from './settings-section.svelte'
+  import SourceIcon from '../components/SourceIcon.svelte'
+  import { reducedMotion } from '../lib/motion'
+  import { cubicOut } from 'svelte/easing'
 
   const tabs = ['Все', 'Плейлисты', 'Альбомы', 'Исполнители'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
@@ -24,14 +27,44 @@
   let artists = $state<Artist[]>([])
   let phantom = $state<{ sc: ServicePlaylist[]; ym: ServicePlaylist[] }>({ sc: [], ym: [] })
   let phantomError = $state<string | null>(null)
+  /** Статус сервисов уже запрошен (успешно или нет) — дальше не скелет, а ответ. */
+  let servicesTried = $state(false)
   let creating = $state(false)
   let newName = $state('')
 
   const favCount = $derived([...library.liked].filter((r) => r.startsWith('sc:') || r.startsWith('ym:')).length)
   const own = $derived(tab === 'Все' ? library.playlists.filter((p) => !p.hidden) : library.playlists)
   const imported = $derived(new Set(library.playlists.map((p) => p.source_ref).filter(Boolean)))
-  /** Плейлисты сервисов, ещё не перенесённые в Sonar (перенесённые уже есть среди своих). */
-  const services = $derived([...phantom.sc, ...phantom.ym].filter((p) => !imported.has(p.ref)))
+  /** Сервисы блока «плейлисты сервисов» по кругу (решение владельца 2026-11-16): клик по названию —
+   *  следующий, ряд уезжает свайпом. Spotify и VK Музыка встанут сюда же, когда появятся. */
+  const SERVICES = [
+    { id: 'sc', name: 'SoundCloud' },
+    { id: 'ym', name: 'Яндекс Музыка' },
+  ] as const
+  let svc = $state<'sc' | 'ym'>('sc')
+  /** Куда едет свайп: 1 — следующий справа налево. */
+  let dir = $state(1)
+  const svcName = $derived(SERVICES.find((x) => x.id === svc)!.name)
+  const svcConnected = $derived(svc === 'sc' ? !!status?.soundcloud.connected : !!status?.yandex.connected)
+  /** Плейлисты выбранного сервиса, ещё не перенесённые в Sonar (перенесённые уже есть среди своих). */
+  const services = $derived(phantom[svc].filter((p) => !imported.has(p.ref)))
+
+  function nextService() {
+    const i = SERVICES.findIndex((x) => x.id === svc)
+    dir = 1
+    svc = SERVICES[(i + 1) % SERVICES.length].id
+  }
+
+  /** Свайп ряда: новый въезжает сбоку, старый уезжает в другую сторону; «меньше движения» — прозрачность. */
+  function swipe(_n: Element, { out = false } = {}) {
+    if (reducedMotion()) return { duration: 160, css: (t: number) => `opacity:${t}` }
+    const sign = out ? -dir : dir
+    return {
+      duration: 380,
+      easing: cubicOut,
+      css: (t: number, u: number) => `opacity:${t};transform:translateX(${sign * u * 60}px)`,
+    }
+  }
   const accounts = $derived(
     status ? [status.soundcloud, status.yandex].filter((s) => s.connected) : [],
   )
@@ -55,6 +88,8 @@
       phantom = { sc, ym }
     } catch {
       status = null
+    } finally {
+      servicesTried = true
     }
   }
 
@@ -128,7 +163,38 @@
       {#each own as p (p.id)}
         <Tile title={p.name} subtitle={p.hidden ? 'Скрыт' : 'Sonar'} meta={tracksText(p.track_count)} covers={p.covers} dim={p.hidden} onclick={() => router.go('playlist', p.id)} />
       {/each}
-      {#each services as p (p.ref)}{@render phantomTile(p)}{/each}
+    </div>
+  </section>
+
+  <!-- плейлисты сервисов — свой ряд, сервис переключается по кругу кликом по названию -->
+  <section class="block">
+    <h2 class="svc-head">
+      <button class="svc press" title="Следующий сервис" onclick={nextService}>
+        {#key svc}
+          <span class="svc-face" in:swipe out:swipe={{ out: true }}>
+            <SourceIcon kind={svc} size={20} />
+            {svcName}
+          </span>
+        {/key}
+        <span class="svc-next"><Icon name="chevronRight" size={18} /></span>
+      </button>
+    </h2>
+    <div class="svc-stage">
+      {#key svc}
+        <div class="svc-slide" in:swipe out:swipe={{ out: true }}>
+          {#if !status && !servicesTried}
+            <div class="row"><div class="sk-tile skel"></div><div class="sk-tile skel"></div><div class="sk-tile skel"></div></div>
+          {:else if !svcConnected}
+            <p class="hint">{svcName} {svc === 'sc' ? 'не подключён' : 'не подключена'} — <button class="link" onclick={openServices}>Настройки → Сервисы</button></p>
+          {:else if services.length}
+            <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={svc} use:hscroll use:edges>
+              {#each services as p (p.ref)}{@render phantomTile(p)}{/each}
+            </div>
+          {:else}
+            <p class="hint">Все плейлисты {svcName} уже перенесены в Sonar.</p>
+          {/if}
+        </div>
+      {/key}
     </div>
     {#if phantomError && tab === 'Плейлисты'}<p class="hint err">{phantomError}</p>{/if}
   </section>
@@ -250,6 +316,55 @@
   }
   .block {
     margin-top: 28px;
+  }
+  .svc {
+    position: relative;
+    display: inline-grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    gap: 6px;
+    margin-left: -10px;
+    padding: 4px 10px;
+    border-radius: 14px;
+    font: inherit;
+    overflow: hidden;
+    transition: background var(--fast) var(--ease);
+  }
+  .svc:hover {
+    background: var(--hover);
+  }
+  .svc-face {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;
+  }
+  .svc-next {
+    grid-column: 2;
+    display: grid;
+    color: var(--text-3);
+    transition:
+      color var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .svc:hover .svc-next {
+    color: var(--text);
+    transform: translateX(2px);
+  }
+  /* старый и новый ряд стоят в одной клетке, пока один уезжает, а другой въезжает */
+  .svc-stage {
+    display: grid;
+  }
+  .svc-slide {
+    grid-area: 1 / 1;
+    min-width: 0;
+  }
+  .sk-tile {
+    width: 160px;
+    height: 200px;
+    flex: none;
+    border-radius: var(--radius-l);
   }
   h2 {
     display: flex;
