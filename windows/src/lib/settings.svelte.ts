@@ -33,7 +33,7 @@ export const DEFAULTS = {
   'appearance.glass': false,
   /** Непрозрачность фона окна и карточек при прозрачности, % (100 — как без неё). */
   'appearance.opacity': 80 as number,
-  /** Размытие стекла: радиус backdrop-filter у панелей, px. */
+  /** Размытие стекла — больше не используется (ползунок убран 2026-11-17), ключ оставлен для старых настроек. */
   'appearance.glass_blur': 16 as number,
   'appearance.preset': 'neutral' as string,
   'appearance.animations': true,

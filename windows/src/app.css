@@ -420,8 +420,10 @@ img.fade-img.loaded {
   user-select: none;
 }
 
-/* Прозрачность окна (Интерфейс → Вид, appearance.glass): под окном системное стекло (Mica / Acrylic,
-   glass.rs), фон и поверхности с альфой (theme.svelte.ts), панели размывают то, что под ними */
+/* Прозрачность окна (Интерфейс → Вид, appearance.glass): под окном системное стекло (Mica / Blur,
+   glass.rs), фон и поверхности с альфой (theme.svelte.ts). Фон — один слой (#app): у окна (.shell) свой
+   фон убран, иначе альфы складываются и сквозь окно ничего не видно. CSS-размытия у панелей нет — за
+   прозрачным окном ему нечего размывать, а видеокарту оно грузит (жалоба владельца 2026-11-17). */
 :root.glass,
 :root.glass body {
   background: transparent;
@@ -429,10 +431,8 @@ img.fade-img.loaded {
 :root.glass #app {
   background: var(--bg);
 }
-:root.glass main.card,
-:root.glass .rail,
-:root.glass .mini {
-  backdrop-filter: blur(var(--glass-blur, 16px));
+:root.glass .shell {
+  background: transparent !important;
 }
 
 /* Скрытие элементов (Интерфейс → Вкладки, tabs.autohide): мышь замерла — мини-плеер гаснет */

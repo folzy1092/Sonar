@@ -87,7 +87,7 @@
 
 <Switch
   title={t('Прозрачность')}
-  hint={t('Под окном — системное стекло (Windows 11 — Mica, Windows 10 — Acrylic)')}
+  hint={t('Под окном — системное стекло (Windows 11 — Mica, Windows 10 — Blur)')}
   on={settings.get('appearance.glass')}
   onchange={(v) => settings.set('appearance.glass', v)}
 />
@@ -100,15 +100,6 @@
     max={100}
     unit="%"
     onchange={(v) => settings.set('appearance.opacity', v)}
-  />
-  <Slider
-    title={t('Размытие стекла')}
-    hint={t('Радиус размытия под панелями и меню')}
-    value={settings.get('appearance.glass_blur')}
-    min={0}
-    max={40}
-    unit="px"
-    onchange={(v) => settings.set('appearance.glass_blur', v)}
   />
 {/if}
 

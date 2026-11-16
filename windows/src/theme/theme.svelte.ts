@@ -124,15 +124,11 @@ class Theme {
         set('--display-weight', tune.weight ? String(tune.weight) : null)
         set('--display-tracking', tune.tracking)
       })
-      // прозрачность окна: системный эффект под окном (Mica / Acrylic, glass.rs) и размытие у панелей
+      // прозрачность окна: системный эффект под окном (Mica / Blur, glass.rs)
       $effect(() => {
         const on = settings.get('appearance.glass')
         const root = document.documentElement
         root.classList.toggle('glass', on)
-        root.style.setProperty('--glass-blur', `${settings.get('appearance.glass_blur')}px`)
-        // меню и подсказки размываются так же, как стекло
-        if (on) root.style.setProperty('--menu-blur', `${Math.max(6, settings.get('appearance.glass_blur'))}px`)
-        else root.style.removeProperty('--menu-blur')
         if (isTauri) void api.setGlass(on).catch(() => {})
       })
       // язык документа — для переносов, чтения с экрана и шрифтов
