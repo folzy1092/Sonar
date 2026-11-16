@@ -5,13 +5,15 @@
 import { api } from '../lib/api'
 import { isTauri } from '../lib/tauri'
 import { player } from '../player/player.svelte'
-import { pickAccent, themeFrom, type RGB } from './palette'
+import { DECOR_VARS, pickAccent, themeFrom, type RGB, type Surface } from './palette'
 import { settings } from '../lib/settings.svelte'
 import { setAnimations } from '../lib/motion'
 import { CUSTOM_PREFIX, fontStack, RADII } from './look'
 import { loadCustomFont } from './custom-font'
 
 let port: number | null = null
+
+const SURFACE_IDS = { echo: 1, signal: 1, edge: 1, tactile: 1, monolith: 1 }
 
 /** Адрес обложки через локальный сервер (для canvas нужен CORS). */
 export async function proxied(url: string): Promise<string> {
@@ -83,8 +85,9 @@ class Theme {
       $effect(() => {
         const on = settings.get('appearance.cover_theme')
         const preset = settings.get('appearance.preset')
+        const surface = settings.get('appearance.surface')
         const url = on ? (player.current?.cover_url ?? null) : null
-        void this.apply(on, url, preset)
+        void this.apply(on, url, preset, surface)
       })
       $effect(() => {
         setAnimations(settings.get('appearance.animations'))
@@ -137,7 +140,7 @@ class Theme {
     settings.set('appearance.cover_theme', false)
   }
 
-  private async apply(cover: boolean, url: string | null, preset: string) {
+  private async apply(cover: boolean, url: string | null, preset: string, surface: Surface) {
     const my = ++this.seq
     const p = PRESETS.find((x) => x.id === preset) ?? PRESETS[0]
     const c = cover ? (url ? await colorOf(url) : null) : p.accent
@@ -147,8 +150,11 @@ class Theme {
     root.classList.toggle('amoled', !cover && !!p.black)
     const st = root.style
     const SHADE = ['--bg', '--surface-0', '--surface-1', '--surface-2', '--surface-3']
-    // все цвета — по формулам OKLCH (palette.ts): обложка или готовая тема дают оттенок, серая — монохром
-    const t = themeFrom(c, 'echo')
+    // все цвета — по формулам OKLCH выбранной поверхности (palette.ts): обложка или готовая тема
+    // дают оттенок, серая — монохром
+    const t = themeFrom(c, surface in SURFACE_IDS ? surface : 'monolith')
+    root.dataset.surface = surface
+    for (const k of DECOR_VARS) if (!(k in t.vars)) st.removeProperty(k)
     // AMOLED — свой чистый чёрный фон и поверхности (tokens.css), их не трогаем
     const black = root.classList.contains('amoled')
     for (const [k, v] of Object.entries(t.vars)) {

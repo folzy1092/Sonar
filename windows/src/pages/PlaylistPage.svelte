@@ -274,7 +274,8 @@
     padding: 0 12px;
     border-radius: 999px;
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     color: var(--text-3);
   }
   .find:focus-within {

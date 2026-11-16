@@ -214,7 +214,8 @@
     padding: 12px 14px;
     border-radius: 14px;
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     transition: border-color var(--normal) var(--ease);
   }
   .state div {
@@ -262,7 +263,8 @@
     padding: 4px 14px;
     border-radius: 16px;
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
   }
   .account {
     position: relative;
@@ -301,7 +303,8 @@
     padding: 26px 16px 22px;
     border-radius: 16px;
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     text-align: center;
     transition:
       background var(--fast) var(--ease),
@@ -376,7 +379,8 @@
     gap: 8px;
     height: 36px;
     border-radius: 10px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     font-size: calc(13px * var(--fs, 1));
     color: var(--text-2);
   }

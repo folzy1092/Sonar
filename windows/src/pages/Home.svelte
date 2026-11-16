@@ -288,7 +288,8 @@
   .art {
     flex-shrink: 0;
     border-radius: 26px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    /* обычная тень; «Монолит» — свечение цвета обложки (palette.ts SURFACE_DECOR) */
+    box-shadow: var(--cover-glow);
     transition: transform var(--normal) var(--ease);
   }
   .art:hover {
@@ -571,7 +572,8 @@
     padding: 3px;
     border-radius: 999px;
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
   }
   .period {
     position: relative;

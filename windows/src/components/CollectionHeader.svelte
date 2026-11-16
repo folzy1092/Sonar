@@ -71,7 +71,7 @@
     overflow: hidden;
     border-radius: var(--radius-l);
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
     color: var(--text-2);
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
   }

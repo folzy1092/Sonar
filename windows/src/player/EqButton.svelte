@@ -287,7 +287,8 @@
     padding: 3px;
     border-radius: 12px;
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
   }
   .tabs :global(.tab-ind.pill) {
     border-radius: 9px;
@@ -320,7 +321,8 @@
     height: 32px;
     border-radius: 10px;
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-2);

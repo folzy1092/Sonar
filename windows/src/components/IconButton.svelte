@@ -33,6 +33,8 @@
     transition:
       color var(--fast) var(--ease),
       background var(--fast) var(--ease),
+      box-shadow var(--fast) var(--ease),
+      translate var(--fast) var(--ease),
       transform var(--fast) var(--ease);
   }
   .icon-btn:hover:not(:disabled) {
@@ -40,6 +42,14 @@
   }
   .icon-btn:hover:not(:disabled):not(.bare) {
     background: var(--hover);
+  }
+  /* «Тактиль»: кнопки выпуклые, при нажатии уходят на 2 px вниз (palette.ts SURFACE_DECOR) */
+  .icon-btn:not(.bare) {
+    box-shadow: var(--key);
+  }
+  .icon-btn:active:not(:disabled):not(.bare) {
+    box-shadow: var(--key-down);
+    translate: 0 var(--key-shift);
   }
   /* лайк (.bare) — без подложки: наведение показывает само сердечко (app.css, «Лайк: наведение») */
   .icon-btn:active:not(:disabled):not(.bare) {

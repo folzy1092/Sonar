@@ -33,7 +33,8 @@
     height: 64px;
     border-radius: 50%;
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     color: var(--text-2);
     margin-bottom: 6px;
   }

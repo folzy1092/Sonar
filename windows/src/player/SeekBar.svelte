@@ -103,6 +103,8 @@
     margin: 0;
     border-radius: 4px;
     background: linear-gradient(to right, var(--text) var(--fill), var(--surface-3) var(--fill));
+    /* «Тактиль»: дорожка утоплена (palette.ts SURFACE_DECOR) */
+    box-shadow: var(--well);
     cursor: pointer;
   }
   input:disabled {

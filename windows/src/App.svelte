@@ -234,7 +234,8 @@
     border-radius: var(--radius-xl);
     /* тема под обложку: сверху — оттенок обложки, ниже — обычная поверхность */
     background: linear-gradient(180deg, color-mix(in srgb, var(--tint) 70%, var(--surface-0)) 0, var(--surface-0) 420px);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     overflow: hidden;
   }
   .top {

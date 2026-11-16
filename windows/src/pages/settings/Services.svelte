@@ -212,7 +212,8 @@
     margin-bottom: 12px;
     border-radius: var(--radius-l);
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
   }
   header {
     display: flex;
@@ -271,7 +272,8 @@
     padding: 0 14px;
     border-radius: var(--radius-m);
     background: var(--surface-1);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     color: var(--text);
     outline: none;
     user-select: text;

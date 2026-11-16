@@ -242,7 +242,8 @@
     padding: 0 12px;
     border-radius: var(--radius-s);
     background: var(--plate);
-    border: 1px solid var(--border);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
     outline: none;
     user-select: text;
   }
