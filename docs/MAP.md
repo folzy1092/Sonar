@@ -38,8 +38,9 @@ Sonar/
 ├── brand/                    иконки, лого, фирменные материалы (brand/README.md)
 │
 ├── updates/                  читается приложением с raw.githubusercontent.com
-│   ├── update.json           какую сборку объявить
-│   └── changelog.json        изменения по сборкам, новые сверху
+│   ├── update.json           какую сборку объявить (общий, формат Shadow)
+│   ├── ios-update.json       какую iPhone-сборку объявить — «рубильник» автообновления iOS
+│   └── changelog.json        изменения по сборкам, новые сверху (`platform`: windows / ios)
 │
 ├── server/                   Python 3.13
 │   ├── sonar/                пакет приложения
@@ -179,7 +180,7 @@ Sonar/
 │   └── README.md             стек и план (SPEC §9)
 │
 └── .github/workflows/
-    ├── ios.yml               macOS: XcodeGen → archive без подписи → IPA → Release ios-build-N
+    ├── ios.yml               macOS: XcodeGen → тесты → archive без подписи → IPA → Release ios-build-N + ios-latest
     ├── windows.yml           windows-latest: tauri build → установщик NSIS (артефакт)
     ├── server.yml            pytest при изменениях в server/
     └── pages.yml             публикация site/ на GitHub Pages

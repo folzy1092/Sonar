@@ -434,11 +434,14 @@ Telegram и задержки в мс. Формат — BOT.md §4.
 
 ## 5. Сборка и релизы
 
-- `.github/workflows/ios.yml` (macos-15): XcodeGen → `xcodebuild archive
+- `.github/workflows/ios.yml` (macos-15): XcodeGen → тесты → `xcodebuild archive
   CODE_SIGNING_ALLOWED=NO` → `Payload/Sonar.app` → `Sonar.ipa` → GitHub Release
-  `build-<N>` + `latest`. Номер сборки — `git rev-list --count HEAD`.
-- Объявление обновления — правка `updates/update.json` + запись в `updates/changelog.json`
-  (`[skip ci]`), как в Shadow.
+  `ios-build-<N>` + служебный `ios-latest` (постоянная ссылка
+  `releases/download/ios-latest/Sonar.ipa`). Оба — `--latest=false`: Latest занят Windows.
+  Номер сборки — `git rev-list --count HEAD` (= `CFBundleVersion`), версия — `MARKETING_VERSION`.
+- Объявление обновления — правка `updates/ios-update.json` + запись в `updates/changelog.json`
+  с `"platform": "ios"` и `build` (`[skip ci]`), как в Shadow. Ручной запуск `ios.yml` с
+  `announce: true` вписывает собранную сборку в `ios-update.json` сам.
 - `.github/workflows/server.yml` — pytest на каждый push в `server/`.
 
 ## 5а. Уведомления и рассылка
