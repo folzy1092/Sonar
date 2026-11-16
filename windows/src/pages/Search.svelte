@@ -11,7 +11,8 @@
   import { search } from '../app/search.svelte'
   import { router } from '../app/router.svelte'
   import { settingsPanel } from './settings-section.svelte'
-  import { api, errorText, type SearchMore, type Track } from '../lib/api'
+  import { api, errorText, looksLikeLink, type SearchMore, type Track } from '../lib/api'
+  import SearchLink from './SearchLink.svelte'
   import { player } from '../player/player.svelte'
   import { playStation } from '../player/autoplay.svelte'
   import { settings } from '../lib/settings.svelte'
@@ -33,12 +34,15 @@
     else void player.playList(results, i, 'search')
   }
 
+  /** Вставили ссылку — вместо поиска карточка того, что за ней (SearchLink). */
+  const link = $derived(looksLikeLink(search.query) ? search.query.trim() : null)
+
   // Поиск с задержкой 350 мс после ввода; устаревшие ответы отбрасываются.
   $effect(() => {
     const q = search.query.trim()
     const src = search.source
     error = null
-    if (!q) {
+    if (!q || looksLikeLink(q)) {
       results = []
       more = { artists: [], albums: [], playlists: [] }
       loading = false
@@ -77,8 +81,10 @@
   {/each}
 </div>
 
-{#if !search.query.trim()}
-  <EmptyState icon="search" title="Что включить?" text="Ищи треки в SoundCloud и Яндекс Музыке." />
+{#if link}
+  <SearchLink url={link} />
+{:else if !search.query.trim()}
+  <EmptyState icon="search" title="Что включить?" text="Ищи треки в SoundCloud и Яндекс Музыке — или вставь ссылку на трек, альбом или плейлист." />
 {:else if error}
   <div class="err">
     <EmptyState icon="key" title="Не получилось" text={error} />

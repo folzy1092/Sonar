@@ -1,0 +1,248 @@
+<script lang="ts">
+  // Ссылка в строке поиска (решение владельца 2026-11-16): вставил ссылку на трек, альбом, артиста
+  // или плейлист SoundCloud / Яндекс Музыки — вместо поиска карточка того, что за ней, и одна
+  // кнопка «В медиатеку»: трек и альбом — в лайки, артист — подписка, плейлист — перенос в Sonar.
+  import Cover from '../components/Cover.svelte'
+  import Icon from '../components/Icon.svelte'
+  import SourceIcon from '../components/SourceIcon.svelte'
+  import EmptyState from '../components/EmptyState.svelte'
+  import { api, errorText, type LinkItem } from '../lib/api'
+  import { library } from '../lib/library.svelte'
+  import { toast } from '../lib/toast.svelte'
+  import { openRef } from '../app/router.svelte'
+  import { player } from '../player/player.svelte'
+  import { tracksText } from '../lib/format'
+
+  let { url }: { url: string } = $props()
+
+  let item = $state<LinkItem | null>(null)
+  let error = $state<string | null>(null)
+  let busy = $state(false)
+  let imported = $state(false)
+
+  $effect(() => {
+    const u = url.trim()
+    item = null
+    error = null
+    imported = false
+    let alive = true
+    api
+      .resolveLink(u)
+      .then((r) => alive && (item = r))
+      .catch((e) => alive && (error = errorText(e)))
+    return () => (alive = false)
+  })
+
+  const view = $derived.by(() => {
+    if (!item) return null
+    switch (item.kind) {
+      case 'track':
+        return { ref: item.track.ref, title: item.track.title, sub: item.track.artist, cover: item.track.cover_url, label: 'Трек', round: false }
+      case 'album':
+        return {
+          ref: item.album.ref,
+          title: item.album.title,
+          sub: `${item.album.artist}${item.album.year ? ` · ${item.album.year}` : ''}`,
+          cover: item.album.cover_url,
+          label: 'Альбом',
+          round: false,
+        }
+      case 'artist':
+        return { ref: item.artist.ref, title: item.artist.name, sub: 'Исполнитель', cover: item.artist.avatar_url, label: 'Артист', round: true }
+      case 'playlist':
+        return {
+          ref: item.playlist.ref,
+          title: item.playlist.title,
+          sub: `${item.playlist.owner}${item.playlist.track_count ? ` · ${tracksText(item.playlist.track_count)}` : ''}`,
+          cover: item.playlist.cover_url,
+          label: 'Плейлист',
+          round: false,
+        }
+    }
+  })
+
+  const added = $derived(item?.kind === 'playlist' ? imported : !!view && library.isLiked(view.ref))
+  const addLabel = $derived(item?.kind === 'artist' ? (added ? 'Вы подписаны' : 'Подписаться') : added ? 'В медиатеке' : 'В медиатеку')
+
+  async function add() {
+    if (!item || busy) return
+    busy = true
+    try {
+      if (item.kind === 'playlist') {
+        const p = await api.importPlaylist(item.playlist.ref)
+        imported = true
+        await library.refreshPlaylists()
+        toast.show(`Плейлист «${p.name}» теперь в медиатеке`)
+      } else {
+        const it = item.kind === 'track' ? item.track : item.kind === 'album' ? item.album : item.artist
+        await library.toggleLike(it)
+        if (library.isLiked(it.ref)) toast.show(item.kind === 'artist' ? 'Подписка оформлена' : 'Добавлено в медиатеку')
+      }
+    } catch (e) {
+      toast.show(errorText(e))
+    } finally {
+      busy = false
+    }
+  }
+
+  function open() {
+    if (!item) return
+    if (item.kind === 'track') void player.playList([item.track], 0, 'search', item.track.title)
+    else openRef(view!.ref)
+  }
+</script>
+
+{#if error}
+  <EmptyState icon="link" title="Не открылось" text={error} />
+{:else if !view}
+  <div class="card skel-card" aria-label="Открываю ссылку…">
+    <div class="skel cov"></div>
+    <div class="lines"><div class="skel l1"></div><div class="skel l2"></div></div>
+  </div>
+{:else}
+  <div class="card">
+    <button class="cov-btn" onclick={open} aria-label={item?.kind === 'track' ? 'Играть' : 'Открыть'}>
+      <Cover url={view.cover} size={120} radius={view.round ? '50%' : 'var(--radius-l)'} source={view.ref} />
+      <span class="hover"><Icon name={item?.kind === 'track' ? 'play' : 'chevronRight'} size={28} filled={item?.kind === 'track'} /></span>
+    </button>
+    <div class="info">
+      <span class="kind"><SourceIcon kind={view.ref.startsWith("sc") ? "sc" : "ym"} size={14} /> {view.label}</span>
+      <b class="selectable">{view.title}</b>
+      <small>{view.sub}</small>
+      <div class="btns">
+        <button class="btn primary press" class:done={added} disabled={busy || (added && item?.kind === 'playlist')} onclick={add}>
+          {#key added}
+            <span class="lbl"><Icon name={added ? 'check' : item?.kind === 'artist' ? 'heart' : 'plus'} size={16} /> {addLabel}</span>
+          {/key}
+        </button>
+        <button class="btn press" onclick={open}>{item?.kind === 'track' ? 'Слушать' : 'Открыть'}</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<style>
+  .card {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    margin-top: 6px;
+    padding: 18px;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, var(--plate), transparent);
+    border: 1px solid var(--border);
+    animation: card-in var(--normal) var(--ease);
+  }
+  @keyframes card-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+  .cov-btn {
+    position: relative;
+    flex: none;
+    border-radius: var(--radius-l);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
+    transition: transform var(--normal) var(--ease);
+  }
+  .cov-btn:hover {
+    transform: scale(1.03);
+  }
+  .hover {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border-radius: inherit;
+    background: rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    transition: opacity var(--fast) var(--ease);
+  }
+  .cov-btn:hover .hover {
+    opacity: 1;
+  }
+  .info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .kind {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: calc(12px * var(--fs, 1));
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  b {
+    font-family: var(--font-display);
+    font-size: calc(24px * var(--fs, 1));
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  small {
+    font-size: calc(13px * var(--fs, 1));
+    color: var(--text-2);
+  }
+  .btns {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .btn {
+    display: inline-grid;
+    place-items: center;
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 12px;
+    background: var(--surface-3);
+    font-size: calc(13px * var(--fs, 1));
+    font-weight: 600;
+    transition:
+      background var(--normal) var(--ease),
+      color var(--normal) var(--ease);
+  }
+  .btn.primary {
+    background: var(--text);
+    color: var(--on-text);
+  }
+  .btn.primary.done {
+    background: color-mix(in srgb, var(--online) 22%, var(--surface-2));
+    color: var(--text);
+  }
+  .btn:disabled {
+    cursor: default;
+  }
+  .lbl {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    animation: card-in var(--normal) var(--ease);
+  }
+  .skel-card .cov {
+    width: 120px;
+    height: 120px;
+    border-radius: var(--radius-l);
+  }
+  .lines {
+    flex: 1;
+    display: grid;
+    gap: 10px;
+  }
+  .l1 {
+    width: 60%;
+    height: 20px;
+    border-radius: 8px;
+  }
+  .l2 {
+    width: 35%;
+    height: 14px;
+    border-radius: 8px;
+  }
+</style>

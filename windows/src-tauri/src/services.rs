@@ -2,7 +2,7 @@
 //! Команды интерфейса и локальный аудио-сервер ходят в сервисы только через него.
 
 use crate::providers::{
-  soundcloud, yandex, Account, Album, AlbumPage, ArtistPage, SearchResults, ServicePlaylist, Source, Track,
+  soundcloud, yandex, Account, Album, AlbumPage, Artist, ArtistPage, SearchResults, ServicePlaylist, Source, Track,
 };
 use crate::secrets;
 use anyhow::{anyhow, bail, Result};
@@ -16,6 +16,16 @@ use tokio::sync::RwLock;
 
 /// Ссылки SoundCloud и Яндекса живут минуты — держим чуть меньше, при 403 берём заново.
 const STREAM_TTL: Duration = Duration::from_secs(240);
+
+/// Что нашлось по ссылке из строки поиска.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum LinkItem {
+  Track { track: Track },
+  Album { album: Album },
+  Artist { artist: Artist },
+  Playlist { playlist: ServicePlaylist },
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Stored<C> {
@@ -464,6 +474,47 @@ impl Core {
         Ok(PlaylistPage { playlist, tracks })
       }
       _ => bail!("неизвестный плейлист {pl_ref}"),
+    }
+  }
+
+  /// Ссылка из строки поиска → трек, альбом, артист или плейлист (providers/links.rs).
+  pub async fn resolve_link(&self, raw: &str) -> Result<LinkItem> {
+    use crate::providers::links::{parse, Link};
+    let link = parse(raw).ok_or_else(|| anyhow!("Это не ссылка на трек, альбом, артиста или плейлист SoundCloud и Яндекс Музыки"))?;
+    match link {
+      Link::Ref(r) => {
+        let (kind, id) = r.split_once(':').ok_or_else(|| anyhow!("плохая ссылка"))?;
+        match kind {
+          "ym" => {
+            let s = self.ym_creds().await?;
+            let t = yandex::Yandex { http: &self.http, creds: &s.creds }.tracks(&[id.to_owned()]).await?;
+            let track = t.into_iter().next().ok_or_else(|| anyhow!("Яндекс Музыка: трек не найден"))?;
+            Ok(LinkItem::Track { track })
+          }
+          "ymalb" => Ok(LinkItem::Album { album: self.album_page(&r).await?.album }),
+          "yma" => Ok(LinkItem::Artist { artist: self.artist_page(&r).await?.artist }),
+          _ => Ok(LinkItem::Playlist { playlist: self.service_playlist(&r).await?.playlist }),
+        }
+      }
+      Link::SoundCloud(url) => {
+        let http = &self.http;
+        let url = &url;
+        let v = self.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.resolve(url).await }).await?;
+        let none = || anyhow!("SoundCloud: по ссылке ничего не нашлось");
+        match v["kind"].as_str() {
+          Some("track") => Ok(LinkItem::Track { track: self.sc_keep(vec![v]).into_iter().next().ok_or_else(none)? }),
+          Some("playlist") => {
+            let album = matches!(v["set_type"].as_str(), Some("album" | "ep" | "single" | "compilation")) || v["is_album"].as_bool() == Some(true);
+            if album {
+              Ok(LinkItem::Album { album: soundcloud::album_from_json(&v).ok_or_else(none)? })
+            } else {
+              Ok(LinkItem::Playlist { playlist: soundcloud::playlist_from_json(&v).ok_or_else(none)? })
+            }
+          }
+          Some("user") => Ok(LinkItem::Artist { artist: soundcloud::artist_from_json(&v).ok_or_else(none)? }),
+          _ => Err(none()),
+        }
+      }
     }
   }
 

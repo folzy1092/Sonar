@@ -184,7 +184,7 @@ impl Yandex<'_> {
   }
 
   /// Треки по id (`POST /tracks`, порциями по 100), в том же порядке.
-  async fn tracks(&self, ids: &[String]) -> Result<Vec<Track>> {
+  pub async fn tracks(&self, ids: &[String]) -> Result<Vec<Track>> {
     let mut out = Vec::with_capacity(ids.len());
     for chunk in ids.chunks(100) {
       let body = format!("track-ids={}", urlencoding::encode(&chunk.join(",")));

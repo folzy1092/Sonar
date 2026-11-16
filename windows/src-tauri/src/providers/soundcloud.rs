@@ -156,6 +156,11 @@ impl SoundCloud<'_> {
     Ok(v["collection"].as_array().cloned().unwrap_or_default())
   }
 
+  /// Что за адресом soundcloud.com (трек, плейлист / альбом, пользователь) — `/resolve`.
+  pub async fn resolve(&self, url: &str) -> Result<Value> {
+    self.get(&format!("{API}/resolve"), &[("url", url)]).await
+  }
+
   pub async fn track_json(&self, id: &str) -> Result<Value> {
     self.get(&format!("{API}/tracks/{id}"), &[]).await
   }
@@ -425,6 +430,23 @@ mod tests {
   }
 
   /// Живая проверка страниц (сеть): `cargo test live_pages -- --ignored --nocapture`.
+  #[tokio::test]
+  #[ignore]
+  async fn live_resolve_links() {
+    let http = reqwest::Client::new();
+    let creds = Creds { client_id: public_client_id(&http).await.unwrap(), oauth_token: None };
+    let sc = SoundCloud { http: &http, creds: &creds };
+    // адрес берём из поиска — у треков он «имя-автора/имя-трека», угадывать нельзя
+    let found = sc.search("lil peep", 1).await.unwrap();
+    let link = found[0].1["permalink_url"].as_str().unwrap().to_owned();
+    let t = sc.resolve(&link).await.unwrap();
+    assert_eq!(t["kind"], "track", "{link}");
+    assert!(track_from_json(&t).is_some());
+    let user = link.rsplit_once('/').unwrap().0;
+    let u = sc.resolve(user).await.unwrap();
+    assert_eq!(u["kind"], "user", "{user}");
+  }
+
   #[tokio::test]
   #[ignore]
   async fn live_pages() {

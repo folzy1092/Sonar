@@ -416,6 +416,16 @@ pub struct WaveRequest {
 }
 
 /// Следующая порция своей волны.
+/// Ссылка в строке поиска → что это (трек кладётся в кэш, чтобы лайк и плейлист его знали).
+#[tauri::command]
+pub async fn resolve_link(core: State<'_, Arc<Core>>, db: State<'_, Db>, url: String) -> Res<crate::services::LinkItem> {
+  let item = core.resolve_link(&url).await.map_err(err)?;
+  if let crate::services::LinkItem::Track { track } = &item {
+    db.0.lock().unwrap().upsert_tracks(std::slice::from_ref(track)).map_err(err)?;
+  }
+  Ok(item)
+}
+
 /// Синхронизация сейчас (API.md §6): отправить своё, забрать с других устройств. До сервера — ошибка
 /// «ещё не подключён».
 #[tauri::command]
