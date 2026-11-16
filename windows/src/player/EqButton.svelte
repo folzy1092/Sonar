@@ -1,82 +1,48 @@
 <script lang="ts">
-  // Кнопка эквалайзера в капсуле у громкости (страница плеера) и всплывашка под ней: «+» и пресеты
-  // сверху, кривая на 12 полос (точки тянутся мышью, колесо над точкой — ±0.5 дБ). Правки звучат
-  // сразу, «Сохранить» делает кривую общей для всех треков; закрыл без сохранения — вернулась
-  // сохранённая. Открывается и закрывается только кликом (правило владельца).
+  // Кнопка эквалайзера в плеере и всплывашка (референс владельца 2026-11-16): сверху переключатель
+  // «Эквалайзер», вкладки Улучшение / Жанры / Акценты / Мои с сеткой пресетов, ниже 12 вертикальных
+  // ползунков со значением в дБ сверху и частотой снизу (тянуть мышью, колесо — ±0.5 дБ, двойной клик —
+  // 0). Правки звучат сразу, «Сохранить» делает кривую общей для всех треков; закрыл без сохранения —
+  // вернулась сохранённая. Включён и не ровный — кнопка подсвечена. Открывается и закрывается только кликом.
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
   import { pop } from '../lib/motion'
-  import { EQ_FREQS, EQ_MAX_DB, eq, freqLabel } from './eq.svelte'
+  import { indicator } from '../lib/indicator'
+  import { cascade } from '../lib/cascade'
+  import { EQ_FREQS, EQ_GROUPS, EQ_MAX_DB, PRESET_GROUPS, eq, freqLabel, type EqGroup } from './eq.svelte'
 
   let open = $state(false)
+  let down = $state(false)
+  /** Сколько места до края окна со стороны, куда открываемся, — всплывашка не вылезает за окно. */
+  let room = $state(600)
+
+  /** Открываемся туда, где места больше (страница плеера — кнопка высоко, нижний плеер — низко). */
+  function place() {
+    if (!root) return
+    const r = root.getBoundingClientRect()
+    const above = r.top - 16
+    const below = window.innerHeight - r.bottom - 16
+    down = below > above
+    room = Math.max(220, down ? below : above)
+  }
   let root: HTMLDivElement | undefined = $state()
+  let group = $state<EqGroup>('enhance')
   let naming = $state(false)
   let newName = $state('')
-  let svg: SVGSVGElement | undefined = $state()
-  let drag = $state<number | null>(null)
-
-  const W = 300
-  const H = 120
-  const PAD = 10
-  const x = (i: number) => PAD + (i * (W - 2 * PAD)) / (EQ_FREQS.length - 1)
-  const y = (db: number) => H / 2 - (db / EQ_MAX_DB) * (H / 2 - PAD)
-
-  /** Плавная кривая через точки (Catmull-Rom → кубические Безье). */
-  const path = $derived.by(() => {
-    const p = eq.gains.map((g, i) => [x(i), y(g)])
-    let d = `M${p[0][0]},${p[0][1]}`
-    for (let i = 0; i < p.length - 1; i++) {
-      const p0 = p[i - 1] ?? p[i]
-      const p1 = p[i]
-      const p2 = p[i + 1]
-      const p3 = p[i + 2] ?? p2
-      const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6]
-      const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6]
-      d += ` C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${p2[0]},${p2[1]}`
-    }
-    return d
-  })
-
-  function dbAt(clientY: number): number {
-    const r = svg!.getBoundingClientRect()
-    const py = ((clientY - r.top) / r.height) * H
-    return ((H / 2 - py) / (H / 2 - PAD)) * EQ_MAX_DB
-  }
-
-  function nearest(clientX: number): number {
-    const r = svg!.getBoundingClientRect()
-    const px = ((clientX - r.left) / r.width) * W
-    let best = 0
-    for (let i = 1; i < EQ_FREQS.length; i++) if (Math.abs(x(i) - px) < Math.abs(x(best) - px)) best = i
-    return best
-  }
-
-  function down(e: PointerEvent) {
-    if (!svg) return
-    drag = nearest(e.clientX)
-    svg.setPointerCapture(e.pointerId)
-    eq.setBand(drag, dbAt(e.clientY))
-  }
-
-  function move(e: PointerEvent) {
-    if (drag !== null) eq.setBand(drag, dbAt(e.clientY))
-  }
-
-  function wheel(e: WheelEvent) {
-    e.preventDefault()
-    const i = nearest(e.clientX)
-    eq.setBand(i, eq.gains[i] + (e.deltaY < 0 ? 0.5 : -0.5))
-  }
-
-  function savePreset(e: SubmitEvent) {
-    e.preventDefault()
-    eq.addPreset(newName)
-    newName = ''
-    naming = false
-  }
-
   let justSaved = $state(false)
   let savedTimer: ReturnType<typeof setTimeout> | undefined
+  let drag = $state<number | null>(null)
+
+  /** Подсветка кнопки: эквалайзер включён и кривая не ровная. */
+  const active = $derived(eq.enabled && eq.gains.some((g) => Math.abs(g) >= 0.05))
+  const list = $derived(group === 'mine' ? eq.userPresets : PRESET_GROUPS[group])
+  const fmt = (v: number) => (v > 0 ? `+${v}` : String(v))
+
+  function toggle() {
+    if (open) return close()
+    place()
+    open = true
+  }
 
   function close() {
     open = false
@@ -91,6 +57,31 @@
     savedTimer = setTimeout(() => (justSaved = false), 1600)
   }
 
+  function savePreset(e: SubmitEvent) {
+    e.preventDefault()
+    eq.addPreset(newName)
+    newName = ''
+    naming = false
+  }
+
+  /** Значение полосы по вертикали курсора над её дорожкой. */
+  function dbAt(track: HTMLElement, clientY: number) {
+    const r = track.getBoundingClientRect()
+    const t = 1 - (clientY - r.top) / r.height
+    return Math.round((t * 2 - 1) * EQ_MAX_DB * 2) / 2
+  }
+
+  function down_(e: PointerEvent, i: number) {
+    const track = e.currentTarget as HTMLElement
+    track.setPointerCapture(e.pointerId)
+    drag = i
+    eq.setBand(i, dbAt(track, e.clientY))
+  }
+
+  function move(e: PointerEvent, i: number) {
+    if (drag === i) eq.setBand(i, dbAt(e.currentTarget as HTMLElement, e.clientY))
+  }
+
   onMount(() => {
     const outside = (e: MouseEvent) => {
       if (open && root && !root.contains(e.target as Node)) close()
@@ -101,82 +92,86 @@
 </script>
 
 <div class="eq" bind:this={root}>
-  <button
-    class="icon-btn"
-    class:active={open || eq.gains.some((g) => g !== 0)}
-    aria-label="Эквалайзер"
-    title="Эквалайзер"
-    aria-expanded={open}
-    onclick={() => {
-      if (open) close()
-      else open = true
-    }}
-  >
+  <button class="icon-btn" class:active class:open aria-label="Эквалайзер" title="Эквалайзер" aria-expanded={open} onclick={toggle}>
     <Icon name="adjustments" size={18} />
   </button>
 
   {#if open}
-    <div class="pop" role="dialog" aria-label="Эквалайзер" in:pop={{ y: 8 }} out:pop={{ y: 8 }}>
-      <div class="presets">
-        {#if naming}
-          <form class="name" onsubmit={savePreset}>
-            <!-- svelte-ignore a11y_autofocus -->
-            <input bind:value={newName} placeholder="Название пресета" maxlength="40" autofocus />
-            <button type="submit" disabled={!newName.trim()}>Сохранить</button>
-          </form>
-        {:else}
-          <button class="plus" aria-label="Сохранить как пресет" title="Сохранить как пресет" onclick={() => (naming = true)}>
-            <Icon name="plus" size={16} />
-          </button>
-          <div class="chips">
-            {#each eq.presets as p (p.name)}
+    <div class="pop" class:down style:max-height="{room}px" role="dialog" aria-label="Эквалайзер" in:pop={{ y: down ? -8 : 8 }} out:pop={{ y: down ? -8 : 8 }}>
+      <button class="head" role="switch" aria-checked={eq.enabled} onclick={() => eq.setEnabled(!eq.enabled)}>
+        <span class="ht"><b>Эквалайзер</b><small>Настройка звука по частотам</small></span>
+        <i class="switch" class:on={eq.enabled} aria-hidden="true"></i>
+      </button>
+
+      <div class="body" class:off={!eq.enabled}>
+        <div class="tabs" use:indicator={{ key: group, kind: 'pill' }}>
+          {#each EQ_GROUPS as g (g.id)}
+            <button class:on={group === g.id} onclick={() => (group = g.id)}>{g.label}</button>
+          {/each}
+        </div>
+
+        {#key group}
+          <div class="grid" use:cascade>
+            {#each list as p (p.name)}
               <span class="chip" class:on={eq.activePreset === p.name}>
-                <button onclick={() => eq.set(p.gains)}>{p.name}</button>
-                {#if !p.builtin && eq.activePreset === p.name}
-                  <button class="del" aria-label="Удалить пресет" title="Удалить пресет" onclick={() => eq.removePreset(p.name)}>
-                    <Icon name="x" size={12} />
-                  </button>
+                <button class="pick" onclick={() => eq.set(p.gains)}>{p.name}</button>
+                {#if group === 'mine'}
+                  <button class="del" aria-label="Удалить пресет «{p.name}»" title="Удалить" onclick={() => eq.removePreset(p.name)}><Icon name="x" size={11} /></button>
                 {/if}
               </span>
             {/each}
+            {#if group === 'mine'}
+              {#if naming}
+                <form class="name" onsubmit={savePreset}>
+                  <!-- svelte-ignore a11y_autofocus -->
+                  <input bind:value={newName} placeholder="Название" maxlength="24" autofocus />
+                  <button type="submit" aria-label="Сохранить пресет" disabled={!newName.trim()}><Icon name="check" size={14} /></button>
+                </form>
+              {:else}
+                <button class="chip add" onclick={() => (naming = true)}><Icon name="plus" size={14} /> Свой</button>
+              {/if}
+            {/if}
           </div>
-        {/if}
-      </div>
-
-      <svg
-        bind:this={svg}
-        viewBox="0 0 {W} {H}"
-        class="graph"
-        role="slider"
-        aria-label="Кривая эквалайзера"
-        aria-valuenow={0}
-        tabindex="-1"
-        onpointerdown={down}
-        onpointermove={move}
-        onpointerup={() => (drag = null)}
-        onwheel={wheel}
-      >
-        <line x1={PAD} x2={W - PAD} y1={H / 2} y2={H / 2} class="zero" />
-        <path d={path} class="curve" />
-        {#each eq.gains as g, i (i)}
-          <circle cx={x(i)} cy={y(g)} r={drag === i ? 5 : 3.5} class="dot" />
-        {/each}
-      </svg>
-      <div class="labels">
-        {#each EQ_FREQS as f (f)}<span>{freqLabel(f)}</span>{/each}
-      </div>
-
-      <button
-        class="remember"
-        class:on={justSaved && !eq.dirty}
-        disabled={!eq.dirty && !justSaved}
-        title={eq.dirty ? 'Кривая будет звучать на всех треках' : 'Подвигай точки или выбери пресет — потом сохрани'}
-        onclick={save}
-      >
-        {#key justSaved && !eq.dirty}
-          <span class="lbl">{#if justSaved && !eq.dirty}<Icon name="check" size={15} /> Сохранено{:else}Сохранить{/if}</span>
         {/key}
-      </button>
+
+        <div class="bands">
+          {#each EQ_FREQS as f, i (f)}
+            {@const g = eq.gains[i]}
+            <div class="band">
+              <span class="db" class:zero={Math.abs(g) < 0.05}>{fmt(g)}</span>
+              <div
+                class="track"
+                class:drag={drag === i}
+                role="slider"
+                tabindex="-1"
+                aria-label="{freqLabel(f)} Гц"
+                aria-valuenow={g}
+                aria-valuemin={-EQ_MAX_DB}
+                aria-valuemax={EQ_MAX_DB}
+                onpointerdown={(e) => down_(e, i)}
+                onpointermove={(e) => move(e, i)}
+                onpointerup={() => (drag = null)}
+                ondblclick={() => eq.setBand(i, 0)}
+                onwheel={(e) => {
+                  e.preventDefault()
+                  eq.setBand(i, g + (e.deltaY < 0 ? 0.5 : -0.5))
+                }}
+              >
+                <i class="mid"></i>
+                <i class="fill" style:--from="{50}%" style:--to="{50 - (g / EQ_MAX_DB) * 50}%"></i>
+                <span class="thumb" style:top="{50 - (g / EQ_MAX_DB) * 50}%"></span>
+              </div>
+              <span class="hz">{freqLabel(f)}</span>
+            </div>
+          {/each}
+        </div>
+
+        <button class="save" class:on={justSaved && !eq.dirty} disabled={!eq.dirty && !justSaved} onclick={save}>
+          {#key justSaved && !eq.dirty}
+            <span class="lbl">{#if justSaved && !eq.dirty}<Icon name="check" size={15} /> Сохранено{:else}Сохранить для всех треков{/if}</span>
+          {/key}
+        </button>
+      </div>
     </div>
   {/if}
 </div>
@@ -190,172 +185,331 @@
     place-items: center;
     width: 32px;
     height: 32px;
-    border-radius: 999px;
+    border-radius: 10px;
     color: var(--text-2);
-    transition: color var(--fast) var(--ease);
+    transition:
+      color var(--normal) var(--ease),
+      background var(--normal) var(--ease),
+      box-shadow var(--normal) var(--ease);
   }
   .icon-btn:hover,
+  .icon-btn.open {
+    color: var(--text);
+  }
+  /* что-то настроено — кнопка мягко подсвечена (как у Liner) */
   .icon-btn.active {
     color: var(--text);
+    background: color-mix(in srgb, var(--text) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent);
   }
   .pop {
     position: absolute;
     right: -8px;
     bottom: calc(100% + 10px);
     z-index: 20;
-    width: 324px;
-    padding: 12px;
-    border-radius: 16px;
-    background: var(--surface-1);
+    width: 340px;
+    padding: 14px;
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--surface-1) 92%, var(--tint));
     border: 1px solid var(--border-strong);
-    box-shadow: 0 18px 44px -12px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 22px 50px -12px rgba(0, 0, 0, 0.7);
     transform-origin: bottom right;
+    overflow-y: auto;
+    scrollbar-width: thin;
   }
-  .presets {
+  .pop.down {
+    top: calc(100% + 10px);
+    bottom: auto;
+    transform-origin: top right;
+  }
+  .head {
     display: flex;
     align-items: center;
-    gap: 6px;
-    min-height: 30px;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
   }
-  .plus {
+  .ht {
+    flex: 1;
     display: grid;
-    place-items: center;
-    flex-shrink: 0;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: 1px solid var(--border-strong);
-    color: var(--text-2);
   }
-  .plus:hover {
+  .ht b {
+    font-size: calc(15px * var(--fs, 1));
+  }
+  .ht small {
+    font-size: calc(12px * var(--fs, 1));
+    color: var(--text-3);
+  }
+  .switch {
+    position: relative;
+    flex: none;
+    width: 40px;
+    height: 24px;
+    border-radius: 999px;
+    background: var(--surface-3);
+    transition: background var(--normal) var(--ease);
+  }
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--text-2);
+    transition:
+      transform var(--normal) var(--ease),
+      background var(--normal) var(--ease);
+  }
+  .switch.on {
+    background: color-mix(in srgb, var(--text) 45%, transparent);
+  }
+  .switch.on::after {
+    transform: translateX(16px);
+    background: var(--text);
+  }
+  .body {
+    transition:
+      opacity var(--normal) var(--ease),
+      filter var(--normal) var(--ease);
+  }
+  .body.off {
+    opacity: 0.4;
+    filter: saturate(0.4);
+  }
+  .tabs {
+    display: flex;
+    margin-top: 12px;
+    padding: 3px;
+    border-radius: 12px;
+    background: var(--plate);
+    border: 1px solid var(--border);
+  }
+  .tabs :global(.tab-ind.pill) {
+    border-radius: 9px;
+    background: var(--surface-3);
+  }
+  .tabs button {
+    flex: 1;
+    height: 28px;
+    border-radius: 9px;
+    font-size: calc(12px * var(--fs, 1));
+    font-weight: 600;
+    color: var(--text-3);
+    transition: color var(--fast) var(--ease);
+  }
+  .tabs button.on {
     color: var(--text);
   }
-  .chips {
-    display: flex;
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
     gap: 6px;
-    overflow-x: auto;
-    scrollbar-width: none;
+    margin-top: 10px;
   }
   .chip {
-    display: inline-flex;
+    position: relative;
+    display: flex;
     align-items: center;
-    flex-shrink: 0;
-    height: 28px;
-    padding: 0 12px;
-    border-radius: 999px;
-    border: 1px solid var(--border-strong);
+    justify-content: center;
+    min-width: 0;
+    height: 32px;
+    border-radius: 10px;
+    background: var(--plate);
+    border: 1px solid var(--border);
     font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-2);
-    white-space: nowrap;
+    transition:
+      background var(--normal) var(--ease),
+      color var(--normal) var(--ease),
+      border-color var(--normal) var(--ease);
+  }
+  .chip:hover {
+    color: var(--text);
+    background: var(--hover);
   }
   .chip.on {
     background: var(--text);
     border-color: var(--text);
     color: var(--on-text);
   }
-  .chip .del {
+  .pick {
+    width: 100%;
+    height: 100%;
+    padding: 0 6px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .del {
+    position: absolute;
+    top: -5px;
+    right: -5px;
     display: grid;
     place-items: center;
-    margin: 0 -6px 0 6px;
-    opacity: 0.6;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    color: var(--text-2);
+    opacity: 0;
+    transition: opacity var(--fast) var(--ease);
   }
-  .chip .del:hover {
+  .chip:hover .del {
     opacity: 1;
+  }
+  .chip.add {
+    gap: 5px;
+    border-style: dashed;
   }
   .name {
     display: flex;
-    gap: 6px;
-    width: 100%;
+    grid-column: span 2;
+    gap: 4px;
   }
   .name input {
     flex: 1;
     min-width: 0;
-    height: 30px;
+    height: 32px;
     padding: 0 10px;
     border-radius: 10px;
     border: 1px solid var(--border-strong);
-    background: var(--plate);
-    color: var(--text);
-    font: inherit;
-    font-size: calc(13px * var(--fs, 1));
+    background: var(--surface-2);
+    font-size: calc(12px * var(--fs, 1));
     outline: none;
   }
   .name button {
-    padding: 0 12px;
+    display: grid;
+    place-items: center;
+    width: 32px;
     border-radius: 10px;
     background: var(--text);
     color: var(--on-text);
-    font-size: calc(12px * var(--fs, 1));
-    font-weight: 600;
   }
   .name button:disabled {
     opacity: 0.4;
   }
-  .graph {
-    display: block;
-    width: 100%;
-    height: auto;
-    margin-top: 10px;
+  .bands {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    margin-top: 14px;
+  }
+  .band {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .db {
+    font-size: calc(10px * var(--fs, 1));
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    transition: color var(--normal) var(--ease);
+  }
+  .db.zero {
+    color: var(--text-3);
+  }
+  .track {
+    position: relative;
+    width: 20px;
+    height: 120px;
     cursor: ns-resize;
     touch-action: none;
   }
-  .zero {
-    stroke: var(--border-strong);
-    stroke-dasharray: 3 4;
+  .track::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    translate: -50% 0;
+    border-radius: 3px;
+    background: var(--surface-3);
   }
-  .curve {
-    fill: none;
-    stroke: var(--text);
-    stroke-width: 2;
+  .mid {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 9px;
+    height: 1px;
+    translate: -50% 0;
+    background: var(--text-3);
   }
-  .dot {
-    fill: var(--text);
+  .fill {
+    position: absolute;
+    left: 50%;
+    width: 3px;
+    translate: -50% 0;
+    top: min(var(--from), var(--to));
+    bottom: calc(100% - max(var(--from), var(--to)));
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--text) 70%, transparent);
+    transition:
+      top 0.18s var(--ease),
+      bottom 0.18s var(--ease);
   }
-  .labels {
-    display: flex;
-    justify-content: space-between;
-    padding: 4px 4px 0;
-    font-size: calc(9px * var(--fs, 1));
+  .thumb {
+    position: absolute;
+    left: 50%;
+    width: 16px;
+    height: 10px;
+    translate: -50% -50%;
+    border-radius: 4px;
+    background: var(--text);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    transition:
+      top 0.18s var(--ease),
+      scale var(--fast) var(--ease);
+  }
+  .track:hover .thumb,
+  .track.drag .thumb {
+    scale: 1.15;
+  }
+  .track.drag .thumb,
+  .track.drag .fill {
+    transition: none;
+  }
+  .hz {
+    font-size: calc(10px * var(--fs, 1));
     color: var(--text-3);
-    font-variant-numeric: tabular-nums;
   }
-  .remember {
+  .save {
+    display: grid;
+    place-items: center;
     width: 100%;
-    height: 34px;
-    margin-top: 12px;
-    border-radius: 10px;
+    height: 36px;
+    margin-top: 14px;
+    border-radius: 12px;
     background: var(--text);
     color: var(--on-text);
     font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
-  }
-  .remember {
-    display: grid;
-    place-items: center;
     transition:
       background var(--normal) var(--ease),
       color var(--normal) var(--ease),
       opacity var(--normal) var(--ease),
       transform var(--fast) var(--ease);
   }
-  .remember:active:not(:disabled) {
+  .save:active:not(:disabled) {
     transform: scale(0.97);
   }
-  .remember .lbl {
-    grid-area: 1 / 1;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    animation: tab-in var(--normal) var(--ease);
-  }
-  .remember.on {
+  .save.on {
     background: var(--surface-3);
     color: var(--text);
     opacity: 1;
   }
-  .remember:disabled {
+  .save:disabled {
     opacity: 0.4;
     cursor: default;
+  }
+  .lbl {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    animation: tab-in var(--normal) var(--ease);
   }
 </style>

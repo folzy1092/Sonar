@@ -16,13 +16,57 @@ export interface EqPreset {
 
 const flat = () => EQ_FREQS.map(() => 0)
 
-export const builtinPresets: EqPreset[] = [
-  { name: 'Нейтральный', gains: flat(), builtin: true },
-  { name: 'Басы', gains: [7, 6, 5, 3, 1, 0, 0, 0, 0, 0, 0, 0], builtin: true },
-  { name: 'Высокие', gains: [0, 0, 0, 0, 0, 0, 1, 2, 4, 5, 6, 6], builtin: true },
-  { name: 'Вокал', gains: [-2, -2, -1, 0, 2, 4, 4, 3, 1, 0, -1, -1], builtin: true },
-  { name: 'Громче', gains: [4, 3, 1, 0, -1, -1, 0, 1, 2, 3, 4, 4], builtin: true },
+export type EqGroup = 'enhance' | 'genres' | 'accents' | 'mine'
+
+/** Вкладки пресетов (референс владельца 2026-11-16): Улучшение / Жанры / Акценты / Мои. */
+export const EQ_GROUPS: { id: EqGroup; label: string }[] = [
+  { id: 'enhance', label: 'Улучшение' },
+  { id: 'genres', label: 'Жанры' },
+  { id: 'accents', label: 'Акценты' },
+  { id: 'mine', label: 'Мои' },
 ]
+
+//            32   64  125  250  500   1k   2k   4k   8k  12k  16k  20k
+const P = (name: string, gains: number[]): EqPreset => ({ name, gains, builtin: true })
+
+export const PRESET_GROUPS: Record<Exclude<EqGroup, 'mine'>, EqPreset[]> = {
+  enhance: [
+    P('Hi-Fi', [2, 1.5, 0.5, 0, -0.5, 0, 0.5, 1.5, 2, 2.5, 2.5, 2]),
+    P('Чёткость', [0, 0, -0.5, -1, 0, 1, 2.5, 3, 2.5, 2, 1.5, 1]),
+    P('Тепло', [2.5, 3, 2.5, 1.5, 0.5, 0, -0.5, -1, -1.5, -2, -2, -2.5]),
+    P('Простор', [1.5, 1, 0, -1, -1.5, -0.5, 0.5, 1.5, 2.5, 3, 3, 2.5]),
+    P('Наушники', [3, 2.5, 1, 0, -0.5, -0.5, 0.5, 1, 0.5, 1, 1.5, 1]),
+    P('Ноутбук', [-3, -1.5, 1, 2, 2, 1.5, 1, 1.5, 2, 1.5, 0.5, 0]),
+    P('Ночь', [-1.5, -1, -0.5, 0, 0.5, 1, 1, 0, -1, -2, -2.5, -3]),
+    P('Плотность', [3, 3, 2, 1, 0.5, 0.5, 1, 1.5, 1, 0.5, 0, 0]),
+    P('Мягкость', [1, 1, 0.5, 0.5, 0, 0, -1, -2, -2.5, -2.5, -3, -3]),
+  ],
+  genres: [
+    P('Рок', [4, 3, 2, 0.5, -1, -0.5, 1, 2.5, 3.5, 3.5, 3, 2.5]),
+    P('Поп', [-1, 0, 1.5, 2.5, 3, 2, 0.5, 0, 0.5, 1, 1.5, 1]),
+    P('Хип-хоп', [5, 4.5, 3, 1, -0.5, -1, 0.5, 1, 1.5, 1.5, 1, 0.5]),
+    P('Электроника', [4.5, 4, 1.5, 0, -1, 0, -0.5, 1, 3, 4, 4, 3.5]),
+    P('Фонк', [6, 5, 3, -0.5, -1.5, -1, 0.5, 2, 3, 2.5, 2, 1.5]),
+    P('Лоу-фай', [2, 2.5, 2, 1, 0.5, 0, -1, -2, -3, -3.5, -4, -4]),
+    P('Джаз', [2.5, 2, 1, 1.5, -1, -1, 0, 1, 2, 2.5, 2.5, 2]),
+    P('Классика', [3, 2.5, 2, 1, -0.5, -1, -1, 0, 1.5, 2.5, 3, 3]),
+    P('Акустика', [2, 2, 1.5, 0.5, 1, 1, 1.5, 2, 1.5, 1, 0.5, 0]),
+  ],
+  accents: [
+    P('Басы', [7, 6, 5, 3, 1, 0, 0, 0, 0, 0, 0, 0]),
+    P('Суб-бас', [8, 6, 2.5, 0, -0.5, 0, 0, 0, 0, 0, 0, 0]),
+    P('Вокал', [-2, -2, -1, 0, 2, 4, 4, 3, 1, 0, -1, -1]),
+    P('Средние', [-1.5, -1, 0.5, 2, 3, 3, 2, 0.5, -0.5, -1, -1, -1.5]),
+    P('Высокие', [0, 0, 0, 0, 0, 0, 1, 2, 4, 5, 6, 6]),
+    P('Громче', [4, 3, 1, 0, -1, -1, 0, 1, 2, 3, 4, 4]),
+    P('Голос', [-4, -3, -1.5, 0, 1.5, 3, 3.5, 3, 1.5, 0, -1, -2]),
+    P('Без резкости', [0, 0, 0, 0, 0, -0.5, -1.5, -3, -2, -1, -0.5, 0]),
+    P('Нейтральный', flat()),
+  ],
+}
+
+/** Все встроенные пресеты одним списком (для «какой пресет сейчас»). */
+export const builtinPresets: EqPreset[] = Object.values(PRESET_GROUPS).flat()
 
 export const clampDb = (v: number) => Math.round(Math.max(-EQ_MAX_DB, Math.min(EQ_MAX_DB, v)) * 10) / 10
 
@@ -32,6 +76,8 @@ function valid(g: unknown): g is number[] {
 
 class Equalizer {
   gains = $state<number[]>(flat())
+  /** Переключатель «Эквалайзер»: выключен — звучит ровно, кривая сохраняется (`audio.eq_enabled`). */
+  enabled = $state(true)
   userPresets = $state<EqPreset[]>([])
   /** Сохранённая кривая — одна на все треки (решение владельца 2026-11-16). */
   saved = $state<number[]>(flat())
@@ -51,7 +97,7 @@ class Equalizer {
       b.type = i === 0 ? 'lowshelf' : i === EQ_FREQS.length - 1 ? 'highshelf' : 'peaking'
       b.frequency.value = f
       b.Q.value = 1.1
-      b.gain.value = this.gains[i]
+      b.gain.value = this.enabled ? this.gains[i] : 0
       return b
     })
     let node: AudioNode = input
@@ -63,15 +109,23 @@ class Equalizer {
   }
 
   private apply() {
-    this.filters.forEach((b, i) => b.gain.setTargetAtTime(this.gains[i], b.context.currentTime, 0.03))
+    this.filters.forEach((b, i) => b.gain.setTargetAtTime(this.enabled ? this.gains[i] : 0, b.context.currentTime, 0.03))
+  }
+
+  setEnabled(on: boolean) {
+    this.enabled = on
+    this.apply()
+    void api.setSetting('audio.eq_enabled', on).catch(() => {})
   }
 
   async load() {
     try {
-      const [cur, presets] = await Promise.all([
+      const [cur, presets, on] = await Promise.all([
         api.getSetting<number[]>('audio.eq'),
         api.getSetting<{ name: string; gains: number[] }[]>('audio.eq_presets'),
+        api.getSetting<boolean>('audio.eq_enabled'),
       ])
+      if (typeof on === 'boolean') this.enabled = on
       if (valid(cur)) this.saved = cur.map(clampDb)
       if (Array.isArray(presets)) this.userPresets = presets.filter((p) => typeof p?.name === 'string' && valid(p.gains))
       this.set(this.saved)
