@@ -45,17 +45,60 @@
   inherits: true;
   initial-value: #0b0b0d;
 }
+@property --text {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #f5f5f6;
+}
+@property --text-2 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #a3a3ab;
+}
+@property --text-3 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #8a8a93;
+}
+@property --border {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #2a2a30;
+}
+@property --border-strong {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #3a3a41;
+}
+@property --track {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #232328;
+}
+@property --glow {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(180,180,180,0.25);
+}
 :root {
+  /* смена обложки или стиля — цвета перетекают за 600 мс (STYLE_PROMPT §1) */
   transition:
     --accent 0.6s ease,
     --accent-ink 0.6s ease,
     --accent-soft 0.6s ease,
-    --tint 0.9s ease,
-    --bg 0.9s ease,
-    --surface-0 0.9s ease,
-    --surface-1 0.9s ease,
-    --surface-2 0.9s ease,
-    --surface-3 0.9s ease;
+    --tint 0.6s ease,
+    --bg 0.6s ease,
+    --surface-0 0.6s ease,
+    --surface-1 0.6s ease,
+    --surface-2 0.6s ease,
+    --surface-3 0.6s ease,
+    --border 0.6s ease,
+    --border-strong 0.6s ease,
+    --text 0.6s ease,
+    --text-2 0.6s ease,
+    --text-3 0.6s ease,
+    --track 0.6s ease,
+    --glow 0.6s ease;
   --bg: #050506;
   --surface-0: #0b0b0d;
   --surface-1: #121215;
@@ -69,7 +112,9 @@
 
   --text: #f5f5f6;
   --text-2: #a3a3ab;
-  --text-3: #6c6c75;
+  --text-3: #8a8a93;
+  --track: #232328;
+  --glow: rgba(180, 180, 180, 0.25);
 
   --accent: #f5f5f6;
   --accent-ink: #0a0a0b;

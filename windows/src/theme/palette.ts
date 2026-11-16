@@ -111,17 +111,168 @@ export function pickAccent(px: Uint8ClampedArray | number[]): RGB | null {
   return best
 }
 
-/** Цвета темы из акцента: акцент поярче для тёмной темы, фон (L≈12 %), текст на акценте. */
-export function themeFrom(c: RGB): { accent: RGB; ink: RGB; bg: RGB; base: RGB; surfaces: [RGB, RGB, RGB, RGB] } {
-  const [h, s, l] = rgbToHsl(c)
-  const accent = hslToRgb([h, Math.min(1, Math.max(s, 0.45)), Math.min(0.72, Math.max(l, 0.55))])
-  const bg = hslToRgb([h, Math.min(s, 0.55), 0.12])
-  // фон окна — тот же оттенок, матовый и темнее обложки (решение владельца 2026-11-16); поверхности —
-  // ступенями светлее в том же оттенке, чтобы края карточек и всплывашек читались чётко
-  const sat = Math.min(s, 0.38)
-  const base = hslToRgb([h, sat, 0.05])
-  const surfaces = [0.07, 0.095, 0.125, 0.155].map((li) => hslToRgb([h, Math.min(sat, 0.3), li])) as [RGB, RGB, RGB, RGB]
-  return { accent, ink: inkFor(accent), bg, base, surfaces }
+// ---- OKLCH (reference/design/STYLE_PROMPT.md §1) ----
+// В HSL синий и розовый с одной «светлотой» выглядят разной яркости; в OKLCH светлота L — та, что
+// видит глаз. Из обложки берём оттенок h и насыщенность c, дальше всё считаем по формулам поверхности.
+
+export interface Lch {
+  l: number
+  c: number
+  h: number
+}
+
+const toLin = (v: number) => {
+  v /= 255
+  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+}
+const fromLin = (v: number) => (v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055) * 255
+
+export function rgbToOklch([r8, g8, b8]: RGB): Lch {
+  const [r, g, b] = [toLin(r8), toLin(g8), toLin(b8)]
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+  const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s
+  const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s
+  const B = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s
+  const h = (Math.atan2(B, A) * 180) / Math.PI
+  return { l: L, c: Math.hypot(A, B), h: h < 0 ? h + 360 : h }
+}
+
+/** OKLCH → линейные sRGB 0…1 (за пределами 0…1 — цвет вне sRGB). */
+function oklchToLinear({ l: L, c, h }: Lch): [number, number, number] {
+  const A = c * Math.cos((h * Math.PI) / 180)
+  const B = c * Math.sin((h * Math.PI) / 180)
+  const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3
+  const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3
+  const s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3
+  return [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+  ]
+}
+
+const inGamut = (x: Lch) => oklchToLinear(x).every((v) => v >= -1e-4 && v <= 1 + 1e-4)
+
+/** Вписать в sRGB: та же светлота и оттенок, насыщенность меньше (как гамут-маппинг CSS Color 4). */
+export function fitGamut(x: Lch): Lch {
+  if (inGamut(x)) return x
+  let lo = 0
+  let hi = x.c
+  for (let i = 0; i < 18; i++) {
+    const mid = (lo + hi) / 2
+    if (inGamut({ ...x, c: mid })) lo = mid
+    else hi = mid
+  }
+  return { ...x, c: lo }
+}
+
+export function oklchToRgb(x: Lch): RGB {
+  return oklchToLinear(fitGamut(x)).map((v) => Math.round(Math.max(0, Math.min(255, fromLin(Math.max(0, Math.min(1, v))))))) as RGB
+}
+
+/** CSS-строка `oklch(L C h / a)`; цвет уже вписан в sRGB. */
+export function oklch(x: Lch, a = 1): string {
+  const f = fitGamut(x)
+  return `oklch(${f.l.toFixed(3)} ${f.c.toFixed(3)} ${Math.round(f.h)}${a === 1 ? '' : ` / ${a}`})`
+}
+
+/** Формулы поверхности: значения — вкладки reference/design/sonar-directions.html (объект `CFG`). */
+export interface SurfaceFormula {
+  bgL: number
+  bgC: number
+  bgMax: number
+  sL: [number, number, number]
+  sC: number
+  sMax: number
+  bdL: number
+  bdC: number
+  bdMax: number
+  txL: number
+  t2L: number
+  t3L: number
+  accL: number
+  accMax: number
+  /** Прозрачность мягкого акцента (`--accent-soft`). */
+  softA: number
+  /** Текст без подкраски (Монолит: цвет обложки — только свечение и прогресс). */
+  grayText?: boolean
+}
+
+export type Surface = 'echo' | 'signal' | 'edge' | 'tactile' | 'monolith'
+
+export const SURFACES: Record<Surface, SurfaceFormula> = {
+  echo: { bgL: 0.135, bgC: 0.22, bgMax: 0.028, sL: [0.178, 0.218, 0.262], sC: 0.28, sMax: 0.034, bdL: 0.31, bdC: 0.32, bdMax: 0.05, txL: 0.97, t2L: 0.8, t3L: 0.65, accL: 0.79, accMax: 0.19, softA: 0.22 },
+  signal: { bgL: 0.15, bgC: 0.4, bgMax: 0.06, sL: [0.195, 0.24, 0.285], sC: 0.45, sMax: 0.065, bdL: 0.3, bdC: 0.45, bdMax: 0.07, txL: 0.97, t2L: 0.82, t3L: 0.68, accL: 0.8, accMax: 0.2, softA: 0.18 },
+  edge: { bgL: 0.12, bgC: 0.2, bgMax: 0.025, sL: [0.165, 0.205, 0.25], sC: 0.25, sMax: 0.03, bdL: 0.36, bdC: 0.35, bdMax: 0.06, txL: 0.975, t2L: 0.8, t3L: 0.65, accL: 0.8, accMax: 0.2, softA: 0.16 },
+  tactile: { bgL: 0.17, bgC: 0.15, bgMax: 0.022, sL: [0.215, 0.255, 0.305], sC: 0.18, sMax: 0.026, bdL: 0.34, bdC: 0.2, bdMax: 0.03, txL: 0.965, t2L: 0.8, t3L: 0.68, accL: 0.82, accMax: 0.2, softA: 0.35 },
+  monolith: { bgL: 0.1, bgC: 0, bgMax: 0, sL: [0.145, 0.185, 0.23], sC: 0, sMax: 0, bdL: 0.27, bdC: 0, bdMax: 0, txL: 0.98, t2L: 0.76, t3L: 0.62, accL: 0.78, accMax: 0.2, softA: 0.2, grayText: true },
+}
+
+/** Ниже этой насыщенности обложка считается монохромной. */
+export const MONO_C = 0.03
+
+export type TokenName = 'bg' | 's0' | 's1' | 's2' | 's3' | 'border' | 'text' | 't2' | 't3' | 'accent' | 'ink' | 'track'
+
+export interface ThemeTokens {
+  /** Цвета в OKLCH (уже вписаны в sRGB) — для проверки контраста и образцов. */
+  lch: Record<TokenName, Lch>
+  mono: boolean
+  /** CSS-переменные для `:root`. */
+  vars: Record<string, string>
+  /** Для образцов тем и оттенка страницы артиста: акцент, фон и текст на акценте в RGB. */
+  accent: RGB
+  bg: RGB
+  ink: RGB
+}
+
+/** Токены темы: исходный цвет (обложка / готовая тема / null — монохром) × формулы поверхности. */
+export function themeFrom(src: RGB | null, surface: Surface = 'echo'): ThemeTokens {
+  const k = SURFACES[surface]
+  const base = src ? rgbToOklch(src) : { l: 0, c: 0, h: 0 }
+  const mono = base.c < MONO_C
+  const c = mono ? 0 : base.c
+  const h = base.h
+  const cc = (m: number, mx: number) => Math.min(c * m, mx)
+  const ok = (l: number, ch: number): Lch => fitGamut({ l, c: ch, h })
+  const gray = !!k.grayText
+  const lch: ThemeTokens['lch'] = {
+    bg: ok(k.bgL, cc(k.bgC, k.bgMax)),
+    s0: ok((k.bgL + k.sL[0]) / 2, cc(k.sC, k.sMax)),
+    s1: ok(k.sL[0], cc(k.sC, k.sMax)),
+    s2: ok(k.sL[1], cc(k.sC, k.sMax)),
+    s3: ok(k.sL[2], cc(k.sC, k.sMax)),
+    border: ok(k.bdL, cc(k.bdC, k.bdMax)),
+    text: ok(k.txL, gray ? 0 : cc(0.03, 0.008)),
+    t2: ok(k.t2L, gray ? 0 : cc(0.06, 0.014)),
+    t3: ok(k.t3L, gray ? 0 : cc(0.08, 0.018)),
+    accent: mono ? ok(0.95, 0) : ok(k.accL, Math.min(c, k.accMax)),
+    ink: mono ? ok(0.16, 0) : gray ? ok(0.12, 0) : ok(0.18, cc(0.35, 0.05)),
+    // дорожка прогресса: у Сигнала своя, насыщенная; у остальных — поверхность 3
+    track: surface === 'signal' ? ok(0.42, cc(0.4, 0.06)) : ok(k.sL[2], cc(k.sC, k.sMax)),
+  }
+  const s = (x: Lch, a = 1) => oklch(x, a)
+  const vars: Record<string, string> = {
+    '--bg': s(lch.bg),
+    '--surface-0': s(lch.s0),
+    '--surface-1': s(lch.s1),
+    '--surface-2': s(lch.s2),
+    '--surface-3': s(lch.s3),
+    '--border': s(lch.border),
+    '--border-strong': s({ ...lch.border, l: lch.border.l + 0.07 }),
+    '--text': s(lch.text),
+    '--text-2': s(lch.t2),
+    '--text-3': s(lch.t3),
+    '--accent': s(lch.accent),
+    '--accent-ink': s(lch.ink),
+    '--accent-soft': mono ? 'oklch(0.95 0 0 / 0.12)' : s(lch.accent, k.softA),
+    '--tint': s(ok(0.2, cc(0.6, 0.09))),
+    '--track': s(lch.track),
+    // свечение за обложкой (поверхность и смена трека «Монолит»)
+    '--glow': mono ? 'oklch(0.7 0 0 / 0.25)' : s(ok(0.62, Math.min(c, 0.2)), 0.55),
+  }
+  return { lch, mono, vars, accent: oklchToRgb(lch.accent), bg: oklchToRgb(lch.bg), ink: oklchToRgb(lch.ink) }
 }
 
 export const css = ([r, g, b]: RGB, a = 1) => (a === 1 ? `rgb(${r} ${g} ${b})` : `rgb(${r} ${g} ${b} / ${a})`)
