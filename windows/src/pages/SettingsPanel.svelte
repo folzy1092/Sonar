@@ -159,6 +159,16 @@
   .panel.open {
     transform: none;
   }
+  /* панель вкладок справа — настройки зеркально выезжают справа (App.svelte, :root.side-right) */
+  :global(:root.side-right) .panel {
+    inset: 0 0 0 auto;
+    border-right: 0;
+    border-left: 1px solid var(--border);
+    transform: translateX(100%);
+  }
+  :global(:root.side-right) .panel.open {
+    transform: none;
+  }
   .tabs-wrap {
     position: relative;
     border-bottom: 1px solid var(--border);

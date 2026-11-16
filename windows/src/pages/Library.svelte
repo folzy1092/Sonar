@@ -51,6 +51,18 @@
   /** Плейлисты выбранного сервиса, ещё не перенесённые в Sonar (перенесённые уже есть среди своих). */
   const services = $derived(phantom[svc].filter((p) => !imported.has(p.ref)))
 
+  // ширина текущего названия сервиса: последнее появившееся название задаёт ширину кнопки
+  let faceW = $state(0)
+  let faceNode: HTMLElement | null = null
+  function measureFace(node: HTMLElement) {
+    faceNode = node
+    const ro = new ResizeObserver(() => {
+      if (faceNode === node) faceW = node.offsetWidth
+    })
+    ro.observe(node)
+    return { destroy: () => ro.disconnect() }
+  }
+
   function nextService() {
     const i = SERVICES.findIndex((x) => x.id === svc)
     dir = 1
@@ -180,12 +192,15 @@
   <section class="block">
     <h2 class="svc-head">
       <button class="svc press" title={t('Следующий сервис')} onclick={nextService}>
-        {#key svc}
-          <span class="svc-face" in:swipe out:swipe={{ out: true }}>
-            <SourceIcon kind={svc} size={20} />
-            {svcName}
-          </span>
-        {/key}
+        <!-- ширина названия плавно тянется к новому сервису, а не прыгает (решение владельца 2026-11-17) -->
+        <span class="svc-faces" style:width={faceW ? `${faceW}px` : undefined}>
+          {#key svc}
+            <span class="svc-face" in:swipe out:swipe={{ out: true }} use:measureFace>
+              <SourceIcon kind={svc} size={20} />
+              {svcName}
+            </span>
+          {/key}
+        </span>
         <span class="svc-next"><Icon name="chevronRight" size={18} /></span>
       </button>
     </h2>
@@ -343,6 +358,11 @@
   }
   .svc:hover {
     background: var(--hover);
+  }
+  .svc-faces {
+    display: grid;
+    justify-items: start;
+    transition: width 0.36s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .svc-face {
     grid-area: 1 / 1;

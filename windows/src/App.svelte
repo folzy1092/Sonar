@@ -102,6 +102,11 @@
     document.documentElement.classList.toggle('idle', idle)
   })
 
+  // Панель справа — настройки зеркально: выезжают справа, окно уходит влево с наклоном в другую сторону
+  $effect(() => {
+    document.documentElement.classList.toggle('side-right', settings.get('tabs.position') === 'right')
+  })
+
   // Вкладки: подстройка цвета под страницу и автоскрытие панелей, когда мышь замерла на 3 с
   $effect(() => {
     const root = document.documentElement
@@ -140,6 +145,10 @@
 
 <div class="stage">
 <div class="shell tabs-{settings.get('tabs.position')} tstyle-{settings.get('tabs.style')} mini-{settings.get('mini.position')}" class:away={settingsPanel.open} class:solo={settings.get('mini.style') === 'off' || !player.current || router.page === 'player'} inert={settingsPanel.open}>
+  {#if settings.get('tabs.position') === 'top'}
+    <!-- островок вкладок сверху узкий — окно таскается и за пустое место вокруг него -->
+    <div class="top-drag" data-tauri-drag-region></div>
+  {/if}
   <Rail />
 
   <!-- панель сверху — кнопки окна на её правом конце, карточке вырез не нужен -->
@@ -238,6 +247,20 @@
     inset: 0 0 0 var(--settings-w);
     z-index: 32;
     cursor: pointer;
+  }
+  /* панель вкладок справа — всё зеркально: окно уезжает влево, правый край уходит вглубь */
+  :global(:root.side-right) .stage {
+    perspective-origin: 70% 50%;
+  }
+  :global(:root.side-right) .shell {
+    transform-origin: right center;
+  }
+  :global(:root.side-right) .shell.away {
+    transform: translateX(calc(-1 * (var(--settings-w) + 24px))) rotateY(15deg) scale(0.9);
+    box-shadow: 30px 0 80px rgba(0, 0, 0, 0.6);
+  }
+  :global(:root.side-right) .back-to-app {
+    inset: 0 var(--settings-w) 0 0;
   }
   @media (prefers-reduced-motion: reduce) {
     .shell {
@@ -477,6 +500,11 @@
   .tabs-top :global(.rail) {
     grid-row: 1;
     grid-column: 1;
+  }
+  .top-drag {
+    grid-row: 1;
+    grid-column: 1;
+    margin-top: var(--gap);
   }
   .tabs-top .card {
     grid-row: 2;

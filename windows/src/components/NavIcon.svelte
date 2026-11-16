@@ -1,42 +1,45 @@
 <script lang="ts">
-  // Иконка раздела левой панели (Интерфейс → Стиль, STYLE_PROMPT §3): контур 24×24 цветом текста,
-  // толщина — `appearance.icon_stroke` (--icon-stroke). Иконки собраны из частей, и у выбранного
-  // раздела одна деталь двигается (320 мс, cubic-bezier(.22,1,.36,1)): у домика открывается дверь
-  // и приподнимается крыша, у плеера растёт треугольник, у лупы линза и ручка расходятся, у
-  // медиатеки откидывается передняя стенка, у настроек разъезжаются ручки фейдеров, у профиля
-  // поднимается голова. Как отмечен выбранный раздел (точка, капсула, плашка) — app/Rail.svelte.
-  // Части названы как в макете (`home-door`, `lib-front`…) — классами, не id: иконка бывает на
-  // экране не одна. Прочие имена (сердце «Любимых», «+») — MingCute, как раньше.
+  // Иконка раздела в левой панели (как у Dotify): контур, а выбранный раздел — та же иконка, залитая
+  // цветом темы (под обложку, AMOLED — белым). Контур и заливка плавно перетекают друг в друга.
+  // Медиатека — своя папка из двух частей: выбрали — передняя стенка плавно отходит от задней и
+  // откидывается вперёд (петля внизу), папка открыта; ушли — так же плавно закрывается.
   import { navIcons, type NavIconName } from './nav-icons'
 
   let { name, active = false, size = 24 }: { name: NavIconName; active?: boolean; size?: number } = $props()
-  const own = new Set(['home', 'player', 'search', 'library', 'settings', 'user'])
 </script>
 
 <span class="ni n-{name}" class:active style:--s="{size}px" aria-hidden="true">
-  {#if own.has(name)}
-    <svg class="sn" viewBox="0 0 24 24">
-      {#if name === 'home'}
-        <path class="home-walls" d="M5 10.4V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8.6" />
-        <path class="home-roof" d="M3 11.6 12 4.2l9 7.4" />
-        <path class="home-door" d="M10 20v-4.4a2 2 0 0 1 4 0V20" />
-      {:else if name === 'player'}
-        <circle class="player-ring" cx="12" cy="12" r="9" />
-        <path class="player-tri" d="M10.3 8.7v6.6a.6.6 0 0 0 .9.5l5.3-3.3a.6.6 0 0 0 0-1l-5.3-3.3a.6.6 0 0 0-.9.5Z" />
-      {:else if name === 'search'}
-        <circle class="search-lens" cx="10.6" cy="10.6" r="6.2" />
-        <path class="search-handle" d="m15.3 15.3 4.7 4.7" />
-      {:else if name === 'library'}
-        <path class="lib-back" d="M3.5 16.5V6.4A1.4 1.4 0 0 1 4.9 5h3.5c.4 0 .8.2 1.1.5L11 7h8.1a1.4 1.4 0 0 1 1.4 1.4V10" />
-        <path class="lib-front" d="M3.5 18.4v-7.6a1.2 1.2 0 0 1 1.2-1.2h14.6a1.2 1.2 0 0 1 1.2 1.2v7.6a1.6 1.6 0 0 1-1.6 1.6H5.1a1.6 1.6 0 0 1-1.6-1.6Z" />
-      {:else if name === 'settings'}
-        <path class="set-rails" d="M8 4v16M16 4v16" />
-        <rect class="set-knob1" x="5.4" y="12.6" width="5.2" height="3" rx="1.5" />
-        <rect class="set-knob2" x="13.4" y="8.4" width="5.2" height="3" rx="1.5" />
-      {:else}
-        <circle class="user-head" cx="12" cy="8.2" r="3.6" />
-        <path class="user-body" d="M5 19.6c.7-3.2 3.6-5.4 7-5.4s6.3 2.2 7 5.4" />
-      {/if}
+  {#if name === 'library'}
+    <svg class="folder" viewBox="0 0 24 24">
+      <!-- задняя стенка с ярлычком -->
+      <path class="back" d="M3.2 7.2a2 2 0 0 1 2-2h3.7c.5 0 1 .2 1.4.6l1.3 1.3h7.2a2 2 0 0 1 2 2v8.7a2 2 0 0 1-2 2H5.2a2 2 0 0 1-2-2Z" />
+      <!-- передняя стенка: петля по нижнему краю, при открытии откидывается вперёд -->
+      <g class="flap">
+        <path d="M3.2 10.4a1.6 1.6 0 0 1 1.6-1.6h14.4a1.6 1.6 0 0 1 1.6 1.6v7.4a2 2 0 0 1-2 2H5.2a2 2 0 0 1-2-2Z" />
+      </g>
+    </svg>
+  {:else if name === 'home'}
+    <svg class="cu" viewBox="0 0 24 24">
+      <path class="body" d="M4 10.2a1.5 1.5 0 0 1 .6-1.2l6.5-4.9a1.5 1.5 0 0 1 1.8 0l6.5 4.9a1.5 1.5 0 0 1 .6 1.2V19a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
+      <!-- проём двери (виден, когда дверь открыта) и сама створка на левой петле -->
+      <path class="opening" d="M9.8 21v-6.2a2.2 2.2 0 0 1 4.4 0V21Z" />
+      <path class="leaf" d="M9.8 21v-6.2a2.2 2.2 0 0 1 4.4 0V21Z" />
+    </svg>
+  {:else if name === 'player'}
+    <svg class="cu" viewBox="0 0 24 24">
+      <path class="tri" d="M7.4 4.6a1.4 1.4 0 0 1 2.1-1.2l10.2 6.4a2.5 2.5 0 0 1 0 4.4L9.5 20.6a1.4 1.4 0 0 1-2.1-1.2Z" transform="translate(-0.4 0)" />
+    </svg>
+  {:else if name === 'search'}
+    <svg class="cu" viewBox="0 0 24 24">
+      <g class="tool">
+        <circle class="glass" cx="10" cy="10" r="6.3" />
+        <path class="handle" d="m15 15 5.2 5.2" />
+      </g>
+    </svg>
+  {:else if name === 'user'}
+    <svg class="cu" viewBox="0 0 24 24">
+      <circle class="head" cx="12" cy="7.5" r="4" />
+      <path class="shoulders" d="M4 19.6v-.1A4.5 4.5 0 0 1 8.5 15h7a4.5 4.5 0 0 1 4.5 4.5v.1a1.4 1.4 0 0 1-1.4 1.4H5.4A1.4 1.4 0 0 1 4 19.6Z" />
     </svg>
   {:else}
     <svg class="line" viewBox="0 0 24 24">{@html navIcons[name].line}</svg>
@@ -56,72 +59,6 @@
     inset: 0;
     width: 100%;
     height: 100%;
-    overflow: visible;
-  }
-
-  /* ---- свои иконки панели: контур, части двигаются у выбранного раздела ---- */
-  .sn * {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: var(--icon-stroke, 2);
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    transform-box: fill-box;
-    transform-origin: 50% 50%;
-    transition:
-      transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-      fill 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-      stroke-width 0.32s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  /* ручки фейдеров — залитые, рельс под ними не просвечивает */
-  .sn .set-knob1,
-  .sn .set-knob2 {
-    fill: var(--knob-fill, var(--surface-1));
-  }
-  .active .sn .set-knob1,
-  .active .sn .set-knob2 {
-    fill: currentColor;
-  }
-  .sn .home-door,
-  .sn .lib-front {
-    transform-origin: 0% 100%;
-  }
-  /* домик: дверь открылась (сжалась к левой петле), крыша приподнялась */
-  .active .home-door {
-    transform: scaleX(0.28);
-  }
-  .active .home-roof {
-    transform: translateY(-1px);
-  }
-  .active .player-tri {
-    transform: scale(1.18);
-  }
-  .active .player-ring {
-    transform: scale(0.9);
-  }
-  .active .search-lens {
-    transform: translate(-1px, -1px);
-  }
-  .active .search-handle {
-    transform: translate(1.5px, 1.5px);
-  }
-  /* медиатека: передняя стенка откидывается вперёд на нижней петле */
-  .active .lib-front {
-    transform: skewX(-16deg) translateX(1.5px);
-  }
-  .active .set-knob1 {
-    transform: translateY(-5px);
-  }
-  .active .set-knob2 {
-    transform: translateY(5px);
-  }
-  .active .user-head {
-    transform: translateY(-1.5px);
-  }
-
-  /* ---- MingCute (сердце «Любимых», «+»): контур, у выбранного — заливка цветом темы ---- */
-  .line,
-  .fill {
     transition:
       opacity 0.28s var(--ease),
       transform 0.36s var(--ease);
@@ -139,15 +76,179 @@
     opacity: 0;
     transform: scale(1.12);
   }
+
+  /* папка медиатеки: в покое — контур закрытой папки, выбрана — заливка цвета темы, передняя
+     стенка плавно откидывается (без подскоков) */
+  .folder path {
+    fill: transparent;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+    transition:
+      fill 0.4s var(--ease),
+      stroke 0.4s var(--ease);
+  }
+  .folder .flap {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    transition: transform 0.55s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .active .folder {
+    color: var(--accent);
+  }
+  .active .folder .back {
+    fill: color-mix(in srgb, var(--accent) 45%, transparent);
+    stroke: transparent;
+  }
+  .active .folder .flap path {
+    fill: var(--accent);
+    stroke: color-mix(in srgb, var(--accent) 60%, #000);
+    stroke-width: 0.6;
+  }
+  /* стенка «падает» вперёд на петле: становится ниже и наклоняется — видно, что папка раскрылась */
+  .active .folder .flap {
+    transform: translateX(1.2px) skewX(-16deg) scaleY(0.72);
+  }
   @media (prefers-reduced-motion: reduce) {
-    .sn * {
-      transition: fill 0.2s linear;
-    }
-    .active .sn * {
-      transform: none;
+    .folder .flap {
+      transition: none;
     }
   }
-  :global(:root.no-motion) .active .sn * {
+
+  /* ---- свои двухчастные иконки: дом, play, лупа, профиль ---- */
+  .cu {
+    color: currentColor;
+  }
+  .cu path,
+  .cu circle {
+    fill: transparent;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    transition:
+      fill 0.45s var(--ease),
+      stroke 0.45s var(--ease),
+      opacity 0.45s var(--ease),
+      transform 0.55s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .cu .body,
+  .cu .tri,
+  .cu .glass,
+  .cu .head,
+  .cu .shoulders,
+  .cu .leaf,
+  .cu .opening,
+  .cu .handle,
+  .cu .tool {
+    transform-box: fill-box;
+  }
+  .cu .tool {
+    transform-box: view-box;
+    transform-origin: 10px 10px;
+    transition: transform 0.55s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .active .cu path,
+  .active .cu circle {
+    stroke: var(--accent);
+  }
+
+  /* дом: стены заливаются, дверь отходит на левой петле, в проёме тёмный оттенок темы */
+  .cu .opening {
+    opacity: 0;
+    stroke: transparent;
+  }
+  .cu .leaf {
+    transform-origin: 0% 100%;
+  }
+  .active .cu .body {
+    fill: var(--accent);
+  }
+  .active .cu .opening {
+    opacity: 1;
+    fill: color-mix(in srgb, var(--accent) 45%, #000);
+    stroke: transparent;
+  }
+  .active .cu .leaf {
+    fill: var(--accent);
+    stroke: color-mix(in srgb, var(--accent) 60%, #000);
+    stroke-width: 0.8;
+    transform: scaleX(0.34) skewY(-9deg);
+  }
+
+  /* play: наливается и чуть уходит вперёд и наклоняется, как нажатая кнопка */
+  .cu .tri {
+    transform-origin: 40% 50%;
+  }
+  .active .cu .tri {
+    fill: var(--accent);
+    transform: translateX(1px) rotate(-7deg) scale(1.05);
+  }
+
+  /* лупа: поворот на -15° вокруг стекла, стекло наполняется */
+  .active .cu .tool {
+    transform: rotate(-15deg);
+  }
+  .active .cu .glass {
+    fill: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  .active .cu .handle {
+    stroke-width: 2.4;
+  }
+
+  /* шестерёнка: поворот на 60° (шестиугольник совпадает сам с собой), контур перетекает в заливку */
+  .n-settings .line {
+    transition:
+      opacity 0.4s var(--ease),
+      transform 0.6s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .n-settings .fill {
+    transform: rotate(-60deg) scale(0.9);
+    transition:
+      opacity 0.4s var(--ease),
+      transform 0.6s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .n-settings.active .fill {
     transform: none;
+  }
+  .n-settings.active .line {
+    transform: rotate(60deg) scale(1.04);
+  }
+
+  /* профиль: плечи заливаются, голова один раз мягко кивает */
+  .active .cu .shoulders {
+    fill: color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+  .active .cu .head {
+    fill: var(--accent);
+    animation: ni-nod 0.7s cubic-bezier(0.32, 0.72, 0, 1) 1;
+  }
+  @keyframes ni-nod {
+    40% {
+      transform: translateY(1.3px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cu path,
+    .cu circle,
+    .cu .tool {
+      transition: fill 0.3s linear, stroke 0.3s linear, opacity 0.3s linear;
+    }
+    .active .cu .leaf,
+    .active .cu .tri,
+    .active .cu .tool {
+      transform: none;
+    }
+    .active .cu .head {
+      animation: none;
+    }
+    .n-settings .line,
+    .n-settings .fill,
+    .n-settings.active .line,
+    .n-settings.active .fill {
+      transform: none;
+      transition: opacity 0.3s linear;
+    }
   }
 </style>

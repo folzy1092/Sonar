@@ -166,15 +166,6 @@ button:focus-visible > .ic > svg.i-heart {
   stroke-width: 1.5;
   scale: 1.05;
 }
-/* своё контурное сердце (sonar-icons.ts): «толще» — линия на полпикселя толще своей */
-svg.i-heart.sn {
-  stroke-width: var(--icon-stroke, 2);
-}
-button:hover:not(:disabled) > .ic > svg.i-heart.sn,
-button:focus-visible > .ic > svg.i-heart.sn,
-button:active:not(:disabled) > .ic > svg.i-heart.sn {
-  stroke-width: calc(var(--icon-stroke, 2) + 0.5);
-}
 /* нажатие: сердечко чуть сжимается на месте (сама кнопка лайка не сжимается) */
 button:active:not(:disabled) > .ic > svg.i-heart {
   stroke-width: 1.5;

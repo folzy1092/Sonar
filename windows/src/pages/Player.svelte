@@ -397,6 +397,8 @@
   }
   .art {
     position: relative;
+    /* обложка чуть ниже — под ней не остаётся пустоты до нижних панелей (решение владельца 2026-11-17) */
+    margin-top: 12px;
     border-radius: 18px;
     overflow: hidden;
     box-shadow: var(--mono-glow, none);
