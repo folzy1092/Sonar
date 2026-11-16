@@ -131,6 +131,14 @@
     }
   })
 
+  // Строка нижнего плеера живёт, пока он на экране, — и пока доигрывает анимация ухода. Раньше она
+  // схлопывалась сразу, и плеер обрывался вместо плавного ухода (жалоба владельца 2026-11-17).
+  let slotUp = $state(false)
+  function slotAlive(_node: HTMLElement) {
+    slotUp = true
+    return { destroy: () => (slotUp = false) }
+  }
+
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape' && settingsPanel.open && !lyrics.fullscreen) settingsPanel.close()
   }
@@ -144,7 +152,7 @@
 <SettingsPanel />
 
 <div class="stage">
-<div class="shell tabs-{settings.get('tabs.position')} tstyle-{settings.get('tabs.style')} mini-{settings.get('mini.position')}" class:away={settingsPanel.open} class:solo={settings.get('mini.style') === 'off' || !player.current || router.page === 'player'} inert={settingsPanel.open}>
+<div class="shell tabs-{settings.get('tabs.position')} tstyle-{settings.get('tabs.style')} mini-{settings.get('mini.position')}" class:away={settingsPanel.open} class:solo={!slotUp} inert={settingsPanel.open}>
   {#if settings.get('tabs.position') === 'top'}
     <!-- островок вкладок сверху узкий — окно таскается и за пустое место вокруг него -->
     <div class="top-drag" data-tauri-drag-region></div>
@@ -176,7 +184,7 @@
 
   <!-- пока ничего не играло — плеера снизу нет, главная на весь экран; появился трек — плеер выезжает -->
   {#if settings.get('mini.style') !== 'off' && player.current && router.page !== 'player'}
-    <div class="player-slot" transition:slide={{ duration: 280 }} use:floating={settings.get('mini.position') === 'floating'}>
+    <div class="player-slot" transition:slide={{ duration: 280 }} use:slotAlive use:floating={settings.get('mini.position') === 'floating'}>
       <MiniPlayer />
     </div>
   {/if}
@@ -376,6 +384,17 @@
   .shell.solo {
     grid-template-rows: minmax(0, 1fr) 0;
     row-gap: 0;
+  }
+  /* отступ над плеером тает вместе с ним, а не прыгает */
+  .shell {
+    transition-property: transform, filter, border-radius, box-shadow, row-gap;
+    transition-duration: var(--settings-t), var(--settings-t), var(--settings-t), var(--settings-t), 0.28s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shell {
+      transition-property: filter;
+      transition-duration: 0.2s;
+    }
   }
 
   /* ---- позиция мини-плеера (Плеер → Мини плеер, mini.position) ---- */

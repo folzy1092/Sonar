@@ -136,10 +136,28 @@
   .item.active {
     color: var(--text);
   }
+  :global(:root[data-nav='capsule']) .item,
+  :global(:root[data-nav='inset']) .item {
+    border-radius: 999px;
+  }
   :global(:root[data-nav='capsule']) .item.active {
     background-color: var(--accent);
     color: var(--accent-ink);
     --knob-fill: var(--accent);
+  }
+  /* капсула — вытянута вдоль панели */
+  :global(:root[data-nav='capsule']) .item {
+    width: 38px;
+    height: 50px;
+  }
+  :global(:root[data-nav='capsule'] .shell.tabs-top) .item,
+  :global(:root[data-nav='capsule'] .shell.tabs-bottom) .item {
+    width: 50px;
+    height: 38px;
+  }
+  /* иконка на капсуле — цветом текста на акценте, иначе акцент на акценте сливается в пятно */
+  :global(:root[data-nav='capsule']) .item.active :global(.ni) {
+    --accent: var(--accent-ink);
   }
   :global(:root[data-nav='plate']) .item.active {
     background-color: var(--surface-2);
@@ -149,9 +167,11 @@
     --knob-fill: var(--surface-2);
   }
   :global(:root[data-nav='inset']) .item.active {
-    background-color: color-mix(in oklch, var(--surface-1) 70%, #000);
-    box-shadow: inset 0 2px 4px oklch(0 0 0 / 0.5);
-    --knob-fill: color-mix(in oklch, var(--surface-1) 70%, #000);
+    background-color: color-mix(in oklch, var(--accent) 8%, var(--surface-1));
+    box-shadow:
+      inset 0 1px 3px oklch(0 0 0 / 0.45),
+      inset 0 -1px 0 oklch(1 0 0 / 0.05);
+    --knob-fill: color-mix(in oklch, var(--accent) 8%, var(--surface-1));
   }
   .item:active {
     transform: scale(0.9);
