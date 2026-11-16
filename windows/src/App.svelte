@@ -104,7 +104,7 @@
 
   // Панель справа — настройки зеркально: выезжают справа, окно уходит влево с наклоном в другую сторону
   $effect(() => {
-    document.documentElement.classList.toggle('side-right', settings.get('tabs.position') === 'right')
+    document.documentElement.classList.toggle('side-right', settings.get('tabs.position') === 'right' && !floatTabs)
   })
 
   // Вкладки: подстройка цвета под страницу и автоскрытие панелей, когда мышь замерла на 3 с
@@ -134,6 +134,8 @@
   // Строка нижнего плеера живёт, пока он на экране, — и пока доигрывает анимация ухода. Раньше она
   // схлопывалась сразу, и плеер обрывался вместо плавного ухода (жалоба владельца 2026-11-17).
   let slotUp = $state(false)
+  // плавающая панель вкладок парит над окном где угодно — сетка окна как без панели
+  const floatTabs = $derived(settings.get('tabs.style') === 'floating')
   function slotAlive(_node: HTMLElement) {
     slotUp = true
     return { destroy: () => (slotUp = false) }
@@ -152,15 +154,15 @@
 <SettingsPanel />
 
 <div class="stage">
-<div class="shell tabs-{settings.get('tabs.position')} tstyle-{settings.get('tabs.style')} mini-{settings.get('mini.position')}" class:away={settingsPanel.open} class:solo={!slotUp} inert={settingsPanel.open}>
-  {#if settings.get('tabs.position') === 'top'}
+<div class="shell tabs-{floatTabs ? 'left' : settings.get('tabs.position')} tstyle-{settings.get('tabs.style')} mini-{settings.get('mini.position')}" class:away={settingsPanel.open} class:solo={!slotUp} inert={settingsPanel.open}>
+  {#if settings.get('tabs.position') === 'top' && !floatTabs}
     <!-- островок вкладок сверху узкий — окно таскается и за пустое место вокруг него -->
     <div class="top-drag" data-tauri-drag-region></div>
   {/if}
   <Rail />
 
   <!-- панель сверху — кнопки окна на её правом конце, карточке вырез не нужен -->
-  <main class="card" class:own-head={floatHeader} class:fixed-page={fixedPages.includes(router.page)} use:notch={settings.get('tabs.position') === 'top' ? undefined : island}>
+  <main class="card" class:own-head={floatHeader} class:fixed-page={fixedPages.includes(router.page)} use:notch={settings.get('tabs.position') === 'top' && !floatTabs ? undefined : island}>
     {#if floatHeader}<div class="drag-strip" data-tauri-drag-region></div>{/if}
     <header class="top" data-tauri-drag-region>
       {#if withSearch.includes(router.page)}
@@ -478,6 +480,15 @@
   }
   .mini-floating .player-slot:global(.dragging) {
     cursor: grabbing;
+  }
+
+  /* плавающая панель вкладок (tabs.style = floating) — вне сетки, колонка под неё нулевая */
+  .shell.tstyle-floating {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+  .tstyle-floating .card,
+  .tstyle-floating .player-slot {
+    grid-column: 2;
   }
 
   /* ---- позиция вкладок (Интерфейс → Вкладки, tabs.position) ---- */
