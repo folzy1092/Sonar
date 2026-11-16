@@ -140,8 +140,9 @@ class Theme {
     const root = document.documentElement
     root.classList.toggle('amoled', !cover && !!p.black)
     const st = root.style
+    const SHADE = ['--bg', '--surface-0', '--surface-1', '--surface-2', '--surface-3']
     if (!c) {
-      for (const k of ['--accent', '--accent-ink', '--accent-soft', '--tint']) st.removeProperty(k)
+      for (const k of ['--accent', '--accent-ink', '--accent-soft', '--tint', ...SHADE]) st.removeProperty(k)
       return
     }
     const t = themeFrom(c)
@@ -149,6 +150,13 @@ class Theme {
     st.setProperty('--accent-ink', css(t.ink))
     st.setProperty('--accent-soft', css(t.accent, 0.14))
     st.setProperty('--tint', css(t.bg))
+    // окно и поверхности — в оттенке обложки (AMOLED — свой чистый чёрный, его не трогаем)
+    if (root.classList.contains('amoled')) {
+      for (const k of SHADE) st.removeProperty(k)
+    } else {
+      st.setProperty('--bg', css(t.base))
+      t.surfaces.forEach((v, i) => st.setProperty(`--surface-${i}`, css(v)))
+    }
   }
 }
 
