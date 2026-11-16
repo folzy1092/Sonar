@@ -26,7 +26,7 @@ export interface SettingsSub {
 
 export const SUBS: Record<SettingsTab, SettingsSub[]> = {
   account: [
-    { id: 'profile', title: 'Профиль', icon: 'user2', soon: true },
+    { id: 'profile', title: 'Профиль', icon: 'user2' },
     { id: 'login', title: 'Вход', icon: 'shield', soon: true },
     { id: 'privacy', title: 'Приватность', icon: 'lock', lock: true },
     { id: 'stats', title: 'Статистика', icon: 'bars' },

@@ -4,6 +4,7 @@
   import { router, type Page } from './router.svelte'
   import LogoMark from '../components/LogoMark.svelte'
   import { settingsPanel } from '../pages/settings-section.svelte'
+  import { settings } from '../lib/settings.svelte'
 
   const middle: { page: Page; icon: NavIconName; label: string }[] = [
     { page: 'player', icon: 'player', label: 'Плеер' },
@@ -53,8 +54,12 @@
     >
       <NavIcon name="settings" active={settingsPanel.open} />
     </button>
-    <button class="avatar" aria-label="Профиль" title="Профиль — вход появится вместе с сервером">
-      <NavIcon name="user" size={20} />
+    <button class="avatar" aria-label="Профиль" title="Профиль" onclick={() => settingsPanel.show('account', 'profile')}>
+      {#if settings.get('profile.avatar')}
+        <img class="me" src={settings.get('profile.avatar')} alt="" />
+      {:else}
+        <NavIcon name="user" size={20} />
+      {/if}
       <span class="online" aria-hidden="true"></span>
     </button>
   </div>
@@ -180,6 +185,12 @@
     background: var(--surface-3);
     color: var(--text-2);
     transition: transform var(--fast) var(--ease);
+  }
+  .avatar .me {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
   }
   .avatar:hover {
     transform: scale(1.06);

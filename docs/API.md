@@ -26,7 +26,7 @@
 | POST | `/reports` | баг / идея из приложения → `{id}` (BOT.md §2.10) |
 | DELETE | `/auth/telegram` | отвязать (только если есть пароль) → `204` |
 | PUT | `/me/password` | `{old_password?, new_password}` → `204` (`old` не нужен, если пароля не было) |
-| GET | `/me` | → `User` |
+| GET | `/me` | → `User` (Windows до сервера держит профиль в настройках `profile.name / username / avatar` — `SETTINGS.md`; с сервером берёт отсюда и шлёт правки `PATCH /me`) |
 | PATCH | `/me` | `{username?, display_name?, avatar?}` → `User` |
 | GET | `/me/devices` | → `[Device]` |
 | DELETE | `/me/devices/{id}` | завершить сессию → `204` |

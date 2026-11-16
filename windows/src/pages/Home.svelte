@@ -14,6 +14,7 @@
   import { tracksText } from '../lib/format'
   import { openRef } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
+  import { settings } from '../lib/settings.svelte'
   import { WAVE_MODES } from '../player/my-wave.svelte'
   import { reducedMotion } from '../lib/motion'
   import { cubicOut, cubicIn } from 'svelte/easing'
@@ -26,6 +27,11 @@
 
   const part = DAYPART_TEXT[daypart(new Date().getHours())]
   const hello = part.hello
+  // приветствие — из профиля Sonar (Аккаунт → Профиль), пусто — из подключённого сервиса
+  const me = $derived({
+    name: settings.get('profile.name') || home.account?.name || '',
+    avatar: settings.get('profile.avatar') || home.account?.avatar_url || '',
+  })
 
   // «Релизы недели»; за неделю у любимых ничего — показываем самые свежие под другим заголовком
   const week = $derived(weekReleases(home.releases))
@@ -162,10 +168,10 @@
 </section>
 
 <section class="block">
-  <h2>{hello}{#if home.account?.name},
+  <h2>{hello}{#if me.name},
       <span class="who">
-        {#if home.account.avatar_url}<img src={home.account.avatar_url} alt="" />{/if}
-        {home.account.name}
+        {#if me.avatar}<img src={me.avatar} alt="" />{/if}
+        {me.name}
       </span>{/if}</h2>
   {#if home.mix.length || home.recent.length}
     <Shelf>
