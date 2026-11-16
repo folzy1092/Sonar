@@ -163,6 +163,7 @@ pub fn run() {
       commands::obs_new_token,
       commands::lastfm_status,
       commands::lastfm_login,
+      commands::cancel_login,
       commands::lastfm_logout,
       commands::discord_status,
       commands::resolve_link,

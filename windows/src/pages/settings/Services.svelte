@@ -1,6 +1,7 @@
 <script lang="ts">
   import SourceIcon from '../../components/SourceIcon.svelte'
-  // Сервисы: вход в один клик (окно входа самого сервиса, ключи Sonar забирает сам — login.rs) или
+  // Сервисы: вход в один клик (ключи Sonar забирает сам — login.rs): Яндекс — в браузере по умолчанию
+  // по коду (Sonar показывает код и открывает ya.ru/device), SoundCloud — окном входа SoundCloud; или
   // вручную: SoundCloud (client_id + OAuth), Яндекс Музыка (токен). Хранятся в Диспетчере учётных
   // данных Windows (Rust, keyring), в интерфейс обратно не отдаются.
   import { slide } from 'svelte/transition'
@@ -8,6 +9,9 @@
   import Icon from '../../components/Icon.svelte'
   import { t } from '../../lib/i18n.svelte'
   import { api, errorText, type ServicesStatus } from '../../lib/api'
+  import { listen } from '@tauri-apps/api/event'
+  import { isTauri } from '../../lib/tauri'
+  import { toast } from '../../lib/toast.svelte'
 
   let status = $state<ServicesStatus | null>(null)
   let loadError = $state<string | null>(null)
@@ -21,6 +25,18 @@
   /** Ручной ввод ключей раскрыт. */
   let manual = $state<{ sc: boolean; ym: boolean }>({ sc: false, ym: false })
   let waiting = $state<'sc' | 'ym' | null>(null)
+  /** Код для ya.ru/device, пока ждём вход в Яндекс через браузер. */
+  let ymCode = $state<{ code: string; url: string } | null>(null)
+
+  async function copyCode() {
+    if (!ymCode) return
+    try {
+      await navigator.clipboard.writeText(ymCode.code)
+      toast.show(t('Код скопирован'))
+    } catch {
+      toast.show(t('Не получилось скопировать'))
+    }
+  }
 
   async function login(svc: 'soundcloud' | 'yandex') {
     const key = svc === 'soundcloud' ? 'sc' : 'ym'
@@ -35,8 +51,21 @@
       else ymError = errorText(e)
     } finally {
       waiting = null
+      ymCode = null
     }
   }
+
+  function cancelLogin() {
+    void api.cancelLogin().catch(() => {})
+  }
+
+  onMount(() => {
+    if (!isTauri) return
+    const off = listen<{ service: string; code: string; url: string }>('login:code', (e) => {
+      if (e.payload.service === 'yandex') ymCode = { code: e.payload.code, url: e.payload.url }
+    })
+    return () => void off.then((f) => f())
+  })
 
   onMount(async () => {
     try {
@@ -156,10 +185,21 @@
 
   <div class="one">
     <button class="primary big" disabled={waiting !== null} onclick={() => login('yandex')}>
-      {waiting === 'ym' ? t('Войди в открывшемся окне…') : status?.yandex.connected ? t('Войти заново') : t('Войти через Яндекс')}
+      {waiting === 'ym' ? t('Жду вход в браузере…') : status?.yandex.connected ? t('Войти заново') : t('Войти через Яндекс')}
     </button>
     <button class="toggle" class:on={manual.ym} onclick={() => (manual.ym = !manual.ym)}>{t('Вручную')}</button>
   </div>
+  {#if waiting === 'ym' && ymCode}
+    <!-- вход в браузере по умолчанию: код вводится на ya.ru/device, токен Sonar заберёт сам -->
+    <div class="device" transition:slide={{ duration: 220 }}>
+      <p>{t('В браузере открылась страница Яндекса — войди и введи код:')}</p>
+      <button class="code" title={t('Скопировать код')} onclick={copyCode}>{ymCode.code}</button>
+      <div class="device-actions">
+        <button class="ghost" onclick={() => ymCode && api.openUrl(ymCode.url)}>{t('Открыть страницу снова')}</button>
+        <button class="ghost" onclick={cancelLogin}>{t('Отмена')}</button>
+      </div>
+    </div>
+  {/if}
   {#if ymError && !manual.ym}<p class="error">{ymError}</p>{/if}
   {#if manual.ym}
   <div transition:slide={{ duration: 260 }}>
@@ -333,5 +373,40 @@
   }
   .note {
     color: var(--text-3);
+  }
+  .device {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 14px;
+    border-radius: var(--radius-l);
+    background: var(--surface-2);
+    border: 1px solid var(--card-line);
+  }
+  .device p {
+    margin: 0;
+    font-size: calc(13px * var(--fs, 1));
+    color: var(--text-2);
+  }
+  .code {
+    padding: 8px 16px;
+    border-radius: var(--radius-m);
+    background: var(--surface-3);
+    font-family: var(--font-display);
+    font-size: calc(26px * var(--fs, 1));
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    user-select: all;
+    transition: transform var(--fast) var(--ease);
+  }
+  .code:active {
+    transform: scale(0.97);
+  }
+  .device-actions {
+    display: flex;
+    gap: 8px;
   }
 </style>
