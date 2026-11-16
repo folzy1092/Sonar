@@ -149,6 +149,10 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       glass::set_glass,
       commands::set_track_cache,
+      commands::add_search_history,
+      commands::search_history,
+      commands::search_history_count,
+      commands::clear_search_history,
       commands::services_status,
       commands::sync_now,
       commands::artist_tracks,

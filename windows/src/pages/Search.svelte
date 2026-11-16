@@ -16,6 +16,7 @@
   import { player } from '../player/player.svelte'
   import { playStation } from '../player/autoplay.svelte'
   import { settings } from '../lib/settings.svelte'
+  import { searchHistory } from '../lib/search-history.svelte'
 
   const tabs = ['Все', 'Треки', 'Артисты', 'Альбомы', 'Плейлисты'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
@@ -30,6 +31,8 @@
   /** Трек из поиска: с «Авто похожими» — как в SoundCloud, он и следом похожие на него;
    *  без них — весь список результатов с этого трека. */
   function playTrack(i: number) {
+    const t = results[i]
+    if (t) searchHistory.add({ kind: 'track', query: search.query, ref: t.ref, title: t.title, subtitle: t.artist, cover_url: t.cover_url })
     if (settings.get('general.similar_autoplay')) void playStation(results[i])
     else void player.playList(results, i, 'search')
   }
@@ -57,7 +60,11 @@
         .catch(() => my === seq && (more = { artists: [], albums: [], playlists: [] }))
       try {
         const found = await api.search(q, src)
-        if (my === seq) results = found
+        if (my === seq) {
+          results = found
+          // запрос с результатами — в историю (только если 1.2 с его не меняли)
+          if (found.length) setTimeout(() => my === seq && searchHistory.add({ kind: 'query', query: q }), 1200)
+        }
       } catch (e) {
         if (my === seq) {
           results = []
@@ -121,7 +128,7 @@
           image={a.avatar_url}
           icon="user"
           round
-          onclick={() => openRef(a.ref)}
+          onclick={() => (searchHistory.add({ kind: 'artist', query: search.query, ref: a.ref, title: a.name, cover_url: a.avatar_url }), openRef(a.ref))}
         />
       {/each}
     </div>
@@ -130,7 +137,7 @@
     <h2>Альбомы</h2>
     <div class:row={all} class:grid={!all} use:cascade={more} use:hscroll use:edges>
       {#each more.albums as a (a.ref)}
-        <Tile title={a.title} subtitle={a.artist} meta={a.year ? String(a.year) : undefined} image={a.cover_url} icon="disc" onclick={() => openRef(a.ref)} />
+        <Tile title={a.title} subtitle={a.artist} meta={a.year ? String(a.year) : undefined} image={a.cover_url} icon="disc" onclick={() => (searchHistory.add({ kind: 'album', query: search.query, ref: a.ref, title: a.title, subtitle: a.artist, cover_url: a.cover_url }), openRef(a.ref))} />
       {/each}
     </div>
   {/if}
@@ -138,7 +145,7 @@
     <h2>Плейлисты</h2>
     <div class:row={all} class:grid={!all} use:cascade={more} use:hscroll use:edges>
       {#each more.playlists as p (p.ref)}
-        <Tile title={p.title} subtitle={p.owner} meta={p.track_count ? tracksText(p.track_count) : undefined} image={p.cover_url} onclick={() => openRef(p.ref)} />
+        <Tile title={p.title} subtitle={p.owner} meta={p.track_count ? tracksText(p.track_count) : undefined} image={p.cover_url} onclick={() => (searchHistory.add({ kind: 'playlist', query: search.query, ref: p.ref, title: p.title, subtitle: p.owner, cover_url: p.cover_url }), openRef(p.ref))} />
       {/each}
     </div>
   {/if}
