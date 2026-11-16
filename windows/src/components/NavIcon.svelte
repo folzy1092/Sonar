@@ -6,7 +6,7 @@
   let { name, active = false, size = 24 }: { name: NavIconName; active?: boolean; size?: number } = $props()
 </script>
 
-<span class="ni" class:active style:--s="{size}px" aria-hidden="true">
+<span class="ni n-{name}" class:active style:--s="{size}px" aria-hidden="true">
   <svg class="line" viewBox="0 0 24 24">{@html navIcons[name].line}</svg>
   <svg class="fill" viewBox="0 0 24 24">{@html navIcons[name].fill}</svg>
 </span>
@@ -39,5 +39,35 @@
   .active .line {
     opacity: 0;
     transform: scale(1.12);
+  }
+  /* Медиатека: в покое — закрытая папка, выбрали — крышка откидывается вперёд и папка
+     раскрывается (лёгкий перелёт и возврат), ушли — снова закрывается */
+  .n-library .fill {
+    transform-origin: 50% 88%;
+  }
+  .n-library.active .fill {
+    animation: folder-open 0.62s cubic-bezier(0.34, 1.4, 0.5, 1);
+  }
+  .n-library.active .line {
+    transform: perspective(40px) rotateX(-35deg) scale(0.96);
+    transform-origin: 50% 88%;
+  }
+  @keyframes folder-open {
+    0% {
+      opacity: 0;
+      transform: perspective(40px) rotateX(48deg) scaleY(0.82);
+    }
+    55% {
+      opacity: 1;
+      transform: perspective(40px) rotateX(-10deg) scaleY(1.04);
+    }
+    100% {
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .n-library.active .fill {
+      animation: none;
+    }
   }
 </style>
