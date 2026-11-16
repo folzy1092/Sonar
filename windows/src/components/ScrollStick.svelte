@@ -11,17 +11,26 @@
   let progress = $state(0)
   let scrollable = $state(false)
   let track: HTMLDivElement | undefined = $state()
+  let stick: HTMLSpanElement | undefined = $state()
   let dragging = $state(false)
+  let raf = 0
 
   const STICK = 34
 
   $effect(() => {
     const el = target
     if (!el) return
+    // палочка идёт за прокруткой кадр в кадр: transform прямо в DOM, без перехода (переход на
+    // каждый шаг колеса перезапускался и давал рывки)
     const update = () => {
-      const max = el.scrollHeight - el.clientHeight
-      scrollable = max > 4
-      progress = max > 0 ? el.scrollTop / max : 0
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const max = el.scrollHeight - el.clientHeight
+        const p = max > 0 ? el.scrollTop / max : 0
+        if (scrollable !== max > 4) scrollable = max > 4
+        progress = p
+        if (stick && track) stick.style.transform = `translate(${p * (track.clientWidth - STICK)}px, -50%)`
+      })
     }
     update()
     el.addEventListener('scroll', update, { passive: true })
@@ -30,6 +39,7 @@
     const mo = new MutationObserver(update)
     mo.observe(el, { childList: true, subtree: true })
     return () => {
+      cancelAnimationFrame(raf)
       el.removeEventListener('scroll', update)
       ro.disconnect()
       mo.disconnect()
@@ -65,7 +75,7 @@
   onpointermove={(e) => dragging && scrollTo(e.clientX, false)}
   onpointerup={() => (dragging = false)}
 >
-  <span class="stick" style:--p={progress} style:--w="{STICK}px"></span>
+  <span class="stick" bind:this={stick} style:--w="{STICK}px"></span>
 </div>
 
 <style>
@@ -98,15 +108,14 @@
   .stick {
     position: absolute;
     top: 50%;
-    left: calc(var(--p) * (100% - var(--w)));
+    left: 0;
     width: var(--w);
     height: 4px;
-    translate: 0 -50%;
+    transform: translate(0, -50%);
+    will-change: transform;
     border-radius: 4px;
     background: color-mix(in srgb, var(--text) 55%, transparent);
-    /* палочка доезжает плавно, как мини-плеер в Dotify; пока тянешь — без задержки */
     transition:
-      left 0.45s cubic-bezier(0.22, 1, 0.36, 1),
       height var(--fast) var(--ease),
       background var(--fast) var(--ease);
   }
