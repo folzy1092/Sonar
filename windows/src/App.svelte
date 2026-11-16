@@ -18,6 +18,7 @@
   import UpdatePopup from './app/UpdatePopup.svelte'
   import CrashNotice from './app/CrashNotice.svelte'
   import { updater } from './lib/updater.svelte'
+  import { mini } from './lib/mini.svelte'
   import { library } from './lib/library.svelte'
   import { onMount } from 'svelte'
   import { player } from './player/player.svelte'
@@ -62,6 +63,7 @@
     lyrics.init()
     void library.load()
     updater.init()
+    mini.start()
   })
 
   /** Боковые кнопки мыши: «назад» (button 3) и «вперёд» (button 4). В полноэкранном

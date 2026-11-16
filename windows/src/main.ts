@@ -6,6 +6,7 @@ import '@fontsource-variable/roboto-flex/full.css'
 import './theme/fonts.css'
 import './app.css'
 import App from './App.svelte'
+import MiniWindow from './app/MiniWindow.svelte'
 import { player } from './player/player.svelte'
 import { router } from './app/router.svelte'
 import { lyrics } from './lyrics/lyrics.svelte'
@@ -16,7 +17,14 @@ import { isTauri } from './lib/tauri'
 // ошибки интерфейса — в журнал сессии (после сбоя при следующем запуске предложим отправить лог)
 if (isTauri) catchErrors()
 
-const app = mount(App, {
+// мини-окно (mini.rs) открывает тот же index.html с #mini — там только плашка, без плеера и заставки
+const isMini = location.hash === '#mini'
+if (isMini) {
+  document.documentElement.classList.add('mini-window')
+  document.getElementById('splash')?.remove()
+}
+
+const app = mount(isMini ? MiniWindow : App, {
   target: document.getElementById('app')!,
 })
 
