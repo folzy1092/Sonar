@@ -19,6 +19,6 @@ export interface Line {
 
 export interface Lyrics {
   isSynced: boolean
-  source: 'lrclib' | 'genius' | 'server'
+  source: 'lrclib' | 'netease' | 'genius' | 'server'
   lines: Line[]
 }
