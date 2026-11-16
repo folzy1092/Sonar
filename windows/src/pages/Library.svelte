@@ -149,6 +149,7 @@
     meta={p.track_count ? tracksText(p.track_count) : undefined}
     image={p.cover_url}
     icon={p.ref.endsWith('likes') ? 'heart' : 'music'}
+    art={p.ref.endsWith('likes') && !p.cover_url ? (p.ref.startsWith('sc') ? scLikeArt : ymLikeArt) : undefined}
     onclick={() => openRef(p.ref)}
     oncontextmenu={(e) => {
       e.preventDefault()
@@ -157,6 +158,8 @@
   />
 {/snippet}
 
+{#snippet scLikeArt()}<span class="svc-like"><SourceIcon kind="sc" size={56} mono /></span>{/snippet}
+{#snippet ymLikeArt()}<span class="svc-like"><SourceIcon kind="ym" size={52} mono /></span>{/snippet}
 {#snippet favArt()}<NavIcon name="heart" active size={44} />{/snippet}
 
 {#if tab === 'Все' || tab === 'Плейлисты'}
@@ -510,5 +513,11 @@
   }
   .actions button:active {
     transform: scale(0.9);
+  }
+  /* «Лайки SoundCloud» / «Мне нравится» — знак сервиса цветом темы, как сердце «Любимых» */
+  .svc-like {
+    display: grid;
+    color: var(--accent);
+    transition: color 0.6s var(--ease);
   }
 </style>
