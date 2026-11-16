@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../lib/i18n.svelte'
   // Система → Общее по pc/Screenshot_16: язык, платформа волны, медиатека (добавление, облако), запуск
   // (автозапуск, трей, экономия ресурсов), внизу — о приложении (AboutBlock). «Продолжить с прошлого
 // раза» и «Авто похожие» — в Очереди.
@@ -46,15 +47,15 @@
 </script>
 
 <Select
-  title="Язык"
-  hint="Язык интерфейса"
-  value="ru"
+  title={t('Язык')}
+  hint={t('Язык интерфейса')}
+  value={settings.get('general.language')}
   options={[
-    { id: 'ru', label: 'Русский', flag: 'ru' },
-    { id: 'en', label: 'English', flag: 'en', soon: true },
-    { id: 'uk', label: 'Українська', flag: 'uk', soon: true },
+    { id: 'ru' as const, label: 'Русский', flag: 'ru' },
+    { id: 'en' as const, label: 'English', flag: 'en' },
+    { id: 'uk' as const, label: 'Українська', flag: 'uk' },
   ]}
-  onchange={() => {}}
+  onchange={(v) => settings.set('general.language', v)}
 />
 <Choice
   title="Платформа"

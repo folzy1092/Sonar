@@ -135,6 +135,10 @@ class Theme {
         else root.style.removeProperty('--menu-blur')
         if (isTauri) void api.setGlass(on).catch(() => {})
       })
+      // язык документа — для переносов, чтения с экрана и шрифтов
+      $effect(() => {
+        document.documentElement.lang = settings.get('general.language')
+      })
       // кэш треков на диске (Система → Хранилище) — настройки уходят в Rust при запуске и при смене
       $effect(() => {
         const on = settings.get('storage.cache_tracks')
