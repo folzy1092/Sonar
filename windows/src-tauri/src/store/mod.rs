@@ -211,11 +211,21 @@ pub fn new_id(prefix: &str) -> String {
 
 pub struct Store {
   db: Connection,
+  /// Копия настроек рядом с базой (`settings-backup.json`): таблица настроек оказалась пустой —
+  /// настройки восстанавливаются из неё (жалоба владельца 2026-11-16: «после обновления слетели»).
+  backup: Option<std::path::PathBuf>,
 }
 
 impl Store {
   pub fn open(path: &Path) -> Result<Self> {
-    Self::init(Connection::open(path)?)
+    let mut store = Self::init(Connection::open(path)?)?;
+    store.backup = Some(path.with_file_name("settings-backup.json"));
+    match store.restore_settings_if_empty() {
+      Ok(n) if n > 0 => log::warn!("настройки были пустыми — восстановлено из копии: {n}"),
+      Ok(_) => store.backup_settings(),
+      Err(e) => log::warn!("копия настроек не читается: {e}"),
+    }
+    Ok(store)
   }
 
   #[cfg(test)]
@@ -229,7 +239,7 @@ impl Store {
     for (i, sql) in MIGRATIONS.iter().enumerate().skip(version as usize) {
       db.execute_batch(&format!("BEGIN; {sql} PRAGMA user_version = {}; COMMIT;", i + 1))?;
     }
-    let store = Self { db };
+    let store = Self { db, backup: None };
     // у устройства свой id (журнал волны и синк знают, откуда событие); старые события — с него же
     let device = store.device_id()?;
     store.db.execute("UPDATE wave_events SET device_id = ?1 WHERE device_id = ''", [&device])?;
@@ -398,6 +408,7 @@ impl Store {
        ON CONFLICT(user_id, key) DO UPDATE SET value_json = ?3, client_ts = ?4, rev = ?5",
       params![LOCAL_USER, key, value.to_string(), now_ms(), rev],
     )?;
+    self.backup_settings();
     Ok(())
   }
 

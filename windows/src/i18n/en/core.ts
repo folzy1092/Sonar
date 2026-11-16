@@ -2,4 +2,5 @@
 export default {
   Язык: 'Language',
   'Язык интерфейса': 'Interface language',
+  'Убрать из очереди': 'Remove from queue',
 } satisfies Record<string, string>

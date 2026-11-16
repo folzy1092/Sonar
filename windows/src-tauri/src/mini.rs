@@ -19,7 +19,9 @@ pub fn toggle(app: &AppHandle, show: bool) -> Result<bool> {
       let _ = w.set_focus();
       return Ok(true);
     }
-    let _ = w.close();
+    // destroy, а не close: закрывает окно, даже если его страница зависла или занята (иначе мог
+    // остаться «фантом» — плашка «Ничего не играет», которую не закрыть и не сдвинуть)
+    let _ = w.destroy();
     crate::tray::show_main(app);
     return Ok(false);
   }

@@ -25,13 +25,15 @@
     /** Строка своего плейлиста — в меню появится «Убрать из плейлиста». */
     playlistId?: string
     itemId?: string
+    /** Строка «Далее» в очереди плеера (номер в upNext) — в меню «Убрать из очереди». */
+    queueAt?: number
     onplay: () => void
   }
 
-  let { track, index, variant = 'list', addedAt, playlistId, itemId, onplay }: Props = $props()
+  let { track, index, variant = 'list', addedAt, playlistId, itemId, queueAt, onplay }: Props = $props()
   const isCurrent = $derived(player.current?.ref === track.ref)
   const liked = $derived(library.isLiked(track.ref))
-  const target = $derived({ track, addedAt, playlistId, itemId })
+  const target = $derived({ track, addedAt, playlistId, itemId, queueAt })
   const LOCALES = { ru: 'ru-RU', en: 'en-US', uk: 'uk-UA' } as const
 
   function activate() {

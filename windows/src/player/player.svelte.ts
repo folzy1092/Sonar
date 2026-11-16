@@ -301,6 +301,17 @@ class Player {
     this.saveState()
   }
 
+  /** Убрать трек из «Далее» (номер в upNext) — меню трека в очереди. */
+  removeUpcoming(upNextIndex: number) {
+    const at = this.pos + 1 + upNextIndex
+    const idx = this.order[at]
+    if (idx === undefined) return
+    const out = dropUpcoming(this.tracks.map((tr, i) => ({ tr, i })), this.order, this.pos, (x) => x.i === idx)
+    this.tracks = out.tracks.map((x) => x.tr)
+    this.order = out.order
+    this.saveState()
+  }
+
   /** Убрать из «Далее» похожие автоплея (тумблер выключили). Текущий и сыгранные остаются. */
   dropAuto() {
     const auto = this.autoRefs

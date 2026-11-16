@@ -90,11 +90,15 @@
   })
 
   /** «Магнит» (идея владельца 2026-11-16, как в Liner): прокрутка встаёт на место сразу, а строки
-   *  догоняют её сами — первой уходит только что спетая, каждая следующая на 70 мс позже, по
-   *  кривой с мягким разгоном и торможением. Текст подтягивается вверх лесенкой, а не блоком.
+   *  догоняют её сами — первой уходит только что спетая, каждая следующая на 45 мс позже и чуть
+   *  быстрее (нижние строки не отстают — просьба владельца 2026-11-16), по кривой с мягким разгоном
+   *  и торможением. Текст подтягивается вверх лесенкой, а не блоком.
    *  Двигается `translate` — он складывается со стилем строки (`transform`), не мешая ему. */
   const MAGNET_MS = 780
-  const MAGNET_STEP = 70
+  const MAGNET_STEP = 45
+  /** На сколько короче анимация каждой следующей строки и предел (нижние догоняют быстрее). */
+  const MAGNET_SHORTEN = 40
+  const MAGNET_MIN_MS = 540
   const MAGNET_EASE = 'cubic-bezier(0.6, 0, 0.25, 1)'
   function magnet(to: number, prev: number) {
     const sc = scroller
@@ -117,10 +121,10 @@
         running.cancel()
       }
       if (line.offsetTop + line.offsetHeight < view0 || line.offsetTop > view1) return
-      const order = Math.max(0, j - prev)
+      const order = Math.min(Math.max(0, j - prev), 6)
       const a = line.animate([{ translate: `0 ${from}px` }, { translate: '0 0' }], {
-        duration: MAGNET_MS,
-        delay: Math.min(order, 10) * MAGNET_STEP,
+        duration: Math.max(MAGNET_MIN_MS, MAGNET_MS - order * MAGNET_SHORTEN),
+        delay: order * MAGNET_STEP,
         easing: MAGNET_EASE,
         fill: 'backwards',
       })

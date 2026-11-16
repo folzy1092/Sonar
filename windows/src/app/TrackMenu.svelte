@@ -112,7 +112,13 @@
 
     {#if view === 'main'}
       {@render item('playNext', t('Следующим'), () => player.addToQueue([target.track], true))}
-      {@render item('queue', t('В очередь'), () => player.addToQueue([target.track], false))}
+      {#if target.queueAt !== undefined}
+        <!-- трек уже в «Далее» — его можно убрать, а не добавить ещё раз -->
+        {@const at = target.queueAt}
+        {@render item('trash', t('Убрать из очереди'), () => player.removeUpcoming(at))}
+      {:else}
+        {@render item('queue', t('В очередь'), () => player.addToQueue([target.track], false))}
+      {/if}
       {@render item('bolt', t('Волна по треку'), () => wave.start(target.track))}
       <hr />
       {@render item('heart', liked ? t('Удалить из Любимых') : t('В Любимые'), () => library.toggleLike(target.track), liked)}
