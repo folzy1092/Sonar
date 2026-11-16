@@ -6,7 +6,7 @@
   import CountUp from '../../components/CountUp.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Choice from '../../components/settings/Choice.svelte'
-  import Soon from '../../components/settings/Soon.svelte'
+  import { searchHistory } from '../../lib/search-history.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { api, type StorageUsage } from '../../lib/api'
   import { plural } from '../../lib/format'
@@ -21,12 +21,19 @@
   const total = $derived(usage ? usage.tracks_bytes + usage.covers_bytes + usage.lyrics_bytes + usage.db_bytes : 0)
   const part = (b: number) => (total ? Math.max(2, (b / total) * 100) : 0)
 
+  let historyCount = $state(0)
   async function refresh() {
     try {
       usage = await api.storageUsage()
     } catch {
       usage = null
     }
+    historyCount = await api.searchHistoryCount().catch(() => 0)
+  }
+  async function clearHistory() {
+    await searchHistory.clear()
+    toast.show('История поиска очищена')
+    await refresh()
   }
   onMount(refresh)
 
@@ -92,9 +99,9 @@
   </Group>
 
   <Group title="Данные">
-    <div class="row off">
-      <span class="text"><b>История поиска <Soon /></b><small>Запросы и открытые из поиска результаты</small></span>
-      <button class="link" disabled>Очистить</button>
+    <div class="row">
+      <span class="text"><b>История поиска</b><small>{historyCount} {plural(historyCount, ['запись', 'записи', 'записей'])} — запросы и открытые из поиска результаты</small></span>
+      <button class="link" disabled={!historyCount} onclick={clearHistory}>Очистить</button>
     </div>
     <div class="row">
       <span class="text">
@@ -150,9 +157,6 @@
   .tracks {
     background: var(--text);
     opacity: 0.4;
-  }
-  .row.off .text small {
-    opacity: 0.6;
   }
   .row {
     display: flex;

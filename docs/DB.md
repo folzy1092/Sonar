@@ -193,6 +193,19 @@ CREATE TABLE dislikes (                         -- 👎 своей волны (S
   PRIMARY KEY (user_id, ref)
 );
 
+CREATE TABLE search_history (                   -- история поиска (миграция 9), только локально, в синк не идёт
+  id            INTEGER PRIMARY KEY,
+  user_id       TEXT NOT NULL,
+  kind          TEXT NOT NULL,                  -- query | track | artist | album | playlist
+  query         TEXT NOT NULL DEFAULT '',       -- запрос (у результата — с которого открыли)
+  ref           TEXT,                           -- открытый результат
+  title         TEXT,
+  subtitle      TEXT,
+  cover_url     TEXT,
+  at            INTEGER NOT NULL
+);                                              -- повтор поднимает наверх, храним последние 100
+CREATE INDEX search_history_time ON search_history(user_id, at);
+
 CREATE TABLE skips (                            -- ручной пропуск в волне с оценкой < 0 (WAVE.md 1.3) — минус артисту и треку
   id            INTEGER PRIMARY KEY,
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

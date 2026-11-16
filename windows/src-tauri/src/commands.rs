@@ -1103,6 +1103,27 @@ pub fn clear_storage(db: State<'_, Db>, kind: String) -> Res<()> {
   Ok(())
 }
 
+/// История поиска: записать запрос или открытый из поиска результат.
+#[tauri::command]
+pub fn add_search_history(db: State<'_, Db>, entry: crate::store::SearchEntry) -> Res<()> {
+  db.0.lock().unwrap().add_search(&entry).map_err(err)
+}
+
+#[tauri::command]
+pub fn search_history(db: State<'_, Db>, limit: Option<usize>) -> Res<Vec<crate::store::SearchEntry>> {
+  db.0.lock().unwrap().search_history(limit.unwrap_or(20)).map_err(err)
+}
+
+#[tauri::command]
+pub fn search_history_count(db: State<'_, Db>) -> Res<i64> {
+  db.0.lock().unwrap().search_history_count().map_err(err)
+}
+
+#[tauri::command]
+pub fn clear_search_history(db: State<'_, Db>) -> Res<()> {
+  db.0.lock().unwrap().clear_search_history().map_err(err)
+}
+
 /// Кэш треков (Хранилище): включить / выключить и лимит, МБ.
 #[tauri::command]
 pub fn set_track_cache(on: bool, limit_mb: u64) {

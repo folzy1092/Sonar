@@ -8,6 +8,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+mod search;
 mod stats;
 mod sync;
 mod system;
@@ -15,6 +16,7 @@ mod wave;
 mod wave_events;
 pub use stats::Stats;
 pub use sync::{Change, Op, PlayUpload};
+pub use search::SearchEntry;
 pub use wave::Taste;
 pub use wave_events::{ServedEvent, WaveStats};
 
@@ -120,6 +122,12 @@ DROP TABLE wave_events;
 ALTER TABLE wave_events_v8 RENAME TO wave_events;
 CREATE INDEX wave_events_time ON wave_events(user_id, served_at);
 CREATE INDEX wave_events_ref ON wave_events(session_id, ref);
+"#, r#"
+CREATE TABLE search_history (
+  id INTEGER PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, query TEXT NOT NULL DEFAULT '',
+  ref TEXT, title TEXT, subtitle TEXT, cover_url TEXT, at INTEGER NOT NULL
+);
+CREATE INDEX search_history_time ON search_history(user_id, at);
 "#];
 
 pub fn now_ms() -> i64 {

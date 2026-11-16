@@ -343,6 +343,10 @@ export const api = {
   resetSettings: () => call<void>('reset_settings'),
   storageUsage: () => call<StorageUsage>('storage_usage'),
   clearStorage: (kind: 'covers' | 'tracks' | 'lyrics' | 'track_prefs' | 'all') => call<void>('clear_storage', { kind }),
+  addSearchHistory: (entry: import('./search-history.svelte').SearchEntry) => call<void>('add_search_history', { entry }),
+  searchHistory: (limit = 20) => call<import('./search-history.svelte').SearchEntry[]>('search_history', { limit }),
+  searchHistoryCount: () => call<number>('search_history_count'),
+  clearSearchHistory: () => call<void>('clear_search_history'),
   /** Кэш треков на диске (Хранилище): включить и лимит, МБ (track_cache.rs). */
   setTrackCache: (on: boolean, limitMb: number) => call<void>('set_track_cache', { on, limitMb }),
   openUrl: (url: string) => call<void>('open_url', { url }),
