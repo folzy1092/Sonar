@@ -257,6 +257,8 @@ export const api = {
     session?: Track[]
     /** Артисты, пропущенные в сессии хотя бы раз. */
     skipped_artists?: string[]
+    /** Пропущенные в сессии треки (оценка < 0): их теги идут в минус следующим порциям. */
+    skipped_tracks?: Track[]
     /** Артисты всех выданных в сессии треков (с повторами). */
     served_artists?: string[]
     n?: number
