@@ -11,5 +11,10 @@ iPhone. Взят из Shadow (`third-party/zsign`, основа — `khcrysalis/
   MAC на SHA-256);
 - `shim/openssl/sha.h` — SHA из CommonCrypto.
 
+Изменено в Sonar: `bundle.cpp`, `GenerateCodeResources` — условие удаления `embedded.mobileprovision`
+было перевёрнуто относительно остального кода (`bRemoveProvision = true` в этом форке значит «положить
+профиль»), и профиль, записанный в `SignFolder`, тут же удалялся. Теперь он остаётся и запечатан в
+`CodeResources` (проверяет `SigningTests.testSignsDummyApp`).
+
 Своё в Sonar — только обёртка `ZsignSigner` (`include/Zsign/ZsignSigner.h`, `ZsignSigner.mm`):
 `sign(appPath:provisionPath:p12Path:password:)` и `check(...)`, ошибки — текстом по-русски.

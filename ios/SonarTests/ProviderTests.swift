@@ -162,3 +162,39 @@ final class ProviderTests: XCTestCase {
         XCTAssertEqual(MusicCore.qualityKbps("lossless"), 1411)
     }
 }
+
+/// Очередь — те же случаи, что `windows/src/player/queue.test.ts`.
+final class QueueTests: XCTestCase {
+    func testMakeOrder() {
+        XCTAssertEqual(QueueMath.makeOrder(length: 4, current: 2, shuffle: false), [0, 1, 2, 3])
+        let order = QueueMath.makeOrder(length: 6, current: 3, shuffle: true, random: { 0.42 })
+        XCTAssertEqual(order.first, 3)
+        XCTAssertEqual(order.sorted(), [0, 1, 2, 3, 4, 5])
+    }
+
+    func testNextPos() {
+        XCTAssertEqual(QueueMath.nextPos(0, length: 3, repeat: .off, manual: false), 1)
+        XCTAssertNil(QueueMath.nextPos(2, length: 3, repeat: .off, manual: false))
+        XCTAssertEqual(QueueMath.nextPos(2, length: 3, repeat: .all, manual: false), 0)
+        XCTAssertEqual(QueueMath.nextPos(1, length: 3, repeat: .one, manual: false), 1)
+        XCTAssertEqual(QueueMath.nextPos(1, length: 3, repeat: .one, manual: true), 2)
+        XCTAssertNil(QueueMath.nextPos(0, length: 0, repeat: .all, manual: true))
+    }
+
+    func testPrevPos() {
+        XCTAssertEqual(QueueMath.prevPos(2, length: 3, repeat: .off), 1)
+        XCTAssertEqual(QueueMath.prevPos(0, length: 3, repeat: .off), 0)
+        XCTAssertEqual(QueueMath.prevPos(0, length: 3, repeat: .all), 2)
+    }
+
+    func testCountsAsPlayAndEnqueue() {
+        XCTAssertTrue(QueueMath.countsAsPlay(listenedMs: 30_000, durationMs: 200_000))
+        XCTAssertFalse(QueueMath.countsAsPlay(listenedMs: 29_000, durationMs: 200_000))
+        XCTAssertTrue(QueueMath.countsAsPlay(listenedMs: 20_000, durationMs: 40_000))
+        XCTAssertEqual(QueueMath.enqueue(order: [0, 1, 2], pos: 0, newIndex: 3, next: true), [0, 3, 1, 2])
+        XCTAssertEqual(QueueMath.enqueue(order: [0, 1, 2], pos: 0, newIndex: 3, next: false), [0, 1, 2, 3])
+        XCTAssertEqual(QueueMath.enqueue(order: [], pos: 0, newIndex: 0, next: true), [0])
+        XCTAssertEqual(RepeatMode.off.next, .all)
+        XCTAssertEqual(RepeatMode.one.next, .off)
+    }
+}
