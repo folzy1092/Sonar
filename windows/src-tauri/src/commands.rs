@@ -44,14 +44,28 @@ pub async fn connect_yandex(core: State<'_, Arc<Core>>, token: String) -> Res<Se
 
 /// Подключить сервис в один клик: окно входа самого сервиса, ключи Sonar забирает сам (login.rs).
 #[tauri::command]
-pub async fn login_service(app: tauri::AppHandle, core: State<'_, Arc<Core>>, service: String) -> Res<ServiceStatus> {
+pub async fn login_service(app: tauri::AppHandle, core: State<'_, Arc<Core>>, db: State<'_, Db>, service: String) -> Res<ServiceStatus> {
   let core = core.inner().clone();
   match service.as_str() {
-    "yandex" => crate::login::yandex(app, core).await,
+    // Яндекс — в браузере по умолчанию по коду; вход по коду недоступен — прежнее окно
+    "yandex" => {
+      let device = db.0.lock().unwrap().device_id().unwrap_or_else(|_| "sonar-windows".into());
+      match crate::login::yandex_device(&app, &core, &device).await {
+        Ok(Some(s)) => Ok(s),
+        Ok(None) => crate::login::yandex(app, core).await,
+        Err(e) => Err(e),
+      }
+    }
     "soundcloud" => crate::login::soundcloud(app, core).await,
     _ => Err(anyhow::anyhow!("Неизвестный сервис: {service}")),
   }
   .map_err(err)
+}
+
+/// «Отмена» входа через браузер (Яндекс по коду, Last.fm).
+#[tauri::command]
+pub fn cancel_login() {
+  crate::login::cancel();
 }
 
 #[tauri::command]
@@ -1133,20 +1147,7 @@ pub fn set_track_cache(on: bool, limit_mb: u64) {
 /// Открыть ссылку в браузере (только https; «О приложении»: канал, сайт).
 #[tauri::command]
 pub fn open_url(url: String) -> Res<()> {
-  if !url.starts_with("https://") {
-    return Err("можно открыть только https-ссылку".into());
-  }
-  #[cfg(windows)]
-  {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    std::process::Command::new("rundll32")
-      .args(["url.dll,FileProtocolHandler", &url])
-      .creation_flags(CREATE_NO_WINDOW)
-      .spawn()
-      .map_err(err)?;
-  }
-  Ok(())
+  crate::login::open_in_browser(&url).map_err(err)
 }
 
 /// Ярлык Sonar в меню «Пуск» — `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Sonar.lnk`.

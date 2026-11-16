@@ -1,6 +1,6 @@
 //! Last.fm (решение владельца 2026-11-16): вход в один клик и скробблинг прямо из клиента.
 //!
-//! Вход — веб-авторизация Last.fm для десктопа: `auth.getToken` → окно `last.fm/api/auth` (как вход
+//! Вход — веб-авторизация Last.fm для десктопа: `auth.getToken` → страница `last.fm/api/auth` в браузере по умолчанию (как вход
 //! в сервисы, `login.rs`) → пользователь жмёт «Yes, allow access» → `auth.getSession` даёт ключ
 //! сессии; он и имя хранятся в keyring (`lastfm`). Дальше «Сейчас играет»
 //! (`track.updateNowPlaying`) на смену трека и скроббл (`track.scrobble`) на каждое засчитанное
@@ -12,8 +12,7 @@ use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::time::Duration;
-use tauri::webview::NewWindowResponse;
-use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::AppHandle;
 
 const API: &str = "https://ws.audioscrobbler.com/2.0/";
 const SECRET_NAME: &str = "lastfm";
@@ -85,38 +84,20 @@ async fn call(http: &reqwest::Client, mut params: BTreeMap<&str, String>, signed
   Ok(v)
 }
 
-/// Вход: окно Last.fm с «Разрешить доступ», ждём подтверждения (до 10 минут), сохраняем сессию.
-pub async fn login(app: AppHandle, http: reqwest::Client) -> Result<Status> {
+/// Вход: страница Last.fm «Разрешить доступ» открывается в браузере, выбранном в Windows; ждём
+/// подтверждения (до 10 минут, «Отмена» в настройках обрывает), сохраняем сессию.
+pub async fn login(_app: AppHandle, http: reqwest::Client) -> Result<Status> {
   let v = call(&http, BTreeMap::from([("method", "auth.getToken".to_owned())]), true, false).await?;
   let token = v["token"].as_str().ok_or_else(|| anyhow!("Last.fm не выдал токен"))?.to_owned();
   let (key, _) = keys().ok_or_else(|| anyhow!("нет ключа Last.fm"))?;
-  let url = Url::parse(&format!("https://www.last.fm/api/auth/?api_key={key}&token={token}"))?;
-  if let Some(old) = app.get_webview_window("login-lastfm") {
-    let _ = old.close();
-  }
-  let dir = app.path().app_local_data_dir()?.join("login-webview");
-  let w = WebviewWindowBuilder::new(&app, "login-lastfm", WebviewUrl::External(url))
-    .data_directory(dir)
-    .title("Вход в Last.fm — Sonar")
-    .inner_size(520.0, 720.0)
-    .center()
-    .focused(true)
-    .on_new_window(|_, _| NewWindowResponse::Allow)
-    .build()?;
-  let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<()>();
-  w.on_window_event(move |e| {
-    if matches!(e, WindowEvent::Destroyed) {
-      let _ = tx.send(());
-    }
-  });
+  let url = format!("https://www.last.fm/api/auth/?api_key={key}&token={token}");
+  let attempt = crate::login::begin();
+  crate::login::open_in_browser(&url)?;
   // после «Yes, allow access» токен становится сессией — спрашиваем раз в 2 с
   let deadline = tokio::time::Instant::now() + Duration::from_secs(600);
   let got = loop {
-    tokio::select! {
-      _ = rx.recv() => break None,
-      _ = tokio::time::sleep(Duration::from_secs(2)) => {}
-    }
-    if tokio::time::Instant::now() > deadline {
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    if crate::login::cancelled(attempt) || tokio::time::Instant::now() > deadline {
       break None;
     }
     let p = BTreeMap::from([("method", "auth.getSession".to_owned()), ("token", token.clone())]);
@@ -126,7 +107,6 @@ pub async fn login(app: AppHandle, http: reqwest::Client) -> Result<Status> {
       }
     }
   };
-  let _ = w.close();
   let (name, key) = got.ok_or_else(|| anyhow!("Вход в Last.fm отменён"))?;
   // аватар — для карточки в настройках
   let info = call(&http, BTreeMap::from([("method", "user.getInfo".to_owned()), ("user", name.clone())]), false, false).await.ok();

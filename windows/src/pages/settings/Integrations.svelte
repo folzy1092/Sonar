@@ -139,9 +139,13 @@
   {:else}
     <button class="connect" disabled={lfBusy || !isTauri} onclick={lastfmLogin}>
       <span class="lf-big"><Icon name="brandLastfm" size={40} stroke={2.2} /></span>
-      <b>{lfBusy ? t('Жду подтверждения в окне Last.fm…') : t('Войти через Last.fm')}</b>
+      <b>{lfBusy ? t('Подтверди вход в браузере…') : t('Войти через Last.fm')}</b>
       <small>{lastfm && !lastfm.available ? t('Появится в ближайшем обновлении') : t('Подключи в один клик — история и «сейчас играет» в твоём профиле')}</small>
     </button>
+    {#if lfBusy}
+      <!-- страница Last.fm открыта в браузере по умолчанию; Sonar ждёт «Yes, allow access» -->
+      <button class="lf-cancel" onclick={() => void api.cancelLogin().catch(() => {})}>{t('Отмена')}</button>
+    {/if}
   {/if}
 </Group>
 
@@ -447,5 +451,19 @@
     font-style: normal;
     font-size: calc(11px * var(--fs, 1));
     font-weight: 600;
+  }
+  .lf-cancel {
+    margin-top: 8px;
+    padding: 6px 12px;
+    border-radius: var(--radius-m);
+    color: var(--text-2);
+    font-size: calc(13px * var(--fs, 1));
+    transition:
+      color var(--fast) var(--ease),
+      background var(--fast) var(--ease);
+  }
+  .lf-cancel:hover {
+    color: var(--text);
+    background: var(--hover);
   }
 </style>

@@ -268,6 +268,8 @@ export const api = {
   lastfmLogin: () => call<LastfmStatus>('lastfm_login'),
   lastfmLogout: () => call<LastfmStatus>('lastfm_logout'),
   loginService: (service: 'soundcloud' | 'yandex') => call<ServiceStatus>('login_service', { service }),
+  /** Отменить ожидание входа через браузер (Яндекс по коду, Last.fm). */
+  cancelLogin: () => call<void>('cancel_login'),
   disconnectService: (service: 'soundcloud' | 'yandex') => call<void>('disconnect_service', { service }),
 
   search: (q: string, src: Source, limit = 30) => call<Track[]>('search', { q, src, limit }),
