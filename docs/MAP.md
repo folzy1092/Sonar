@@ -111,10 +111,10 @@ Sonar/
 │   │   ├── Core/
 │   │   │   ├── API/          APIClient, эндпоинты, ошибки, DTO (зеркало API.md)
 │   │   │   ├── Models/       Track, TrackRef, Playlist, User, PlayerState…
-│   │   │   ├── Storage/      SwiftData-модели кэша, Keychain
+│   │   │   ├── Storage/      база (DB.md), Keychain.swift
 │   │   │   ├── Sync/         SyncEngine: очередь ops, pull по таймеру
 │   │   │   ├── Lyrics/       тексты на устройстве: Lyrics.swift (fetchAny), Lrclib.swift, Genius.swift — порт selfbot
-│   │   │   └── Settings/     SettingsStore: ключи из SETTINGS.md, умолчания, синк
+│   │   │   └── Settings/     SettingsStore: ключи из SETTINGS.md, умолчания (пока UserDefaults), потом синк
 │   │   ├── Playback/
 │   │   │   ├── PlaybackEngine.swift  AVQueuePlayer, предзагрузка, ошибки потока
 │   │   │   ├── QueueManager.swift    очередь, shuffle, repeat, «следующим», похожие
@@ -137,17 +137,27 @@ Sonar/
 │   │   │   ├── Playlist/     экран плейлиста, редактирование, импорт
 │   │   │   ├── Player/       полный плеер, мини-плеер, очередь, текст
 │   │   │   ├── Profile/      шапка, меню настроек, статистика
-│   │   │   └── Settings/     Основные, Аудио, Вид, Плеер, Жесты, Безопасность,
-│   │   │                     Сервисы, Интеграции, Кэш, Язык, Приватность(🔒), Автообновление
-│   │   ├── Update/           порт ShadowSelfUpdate: проверка, загрузка, переподпись,
-│   │   │                     локальный сервер установки, экран обновления
+│   │   │   ├── Settings/     Основные, Аудио, Вид, Плеер, Жесты, Безопасность,
+│   │   │   │                 Сервисы, Интеграции, Кэш, Язык, Приватность(🔒), Обновления, Сертификат
+│   │   │   └── Update/       экран «Обновление», архив версий, всплывашка «Доступно обновление»
+│   │   ├── Update/           порт ShadowSelfUpdate (2026-11-17):
+│   │   │   ├── UpdateManifest.swift   ios-update.json, changelog.json, релизы GitHub, счётчики
+│   │   │   ├── UpdateChecker.swift    при запуске и раз в 6 ч, всплывашка один раз на сборку
+│   │   │   ├── SelfUpdater.swift      скачать → распаковать → подписать → упаковать → установить
+│   │   │   ├── SigningStore.swift     пара .p12 + .mobileprovision (вне бэкапа), пароль в Keychain; AppSigner
+│   │   │   ├── ProvisioningProfile.swift, BundlePreparer.swift   разбор профиля, бандл «как установленный»
+│   │   │   ├── InstallServer.swift    HTTP на 127.0.0.1 с Range; HTTPRange.swift
+│   │   │   ├── InstallLinks.swift     itms-services, манифест api.palera.in (Semi Local), страница /install
+│   │   │   ├── InstallDiagnostics.swift  строка диагностики и причина, если окна iOS нет
+│   │   │   └── InstallPage.swift      SFSafariViewController поверх всего
 │   │   └── Resources/
 │   │       ├── Assets.xcassets       иконка, цвета
 │   │       ├── Localizable.xcstrings ru, en
 │   │       ├── Fonts/                шрифты Google Fonts (OFL) из SETTINGS.md
 │   │       └── Info.plist            фон. аудио, ATS, URL-схема sonar://
-│   ├── Packages/             локальные SwiftPM-пакеты (Zsign, ZipArchive из Shadow)
-│   └── SonarTests/           модели, синк, очередь, CoverColor
+│   ├── Packages/             локальные SwiftPM-пакеты из Shadow: Zsign (MIT, на Security.framework,
+│   │                         без OpenSSL), ZipArchive (SSZipArchive MIT + minizip zlib) — README в каждом
+│   └── SonarTests/           модели, синк, очередь, CoverColor; UpdateTests, SigningTests (пару даёт CI)
 │
 ├── windows/                  Tauri 2 — ПЕРВАЯ платформа (SPEC §9)
 │   ├── package.json          Svelte 5 + TS + Vite
