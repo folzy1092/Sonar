@@ -17,6 +17,7 @@
   import { trackChange } from '../../lib/track-fx.svelte'
   import { likeFx } from '../../lib/like-fx'
   import { toast } from '../../lib/toast.svelte'
+  import { t } from '../../lib/i18n.svelte'
   import type { RGB } from '../../theme/palette'
 
   const current = $derived(settings.get('appearance.style'))
@@ -38,13 +39,13 @@
   const allFonts = (['modern', 'bright', 'serif', 'mono', 'system'] as FontCategory[]).flatMap((c) => FONTS[c]).filter((f) => f !== 'default')
   const fontOptions = allFonts.map((f) => ({ id: f, label: fontLabel(f) }))
 
-  const ANIMS = [
-    { id: 'echo' as const, label: 'Эхо' },
-    { id: 'signal' as const, label: 'Сигнал' },
-    { id: 'edge' as const, label: 'Грань' },
-    { id: 'tactile' as const, label: 'Тактиль' },
-    { id: 'monolith' as const, label: 'Монолит' },
-  ]
+  const ANIMS = $derived([
+    { id: 'echo' as const, label: t('Эхо') },
+    { id: 'signal' as const, label: t('Сигнал') },
+    { id: 'edge' as const, label: t('Грань') },
+    { id: 'tactile' as const, label: t('Тактиль') },
+    { id: 'monolith' as const, label: t('Монолит') },
+  ])
 
   // ---- сохранить / переименовать ----
   let naming = $state<string | null>(null) // null — не вводим; '' — новый; 'custom:<id>' — переименование
@@ -61,7 +62,7 @@
     if (naming === null) return
     if (naming === '') {
       theme.saveStyle(name)
-      toast.show('Стиль сохранён')
+      toast.show(t('Стиль сохранён'))
     } else theme.renameStyle(naming, name)
     naming = null
   }
@@ -101,17 +102,17 @@
     </button>
     {#if own}
       <span class="tools">
-        <button title="Переименовать" aria-label="Переименовать" onclick={() => startRename(id, title)}><Icon name="pencil" size={13} /></button>
-        <button title="Удалить" aria-label="Удалить" onclick={() => theme.deleteStyle(id)}><Icon name="trash" size={13} /></button>
+        <button title={t('Переименовать')} aria-label={t('Переименовать')} onclick={() => startRename(id, title)}><Icon name="pencil" size={13} /></button>
+        <button title={t('Удалить')} aria-label={t('Удалить')} onclick={() => theme.deleteStyle(id)}><Icon name="trash" size={13} /></button>
       </span>
     {/if}
   </div>
 {/snippet}
 
-<p class="caption">Готовые стили</p>
+<p class="caption">{t('Готовые стили')}</p>
 <div class="cards">
   {#each STYLES as s (s.id)}
-    {@render card(s.id, s.title, s.axes, false)}
+    {@render card(s.id, t(s.title), s.axes, false)}
   {/each}
   {#each customs as c (c.id)}
     {@render card(CUSTOM_STYLE_PREFIX + c.id, c.name, c.axes, true)}
@@ -120,7 +121,7 @@
     <div class="card on" role="group" onmouseenter={() => replay('now')}>
       <div class="pick">
         <StylePreview {axes} {accent} light={theme.light} play={plays.now ?? 0} />
-        <span class="name">Свой — не сохранён</span>
+        <span class="name">{t('Свой — не сохранён')}</span>
       </div>
     </div>
   {/if}
@@ -131,7 +132,7 @@
     <!-- svelte-ignore a11y_autofocus -->
     <input
       class="name-in"
-      placeholder={naming === '' ? 'Название стиля' : 'Новое название'}
+      placeholder={naming === '' ? t('Название стиля') : t('Новое название')}
       maxlength="40"
       bind:value={name}
       autofocus
@@ -140,44 +141,44 @@
         if (e.key === 'Escape') naming = null
       }}
     />
-    <button class="btn primary" onclick={commitName}>{naming === '' ? 'Сохранить' : 'Переименовать'}</button>
-    <button class="btn" onclick={() => (naming = null)}>Отмена</button>
+    <button class="btn primary" onclick={commitName}>{naming === '' ? t('Сохранить') : t('Переименовать')}</button>
+    <button class="btn" onclick={() => (naming = null)}>{t('Отмена')}</button>
   {:else}
-    <button class="btn primary" onclick={startSave}><Icon name="bookmark" size={14} /> Сохранить как свой стиль</button>
+    <button class="btn primary" onclick={startSave}><Icon name="bookmark" size={14} /> {t('Сохранить как свой стиль')}</button>
     {#if current === UNSAVED}
-      <button class="btn" onclick={() => theme.applyStyle(base.id)}><Icon name="refresh" size={14} /> Сбросить к стилю «{base.title}»</button>
+      <button class="btn" onclick={() => theme.applyStyle(base.id)}><Icon name="refresh" size={14} /> {t('Сбросить к стилю «{name}»', { name: t(base.title) })}</button>
     {/if}
   {/if}
 </div>
 
 <Divider />
 
-<p class="caption">Свой стиль — из частей разных стилей</p>
+<p class="caption">{t('Свой стиль — из частей разных стилей')}</p>
 
 <Choice
-  title="Поверхности"
-  hint="Фон, карточки, рамки, тени и блики"
+  title={t('Поверхности')}
+  hint={t('Фон, карточки, рамки, тени и блики')}
   wide
   fill
   value={axes.surface}
-  options={(Object.keys(SURFACE_LABELS) as StyleAxes['surface'][]).map((s) => ({ id: s, label: SURFACE_LABELS[s] }))}
+  options={(Object.keys(SURFACE_LABELS) as StyleAxes['surface'][]).map((s) => ({ id: s, label: t(SURFACE_LABELS[s]) }))}
   onchange={(v) => setAxis('surface', v)}
 />
-<Select title="Шрифт интерфейса" hint="Обычный текст, кнопки, списки" value={axes.font} options={fontOptions} onchange={(v) => setAxis('font', v)} />
-<Select title="Шрифт заголовков" hint="«Моя волна», названия страниц и разделов" value={axes.font_display} options={fontOptions} onchange={(v) => setAxis('font_display', v)} />
+<Select title={t('Шрифт интерфейса')} hint={t('Обычный текст, кнопки, списки')} value={axes.font} options={fontOptions} onchange={(v) => setAxis('font', v)} />
+<Select title={t('Шрифт заголовков')} hint={t('«Моя волна», названия страниц и разделов')} value={axes.font_display} options={fontOptions} onchange={(v) => setAxis('font_display', v)} />
 <Choice
-  title="Оформление заголовков"
-  hint="«Журнал» — капсом, крупно, с номерами разделов"
+  title={t('Оформление заголовков')}
+  hint={t('«Журнал» — капсом, крупно, с номерами разделов')}
   value={axes.title_style}
   options={[
-    { id: 'plain' as const, label: 'Обычное' },
-    { id: 'editorial' as const, label: 'Журнал' },
+    { id: 'plain' as const, label: t('Обычное') },
+    { id: 'editorial' as const, label: t('Журнал') },
   ]}
   onchange={(v) => setAxis('title_style', v)}
 />
 <Choice
-  title="Толщина линий"
-  hint="Иконки левой панели и кнопок плеера"
+  title={t('Толщина линий')}
+  hint={t('Иконки левой панели и кнопок плеера')}
   value={axes.icon_stroke}
   options={[
     { id: 1.5 as const, label: '1.5' },
@@ -187,70 +188,70 @@
   onchange={(v) => setAxis('icon_stroke', v)}
 />
 <Choice
-  title="Скругления"
-  hint="Углы карточек, кнопок и обложек"
+  title={t('Скругления')}
+  hint={t('Углы карточек, кнопок и обложек')}
   value={settings.get('appearance.corner_radius')}
   options={[
-    { id: 'none' as const, label: 'Нет' },
-    { id: 'soft' as const, label: 'Малые' },
-    { id: 'rounded' as const, label: 'Средние' },
-    { id: 'pill' as const, label: 'Большие' },
+    { id: 'none' as const, label: t('Нет') },
+    { id: 'soft' as const, label: t('Малые') },
+    { id: 'rounded' as const, label: t('Средние') },
+    { id: 'pill' as const, label: t('Большие') },
   ]}
   onchange={(v) => settings.set('appearance.corner_radius', v)}
 />
 
 <div class="axis">
-  <Choice title="Смена трека" hint="Как обложка и заголовок встречают новый трек" wide fill value={axes.anim_track} options={[...ANIMS, { id: 'fade' as const, label: 'Плавно' }]} onchange={(v) => setAxis('anim_track', v)} />
-  <button class="show" onclick={showTrack}><Icon name="play" size={12} filled /> Показать</button>
+  <Choice title={t('Смена трека')} hint={t('Как обложка и заголовок встречают новый трек')} wide fill value={axes.anim_track} options={[...ANIMS, { id: 'fade' as const, label: t('Плавно') }]} onchange={(v) => setAxis('anim_track', v)} />
+  <button class="show" onclick={showTrack}><Icon name="play" size={12} filled /> {t('Показать')}</button>
 </div>
 <div class="axis">
-  <Choice title="Лайк" hint="Что происходит с сердцем, когда ставишь лайк" wide fill value={axes.anim_like} options={[...ANIMS, { id: 'pop' as const, label: 'Прыжок' }]} onchange={(v) => setAxis('anim_like', v)} />
+  <Choice title={t('Лайк')} hint={t('Что происходит с сердцем, когда ставишь лайк')} wide fill value={axes.anim_like} options={[...ANIMS, { id: 'pop' as const, label: t('Прыжок') }]} onchange={(v) => setAxis('anim_like', v)} />
   <button class="show" onclick={showLike}>
-    <span class="demo-heart" bind:this={heart}><Icon name="heart" size={15} filled={liked} /></span> Показать
+    <span class="demo-heart" bind:this={heart}><Icon name="heart" size={15} filled={liked} /></span> {t('Показать')}
   </button>
 </div>
 <Choice
-  title="Выбранный раздел"
-  hint="Как отмечен раздел в левой панели"
+  title={t('Выбранный раздел')}
+  hint={t('Как отмечен раздел в левой панели')}
   wide
   fill
   value={axes.anim_nav}
   options={[
-    { id: 'dot' as const, label: 'Точка' },
-    { id: 'capsule' as const, label: 'Капсула' },
-    { id: 'plate' as const, label: 'Плашка' },
-    { id: 'inset' as const, label: 'Утопленная' },
+    { id: 'dot' as const, label: t('Точка') },
+    { id: 'capsule' as const, label: t('Капсула') },
+    { id: 'plate' as const, label: t('Плашка') },
+    { id: 'inset' as const, label: t('Утопленная') },
   ]}
   onchange={(v) => setAxis('anim_nav', v)}
 />
 <Choice
-  title="Прогресс"
-  hint="Как нарисован ползунок времени"
+  title={t('Прогресс')}
+  hint={t('Как нарисован ползунок времени')}
   wide
   fill
   value={axes.progress_look}
   options={[
-    { id: 'line' as const, label: 'Линия' },
-    { id: 'wave' as const, label: 'Волна' },
-    { id: 'groove' as const, label: 'Желобок' },
+    { id: 'line' as const, label: t('Линия') },
+    { id: 'wave' as const, label: t('Волна') },
+    { id: 'groove' as const, label: t('Желобок') },
   ]}
   onchange={(v) => setAxis('progress_look', v)}
 />
 <div class="axis">
   <Choice
-    title="Загрузка трека"
-    hint="Пока трек грузится — по настоящему прогрессу"
+    title={t('Загрузка трека')}
+    hint={t('Пока трек грузится — по настоящему прогрессу')}
     wide
     fill
     value={axes.loading}
     options={[
-      { id: 'color' as const, label: 'Цвет возвращается' },
-      { id: 'ring' as const, label: 'Круг' },
+      { id: 'color' as const, label: t('Цвет возвращается') },
+      { id: 'ring' as const, label: t('Круг') },
     ]}
     onchange={(v) => setAxis('loading', v)}
   />
   <button class="show" onclick={showLoading}>
-    <span class="demo-cover"><Cover url={null} size={22} radius="6px" /><LoadFx demo={demo} /></span> Показать
+    <span class="demo-cover"><Cover url={null} size={22} radius="6px" /><LoadFx demo={demo} /></span> {t('Показать')}
   </button>
 </div>
 

@@ -4,6 +4,7 @@
   import Icon from './Icon.svelte'
   import type { IconName } from './icons'
   import type { Snippet } from 'svelte'
+  import { t } from '../lib/i18n.svelte'
 
   interface Props {
     title: string
@@ -47,9 +48,9 @@
 </header>
 
 <div class="bar">
-  <button class="listen" {disabled} onclick={onplay}><Icon name="play" size={16} filled /> Слушать</button>
-  <button class="round-btn" aria-label="Перемешать" title="Перемешать" {disabled} onclick={onshuffle}><Icon name="shuffle" size={17} /></button>
-  <button class="pill" {disabled} onclick={onqueue}><Icon name="queue" size={16} /> В очередь</button>
+  <button class="listen" {disabled} onclick={onplay}><Icon name="play" size={16} filled /> {t('Слушать')}</button>
+  <button class="round-btn" aria-label={t('Перемешать')} title={t('Перемешать')} {disabled} onclick={onshuffle}><Icon name="shuffle" size={17} /></button>
+  <button class="pill" {disabled} onclick={onqueue}><Icon name="queue" size={16} /> {t('В очередь')}</button>
   {#if actions}{@render actions()}{/if}
   <span class="spacer"></span>
   {#if tools}{@render tools()}{/if}

@@ -11,7 +11,8 @@
   import Tile from '../components/Tile.svelte'
   import TrackRow from '../components/TrackRow.svelte'
   import { api, errorText, type Album, type Artist, type ArtistTrack, type Track } from '../lib/api'
-  import { compact, plural } from '../lib/format'
+  import { compact } from '../lib/format'
+  import { t, tn } from '../lib/i18n.svelte'
   import { library } from '../lib/library.svelte'
   import { openRef, router } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
@@ -115,7 +116,7 @@
 </script>
 
 {#if error}
-  <EmptyState icon="user" title="Не получилось открыть исполнителя" text={error} />
+  <EmptyState icon="user" title={t('Не получилось открыть исполнителя')} text={error} />
 {:else if !artist}
   <div class="loading"><div class="sk round"></div><div class="sk line"></div></div>
 {:else}
@@ -126,24 +127,24 @@
     image={a.avatar_url}
     icon="user"
     round
-    meta={a.followers != null ? `${compact(a.followers)} ${plural(a.followers, ['подписчик', 'подписчика', 'подписчиков'])}` : undefined}
+    meta={a.followers != null ? `${compact(a.followers)} ${tn(a.followers, ['подписчик', 'подписчика', 'подписчиков'])}` : undefined}
     disabled={!sorted.length}
     onplay={() => player.playList(sorted, 0, context, a.name)}
     onshuffle={() => player.playShuffled(sorted, context, a.name)}
     onqueue={() => player.addToQueue(sorted, false)}
   >
-    {#snippet subtitle()}<span class="svc">{ref.startsWith('sca') ? 'SoundCloud' : 'Яндекс Музыка'}<SourceIcon kind={ref.startsWith('sca') ? 'sc' : 'ym'} size={15} plain /></span>{/snippet}
+    {#snippet subtitle()}<span class="svc">{ref.startsWith('sca') ? 'SoundCloud' : t('Яндекс Музыка')}<SourceIcon kind={ref.startsWith('sca') ? 'sc' : 'ym'} size={15} plain /></span>{/snippet}
     {#snippet actions()}
       <button class="tool" class:on={followed} onclick={() => library.toggleLike(a)}>
-        <Icon name="heart" size={15} filled={followed} /> {followed ? 'Вы подписаны' : 'Подписаться'}
+        <Icon name="heart" size={15} filled={followed} /> {followed ? t('Вы подписаны') : t('Подписаться')}
       </button>
     {/snippet}
   </CollectionHeader>
 
   <section>
     <div class="h">
-      <h2>Треки{#if all}<span class="count">{all.length}</span>{/if}</h2>
-      {#if !all && !allFailed}<span class="wait">загружаю все…</span>{/if}
+      <h2>{t('Треки')}{#if all}<span class="count">{all.length}</span>{/if}</h2>
+      {#if !all && !allFailed}<span class="wait">{t('загружаю все…')}</span>{/if}
     </div>
     {#if base.length > 1}
       <div class="sorts" use:indicator={{ key: `${sortId}${sorts.length}`, kind: 'pill' }}>
@@ -152,10 +153,10 @@
             class="sort"
             class:on={sortId === s.id}
             class:asc={sortId === s.id && asc}
-            title={sortId === s.id ? 'Ещё раз — обратный порядок' : `Сортировать: ${s.label.toLowerCase()}`}
+            title={sortId === s.id ? t('Ещё раз — обратный порядок') : t('Сортировать: {what}', { what: t(s.label).toLowerCase() })}
             onclick={() => pickSort(s.id)}
           >
-            {s.label}
+            {t(s.label)}
             {#if sortId === s.id}<span class="dir"><Icon name="chevronDown" size={13} /></span>{/if}
           </button>
         {/each}
@@ -163,24 +164,24 @@
     {/if}
     {#key `${sortId}${asc}`}
       <div use:cascade>
-        {#each shown as t, i (t.ref)}
-          <TrackRow track={t} index={i} variant="top" onplay={() => player.playList(sorted, i, context, a.name)} />
+        {#each shown as tr, i (tr.ref)}
+          <TrackRow track={tr} index={i} variant="top" onplay={() => player.playList(sorted, i, context, a.name)} />
         {:else}
-          <p class="none">Треков нет.</p>
+          <p class="none">{t('Треков нет.')}</p>
         {/each}
       </div>
     {/key}
     {#if expanded && limit < sorted.length}<div class="more" use:more></div>{/if}
     {#if sorted.length > FOLD}
       <button class="all" onclick={() => (limit = expanded ? FOLD : Math.min(100, sorted.length))}>
-        {expanded ? 'Свернуть' : `Показать все ${sorted.length}`}
+        {expanded ? t('список::Свернуть') : t('Показать все {n}', { n: sorted.length })}
       </button>
     {/if}
   </section>
 
   {#if albums.length}
     <section>
-      <h2>Альбомы</h2>
+      <h2>{t('Альбомы')}</h2>
       <div class="grid" use:cascade>
         {#each albums as al (al.ref)}
           <Tile title={al.title} subtitle={al.year ? String(al.year) : al.artist} image={al.cover_url} icon="disc" onclick={() => openRef(al.ref)} />

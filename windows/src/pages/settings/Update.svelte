@@ -13,34 +13,36 @@
   import { cascade } from '../../lib/cascade'
   import { api } from '../../lib/api'
   import { toast } from '../../lib/toast.svelte'
+  import { lang, t } from '../../lib/i18n.svelte'
 
   let now = $state(Date.now())
   onMount(() => {
     void updater.loadChangelog()
-    const t = setInterval(() => (now = Date.now()), 30_000)
-    return () => clearInterval(t)
+    const timer = setInterval(() => (now = Date.now()), 30_000)
+    return () => clearInterval(timer)
   })
 
   const p = $derived(updater.phase)
   const status = $derived.by(() => {
-    if (p === 'checking') return 'Поиск обновлений…'
-    if (p === 'available') return `Доступна версия ${updater.version}`
-    if (p === 'downloading') return `Загрузка… ${sizeText(updater.got, updater.total)}`
-    if (p === 'ready') return `Версия ${updater.version} скачана`
-    if (p === 'installing') return 'Устанавливаю и перезапускаю…'
+    if (p === 'checking') return t('Поиск обновлений…')
+    if (p === 'available') return t('Доступна версия {version}', { version: updater.version })
+    if (p === 'downloading') return t('Загрузка… {size}', { size: sizeText(updater.got, updater.total) })
+    if (p === 'ready') return t('Версия {version} скачана', { version: updater.version })
+    if (p === 'installing') return t('Устанавливаю и перезапускаю…')
     if (p === 'error') return updater.error
-    if (p === 'none') return `Вы используете актуальную версию · проверено ${agoText(updater.checkedAt ?? now, now)}`
-    return updater.checkedAt ? `Проверено ${agoText(updater.checkedAt, now)}` : 'Ещё не проверяли'
+    if (p === 'none') return t('Вы используете актуальную версию · проверено {ago}', { ago: agoText(updater.checkedAt ?? now, now) })
+    return updater.checkedAt ? t('Проверено {ago}', { ago: agoText(updater.checkedAt, now) }) : t('Ещё не проверяли')
   })
   const fresh = $derived(p === 'available' || p === 'downloading' || p === 'ready' || p === 'installing')
+  const LOCALES = { ru: 'ru-RU', en: 'en-US', uk: 'uk-UA' } as const
   const dateText = (d: string) => {
-    const t = Date.parse(d)
-    return Number.isNaN(t) ? d : new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+    const ms = Date.parse(d)
+    return Number.isNaN(ms) ? d : new Date(ms).toLocaleDateString(LOCALES[lang()], { day: 'numeric', month: 'long', year: 'numeric' })
   }
 
   async function addToStart() {
     try {
-      toast.show((await api.addToStartMenu()) ? 'Sonar добавлен в меню «Пуск»' : 'Sonar уже есть в меню «Пуск»')
+      toast.show((await api.addToStartMenu()) ? t('Sonar добавлен в меню «Пуск»') : t('Sonar уже есть в меню «Пуск»'))
     } catch (e) {
       toast.show(String(e))
     }
@@ -48,7 +50,7 @@
   async function pinToTaskbar() {
     try {
       await api.revealStartShortcut()
-      toast.show('ПКМ по Sonar → «Закрепить на панели задач» (в Windows 11 — «Показать дополнительные параметры»)')
+      toast.show(t('ПКМ по Sonar → «Закрепить на панели задач» (в Windows 11 — «Показать дополнительные параметры»)'))
     } catch (e) {
       toast.show(String(e))
     }
@@ -61,7 +63,7 @@
   </div>
   <div class="info">
     <b>
-      {#if fresh}Доступно обновление{:else if p === 'none'}Обновлений нет{:else}Sonar {updater.current}{/if}
+      {#if fresh}{t('Доступно обновление')}{:else if p === 'none'}{t('Обновлений нет')}{:else}Sonar {updater.current}{/if}
     </b>
     {#key status}
       <small class="status" class:err={p === 'error'}>{status}</small>
@@ -69,15 +71,15 @@
   </div>
   <div class="act">
     {#if p === 'available'}
-      <button class="btn primary" onclick={() => updater.download()}><Icon name="download" size={16} /> Обновить</button>
+      <button class="btn primary" onclick={() => updater.download()}><Icon name="download" size={16} /> {t('Обновить')}</button>
     {:else if p === 'ready'}
-      <button class="btn primary" onclick={() => updater.install()}><Icon name="refresh" size={16} /> Установить</button>
+      <button class="btn primary" onclick={() => updater.install()}><Icon name="refresh" size={16} /> {t('Установить')}</button>
     {:else if p === 'error'}
-      <button class="btn" onclick={() => updater.retry()}><Icon name="refresh" size={16} /> Повторить</button>
+      <button class="btn" onclick={() => updater.retry()}><Icon name="refresh" size={16} /> {t('Повторить')}</button>
     {:else}
       <button class="btn" disabled={updater.busy} onclick={() => updater.check()}>
         <Icon name="refresh" size={16} />
-        {p === 'checking' ? 'Проверка…' : 'Проверить'}
+        {p === 'checking' ? t('Проверка…') : t('Проверить')}
       </button>
     {/if}
   </div>
@@ -87,7 +89,7 @@
 </div>
 
 {#if fresh && updater.notes.length}
-  <Group title="Что нового в {updater.version}">
+  <Group title={t('Что нового в {version}', { version: updater.version })}>
     <ul class="notes" use:cascade={updater.version}>
       {#each updater.notes as n, i (i)}
         <li>{n}</li>
@@ -96,44 +98,43 @@
   </Group>
 {/if}
 
-<Group title="Быстрый доступ">
+<Group title={t('Быстрый доступ')}>
   <p class="pin-hint">
-    Windows не даёт программе закрепить себя тихо, поэтому панель задач — в два клика: покажем ярлык, останется нажать
-    «Закрепить».
+    {t('Windows не даёт программе закрепить себя тихо, поэтому панель задач — в два клика: покажем ярлык, останется нажать «Закрепить».')}
   </p>
   <div class="pins">
-    <button class="btn" onclick={addToStart}><Icon name="grid" size={16} /> Добавить в меню «Пуск»</button>
-    <button class="btn" onclick={pinToTaskbar}><Icon name="layoutBottom" size={16} /> Закрепить на панели задач</button>
+    <button class="btn" onclick={addToStart}><Icon name="grid" size={16} /> {t('Добавить в меню «Пуск»')}</button>
+    <button class="btn" onclick={pinToTaskbar}><Icon name="layoutBottom" size={16} /> {t('Закрепить на панели задач')}</button>
   </div>
 </Group>
 
-<Group title="Проверка">
+<Group title={t('Проверка')}>
   <Switch
-    title="Проверять обновления"
-    hint="При запуске и раз в 6 часов. Найдётся новая версия — появится окно с изменениями"
+    title={t('Проверять обновления')}
+    hint={t('При запуске и раз в 6 часов. Найдётся новая версия — появится окно с изменениями')}
     on={settings.get('update.auto_check')}
     onchange={(v) => settings.set('update.auto_check', v)}
   />
   <Switch
-    title="Скачивать в фоне"
-    hint="Обновление скачается само, установится только по кнопке «Установить»"
+    title={t('Скачивать в фоне')}
+    hint={t('Обновление скачается само, установится только по кнопке «Установить»')}
     on={settings.get('update.auto_download')}
     onchange={(v) => settings.set('update.auto_download', v)}
   />
 </Group>
 
-<Group title="История версий">
+<Group title={t('История версий')}>
   {#if updater.changelog === null}
     <div class="skel ph"></div>
   {:else if updater.changelog.length === 0}
-    <p class="empty">Здесь появятся изменения каждой версии — вместе с первым обновлением.</p>
+    <p class="empty">{t('Здесь появятся изменения каждой версии — вместе с первым обновлением.')}</p>
   {:else}
     <div class="history" use:cascade>
       {#each updater.changelog as e (e.version)}
         <article class:current={e.version === updater.current}>
           <header>
             <b>{e.version}</b>
-            {#if e.version === updater.current}<span class="tag">У вас</span>{/if}
+            {#if e.version === updater.current}<span class="tag">{t('У вас')}</span>{/if}
             {#if e.title}<span class="title">{e.title}</span>{/if}
             <small>{dateText(e.date)}</small>
           </header>

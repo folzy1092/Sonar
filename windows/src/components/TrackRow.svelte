@@ -12,6 +12,7 @@
   import { formatTime, player } from '../player/player.svelte'
   import { settings } from '../lib/settings.svelte'
   import { compact } from '../lib/format'
+  import { t, tn, lang } from '../lib/i18n.svelte'
 
   interface Props {
     track: Track
@@ -31,6 +32,7 @@
   const isCurrent = $derived(player.current?.ref === track.ref)
   const liked = $derived(library.isLiked(track.ref))
   const target = $derived({ track, addedAt, playlistId, itemId })
+  const LOCALES = { ru: 'ru-RU', en: 'en-US', uk: 'uk-UA' } as const
 
   function activate() {
     if (hasSelection()) return
@@ -71,7 +73,7 @@
   {#if index !== undefined}
     <span class="num">
       {#if isCurrent && player.playing}
-        <span class="eq idle-pause" aria-label="Играет"><i></i><i></i><i></i></span>
+        <span class="eq idle-pause" aria-label={t('Играет')}><i></i><i></i><i></i></span>
       {:else}
         {index + 1}
       {/if}
@@ -84,7 +86,7 @@
     </span>
   {/if}
   <span class="meta">
-    <span class="title">{track.title}{#if track.explicit}<span class="e" title="Нецензурная лексика">E</span>{/if}</span>
+    <span class="title">{track.title}{#if track.explicit}<span class="e" title={t('Нецензурная лексика')}>E</span>{/if}</span>
     <span class="artist">
       {#each track.artists as a, i (a.ref + i)}{#if i},&nbsp;{/if}<span
           class="link"
@@ -101,7 +103,7 @@
   <span class="end">
     {#if track.plays && variant !== 'queue'}
       <!-- число прослушиваний на сервисе (SoundCloud отдаёт, Яндекс — нет) -->
-      <span class="plays" title="{track.plays.toLocaleString('ru-RU')} прослушиваний">
+      <span class="plays" title="{track.plays.toLocaleString(LOCALES[lang()])} {tn(track.plays, ['прослушивание', 'прослушивания', 'прослушиваний'])}">
         <Icon name="play" size={11} filled stroke={0} />{compact(track.plays)}
       </span>
     {/if}
@@ -109,8 +111,8 @@
     <button
       class="like"
       class:on={liked}
-      aria-label={liked ? 'Удалить из Любимых' : 'В Любимые'}
-      title={liked ? 'Удалить из Любимых' : 'В Любимые'}
+      aria-label={liked ? t('Удалить из Любимых') : t('В Любимые')}
+      title={liked ? t('Удалить из Любимых') : t('В Любимые')}
       onclick={(e) => (e.stopPropagation(), library.toggleLike(track))}
     >
       <span class="ic" use:pulse={liked}><Icon name="heart" size={15} filled={liked} /></span>
@@ -129,8 +131,8 @@
     {/if}
     <button
       class="dots"
-      aria-label="Меню трека"
-      title="Меню трека"
+      aria-label={t('Меню трека')}
+      title={t('Меню трека')}
       onclick={(e) => (e.stopPropagation(), trackMenu.openAt(target, e.currentTarget))}
     >
       <Icon name="dots" size={16} />

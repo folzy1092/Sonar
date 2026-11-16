@@ -6,6 +6,7 @@
   import { settings } from '../lib/settings.svelte'
   import { fly } from 'svelte/transition'
   import { reducedMotion } from '../lib/motion'
+  import { t } from '../lib/i18n.svelte'
 
   let { float = false }: { float?: boolean } = $props()
 
@@ -18,7 +19,7 @@
   <div class="next" class:float transition:fly={{ y: reducedMotion() ? 0 : 8, duration: 240 }}>
     <Cover url={next.cover_url} size={32} radius="8px" />
     <span class="meta">
-      <small>Дальше</small>
+      <small>{t('Дальше')}</small>
       <b>{next.title}</b>
       <span class="artist">{next.artist}</span>
     </span>

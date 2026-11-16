@@ -1,24 +1,22 @@
-// Подписи с числами по-русски: «217 треков, 6 часов 51 мин», «9.4K подписчиков».
+// Подписи с числами на языке интерфейса (lib/i18n.svelte.ts): «217 треков, 6 часов 51 мин», «9.4K подписчиков».
+import { t, tn } from './i18n.svelte'
 
-/** Форма слова для числа: plural(5, ['трек', 'трека', 'треков']) → 'треков'. */
+/** Форма слова для числа: plural(5, ['трек', 'трека', 'треков']) → 'треков' (на английском — «tracks»). */
 export function plural(n: number, forms: [string, string, string]): string {
-  const a = Math.abs(n) % 100
-  const b = a % 10
-  if (a > 10 && a < 20) return forms[2]
-  if (b > 1 && b < 5) return forms[1]
-  if (b === 1) return forms[0]
-  return forms[2]
+  return tn(n, forms)
 }
 
-export const tracksText = (n: number) => `${n} ${plural(n, ['трек', 'трека', 'треков'])}`
+export const tracksText = (n: number) => `${n} ${tn(n, ['трек', 'трека', 'треков'])}`
+
+const hoursText = (h: number) => `${h} ${tn(h, ['час', 'часа', 'часов'])}`
 
 /** Длительность списка: «51 мин», «6 часов 51 мин». */
 export function durationText(ms: number): string {
   const min = Math.round(ms / 60_000)
   const h = Math.floor(min / 60)
   const m = min % 60
-  if (!h) return `${m} мин`
-  return `${h} ${plural(h, ['час', 'часа', 'часов'])}${m ? ` ${m} мин` : ''}`
+  if (!h) return t('{m} мин', { m })
+  return `${hoursText(h)}${m ? ` ${t('{m} мин', { m })}` : ''}`
 }
 
 /** Длительность альбома: «20 мин 44 сек», «1 час 3 мин». */
@@ -27,16 +25,19 @@ export function durationLong(ms: number): string {
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
   const sec = s % 60
-  if (h) return `${h} ${plural(h, ['час', 'часа', 'часов'])}${m ? ` ${m} мин` : ''}`
-  return `${m} мин${sec ? ` ${sec} сек` : ''}`
+  if (h) return `${hoursText(h)}${m ? ` ${t('{m} мин', { m })}` : ''}`
+  return `${t('{m} мин', { m })}${sec ? ` ${t('{s} сек', { s: sec })}` : ''}`
 }
 
-/** «2025-06-20» → «20 июня 2025». */
+/** Месяцы в родительном падеже — один ключ словаря на все 12 («мая» отдельно — уже сокращение на главной). */
+const MONTHS = 'января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря'
+
+/** «2025-06-20» → «20 июня 2025» (на английском — «June 20, 2025»). */
 export function dateLong(iso: string): string {
   const [y, mo, d] = iso.split('-').map(Number)
-  if (!y || !mo || !d) return iso
-  const months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
-  return `${d} ${months[mo - 1]} ${y}`
+  const month = t(MONTHS).split('|')[mo - 1]
+  if (!y || !month || !d) return iso
+  return t('{d} {month} {y}', { d, month, y })
 }
 
 /** 9400 → «9.4K», 1600000 → «1.6M». */

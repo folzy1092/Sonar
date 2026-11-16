@@ -8,6 +8,7 @@
   import { cascade } from '../lib/cascade'
   import { hscroll } from '../lib/hscroll'
   import { edges } from '../lib/edges'
+  import { t } from '../lib/i18n.svelte'
 
   interface Props {
     children: Snippet
@@ -32,10 +33,10 @@
   <div class="row" bind:this={row} aria-label={label} use:cascade={key} use:hscroll use:edges={(l, r) => ((left = l), (right = r))}>
     {@render children()}
   </div>
-  <button class="nav prev" class:on={left} aria-label="Назад" tabindex="-1" onclick={() => go(-1)}>
+  <button class="nav prev" class:on={left} aria-label={t('Назад')} tabindex="-1" onclick={() => go(-1)}>
     <Icon name="chevronLeft" size={20} />
   </button>
-  <button class="nav next" class:on={right} aria-label="Дальше" tabindex="-1" onclick={() => go(1)}>
+  <button class="nav next" class:on={right} aria-label={t('Дальше')} tabindex="-1" onclick={() => go(1)}>
     <Icon name="chevronRight" size={20} />
   </button>
 </div>

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
   import HistoryButton from './HistoryButton.svelte'
+  import { t } from '../lib/i18n.svelte'
   import {
     closeWindow,
     isWindowMaximized,
@@ -29,13 +30,13 @@
 <div class="controls">
   <!-- история прослушивания — как часы у Dotify -->
   {#if history}<HistoryButton />{/if}
-  <button class="ctl press" aria-label="Свернуть" title="Свернуть" onclick={minimizeWindow}>
+  <button class="ctl press" aria-label={t('Свернуть')} title={t('Свернуть')} onclick={minimizeWindow}>
     <Icon name="minus" size={16} stroke={1.8} />
   </button>
   <button
     class="ctl press"
-    aria-label={maximized ? 'Восстановить' : 'Развернуть'}
-    title={maximized ? 'Восстановить' : 'Развернуть'}
+    aria-label={maximized ? t('Восстановить') : t('Развернуть')}
+    title={maximized ? t('Восстановить') : t('Развернуть')}
     onclick={toggleMaximizeWindow}
   >
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -47,7 +48,7 @@
       {/if}
     </svg>
   </button>
-  <button class="ctl close press" aria-label="Закрыть" title="Закрыть" onclick={closeWindow}>
+  <button class="ctl close press" aria-label={t('Закрыть')} title={t('Закрыть')} onclick={closeWindow}>
     <Icon name="x" size={16} stroke={1.8} />
   </button>
 </div>

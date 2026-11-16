@@ -4,6 +4,8 @@
 // Модерн / Засечки / Моно — и «Яркие» для заголовков с характером. «Стандартный» — Inter.
 // «Свой» — файл шрифта с компьютера (theme/custom-font.ts), значение `custom:<имя>`.
 
+import { t } from '../lib/i18n.svelte'
+
 export type FontCategory = 'system' | 'modern' | 'serif' | 'mono' | 'bright'
 
 export const FONT_CATEGORIES: { id: FontCategory; label: string }[] = [
@@ -97,7 +99,7 @@ export const CUSTOM_PREFIX = 'custom:'
 export const CUSTOM_FAMILY = 'Sonar Custom'
 
 export function fontLabel(f: string): string {
-  if (f === 'default') return 'Стандартный'
+  if (f === 'default') return t('Стандартный')
   if (f.startsWith(CUSTOM_PREFIX)) return f.slice(CUSTOM_PREFIX.length)
   if (f === 'Segoe UI Variable Display') return 'Segoe UI Variable'
   return f.replace(' Variable', '')

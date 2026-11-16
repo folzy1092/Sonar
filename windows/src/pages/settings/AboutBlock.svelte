@@ -10,6 +10,7 @@
   import { toast } from '../../lib/toast.svelte'
   import { updater } from '../../lib/updater.svelte'
   import { settingsPanel } from '../settings-section.svelte'
+  import { t } from '../../lib/i18n.svelte'
 
   const SITE = 'https://sonar.folzy.ru'
   const LINKS = [
@@ -49,13 +50,13 @@
     const p = updater.phase
     if (p === 'none') {
       mark = 'done'
-      toast.show('Новых обновлений не найдено — у тебя последняя версия')
+      toast.show(t('Новых обновлений не найдено — у тебя последняя версия'))
       await wait(1800)
     } else if (p === 'available' || p === 'ready' || p === 'downloading') {
-      toast.show(`Доступна версия ${updater.version}`)
+      toast.show(t('Доступна версия {version}', { version: updater.version }))
       settingsPanel.show('system', 'update')
     } else if (p === 'error') {
-      toast.show(updater.error || 'Не удалось проверить обновления')
+      toast.show(updater.error || t('Не удалось проверить обновления'))
     }
     mark = 'idle'
   }
@@ -64,7 +65,7 @@
     try {
       await api.resetSettings()
       await settings.reload()
-      toast.show('Настройки сброшены')
+      toast.show(t('Настройки сброшены'))
     } catch (e) {
       toast.show(String(e))
     }
@@ -76,8 +77,8 @@
   <div class="id">
     <button
       class="mark {mark}"
-      aria-label="Проверить обновления"
-      title="Дважды нажми — проверю обновления"
+      aria-label={t('Проверить обновления')}
+      title={t('Дважды нажми — проверю обновления')}
       onclick={tap}
     >
       <img src={logo} alt="" draggable="false" />
@@ -85,23 +86,23 @@
     </button>
     <div class="name">
       <b>Sonar</b>
-      <small>Версия {updater.current}</small>
+      <small>{t('Версия {version}', { version: updater.current })}</small>
     </div>
   </div>
 
   <nav class="links">
     {#each LINKS as l (l.label)}
-      <button onclick={() => open(l.url)}>{l.label}</button>
+      <button onclick={() => open(l.url)}>{t(l.label)}</button>
     {/each}
   </nav>
 
   <div class="reset">
     {#if confirm}
-      <span class="ask">Сбросить все настройки? Лайки, плейлисты и сервисы останутся.</span>
-      <button class="danger" onclick={reset}>Сбросить</button>
-      <button onclick={() => (confirm = false)}>Отмена</button>
+      <span class="ask">{t('Сбросить все настройки? Лайки, плейлисты и сервисы останутся.')}</span>
+      <button class="danger" onclick={reset}>{t('Сбросить')}</button>
+      <button onclick={() => (confirm = false)}>{t('Отмена')}</button>
     {:else}
-      <button onclick={() => (confirm = true)}><Icon name="refresh" size={13} /> Сбросить настройки</button>
+      <button onclick={() => (confirm = true)}><Icon name="refresh" size={13} /> {t('Сбросить настройки')}</button>
     {/if}
   </div>
 </div>

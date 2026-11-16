@@ -11,6 +11,7 @@
   import { reducedMotion } from '../lib/motion'
   import { lyrics, sizeRem } from './lyrics.svelte'
   import type { Word } from './core/types'
+  import { t } from '../lib/i18n.svelte'
 
   interface Props {
     oncontextmenu?: (e: MouseEvent) => void
@@ -265,7 +266,7 @@
   class:words={wordsOn}
   style:--lyrics-size="{sizeRem[lyrics.size]}rem"
   role="region"
-  aria-label="Текст песни"
+  aria-label={t('Текст песни')}
   {oncontextmenu}
 >
   <div class="scroller" bind:this={scroller} onwheel={() => ((userScrollAt = performance.now()), cancelAnimationFrame(glideRaf))}>
@@ -294,14 +295,14 @@
           onmouseleave={noteLeave}
         >
           {#if !line.text}
-            <span class="dots" aria-label="Проигрыш"><i></i><i></i><i></i></span>
+            <span class="dots" aria-label={t('Проигрыш')}><i></i><i></i><i></i></span>
           {:else if words[i]?.length}
             {#each words[i] ?? [] as w, j (j)}<span class="w" class:bg={w.isBackground}><span class="h">{w.text}</span></span
               >{#if w.hasSpaceAfter}{' '}{/if}{/each}
           {:else}
             <span class="t">{line.text}</span>
           {/if}
-          {#if lyrics.notes.has(i)}<sup class="note-mark" class:on={noteOpen === i} aria-label="Есть аннотация Genius">”</sup>{/if}
+          {#if lyrics.notes.has(i)}<sup class="note-mark" class:on={noteOpen === i} aria-label={t('Есть аннотация Genius')}>”</sup>{/if}
         </button>
         {#if lyrics.notes.has(i)}
           {@const n = lyrics.notes.get(i)!}
@@ -330,7 +331,7 @@
         {#each lines as line, i (i)}
           {#if line.text}<p class:bg={line.isBackground}>{line.text}</p>{:else}<p class="gap"></p>{/if}
         {/each}
-        {#if data?.source === 'genius'}<p class="src">Текст: Genius</p>{/if}
+        {#if data?.source === 'genius'}<p class="src">{t('Текст: Genius')}</p>{/if}
       </div>
     {/if}
   </div>

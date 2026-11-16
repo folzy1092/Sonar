@@ -9,12 +9,16 @@
   import Icon from '../components/Icon.svelte'
   import PlayPause from '../components/PlayPause.svelte'
   import type { MiniCmd, MiniState } from '../lib/mini.svelte'
+  import { settings } from '../lib/settings.svelte'
+  import { t } from '../lib/i18n.svelte'
 
   let s = $state<MiniState>({ title: null, artist: null, cover_url: null, playing: false, liked: false, has: false })
 
   const cmd = (c: MiniCmd) => void emit('mini:cmd', c)
 
   onMount(() => {
+    // язык интерфейса — из настроек (t() читает general.language)
+    void settings.load()
     const off = listen<MiniState>('mini:state', (e) => (s = e.payload))
     void emit('mini:hello')
     const bye = () => void emit('mini:bye')
@@ -33,28 +37,28 @@
 </script>
 
 <div class="mini" data-tauri-drag-region>
-  <button class="art" title="Открыть Sonar (двойной клик)" ondblclick={() => invoke('show_main')}>
+  <button class="art" title={t('Открыть Sonar (двойной клик)')} ondblclick={() => invoke('show_main')}>
     {#key s.cover_url}
       {#if s.cover_url}<img src={s.cover_url} alt="" draggable="false" />{:else}<span class="ph"><Icon name="music" size={18} /></span>{/if}
     {/key}
   </button>
   <div class="meta" data-tauri-drag-region>
     {#key s.title}
-      <b data-tauri-drag-region>{s.title ?? 'Ничего не играет'}</b>
+      <b data-tauri-drag-region>{s.title ?? t('Ничего не играет')}</b>
       <small data-tauri-drag-region>{s.artist ?? 'Sonar'}</small>
     {/key}
   </div>
   <div class="ctl">
-    <button class="ic like" class:on={s.liked} disabled={!s.has} aria-label={s.liked ? 'Убрать из Любимых' : 'В Любимые'} onclick={() => cmd('like')}>
+    <button class="ic like" class:on={s.liked} disabled={!s.has} aria-label={s.liked ? t('Убрать из Любимых') : t('В Любимые')} onclick={() => cmd('like')}>
       <Icon name="heart" size={16} filled={s.liked} />
     </button>
-    <button class="ic" disabled={!s.has} aria-label="Назад" onclick={() => cmd('prev')}><Icon name="prev" size={17} filled /></button>
-    <button class="play" disabled={!s.has} aria-label={s.playing ? 'Пауза' : 'Играть'} onclick={() => cmd('toggle')}>
+    <button class="ic" disabled={!s.has} aria-label={t('Назад')} onclick={() => cmd('prev')}><Icon name="prev" size={17} filled /></button>
+    <button class="play" disabled={!s.has} aria-label={s.playing ? t('Пауза') : t('Играть')} onclick={() => cmd('toggle')}>
       <PlayPause playing={s.playing} size={17} />
     </button>
-    <button class="ic" disabled={!s.has} aria-label="Вперёд" onclick={() => cmd('next')}><Icon name="next" size={17} filled /></button>
+    <button class="ic" disabled={!s.has} aria-label={t('Вперёд')} onclick={() => cmd('next')}><Icon name="next" size={17} filled /></button>
   </div>
-  <button class="x" aria-label="Закрыть мини-плеер" title="Закрыть" onclick={close}><Icon name="x" size={11} /></button>
+  <button class="x" aria-label={t('Закрыть мини-плеер')} title={t('Закрыть')} onclick={close}><Icon name="x" size={11} /></button>
 </div>
 
 <style>

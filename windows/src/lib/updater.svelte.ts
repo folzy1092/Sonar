@@ -7,6 +7,7 @@ import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { isTauri } from './tauri'
 import { settings } from './settings.svelte'
+import { t } from './i18n.svelte'
 import { compareVersions, isBeta, mergeReleases, noteLines, parseChangelog, type ChangelogEntry } from './update-core'
 
 export type UpdatePhase = 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'installing' | 'error'
@@ -178,7 +179,7 @@ async function find(): Promise<Found | null> {
     raw: null,
     version: '0.1.1',
     date: new Date().toISOString(),
-    notes: ['Пример заметок к обновлению', 'Видно только в превью интерфейса'],
+    notes: [t('Пример заметок к обновлению'), t('Видно только в превью интерфейса')],
   }
 }
 
@@ -192,11 +193,11 @@ async function fakeDownload(u: Updater) {
 
 function humanError(e: unknown): string {
   const s = String(e instanceof Error ? e.message : e)
-  if (/signature/i.test(s)) return 'Подпись обновления не сошлась — файл не установлен'
-  if (/timed? ?out|timeout/i.test(s)) return 'Сервер обновлений не ответил'
-  if (/network|connect|dns|error sending request/i.test(s)) return 'Нет связи с GitHub'
-  if (/404|not found|release json/i.test(s)) return 'Релиз ещё не опубликован'
-  return s || 'Не удалось проверить обновления'
+  if (/signature/i.test(s)) return t('Подпись обновления не сошлась — файл не установлен')
+  if (/timed? ?out|timeout/i.test(s)) return t('Сервер обновлений не ответил')
+  if (/network|connect|dns|error sending request/i.test(s)) return t('Нет связи с GitHub')
+  if (/404|not found|release json/i.test(s)) return t('Релиз ещё не опубликован')
+  return s ? t(s) : t('Не удалось проверить обновления')
 }
 
 export const updater = new Updater()

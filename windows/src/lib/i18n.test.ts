@@ -13,6 +13,13 @@ describe('i18n', () => {
     expect(t('Язык')).toBe('Language')
     expect(t('Строки нет в словаре')).toBe('Строки нет в словаре')
   })
+  it('контекст: по-русски без него, перевод — свой', () => {
+    current = 'ru'
+    expect(t('список::Обновить')).toBe('Обновить')
+    current = 'en'
+    expect(t('список::Обновить')).toBe('Refresh')
+    expect(t('Обновить')).toBe('Update')
+  })
   it('подстановки', () => {
     current = 'ru'
     expect(t('Похожее на «{title}»', { title: 'X' })).toBe('Похожее на «X»')

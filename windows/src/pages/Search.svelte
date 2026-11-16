@@ -11,21 +11,24 @@
   import { search } from '../app/search.svelte'
   import { router } from '../app/router.svelte'
   import { settingsPanel } from './settings-section.svelte'
-  import { api, errorText, looksLikeLink, type SearchMore, type Track } from '../lib/api'
+  import { api, errorText, looksLikeLink, rawError, type SearchMore, type Track } from '../lib/api'
   import SearchLink from './SearchLink.svelte'
   import { player } from '../player/player.svelte'
   import { playStation } from '../player/autoplay.svelte'
   import { settings } from '../lib/settings.svelte'
   import { searchHistory } from '../lib/search-history.svelte'
+  import { t } from '../lib/i18n.svelte'
 
   const tabs = ['Все', 'Треки', 'Артисты', 'Альбомы', 'Плейлисты'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
-  const sourceName = $derived(search.source === 'sc' ? 'SoundCloud' : 'Яндекс Музыке')
+  const sourceName = $derived(search.source === 'sc' ? 'SoundCloud' : t('Яндекс Музыке'))
 
   let results = $state<Track[]>([])
   let more = $state<SearchMore>({ artists: [], albums: [], playlists: [] })
   let loading = $state(false)
   let error = $state<string | null>(null)
+  /** Сервис не подключён (узнаём по исходному тексту ошибки, на любом языке) — кнопка «Сервисы». */
+  let notConnected = $state(false)
   let seq = 0
 
   /** Трек из поиска: с «Авто похожими» — как в SoundCloud, он и следом похожие на него;
@@ -69,6 +72,7 @@
         if (my === seq) {
           results = []
           error = errorText(e)
+          notConnected = rawError(e).includes('не подключ')
         }
       } finally {
         if (my === seq) loading = false
@@ -84,8 +88,8 @@
 
 {#if !link}
   <div class="chips" use:indicator={{ key: tab, kind: 'pill' }}>
-    {#each tabs as t (t)}
-      <button class="chip" class:on={tab === t} onclick={() => (tab = t)}>{t}</button>
+    {#each tabs as tb (tb)}
+      <button class="chip" class:on={tab === tb} onclick={() => (tab = tb)}>{t(tb)}</button>
     {/each}
   </div>
 {/if}
@@ -93,25 +97,25 @@
 {#if link}
   <SearchLink url={link} />
 {:else if !search.query.trim()}
-  <EmptyState icon="search" title="Что включить?" text="Ищи треки в SoundCloud и Яндекс Музыке — или вставь ссылку на трек, альбом или плейлист." />
+  <EmptyState icon="search" title={t('Что включить?')} text={t('Ищи треки в SoundCloud и Яндекс Музыке — или вставь ссылку на трек, альбом или плейлист.')} />
 {:else if error}
   <div class="err">
-    <EmptyState icon="key" title="Не получилось" text={error} />
-    {#if error.includes('не подключ')}
-      <button class="cta" onclick={openServices}>Открыть «Сервисы»</button>
+    <EmptyState icon="key" title={t('Не получилось')} text={error} />
+    {#if notConnected}
+      <button class="cta" onclick={openServices}>{t('Открыть «Сервисы»')}</button>
     {/if}
   </div>
 {:else if loading && !results.length}
-  <div class="skeleton" aria-label="Ищу…">
+  <div class="skeleton" aria-label={t('Ищу…')}>
     {#each { length: 6 } as _, i (i)}<div class="sk"></div>{/each}
   </div>
 {:else if !results.length && !more.artists.length && !more.albums.length && !more.playlists.length}
-  <EmptyState icon="search" title="Ничего не нашлось" text={`По запросу «${search.query.trim()}» в ${sourceName} пусто.`} />
+  <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('По запросу «{query}» в {source} пусто.', { query: search.query.trim(), source: sourceName })} />
 {:else}
   {@const all = tab === 'Все'}
   {#key tab}<div class="tab-in">
   {#if (all || tab === 'Треки') && results.length}
-    <h2>Треки {#if all && results.length > 5}<button class="more" onclick={() => (tab = 'Треки')}>Показать все</button>{/if}</h2>
+    <h2>{t('Треки')} {#if all && results.length > 5}<button class="more" onclick={() => (tab = 'Треки')}>{t('Показать все')}</button>{/if}</h2>
     <div class="list" class:stale={loading} use:cascade={results}>
       {#each all ? results.slice(0, 5) : results as t, i (t.ref)}
         <TrackRow track={t} index={i} onplay={() => playTrack(i)} />
@@ -119,12 +123,12 @@
     </div>
   {/if}
   {#if (all || tab === 'Артисты') && more.artists.length}
-    <h2>Артисты</h2>
+    <h2>{t('Артисты')}</h2>
     <div class:row={all} class:grid={!all} use:cascade={more} use:hscroll use:edges>
       {#each more.artists as a (a.ref)}
         <Tile
           title={a.name}
-          subtitle={a.followers != null ? `${compact(a.followers)} подп.` : undefined}
+          subtitle={a.followers != null ? t('{n} подп.', { n: compact(a.followers) }) : undefined}
           image={a.avatar_url}
           icon="user"
           round
@@ -134,7 +138,7 @@
     </div>
   {/if}
   {#if (all || tab === 'Альбомы') && more.albums.length}
-    <h2>Альбомы</h2>
+    <h2>{t('Альбомы')}</h2>
     <div class:row={all} class:grid={!all} use:cascade={more} use:hscroll use:edges>
       {#each more.albums as a (a.ref)}
         <Tile title={a.title} subtitle={a.artist} meta={a.year ? String(a.year) : undefined} image={a.cover_url} icon="disc" onclick={() => (searchHistory.add({ kind: 'album', query: search.query, ref: a.ref, title: a.title, subtitle: a.artist, cover_url: a.cover_url }), openRef(a.ref))} />
@@ -142,7 +146,7 @@
     </div>
   {/if}
   {#if (all || tab === 'Плейлисты') && more.playlists.length}
-    <h2>Плейлисты</h2>
+    <h2>{t('Плейлисты')}</h2>
     <div class:row={all} class:grid={!all} use:cascade={more} use:hscroll use:edges>
       {#each more.playlists as p (p.ref)}
         <Tile title={p.title} subtitle={p.owner} meta={p.track_count ? tracksText(p.track_count) : undefined} image={p.cover_url} onclick={() => (searchHistory.add({ kind: 'playlist', query: search.query, ref: p.ref, title: p.title, subtitle: p.owner, cover_url: p.cover_url }), openRef(p.ref))} />
@@ -150,7 +154,7 @@
     </div>
   {/if}
   {#if !all && ((tab === 'Треки' && !results.length) || (tab === 'Артисты' && !more.artists.length) || (tab === 'Альбомы' && !more.albums.length) || (tab === 'Плейлисты' && !more.playlists.length))}
-    <EmptyState icon="search" title="Ничего не нашлось" text={`${tab} по запросу «${search.query.trim()}» не нашлись.`} />
+    <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('{what} по запросу «{query}» не нашлись.', { what: t(tab), query: search.query.trim() })} />
   {/if}
   </div>{/key}
 {/if}

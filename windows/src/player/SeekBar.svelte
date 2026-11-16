@@ -2,6 +2,7 @@
   // Ползунок времени: пока тянешь — двигается только он, перемотка — при отпускании.
   import { formatTime, player } from './player.svelte'
   import { settings } from '../lib/settings.svelte'
+  import { t } from '../lib/i18n.svelte'
 
   interface Props {
     times?: boolean
@@ -65,7 +66,7 @@
     step="250"
     value={shown}
     disabled={!player.current}
-    aria-label="Позиция"
+    aria-label={t('Позиция')}
     bind:this={input}
     oninput={(e) => {
       dragging = true

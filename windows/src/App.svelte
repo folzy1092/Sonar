@@ -1,5 +1,6 @@
 <script lang="ts">
   import Rail from './app/Rail.svelte'
+  import { t } from './lib/i18n.svelte'
   import WindowControls from './app/WindowControls.svelte'
   import SearchBar from './app/SearchBar.svelte'
   import MiniPlayer from './app/MiniPlayer.svelte'
@@ -173,7 +174,7 @@
 </div>
 {#if settingsPanel.open}
   <!-- клик по отъехавшему окну закрывает настройки -->
-  <button class="back-to-app" aria-label="Закрыть настройки" onclick={() => settingsPanel.close()}></button>
+  <button class="back-to-app" aria-label={t('Закрыть настройки')} onclick={() => settingsPanel.close()}></button>
 {/if}
 </div>
 

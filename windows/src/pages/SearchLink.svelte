@@ -14,6 +14,7 @@
   import { tracksText } from '../lib/format'
   import { trackMenu } from '../lib/menu.svelte'
   import { pulse } from '../lib/pulse'
+  import { t } from '../lib/i18n.svelte'
 
   let { url }: { url: string } = $props()
 
@@ -39,32 +40,32 @@
     if (!item) return null
     switch (item.kind) {
       case 'track':
-        return { ref: item.track.ref, title: item.track.title, sub: item.track.artist, cover: item.track.cover_url, label: 'Трек', round: false }
+        return { ref: item.track.ref, title: item.track.title, sub: item.track.artist, cover: item.track.cover_url, label: t('Трек'), round: false }
       case 'album':
         return {
           ref: item.album.ref,
           title: item.album.title,
           sub: `${item.album.artist}${item.album.year ? ` · ${item.album.year}` : ''}`,
           cover: item.album.cover_url,
-          label: 'Альбом',
+          label: t('Альбом'),
           round: false,
         }
       case 'artist':
-        return { ref: item.artist.ref, title: item.artist.name, sub: 'Исполнитель', cover: item.artist.avatar_url, label: 'Артист', round: true }
+        return { ref: item.artist.ref, title: item.artist.name, sub: t('Исполнитель'), cover: item.artist.avatar_url, label: t('Артист'), round: true }
       case 'playlist':
         return {
           ref: item.playlist.ref,
           title: item.playlist.title,
           sub: `${item.playlist.owner}${item.playlist.track_count ? ` · ${tracksText(item.playlist.track_count)}` : ''}`,
           cover: item.playlist.cover_url,
-          label: 'Плейлист',
+          label: t('Плейлист'),
           round: false,
         }
     }
   })
 
   const added = $derived(item?.kind === 'playlist' ? imported : !!view && library.isLiked(view.ref))
-  const addLabel = $derived(item?.kind === 'artist' ? (added ? 'Вы подписаны' : 'Подписаться') : added ? 'В медиатеке' : 'В медиатеку')
+  const addLabel = $derived(item?.kind === 'artist' ? (added ? t('Вы подписаны') : t('Подписаться')) : added ? t('В медиатеке') : t('В медиатеку'))
 
   async function add() {
     if (!item || busy) return
@@ -74,11 +75,11 @@
         const p = await api.importPlaylist(item.playlist.ref)
         imported = true
         await library.refreshPlaylists()
-        toast.show(`Плейлист «${p.name}» теперь в медиатеке`)
+        toast.show(t('Плейлист «{name}» теперь в медиатеке', { name: p.name }))
       } else {
         const it = item.kind === 'track' ? item.track : item.kind === 'album' ? item.album : item.artist
         await library.toggleLike(it)
-        if (library.isLiked(it.ref)) toast.show(item.kind === 'artist' ? 'Подписка оформлена' : 'Добавлено в медиатеку')
+        if (library.isLiked(it.ref)) toast.show(item.kind === 'artist' ? t('Подписка оформлена') : t('Добавлено в медиатеку'))
       }
     } catch (e) {
       toast.show(errorText(e))
@@ -95,15 +96,15 @@
 </script>
 
 {#if error}
-  <EmptyState icon="link" title="Не открылось" text={error} />
+  <EmptyState icon="link" title={t('Не открылось')} text={error} />
 {:else if !view}
-  <div class="card skel-card" aria-label="Открываю ссылку…">
+  <div class="card skel-card" aria-label={t('Открываю ссылку…')}>
     <div class="skel cov"></div>
     <div class="lines"><div class="skel l1"></div><div class="skel l2"></div></div>
   </div>
 {:else}
   <div class="card">
-    <button class="cov-btn" onclick={open} aria-label={item?.kind === 'track' ? 'Играть' : 'Открыть'}>
+    <button class="cov-btn" onclick={open} aria-label={item?.kind === 'track' ? t('Играть') : t('Открыть')}>
       <Cover url={view.cover} size={120} radius={view.round ? '50%' : 'var(--radius-l)'} source={view.ref} />
       <span class="hover"><Icon name={item?.kind === 'track' ? 'play' : 'chevronRight'} size={28} filled={item?.kind === 'track'} /></span>
     </button>
@@ -115,18 +116,18 @@
         {#if item?.kind === 'track'}
           {@const tr = item.track}
           <!-- трек: «Слушать», ❤ и «В плейлист» (решение владельца 2026-11-16) -->
-          <button class="btn primary press" onclick={open}><Icon name="play" size={15} filled /> Слушать</button>
+          <button class="btn primary press" onclick={open}><Icon name="play" size={15} filled /> {t('Слушать')}</button>
           <button
             class="btn icon press"
             class:liked={added}
-            aria-label={added ? 'Удалить из Любимых' : 'В Любимые'}
-            title={added ? 'Удалить из Любимых' : 'В Любимые'}
+            aria-label={added ? t('Удалить из Любимых') : t('В Любимые')}
+            title={added ? t('Удалить из Любимых') : t('В Любимые')}
             onclick={() => library.toggleLike(tr)}
           >
             <span class="ic" use:pulse={added}><Icon name="heart" size={17} filled={added} /></span>
           </button>
           <button class="btn press" onclick={(e) => trackMenu.openAt({ track: tr }, e.currentTarget, 'playlists')}>
-            <Icon name="plus" size={16} /> В плейлист
+            <Icon name="plus" size={16} /> {t('В плейлист')}
           </button>
         {:else}
         <button class="btn primary press" class:done={added} disabled={busy || (added && item?.kind === 'playlist')} onclick={add}>
@@ -134,7 +135,7 @@
             <span class="lbl"><Icon name={added ? 'check' : item?.kind === 'artist' ? 'heart' : 'plus'} size={16} /> {addLabel}</span>
           {/key}
         </button>
-        <button class="btn press" onclick={open}>Открыть</button>
+        <button class="btn press" onclick={open}>{t('Открыть')}</button>
         {/if}
       </div>
     </div>

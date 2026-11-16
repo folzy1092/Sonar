@@ -3,11 +3,12 @@
 // чтобы возврат на главную был мгновенным. Тренды, плейлисты пользователей и чарты Sonar — с
 // сервера (API.md §5а), до него эти ряды показывают заготовку.
 import { api, type Album, type ServiceStatus, type Track } from '../lib/api'
+import { t } from '../lib/i18n.svelte'
 
 const TTL = 15 * 60_000
 const WEEK = 7 * 24 * 3600_000
 
-/** Часть суток для приветствия и подборки. */
+/** Часть суток для приветствия и подборки. Подписи DAYPART_TEXT — ключи перевода, `t()` при показе. */
 export type Daypart = 'morning' | 'day' | 'evening' | 'night'
 
 export function daypart(hour: number): Daypart {
@@ -42,9 +43,9 @@ export function releaseLabel(released: string | null | undefined, now = new Date
   if (!y || !m || !d) return undefined
   const day = (x: Date) => Date.UTC(x.getFullYear(), x.getMonth(), x.getDate())
   const diff = Math.round((day(now) - Date.UTC(y, m - 1, d)) / 86_400_000)
-  if (diff === 0) return 'сегодня'
-  if (diff === 1) return 'вчера'
-  return `${d} ${MONTHS[m - 1]}${y !== now.getFullYear() ? ` ${y}` : ''}`
+  if (diff === 0) return t('сегодня')
+  if (diff === 1) return t('вчера')
+  return `${d} ${t(MONTHS[m - 1])}${y !== now.getFullYear() ? ` ${y}` : ''}`
 }
 
 class Home {

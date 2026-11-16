@@ -7,6 +7,7 @@
   import Icon from '../components/Icon.svelte'
   import { pop } from '../lib/motion'
   import type { IconName } from '../components/icons'
+  import { t } from '../lib/i18n.svelte'
   import { toMs } from './core/offset'
   import {
     lyrics,
@@ -36,7 +37,7 @@
   /** Ползунок смещения: ±2 с, точнее — колесом по 10 мс; двойной клик по значению — сброс. */
   const RANGE_MS = 2000
   const offsetMs = $derived(toMs(lyrics.offset))
-  const offsetLabel = $derived(offsetMs === 0 ? '0' : `${offsetMs > 0 ? '+' : '−'}${Math.abs(offsetMs)} мс`)
+  const offsetLabel = $derived(offsetMs === 0 ? '0' : `${offsetMs > 0 ? '+' : '−'}${t('{ms} мс', { ms: Math.abs(offsetMs) })}`)
 
   const hasText = $derived(lyrics.status === 'ready')
 
@@ -73,21 +74,21 @@
   out:pop|global={{ y: -6, scale: 0.95, duration: 220 }}
   oncontextmenu={(e) => e.preventDefault()}
 >
-  <div class="row sizes" role="radiogroup" aria-label="Размер текста">
+  <div class="row sizes" role="radiogroup" aria-label={t('Размер текста')}>
     {#each lyricsSizes as s (s)}
       <button
         class:on={lyrics.size === s}
         style:font-size="{sizeFont[s]}px"
-        aria-label="Размер {s}"
-        title="Размер {s}"
+        aria-label={t('Размер {s}', { s })}
+        title={t('Размер {s}', { s })}
         onclick={() => lyrics.setSize(s)}>A</button
       >
     {/each}
   </div>
 
-  <div class="row views" role="radiogroup" aria-label="Вид">
+  <div class="row views" role="radiogroup" aria-label={t('Вид')}>
     {#each views as v (v.id)}
-      <button class:on={lyrics.view === v.id} aria-label={v.title} title={v.title} onclick={() => lyrics.setView(v.id)}>
+      <button class:on={lyrics.view === v.id} aria-label={t(v.title)} title={t(v.title)} onclick={() => lyrics.setView(v.id)}>
         <Icon name={v.icon} size={16} />
       </button>
     {/each}
@@ -98,25 +99,25 @@
       class="item"
       onclick={() => lyrics.setMode(lyrics.mode === 'words' ? 'lines' : 'words')}
     >
-      <span>Синхронизация</span>
-      <b>{lyrics.mode === 'words' ? 'По словам' : 'По строкам'}</b>
+      <span>{t('Синхронизация')}</span>
+      <b>{lyrics.mode === 'words' ? t('По словам') : t('По строкам')}</b>
     </button>
     <button class="item" onclick={() => lyrics.cycleStyle()}>
-      <span>Стиль текста</span>
-      <b>{lyricsStyles[lyrics.style]}</b>
+      <span>{t('Стиль текста')}</span>
+      <b>{t(lyricsStyles[lyrics.style])}</b>
     </button>
     <button class="item" onclick={() => lyrics.cycleAnimation()}>
-      <span>Анимация</span>
-      <b>{lyricsAnimations[lyrics.animation]}</b>
+      <span>{t('Анимация')}</span>
+      <b>{t(lyricsAnimations[lyrics.animation])}</b>
     </button>
 
     <div class="offset">
       <div class="item static">
-        <span>Смещение</span>
+        <span>{t('Смещение')}</span>
         <b
           role="button"
           tabindex="0"
-          title="Двойной клик — сбросить"
+          title={t('Двойной клик — сбросить')}
           ondblclick={() => lyrics.setOffset(0)}
           onkeydown={(e) => e.key === 'Enter' && lyrics.setOffset(0)}>{offsetLabel}</b
         >
@@ -128,7 +129,7 @@
         step="10"
         value={offsetMs}
         disabled={!hasText}
-        aria-label="Смещение текста, мс"
+        aria-label={t('Смещение текста, мс')}
         style:--fill="{((offsetMs + RANGE_MS) / (2 * RANGE_MS)) * 100}%"
         oninput={(e) => lyrics.setOffset(Number(e.currentTarget.value) / 1000)}
         onwheel={(e) => {
@@ -139,11 +140,11 @@
     </div>
   </div>
 
-  <button class="wide" disabled title="Перевод — после MVP">
-    <Icon name="language" size={14} /> Перевести
+  <button class="wide" disabled title={t('Перевод — после MVP')}>
+    <Icon name="language" size={14} /> {t('Перевести')}
   </button>
-  <button class="wide" onclick={() => lyrics.reload()} title="Искать текст заново, мимо кэша">
-    <Icon name="refresh" size={14} /> Найти текст заново
+  <button class="wide" onclick={() => lyrics.reload()} title={t('Искать текст заново, мимо кэша')}>
+    <Icon name="refresh" size={14} /> {t('Найти текст заново')}
   </button>
 </div>
 

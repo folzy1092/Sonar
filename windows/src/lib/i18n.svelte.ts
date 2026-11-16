@@ -5,6 +5,8 @@
 // словаре две формы («track|tracks»), в украинском — три (правило как в русском).
 // Словари — части `src/i18n/en/*.ts` и `src/i18n/uk/*.ts` (`export default { 'рус': 'перевод' }`),
 // собираются сами (import.meta.glob).
+// Одно русское слово с разным смыслом — ключ с контекстом `'список::Обновить'`: по-русски видно
+// «Обновить», а в словаре свой перевод («Refresh» вместо «Update» у обновления приложения).
 import { settings } from './settings.svelte'
 
 export type Lang = 'ru' | 'en' | 'uk'
@@ -34,7 +36,9 @@ const fill = (s: string, params?: Record<string, string | number>) =>
 /** Перевод строки интерфейса (ключ — русский текст). */
 export function t(ru: string, params?: Record<string, string | number>): string {
   const l = lang()
-  return fill(l === 'ru' ? ru : (DICTS[l][ru] ?? ru), params)
+  const at = ru.indexOf('::')
+  const plain = at < 0 ? ru : ru.slice(at + 2)
+  return fill(l === 'ru' ? plain : (DICTS[l][ru] ?? plain), params)
 }
 
 /** Русское правило множественного числа: 0 — одна, 1 — две, 2 — три форма. */

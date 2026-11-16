@@ -18,6 +18,7 @@
   import { replay } from '../lib/replay'
   import { settings } from '../lib/settings.svelte'
   import { lyrics } from '../lyrics/lyrics.svelte'
+  import { t } from '../lib/i18n.svelte'
 
   const track = $derived(player.current)
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
@@ -44,8 +45,8 @@
     })
   })
   let press: { x: number; y: number } | null = null
-  const isControl = (t: EventTarget | null) =>
-    !!(t as HTMLElement | null)?.closest?.('button, a, input, [role="link"], .selectable, .capsule')
+  const isControl = (target: EventTarget | null) =>
+    !!(target as HTMLElement | null)?.closest?.('button, a, input, [role="link"], .selectable, .capsule')
 
   function seekAt(clientX: number) {
     if (!bar || !duration || !track) return
@@ -97,8 +98,8 @@
         data-fx-cover
         disabled={!track}
         onclick={() => lyrics.open()}
-        aria-label="Полноэкранный плеер"
-        title="Полноэкранный плеер"
+        aria-label={t('Полноэкранный плеер')}
+        title={t('Полноэкранный плеер')}
       >
         <Cover url={track?.cover_url} size={46} radius="calc(50% * var(--cover-k, 1))" />
         <LoadFx url={track?.cover_url} />
@@ -109,7 +110,7 @@
         <span class="expand" aria-hidden="true"><Icon name="expand" size={18} /></span>
       </button>
       <span class="meta selectable" use:replay={track?.ref}>
-        <span class="title" role="link" tabindex="-1" onclick={openPlayer} onkeydown={() => {}}>{track?.title ?? 'Ничего не играет'}</span>
+        <span class="title" role="link" tabindex="-1" onclick={openPlayer} onkeydown={() => {}}>{track?.title ?? t('Ничего не играет')}</span>
         {#if player.error}
           <span class="artist err" title={player.error}>{player.error}</span>
         {:else if track}
@@ -129,37 +130,37 @@
               >{:else}{track.artist}{/each}
           </span>
         {:else}
-          <span class="artist">Найди трек в поиске</span>
+          <span class="artist">{t('Найди трек в поиске')}</span>
         {/if}
       </span>
     </div>
     {#if track}
-      <IconButton icon="heart" label={liked ? 'Удалить из Любимых' : 'В Любимые'} size={17} filled={liked} active={liked} pulse={liked} onclick={() => library.toggleLike(track)} />
+      <IconButton icon="heart" label={liked ? t('Удалить из Любимых') : t('В Любимые')} size={17} filled={liked} active={liked} pulse={liked} onclick={() => library.toggleLike(track)} />
     {/if}
   </div>
 
   <div class="center">
     <IconButton
       icon={player.repeat === 'one' ? 'repeatOnce' : player.repeat === 'all' ? 'repeat' : 'repeatOff'}
-      label={player.repeat === 'off' ? 'Повтор: выкл' : player.repeat === 'all' ? 'Повтор: всё' : 'Повтор: трек'}
+      label={player.repeat === 'off' ? t('Повтор: выкл') : player.repeat === 'all' ? t('Повтор: всё') : t('Повтор: трек')}
       size={18}
       active={player.repeat !== 'off'}
       disabled={!track}
       onclick={() => player.cycleRepeat()}
     />
-    <IconButton icon="prev" label="Назад" size={18} filled disabled={!track} onclick={() => player.prev()} />
+    <IconButton icon="prev" label={t('Назад')} size={18} filled disabled={!track} onclick={() => player.prev()} />
     <button
       class="play"
       class:loading={player.loading}
-      aria-label={player.playing ? 'Пауза' : 'Играть'}
-      title={player.playing ? 'Пауза' : 'Играть'}
+      aria-label={player.playing ? t('Пауза') : t('Играть')}
+      title={player.playing ? t('Пауза') : t('Играть')}
       disabled={!track}
       onclick={() => player.toggle()}
     >
       <PlayPause playing={player.playing} size={22} />
     </button>
-    <IconButton icon="next" label="Вперёд" size={18} filled disabled={!track} onclick={() => player.next()} />
-    <IconButton icon="shuffle" label="Перемешать" size={18} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
+    <IconButton icon="next" label={t('Вперёд')} size={18} filled disabled={!track} onclick={() => player.next()} />
+    <IconButton icon="shuffle" label={t('Перемешать')} size={18} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
   </div>
 
   <div class="right">
@@ -173,7 +174,7 @@
       <!-- текст и полноэкранный плеер — только когда у трека есть текст -->
       {#if track && lyrics.status === 'ready'}
         <span class="t-btn" transition:scale={{ duration: 200, start: 0.6 }}>
-          <IconButton icon="letterT" label="Текст и полноэкранный плеер" size={17} active={lyrics.fullscreen} onclick={() => (lyrics.fullscreen ? lyrics.close() : lyrics.open())} />
+          <IconButton icon="letterT" label={t('Текст и полноэкранный плеер')} size={17} active={lyrics.fullscreen} onclick={() => (lyrics.fullscreen ? lyrics.close() : lyrics.open())} />
         </span>
       {/if}
     </div>

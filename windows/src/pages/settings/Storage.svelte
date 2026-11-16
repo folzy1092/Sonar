@@ -9,7 +9,7 @@
   import { searchHistory } from '../../lib/search-history.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { api, type StorageUsage } from '../../lib/api'
-  import { plural } from '../../lib/format'
+  import { t, tn } from '../../lib/i18n.svelte'
   import { toast } from '../../lib/toast.svelte'
 
   let usage = $state<StorageUsage | null>(null)
@@ -17,7 +17,7 @@
 
   const mb = (b: number) => b / 1_048_576
   const mbText = (b: number) =>
-    b < 1_048_576 ? `${Math.max(1, Math.round(b / 1024))} КБ` : `${mb(b) < 10 ? mb(b).toFixed(1) : Math.round(mb(b))} МБ`
+    b < 1_048_576 ? t('{n} КБ', { n: Math.max(1, Math.round(b / 1024)) }) : t('{n} МБ', { n: mb(b) < 10 ? mb(b).toFixed(1) : Math.round(mb(b)) })
   const total = $derived(usage ? usage.tracks_bytes + usage.covers_bytes + usage.lyrics_bytes + usage.db_bytes : 0)
   const part = (b: number) => (total ? Math.max(2, (b / total) * 100) : 0)
 
@@ -32,7 +32,7 @@
   }
   async function clearHistory() {
     await searchHistory.clear()
-    toast.show('История поиска очищена')
+    toast.show(t('История поиска очищена'))
     await refresh()
   }
   onMount(refresh)
@@ -52,7 +52,7 @@
 {#if usage}
   <div class="total">
     <b><CountUp value={mb(total)} format={(n) => n.toFixed(1)} /> MB</b>
-    <span>Занято</span>
+    <span>{t('Занято')}</span>
   </div>
   <div class="bar" aria-hidden="true">
     {#if usage.tracks_bytes}<i class="tracks" style:width="{part(usage.tracks_bytes)}%"></i>{/if}
@@ -62,56 +62,56 @@
   </div>
 
   <Switch
-    title="Кеширование треков"
-    hint="Прослушанные треки сохраняются на диск и в следующий раз играют без сети"
+    title={t('Кеширование треков')}
+    hint={t('Прослушанные треки сохраняются на диск и в следующий раз играют без сети')}
     on={settings.get('storage.cache_tracks')}
     onchange={(v) => settings.set('storage.cache_tracks', v)}
   />
   {#if settings.get('storage.cache_tracks')}
     <Choice
-      title="Размер кэша треков"
-      hint="Сверх лимита удаляются давно не игравшие"
+      title={t('Размер кэша треков')}
+      hint={t('Сверх лимита удаляются давно не игравшие')}
       value={settings.get('storage.cache_limit_mb')}
-      options={[512, 1024, 2048, 5120, 10240].map((n) => ({ id: n, label: n < 1024 ? `${n} МБ` : `${n / 1024} ГБ` }))}
+      options={[512, 1024, 2048, 5120, 10240].map((n) => ({ id: n, label: n < 1024 ? t('{n} МБ', { n }) : t('{n} ГБ', { n: n / 1024 }) }))}
       onchange={(v) => settings.set('storage.cache_limit_mb', v)}
     />
   {/if}
 
-  <Group title="Очистка кеша">
+  <Group title={t('Очистка кеша')}>
     {#snippet action()}
-      <button class="link" onclick={() => clear('all', 'Кэш очищен')}>Очистить всё</button>
+      <button class="link" onclick={() => clear('all', t('Кэш очищен'))}>{t('Очистить всё')}</button>
     {/snippet}
     <div class="row">
       <span class="dot tracks"></span>
-      <span class="text"><b>Треки</b><small>{usage.tracks} {plural(usage.tracks, ['трек', 'трека', 'треков'])}, {mbText(usage.tracks_bytes)}</small></span>
-      <button class="link" disabled={!usage.tracks} onclick={() => clear('tracks', 'Кэш треков очищен')}>Очистить</button>
+      <span class="text"><b>{t('Треки')}</b><small>{usage.tracks} {tn(usage.tracks, ['трек', 'трека', 'треков'])}, {mbText(usage.tracks_bytes)}</small></span>
+      <button class="link" disabled={!usage.tracks} onclick={() => clear('tracks', t('Кэш треков очищен'))}>{t('Очистить')}</button>
     </div>
     <div class="row">
       <span class="dot covers"></span>
-      <span class="text"><b>Обложки</b><small>{usage.covers} {plural(usage.covers, ['обложка', 'обложки', 'обложек'])}, {mbText(usage.covers_bytes)}</small></span>
-      <button class="link" onclick={() => clear('covers', 'Обложки удалены')}>Очистить</button>
+      <span class="text"><b>{t('Обложки')}</b><small>{usage.covers} {tn(usage.covers, ['обложка', 'обложки', 'обложек'])}, {mbText(usage.covers_bytes)}</small></span>
+      <button class="link" onclick={() => clear('covers', t('Обложки удалены'))}>{t('Очистить')}</button>
     </div>
     <div class="row">
       <span class="dot lyrics"></span>
-      <span class="text"><b>Тексты</b><small>{usage.lyrics} {plural(usage.lyrics, ['текст', 'текста', 'текстов'])}, {mbText(usage.lyrics_bytes)}</small></span>
-      <button class="link" onclick={() => clear('lyrics', 'Тексты удалены')}>Очистить</button>
+      <span class="text"><b>{t('Тексты')}</b><small>{usage.lyrics} {tn(usage.lyrics, ['текст', 'текста', 'текстов'])}, {mbText(usage.lyrics_bytes)}</small></span>
+      <button class="link" onclick={() => clear('lyrics', t('Тексты удалены'))}>{t('Очистить')}</button>
     </div>
   </Group>
 
-  <Group title="Данные">
+  <Group title={t('Данные')}>
     <div class="row">
-      <span class="text"><b>История поиска</b><small>{historyCount} {plural(historyCount, ['запись', 'записи', 'записей'])} — запросы и открытые из поиска результаты</small></span>
-      <button class="link" disabled={!historyCount} onclick={clearHistory}>Очистить</button>
+      <span class="text"><b>{t('История поиска')}</b><small>{historyCount} {tn(historyCount, ['запись', 'записи', 'записей'])} — {t('запросы и открытые из поиска результаты')}</small></span>
+      <button class="link" disabled={!historyCount} onclick={clearHistory}>{t('Очистить')}</button>
     </div>
     <div class="row">
       <span class="text">
-        <b>Настройки треков</b>
-        <small>Скорость, эквалайзер и сдвиг текста, сохранённые для отдельных треков ({usage.track_prefs})</small>
+        <b>{t('Настройки треков')}</b>
+        <small>{t('Скорость, эквалайзер и сдвиг текста, сохранённые для отдельных треков ({n})', { n: usage.track_prefs })}</small>
       </span>
       {#if confirmPrefs}
-        <button class="link danger" onclick={() => clear('track_prefs', 'Настройки треков сброшены')}>Точно сбросить?</button>
+        <button class="link danger" onclick={() => clear('track_prefs', t('Настройки треков сброшены'))}>{t('Точно сбросить?')}</button>
       {:else}
-        <button class="link" disabled={!usage.track_prefs} onclick={() => (confirmPrefs = true)}>Сбросить</button>
+        <button class="link" disabled={!usage.track_prefs} onclick={() => (confirmPrefs = true)}>{t('Сбросить')}</button>
       {/if}
     </div>
   </Group>

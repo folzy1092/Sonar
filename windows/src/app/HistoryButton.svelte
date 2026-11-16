@@ -7,6 +7,7 @@
   import { pop } from '../lib/motion'
   import { cascade } from '../lib/cascade'
   import { player } from '../player/player.svelte'
+  import { t } from '../lib/i18n.svelte'
 
   let open = $state(false)
   let list = $state<Track[] | null>(null)
@@ -19,7 +20,7 @@
 
   function play(i: number) {
     if (!list) return
-    void player.playList(list, i, 'recent', 'История')
+    void player.playList(list, i, 'recent', t('История'))
     open = false
   }
 
@@ -31,22 +32,22 @@
 <svelte:window onpointerdown={outside} onkeydown={(e) => e.key === 'Escape' && (open = false)} />
 
 <div class="wrap" bind:this={root}>
-  <button class="ctl press" class:on={open} aria-label="История прослушивания" title="История прослушивания" aria-expanded={open} onclick={toggle}>
+  <button class="ctl press" class:on={open} aria-label={t('История прослушивания')} title={t('История прослушивания')} aria-expanded={open} onclick={toggle}>
     <Icon name="history" size={16} stroke={1.8} />
   </button>
   {#if open}
-    <div class="pop" role="dialog" aria-label="История прослушивания" in:pop={{ y: -6 }} out:pop={{ y: -6 }}>
-      <b>История</b>
+    <div class="pop" role="dialog" aria-label={t('История прослушивания')} in:pop={{ y: -6 }} out:pop={{ y: -6 }}>
+      <b>{t('История')}</b>
       {#if list === null}
         <div class="skel ph"></div>
       {:else if !list.length}
-        <p class="empty">Здесь появятся треки, которые ты слушал.</p>
+        <p class="empty">{t('Здесь появятся треки, которые ты слушал.')}</p>
       {:else}
         <div class="rows app-scroll" use:cascade>
-          {#each list as t, i (t.ref + i)}
-            <button class="row" class:now={player.current?.ref === t.ref} onclick={() => play(i)}>
-              <Cover url={t.cover_url} size={36} source={t.ref} />
-              <span class="txt"><span class="t">{t.title}</span><span class="a">{t.artist}</span></span>
+          {#each list as tr, i (tr.ref + i)}
+            <button class="row" class:now={player.current?.ref === tr.ref} onclick={() => play(i)}>
+              <Cover url={tr.cover_url} size={36} source={tr.ref} />
+              <span class="txt"><span class="t">{tr.title}</span><span class="a">{tr.artist}</span></span>
             </button>
           {/each}
         </div>

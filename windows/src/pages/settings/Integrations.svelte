@@ -14,6 +14,7 @@
   import { toast } from '../../lib/toast.svelte'
   import { isTauri } from '../../lib/tauri'
   import { onMount } from 'svelte'
+  import { t } from '../../lib/i18n.svelte'
 
   let obs = $state<{ url: string; ok: boolean }>({ url: '', ok: true })
   let copied = $state(false)
@@ -30,8 +31,8 @@
     // состояние Discord — раз в 2 с, пока открыт раздел (Discord могут запустить прямо сейчас)
     const poll = () => api.discordStatus().then((s) => (discord = s)).catch(() => {})
     void poll()
-    const t = setInterval(poll, 2000)
-    return () => clearInterval(t)
+    const timer = setInterval(poll, 2000)
+    return () => clearInterval(timer)
   })
 
   async function copyObs() {
@@ -48,7 +49,7 @@
     tokenSpin++
     try {
       obs = await api.obsNewToken()
-      toast.show('Новая ссылка — старая больше не работает')
+      toast.show(t('Новая ссылка — старая больше не работает'))
     } catch (e) {
       toast.show(errorText(e))
     }
@@ -57,14 +58,14 @@
   function dropToken() {
     settings.set('obs.token', '')
     obs = { ...obs, url: '' }
-    toast.show('Плашка выключена — нажми ↻, чтобы получить новую ссылку')
+    toast.show(t('Плашка выключена — нажми ↻, чтобы получить новую ссылку'))
   }
 
   async function lastfmLogin() {
     lfBusy = true
     try {
       lastfm = await api.lastfmLogin()
-      toast.show(`Last.fm подключён: ${lastfm.name}`)
+      toast.show(t('Last.fm подключён: {name}', { name: String(lastfm.name) }))
     } catch (e) {
       toast.show(errorText(e))
     } finally {
@@ -90,38 +91,38 @@
     <span class="dot"></span>
     <div>
       <b>
-        {#if !discordOn}Выключено{:else if discord?.connected}Discord подключён{:else}Ожидание Discord…{/if}
+        {#if !discordOn}{t('Выключено')}{:else if discord?.connected}{t('Discord подключён')}{:else}{t('Ожидание Discord…')}{/if}
       </b>
       <small>
-        {#if !discordOn}Включи активность, чтобы друзья видели, что ты слушаешь{:else if discord?.connected}Статус «Слушает» обновляется вместе с треком{:else}Запусти Discord на этом компьютере — Sonar подключится сам{/if}
+        {#if !discordOn}{t('Включи активность, чтобы друзья видели, что ты слушаешь')}{:else if discord?.connected}{t('Статус «Слушает» обновляется вместе с треком')}{:else}{t('Запусти Discord на этом компьютере — Sonar подключится сам')}{/if}
       </small>
     </div>
   </div>
-  <Switch title="Активность в Discord" hint="Показывать в профиле, что ты слушаешь" on={discordOn} onchange={(v) => settings.set('integrations.discord.enabled', v)} />
+  <Switch title={t('Активность в Discord')} hint={t('Показывать в профиле, что ты слушаешь')} on={discordOn} onchange={(v) => settings.set('integrations.discord.enabled', v)} />
 </Group>
 
 <div class="sub" class:dim={!discordOn}>
-  <Group title="Параметры отображения">
+  <Group title={t('Параметры отображения')}>
     <div class="card">
       <Select
-        title="Формат статуса"
-        hint="Что видно в заголовке «Слушает …»"
+        title={t('Формат статуса')}
+        hint={t('Что видно в заголовке «Слушает …»')}
         value={settings.get('integrations.discord.status_format')}
         options={[
-          { id: 'artist', label: 'Исполнитель (по умолчанию)' },
-          { id: 'title', label: 'Название трека' },
-          { id: 'artist_title', label: 'Исполнитель — Трек' },
-          { id: 'title_artist', label: 'Трек — Исполнитель' },
+          { id: 'artist', label: t('Исполнитель (по умолчанию)') },
+          { id: 'title', label: t('Название трека') },
+          { id: 'artist_title', label: t('Исполнитель — Трек') },
+          { id: 'title_artist', label: t('Трек — Исполнитель') },
           { id: 'app', label: 'Sonar' },
         ]}
         onchange={(v) => settings.set('integrations.discord.status_format', v)}
       />
-      <Switch title="Шкала времени трека" hint="Прошедшее и оставшееся время" on={settings.get('integrations.discord.progress')} onchange={(v) => settings.set('integrations.discord.progress', v)} />
-      <Switch title="Обложка трека" hint="Обложка альбома в карточке активности" on={settings.get('integrations.discord.cover')} onchange={(v) => settings.set('integrations.discord.cover', v)} />
-      <Switch title="Мини-фото артиста" hint="Маленький значок в углу обложки" on={settings.get('integrations.discord.artist_photo')} onchange={(v) => settings.set('integrations.discord.artist_photo', v)} />
-      <Switch title="Показывать при паузе" hint="Статус остаётся со значком паузы" on={settings.get('integrations.discord.show_paused')} onchange={(v) => settings.set('integrations.discord.show_paused', v)} />
-      <Switch title="Кнопка «Слушать в Sonar»" hint="Ссылка на этот трек в Sonar" on={settings.get('integrations.discord.button_listen')} onchange={(v) => settings.set('integrations.discord.button_listen', v)} />
-      <Switch title="Кнопка «Скачать Sonar»" hint="Ссылка на последнюю версию приложения" on={settings.get('integrations.discord.button_download')} onchange={(v) => settings.set('integrations.discord.button_download', v)} />
+      <Switch title={t('Шкала времени трека')} hint={t('Прошедшее и оставшееся время')} on={settings.get('integrations.discord.progress')} onchange={(v) => settings.set('integrations.discord.progress', v)} />
+      <Switch title={t('Обложка трека')} hint={t('Обложка альбома в карточке активности')} on={settings.get('integrations.discord.cover')} onchange={(v) => settings.set('integrations.discord.cover', v)} />
+      <Switch title={t('Мини-фото артиста')} hint={t('Маленький значок в углу обложки')} on={settings.get('integrations.discord.artist_photo')} onchange={(v) => settings.set('integrations.discord.artist_photo', v)} />
+      <Switch title={t('Показывать при паузе')} hint={t('Статус остаётся со значком паузы')} on={settings.get('integrations.discord.show_paused')} onchange={(v) => settings.set('integrations.discord.show_paused', v)} />
+      <Switch title={t('Кнопка «Слушать в Sonar»')} hint={t('Ссылка на этот трек в Sonar')} on={settings.get('integrations.discord.button_listen')} onchange={(v) => settings.set('integrations.discord.button_listen', v)} />
+      <Switch title={t('Кнопка «Скачать Sonar»')} hint={t('Ссылка на последнюю версию приложения')} on={settings.get('integrations.discord.button_download')} onchange={(v) => settings.set('integrations.discord.button_download', v)} />
     </div>
   </Group>
 </div>
@@ -129,17 +130,17 @@
 <Group title="Last.fm" icon={lastfmIcon}>
   {#if lastfm?.name}
     <div class="account">
-      <button class="x" aria-label="Отключить Last.fm" title="Отключить" onclick={lastfmLogout}><Icon name="x" size={16} /></button>
+      <button class="x" aria-label={t('Отключить Last.fm')} title={t('Отключить')} onclick={lastfmLogout}><Icon name="x" size={16} /></button>
       <span class="av">{#if lastfm.avatar_url}<img src={lastfm.avatar_url} alt="" />{:else}{lastfm.name.slice(0, 1).toUpperCase()}{/if}</span>
       <b>{lastfm.name}</b>
     </div>
-    <Switch title="История прослушиваний" hint="Скробблить прослушанные треки" on={settings.get('integrations.lastfm.scrobble')} onchange={(v) => settings.set('integrations.lastfm.scrobble', v)} />
-    <Switch title="Сейчас играет" hint="Показывать текущий трек в профиле" on={settings.get('integrations.lastfm.now_playing')} onchange={(v) => settings.set('integrations.lastfm.now_playing', v)} />
+    <Switch title={t('История прослушиваний')} hint={t('Скробблить прослушанные треки')} on={settings.get('integrations.lastfm.scrobble')} onchange={(v) => settings.set('integrations.lastfm.scrobble', v)} />
+    <Switch title={t('Сейчас играет')} hint={t('Показывать текущий трек в профиле')} on={settings.get('integrations.lastfm.now_playing')} onchange={(v) => settings.set('integrations.lastfm.now_playing', v)} />
   {:else}
     <button class="connect" disabled={lfBusy || !isTauri} onclick={lastfmLogin}>
       <span class="lf-big"><Icon name="brandLastfm" size={40} stroke={2.2} /></span>
-      <b>{lfBusy ? 'Жду подтверждения в окне Last.fm…' : 'Войти через Last.fm'}</b>
-      <small>{lastfm && !lastfm.available ? 'Появится в ближайшем обновлении' : 'Подключи в один клик — история и «сейчас играет» в твоём профиле'}</small>
+      <b>{lfBusy ? t('Жду подтверждения в окне Last.fm…') : t('Войти через Last.fm')}</b>
+      <small>{lastfm && !lastfm.available ? t('Появится в ближайшем обновлении') : t('Подключи в один клик — история и «сейчас играет» в твоём профиле')}</small>
     </button>
   {/if}
 </Group>
@@ -148,46 +149,46 @@
   {#if obs.url}
     <div class="link selectable">{obs.url}</div>
   {:else}
-    <div class="link off">Плашка выключена — нажми ↻, чтобы получить ссылку</div>
+    <div class="link off">{t('Плашка выключена — нажми ↻, чтобы получить ссылку')}</div>
   {/if}
   {#if !obs.ok}
-    <p class="warn">Порт 53119 занят другой программой — закрой её и перезапусти Sonar.</p>
+    <p class="warn">{t('Порт 53119 занят другой программой — закрой её и перезапусти Sonar.')}</p>
   {/if}
   <div class="tools">
     <button class="copy" class:done={copied} disabled={!obs.url} onclick={copyObs}>
-      {#key copied}<span class="swap">{copied ? 'Скопировано' : 'Скопировать'} <Icon name={copied ? 'check' : 'copy'} size={15} /></span>{/key}
+      {#key copied}<span class="swap">{copied ? t('Скопировано') : t('Скопировать')} <Icon name={copied ? 'check' : 'copy'} size={15} /></span>{/key}
     </button>
-    <button class="sq" aria-label="Новая ссылка" title="Новая ссылка (старая перестанет работать)" onclick={newToken}>
+    <button class="sq" aria-label={t('Новая ссылка')} title={t('Новая ссылка (старая перестанет работать)')} onclick={newToken}>
       <span class="spin" style:rotate="{tokenSpin * 360}deg"><Icon name="refresh" size={15} /></span>
     </button>
-    <button class="sq" aria-label="Выключить плашку" title="Выключить плашку" disabled={!obs.url} onclick={dropToken}>
+    <button class="sq" aria-label={t('Выключить плашку')} title={t('Выключить плашку')} disabled={!obs.url} onclick={dropToken}>
       <Icon name="trash" size={15} />
     </button>
   </div>
   <Choice
-    title="Размер плашки"
-    hint="Габариты на экране стрима"
+    title={t('Размер плашки')}
+    hint={t('Габариты на экране стрима')}
     wide
     value={settings.get('obs.size')}
     options={[
-      { id: 'standard', label: 'Стандартный' },
-      { id: 'compact', label: 'Компактный' },
+      { id: 'standard', label: t('Стандартный') },
+      { id: 'compact', label: t('Компактный') },
     ]}
     onchange={(v) => settings.set('obs.size', v)}
   />
   <Switch
-    title="Скрывать при паузе"
-    hint="Плавно убирать плашку со стрима, когда трек остановлен"
+    title={t('Скрывать при паузе')}
+    hint={t('Плавно убирать плашку со стрима, когда трек остановлен')}
     on={settings.get('obs.hide_paused')}
     onchange={(v) => settings.set('obs.hide_paused', v)}
   />
 </Group>
 
-<Group title="Как подключить в OBS?">
+<Group title={t('Как подключить в OBS?')}>
   <ol>
-    <li><i>1</i> В OBS добавьте источник «Браузер»</li>
-    <li><i>2</i> Вставьте скопированную ссылку в поле «URL»</li>
-    <li><i>3</i> Укажите размер: {settings.get('obs.size') === 'compact' ? 'ширина 320, высота 72' : 'ширина 450, высота 130'}</li>
+    <li><i>1</i> {t('В OBS добавьте источник «Браузер»')}</li>
+    <li><i>2</i> {t('Вставьте скопированную ссылку в поле «URL»')}</li>
+    <li><i>3</i> {t('Укажите размер: ширина {w}, высота {h}', settings.get('obs.size') === 'compact' ? { w: 320, h: 72 } : { w: 450, h: 130 })}</li>
   </ol>
 </Group>
 
