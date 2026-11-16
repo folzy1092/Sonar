@@ -160,7 +160,7 @@
 <style>
   .pin-hint {
     margin: 0 0 10px;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     line-height: 1.5;
     color: var(--text-3);
   }
@@ -217,12 +217,12 @@
   }
   .info b {
     font-family: var(--font-display);
-    font-size: 17px;
+    font-size: calc(17px * var(--fs, 1));
     font-weight: 700;
   }
   .status {
     grid-row: 2;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
     animation: tab-in var(--normal) var(--ease);
   }
@@ -238,7 +238,7 @@
     border-radius: 12px;
     background: var(--surface-3);
     border: 1px solid var(--border);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     white-space: nowrap;
     animation: tab-in var(--normal) var(--ease);
@@ -290,7 +290,7 @@
   .notes li {
     position: relative;
     padding: 4px 0 4px 14px;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     line-height: 1.45;
   }
   .notes li::before {
@@ -305,7 +305,7 @@
   }
   .empty {
     margin: 4px 0;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   .history {
@@ -330,7 +330,7 @@
   }
   article header b {
     font-family: var(--font-display);
-    font-size: 15px;
+    font-size: calc(15px * var(--fs, 1));
     font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
@@ -339,23 +339,23 @@
     border-radius: 999px;
     background: var(--accent);
     color: var(--accent-ink);
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     font-weight: 700;
   }
   .title {
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-2);
   }
   article header small {
     margin-left: auto;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   article li {
     position: relative;
     padding: 3px 0 3px 14px;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     line-height: 1.45;
     color: var(--text-2);
   }

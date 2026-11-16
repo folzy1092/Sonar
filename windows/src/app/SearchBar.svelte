@@ -94,7 +94,7 @@
     height: 32px;
     padding: 0 10px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 700;
     color: var(--text-3);
     transition:

@@ -103,6 +103,16 @@ class Theme {
           else st.removeProperty(k)
         }
       })
+      // размер и жирность текста (Интерфейс → Вид)
+      $effect(() => {
+        const st = document.documentElement.style
+        const size = settings.get('appearance.font_size')
+        const weight = settings.get('appearance.font_weight')
+        if (size && size !== 16) st.setProperty('--fs', String(size / 16))
+        else st.removeProperty('--fs')
+        if (weight && weight !== 'auto') st.setProperty('--fw', weight)
+        else st.removeProperty('--fw')
+      })
       $effect(() => {
         const r = RADII[settings.get('appearance.corner_radius')] ?? RADII.rounded
         const st = document.documentElement.style

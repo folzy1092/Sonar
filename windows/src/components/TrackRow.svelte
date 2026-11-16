@@ -229,7 +229,7 @@
     padding: 0 8px;
     border-radius: 999px;
     border: 1px solid var(--border-strong);
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     color: var(--text-2);
     font-variant-numeric: tabular-nums;
   }
@@ -285,13 +285,13 @@
     border-radius: 3px;
     background: var(--surface-3);
     color: var(--text-2);
-    font-size: 10px;
+    font-size: calc(10px * var(--fs, 1));
     font-weight: 700;
     vertical-align: 2px;
   }
   .artist,
   .album {
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     color: var(--text-3);
   }
   .link:hover {
@@ -305,14 +305,14 @@
     gap: 5px;
     min-width: 54px;
     justify-content: flex-end;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
   }
   .dur {
     min-width: 36px;
     text-align: right;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
   }

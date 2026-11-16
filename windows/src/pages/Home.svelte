@@ -308,7 +308,7 @@
   h1 {
     display: flex;
     flex-direction: column;
-    font-size: 54px;
+    font-size: calc(54px * var(--fs, 1));
     line-height: 0.92;
     letter-spacing: -0.02em;
   }
@@ -319,7 +319,7 @@
     padding: 5px 10px;
     border-radius: 10px;
     color: var(--text-2);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     white-space: nowrap;
     perspective: 420px;
     transition:
@@ -450,12 +450,12 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 24px;
+    font-size: calc(24px * var(--fs, 1));
     font-weight: 800;
     margin-bottom: 14px;
   }
   h2 small {
-    font-size: 15px;
+    font-size: calc(15px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-3);
     white-space: nowrap;
@@ -580,7 +580,7 @@
     padding: 0 14px;
     border-radius: 999px;
     color: var(--text-2);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     transition: color var(--fast) var(--ease);
   }
@@ -622,7 +622,7 @@
     }
   }
   .st-sub {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-2);
   }
 </style>

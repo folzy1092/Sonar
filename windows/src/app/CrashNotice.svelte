@@ -140,11 +140,11 @@
     display: grid;
   }
   .txt b {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
     font-weight: 700;
   }
   .txt small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   .x {
@@ -167,7 +167,7 @@
     padding: 8px 10px;
     border-radius: 10px;
     background: var(--plate);
-    font: 11px/1.4 'JetBrains Mono Variable', Consolas, monospace;
+    font: calc(11px * var(--fs, 1))/1.4 'JetBrains Mono Variable', Consolas, monospace;
     color: var(--text-2);
     overflow: hidden;
     display: -webkit-box;
@@ -184,7 +184,7 @@
     height: 34px;
     padding: 0 16px;
     border-radius: 11px;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     transition:
       opacity var(--fast) var(--ease),

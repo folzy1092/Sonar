@@ -48,8 +48,8 @@
   title="Язык приложения"
   value="ru"
   options={[
-    { id: 'en', label: 'English', sub: 'EN', soon: true },
-    { id: 'ru', label: 'Русский', sub: 'RU' },
+    { id: 'ru', label: 'Русский', flag: 'ru' },
+    { id: 'en', label: 'English', flag: 'en', soon: true },
   ]}
 />
 <Choice
@@ -125,11 +125,11 @@
     gap: 2px;
   }
   .cloud b {
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     color: var(--text);
   }
   .cloud small {
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     color: var(--text-3);
   }
 </style>

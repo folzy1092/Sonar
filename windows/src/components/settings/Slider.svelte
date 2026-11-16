@@ -54,11 +54,11 @@
     padding: 10px 0;
   }
   b {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
     font-weight: 600;
   }
   small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   .line {
@@ -70,7 +70,7 @@
   span {
     min-width: 44px;
     text-align: right;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     font-variant-numeric: tabular-nums;
     color: var(--text-2);
   }

@@ -86,11 +86,11 @@
     display: grid;
   }
   .txt b {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
     font-weight: 700;
   }
   .txt small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
   }
@@ -116,7 +116,7 @@
   }
   li {
     position: relative;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     line-height: 1.5;
     color: var(--text-2);
   }
@@ -155,7 +155,7 @@
     padding: 0 14px;
     border-radius: 11px;
     background: var(--surface-3);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     transition:
       background var(--fast) var(--ease),

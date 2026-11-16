@@ -91,7 +91,7 @@
   .pop b {
     display: block;
     margin: 0 0 8px 2px;
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
   }
   .rows {
     display: flex;
@@ -124,19 +124,19 @@
     text-overflow: ellipsis;
   }
   .t {
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
   }
   .row.now .t {
     color: var(--accent);
   }
   .a {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   .empty {
     margin: 4px 2px 8px;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   .ph {

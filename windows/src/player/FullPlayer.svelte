@@ -294,10 +294,10 @@
     text-overflow: ellipsis;
   }
   .pill b {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
   }
   .pill small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: rgba(255, 255, 255, 0.65);
   }
 
@@ -403,7 +403,7 @@
   h1 {
     max-width: 100%;
     margin: 22px 0 0;
-    font-size: 22px;
+    font-size: calc(22px * var(--fs, 1));
     font-weight: 800;
     text-align: center;
     white-space: nowrap;
@@ -416,7 +416,7 @@
     gap: 6px;
     max-width: 100%;
     margin: 6px 0 0;
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
     color: rgba(255, 255, 255, 0.6);
     white-space: nowrap;
     overflow: hidden;
@@ -441,7 +441,7 @@
   }
   .seek :global(.t) {
     color: rgba(255, 255, 255, 0.7);
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     min-width: 30px;
   }
   .seek :global(input) {
@@ -482,7 +482,7 @@
   .err {
     margin: 10px 0 0;
     color: var(--danger);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
   }
 
   footer {

@@ -38,7 +38,7 @@
     margin-bottom: 6px;
   }
   h3 {
-    font-size: 18px;
+    font-size: calc(18px * var(--fs, 1));
     font-weight: 700;
   }
   p {

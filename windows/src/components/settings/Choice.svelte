@@ -6,12 +6,13 @@
   import Icon from '../Icon.svelte'
   import type { IconName } from '../icons'
   import Soon from './Soon.svelte'
+  import Flag from '../Flag.svelte'
 
   interface Props {
     title: string
     hint?: string
     value: T
-    options: { id: T; label: string; icon?: IconName; soon?: boolean; sub?: string; font?: string }[]
+    options: { id: T; label: string; icon?: IconName; flag?: string; soon?: boolean; sub?: string; font?: string }[]
     onchange?: (v: T) => void
     wide?: boolean
     icons?: boolean
@@ -37,7 +38,7 @@
         title={o.soon ? `${o.label} — скоро` : o.label}
         aria-label={o.label}
       >
-        {#if o.icon}<Icon name={o.icon} size={15} />{/if}
+        {#if o.flag}<Flag lang={o.flag} size={17} />{:else if o.icon}<Icon name={o.icon} size={15} />{/if}
         {#if !icons}<span>{o.label}{#if o.sub}<i>{o.sub}</i>{/if}</span>{/if}
       </button>
     {/each}
@@ -64,11 +65,11 @@
     min-width: 0;
   }
   b {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
     font-weight: 600;
   }
   small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     line-height: 1.45;
     color: var(--text-3);
   }
@@ -102,7 +103,7 @@
     height: 30px;
     padding: 0 12px;
     border-radius: 7px;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
     white-space: nowrap;
     transition: color var(--fast) var(--ease);
@@ -127,7 +128,7 @@
   i {
     margin-left: 4px;
     font-style: normal;
-    font-size: 10px;
+    font-size: calc(10px * var(--fs, 1));
     font-weight: 500;
     color: var(--text-3);
   }

@@ -16,7 +16,9 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.45 var(--font);
+  font: calc(14px * var(--fs, 1))/1.45 var(--font);
+  /* Интерфейс → Вид: размер (--fs, множитель всех размеров текста) и жирность обычного текста */
+  font-weight: var(--fw, 400);
   -webkit-font-smoothing: antialiased;
   color-scheme: dark;
   overflow: hidden;

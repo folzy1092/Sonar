@@ -57,7 +57,7 @@
   }
   .t {
     min-width: 38px;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
   }

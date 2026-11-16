@@ -106,11 +106,11 @@
   }
   h2 {
     margin-bottom: 10px;
-    font-size: 24px;
+    font-size: calc(24px * var(--fs, 1));
     font-weight: 800;
   }
   .all {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-2);
   }
   .all:hover {

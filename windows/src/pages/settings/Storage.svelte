@@ -103,12 +103,12 @@
   }
   .total b {
     font-family: var(--font-display);
-    font-size: 30px;
+    font-size: calc(30px * var(--fs, 1));
     font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
   .total span {
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     color: var(--text-3);
   }
   .bar {
@@ -156,15 +156,15 @@
     gap: 2px;
   }
   .text b {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
     font-weight: 600;
   }
   .text small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   .link {
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     color: var(--text-2);
     padding: 6px 4px;
     transition: color var(--fast) var(--ease);

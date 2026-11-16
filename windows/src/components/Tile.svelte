@@ -162,7 +162,7 @@
   }
   .title {
     max-width: 100%;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -170,7 +170,7 @@
   }
   .sub {
     max-width: 100%;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;
@@ -178,7 +178,7 @@
   }
   .meta {
     margin-top: 1px;
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     color: var(--text-3);
   }
 </style>

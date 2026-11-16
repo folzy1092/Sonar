@@ -121,18 +121,18 @@
   hint="Базовый размер шрифта интерфейса"
   wide
   fill
-  soon
-  value={16}
+  value={settings.get('appearance.font_size')}
   options={[12, 14, 16, 18, 20].map((n) => ({ id: n, label: String(n), sub: n === 16 ? 'Авто' : undefined }))}
+  onchange={(v) => settings.set('appearance.font_size', v)}
 />
 <Choice
   title="Жирность шрифта"
-  hint="Плотность начертания текста"
+  hint="Плотность начертания обычного текста"
   wide
   fill
-  soon
-  value="auto"
-  options={[{ id: 'auto', label: 'Авто' }, ...['400', '500', '600', '700'].map((n) => ({ id: n, label: n }))]}
+  value={settings.get('appearance.font_weight')}
+  options={[{ id: 'auto' as const, label: 'Авто' }, ...(['400', '500', '600', '700'] as const).map((n) => ({ id: n, label: n }))]}
+  onchange={(v) => settings.set('appearance.font_weight', v)}
 />
 
 <Divider />
@@ -175,7 +175,7 @@
 <style>
   .caption {
     margin: 14px 0 8px;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-3);
   }
@@ -192,7 +192,7 @@
     padding: 14px 4px 10px;
     border-radius: 12px;
     background: var(--plate);
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-2);
     transition:
@@ -228,11 +228,11 @@
     padding: 9px 0;
   }
   .block b {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
     font-weight: 600;
   }
   .block small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   .cats {
@@ -250,7 +250,7 @@
     flex: 1;
     height: 30px;
     border-radius: 7px;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
     transition: color var(--fast) var(--ease);
   }
@@ -272,7 +272,7 @@
     padding: 0 12px;
     border-radius: 999px;
     background: var(--plate);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     color: var(--text-2);
     transition:
       background var(--fast) var(--ease),
@@ -299,7 +299,7 @@
     padding: 12px 14px;
     border-radius: 12px;
     background: var(--plate);
-    font-size: 15px;
+    font-size: calc(15px * var(--fs, 1));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

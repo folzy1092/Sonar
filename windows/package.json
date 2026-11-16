@@ -12,6 +12,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
   },
   "devDependencies": {
+    "@iconify-json/circle-flags": "^1.2.14",
     "@iconify-json/mingcute": "^1.2.10",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tauri-apps/cli": "^2.12.4",

@@ -125,17 +125,17 @@
     color: #d51007;
   }
   .account b {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
   }
   .account small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   .link {
     padding: 11px 14px;
     border-radius: 10px;
     background: var(--plate);
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
     white-space: nowrap;
     overflow: hidden;
@@ -155,7 +155,7 @@
     height: 36px;
     border-radius: 10px;
     border: 1px solid var(--border);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     color: var(--text-2);
   }
   .copy {
@@ -185,7 +185,7 @@
   }
   .warn {
     margin: 6px 0 0;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--danger);
   }
   .sq {
@@ -202,7 +202,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-2);
   }
   li {
@@ -218,7 +218,7 @@
     border-radius: 50%;
     background: var(--surface-3);
     font-style: normal;
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     font-weight: 600;
   }
 </style>

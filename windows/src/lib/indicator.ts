@@ -41,8 +41,19 @@ export function indicator(node: HTMLElement, opts: Opts) {
     raf = requestAnimationFrame(place)
   }
   schedule()
+  // кнопки меняют ширину сами (размер шрифта, догрузка шрифта) — следим и за ними
   const ro = new ResizeObserver(schedule)
-  ro.observe(node)
+  const watch = () => {
+    ro.disconnect()
+    ro.observe(node)
+    for (const c of Array.from(node.children)) if (c !== ind) ro.observe(c)
+  }
+  watch()
+  const mo = new MutationObserver(() => {
+    watch()
+    schedule()
+  })
+  mo.observe(node, { childList: true })
 
   return {
     update(o: Opts) {
@@ -52,6 +63,7 @@ export function indicator(node: HTMLElement, opts: Opts) {
     destroy() {
       cancelAnimationFrame(raf)
       ro.disconnect()
+      mo.disconnect()
       ind.remove()
     },
   }

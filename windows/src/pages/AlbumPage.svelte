@@ -170,12 +170,12 @@
   }
   .date {
     margin: 0 0 6px;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-3);
   }
   h1 {
-    font-size: 46px;
+    font-size: calc(46px * var(--fs, 1));
     font-weight: 800;
     line-height: 1.08;
     white-space: nowrap;
@@ -186,7 +186,7 @@
     display: flex;
     align-items: center;
     margin: 10px 0 0;
-    font-size: 15px;
+    font-size: calc(15px * var(--fs, 1));
   }
   .av {
     display: grid;
@@ -209,7 +209,7 @@
   }
   .meta {
     margin: 6px 0 0;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-3);
   }

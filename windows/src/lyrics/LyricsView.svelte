@@ -366,7 +366,7 @@
   }
   .plain .src {
     margin-top: 1.5em;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 500;
     color: rgba(var(--ink), 0.35);
   }

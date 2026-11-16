@@ -19,7 +19,7 @@
     border-radius: 999px;
     background: var(--plate);
     border: 1px solid var(--border);
-    font-size: 10px;
+    font-size: calc(10px * var(--fs, 1));
     font-weight: 600;
     letter-spacing: 0.02em;
     color: var(--text-3);

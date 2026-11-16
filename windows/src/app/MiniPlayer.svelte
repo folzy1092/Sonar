@@ -345,7 +345,7 @@
     text-underline-offset: 2px;
   }
   .artist {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   .artist.err {

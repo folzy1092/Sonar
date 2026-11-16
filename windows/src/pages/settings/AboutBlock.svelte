@@ -199,12 +199,12 @@
   }
   .name b {
     font-family: var(--font-display);
-    font-size: 18px;
+    font-size: calc(18px * var(--fs, 1));
     font-weight: 800;
     letter-spacing: -0.01em;
   }
   .name small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
   }
@@ -221,7 +221,7 @@
     gap: 5px;
     padding: 4px 8px;
     border-radius: 8px;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-2);
     transition:
       color var(--fast) var(--ease),
@@ -248,7 +248,7 @@
   }
   .ask {
     width: 100%;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-2);
   }
   @media (prefers-reduced-motion: reduce) {

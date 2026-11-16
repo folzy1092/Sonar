@@ -43,11 +43,11 @@
     gap: 3px;
   }
   b {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
     font-weight: 600;
   }
   small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     line-height: 1.45;
     color: var(--text-3);
   }

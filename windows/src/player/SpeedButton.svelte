@@ -42,7 +42,7 @@
     border-radius: 999px;
     background: var(--surface-3);
     color: var(--text);
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
   }
   @keyframes fade {

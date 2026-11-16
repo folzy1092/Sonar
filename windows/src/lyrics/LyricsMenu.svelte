@@ -206,7 +206,7 @@
     width: 100%;
     padding: 6px 5px;
     border-radius: 8px;
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     text-align: left;
     transition: background var(--fast) var(--ease);
   }
@@ -264,7 +264,7 @@
     margin-top: 5px;
     border-radius: 9px;
     background: rgba(255, 255, 255, 0.08);
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     font-weight: 500;
     color: #fff;
     transition:
