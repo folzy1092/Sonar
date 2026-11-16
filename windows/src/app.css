@@ -335,3 +335,9 @@ img.fade-img.loaded {
 .app-scroll::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--text) 40%, transparent) padding-box;
 }
+
+/* ряд, который листают перетаскиванием (lib/hscroll) */
+.dragging {
+  cursor: grabbing;
+  user-select: none;
+}

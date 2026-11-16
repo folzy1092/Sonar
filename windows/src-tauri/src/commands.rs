@@ -521,7 +521,11 @@ pub struct WaveRequest {
 /// Ссылка в строке поиска → что это (трек кладётся в кэш, чтобы лайк и плейлист его знали).
 #[tauri::command]
 pub async fn resolve_link(core: State<'_, Arc<Core>>, db: State<'_, Db>, url: String) -> Res<crate::services::LinkItem> {
-  let item = core.resolve_link(&url).await.map_err(err)?;
+  // ответа нет 20 с — честная ошибка вместо вечной загрузки
+  let item = tokio::time::timeout(std::time::Duration::from_secs(20), core.resolve_link(&url))
+    .await
+    .map_err(|_| "Сервис не ответил за 20 секунд — попробуй ещё раз".to_string())?
+    .map_err(err)?;
   if let crate::services::LinkItem::Track { track } = &item {
     db.0.lock().unwrap().upsert_tracks(std::slice::from_ref(track)).map_err(err)?;
   }
@@ -529,8 +533,9 @@ pub async fn resolve_link(core: State<'_, Arc<Core>>, db: State<'_, Db>, url: St
 }
 
 /// Мини-окно поверх всех окон: показать / закрыть (кнопка в плеере). Вернёт, открыто ли.
+/// `async` обязательно: синхронная команда, создающая окно, на Windows виснет (документация Tauri).
 #[tauri::command]
-pub fn mini_window(app: tauri::AppHandle, show: bool) -> Res<bool> {
+pub async fn mini_window(app: tauri::AppHandle, show: bool) -> Res<bool> {
   crate::mini::toggle(&app, show).map_err(err)
 }
 
