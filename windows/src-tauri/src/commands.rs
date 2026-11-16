@@ -416,6 +416,44 @@ pub struct WaveRequest {
 }
 
 /// Следующая порция своей волны.
+/// Вес сида при выборе (docs/WAVE.md 4.3): `0.85 ^ место` (0 — самый свежий), × 1.5 — и лайкнут, и
+/// дослушан, × 0.3 — его предложения в волне чаще всего пропускали.
+fn seed_weights(fresh: &[String], both: &[String], weak: &std::collections::HashSet<String>) -> Vec<(String, f64)> {
+  fresh
+    .iter()
+    .enumerate()
+    .map(|(i, r)| {
+      let mut w = 0.85f64.powi(i as i32);
+      if both.contains(r) {
+        w *= 1.5;
+      }
+      if weak.contains(r) {
+        w *= 0.3;
+      }
+      (r.clone(), w)
+    })
+    .collect()
+}
+
+/// «Похожие» через кэш на сутки (docs/WAVE.md 4.4): повторная порция от тех же сидов не ходит в сеть.
+/// Берём с запасом (40) и режем до `limit`; ошибки сети не кэшируются.
+async fn similar_cached(core: &Core, db: &Db, r: &str, limit: u32) -> anyhow::Result<Vec<Track>> {
+  const DAY_MS: i64 = 24 * 3600 * 1000;
+  let cached = db.0.lock().unwrap().cached_similar(r, DAY_MS).ok().flatten();
+  let mut list = match cached {
+    Some(v) => v,
+    None => {
+      let v = core.similar(r, limit.max(40)).await?;
+      if let Err(e) = db.0.lock().unwrap().put_similar(r, &v) {
+        log::warn!("кэш похожих: {e}");
+      }
+      v
+    }
+  };
+  list.truncate(limit as usize);
+  Ok(list)
+}
+
 #[tauri::command]
 pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: WaveRequest) -> Res<Vec<Track>> {
   use crate::store::ServedEvent;
@@ -451,6 +489,8 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
     if !req.session.is_empty() {
       store.upsert_tracks(&req.session).map_err(err)?;
     }
+    // сиды, чьи предложения в волне чаще всего пропускали (по журналу за 30 дней)
+    let weak = store.weak_seeds(30).unwrap_or_default();
     let seeds = match &req.seed {
       // стиль «по треку» держится всю сессию; зашедшее в ней понемногу его уточняет
       Some(s) => {
@@ -464,16 +504,18 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
         let mut v = live.clone();
         let fresh = store.recent_like_refs(15).map_err(err)?;
         let fresh: Vec<String> = fresh.into_iter().filter(|r| !v.contains(r)).collect();
-        v.extend(rng.sample(&fresh, 2));
+        v.extend(rng.weighted_sample(&seed_weights(&fresh, &[], &weak), 2));
         let old = store.old_like_refs(15, 300).map_err(err)?;
         v.extend(rng.sample(&old, 1));
         v
       }
       None => {
-        let mut fresh = store.recent_like_refs(15).map_err(err)?;
-        for r in store.recent_finished_refs(10).map_err(err)? {
-          if !fresh.contains(&r) {
-            fresh.push(r);
+        let likes = store.recent_like_refs(15).map_err(err)?;
+        let finished = store.recent_finished_refs(10).map_err(err)?;
+        let mut fresh = likes.clone();
+        for r in &finished {
+          if !fresh.contains(r) {
+            fresh.push(r.clone());
           }
         }
         if fresh.is_empty() {
@@ -481,7 +523,9 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
         }
         // настроение — больше сидов, чтобы было из чего выбрать подходящее
         let wide = req.mode.as_deref().is_some_and(|m| m != "own");
-        let mut seeds = rng.sample(&fresh, if wide { 8 } else { 5 });
+        // свежее — чаще, «и лайкнут, и дослушан» — ещё чаще, сид с провальными предложениями — реже
+        let both: Vec<String> = likes.iter().filter(|r| finished.contains(r)).cloned().collect();
+        let mut seeds = rng.weighted_sample(&seed_weights(&fresh, &both, &weak), if wide { 8 } else { 5 });
         // 10–20 % «разведки»: похожие от случайного старого лайка
         let old = store.old_like_refs(15, 300).map_err(err)?;
         seeds.extend(rng.sample(&old, 1));
@@ -533,7 +577,8 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   if seeds.is_empty() {
     return Err("Волне пока не от чего оттолкнуться — лайкни или послушай пару треков.".into());
   }
-  let results = futures_util::future::join_all(seeds.iter().map(|r| core.similar(r, if mode == "own" { 25 } else { 35 }))).await;
+  let limit = if mode == "own" { 25 } else { 35 };
+  let results = futures_util::future::join_all(seeds.iter().map(|r| similar_cached(&core, &db, r, limit))).await;
   let mut cands = Vec::new();
   let mut origin = Origin::default();
   let mut first_err = None;
@@ -551,11 +596,52 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   if cands.is_empty() {
     return Err(first_err.unwrap_or_else(|| "Похожих треков не нашлось — попробуй лайкнуть что-нибудь ещё.".into()));
   }
+  // второй шаг (разведка, docs/WAVE.md 4.2): похожие от лучших кандидатов незнакомых артистов —
+  // «Своя» 1 запрос, «Незнакомое» 3, настроения и волна по треку — без него
+  let hops = match mode.as_str() {
+    _ if req.seed.is_some() => 0,
+    "own" => 1,
+    "new" => 3,
+    _ => 0,
+  };
+  if hops > 0 {
+    let unknown = |t: &Track| {
+      crate::wave::artist_keys(t)
+        .iter()
+        .all(|k| !taste.liked_artists.contains(k) && taste.plays.get(k).is_none_or(|p| *p <= 0.0))
+    };
+    let mut best: Vec<&Track> = cands.iter().filter(|t| unknown(t) && !filter.banned.contains(&t.ref_)).collect();
+    best.sort_by(|a, b| {
+      let r = |t: &Track| origin.rank.get(&t.ref_).copied().unwrap_or(0.0);
+      r(b).partial_cmp(&r(a)).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let mut artists = std::collections::HashSet::new();
+    let hop_refs: Vec<String> = best
+      .into_iter()
+      .filter(|t| artists.insert(artist_key(t)))
+      .take(hops)
+      .map(|t| t.ref_.clone())
+      .collect();
+    let more = futures_util::future::join_all(hop_refs.iter().map(|r| similar_cached(&core, &db, r, 20))).await;
+    for (r, res) in hop_refs.iter().zip(more) {
+      if let Ok(v) = res {
+        origin.add_hop(r, &v);
+        cands.extend(v);
+      }
+    }
+  }
   let prefer = if has_ym && platform.as_deref() == Some("yandex") { "ym" } else { "sc" };
   let n = req.n.unwrap_or(PORTION);
   let mut out = pick_with(cands.clone(), &taste, &origin, &session, &filter, Some(prefer), &mode, n, false, &mut rng);
   if out.len() < 3 {
     out = pick_with(cands, &taste, &origin, &session, &filter, Some(prefer), &mode, n, true, &mut rng);
+  }
+  // свои забытые лайки (docs/WAVE.md 4.1): «Своя» — 3 из 10, настроение — до 2, на места 2, 5, 8
+  let k = crate::wave::liked_share(&mode, req.seed.is_some());
+  if k > 0 {
+    let pool = db.0.lock().unwrap().forgotten_likes(30, 40).unwrap_or_default();
+    let liked = crate::wave::pick_liked(pool, &taste, &session, &filter, &mode, k, &mut rng);
+    out = crate::wave::insert_liked(out, liked, n);
   }
   let tracks: Vec<Track> = out.iter().map(|p| p.track.clone()).collect();
   let mut store = db.0.lock().unwrap();
@@ -567,7 +653,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
       .map(|p| ServedEvent {
         ref_: p.track.ref_.clone(),
         artist: artist_key(&p.track),
-        source: "similar".into(),
+        source: p.source.into(),
         seed_ref: origin.seed_of.get(&p.track.ref_).cloned(),
         features_json: serde_json::to_string(&p.features).ok(),
       })
@@ -624,8 +710,7 @@ pub fn disliked_refs(db: State<'_, Db>) -> Res<Vec<String>> {
 #[tauri::command]
 pub async fn similar_tracks(core: State<'_, Arc<Core>>, db: State<'_, Db>, track_ref: String, limit: Option<u32>) -> Res<Vec<Track>> {
   let banned: std::collections::HashSet<String> = db.0.lock().unwrap().disliked_refs().map_err(err)?.into_iter().collect();
-  let tracks: Vec<Track> = core
-    .similar(&track_ref, limit.unwrap_or(20))
+  let tracks: Vec<Track> = similar_cached(&core, &db, &track_ref, limit.unwrap_or(20))
     .await
     .map_err(err)?
     .into_iter()

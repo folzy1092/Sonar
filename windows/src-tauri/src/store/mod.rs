@@ -204,6 +204,7 @@ impl Store {
     let store = Self { db };
     // журнал волны хранится полгода
     store.prune_wave_events()?;
+    store.prune_similar()?;
     Ok(store)
   }
 

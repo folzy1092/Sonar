@@ -2,7 +2,7 @@
 
 use super::{now_ms, Store, LOCAL_USER};
 use anyhow::Result;
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use std::collections::{HashMap, HashSet};
 
 const DAY: i64 = 24 * 3600 * 1000;
@@ -60,13 +60,18 @@ fn row_artists(artist: &str, json: Option<String>) -> Vec<String> {
   crate::wave::artist_names(artist, &list)
 }
 
-/// Вкус по истории: лайкнутые исполнители, сколько дослушано и сколько пропущено (по имени артиста
-/// в нижнем регистре; у совместного трека засчитывается каждому артисту — `wave::artist_keys`).
+/// Вкус по истории: лайкнутые исполнители, «за» и «против» артиста (по имени в нижнем регистре; у
+/// совместного трека засчитывается каждому артисту — `wave::artist_keys`). Суммы с затуханием
+/// (docs/WAVE.md 2.1–2.3): событие весит `0.5 ^ (возраст / 30 дней)`, окно 180 дней.
 #[derive(Debug, Default, Clone)]
 pub struct Taste {
   pub liked_artists: HashSet<String>,
-  pub plays: HashMap<String, u32>,
-  pub skips: HashMap<String, u32>,
+  /// Σ вес · p по прослушиваниям: дослушал (≥ 80 %) — p = 1, иначе 0.4.
+  pub plays: HashMap<String, f64>,
+  /// Σ вес · |оценка| по пропускам.
+  pub skips: HashMap<String, f64>,
+  /// Штраф самому треку: Σ вес · |оценка| по его пропускам.
+  pub track_skips: HashMap<String, f64>,
   /// Доля прослушиваний артиста в это время суток (±2 ч от текущего часа, за 60 дней), 0…1.
   pub hour_share: HashMap<String, f64>,
   /// Профиль тегов: тег → оценка −1…1 по лайкам, прослушиваниям, пропускам и 👎 (`Store::tag_profile`).
@@ -278,31 +283,54 @@ impl Store {
   }
 
   pub fn taste(&self) -> Result<Taste> {
-    let since = now_ms() - 90 * DAY;
+    let now = now_ms();
+    let since = now - PROFILE_DAYS * DAY;
     let mut t = Taste::default();
     // артисты — из кэша треков (совместный трек засчитывается каждому), нет записи — строка из истории
-    let count = |sql: &str| -> Result<HashMap<String, u32>> {
-      let mut st = self.db.prepare(sql)?;
-      let rows = st.query_map(params![LOCAL_USER, since], |r| {
-        Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, i64>(2)?))
-      })?;
-      let mut m = HashMap::new();
-      for row in rows {
-        let (artist, json, n) = row?;
-        for a in row_artists(&artist, json) {
-          *m.entry(a).or_insert(0) += n.max(0) as u32;
-        }
+    let mut st = self.db.prepare(
+      "SELECT p.artist, t.artists_json, p.played_at, p.listened_ms, t.duration_ms FROM plays p
+       LEFT JOIN tracks t ON t.ref = p.ref WHERE p.user_id = ?1 AND p.played_at >= ?2",
+    )?;
+    let rows = st.query_map(params![LOCAL_USER, since], |r| {
+      Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, i64>(2)?, r.get::<_, i64>(3)?, r.get::<_, Option<i64>>(4)?))
+    })?;
+    for row in rows {
+      let (artist, json, at, listened, duration) = row?;
+      let duration = duration.unwrap_or(0);
+      let full = if duration > 0 { listened * 5 >= duration * 4 } else { listened >= 150_000 };
+      let w = decay(now - at, HALF_LIFE_DAYS) * if full { 1.0 } else { 0.4 };
+      for a in row_artists(&artist, json) {
+        *t.plays.entry(a).or_insert(0.0) += w;
       }
-      Ok(m)
-    };
-    t.plays = count(
-      "SELECT p.artist, t.artists_json, COUNT(*) FROM plays p LEFT JOIN tracks t ON t.ref = p.ref
-       WHERE p.user_id = ?1 AND p.played_at >= ?2 GROUP BY p.ref, p.artist",
+    }
+    let mut st = self.db.prepare(
+      "SELECT s.ref, s.artist, t.artists_json, s.at, s.played_ms, t.duration_ms FROM skips s
+       LEFT JOIN tracks t ON t.ref = s.ref WHERE s.user_id = ?1 AND s.at >= ?2",
     )?;
-    t.skips = count(
-      "SELECT s.artist, t.artists_json, COUNT(*) FROM skips s LEFT JOIN tracks t ON t.ref = s.ref
-       WHERE s.user_id = ?1 AND s.at >= ?2 GROUP BY s.ref, s.artist",
-    )?;
+    let rows = st.query_map(params![LOCAL_USER, since], |r| {
+      Ok((
+        r.get::<_, String>(0)?,
+        r.get::<_, String>(1)?,
+        r.get::<_, Option<String>>(2)?,
+        r.get::<_, i64>(3)?,
+        r.get::<_, i64>(4)?,
+        r.get::<_, Option<i64>>(5)?,
+      ))
+    })?;
+    for row in rows {
+      let (r, artist, json, at, played, duration) = row?;
+      let duration = duration.unwrap_or(0);
+      // насколько плох пропуск — по шкале оценки исхода; длительность неизвестна — как ранний
+      let m = if duration > 0 { (-crate::wave::reward(played.max(0) as u64, duration as u64, true, false, false)).max(0.0) } else { 1.0 };
+      let w = decay(now - at, HALF_LIFE_DAYS) * m;
+      if w <= 0.0 {
+        continue;
+      }
+      *t.track_skips.entry(r).or_insert(0.0) += w;
+      for a in row_artists(&artist, json) {
+        *t.skips.entry(a).or_insert(0.0) += w;
+      }
+    }
     let mut st = self.db.prepare(
       "SELECT t.artist, t.artists_json FROM likes l JOIN tracks t ON t.ref = l.ref
        WHERE l.user_id = ?1 AND l.kind = 'track' AND l.deleted = 0",
@@ -312,6 +340,54 @@ impl Store {
       t.liked_artists.extend(row_artists(&artist, json));
     }
     Ok(t)
+  }
+
+  /// «Забытые любимые» для волны (docs/WAVE.md 4.1): лайкнутые треки из кэша, которые не играли
+  /// `days` дней (или ни разу), без 👎; до `n` штук вперемешку.
+  pub fn forgotten_likes(&self, days: i64, n: usize) -> Result<Vec<crate::providers::Track>> {
+    let refs = self.refs(
+      "SELECT l.ref FROM likes l JOIN tracks t ON t.ref = l.ref
+       WHERE l.user_id = ?1 AND l.kind = 'track' AND l.deleted = 0
+         AND NOT EXISTS (SELECT 1 FROM plays p WHERE p.user_id = ?1 AND p.ref = l.ref AND p.played_at >= ?2)
+         AND NOT EXISTS (SELECT 1 FROM dislikes d WHERE d.user_id = ?1 AND d.ref = l.ref AND d.deleted = 0)
+       ORDER BY RANDOM() LIMIT ?3",
+      params![LOCAL_USER, now_ms() - days * DAY, n as i64],
+    )?;
+    self.tracks(&refs)
+  }
+
+  /// Сиды, чьи предложения в волне чаще 60 % заканчивались минусом (не меньше 5 исходов за `days`
+  /// дней), — их вес при выборе сидов режется (docs/WAVE.md 4.3).
+  pub fn weak_seeds(&self, days: i64) -> Result<HashSet<String>> {
+    self.refs(
+      "SELECT seed_ref FROM wave_events WHERE user_id = ?1 AND seed_ref IS NOT NULL AND reward IS NOT NULL AND served_at >= ?2
+       GROUP BY seed_ref HAVING COUNT(*) >= 5 AND SUM(CASE WHEN reward < 0 THEN 1 ELSE 0 END) * 5 > COUNT(*) * 3",
+      params![LOCAL_USER, now_ms() - days * DAY],
+    )
+    .map(|v| v.into_iter().collect())
+  }
+
+  /// Кэш «похожих» (docs/WAVE.md 4.4): список по ref трека живёт `max_age_ms`. Хранится в `catalog`
+  /// под ключом `similar:<ref>`, чтобы не пересекаться с лайкнутыми альбомами и плейлистами.
+  pub fn cached_similar(&self, r: &str, max_age_ms: i64) -> Result<Option<Vec<crate::providers::Track>>> {
+    let row: Option<String> = self
+      .db
+      .query_row(
+        "SELECT json FROM catalog WHERE ref = ?1 AND kind = 'similar' AND fetched_at >= ?2",
+        params![format!("similar:{r}"), now_ms() - max_age_ms],
+        |x| x.get(0),
+      )
+      .optional()?;
+    Ok(row.and_then(|j| serde_json::from_str(&j).ok()))
+  }
+
+  pub fn put_similar(&self, r: &str, list: &[crate::providers::Track]) -> Result<()> {
+    self.put_catalog(&format!("similar:{r}"), "similar", &serde_json::to_value(list)?)
+  }
+
+  /// Удалить устаревшие списки похожих (при запуске).
+  pub(super) fn prune_similar(&self) -> Result<usize> {
+    Ok(self.db.execute("DELETE FROM catalog WHERE kind = 'similar' AND fetched_at < ?1", [now_ms() - 2 * DAY])?)
   }
 
   /// Подборка «под время суток» на главной: треки, которые ты слушаешь в эти часы (±2 ч от
@@ -431,6 +507,10 @@ mod tests {
   use super::*;
   use crate::store::Play;
 
+  fn close(x: Option<&f64>, v: f64) -> bool {
+    x.is_some_and(|x| (x - v).abs() < 1e-3)
+  }
+
   #[test]
   fn dislikes_and_skips() {
     let s = Store::memory().unwrap();
@@ -442,8 +522,10 @@ mod tests {
     s.add_skip("sc:4", "art", 2000).unwrap();
     s.add_play(&Play { ref_: "sc:5".into(), artist: "Art".into(), context: None, played_at: now_ms(), listened_ms: 60_000 }).unwrap();
     let t = s.taste().unwrap();
-    assert_eq!(t.skips.get("art"), Some(&2));
-    assert_eq!(t.plays.get("art"), Some(&1));
+    // два ранних пропуска без длительности — по 1; прослушивание минуту без длительности — недослушано, 0.4
+    assert!(close(t.skips.get("art"), 2.0), "{:?}", t.skips);
+    assert!(close(t.plays.get("art"), 0.4), "{:?}", t.plays);
+    assert!(close(t.track_skips.get("sc:3"), 1.0) && close(t.track_skips.get("sc:4"), 1.0));
     assert!(s.played_since_days(7).unwrap().contains("sc:5"));
     assert_eq!(s.recent_play_refs(5).unwrap(), vec!["sc:5".to_owned()]);
   }
@@ -473,12 +555,11 @@ mod tests {
     // трека без записи в кэше — по строке из истории
     s.add_play(&Play { ref_: "sc:7".into(), artist: "Solo".into(), context: None, played_at: now_ms(), listened_ms: 60_000 }).unwrap();
     let t = s.taste().unwrap();
-    assert_eq!(t.plays.get("a"), Some(&1));
-    assert_eq!(t.plays.get("b"), Some(&1));
+    assert!(close(t.plays.get("a"), 1.0) && close(t.plays.get("b"), 1.0), "{:?}", t.plays);
     assert_eq!(t.plays.get("a, b"), None);
-    assert_eq!(t.skips.get("b"), Some(&1));
+    assert!(close(t.skips.get("b"), 1.0), "{:?}", t.skips);
     assert!(t.liked_artists.contains("a") && t.liked_artists.contains("b"));
-    assert_eq!(t.plays.get("solo"), Some(&1));
+    assert!(close(t.plays.get("solo"), 0.4));
     assert!(s.hour_share(0).unwrap().is_empty(), "меньше трёх прослушиваний — без доли");
   }
 
@@ -613,5 +694,43 @@ mod tests {
     s.set_dislike("sc:2", "A", true).unwrap();
     let out = s.daypart_refs(0, 10).unwrap();
     assert_eq!(out, vec!["sc:1".to_owned(), "sc:9".to_owned()]);
+  }
+
+  #[test]
+  fn taste_decays_and_penalizes_skipped_track() {
+    let s = Store::memory().unwrap();
+    let now = now_ms();
+    s.add_play(&Play { ref_: "sc:1".into(), artist: "Old".into(), context: None, played_at: now - 60 * DAY, listened_ms: 200_000 }).unwrap();
+    s.add_play(&Play { ref_: "sc:2".into(), artist: "New".into(), context: None, played_at: now, listened_ms: 200_000 }).unwrap();
+    // за окном 180 дней — не считается
+    s.add_play(&Play { ref_: "sc:3".into(), artist: "Ancient".into(), context: None, played_at: now - 200 * DAY, listened_ms: 200_000 }).unwrap();
+    let t = s.taste().unwrap();
+    assert!(close(t.plays.get("new"), 1.0));
+    assert!(close(t.plays.get("old"), 0.25), "два полураспада — четверть: {:?}", t.plays);
+    assert!(t.plays.get("ancient").is_none());
+  }
+
+  #[test]
+  fn forgotten_likes_skip_recent_and_disliked() {
+    let mut s = Store::memory().unwrap();
+    for r in ["sc:1", "sc:2", "sc:3"] {
+      s.upsert_tracks(&[tr(r, "A", "x")]).unwrap();
+      s.set_like(r, true).unwrap();
+    }
+    s.add_play(&Play { ref_: "sc:1".into(), artist: "A".into(), context: None, played_at: now_ms(), listened_ms: 200_000 }).unwrap();
+    s.set_dislike("sc:2", "A", true).unwrap();
+    let refs: Vec<String> = s.forgotten_likes(30, 40).unwrap().into_iter().map(|t| t.ref_).collect();
+    assert_eq!(refs, vec!["sc:3".to_owned()]);
+  }
+
+  #[test]
+  fn similar_cache_lives_a_day() {
+    let s = Store::memory().unwrap();
+    assert!(s.cached_similar("sc:1", DAY).unwrap().is_none());
+    s.put_similar("sc:1", &[tr("sc:9", "B", "x")]).unwrap();
+    let got = s.cached_similar("sc:1", DAY).unwrap().unwrap();
+    assert_eq!(got[0].ref_, "sc:9");
+    assert!(s.cached_similar("sc:1", -1).unwrap().is_none(), "старше срока — нет");
+    assert!(s.liked_catalog("similar").unwrap().is_empty(), "кэш не путается с лайкнутым каталогом");
   }
 }
