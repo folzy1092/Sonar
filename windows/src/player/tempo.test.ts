@@ -1,0 +1,24 @@
+import { describe, expect, it } from 'vitest'
+import { badge, clampPitch, clampRate, linkedSemitones, pitchRatio } from './tempo.svelte'
+
+describe('скорость и тон', () => {
+  it('скорость в пределах 0.5–2 с точностью до сотых', () => {
+    expect(clampRate(0.1)).toBe(0.5)
+    expect(clampRate(3)).toBe(2)
+    expect(clampRate(1.1549)).toBe(1.15)
+    expect(clampPitch(-20)).toBe(-12)
+    expect(clampPitch(1.26)).toBe(1.3)
+  })
+  it('связанный тон: вдвое быстрее — октава вверх, 0.8× — почти −4 полутона', () => {
+    expect(linkedSemitones(2)).toBe(12)
+    expect(linkedSemitones(1)).toBe(0)
+    expect(linkedSemitones(0.8)).toBeCloseTo(-3.9, 1)
+    expect(pitchRatio(12)).toBe(2)
+  })
+  it('подпись кнопки', () => {
+    expect(badge(1, 0, 0)).toBe('')
+    expect(badge(0.8, 0, 0)).toBe('0.8×')
+    expect(badge(1, 2, 0)).toBe('+2')
+    expect(badge(1, 0, 0.3)).toBe('Reverb')
+  })
+})
