@@ -59,8 +59,15 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display);
+  /* ширина шрифта заголовков (ось wdth, style.ts DISPLAY_TUNING); у шрифтов без оси — без изменений */
+  font-stretch: calc(var(--display-wdth, 100) * 1%);
   margin: 0;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--display-tracking, -0.01em);
+}
+/* заголовки разделов не шире 120 %: очень широкий шрифт (Science Gothic 165) — только у героя и страниц */
+h2,
+h3 {
+  font-stretch: min(calc(var(--display-wdth, 100) * 1%), 120%);
 }
 
 ::-webkit-scrollbar {
@@ -303,10 +310,71 @@ img.fade-img.loaded {
   font-family: var(--font-wave);
   font-variation-settings: 'wght' 636, 'GRAD' 105, 'XOPQ' 100, 'wdth' 134, 'opsz' 144;
 }
-:root.custom-font .font-wave {
+/* шрифт заголовков выбран (Интерфейс → Стиль) — «Моя волна» на нём, с его жирностью, шириной и
+   трекингом; без подделки жирного */
+:root.display-font .font-wave {
   font-variation-settings: normal;
-  font-weight: 800;
+  font-weight: var(--display-weight, 800);
+  font-stretch: calc(var(--display-wdth, 100) * 1%);
+  letter-spacing: var(--display-tracking, -0.02em);
   font-synthesis: none;
+}
+:root.display-font h1 {
+  font-weight: var(--display-weight, 800);
+}
+
+/* Оформление заголовков «как в журнале» (appearance.title_style = editorial): капсом, герой крупно
+   (80–96 px; у широких шрифтов меньше — две строки влезают), над разделом линейка 2 px и номер
+   «02», строки заголовка въезжают снизу из-под маски. Работает с любым шрифтом. */
+:root.title-editorial h1,
+:root.title-editorial h2 {
+  text-transform: uppercase;
+}
+:root.title-editorial .font-wave {
+  font-size: clamp(80px, 7.6vw, 96px) !important;
+  line-height: 0.86 !important;
+}
+:root.title-editorial.display-wide .font-wave {
+  font-size: clamp(48px, 4.8vw, 62px) !important;
+  line-height: 0.95 !important;
+}
+:root.title-editorial .font-wave > span {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: title-rise 0.52s var(--ease) both;
+}
+:root.title-editorial .font-wave > span + span {
+  animation-delay: 0.07s;
+}
+/* строка поднимается, а клип держит её нижний край на месте — текст выходит из-под линии */
+@keyframes title-rise {
+  from {
+    transform: translateY(100%);
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    transform: none;
+    clip-path: inset(0 0 0 0);
+  }
+}
+:root.title-editorial main .page {
+  counter-reset: sec;
+}
+:root.title-editorial main .page h2 {
+  counter-increment: sec;
+  padding-top: 10px;
+  border-top: 2px solid var(--text);
+}
+:root.title-editorial main .page h2::before {
+  content: counter(sec, decimal-leading-zero);
+  margin-right: 0.6em;
+  font-size: 0.62em;
+  font-variant-numeric: tabular-nums;
+  vertical-align: 0.35em;
+  color: var(--text-3);
 }
 
 /* «Там ещё есть» у горизонтальных рядов (lib/edges.ts): край с пунктами за ним мягко затухает */

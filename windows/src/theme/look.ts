@@ -23,6 +23,7 @@ export const FONTS: Record<FontCategory, string[]> = {
     'Golos Text Variable',
     'Geologica Variable',
     'Inter Tight Variable',
+    'Geist Variable',
     'Wix Madefor Display Variable',
     'Commissioner Variable',
     'Roboto Flex Variable',
@@ -35,6 +36,7 @@ export const FONTS: Record<FontCategory, string[]> = {
     'Jost Variable',
     'Mulish Variable',
     'Sofia Sans Variable',
+    'Sofia Sans Extra Condensed Variable',
     'Open Sans Variable',
     'IBM Plex Sans Variable',
     'Fira Sans',
@@ -60,6 +62,7 @@ export const FONTS: Record<FontCategory, string[]> = {
   ],
   mono: [
     'JetBrains Mono Variable',
+    'Geist Mono Variable',
     'Fira Code Variable',
     'Martian Mono Variable',
     'IBM Plex Mono',
@@ -72,6 +75,7 @@ export const FONTS: Record<FontCategory, string[]> = {
   ],
   bright: [
     'Unbounded Variable',
+    'Science Gothic Variable',
     'Tektur Variable',
     'Dela Gothic One',
     'Russo One',
@@ -110,6 +114,19 @@ export function fontStack(f: string): string | null {
   const mono = FONTS.mono.includes(f)
   return `'${f}', ${mono ? 'monospace' : "'Inter Variable', 'Segoe UI', sans-serif"}`
 }
+
+/** Широкие шрифты: у героя «Моя волна» в оформлении `editorial` кегль меньше, чтобы влезали две строки. */
+export const WIDE_FONTS = new Set([
+  'Unbounded Variable',
+  'Science Gothic Variable',
+  'Rubik Mono One',
+  'Dela Gothic One',
+  'Days One',
+  'Russo One',
+  'Tektur Variable',
+  'Press Start 2P',
+  'Martian Mono Variable',
+])
 
 /** Скругления: Нет / Маленькое / Среднее (по умолчанию) / Большое — радиусы s / m / l / xl. */
 export const RADII: Record<'none' | 'soft' | 'rounded' | 'pill', [number, number, number, number]> = {

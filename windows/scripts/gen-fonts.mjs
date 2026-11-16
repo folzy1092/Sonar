@@ -5,13 +5,15 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 
 const root = new URL('../node_modules/', import.meta.url)
+// строка `пакет wdth` — шрифт с осью ширины: берём standard.css (wght + wdth), иначе только wght
 const pkgs = readFileSync(new URL('./fonts.txt', import.meta.url), 'utf8').split(/\r?\n/).filter(Boolean)
 const out = []
 const families = []
 
-for (const pkg of pkgs) {
+for (const line of pkgs) {
+  const [pkg, axes] = line.trim().split(/\s+/)
   const variable = pkg.startsWith('@fontsource-variable/')
-  const sheets = variable ? ['index.css'] : ['400.css', '500.css', '600.css', '700.css']
+  const sheets = variable ? [axes === 'wdth' ? 'standard.css' : 'index.css'] : ['400.css', '500.css', '600.css', '700.css']
   let family = ''
   for (const sheet of sheets) {
     const file = new URL(`${pkg}/${sheet}`, root)
