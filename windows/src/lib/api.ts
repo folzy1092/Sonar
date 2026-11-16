@@ -347,6 +347,8 @@ export const api = {
   /** Показать ярлык в Проводнике — оттуда «Закрепить на панели задач» (тихо Windows закрепить не даёт). */
   revealStartShortcut: () => call<void>('reveal_start_shortcut'),
   setZoom: (kind: 'window' | 'fullscreen', percent: number) => call<void>('set_zoom', { kind, percent }),
+  /** Прозрачность окна: Mica (Windows 11) / Acrylic (Windows 10) под окном; вернёт, что включилось. */
+  setGlass: (on: boolean) => call<'mica' | 'acrylic' | 'off'>('set_glass', { on }),
   setAutostart: (on: boolean) => call<void>('set_autostart', { on }),
   autostartEnabled: () => call<boolean>('autostart_enabled'),
   setTrayMode: (on: boolean) => call<void>('set_tray_mode', { on }),

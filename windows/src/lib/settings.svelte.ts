@@ -22,6 +22,12 @@ export const DEFAULTS = {
   /** Тема: тёмная / светлая / как в системе (меняется на лету). */
   'appearance.mode': 'dark' as 'dark' | 'light' | 'system',
   'appearance.cover_theme': true,
+  /** Прозрачность окна (Mica / Acrylic под окном, glass.rs). */
+  'appearance.glass': false,
+  /** Непрозрачность фона окна и карточек при прозрачности, % (100 — как без неё). */
+  'appearance.opacity': 80 as number,
+  /** Размытие стекла: радиус backdrop-filter у панелей, px. */
+  'appearance.glass_blur': 16 as number,
   'appearance.preset': 'neutral' as string,
   'appearance.animations': true,
   'appearance.scale_window': 100,

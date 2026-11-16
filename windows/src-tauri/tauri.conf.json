@@ -22,6 +22,7 @@
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
+        "transparent": true,
         "shadow": true,
         "backgroundColor": "#08080a",
         "additionalBrowserArgs": "--autoplay-policy=no-user-gesture-required --use-fake-ui-for-media-stream --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --enable-gpu-rasterization --disable-features=HardwareMediaKeyHandling,MediaSessionService,GlobalMediaControls,CalculateNativeWinOcclusion,msWebOOUI,msPdfOOUI,msSmartScreenProtection"
