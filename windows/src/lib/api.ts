@@ -198,6 +198,19 @@ function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
 /** Текст ошибки из Rust (строка) или из JS (Error). */
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
+/** Что нашлось по ссылке из строки поиска (services.rs `LinkItem`). */
+export type LinkItem =
+  | { kind: 'track'; track: Track }
+  | { kind: 'album'; album: Album }
+  | { kind: 'artist'; artist: Artist }
+  | { kind: 'playlist'; playlist: ServicePlaylist }
+
+/** Похоже на ссылку SoundCloud / Яндекс Музыки, а не на поисковый запрос (как links.rs). */
+export function looksLikeLink(s: string): boolean {
+  const t = s.trim()
+  return !/\s/.test(t) && (/^https?:\/\//.test(t) || t.includes('soundcloud.com/') || t.includes('music.yandex.'))
+}
+
 /** Отчёт прошлого запуска (crashlog.rs): было падение или ошибки. */
 export interface CrashReport {
   crashed: boolean
@@ -208,6 +221,7 @@ export type ReportSent = { kind: 'telegram' } | { kind: 'saved'; path: string }
 
 export const api = {
   servicesStatus: () => call<ServicesStatus>('services_status'),
+  resolveLink: (url: string) => call<LinkItem>('resolve_link', { url }),
   reportPending: () => call<CrashReport | null>('report_pending'),
   reportSend: () => call<ReportSent>('report_send'),
   reportDismiss: () => call<void>('report_dismiss'),

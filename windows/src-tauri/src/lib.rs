@@ -112,6 +112,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       commands::services_status,
       commands::sync_now,
+      commands::resolve_link,
       commands::report_pending,
       commands::report_send,
       commands::report_dismiss,
