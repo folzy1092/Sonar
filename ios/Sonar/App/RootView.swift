@@ -1,9 +1,12 @@
 import SwiftUI
 
 /// Корень: экран вкладки + свой таб-бар снизу (не системный `TabView` — нужны три стиля и
-/// сворачивание, SPEC §4.5). Мини-плеер и полный плеер добавятся над таб-баром.
+/// сворачивание, SPEC §4.5). Над таб-баром — всплывашка «Доступно обновление»; мини-плеер и полный
+/// плеер добавятся туда же.
 struct RootView: View {
     @Environment(ChromeState.self) private var chrome
+    @Environment(UpdateChecker.self) private var checker
+    @State private var showUpdate = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -14,17 +17,32 @@ struct RootView: View {
                 case .home: PlaceholderScreen(title: "Моя волна", note: "Главная: волна, подборки, недавнее")
                 case .library: PlaceholderScreen(title: "Медиатека", note: "Все · Плейлисты · Альбомы · Исполнители")
                 case .search: PlaceholderScreen(title: "Поиск", note: "SoundCloud и Яндекс Музыка")
-                case .profile: PlaceholderScreen(title: "Профиль", note: "Шапка и меню настроек")
+                case .profile: NavigationStack { ProfileView() }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .transition(.opacity)
 
-            TabBar()
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
+            VStack(spacing: 10) {
+                if let release = checker.popup {
+                    UpdatePopup(release: release) {
+                        // открыл подробности — значит, увидел: для этой сборки больше не всплываем, бейдж остаётся
+                        withAnimation(Motion.spring) { checker.dismissPopup() }
+                        showUpdate = true
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.96, anchor: .bottom)))
+                }
+                TabBar()
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
         }
         .animation(.easeInOut(duration: 0.25), value: chrome.tab)
+        .animation(Motion.spring, value: checker.popup)
+        .sheet(isPresented: $showUpdate) {
+            NavigationStack { UpdateView() }
+                .presentationBackground(Theme.background)
+        }
     }
 }
 

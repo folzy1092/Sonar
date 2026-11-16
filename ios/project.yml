@@ -8,6 +8,13 @@ options:
   createIntermediateGroups: true
   developmentLanguage: ru
 
+# локальные SwiftPM-пакеты: подпись и zip для автообновления (порт из Shadow, ios/Packages/*/README.md)
+packages:
+  Zsign:
+    path: Packages/Zsign
+  ZipArchive:
+    path: Packages/ZipArchive
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -27,6 +34,9 @@ targets:
     platform: iOS
     sources:
       - path: Sonar
+    dependencies:
+      - package: Zsign
+      - package: ZipArchive
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.folzy.sonar
