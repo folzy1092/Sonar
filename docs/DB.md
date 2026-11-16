@@ -168,9 +168,9 @@ CREATE TABLE track_prefs (                      -- «Запомнить» ско
 );
 
 CREATE TABLE catalog (                          -- кэш альбомов и исполнителей (как tracks)
-  ref           TEXT PRIMARY KEY,               -- scalb:/ymalb: | sca:/yma:
-  kind          TEXT NOT NULL,                  -- album | artist
-  json          TEXT NOT NULL,                  -- Album / Artist (API.md §3)
+  ref           TEXT PRIMARY KEY,               -- scalb:/ymalb: | sca:/yma: | similar:<ref трека>
+  kind          TEXT NOT NULL,                  -- album | artist | similar (кэш «похожих» волны, 24 ч, только локально)
+  json          TEXT NOT NULL,                  -- Album / Artist (API.md §3) | [Track] для similar
   fetched_at    INTEGER NOT NULL
 );
 CREATE INDEX likes_kind ON likes(user_id, kind, deleted, added_at);
