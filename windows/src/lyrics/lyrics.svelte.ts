@@ -1,5 +1,6 @@
 // Текст текущего трека: загрузка (Rust: кэш → lrclib → Genius), память на ~100 треков,
 // предзагрузка следующего в очереди, сдвиг на трек, настройки вида (LYRICS.md §5–7).
+import { mapAnnotations, type Annotation } from './core/annotations'
 import { untrack } from 'svelte'
 import { api, type Track } from '../lib/api'
 import { player } from '../player/player.svelte'
@@ -42,6 +43,9 @@ class LyricsStore {
   /** Для какого трека `data` и `status`. */
   ref = $state<string | null>(null)
   data = $state<Lyrics | null>(null)
+  /** Аннотации Genius: номер строки → пояснение (core/annotations.ts). */
+  notes = $state<Map<number, Annotation>>(new Map())
+  private notesCache = new Map<string, Annotation[]>()
   status = $state<'idle' | 'loading' | 'ready' | 'none'>('idle')
   /** Сдвиг текущего трека, секунды. */
   offset = $state(0)
@@ -138,6 +142,7 @@ class LyricsStore {
     const ref = t.ref
     this.ref = ref
     this.data = null
+    this.notes = new Map()
     this.offset = 0
     this.status = 'loading'
     void api
@@ -151,10 +156,30 @@ class LyricsStore {
       if (this.ref !== ref) return
       this.data = l
       this.status = l?.lines.length ? 'ready' : 'none'
+      if (l?.lines.length) void this.loadNotes(t, l)
     } catch {
       // сеть не ответила — тихо «Текст не найден», без тостов (LYRICS.md §7)
       if (this.ref === ref) this.status = 'none'
     }
+  }
+
+  /** Аннотации Genius к строкам — в фоне, после текста; нет на Genius — без кавычек. */
+  private async loadNotes(t: Track, l: Lyrics) {
+    let anns = this.notesCache.get(t.ref)
+    if (!anns) {
+      try {
+        anns = await api.lyricsAnnotations(t)
+      } catch {
+        return
+      }
+      this.notesCache.set(t.ref, anns)
+      if (this.notesCache.size > 30) this.notesCache.delete(this.notesCache.keys().next().value!)
+    }
+    if (this.ref !== t.ref) return
+    this.notes = mapAnnotations(
+      l.lines.map((x) => x.text),
+      anns,
+    )
   }
 
   /** Искать текст заново, мимо кэша. */

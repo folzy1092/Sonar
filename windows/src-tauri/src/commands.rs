@@ -452,6 +452,13 @@ pub async fn lyrics(core: State<'_, Arc<Core>>, db: State<'_, Db>, track: Track,
   Ok(found)
 }
 
+/// Аннотации Genius к тексту трека (строки фрагмента + пояснение). Нет на Genius — пустой список.
+#[tauri::command]
+pub async fn lyrics_annotations(core: State<'_, Arc<Core>>, track: Track) -> Res<Vec<lyrics::genius::Annotation>> {
+  let m = lyrics::Meta::of(&track);
+  lyrics::genius::annotations(&core.http, &m.artist, &m.title).await.map_err(err)
+}
+
 #[tauri::command]
 pub fn lyrics_offset(db: State<'_, Db>, track_ref: String) -> Res<i64> {
   db.0.lock().unwrap().lyrics_offset(&track_ref).map_err(err)
