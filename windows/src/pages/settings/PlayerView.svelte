@@ -8,12 +8,12 @@
   import Soon from '../../components/settings/Soon.svelte'
   import { settings } from '../../lib/settings.svelte'
 
-  const sliders: { id: string; label: string; soon?: boolean }[] = [
+  const sliders: { id: 'normal' | 'thin' | 'smooth' | 'wavy' | 'wave_bars'; label: string; soon?: boolean }[] = [
     { id: 'normal', label: 'Обычный' },
-    { id: 'thin', label: 'Тонкий', soon: true },
-    { id: 'smooth', label: 'Плавный', soon: true },
-    { id: 'wavy', label: 'Волнистый', soon: true },
-    { id: 'wave_bars', label: 'Волновой', soon: true },
+    { id: 'thin', label: 'Тонкий' },
+    { id: 'smooth', label: 'Плавный' },
+    { id: 'wavy', label: 'Волнистый' },
+    { id: 'wave_bars', label: 'Волновой' },
   ]
   // столбики «волнового» ползунка — постоянные, чтобы пример не прыгал
   const bars = Array.from({ length: 64 }, (_, i) => 30 + Math.round(60 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.31))))
@@ -65,11 +65,12 @@
 <Choice
   title="Стиль"
   hint="Выберите стиль визуализации аудио"
-  value="wave"
+  value={settings.get('player.visualizer_style')}
   options={[
     { id: 'wave', label: 'Волна', icon: 'waveform' },
-    { id: 'bars', label: 'Столбцы', icon: 'bars', soon: true },
+    { id: 'bars', label: 'Столбцы', icon: 'bars' },
   ]}
+  onchange={(v) => settings.set('player.visualizer_style', v)}
 />
 
 <div class="block">
@@ -77,7 +78,7 @@
   <small>Выберите стиль ползунка прогресса</small>
   <div class="sliders">
     {#each sliders as s (s.id)}
-      <button class="sl" class:on={s.id === 'normal'} disabled={s.soon} title={s.soon ? `${s.label} — скоро` : s.label}>
+      <button class="sl" class:on={s.id === settings.get('player.slider')} disabled={s.soon} title={s.label} onclick={() => settings.set('player.slider', s.id)}>
         <span class="name">{s.label}{#if s.soon}<Soon />{/if}</span>
         <span class="preview {s.id}">
           {#if s.id === 'wavy'}
@@ -104,7 +105,7 @@
     ]}
     onchange={(v) => settings.set('player.cover_position', v)}
   />
-  <Switch title="Обложка в обложке" hint="Отображать меньшую обложку внутри основной" on={false} soon />
+  <Switch title="Обложка в обложке" hint="Отображать меньшую обложку внутри основной" on={settings.get('player.pip_cover')} onchange={(v) => settings.set('player.pip_cover', v)} />
 </Group>
 
 <style>

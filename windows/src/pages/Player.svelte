@@ -58,6 +58,12 @@
     <button class="open-full" aria-label="Полноэкранный плеер" title="Полноэкранный плеер" disabled={!track} onclick={() => lyrics.open()}>
       <Cover url={track?.cover_url} size={320} radius="18px" />
     </button>
+    {#if settings.get('player.pip_cover') && track?.cover_url}
+      <!-- «обложка в обложке»: маленькая чёткая копия в углу поверх большой -->
+      {#key track.cover_url}
+        <img class="pip" src={track.cover_url} alt="" draggable="false" />
+      {/key}
+    {/if}
     {#if track}
       <button
         class="on-cover left"
@@ -214,6 +220,26 @@
   .open-full {
     display: block;
     cursor: zoom-in;
+  }
+  .pip {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 30%;
+    aspect-ratio: 1;
+    border-radius: 10px;
+    object-fit: cover;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.18),
+      0 10px 26px rgba(0, 0, 0, 0.55);
+    pointer-events: none;
+    animation: pip-in 0.45s var(--ease);
+  }
+  @keyframes pip-in {
+    from {
+      opacity: 0;
+      transform: translate(8px, -8px) scale(0.85);
+    }
   }
   .open-full:disabled {
     cursor: default;
