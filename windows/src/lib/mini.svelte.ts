@@ -63,7 +63,12 @@ class Mini {
       this.open = true
       this.push()
     })
-    void listen('mini:bye', () => (this.open = false))
+    // плашка закрывается — главное окно само добивает её через Rust (на случай, если её страница
+    // зависла и закрыться сама не может)
+    void listen('mini:bye', () => {
+      this.open = false
+      void invoke('mini_window', { show: false }).catch(() => {})
+    })
     void listen<MiniCmd>('mini:cmd', (e) => {
       const t = player.current
       if (e.payload === 'toggle') player.toggle()

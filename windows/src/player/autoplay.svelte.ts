@@ -67,7 +67,9 @@ class Autoplay {
     this.started = true
     $effect.root(() => {
       $effect(() => {
-        if (!this.on || player.context === WAVE_CONTEXT || player.repeat !== 'off' || !player.current) return
+        // повтор очереди не мешает: при включённом тумблере после очереди идут похожие, а не круг
+        // заново (жалоба владельца 2026-11-16); не трогаем только повтор одного трека
+        if (!this.on || player.context === WAVE_CONTEXT || player.repeat === 'one' || !player.current) return
         const left = player.order.length - 1 - player.pos
         if (left < LEFT) untrack(() => void this.fill())
       })

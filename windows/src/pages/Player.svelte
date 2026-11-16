@@ -170,7 +170,17 @@
         <IconButton icon="next" label={t('Вперёд')} filled disabled={!track} onclick={() => player.next()} />
         <IconButton icon="shuffle" label={t('Перемешать')} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
       </div>
-      <IconButton icon="dislike" label={t('Не нравится — W5')} size={18} disabled />
+      <!-- лайк под рукой, рядом с управлением (дизлайк — на обложке) -->
+      <IconButton
+        icon="heart"
+        label={liked ? t('Удалить из Любимых') : t('В Любимые')}
+        size={18}
+        filled={liked}
+        active={liked}
+        pulse={liked}
+        disabled={!track}
+        onclick={() => track && library.toggleLike(track)}
+      />
     </div>
 
     <div class="row">
@@ -211,7 +221,7 @@
   {#if ownNext.length}
     <div use:cascade={player.current?.ref}>
     {#each ownNext as t, i (t.ref + i)}
-      <TrackRow track={t} variant="queue" onplay={() => player.jumpTo(i)} />
+      <TrackRow track={t} variant="queue" queueAt={i} onplay={() => player.jumpTo(i)} />
     {/each}
     </div>
   {:else if !autoNext.length && !autoplay.on}
@@ -225,7 +235,7 @@
     {#if autoNext.length}
       <div class="auto-list" use:cascade={autoNext[0]?.ref}>
       {#each autoNext as t, i (t.ref + i)}
-        <TrackRow track={t} variant="queue" onplay={() => player.jumpTo(ownNext.length + i)} />
+        <TrackRow track={t} variant="queue" queueAt={ownNext.length + i} onplay={() => player.jumpTo(ownNext.length + i)} />
       {/each}
       </div>
     {/if}
@@ -630,6 +640,8 @@
   .extra {
     display: flex;
     align-items: center;
+    /* скорость / тональность и эквалайзер — не вплотную друг к другу */
+    gap: 6px;
     height: 40px;
     padding: 0 4px;
   }

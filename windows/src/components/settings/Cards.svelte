@@ -26,7 +26,9 @@
 <div class="block">
   {#if title}<b class="title">{title}{#if soon}<Soon />{/if}</b>{/if}
   {#if hint}<small>{hint}</small>{/if}
-  <div class="cards" class:scroll class:list style:--cols={cols} use:hscroll use:edges>
+  <!-- плитки настроек (качество, устройство вывода…) листаются колесом вбок, дойдя до края — страница
+       (решение владельца 2026-11-16) -->
+  <div class="cards" class:scroll class:list style:--cols={cols} use:hscroll={{ wheel: true }} use:edges>
     {#each options as o (o.id)}
       <button
         class="card"

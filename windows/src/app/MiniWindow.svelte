@@ -19,12 +19,19 @@
   onMount(() => {
     // язык интерфейса — из настроек (t() читает general.language)
     void settings.load()
-    const off = listen<MiniState>('mini:state', (e) => (s = e.payload))
+    let got = false
+    const off = listen<MiniState>('mini:state', (e) => {
+      got = true
+      s = e.payload
+    })
     void emit('mini:hello')
+    // главное окно могло не успеть ответить — спрашиваем, пока не придёт состояние
+    const retry = setInterval(() => (got ? clearInterval(retry) : void emit('mini:hello')), 1000)
     const bye = () => void emit('mini:bye')
     window.addEventListener('beforeunload', bye)
     return () => {
       void off.then((f) => f())
+      clearInterval(retry)
       window.removeEventListener('beforeunload', bye)
     }
   })
@@ -32,7 +39,8 @@
   /** Закрыть плашку — Sonar возвращается на экран. */
   function close() {
     void emit('mini:bye')
-    void invoke('show_main').finally(() => getCurrentWindow().close())
+    // закрывает Rust (destroy) и возвращает Sonar; не вышло — закрываемся сами
+    void invoke('mini_window', { show: false }).catch(() => getCurrentWindow().destroy())
   }
 </script>
 

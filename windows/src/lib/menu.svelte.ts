@@ -8,6 +8,8 @@ export interface MenuTarget {
   /** Свой плейлист, из которого открыли меню: появится «Убрать из плейлиста». */
   playlistId?: string
   itemId?: string
+  /** Трек из «Далее» в очереди (номер в upNext): вместо «В очередь» — «Убрать из очереди». */
+  queueAt?: number
 }
 
 class TrackMenu {

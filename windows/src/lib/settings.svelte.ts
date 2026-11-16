@@ -148,12 +148,15 @@ class Settings {
   private values = $state<Record<string, unknown>>({})
   loaded = $state(false)
   private loading: Promise<void> | null = null
+  /** Поменяли до того, как база дочиталась, — после загрузки эти значения не перетираются. */
+  private early: Record<string, unknown> = {}
 
   load(): Promise<void> {
     this.loading ??= api
       .allSettings()
       .then((all) => {
-        this.values = all
+        this.values = { ...all, ...this.early }
+        this.early = {}
       })
       .catch(() => {})
       .finally(() => (this.loaded = true))
@@ -166,6 +169,7 @@ class Settings {
   }
 
   set<K extends SettingKey>(key: K, value: Value<K>) {
+    if (!this.loaded) this.early[key] = value
     this.values = { ...this.values, [key]: value }
     void api.setSetting(key, value).catch(() => {})
   }
