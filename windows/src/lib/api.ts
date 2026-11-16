@@ -13,6 +13,23 @@ export interface ArtistRef {
   avatar_url: string | null
 }
 
+/** Строка сводки журнала волны (`wave_stats`): `key` — режим или источник кандидатов. */
+export interface WaveStatRow {
+  key: string
+  served: number
+  played: number
+  /** Доля ранних пропусков среди сыгранных. */
+  early_skip_share: number
+  /** Доля дослушанных или лайкнутых среди сыгранных. */
+  finished_share: number
+  avg_reward: number
+}
+export interface WaveStats {
+  days: number
+  by_mode: WaveStatRow[]
+  by_source: WaveStatRow[]
+}
+
 export interface Track {
   ref: string
   title: string
@@ -245,10 +262,19 @@ export const api = {
     n?: number
     mode?: string
     tz_min?: number
+    /** Сессия волны — выданные треки пишутся в журнал `wave_events` под этим id. */
+    session_id?: string
   }) =>
     call<Track[]>('wave_portion', { req }),
-  waveFeedback: (event: 'dislike' | 'undislike' | 'skip', track: Track, playedMs?: number) =>
-    call<void>('wave_feedback', { event, track, playedMs }),
+  /** `end` — исход трека волны для журнала: `sessionId` и `reward` (`reward.ts`), `playedMs` — прослушано. */
+  waveFeedback: (
+    event: 'dislike' | 'undislike' | 'skip' | 'end',
+    track: Track,
+    playedMs?: number,
+    extra?: { sessionId?: string; reward?: number },
+  ) => call<void>('wave_feedback', { event, track, playedMs, sessionId: extra?.sessionId, reward: extra?.reward }),
+  /** Сводка по журналу волны за `days` дней: по режимам и по источникам кандидатов. Экрана пока нет. */
+  waveStats: (days = 30) => call<WaveStats>('wave_stats', { days }),
   dislikedRefs: () => call<string[]>('disliked_refs'),
   similarTracks: (trackRef: string, limit = 20) => call<Track[]>('similar_tracks', { trackRef, limit }),
   cachedTracks: (refs: string[]) => call<Track[]>('cached_tracks', { refs }),

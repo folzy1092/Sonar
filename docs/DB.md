@@ -203,6 +203,24 @@ CREATE TABLE skips (                            -- ручной пропуск �
 );
 CREATE INDEX skips_user_time ON skips(user_id, at);
 
+CREATE TABLE wave_events (                      -- журнал волны (WAVE.md, этап 6). ТОЛЬКО ЛОКАЛЬНО, в синк не идёт;
+  id            INTEGER PRIMARY KEY,            -- строки старше 180 дней удаляются при запуске
+  user_id       TEXT NOT NULL,
+  session_id    TEXT NOT NULL,                  -- сессия волны (создаёт клиент)
+  ref           TEXT NOT NULL,
+  artist        TEXT NOT NULL,                  -- главный артист, нижний регистр
+  mode          TEXT NOT NULL,                  -- own | hard | calm | sad | fun | new
+  source        TEXT NOT NULL,                  -- similar | hop2 | liked | seed
+  seed_ref      TEXT,                           -- от какого сида пришёл
+  features_json TEXT,                           -- Features на момент выдачи (wave.rs), по ним подбирают веса
+  served_at     INTEGER NOT NULL,
+  reward        REAL,                           -- оценка исхода (WAVE.md 1.3); пусто, пока трек не сыгран
+  listened_ms   INTEGER,
+  ended_at      INTEGER
+);
+CREATE INDEX wave_events_time ON wave_events(user_id, served_at);
+CREATE INDEX wave_events_ref ON wave_events(session_id, ref);
+
 CREATE TABLE notifications (
   id            TEXT PRIMARY KEY,
   user_id       TEXT REFERENCES users(id) ON DELETE CASCADE,   -- NULL = всем (рассылка)

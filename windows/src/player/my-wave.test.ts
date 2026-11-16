@@ -38,9 +38,9 @@ const player = vi.hoisted(() => ({
   },
 }))
 const api = vi.hoisted(() => ({
-  wavePortion: vi.fn(),
+  wavePortion: vi.fn(async (..._args: any[]): Promise<unknown> => []),
   dislikedRefs: vi.fn(async () => []),
-  waveFeedback: vi.fn(async () => {}),
+  waveFeedback: vi.fn(async (..._args: unknown[]) => {}),
 }))
 
 vi.mock('./player.svelte', () => ({ player }))
@@ -144,5 +144,45 @@ describe('Моя волна: серия ранних пропусков', () => 
     skip()
     await flush()
     expect(refs()).toContain('mine')
+  })
+})
+
+describe('Моя волна: журнал исходов (wave_events)', () => {
+  it('порции одной сессии идут под одним id, исход каждого трека уходит в журнал с оценкой', async () => {
+    api.wavePortion.mockResolvedValueOnce(batch('a')).mockResolvedValueOnce(batch('b', 3))
+    await wave.start()
+    const sid = api.wavePortion.mock.calls[0][0].session_id
+    expect(sid).toBeTruthy()
+    // a0 дослушан, a1 пропущен на 5-й секунде
+    player.hook!(player.current as never, 200_000, false)
+    player.pos++
+    skip()
+    const end = (ref: string) => api.waveFeedback.mock.calls.find((c) => c[0] === 'end' && (c[1] as { ref: string }).ref === ref)
+    expect(end('a0')).toEqual(['end', expect.objectContaining({ ref: 'a0' }), 200_000, { sessionId: sid, reward: 1 }])
+    expect(end('a1')).toEqual(['end', expect.objectContaining({ ref: 'a1' }), 5_000, { sessionId: sid, reward: -1 }])
+    // ранний пропуск пишется и в `skips`, как раньше
+    expect(api.waveFeedback.mock.calls.some((c) => c[0] === 'skip' && (c[1] as { ref: string }).ref === 'a1')).toBe(true)
+    await wave.more()
+    expect(api.wavePortion.mock.calls[1][0].session_id).toBe(sid)
+  })
+
+  it('порция, подобранная заранее для главной, играет под своим id', async () => {
+    api.wavePortion.mockResolvedValueOnce(batch('p'))
+    await wave.prefetch(true)
+    const sid = api.wavePortion.mock.calls[0][0].session_id
+    await wave.start() // берёт готовую порцию — второго запроса нет
+    expect(api.wavePortion).toHaveBeenCalledTimes(1)
+    player.hook!(player.current as never, 200_000, false)
+    expect(api.waveFeedback).toHaveBeenCalledWith('end', expect.objectContaining({ ref: 'p0' }), 200_000, { sessionId: sid, reward: 1 })
+  })
+
+  it('новый запуск волны — новая сессия', async () => {
+    api.wavePortion.mockResolvedValue(batch('a'))
+    await wave.start()
+    await wave.start(tr('seed'))
+    const [first, second] = api.wavePortion.mock.calls.map((c) => c[0].session_id)
+    expect(first).toBeTruthy()
+    expect(second).toBeTruthy()
+    expect(second).not.toBe(first)
   })
 })
