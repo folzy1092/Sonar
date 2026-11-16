@@ -26,7 +26,11 @@
 значки: левая панель — свои контуры из частей (`components/NavIcon.svelte`), кнопки плеера — свои
 (`components/sonar-icons.ts`), толщина — `appearance.icon_stroke`; остальные пока MingCute (Apache-2.0)
 `components/mingcute.ts` из `windows/scripts/gen-icons.mjs` (Tabler `icons.ts` — чего нет в MingCute).
-Шрифты интерфейса — `theme/look.ts` + `theme/fonts.css` из `windows/scripts/gen-fonts.mjs` (fontsource, латиница+кириллица). Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`),
+Шрифты интерфейса — `theme/look.ts` + `theme/fonts.css` из `windows/scripts/gen-fonts.mjs` (fontsource, латиница+кириллица).
+Языки — `lib/i18n.svelte.ts`: **каждая новая строка интерфейса — через `t('русский текст')`** (ключ — сама
+русская строка, множественное — `tn`, одно слово с разным смыслом — `t('контекст::Слово')`), переводы — в
+`src/i18n/en/*.ts` и `src/i18n/uk/*.ts` (тест `i18n.test.ts`). Кэш треков — `track_cache.rs`, прозрачность
+окна — `glass.rs`, раскладки вкладок и мини-плеера — сетка в `App.svelte`. Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`),
 новые экраны собирать на них; настройки — `lib/settings.svelte.ts` (ключи и значения по умолчанию).
 Журнал ошибок — `windows/src-tauri/src/crashlog.rs` (плашка после сбоя, «Отправить лог» ботом отчётов из
 секретов CI `SONAR_REPORT_*`, токен в репо не класть). Синк на стороне клиента готов (`store/sync.rs`, `sync.rs`).
