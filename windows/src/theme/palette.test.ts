@@ -61,6 +61,13 @@ describe('oklch palette', () => {
 
   for (const surface of Object.keys(SURFACES) as Surface[]) {
     for (const [name, cover] of Object.entries(COVERS)) {
+      it(`contrast (светлая): ${surface} × ${name}`, () => {
+        const { lch } = themeFrom(cover, surface, true)
+        expect(contrast(rgb(lch.t3), rgb(lch.s1))).toBeGreaterThanOrEqual(4.5)
+        expect(contrast(rgb(lch.text), rgb(lch.bg))).toBeGreaterThanOrEqual(12)
+        expect(contrast(rgb(lch.accent), rgb(lch.s1))).toBeGreaterThanOrEqual(3)
+        expect(contrast(rgb(lch.accent), rgb(lch.ink))).toBeGreaterThanOrEqual(4.5)
+      })
       it(`contrast: ${surface} × ${name}`, () => {
         const { lch } = themeFrom(cover, surface)
         expect(contrast(rgb(lch.t3), rgb(lch.s1))).toBeGreaterThanOrEqual(4.5)

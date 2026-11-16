@@ -96,7 +96,7 @@
 {#snippet card(id: string, title: string, a: StyleAxes, own: boolean)}
   <div class="card" class:on={current === id} role="group" onmouseenter={() => replay(id)}>
     <button class="pick" onclick={() => theme.applyStyle(id)} aria-pressed={current === id}>
-      <StylePreview axes={a} {accent} play={plays[id] ?? 0} />
+      <StylePreview axes={a} {accent} light={theme.light} play={plays[id] ?? 0} />
       <span class="name">{title}</span>
     </button>
     {#if own}
@@ -119,7 +119,7 @@
   {#if current === UNSAVED}
     <div class="card on" role="group" onmouseenter={() => replay('now')}>
       <div class="pick">
-        <StylePreview {axes} {accent} play={plays.now ?? 0} />
+        <StylePreview {axes} {accent} light={theme.light} play={plays.now ?? 0} />
         <span class="name">Свой — не сохранён</span>
       </div>
     </div>
