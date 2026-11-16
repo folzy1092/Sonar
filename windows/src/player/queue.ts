@@ -57,11 +57,20 @@ export function enqueueAt(order: number[], at: number, newIndex: number): number
 /**
  * Убрать из очереди ещё не игравшие треки (после `pos`), подходящие под `drop`, — например,
  * похожие автоплея, когда его выключили. Треки вычёркиваются и из списка, индексы порядка
- * пересчитываются; текущий и сыгранные не трогаются, `pos` не меняется.
+ * пересчитываются; текущий и сыгранные не трогаются, `pos` не меняется. `keep` — сколько
+ * ближайших к текущему не игравших треков оставить в любом случае (волна после серии пропусков
+ * не опустошает «Далее» совсем). `dropped` — убранные треки в порядке очереди.
  */
-export function dropUpcoming<T>(tracks: T[], order: number[], pos: number, drop: (t: T) => boolean): { tracks: T[]; order: number[] } {
-  const gone = new Set(order.slice(pos + 1).filter((i) => drop(tracks[i])))
-  if (!gone.size) return { tracks, order }
+export function dropUpcoming<T>(
+  tracks: T[],
+  order: number[],
+  pos: number,
+  drop: (t: T) => boolean,
+  keep = 0,
+): { tracks: T[]; order: number[]; dropped: T[] } {
+  const goneOrder = order.slice(pos + 1 + keep).filter((i) => drop(tracks[i]))
+  const gone = new Set(goneOrder)
+  if (!gone.size) return { tracks, order, dropped: [] }
   const remap = new Map<number, number>()
   const kept: T[] = []
   tracks.forEach((t, i) => {
@@ -69,5 +78,9 @@ export function dropUpcoming<T>(tracks: T[], order: number[], pos: number, drop:
     remap.set(i, kept.length)
     kept.push(t)
   })
-  return { tracks: kept, order: order.filter((i) => !gone.has(i)).map((i) => remap.get(i)!) }
+  return {
+    tracks: kept,
+    order: order.filter((i) => !gone.has(i)).map((i) => remap.get(i)!),
+    dropped: goneOrder.map((i) => tracks[i]),
+  }
 }
