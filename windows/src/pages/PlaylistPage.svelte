@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ScrollStick from '../components/ScrollStick.svelte'
   import { cascade } from '../lib/cascade'
   // Плейлист / Любимые (pc/Screenshot_28). Параметр роутера:
   //   favorites — свои лайки; pl_… — плейлист Sonar (правка, скрыть, удалить, порядок перетаскиванием);
@@ -160,6 +161,7 @@
       void load()
     }
   }
+  let tracksEl: HTMLDivElement | undefined = $state()
 </script>
 
 <CollectionHeader
@@ -213,8 +215,10 @@
   {/snippet}
 </CollectionHeader>
 
-<!-- прокручиваются только треки, шапка и кнопки стоят на месте; справа — ползунок, его можно тянуть -->
-<div class="tracks app-scroll">
+<!-- прокручиваются только треки, шапка и кнопки стоят на месте; где ты в списке — показывает
+     горизонтальная «палочка» под кнопками (вертикальной полосы справа нет) -->
+<ScrollStick target={tracksEl} />
+<div class="tracks" id="tracks" bind:this={tracksEl}>
   {#if error}
     <EmptyState icon="key" title="Не получилось открыть" text={error} />
   {:else if loading}
@@ -303,9 +307,13 @@
   .tracks {
     flex: 1;
     min-height: 0;
-    margin: 8px -14px 0 0;
-    padding: 0 8px 24px 0;
+    margin: 4px 0 0;
+    padding: 0 0 24px;
     overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .tracks::-webkit-scrollbar {
+    display: none;
   }
   .list {
     display: flex;
