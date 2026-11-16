@@ -76,11 +76,20 @@ describe('enqueueAt и dropUpcoming (автоплей похожих)', () => {
     expect(out.tracks).toEqual(['a', 'x1', 'b', 'c'])
     expect(out.order.map((i) => out.tracks[i])).toEqual(['c', 'x1', 'a', 'b'])
   })
+  it('keep оставляет ближайшие не игравшие и отдаёт убранные по порядку очереди', () => {
+    const tracks = ['a', 'x1', 'x2', 'x3', 'x4']
+    // текущий — a, дальше x3, x1, x4, x2
+    const order = [0, 3, 1, 4, 2]
+    const out = dropUpcoming(tracks, order, 0, (t) => t.startsWith('x'), 1)
+    expect(out.dropped).toEqual(['x1', 'x4', 'x2'])
+    expect(out.order.map((i) => out.tracks[i])).toEqual(['a', 'x3'])
+  })
   it('нечего убирать — те же массивы', () => {
     const tracks = ['a', 'b']
     const order = [0, 1]
     const out = dropUpcoming(tracks, order, 0, () => false)
     expect(out.tracks).toBe(tracks)
     expect(out.order).toBe(order)
+    expect(out.dropped).toEqual([])
   })
 })

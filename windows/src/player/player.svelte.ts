@@ -230,6 +230,17 @@ class Player {
     this.saveState()
   }
 
+  /** Убрать из «Далее» ещё не игравшие треки, подходящие под `drop`, кроме `keep` ближайших
+   *  (волна после серии пропусков: очередь подбиралась под вкус, которого сейчас нет). Вернёт убранные. */
+  dropUpNext(keep: number, drop: (t: Track) => boolean): Track[] {
+    const out = dropUpcoming(this.tracks, this.order, this.pos, drop, keep)
+    if (!out.dropped.length) return []
+    this.tracks = out.tracks
+    this.order = out.order
+    this.saveState()
+    return out.dropped
+  }
+
   /** Перейти к треку из «Далее» (номер в upNext). */
   async jumpTo(upNextIndex: number) {
     this.finishPlay(true)

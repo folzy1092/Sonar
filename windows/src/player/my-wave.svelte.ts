@@ -6,7 +6,8 @@
 // Волна учится на ходу (как у Яндекса): дослушанные и лайкнутые в этой сессии треки становятся
 // сидами следующих порций, однократно пропущенные артисты теряют вес, частые артисты сессии
 // уступают место другим. Стиль сессии (режим и «волна по треку») держится, пока волна играет —
-// перемотка меняет трек, а не стиль.
+// перемотка меняет трек, а не стиль. Два ранних пропуска подряд (`skip-series.ts`) пересобирают
+// «Далее»: ещё не игравшие треки волны уходят, кроме ближайшего, и тут же приходит новая порция.
 import { untrack } from 'svelte'
 import { api, errorText, type Track } from '../lib/api'
 import { toast } from '../lib/toast.svelte'
@@ -14,6 +15,7 @@ import { player } from './player.svelte'
 import { settings } from '../lib/settings.svelte'
 import { library } from '../lib/library.svelte'
 import { artistKey, reward } from './reward'
+import { SkipSeries } from './skip-series'
 
 export const WAVE_CONTEXT = 'wave'
 
@@ -65,6 +67,13 @@ class Wave {
   private servedArtists: string[] = []
   private previewAt = 0
   private started = false
+  /** Серия ранних пропусков: две подряд пересобирают «Далее» (docs/WAVE.md, этап 5). */
+  private series = new SkipSeries()
+  /** Растёт, когда очередь пересобрана или волна началась заново: порция, запрошенная до этого,
+   *  устарела и выбрасывается. */
+  private epoch = 0
+  /** Идущий запрос следующей порции — чтобы дождаться его после пересборки. */
+  private moreRun: Promise<void> | null = null
 
   init() {
     if (this.started) return
@@ -113,6 +122,8 @@ class Wave {
     this.good = []
     this.skipped = new Set()
     this.servedArtists = []
+    this.series.reset()
+    this.epoch++
     this.seed = seed ?? null
     let tracks: Track[]
     if (!seed && this.preview.length) {
@@ -169,9 +180,18 @@ class Wave {
     else void this.start()
   }
 
-  /** Догрузить следующую порцию в конец очереди. */
-  async more() {
-    if (this.loading) return
+  /** Догрузить следующую порцию в конец очереди. Идёт запрос — ничего не делает. */
+  more(): Promise<void> {
+    if (this.loading) return this.moreRun ?? Promise.resolve()
+    const run: Promise<void> = this.loadMore().finally(() => {
+      if (this.moreRun === run) this.moreRun = null
+    })
+    this.moreRun = run
+    return run
+  }
+
+  private async loadMore() {
+    const epoch = this.epoch
     this.loading = true
     try {
       const tracks = await api.wavePortion({
@@ -180,10 +200,11 @@ class Wave {
         seed: this.seed,
         session: this.good.slice(-SESSION_SEEDS),
         skipped_artists: [...this.skipped],
-        served_artists: this.servedArtists,
+        served_artists: [...this.servedArtists],
         ...ctx(),
       })
-      if (player.context !== WAVE_CONTEXT) return
+      // очередь пересобрана или волна началась заново, пока шёл запрос, — порция подобрана под старое
+      if (player.context !== WAVE_CONTEXT || epoch !== this.epoch) return
       const fresh = tracks.filter((t) => !this.served.has(t.ref))
       for (const t of fresh) this.serve(t)
       if (fresh.length) await player.addToQueue(fresh, false)
@@ -193,6 +214,24 @@ class Wave {
     } finally {
       this.loading = false
     }
+  }
+
+  /** Серия ранних пропусков: «Далее» подобрано под вкус, которого сейчас нет. Убираем ещё не
+   *  игравшие треки волны, кроме ближайшего, и просим новую порцию с учётом пропусков. */
+  private rebuild() {
+    if (player.context !== WAVE_CONTEXT) return
+    const gone = player.dropUpNext(1, (t) => this.served.has(t.ref))
+    if (!gone.length) return
+    this.epoch++
+    // убранные не звучали — вернуть их в пул, иначе до конца сессии они выпадут из волны
+    for (const t of gone) this.unserve(t)
+    void this.refill()
+  }
+
+  private async refill() {
+    // запрос, что шёл до пересборки, закончится и выбросит свою порцию — ждём его и просим заново
+    await this.moreRun
+    if (player.context === WAVE_CONTEXT) await this.more()
   }
 
   isDisliked(ref: string | null | undefined) {
@@ -225,6 +264,13 @@ class Wave {
     this.servedArtists.push(artistKey(t))
   }
 
+  /** Обратное `serve`: трек так и не прозвучал. */
+  private unserve(t: Track) {
+    this.served.delete(t.ref)
+    const i = this.servedArtists.lastIndexOf(artistKey(t))
+    if (i >= 0) this.servedArtists.splice(i, 1)
+  }
+
   private onEnd(t: Track, listened: number, skipped: boolean) {
     if (player.context !== WAVE_CONTEXT) return
     const artist = artistKey(t)
@@ -251,6 +297,9 @@ class Wave {
       this.skipped.delete(artist)
       this.good = [...this.good.filter((x) => x.ref !== t.ref), t]
     }
+    // два ранних пропуска подряд — пересобрать «Далее». Хук зовётся до смены трека (`next`, `jumpTo`),
+    // поэтому очередь трогаем после: микрозадача идёт, когда плеер уже переключил позицию.
+    if (this.series.push(r, skipped, Date.now())) queueMicrotask(() => this.rebuild())
   }
 }
 
