@@ -203,9 +203,11 @@ CREATE TABLE skips (                            -- ручной пропуск �
 );
 CREATE INDEX skips_user_time ON skips(user_id, at);
 
-CREATE TABLE wave_events (                      -- журнал волны (WAVE.md, этап 6). Сейчас локально; в синк аккаунта войдёт (WAVE.md §3а: id → текстовый, +device_id, +rev, миграция № 8);
-  id            INTEGER PRIMARY KEY,            -- строки старше 180 дней удаляются при запуске
+CREATE TABLE wave_events (                      -- журнал волны (WAVE.md, этап 6); едет в синк аккаунта (миграция № 8, WAVE.md §3а)
+  id            TEXT PRIMARY KEY,               -- we_… (глобально уникальный); строки старше 180 дней удаляются при запуске
   user_id       TEXT NOT NULL,
+  device_id     TEXT NOT NULL,                  -- d_… — откуда событие
+  rev           INTEGER NOT NULL,               -- выдача и исход поднимают rev (синк)
   session_id    TEXT NOT NULL,                  -- сессия волны (создаёт клиент)
   ref           TEXT NOT NULL,
   artist        TEXT NOT NULL,                  -- главный артист, нижний регистр
@@ -236,6 +238,13 @@ CREATE TABLE notification_reads (
 );
 
 CREATE TABLE sync_rev (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER NOT NULL);
+
+-- только клиент (Windows, миграция № 8): курсоры синка и id устройства
+CREATE TABLE sync_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- device_id — d_…; pushed_rev — до какого локального rev всё отправлено (неотправленное = rev новее);
+-- pulled_rev — до какого серверного rev получено; plays_uploaded_id — курсор POST /plays.
+-- Пришедшее с сервера пишется с rev = 0 (обратно не едет); своё неотправленное изменение строки
+-- пришедшее не перезаписывает.
 
 -- Быстрые ссылки входа и репорты — схема в BOT.md §6 (auth_links, reports)
 

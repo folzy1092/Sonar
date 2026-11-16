@@ -9,6 +9,7 @@ mod secrets;
 mod services;
 mod store;
 mod stream;
+mod sync;
 mod tray;
 mod wave;
 mod zoom;
@@ -99,10 +100,13 @@ pub fn run() {
       app.manage(Db(Mutex::new(db)));
       app.manage(StreamPort(port));
       app.manage(media::Media(Mutex::new(controls)));
+      // синхронизация аккаунта: молчит, пока не подключён сервер Sonar
+      tauri::async_runtime::spawn(sync::background(app.handle().clone()));
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
       commands::services_status,
+      commands::sync_now,
       commands::connect_soundcloud,
       commands::connect_yandex,
       commands::obs_status,

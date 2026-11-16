@@ -194,8 +194,26 @@
 | GET | `/sync/snapshot` | полный снимок: лайки, плейлисты, настройки, состояние плеера |
 | POST | `/sync/replace` | полный снимок с клиента → `{rev}` |
 
-`type`: `like`, `playlist`, `playlist_item`, `setting`, `player_state`, `track_pref`.
+`type`: `like`, `playlist`, `playlist_item`, `setting`, `player_state`, `track_pref`, `dislike`, `wave_event`.
 Настройки: `type: "setting"`, `key: "appearance.cover_theme"`, `value: true`.
+
+**Что шлёт клиент** (Windows, `store/sync.rs`, готово 2026-11-16; `value: null` — удалено):
+
+| `type` | `key` | `value` |
+|---|---|---|
+| `like` | ref (`sc:1`, `ymalb:9`, `sca:3`) | `{kind, added_at, track?}` — `track` (Track) у треков, чтобы на другом устройстве была карточка |
+| `playlist` | `pl_…` | `{name, hidden, source_ref, created_at, updated_at}` |
+| `playlist_item` | id элемента | `{playlist_id, ref, position, added_at, track?}` |
+| `setting` | ключ | значение; только `sync: да` из SETTINGS.md — громкость, масштаб, качество, `system.*`, `update.*`, `storage.*` остаются на устройстве |
+| `dislike` | ref | `{artist, added_at}` |
+| `track_pref` | ref | `{speed, lyrics_offset_ms}` |
+| `wave_event` | `we_…` | `{device_id, session_id, ref, artist, mode, source, seed_ref, served_at, reward, listened_ms, ended_at}` — без `features_json` |
+
+`op_id` = `<device_id>:<type>:<key>:<локальный rev>` — повтор после сбоя сети сервер узнаёт по нему и
+не применяет дважды, но в `applied` возвращает. Настройки — «побеждает позднее» по `client_ts`,
+остальное — последняя запись. `wave_event`: строка с исходом (`reward`) важнее строки без него.
+Образец логики сервера — `MemoryServer` в `windows/src-tauri/src/sync.rs` (тесты двух устройств).
+`player_state` клиент пока не шлёт (продолжение на другом устройстве — отдельной задачей).
 
 ## 7. Интеграции
 

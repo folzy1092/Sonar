@@ -9,10 +9,12 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 mod stats;
+mod sync;
 mod system;
 mod wave;
 mod wave_events;
 pub use stats::Stats;
+pub use sync::{Change, Op, PlayUpload};
 pub use wave::Taste;
 pub use wave_events::{ServedEvent, WaveStats};
 
@@ -98,6 +100,24 @@ CREATE TABLE wave_events (
   artist TEXT NOT NULL, mode TEXT NOT NULL, source TEXT NOT NULL, seed_ref TEXT, features_json TEXT,
   served_at INTEGER NOT NULL, reward REAL, listened_ms INTEGER, ended_at INTEGER
 );
+CREATE INDEX wave_events_time ON wave_events(user_id, served_at);
+CREATE INDEX wave_events_ref ON wave_events(session_id, ref);
+"#, r#"
+CREATE TABLE sync_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+UPDATE sync_rev SET value = value + 1 WHERE id = 1;
+CREATE TABLE wave_events_v8 (
+  id TEXT PRIMARY KEY NOT NULL DEFAULT ('we_' || lower(hex(randomblob(12)))),
+  user_id TEXT NOT NULL, device_id TEXT NOT NULL DEFAULT '', session_id TEXT NOT NULL, ref TEXT NOT NULL,
+  artist TEXT NOT NULL, mode TEXT NOT NULL, source TEXT NOT NULL, seed_ref TEXT, features_json TEXT,
+  served_at INTEGER NOT NULL, reward REAL, listened_ms INTEGER, ended_at INTEGER, rev INTEGER NOT NULL DEFAULT 0
+);
+INSERT INTO wave_events_v8 (id, user_id, session_id, ref, artist, mode, source, seed_ref, features_json, served_at,
+  reward, listened_ms, ended_at, rev)
+  SELECT 'we_' || id || '_' || lower(hex(randomblob(6))), user_id, session_id, ref, artist, mode, source, seed_ref,
+    features_json, served_at, reward, listened_ms, ended_at, (SELECT value FROM sync_rev WHERE id = 1)
+  FROM wave_events ORDER BY id;
+DROP TABLE wave_events;
+ALTER TABLE wave_events_v8 RENAME TO wave_events;
 CREATE INDEX wave_events_time ON wave_events(user_id, served_at);
 CREATE INDEX wave_events_ref ON wave_events(session_id, ref);
 "#];
@@ -202,6 +222,9 @@ impl Store {
       db.execute_batch(&format!("BEGIN; {sql} PRAGMA user_version = {}; COMMIT;", i + 1))?;
     }
     let store = Self { db };
+    // у устройства свой id (журнал волны и синк знают, откуда событие); старые события — с него же
+    let device = store.device_id()?;
+    store.db.execute("UPDATE wave_events SET device_id = ?1 WHERE device_id = ''", [&device])?;
     // журнал волны хранится полгода
     store.prune_wave_events()?;
     store.prune_similar()?;
@@ -209,7 +232,7 @@ impl Store {
   }
 
   /// Следующее значение глобального счётчика синхронизации (`sync_rev`).
-  fn next_rev(&self) -> Result<i64> {
+  pub(crate) fn next_rev(&self) -> Result<i64> {
     Ok(self.db.query_row("UPDATE sync_rev SET value = value + 1 WHERE id = 1 RETURNING value", [], |r| r.get(0))?)
   }
 
@@ -941,5 +964,28 @@ mod tests {
     s.db.execute("UPDATE lyrics_cache SET used_at = ?1 WHERE ref = 'sc:liked'", [now + 14 * DAY]).unwrap();
     assert_eq!(s.prune_lyrics(now + 15 * DAY).unwrap(), 0);
     assert_eq!(s.prune_lyrics(now + 29 * DAY).unwrap(), 1);
+  }
+
+  #[test]
+  fn migration_8_turns_wave_events_into_sync_rows() {
+    // база на схеме 7: журнал с числовыми id — после миграции текстовые id, свой device_id, rev
+    let db = Connection::open_in_memory().unwrap();
+    for (i, sql) in MIGRATIONS.iter().take(7).enumerate() {
+      db.execute_batch(&format!("BEGIN; {sql} PRAGMA user_version = {}; COMMIT;", i + 1)).unwrap();
+    }
+    db.execute(
+      "INSERT INTO wave_events (user_id, session_id, ref, artist, mode, source, served_at, reward, ended_at)
+       VALUES ('u_local', 's', 'sc:1', 'a', 'own', 'similar', ?1, 1.0, ?1)",
+      [now_ms()],
+    )
+    .unwrap();
+    let s = Store::init(db).unwrap();
+    let (id, device): (String, String) = s.db.query_row("SELECT id, device_id FROM wave_events", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+    assert!(id.starts_with("we_1_"), "{id}");
+    assert_eq!(device, s.device_id().unwrap());
+    // старое событие ждёт отправки
+    let plan = s.pending_ops(10).unwrap();
+    assert!(plan.ops.iter().any(|o| o.kind == "wave_event" && o.key == id));
+    assert!(plan.ops.iter().all(|o| o.value.as_ref().is_none_or(|v| v.get("features_json").is_none())));
   }
 }
