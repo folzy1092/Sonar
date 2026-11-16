@@ -426,7 +426,8 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    padding: 3px 6px;
+    /* одинаковый отступ со всех сторон: круглые кнопки на концах повторяют скругление капсулы */
+    padding: 3px;
     border-radius: 999px;
     border: 1px solid var(--border-strong);
   }
