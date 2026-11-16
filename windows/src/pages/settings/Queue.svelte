@@ -44,7 +44,7 @@
 />
 <Switch
   title="Авто похожие"
-  hint="Автоматически догружать похожие треки, когда следующего нет"
+  hint="Трек из поиска играет, а следом — похожие на него; когда очередь кончилась, догружаются похожие"
   on={settings.get('general.similar_autoplay')}
   onchange={(v) => settings.set('general.similar_autoplay', v)}
 />
