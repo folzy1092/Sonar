@@ -17,7 +17,10 @@
 @fontsource-variable/wix-madefor-display
 @fontsource-variable/sofia-sans
 @fontsource-variable/oswald
-@fontsource-variable/ibm-plex-sans
+@fontsource-variable/ibm-plex-sans wdth
+@fontsource-variable/geist
+@fontsource-variable/science-gothic wdth
+@fontsource-variable/sofia-sans-extra-condensed
 @fontsource/fira-sans
 @fontsource/ubuntu
 @fontsource/pt-sans
@@ -35,6 +38,7 @@
 @fontsource/alice
 @fontsource/prata
 @fontsource/yeseva-one
+@fontsource-variable/geist-mono
 @fontsource-variable/jetbrains-mono
 @fontsource-variable/fira-code
 @fontsource/ibm-plex-mono

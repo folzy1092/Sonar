@@ -8,7 +8,8 @@ import { player } from '../player/player.svelte'
 import { DECOR_VARS, pickAccent, themeFrom, type RGB, type Surface } from './palette'
 import { settings } from '../lib/settings.svelte'
 import { setAnimations } from '../lib/motion'
-import { CUSTOM_PREFIX, fontStack, RADII } from './look'
+import { CUSTOM_PREFIX, fontStack, RADII, WIDE_FONTS } from './look'
+import { DISPLAY_TUNING } from './style'
 import { loadCustomFont } from './custom-font'
 
 let port: number | null = null
@@ -92,19 +93,32 @@ class Theme {
       $effect(() => {
         setAnimations(settings.get('appearance.animations'))
       })
-      // шрифт и скругления (Интерфейс → Вид)
-      // шрифт меняет весь интерфейс, включая заголовок «Моя волна» (у Dotify он оставался прежним)
+      // шрифты (Интерфейс → Стиль): интерфейса — `appearance.font`, заголовков («Моя волна»,
+      // названия страниц и разделов) — `appearance.font_display` со своей шириной, жирностью и
+      // трекингом (style.ts DISPLAY_TUNING). Заголовков нет — те же, что у интерфейса.
       $effect(() => {
         const name = settings.get('appearance.font')
-        if (name.startsWith(CUSTOM_PREFIX)) void loadCustomFont()
+        const display = settings.get('appearance.font_display')
+        if (name.startsWith(CUSTOM_PREFIX) || display.startsWith(CUSTOM_PREFIX)) void loadCustomFont()
         const root = document.documentElement
         const st = root.style
         const f = fontStack(name)
+        const d = fontStack(display) ?? f
         root.classList.toggle('custom-font', !!f)
-        for (const k of ['--font', '--font-display', '--font-wave']) {
-          if (f) st.setProperty(k, f)
-          else st.removeProperty(k)
-        }
+        root.classList.toggle('display-font', !!d)
+        root.classList.toggle('display-wide', WIDE_FONTS.has(display))
+        const set = (k: string, v: string | null | undefined) => (v ? st.setProperty(k, v) : st.removeProperty(k))
+        set('--font', f)
+        set('--font-display', d)
+        set('--font-wave', d)
+        const tune = DISPLAY_TUNING[display] ?? {}
+        set('--display-wdth', tune.wdth ? String(tune.wdth) : null)
+        set('--display-weight', tune.weight ? String(tune.weight) : null)
+        set('--display-tracking', tune.tracking)
+      })
+      // оформление заголовков: как есть или «журнальное» (капсом, крупно, номера разделов)
+      $effect(() => {
+        document.documentElement.classList.toggle('title-editorial', settings.get('appearance.title_style') === 'editorial')
       })
       // размер и жирность текста (Интерфейс → Вид)
       $effect(() => {
