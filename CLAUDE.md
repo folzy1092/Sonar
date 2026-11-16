@@ -23,8 +23,9 @@
 (`server/sonar`, aiogram 3 + SQLite, без API) и пока крутится на ПК владельца: «Запустить бота.bat» в корне
 (создаёт `server/.env` из `server/env.example`, токен вписывает владелец). Файлы `.env*` агенту закрыты.
 Текст песен — формулы Dotify в `lyrics/core/motion.ts`, фон плеера — WebGL `player/art-field.ts`,
-все значки — MingCute (Apache-2.0, как у Dotify): левая панель `components/nav-icons.ts`, остальные
-`components/mingcute.ts` из `windows/scripts/gen-icons.mjs` (Tabler `icons.ts` — только чего нет в MingCute).
+значки: левая панель — свои контуры из частей (`components/NavIcon.svelte`), кнопки плеера — свои
+(`components/sonar-icons.ts`), толщина — `appearance.icon_stroke`; остальные пока MingCute (Apache-2.0)
+`components/mingcute.ts` из `windows/scripts/gen-icons.mjs` (Tabler `icons.ts` — чего нет в MingCute).
 Шрифты интерфейса — `theme/look.ts` + `theme/fonts.css` из `windows/scripts/gen-fonts.mjs` (fontsource, латиница+кириллица). Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`),
 новые экраны собирать на них; настройки — `lib/settings.svelte.ts` (ключи и значения по умолчанию).
 Журнал ошибок — `windows/src-tauri/src/crashlog.rs` (плашка после сбоя, «Отправить лог» ботом отчётов из
@@ -34,8 +35,9 @@ Discord RPC: ID приложения Discord пользователь **не в�
 `cargo test` в `src-tauri`; живые проверки SC — `SC_CLIENT_ID=… cargo test -- --ignored`.
 Запуск без команд — батники в корне: «Собрать и запустить.bat» (`tauri build --no-bundle` + запуск),
 «Запустить.bat». Окно Sonar только одно (single-instance), при запуске и Ctrl+R — заставка с лого.
-Вид ПК-клиента сверять с `reference/pc` и кодом Dotify (`C:/Users/Folzy/dotify-work`) — владелец
-просит «не слопно», один в один по референсу; всплывашки открываются и закрываются **только кликом**.
+Вид — **свой стиль Sonar** (Интерфейс → Стиль: готовые стили и «Свой», оси — `theme/style.ts`,
+`docs/SETTINGS.md` «Стиль»); макеты — `reference/design/` (локально), Dotify — только ориентир по
+ясности. Владелец просит «не слопно»; всплывашки открываются и закрываются **только кликом**.
 Крестик окна прячет Sonar в трей (музыка играет), «Выход» — из меню трея. Окно Sonar одно, поэтому
 агент собирает проверочный exe в `CARGO_TARGET_DIR=src-tauri/target-check` и **не закрывает** запущенный
 у владельца Sonar без спроса. Установщик — свой шаблон NSIS `windows/src-tauri/installer.nsi` (страница «Ярлыки»; сверять с `tauri-bundler` при обновлении `@tauri-apps/cli`). Знак и иконки — из вектора `brand/logo.svg` / `brand/icon/*.svg`. Название и артист в плеере
