@@ -53,7 +53,9 @@
 
   // Обложки волны — «лицо» её стиля (wave.covers): от перемотки треков не меняются.
   const waveTracks = $derived<Track[]>(wave.covers)
-  const waveCover = $derived(waveTracks[0]?.cover_url ?? home.recent[0]?.cover_url ?? null)
+  // Большая обложка — играющий трек: подсветка (--cover-glow) идёт от его цвета, и обложка с ней совпадает
+  // (решение владельца 2026-11-17); ничего не играет — «лицо» волны.
+  const waveCover = $derived(player.current?.cover_url ?? waveTracks[0]?.cover_url ?? home.recent[0]?.cover_url ?? null)
   const playingWave = $derived(wave.active && player.playing)
 
   const titles = (list: Track[]) =>
