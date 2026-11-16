@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Сервисы (`pc/Screenshot_12, 13`, как Windows «Сервисы»): SoundCloud — client_id и OAuth-токен
 /// (без своих ключей поиск и открытые треки идут на публичном client_id с сайта), Яндекс Музыка —
@@ -10,7 +11,11 @@ struct ServicesView: View {
     @State private var yandexToken = ""
     @State private var busy: Service?
     @State private var error: String?
+    /// Вход в Яндекс по коду: код на экране, пока ждём подтверждения на ya.ru/device.
+    @State private var deviceCode: YandexLogin.DeviceCode?
+    @State private var login: Task<Void, Never>?
     @Environment(SettingsStore.self) private var settings
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         SettingsScreen(title: "Сервисы") {
@@ -32,11 +37,22 @@ struct ServicesView: View {
             .cascade(0)
 
             SettingsSection(title: "Яндекс Музыка", footer: status.yandex == nil
-                            ? "Вставь токен y0_… — вход в один клик появится следующим шагом."
+                            ? "«Войти через Яндекс» покажет код и откроет ya.ru/device — подтверди вход там, Sonar заберёт токен сам. Или вставь токен y0_… вручную."
                             : nil) {
                 if let account = status.yandex {
                     connected(.yandex, account)
+                } else if let deviceCode {
+                    codeView(deviceCode)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 } else {
+                    Button(action: startYandexLogin) {
+                        Label("Войти через Яндекс", systemImage: "person.badge.key")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .disabled(busy != nil)
+                    RowDivider()
                     field("Токен y0_…", text: $yandexToken, secure: true)
                     RowDivider()
                     connectButton(.yandex, enabled: !yandexToken.isEmpty) {
@@ -62,9 +78,69 @@ struct ServicesView: View {
             .cascade(2)
         }
         .animation(Motion.spring, value: status)
+        .animation(Motion.spring, value: deviceCode)
+        .onDisappear { login?.cancel() }
         .animation(Motion.spring, value: error)
         .task { status = await MusicCore.shared.status() }
         .onChange(of: settings.bool("audio.sc_via_yandex")) { applySettings() }
+    }
+
+    /// Код устройства → ya.ru/device в Safari → ждём подтверждения → токен → подключение.
+    private func startYandexLogin() {
+        error = nil
+        busy = .yandex
+        login?.cancel()
+        login = Task {
+            defer {
+                busy = nil
+                deviceCode = nil
+            }
+            do {
+                let code = try await YandexLogin.start(deviceId: Self.deviceId)
+                deviceCode = code
+                openURL(code.url)
+                let token = try await YandexLogin.waitToken(code)
+                _ = try await MusicCore.shared.connectYandex(token: token)
+                status = await MusicCore.shared.status()
+            } catch is CancellationError {
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    /// Постоянный id этого iPhone для входа по коду (Яндекс показывает его в списке устройств).
+    private static var deviceId: String {
+        let key = "sonar.device_id"
+        if let id = UserDefaults.standard.string(forKey: key) { return id }
+        let id = UUID().uuidString.lowercased()
+        UserDefaults.standard.set(id, forKey: key)
+        return id
+    }
+
+    private func codeView(_ code: YandexLogin.DeviceCode) -> some View {
+        VStack(spacing: 12) {
+            Text("Введи код на ya.ru/device")
+                .font(.system(size: 14))
+                .foregroundStyle(Theme.textSecondary)
+            Text(code.userCode)
+                .font(.system(size: 34, weight: .heavy, design: .monospaced))
+                .foregroundStyle(Theme.text)
+                .textSelection(.enabled)
+            HStack(spacing: 10) {
+                SecondaryButton(title: "Скопировать", icon: "doc.on.doc") { UIPasteboard.general.string = code.userCode }
+                SecondaryButton(title: "Открыть", icon: "safari") { openURL(code.url) }
+            }
+            HStack(spacing: 8) {
+                ProgressView().tint(Theme.textSecondary)
+                Text("Жду подтверждения…").font(.system(size: 13)).foregroundStyle(Theme.textSecondary)
+                Spacer()
+                Button("Отмена") { login?.cancel() }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.danger)
+            }
+        }
+        .padding(16)
     }
 
     private func applySettings() {

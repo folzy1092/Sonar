@@ -220,3 +220,19 @@ final class AutoplayTests: XCTestCase {
         XCTAssertTrue(Autoplay.seeds([], auto: []).isEmpty)
     }
 }
+
+/// Вход в Яндекс по коду — разбор ответов OAuth.
+final class YandexLoginTests: XCTestCase {
+    func testDeviceCodeAndPoll() throws {
+        let code = try XCTUnwrap(YandexLogin.parseDeviceCode(JSONValue(data: Data(#"{"device_code": "d1", "user_code": "ABC123", "verification_url": "https://ya.ru/device", "expires_in": 300, "interval": 1}"#.utf8))))
+        XCTAssertEqual(code.userCode, "ABC123")
+        XCTAssertEqual(code.interval, 2, "не чаще раза в 2 с")
+        XCTAssertNil(YandexLogin.parseDeviceCode(try JSONValue(data: Data(#"{"error": "invalid_client"}"#.utf8))))
+        XCTAssertEqual(YandexLogin.parsePoll(try JSONValue(data: Data(#"{"error": "authorization_pending"}"#.utf8))), .pending)
+        XCTAssertEqual(YandexLogin.parsePoll(try JSONValue(data: Data(#"{"error": "slow_down"}"#.utf8))), .slowDown)
+        XCTAssertEqual(YandexLogin.parsePoll(try JSONValue(data: Data(#"{"access_token": "y0_x", "token_type": "bearer"}"#.utf8))), .token("y0_x"))
+        guard case .failed = YandexLogin.parsePoll(try JSONValue(data: Data(#"{"error": "expired_token"}"#.utf8))) else {
+            return XCTFail("устаревший код — ошибка")
+        }
+    }
+}
