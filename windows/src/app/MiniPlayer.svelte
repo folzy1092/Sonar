@@ -6,6 +6,7 @@
   import Cover from '../components/Cover.svelte'
   import PlayPause from '../components/PlayPause.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
+  import EqButton from '../player/EqButton.svelte'
   import Volume from '../player/Volume.svelte'
   import { player } from '../player/player.svelte'
   import { openRef, router } from './router.svelte'
@@ -148,6 +149,7 @@
 
   <div class="right">
     <div class="capsule">
+      <EqButton />
       <SpeedButton />
       <Volume />
       <IconButton icon="queue" label="Очередь" size={17} disabled={!track} onclick={() => router.go('player')} />

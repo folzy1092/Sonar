@@ -14,9 +14,21 @@
   let root: HTMLDivElement | undefined = $state()
   /** Вверх не помещается (страница плеера — кнопка высоко) — открываемся вниз. */
   let down = $state(false)
+  /** Сколько места до края окна со стороны, куда открываемся, — всплывашка не вылезает за окно. */
+  let room = $state(600)
+
+  /** Открываемся туда, где места больше (страница плеера — кнопка высоко, нижний плеер — низко). */
+  function place() {
+    if (!root) return
+    const r = root.getBoundingClientRect()
+    const above = r.top - 16
+    const below = window.innerHeight - r.bottom - 16
+    down = below > above
+    room = Math.max(220, down ? below : above)
+  }
 
   function toggle() {
-    if (!open && root) down = root.getBoundingClientRect().top < 470
+    if (!open) place()
     open = !open
   }
 
@@ -75,7 +87,7 @@
   </button>
 
   {#if open}
-    <div class="pop" class:down role="dialog" aria-label="Скорость и тон" in:pop={{ y: down ? -8 : 8 }} out:pop={{ y: down ? -8 : 8 }}>
+    <div class="pop" class:down style:max-height="{room}px" role="dialog" aria-label="Скорость и тон" in:pop={{ y: down ? -8 : 8 }} out:pop={{ y: down ? -8 : 8 }}>
       <div class="head">
         <b>Скорость</b>
         <button class="reset" disabled={!active} onclick={() => tempo.reset()}>Сбросить</button>
@@ -157,6 +169,8 @@
     border: 1px solid var(--border-strong);
     box-shadow: 0 18px 44px -12px rgba(0, 0, 0, 0.7);
     transform-origin: bottom right;
+    overflow-y: auto;
+    scrollbar-width: thin;
   }
   .pop.down {
     top: calc(100% + 10px);
