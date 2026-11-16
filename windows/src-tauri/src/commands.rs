@@ -505,7 +505,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
     }
     pool.truncate(300);
     for t in &pool {
-      taste.liked_artists.insert(crate::wave::artist_key(t));
+      taste.liked_artists.extend(crate::wave::artist_keys(t));
     }
     let refs: Vec<String> = pool.iter().take(60).map(|t| t.ref_.clone()).collect();
     seeds = rng.sample(&refs, 6);
