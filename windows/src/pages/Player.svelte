@@ -12,6 +12,7 @@
   import IconButton from '../components/IconButton.svelte'
   import Cover from '../components/Cover.svelte'
   import TrackRow from '../components/TrackRow.svelte'
+  import Switch from '../components/settings/Switch.svelte'
   import SeekBar from '../player/SeekBar.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
   import EqButton from '../player/EqButton.svelte'
@@ -159,6 +160,14 @@
   {/if}
 
   <h3>Далее</h3>
+  <!-- как «Autoplay related tracks» в SoundCloud: следом за треком — похожие на него -->
+  <div class="auto">
+    <Switch
+      title="Авто похожие"
+      on={settings.get('general.similar_autoplay')}
+      onchange={(v) => settings.set('general.similar_autoplay', v)}
+    />
+  </div>
   {#if player.upNext.length}
     <div use:cascade={player.current?.ref}>
     {#each player.upNext as t, i (t.ref + i)}
@@ -407,6 +416,10 @@
     font-size: 12px;
     font-weight: 600;
     color: var(--text-3);
+  }
+  .auto {
+    margin: 0 6px 4px;
+    font-size: 13px;
   }
   .empty {
     margin: 4px 6px;

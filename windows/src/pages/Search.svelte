@@ -13,6 +13,8 @@
   import { settingsPanel } from './settings-section.svelte'
   import { api, errorText, type SearchMore, type Track } from '../lib/api'
   import { player } from '../player/player.svelte'
+  import { playStation } from '../player/station'
+  import { settings } from '../lib/settings.svelte'
 
   const tabs = ['Все', 'Треки', 'Артисты', 'Альбомы', 'Плейлисты'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
@@ -23,6 +25,13 @@
   let loading = $state(false)
   let error = $state<string | null>(null)
   let seq = 0
+
+  /** Трек из поиска: с «Авто похожими» — как в SoundCloud, он и следом похожие на него;
+   *  без них — весь список результатов с этого трека. */
+  function playTrack(i: number) {
+    if (settings.get('general.similar_autoplay')) void playStation(results[i])
+    else void player.playList(results, i, 'search')
+  }
 
   // Поиск с задержкой 350 мс после ввода; устаревшие ответы отбрасываются.
   $effect(() => {
@@ -90,7 +99,7 @@
     <h2>Треки {#if all && results.length > 5}<button class="more" onclick={() => (tab = 'Треки')}>Показать все</button>{/if}</h2>
     <div class="list" class:stale={loading} use:cascade={results}>
       {#each all ? results.slice(0, 5) : results as t, i (t.ref)}
-        <TrackRow track={t} index={i} onplay={() => player.playList(results, i, 'search')} />
+        <TrackRow track={t} index={i} onplay={() => playTrack(i)} />
       {/each}
     </div>
   {/if}
