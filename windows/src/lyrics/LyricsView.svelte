@@ -59,12 +59,28 @@
 
   // смена строки — прокрутка к ней: на шаг вперёд — «магнитом» лесенкой, далеко — плавным переездом
   let lastActive = -1
+
+  /** Строка, у которой развёрнут свиток аннотации Genius (наведение; работает и на паузе, и на
+   *  строках, которые уже ушли вверх). Курсор может перейти со строки на свиток — он не закроется. */
+  let noteOpen = $state<number | null>(null)
+  let noteTimer: ReturnType<typeof setTimeout> | undefined
+  function noteEnter(i: number) {
+    if (!lyrics.notes.has(i)) return
+    clearTimeout(noteTimer)
+    noteOpen = i
+  }
+  function noteLeave() {
+    clearTimeout(noteTimer)
+    noteTimer = setTimeout(() => (noteOpen = null), 260)
+  }
   $effect(() => {
     const i = active
     const prev = lastActive
     lastActive = i
     if (!synced || !scroller) return
     if (performance.now() - userScrollAt < USER_SCROLL_PAUSE) return
+    // открыт свиток аннотации — текст не уезжает из-под курсора
+    if (noteOpen !== null) return
     const el = i >= 0 ? els[i] : null
     const top = Math.max(0, el ? el.offsetTop - scroller.clientHeight * 0.32 : 0)
     if (!reduced && prev >= 0 && i > prev && i - prev <= 3) magnet(top, prev)
@@ -269,6 +285,9 @@
           style:transition={look.transition}
           bind:this={els[i]}
           onclick={() => seekTo(line.time)}
+          class:noted={noteOpen === i}
+          onmouseenter={() => noteEnter(i)}
+          onmouseleave={noteLeave}
         >
           {#if !line.text}
             <span class="dots" aria-label="Проигрыш"><i></i><i></i><i></i></span>
@@ -278,7 +297,20 @@
           {:else}
             <span class="t">{line.text}</span>
           {/if}
+          {#if lyrics.notes.has(i)}<sup class="note-mark" class:on={noteOpen === i} aria-label="Есть аннотация Genius">”</sup>{/if}
         </button>
+        {#if lyrics.notes.has(i)}
+          {@const n = lyrics.notes.get(i)!}
+          <!-- свиток: разворачивается сверху вниз под строкой, пока на ней (или на нём) курсор -->
+          <div class="note" class:open={noteOpen === i} role="note" onmouseenter={() => noteEnter(i)} onmouseleave={noteLeave}>
+            <div class="note-in">
+              <div class="note-body selectable">
+                {#if !n.reviewed}<span class="note-flag">аннотация не проверена</span>{/if}
+                {n.body}
+              </div>
+            </div>
+          </div>
+        {/if}
       {/each}
       <div class="tail" aria-hidden="true"></div>
     {:else}
@@ -422,5 +454,72 @@
   :global(.no-motion) .h {
     transform: none !important;
     filter: none !important;
+  }
+  /* строка, чью аннотацию читают, — чёткая, даже если она не текущая */
+  .line.noted {
+    filter: none !important;
+    opacity: 1 !important;
+  }
+  /* кавычки у строки с аннотацией Genius */
+  .note-mark {
+    margin-left: 0.15em;
+    font-size: 0.55em;
+    font-weight: 700;
+    vertical-align: super;
+    color: rgb(var(--ink));
+    opacity: 0.55;
+    transition:
+      opacity 0.3s var(--ease),
+      text-shadow 0.3s var(--ease);
+  }
+  .note-mark.on {
+    opacity: 1;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+  /* свиток: высота 0 → по содержимому (grid 0fr → 1fr), сверху вниз проявляется текст */
+  .note {
+    display: grid;
+    grid-template-rows: 0fr;
+    max-width: min(440px, 80%);
+    margin: 0 0 0 0.25em;
+    transition: grid-template-rows 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .note.open {
+    grid-template-rows: 1fr;
+  }
+  .note-in {
+    min-height: 0;
+    overflow: hidden;
+  }
+  .note-body {
+    margin: 4px 0 14px;
+    padding: 8px 0 8px 14px;
+    border-left: 2px solid rgba(255, 255, 255, 0.35);
+    font-size: max(13px, 0.36em);
+    font-style: italic;
+    font-weight: 500;
+    line-height: 1.5;
+    letter-spacing: 0;
+    color: rgba(255, 255, 255, 0.72);
+    white-space: pre-line;
+    clip-path: inset(0 0 100% 0);
+    transition: clip-path 0.55s cubic-bezier(0.32, 0.72, 0, 1) 0.05s;
+  }
+  .note.open .note-body {
+    clip-path: inset(0 0 0 0);
+  }
+  .note-flag {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.85em;
+    font-style: normal;
+    font-weight: 600;
+    color: rgba(255, 140, 160, 0.85);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .note,
+    .note-body {
+      transition: opacity 0.2s linear;
+    }
   }
 </style>

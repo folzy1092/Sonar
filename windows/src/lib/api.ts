@@ -286,6 +286,8 @@ export const api = {
   setSetting: (key: string, value: unknown) => call<void>('set_setting', { key, value }),
 
   lyrics: (track: Track, refresh = false) => call<Lyrics | null>('lyrics', { track, refresh }),
+  lyricsAnnotations: (track: Track) =>
+    call<{ lines: string[]; body: string; reviewed: boolean }[]>('lyrics_annotations', { track }),
   lyricsOffset: (trackRef: string) => call<number>('lyrics_offset', { trackRef }),
   setLyricsOffset: (trackRef: string, ms: number) => call<void>('set_lyrics_offset', { trackRef, ms }),
 

@@ -39,8 +39,8 @@ pub fn genius_queries(first: &str, clean: &str, keywords: &str, core: &str) -> V
 }
 
 /// Лучшая песня из выдачи: исполнитель из `allowed`, название похоже на один из вариантов.
-fn pick(hits: &[Value], variants: &[String], allowed: &HashSet<String>) -> Option<String> {
-  let mut best: Option<(String, f64)> = None;
+fn pick(hits: &[Value], variants: &[String], allowed: &HashSet<String>) -> Option<(String, u64)> {
+  let mut best: Option<((String, u64), f64)> = None;
   for hit in hits {
     if hit["type"] != "song" {
       continue;
@@ -55,7 +55,7 @@ fn pick(hits: &[Value], variants: &[String], allowed: &HashSet<String>) -> Optio
     let found = norm(&ALL_BRACKETS.replace_all(song["title"].as_str().unwrap_or(""), ""));
     let score = variants.iter().map(|v| similarity(&norm(v), &found)).fold(0.0, f64::max);
     if best.as_ref().is_none_or(|b| score > b.1) {
-      best = Some((url.to_string(), score));
+      best = Some(((url.to_string(), song["id"].as_u64().unwrap_or(0)), score));
     }
   }
   best.filter(|b| b.1 >= MIN_TITLE).map(|b| b.0)
@@ -108,6 +108,60 @@ async fn get(http: &reqwest::Client, url: &str, query: &[(&str, String)]) -> Res
 
 /// Сырой текст песни с Genius (строки через `\n`) или None.
 pub async fn genius_text(http: &reqwest::Client, artist: &str, title: &str) -> Result<Option<String>> {
+  let Some((url, _)) = find_song(http, artist, title).await? else { return Ok(None) };
+  let html = get(http, &url, &[]).await?;
+  let text = lyrics_from_html(&html);
+  Ok((!text.trim().is_empty()).then_some(text))
+}
+
+/// Аннотация Genius: фрагмент текста (строки) и пояснение.
+#[derive(Debug, Clone, serde::Serialize, PartialEq)]
+pub struct Annotation {
+  pub lines: Vec<String>,
+  pub body: String,
+  /// Проверена редакцией Genius (иначе — «не проверена», как плашка на сайте).
+  pub reviewed: bool,
+}
+
+/// Аннотации песни (по тем же правилам поиска, что текст). Заголовки частей («[Куплет 1]») без строк
+/// текста и пустые пояснения пропускаются.
+pub async fn annotations(http: &reqwest::Client, artist: &str, title: &str) -> Result<Vec<Annotation>> {
+  let Some((_, id)) = find_song(http, artist, title).await? else { return Ok(vec![]) };
+  if id == 0 {
+    return Ok(vec![]);
+  }
+  let body = get(
+    http,
+    "https://genius.com/api/referents",
+    &[("song_id", id.to_string()), ("text_format", "plain".into()), ("per_page", "50".into())],
+  )
+  .await?;
+  Ok(parse_referents(&serde_json::from_str(&body)?))
+}
+
+pub fn parse_referents(v: &Value) -> Vec<Annotation> {
+  let mut out = Vec::new();
+  for r in v["response"]["referents"].as_array().into_iter().flatten() {
+    let lines: Vec<String> = r["fragment"]
+      .as_str()
+      .unwrap_or("")
+      .lines()
+      .map(|l| l.trim().to_owned())
+      .filter(|l| !l.is_empty() && !SECTION.is_match(l))
+      .collect();
+    let Some(a) = r["annotations"].as_array().and_then(|a| a.first()) else { continue };
+    let body = a["body"]["plain"].as_str().unwrap_or("").trim().to_owned();
+    if lines.is_empty() || body.is_empty() {
+      continue;
+    }
+    let reviewed = a["state"].as_str() == Some("accepted") || a["verified"].as_bool() == Some(true);
+    out.push(Annotation { lines, body, reviewed });
+  }
+  out
+}
+
+/// Песня на Genius (адрес и id) по исполнителю и названию — строгий подбор (`pick`).
+async fn find_song(http: &reqwest::Client, artist: &str, title: &str) -> Result<Option<(String, u64)>> {
   let clean = ALL_BRACKETS.replace_all(title, "").trim().to_string();
   let clean = if clean.is_empty() { title.to_string() } else { clean };
   let first = first_artist(artist);
@@ -159,10 +213,7 @@ pub async fn genius_text(http: &reqwest::Client, artist: &str, title: &str) -> R
       break;
     }
   }
-  let Some(url) = url else { return Ok(None) };
-  let html = get(http, &url, &[]).await?;
-  let text = lyrics_from_html(&html);
-  Ok((!text.trim().is_empty()).then_some(text))
+  Ok(url)
 }
 
 /// Заголовки частей («[Припев]», «[Куплет 1: …]») → пустая строка между куплетами.
@@ -274,12 +325,28 @@ mod tests {
       json!({"type":"song","result":{"url":"u2","title":"Дежавю (Remix)","artist_names":"Кизару & X","primary_artist":{"name":"Кизару"}}}),
     ];
     let allowed: HashSet<String> = [norm("Кизару")].into();
-    assert_eq!(pick(&hits, &["Дежавю".into()], &allowed).as_deref(), Some("u2"));
+    assert_eq!(pick(&hits, &["Дежавю".into()], &allowed).map(|x| x.0).as_deref(), Some("u2"));
   }
 
   #[test]
   fn queries_are_unique() {
     let q = genius_queries("A", "Song", "Song", "Song");
     assert_eq!(q, vec!["A Song", "Song", "A"]);
+  }
+
+  #[test]
+  fn referents_skip_headers_and_empty() {
+    let v: Value = serde_json::from_str(
+      r#"{"response":{"referents":[
+        {"fragment":"[Verse 1: X]","annotations":[{"body":{"plain":"про куплет"},"state":"accepted"}]},
+        {"fragment":"Жить этот момент\n Трясутся мои руки","annotations":[{"body":{"plain":"Вся строфа…"},"state":"pending"}]},
+        {"fragment":"пусто","annotations":[{"body":{"plain":"  "}}]}
+      ]}}"#,
+    )
+    .unwrap();
+    let a = parse_referents(&v);
+    assert_eq!(a.len(), 1);
+    assert_eq!(a[0].lines, vec!["Жить этот момент".to_owned(), "Трясутся мои руки".to_owned()]);
+    assert!(!a[0].reviewed);
   }
 }

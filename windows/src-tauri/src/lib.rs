@@ -183,6 +183,7 @@ pub fn run() {
       commands::reorder_playlist,
       commands::lyrics,
       commands::lyrics_offset,
+      commands::lyrics_annotations,
       commands::set_lyrics_offset,
       commands::track_eq,
       commands::set_track_eq,
