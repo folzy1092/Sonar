@@ -1,0 +1,336 @@
+import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
+/// Ключи SoundCloud: client_id и необязательный OAuth-токен (без него играют только открытые треки).
+struct SoundCloudCreds: Codable, Sendable, Equatable {
+    var clientId: String
+    var oauthToken: String?
+}
+
+/// Токен Яндекс Музыки `y0_…`.
+struct YandexCreds: Codable, Sendable, Equatable {
+    var token: String
+}
+
+/// Подключённый сервис: ключи и аккаунт.
+struct StoredService<Creds: Codable & Sendable>: Codable, Sendable {
+    var creds: Creds
+    var account: ServiceAccount
+}
+
+/// Что нашлось по ссылке из строки поиска.
+enum LinkItem: Sendable {
+    case track(Track)
+    case album(Album)
+    case artist(Artist)
+    case playlist(ServicePlaylist)
+}
+
+/// Общее ядро сервисов (порт `windows/src-tauri/src/services.rs`): ключи (Keychain), поиск, ссылки на
+/// поток с кэшем, трек SoundCloud → тот же на Яндексе ради FLAC / 320. Экраны и плеер ходят в сервисы
+/// только через него. Сервера пока нет — всё прямо с телефона (SPEC §9).
+actor MusicCore {
+    static let shared = MusicCore()
+
+    /// Ссылки SoundCloud и Яндекса живут минуты — держим чуть меньше, при 403 берём заново.
+    static let streamTTL: TimeInterval = 240
+
+    private var soundCloud: StoredService<SoundCloudCreds>?
+    private var yandex: StoredService<YandexCreds>?
+    /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
+    private var publicClientId: String?
+    /// Сырой JSON треков SoundCloud — в нём варианты потока.
+    private var soundCloudRaw: [String: JSONValue] = [:]
+    private var streams: [String: (source: StreamSource, at: Date)] = [:]
+    /// Найденные пары `sc:…` → id Яндекса (nil — на Яндексе нет), чтобы не искать каждый раз.
+    private var yandexTwins: [String: String?] = [:]
+    /// Потолок битрейта Яндекса (`audio.quality`): 192 / 256 / 320 / 1411 (FLAC).
+    private var maxKbps = Yandex.losslessKbps
+    /// Трек SoundCloud играть с Яндекса, если там есть тот же (`audio.sc_via_yandex`).
+    private var soundCloudViaYandex = true
+
+    init() {
+        soundCloud = ServiceVault.load("soundcloud")
+        yandex = ServiceVault.load("yandex")
+    }
+
+    // MARK: - Подключение
+
+    struct Status: Sendable, Equatable {
+        var soundCloud: ServiceAccount?
+        var yandex: ServiceAccount?
+    }
+
+    func status() -> Status {
+        Status(soundCloud: soundCloud?.account, yandex: yandex?.account)
+    }
+
+    func configure(maxKbps: Int, soundCloudViaYandex: Bool) {
+        if maxKbps != self.maxKbps { streams.removeAll() }
+        self.maxKbps = maxKbps
+        self.soundCloudViaYandex = soundCloudViaYandex
+    }
+
+    func connectSoundCloud(_ creds: SoundCloudCreds) async throws -> ServiceAccount {
+        let creds = SoundCloudCreds(clientId: creds.clientId.trimmingCharacters(in: .whitespacesAndNewlines),
+                                    oauthToken: creds.oauthToken?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty)
+        guard creds.clientId.count >= 20 else { throw ServiceError(message: "client_id SoundCloud — строка из 32 символов") }
+        let account = try await SoundCloud(clientId: creds.clientId, oauthToken: creds.oauthToken).account()
+        let stored = StoredService(creds: creds, account: account)
+        ServiceVault.save("soundcloud", stored)
+        soundCloud = stored
+        streams.removeAll()
+        return account
+    }
+
+    func connectYandex(token: String) async throws -> ServiceAccount {
+        let token = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else { throw ServiceError(message: "Вставь токен Яндекс Музыки") }
+        let account = try await Yandex(token: token).account()
+        let stored = StoredService(creds: YandexCreds(token: token), account: account)
+        ServiceVault.save("yandex", stored)
+        yandex = stored
+        streams.removeAll()
+        return account
+    }
+
+    func disconnect(_ service: Service) {
+        switch service {
+        case .soundcloud: soundCloud = nil
+        case .yandex: yandex = nil
+        }
+        ServiceVault.delete(service == .soundcloud ? "soundcloud" : "yandex")
+        streams.removeAll()
+        yandexTwins.removeAll()
+    }
+
+    // MARK: - Клиенты
+
+    /// Ключи SoundCloud: свои, иначе публичный client_id с сайта. public — их можно взять заново при 401/403.
+    private func soundCloudClient(renew: Bool = false) async throws -> (client: SoundCloud, isPublic: Bool) {
+        if let soundCloud {
+            return (SoundCloud(clientId: soundCloud.creds.clientId, oauthToken: soundCloud.creds.oauthToken), false)
+        }
+        if !renew, let publicClientId {
+            return (SoundCloud(clientId: publicClientId), true)
+        }
+        let id = try await SoundCloud.publicClientId()
+        publicClientId = id
+        return (SoundCloud(clientId: id), true)
+    }
+
+    /// Вызов SoundCloud с повтором на свежем публичном client_id при 401/403.
+    private func withSoundCloud<T: Sendable>(_ call: @Sendable (SoundCloud) async throws -> T) async throws -> T {
+        let (client, isPublic) = try await soundCloudClient()
+        do {
+            return try await call(client)
+        } catch let error where isPublic && Self.isAuthError(error) {
+            return try await call(try await soundCloudClient(renew: true).client)
+        }
+    }
+
+    private func yandexClient() throws -> Yandex {
+        guard let yandex else { throw ServiceError(message: "Яндекс Музыка не подключена — открой Профиль → Сервисы") }
+        return Yandex(token: yandex.creds.token)
+    }
+
+    /// 401/403 — ключ не подошёл (публичный client_id SoundCloud время от времени меняется).
+    static func isAuthError(_ error: Error) -> Bool {
+        let text = (error as? ServiceError)?.message ?? error.localizedDescription
+        return text.contains("HTTP 401") || text.contains("HTTP 403")
+    }
+
+    /// `audio.quality` → потолок битрейта Яндекса. По умолчанию — максимум (FLAC, если есть).
+    static func qualityKbps(_ value: String?) -> Int {
+        switch value {
+        case "low": 192
+        case "medium": 256
+        case "high": 320
+        default: Yandex.losslessKbps
+        }
+    }
+
+    /// Сырой JSON SoundCloud → модели; JSON запоминаем для потока.
+    private func keep(_ raw: [JSONValue]) -> [Track] {
+        if soundCloudRaw.count > 5000 { soundCloudRaw.removeAll() }
+        return raw.compactMap { json in
+            guard let track = SoundCloud.parseTrack(json) else { return nil }
+            soundCloudRaw[track.ref] = json
+            return track
+        }
+    }
+
+    // MARK: - Поиск
+
+    func search(_ query: String, in service: Service, limit: Int = 30) async throws -> [Track] {
+        switch service {
+        case .soundcloud:
+            let found = try await withSoundCloud { try await $0.search(query, limit: limit) }
+            return keep(found.map(\.json))
+        case .yandex:
+            return try await yandexClient().search(query, limit: limit)
+        }
+    }
+
+    func searchMore(_ query: String, in service: Service, limit: Int = 12) async throws -> SearchResults {
+        let found = switch service {
+        case .soundcloud: try await withSoundCloud { try await $0.searchMore(query, limit: limit) }
+        case .yandex: try await yandexClient().searchMore(query, limit: limit)
+        }
+        return SearchResults(tracks: [], artists: found.artists, albums: found.albums, playlists: found.playlists)
+    }
+
+    /// Ссылка из строки поиска → что за ней.
+    func resolveLink(_ text: String) async throws -> LinkItem {
+        guard let link = ServiceLink.parse(text) else { throw ServiceError(message: "Это не ссылка SoundCloud или Яндекс Музыки") }
+        switch link {
+        case let .ref(ref):
+            let parts = ref.split(separator: ":", maxSplits: 1).map(String.init)
+            let yandex = try yandexClient()
+            switch parts[0] {
+            case "ym":
+                guard let track = try await yandex.tracks([parts[1]]).first else { throw ServiceError(message: "Яндекс Музыка: трек не найден") }
+                return .track(track)
+            case "ymalb": return .album(try await yandex.album(parts[1]).album)
+            case "yma": return .artist(try await yandex.artist(parts[1]).artist)
+            default:
+                let ids = parts[1].split(separator: ":").map(String.init)
+                guard ids.count == 2 else { throw ServiceError(message: "Неверная ссылка на плейлист") }
+                return .playlist(try await yandex.playlist(uid: ids[0], kind: ids[1]).head)
+            }
+        case let .soundCloud(url):
+            let json = try await withSoundCloud { try await $0.resolve(url) }
+            let nothing = ServiceError(message: "SoundCloud: по ссылке ничего не нашлось")
+            switch json["kind"].string {
+            case "track":
+                guard let track = keep([json]).first else { throw nothing }
+                return .track(track)
+            case "playlist":
+                let isAlbum = ["album", "ep", "single", "compilation"].contains(json["set_type"].string ?? "") || json["is_album"].bool == true
+                if isAlbum {
+                    guard let album = SoundCloud.parseAlbum(json) else { throw nothing }
+                    return .album(album)
+                }
+                guard let playlist = SoundCloud.parsePlaylist(json) else { throw nothing }
+                return .playlist(playlist)
+            case "user":
+                guard let artist = SoundCloud.parseArtist(json) else { throw nothing }
+                return .artist(artist)
+            default:
+                throw nothing
+            }
+        }
+    }
+
+    /// Похожие на трек — для «Авто похожих» и волны.
+    func similar(to ref: String, limit: Int = 20) async throws -> [Track] {
+        let parts = ref.split(separator: ":", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return [] }
+        switch parts[0] {
+        case "sc": return keep(try await withSoundCloud { try await $0.related(parts[1], limit: limit) })
+        case "ym": return try await yandexClient().similar(parts[1])
+        default: return []
+        }
+    }
+
+    // MARK: - Поток
+
+    /// Ссылка на поток для `sc:123` / `ym:456`. fresh — не брать из кэша (ссылка протухла).
+    func stream(_ ref: String, fresh: Bool = false) async throws -> StreamSource {
+        if !fresh, let cached = streams[ref], Date().timeIntervalSince(cached.at) < Self.streamTTL {
+            return cached.source
+        }
+        let parts = ref.split(separator: ":", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { throw ServiceError(message: "Неверный трек \(ref)") }
+        let source: StreamSource
+        switch parts[0] {
+        case "sc":
+            if soundCloudViaYandex, yandex != nil, let twin = await yandexTwin(ref, id: parts[1]) {
+                source = twin
+            } else {
+                source = try await soundCloudStream(ref, id: parts[1], fresh: fresh)
+            }
+        case "ym":
+            source = try await yandexClient().stream(parts[1], maxKbps: maxKbps)
+        default:
+            throw ServiceError(message: "Неизвестный источник в \(ref)")
+        }
+        streams[ref] = (source, Date())
+        return source
+    }
+
+    private func soundCloudStream(_ ref: String, id: String, fresh: Bool) async throws -> StreamSource {
+        let cached = fresh ? nil : soundCloudRaw[ref]
+        do {
+            return try await withSoundCloud { client in
+                let json = if let cached { cached } else { try await client.trackJSON(id) }
+                return try await client.stream(json)
+            }
+        } catch _ where cached != nil {
+            // в сохранённом JSON могла протухнуть track_authorization — берём трек заново
+            let json = try await withSoundCloud { try await $0.trackJSON(id) }
+            soundCloudRaw[ref] = json
+            return try await withSoundCloud { try await $0.stream(json) }
+        }
+    }
+
+    /// Тот же трек на Яндексе. Любая ошибка — nil, и играет SoundCloud. Пара запоминается на сеанс.
+    private func yandexTwin(_ ref: String, id: String) async -> StreamSource? {
+        let yandexId: String
+        if let known = yandexTwins[ref] {
+            guard let known else { return nil }
+            yandexId = known
+        } else {
+            let found: String? = (try? await findYandexTwin(ref, id: id)) ?? nil
+            yandexTwins[ref] = .some(found)
+            guard let found else { return nil }
+            yandexId = found
+        }
+        guard let client = try? yandexClient(), let source = try? await client.stream(yandexId, maxKbps: maxKbps) else { return nil }
+        if case let .file(url, quality) = source { return .file(url: url, quality: "\(quality) · Яндекс") }
+        return source
+    }
+
+    private func findYandexTwin(_ ref: String, id: String) async throws -> String? {
+        let json: JSONValue
+        if let cached = soundCloudRaw[ref] {
+            json = cached
+        } else {
+            json = try await withSoundCloud { try await $0.trackJSON(id) }
+        }
+        let wanted = TrackMatch.soundCloud(
+            uploader: json["user"]["username"].string ?? "",
+            metaArtist: json["publisher_metadata"]["artist"].string,
+            title: json["title"].string ?? "",
+            durationMs: json["full_duration"].int ?? json["duration"].int ?? 0
+        )
+        let client = try yandexClient()
+        for query in wanted.queries {
+            if let match = wanted.best(try await client.search(query, limit: 8)) {
+                return String(match.ref.dropFirst("ym:".count))
+            }
+        }
+        return nil
+    }
+}
+
+/// Ключи сервисов в Keychain — одним JSON на сервис.
+enum ServiceVault {
+    private static let keychainService = "SonarServices"
+
+    static func load<C: Codable & Sendable>(_ account: String) -> StoredService<C>? {
+        guard let data = Keychain.data(service: keychainService, account: account) else { return nil }
+        return try? JSONDecoder().decode(StoredService<C>.self, from: data)
+    }
+
+    static func save<C: Codable & Sendable>(_ account: String, _ value: StoredService<C>) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        Keychain.set(String(decoding: data, as: UTF8.self), service: keychainService, account: account)
+    }
+
+    static func delete(_ account: String) {
+        Keychain.set(nil, service: keychainService, account: account)
+    }
+}
