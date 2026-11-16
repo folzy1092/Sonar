@@ -1,13 +1,16 @@
 <script lang="ts">
-  // Кнопка-часы у громкости и меню скорости (решение владельца 2026-11-16): сверху готовые значения
-  // ×0.8 … ×1.35, ниже ползунки скорости и тона с «−» и «+» по краям (шаг 0.01× и 0.1 полутона),
-  // «Связать тон со скоростью», «Сохранять между треками», реверб 0–100 %. Открывается и
-  // закрывается только кликом. Включено что-то — на кнопке значение вместо значка.
+  // Кнопка-часы в плеере и меню «Скорость и тональность» (референс владельца 2026-11-16): готовые
+  // x0.8 … x1.35 с бегающей капсулой, «барабаны» скорости и питча (Ruler) с −/значение/+, «Связать
+  // скорость с питчем» (тогда питч двигает скорость: −2 st ≈ x0.89, лента доезжает плавно),
+  // «Сохранять для след. треков», «Реверберация» и её сила 0–100 %. Что-то настроено — кнопка
+  // подсвечена, на ней значение. Открывается и закрывается только кликом.
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
   import Switch from '../components/settings/Switch.svelte'
   import { pop } from '../lib/motion'
-  import { cascade } from '../lib/cascade'
+  import { indicator } from '../lib/indicator'
+  import { slide } from 'svelte/transition'
+  import Ruler from '../components/Ruler.svelte'
   import { PITCH_MAX, PITCH_MIN, SPEED_MAX, SPEED_MIN, SPEED_PRESETS, tempo } from './tempo.svelte'
 
   let open = $state(false)
@@ -32,8 +35,7 @@
     open = !open
   }
 
-  const active = $derived(tempo.badge !== '')
-  const fmtRate = (v: number) => `${v.toFixed(2).replace(/0$/, '')}×`
+  const fmtRate = (v: number) => `x${v.toFixed(2)}`
   const fmtPitch = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)}`
 
   onMount(() => {
@@ -45,27 +47,14 @@
   })
 </script>
 
-{#snippet slider(label: string, value: number, min: number, max: number, step: number, text: string, set: (v: number) => void, disabled = false)}
-  <div class="sl" class:dim={disabled}>
-    <div class="sl-head">
-      <span>{label}</span>
-      <b>{text}</b>
-    </div>
+{#snippet drum(label: string, value: number, min: number, max: number, step: number, text: string, set: (v: number) => void, reset: number, major: number)}
+  <div class="sl">
+    <span class="sl-label">{label}</span>
+    <Ruler {value} {min} {max} {step} {reset} {major} px={6} onchange={set} />
     <div class="sl-line">
-      <button class="pm press" aria-label="{label}: меньше" {disabled} onclick={() => set(value - step)}><Icon name="minus" size={14} /></button>
-      <input
-        type="range"
-        {min}
-        {max}
-        step={step}
-        {value}
-        {disabled}
-        aria-label={label}
-        style:--fill="{((value - min) / (max - min)) * 100}%"
-        oninput={(e) => set(Number(e.currentTarget.value))}
-        ondblclick={() => set(min < 0 ? 0 : 1)}
-      />
-      <button class="pm press" aria-label="{label}: больше" {disabled} onclick={() => set(value + step)}><Icon name="plus" size={14} /></button>
+      <button class="pm press" aria-label="{label}: меньше" onclick={() => set(value - step)}><Icon name="minus" size={15} /></button>
+      {#key text}<span class="val">{text}</span>{/key}
+      <button class="pm press" aria-label="{label}: больше" onclick={() => set(value + step)}><Icon name="plus" size={15} /></button>
     </div>
   </div>
 {/snippet}
@@ -73,49 +62,42 @@
 <div class="wrap" bind:this={root}>
   <button
     class="speed"
-    class:on={active || open}
-    title="Скорость и тон"
-    aria-label="Скорость и тон"
+    class:active={tempo.active}
+    class:open
+    title={tempo.active ? `Скорость и тональность: ${fmtRate(tempo.rate)}` : 'Скорость и тональность'}
+    aria-label="Скорость и тональность"
     aria-expanded={open}
     onclick={toggle}
   >
     {#key tempo.badge}
-      <span class="face" class:badge={active}>
-        {#if active}{tempo.badge}{:else}<Icon name="clock" size={17} />{/if}
+      <span class="face" class:badge={tempo.badge !== ''}>
+        {#if tempo.badge}{tempo.badge}{:else}<Icon name="clock" size={17} />{/if}
       </span>
     {/key}
   </button>
 
   {#if open}
-    <div class="pop" class:down style:max-height="{room}px" role="dialog" aria-label="Скорость и тон" in:pop={{ y: down ? -8 : 8 }} out:pop={{ y: down ? -8 : 8 }}>
-      <div class="head">
-        <b>Скорость</b>
-        <button class="reset" disabled={!active} onclick={() => tempo.reset()}>Сбросить</button>
-      </div>
-      <div class="presets" use:cascade>
+    <div class="pop" class:down style:max-height="{room}px" role="dialog" aria-label="Скорость и тональность" in:pop={{ y: down ? -8 : 8 }} out:pop={{ y: down ? -8 : 8 }}>
+      <div class="presets" use:indicator={{ key: tempo.rate, kind: 'pill' }}>
         {#each SPEED_PRESETS as p (p)}
-          <button class="chip press" class:on={tempo.rate === p} onclick={() => tempo.setRate(p)}>×{p}</button>
+          <button class:on={tempo.rate === p} onclick={() => tempo.setRate(p)}>x{p === 1 ? '1.0' : p}</button>
         {/each}
       </div>
 
-      {@render slider('Скорость', tempo.rate, SPEED_MIN, SPEED_MAX, 0.01, fmtRate(tempo.rate), (v) => tempo.setRate(v))}
-      {@render slider(
-        'Тон',
-        tempo.semitones,
-        PITCH_MIN,
-        PITCH_MAX,
-        0.1,
-        `${fmtPitch(tempo.semitones)} пт`,
-        (v) => tempo.setPitch(v),
-        tempo.linked,
-      )}
+      {@render drum('Скорость', tempo.rate, SPEED_MIN, SPEED_MAX, 0.01, `x${tempo.rate.toFixed(2)}`, (v) => tempo.setRate(v), 1, 10)}
+      {@render drum('Питч', tempo.semitones, PITCH_MIN, PITCH_MAX, 0.1, `${fmtPitch(tempo.semitones)} st`, (v) => tempo.setPitch(v), 0, 10)}
 
       <div class="switches">
-        <Switch title="Связать тон со скоростью" hint="Как slowed и sped up: медленнее — ниже" on={tempo.linked} onchange={(v) => tempo.setLinked(v)} />
-        <Switch title="Сохранять между треками" hint="Иначе новый трек играет в 1×" on={tempo.keep} onchange={(v) => tempo.setKeep(v)} />
+        <Switch title="Связать скорость с питчем" hint="Режим винила / кассеты: скорость меняет высоту звука" on={tempo.linked} onchange={(v) => tempo.setLinked(v)} />
+        <Switch title="Сохранять для след. треков" hint="Иначе новый трек играет в x1.0" on={tempo.keep} onchange={(v) => tempo.setKeep(v)} />
+        <Switch title="Реверберация ✦" hint="Атмосферное пространство и объёмная глубина" on={tempo.reverbOn} onchange={(v) => tempo.setReverbOn(v)} />
       </div>
 
-      {@render slider('Реверб', Math.round(tempo.reverb * 100), 0, 100, 1, `${Math.round(tempo.reverb * 100)}%`, (v) => tempo.setReverb(v / 100))}
+      {#if tempo.reverbOn}
+        <div class="rev" transition:slide={{ duration: 260 }}>
+          {@render drum('Реверберация', Math.round(tempo.reverb * 100), 0, 100, 1, `${Math.round(tempo.reverb * 100)}%`, (v) => tempo.setReverb(v / 100), 35, 10)}
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -130,25 +112,30 @@
     min-width: 32px;
     height: 32px;
     padding: 0 6px;
-    border-radius: 999px;
+    border-radius: 10px;
     color: var(--text-2);
-    transition: color var(--fast) var(--ease);
+    transition:
+      color var(--normal) var(--ease),
+      background var(--normal) var(--ease),
+      box-shadow var(--normal) var(--ease);
   }
   .speed:hover,
-  .speed.on {
+  .speed.open {
     color: var(--text);
+  }
+  /* что-то настроено — кнопка мягко подсвечена, как эквалайзер */
+  .speed.active {
+    color: var(--text);
+    background: color-mix(in srgb, var(--text) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent);
   }
   .face {
     display: inline-flex;
-    animation: fade 160ms var(--ease);
+    animation: fade 180ms var(--ease);
   }
   .face.badge {
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: var(--surface-3);
-    color: var(--text);
     font-size: calc(12px * var(--fs, 1));
-    font-weight: 600;
+    font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
   @keyframes fade {
@@ -163,11 +150,11 @@
     bottom: calc(100% + 10px);
     z-index: 20;
     width: 320px;
-    padding: 14px 14px 6px;
-    border-radius: 18px;
-    background: var(--surface-1);
+    padding: 12px 14px 8px;
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--surface-1) 92%, var(--tint));
     border: 1px solid var(--border-strong);
-    box-shadow: 0 18px 44px -12px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 22px 50px -12px rgba(0, 0, 0, 0.7);
     transform-origin: bottom right;
     overflow-y: auto;
     scrollbar-width: thin;
@@ -177,133 +164,81 @@
     bottom: auto;
     transform-origin: top right;
   }
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-  }
-  .head b {
-    font-size: calc(14px * var(--fs, 1));
-  }
-  .reset {
-    padding: 3px 8px;
-    border-radius: 8px;
-    font-size: calc(12px * var(--fs, 1));
-    color: var(--text-2);
-    transition:
-      color var(--fast) var(--ease),
-      background var(--fast) var(--ease),
-      opacity var(--fast) var(--ease);
-  }
-  .reset:hover:not(:disabled) {
-    color: var(--text);
-    background: var(--hover);
-  }
-  .reset:disabled {
-    opacity: 0.35;
-    cursor: default;
-  }
   .presets {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     gap: 4px;
   }
-  .chip {
+  .presets :global(.tab-ind.pill) {
+    border-radius: 9px;
+    background: var(--text);
+  }
+  .presets button {
     height: 30px;
-    border-radius: 10px;
+    border-radius: 9px;
     background: var(--plate);
-    border: 1px solid var(--border);
     font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
     font-variant-numeric: tabular-nums;
     color: var(--text-2);
-    transition:
-      background var(--fast) var(--ease),
-      color var(--fast) var(--ease),
-      border-color var(--fast) var(--ease);
+    transition: color var(--normal) var(--ease);
   }
-  .chip:hover {
+  .presets button:hover {
     color: var(--text);
-    background: var(--hover);
   }
-  .chip.on {
-    background: var(--text);
-    border-color: var(--text);
+  .presets button.on {
+    background: transparent;
     color: var(--on-text);
   }
   .sl {
-    padding: 10px 0 4px;
-    transition: opacity var(--normal) var(--ease);
+    padding-top: 12px;
   }
-  .sl.dim {
-    opacity: 0.45;
-  }
-  .sl-head {
-    display: flex;
-    justify-content: space-between;
-    font-size: calc(12px * var(--fs, 1));
-    color: var(--text-2);
-  }
-  .sl-head b {
-    color: var(--text);
-    font-variant-numeric: tabular-nums;
+  .sl-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: calc(14px * var(--fs, 1));
+    font-weight: 700;
   }
   .sl-line {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 8px;
     margin-top: 6px;
+  }
+  .val {
+    min-width: 76px;
+    padding: 5px 12px;
+    border-radius: 9px;
+    background: var(--plate);
+    text-align: center;
+    font-size: calc(13px * var(--fs, 1));
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    animation: fade 160ms var(--ease);
   }
   .pm {
     display: grid;
     place-items: center;
-    flex: none;
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
+    width: 34px;
+    height: 30px;
+    border-radius: 9px;
     background: var(--plate);
     color: var(--text-2);
     transition:
       background var(--fast) var(--ease),
       color var(--fast) var(--ease);
   }
-  .pm:hover:not(:disabled) {
+  .pm:hover {
     background: var(--hover);
     color: var(--text);
   }
-  .pm:disabled {
-    cursor: default;
-  }
-  input {
-    flex: 1;
-    height: 5px;
-    appearance: none;
-    border-radius: 5px;
-    background: linear-gradient(to right, var(--text) var(--fill), var(--surface-3) var(--fill));
-    cursor: pointer;
-  }
-  input:disabled {
-    cursor: default;
-  }
-  input::-webkit-slider-thumb {
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--text);
-    transition: transform var(--fast) var(--ease);
-  }
-  input:active::-webkit-slider-thumb {
-    transform: scale(1.25);
-  }
   .switches {
-    margin-top: 4px;
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
+    margin-top: 10px;
   }
   @media (prefers-reduced-motion: reduce) {
-    .face {
+    .face,
+    .val {
       animation: none;
     }
   }

@@ -133,7 +133,7 @@ class Player {
       })
       // меню скорости: любое изменение — сразу в звук
       $effect(() => {
-        void [tempo.rate, tempo.pitch, tempo.linked, tempo.reverb]
+        void [tempo.rate, tempo.pitch, tempo.linked, tempo.wet]
         untrack(() => this.applySpeed())
       })
     })
@@ -356,7 +356,7 @@ class Player {
     this.audio.defaultPlaybackRate = rate
     this.audio.playbackRate = rate
     void this.effects?.setPitch(tempo.linked ? 1 : pitchRatio(tempo.pitch))
-    this.effects?.setReverb(tempo.reverb)
+    this.effects?.setReverb(tempo.wet)
   }
 
   private async load(autoplay: boolean, startMs = 0) {

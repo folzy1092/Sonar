@@ -22,3 +22,18 @@ describe('скорость и тон', () => {
     expect(badge(1, 0, 0.3)).toBe('Reverb')
   })
 })
+
+describe('питч, связанный со скоростью', () => {
+  it('−2 st ≈ x0.89, а шаг 0.1 st всё равно двигает скорость', async () => {
+    const { tempo } = await import('./tempo.svelte')
+    tempo.setLinked(true)
+    tempo.setRate(1)
+    tempo.setPitch(-2)
+    expect(tempo.rate).toBe(0.89)
+    const r = tempo.rate
+    tempo.setPitch(tempo.semitones - 0.1)
+    expect(tempo.rate).toBeLessThan(r)
+    tempo.setPitch(tempo.semitones + 0.1)
+    expect(tempo.rate).toBe(r)
+  })
+})
