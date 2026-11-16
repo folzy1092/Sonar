@@ -131,7 +131,7 @@
       openRef(p.ref)
     })}
     {@render item('play', 'Слушать', () => withTracks((t, pl) => player.playList(t, 0, ctx, pl.title)))}
-    {@render item('shuffle', 'Перемешать', () => withTracks((t, pl) => player.playShuffled(t, ctx, pl.title)))}
+    {@render item('shuffle', 'Слушать вперемешку', () => withTracks((t, pl) => player.playShuffled(t, ctx, pl.title)))}
     <hr />
     {@render item('playNext', 'Следующими', () => withTracks((t) => player.addToQueue(t, true), 'Треки будут играть следующими'))}
     {@render item('queue', 'В очередь', () => withTracks((t) => player.addToQueue(t, false), 'Треки добавлены в очередь'))}
