@@ -93,6 +93,30 @@
     }
   }
 
+  // удаление — в два клика: первый превращает пункт в красное «Точно удалить?», второй удаляет
+  let confirmDelete = $state(false)
+  $effect(() => {
+    own
+    confirmDelete = false
+  })
+  async function removeOwn() {
+    const pl = own
+    if (!pl) return
+    if (!confirmDelete) {
+      confirmDelete = true
+      return
+    }
+    playlistMenu.close()
+    try {
+      await api.deletePlaylist(pl.id)
+      await library.refreshPlaylists()
+      toast.show(t('Плейлист «{title}» удалён', { title: pl.name }))
+      if (router.page === 'playlist' && router.param === pl.id) router.back()
+    } catch (e) {
+      toast.show(errorText(e))
+    }
+  }
+
   async function copyOwnTitle() {
     const pl = own
     playlistMenu.close()
@@ -191,6 +215,10 @@
     {@render item('copy', t('Копировать название'), copyOwnTitle)}
     <hr />
     {@render item(own.hidden ? 'eye' : 'eyeOff', own.hidden ? t('Показать плейлист') : t('Скрыть плейлист'), toggleHidden)}
+    <button class="item danger" class:sure={confirmDelete} role="menuitem" onclick={removeOwn}>
+      <Icon name="trash" size={17} />
+      <span>{confirmDelete ? t('Точно удалить?') : t('Удалить плейлист')}</span>
+    </button>
   </div>
 {:else if p}
   {@const ctx = `playlist:${p.ref}`}
@@ -305,5 +333,12 @@
   .item:hover {
     background: var(--hover);
     color: var(--text);
+  }
+  .item.danger:hover,
+  .item.danger.sure {
+    color: var(--danger, #ff5b5b);
+  }
+  .item.danger.sure {
+    background: color-mix(in oklch, var(--danger, #ff5b5b) 14%, transparent);
   }
 </style>
