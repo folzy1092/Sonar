@@ -5,6 +5,7 @@
 pub mod genius;
 pub mod lrclib;
 pub mod netease;
+pub mod translate;
 
 use crate::providers::Track;
 use anyhow::Result;

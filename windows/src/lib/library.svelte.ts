@@ -53,7 +53,8 @@ class Library {
     for (const x of fresh) next.add(x.ref)
     this.liked = next
     try {
-      for (const x of fresh) await api.setLike(x.ref, true, x)
+      // с конца: в Любимых новые сверху, так верх плейлиста и окажется сверху, а его низ — снизу
+      for (const x of [...fresh].reverse()) await api.setLike(x.ref, true, x)
     } catch (e) {
       toast.show(errorText(e))
       await this.load(true)

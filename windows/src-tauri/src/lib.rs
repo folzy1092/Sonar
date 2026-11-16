@@ -206,6 +206,7 @@ pub fn run() {
       commands::lyrics,
       commands::lyrics_offset,
       commands::lyrics_annotations,
+      commands::lyrics_translate,
       commands::set_lyrics_offset,
       commands::track_eq,
       commands::set_track_eq,

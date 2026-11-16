@@ -3,6 +3,7 @@
   // формулы Dotify (core/motion.ts), «•••» на проигрышах, клик по строке — перемотка. Наведение строку
   // не подсвечивает и размытие не снимает — акцент только на текущей. Обычный (Genius, plain) — просто текст с прокруткой. Правый клик — меню текста.
   import { onMount, tick } from 'svelte'
+  import { fade } from 'svelte/transition'
   import { player } from '../player/player.svelte'
   import { Clock } from './core/clock'
   import { findLine } from './core/find'
@@ -306,6 +307,7 @@
           {:else}
             <span class="t">{line.text}</span>
           {/if}
+          {#if lyrics.translateOn && line.text && lyrics.translation?.[i]}<span class="tr" transition:fade={{ duration: 220 }}>{lyrics.translation[i]}</span>{/if}
           {#if lyrics.notes.has(i)}<sup class="note-mark" class:on={noteOpen === i} aria-label={t('Есть аннотация Genius')}>”</sup>{/if}
         </button>
         {#if lyrics.notes.has(i)}
@@ -333,7 +335,7 @@
     {:else}
       <div class="plain selectable">
         {#each lines as line, i (i)}
-          {#if line.text}<p class:bg={line.isBackground}>{line.text}</p>{:else}<p class="gap"></p>{/if}
+          {#if line.text}<p class:bg={line.isBackground}>{line.text}{#if lyrics.translateOn && lyrics.translation?.[i]}<span class="tr">{lyrics.translation[i]}</span>{/if}</p>{:else}<p class="gap"></p>{/if}
         {/each}
         {#if data?.source === 'genius'}<p class="src">{t('Текст: Genius')}</p>{/if}
       </div>
@@ -366,6 +368,16 @@
     height: 55vh;
   }
 
+  /* перевод — под строкой, мельче и тише оригинала */
+  .tr {
+    display: block;
+    margin-top: 0.18em;
+    font-size: 0.56em;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.3;
+    opacity: 0.62;
+  }
   .line {
     display: block;
     width: 100%;

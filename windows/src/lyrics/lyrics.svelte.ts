@@ -4,6 +4,8 @@ import { mapAnnotations, type Annotation } from './core/annotations'
 import { untrack } from 'svelte'
 import { api, type Track } from '../lib/api'
 import { player } from '../player/player.svelte'
+import { lang, t } from '../lib/i18n.svelte'
+import { toast } from '../lib/toast.svelte'
 import { clampOffset, fromMs, toMs } from './core/offset'
 import type { Lyrics } from './core/types'
 
@@ -51,6 +53,13 @@ class LyricsStore {
   status = $state<'idle' | 'loading' | 'ready' | 'none'>('idle')
   /** Сдвиг текущего трека, секунды. */
   offset = $state(0)
+
+  /** Перевод включён (меню текста → «Перевести»): держится и для следующих треков. */
+  translateOn = $state(false)
+  /** Перевод строк текущего текста (та же длина, что `data.lines`), `null` — ещё нет. */
+  translation = $state<string[] | null>(null)
+  translating = $state(false)
+  private trCache = new Map<string, string[]>()
 
   mode = $state<LyricsMode>('words')
   size = $state<LyricsSize>('L')
@@ -145,6 +154,7 @@ class LyricsStore {
     this.ref = ref
     this.data = null
     this.notes = new Map()
+    this.translation = null
     this.offset = 0
     this.status = 'loading'
     void api
@@ -159,6 +169,7 @@ class LyricsStore {
       this.data = l
       this.status = l?.lines.length ? 'ready' : 'none'
       if (l?.lines.length) void this.loadNotes(t, l)
+      if (l?.lines.length && this.translateOn) void this.translate(true)
     } catch {
       // сеть не ответила — тихо «Текст не найден», без тостов (LYRICS.md §7)
       if (this.ref === ref) this.status = 'none'
@@ -182,6 +193,47 @@ class LyricsStore {
       l.lines.map((x) => x.text),
       anns,
     )
+  }
+
+  /** Включить / выключить перевод текста на язык интерфейса. */
+  toggleTranslate() {
+    this.translateOn = !this.translateOn
+    if (this.translateOn) void this.translate(false)
+  }
+
+  /** `quiet` — для следующего трека: без тоста «уже на этом языке». */
+  private async translate(quiet: boolean) {
+    const ref = this.ref
+    const lines = this.data?.lines
+    if (!ref || !lines?.length) return
+    const to = lang()
+    const key = `${ref}:${to}`
+    const hit = this.trCache.get(key)
+    if (hit) {
+      this.translation = hit
+      return
+    }
+    this.translating = true
+    try {
+      const r = await api.lyricsTranslate(
+        lines.map((x) => x.text),
+        to,
+      )
+      if (this.ref !== ref) return
+      // текст уже на языке интерфейса — переводить нечего
+      if (r.source === to) {
+        this.translation = null
+        if (!quiet) toast.show(t('Текст уже на этом языке'))
+        return
+      }
+      this.trCache.set(key, r.lines)
+      if (this.trCache.size > 30) this.trCache.delete(this.trCache.keys().next().value!)
+      this.translation = r.lines
+    } catch {
+      if (this.ref === ref && !quiet) toast.show(t('Перевод не удался — попробуй позже'))
+    } finally {
+      if (this.ref === ref) this.translating = false
+    }
   }
 
   /** Искать текст заново, мимо кэша. */

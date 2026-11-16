@@ -140,8 +140,14 @@
     </div>
   </div>
 
-  <button class="wide" disabled title={t('Перевод — после MVP')}>
-    <Icon name="language" size={14} /> {t('Перевести')}
+  <button
+    class="wide"
+    class:on={lyrics.translateOn}
+    disabled={!hasText}
+    title={t('Перевод строк на язык интерфейса')}
+    onclick={() => lyrics.toggleTranslate()}
+  >
+    <Icon name="language" size={14} /> {lyrics.translating ? t('Перевожу…') : lyrics.translateOn ? t('Без перевода') : t('Перевести')}
   </button>
   <button class="wide" onclick={() => lyrics.reload()} title={t('Искать текст заново, мимо кэша')}>
     <Icon name="refresh" size={14} /> {t('Найти текст заново')}
@@ -282,6 +288,9 @@
   }
   .wide:active:not(:disabled) {
     transform: scale(0.97);
+  }
+  .wide.on {
+    background: rgba(255, 255, 255, 0.2);
   }
   .wide:disabled {
     opacity: 0.45;
