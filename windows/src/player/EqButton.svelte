@@ -1,11 +1,11 @@
 <script lang="ts">
   // Кнопка эквалайзера в капсуле у громкости (страница плеера) и всплывашка под ней: «+» и пресеты
-  // сверху, кривая на 12 полос (точки тянутся мышью, колесо над точкой — ±0.5 дБ), «Запомнить» —
-  // кривая для этого трека. Открывается и закрывается только кликом (правило владельца).
+  // сверху, кривая на 12 полос (точки тянутся мышью, колесо над точкой — ±0.5 дБ). Правки звучат
+  // сразу, «Сохранить» делает кривую общей для всех треков; закрыл без сохранения — вернулась
+  // сохранённая. Открывается и закрывается только кликом (правило владельца).
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
   import { pop } from '../lib/motion'
-  import { player } from './player.svelte'
   import { EQ_FREQS, EQ_MAX_DB, eq, freqLabel } from './eq.svelte'
 
   let open = $state(false)
@@ -75,12 +75,25 @@
     naming = false
   }
 
+  let justSaved = $state(false)
+  let savedTimer: ReturnType<typeof setTimeout> | undefined
+
+  function close() {
+    open = false
+    naming = false
+    eq.discard()
+  }
+
+  function save() {
+    eq.save()
+    justSaved = true
+    clearTimeout(savedTimer)
+    savedTimer = setTimeout(() => (justSaved = false), 1600)
+  }
+
   onMount(() => {
     const outside = (e: MouseEvent) => {
-      if (open && root && !root.contains(e.target as Node)) {
-        open = false
-        naming = false
-      }
+      if (open && root && !root.contains(e.target as Node)) close()
     }
     window.addEventListener('mousedown', outside, true)
     return () => window.removeEventListener('mousedown', outside, true)
@@ -95,8 +108,8 @@
     title="Эквалайзер"
     aria-expanded={open}
     onclick={() => {
-      open = !open
-      naming = false
+      if (open) close()
+      else open = true
     }}
   >
     <Icon name="adjustments" size={18} />
@@ -155,12 +168,14 @@
 
       <button
         class="remember"
-        class:on={eq.remembered}
-        disabled={!player.current}
-        title={eq.remembered ? 'Вернуть общую кривую для этого трека' : 'Эта кривая будет включаться на этом треке'}
-        onclick={() => eq.toggleRemember()}
+        class:on={justSaved && !eq.dirty}
+        disabled={!eq.dirty && !justSaved}
+        title={eq.dirty ? 'Кривая будет звучать на всех треках' : 'Подвигай точки или выбери пресет — потом сохрани'}
+        onclick={save}
       >
-        {eq.remembered ? 'Запомнено для трека · забыть' : 'Запомнить'}
+        {#key justSaved && !eq.dirty}
+          <span class="lbl">{#if justSaved && !eq.dirty}<Icon name="check" size={15} /> Сохранено{:else}Сохранить{/if}</span>
+        {/key}
       </button>
     </div>
   {/if}
@@ -315,11 +330,32 @@
     font-size: 13px;
     font-weight: 600;
   }
+  .remember {
+    display: grid;
+    place-items: center;
+    transition:
+      background var(--normal) var(--ease),
+      color var(--normal) var(--ease),
+      opacity var(--normal) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .remember:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  .remember .lbl {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    animation: tab-in var(--normal) var(--ease);
+  }
   .remember.on {
     background: var(--surface-3);
     color: var(--text);
+    opacity: 1;
   }
   .remember:disabled {
     opacity: 0.4;
+    cursor: default;
   }
 </style>

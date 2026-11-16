@@ -1,11 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
-  import { router } from './router.svelte'
   import HistoryButton from './HistoryButton.svelte'
-  import { fade, slide } from 'svelte/transition'
-  import { cubicOut } from 'svelte/easing'
-  import { reducedMotion } from '../lib/motion'
   import {
     closeWindow,
     isWindowMaximized,
@@ -15,16 +11,13 @@
   } from '../lib/tauri'
 
   interface Props {
-    /** Кнопка «Назад» (в полноэкранном плеере её нет). */
-    back?: boolean
+    /** История прослушивания (в полноэкранном плеере её нет). Кнопки «Назад» нет совсем —
+     *  решение владельца 2026-11-16: назад — боковой кнопкой мыши, чёлка не меняет размер. */
+    history?: boolean
   }
-  let { back = true }: Props = $props()
+  let { history = true }: Props = $props()
 
   let maximized = $state(false)
-
-  // «Назад» выезжает вбок — чёлка растёт вместе с ним; «Меньше движения» — только прозрачность
-  const grow = (node: Element) =>
-    reducedMotion() ? fade(node, { duration: 160 }) : slide(node, { axis: 'x', duration: 220, easing: cubicOut })
 
   onMount(() => {
     const sync = async () => (maximized = await isWindowMaximized())
@@ -34,13 +27,8 @@
 </script>
 
 <div class="controls">
-  <!-- «Назад» — только когда есть куда; на его месте история прослушивания (как часы у Dotify) -->
-  {#if back && router.canGoBack}
-    <button class="ctl press" aria-label="Назад" title="Назад" onclick={() => router.back()} transition:grow>
-      <Icon name="chevronLeft" size={16} stroke={1.8} />
-    </button>
-  {/if}
-  {#if back}<HistoryButton />{/if}
+  <!-- история прослушивания — как часы у Dotify -->
+  {#if history}<HistoryButton />{/if}
   <button class="ctl press" aria-label="Свернуть" title="Свернуть" onclick={minimizeWindow}>
     <Icon name="minus" size={16} stroke={1.8} />
   </button>

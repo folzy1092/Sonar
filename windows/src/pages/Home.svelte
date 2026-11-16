@@ -153,7 +153,7 @@
       title={wave.error && !wave.active ? wave.error : playingWave ? 'Пауза' : 'Включить волну'}
       onclick={() => wave.toggle()}
     >
-      <PlayPause playing={playingWave} size={30} />
+      <PlayPause playing={playingWave} size={38} />
     </button>
   </div>
 </section>
@@ -390,9 +390,10 @@
     opacity: 0.9;
     scale: 1;
   }
+  /* верхняя обложка — ниже чёлки с кнопками окна (--notch-h ставит lib/notch на карточку) */
   .float.f0 {
-    right: 8px;
-    top: 8px;
+    right: 12px;
+    top: calc(var(--notch-h, 0px) + 6px);
     animation-delay: 0.08s, 1.4s;
   }
   .float.f1 {

@@ -1,5 +1,6 @@
 // Эквалайзер (по Dotify, скрин владельца 2026-11-14): 12 полос 32 Гц – 20 кГц, ±12 дБ, пресеты
-// (свои — «+»), «Запомнить» — кривая для текущего трека (track_prefs.eq_json). Звук идёт через
+// (свои — «+»). Правки звучат сразу, но пишутся только кнопкой «Сохранить» — одна кривая на все
+// треки; закрыл без сохранения — вернулась сохранённая (решение владельца 2026-11-16). Звук идёт через
 // цепочку BiquadFilter в Web Audio: источник → полосы → анализатор волны → выход.
 import { api } from '../lib/api'
 
@@ -32,17 +33,16 @@ function valid(g: unknown): g is number[] {
 class Equalizer {
   gains = $state<number[]>(flat())
   userPresets = $state<EqPreset[]>([])
-  /** Трек, для которого кривая «запомнена» (тогда правки пишутся в него, а не в общую). */
-  trackRef = $state<string | null>(null)
-  remembered = $state(false)
+  /** Сохранённая кривая — одна на все треки (решение владельца 2026-11-16). */
+  saved = $state<number[]>(flat())
+  /** Кривая «на примерке»: правки звучат сразу, но пока не нажата «Сохранить» — не пишутся. */
+  dirty = $derived(this.gains.some((g, i) => Math.abs(g - this.saved[i]) >= 0.05))
 
   presets = $derived([...this.userPresets, ...builtinPresets])
   /** Имя пресета, с которым совпадает текущая кривая. */
   activePreset = $derived(this.presets.find((p) => p.gains.every((g, i) => Math.abs(g - this.gains[i]) < 0.05))?.name ?? null)
 
   private filters: BiquadFilterNode[] = []
-  private global: number[] = flat()
-  private saveTimer: ReturnType<typeof setTimeout> | null = null
 
   /** Цепочка фильтров между `input` и `output` (вызывает плеер). */
   connect(ctx: AudioContext, input: AudioNode, output: AudioNode) {
@@ -72,45 +72,18 @@ class Equalizer {
         api.getSetting<number[]>('audio.eq'),
         api.getSetting<{ name: string; gains: number[] }[]>('audio.eq_presets'),
       ])
-      if (valid(cur)) this.global = cur.map(clampDb)
+      if (valid(cur)) this.saved = cur.map(clampDb)
       if (Array.isArray(presets)) this.userPresets = presets.filter((p) => typeof p?.name === 'string' && valid(p.gains))
-      if (!this.remembered) this.set(this.global, false)
+      this.set(this.saved)
     } catch {
       // вне приложения — ровная кривая
     }
   }
 
-  /** Сменился трек: его запомненная кривая или общая. */
-  async onTrack(ref: string | null) {
-    this.trackRef = ref
-    let own: number[] | null = null
-    if (ref) {
-      try {
-        const g = await api.trackEq(ref)
-        if (valid(g) && this.trackRef === ref) own = g.map(clampDb)
-      } catch {
-        // нет записи — общая кривая
-      }
-    }
-    if (this.trackRef !== ref) return
-    this.remembered = !!own
-    this.set(own ?? this.global, false)
-  }
-
-  /** Новая кривая; `save` — записать (в трек, если он запомнен, иначе в общую). */
-  set(gains: number[], save = true) {
+  /** Новая кривая на примерку: звучит сразу, не сохраняется. */
+  set(gains: number[]) {
     this.gains = gains.map(clampDb)
     this.apply()
-    if (!save) return
-    if (this.saveTimer) clearTimeout(this.saveTimer)
-    this.saveTimer = setTimeout(() => {
-      const g = $state.snapshot(this.gains)
-      if (this.remembered && this.trackRef) void api.setTrackEq(this.trackRef, g).catch(() => {})
-      else {
-        this.global = g
-        void api.setSetting('audio.eq', g).catch(() => {})
-      }
-    }, 300)
   }
 
   setBand(i: number, db: number) {
@@ -119,18 +92,16 @@ class Equalizer {
     this.set(g)
   }
 
-  /** «Запомнить» для трека / «Забыть» — снова общая кривая. */
-  toggleRemember() {
-    const ref = this.trackRef
-    if (!ref) return
-    if (this.remembered) {
-      this.remembered = false
-      void api.setTrackEq(ref, null).catch(() => {})
-      this.set(this.global, false)
-    } else {
-      this.remembered = true
-      void api.setTrackEq(ref, $state.snapshot(this.gains)).catch(() => {})
-    }
+  /** «Сохранить» — кривая становится общей для всех треков. */
+  save() {
+    const g = $state.snapshot(this.gains)
+    this.saved = g
+    void api.setSetting('audio.eq', g).catch(() => {})
+  }
+
+  /** Закрыли эквалайзер без сохранения — звучит снова сохранённая кривая. */
+  discard() {
+    if (this.dirty) this.set(this.saved)
   }
 
   addPreset(name: string) {

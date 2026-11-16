@@ -104,7 +104,7 @@
         </div>
       {/if}
     </div>
-    <div class="win"><WindowControls back={false} /></div>
+    <div class="win"><WindowControls history={false} /></div>
   </header>
 
   <div class="body" class:text={withText && withCover} class:only-text={!withCover}>

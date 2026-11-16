@@ -14,7 +14,6 @@
   import General from './settings/General.svelte'
   import Storage from './settings/Storage.svelte'
   import Update from './settings/Update.svelte'
-  import About from './settings/About.svelte'
   import TabsView from './settings/TabsView.svelte'
   import Queue from './settings/Queue.svelte'
   import Mini from './settings/Mini.svelte'
@@ -22,6 +21,10 @@
   import { indicator } from '../lib/indicator'
 
   let scroller: HTMLDivElement | undefined = $state()
+  let tabsEl: HTMLElement | undefined = $state()
+  /** Есть ли вкладки за краем строки — тогда край затухает и появляется стрелка (как у подразделов). */
+  let more = $state({ l: false, r: false })
+  const nudge = (dir: 1 | -1) => tabsEl?.scrollBy({ left: dir * 160, behavior: 'smooth' })
   const subs = $derived(SUBS[settingsPanel.tab])
   const sub = $derived(settingsPanel.sub)
 
@@ -33,12 +36,14 @@
 </script>
 
 <aside class="panel" class:open={settingsPanel.open} inert={!settingsPanel.open} aria-label="Настройки">
+  <div class="tabs-wrap">
   <nav
     class="tabs"
     data-tauri-drag-region
+    bind:this={tabsEl}
     use:indicator={{ key: settingsPanel.tab }}
     use:hscroll
-    use:edges
+    use:edges={(l, r) => (more = { l, r })}
   >
     {#each TABS as t (t.id)}
       <button
@@ -50,6 +55,13 @@
       >
     {/each}
   </nav>
+    <button class="more l" class:show={more.l} tabindex="-1" aria-label="Вкладки левее" onclick={() => nudge(-1)}>
+      <Icon name="chevronLeft" size={16} />
+    </button>
+    <button class="more r" class:show={more.r} tabindex="-1" aria-label="Ещё вкладки" onclick={() => nudge(1)}>
+      <Icon name="chevronRight" size={16} />
+    </button>
+  </div>
 
   {#if subs.length > 1}
     {#key settingsPanel.tab}
@@ -100,8 +112,6 @@
           <Storage />
         {:else if sub === 'update'}
           <Update />
-        {:else if sub === 'about'}
-          <About />
         {/if}
       </div>
     {/key}
@@ -126,13 +136,54 @@
   .panel.open {
     transform: none;
   }
+  .tabs-wrap {
+    position: relative;
+    border-bottom: 1px solid var(--border);
+  }
   .tabs {
+    --fade: 64px;
     display: flex;
     gap: 18px;
     padding: 14px 16px 0;
     overflow-x: auto;
     scrollbar-width: none;
-    border-bottom: 1px solid var(--border);
+  }
+  .tabs :global(.tab-ind.line) {
+    bottom: 0;
+  }
+  /* стрелка у края, за которым ещё вкладки: появляется вместе с затуханием */
+  .more {
+    position: absolute;
+    top: 13px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    border: 1px solid var(--border-strong);
+    color: var(--text-2);
+    opacity: 0;
+    scale: 0.7;
+    pointer-events: none;
+    transition:
+      opacity var(--normal) var(--ease),
+      scale var(--normal) var(--ease),
+      color var(--fast) var(--ease);
+  }
+  .more.l {
+    left: 8px;
+  }
+  .more.r {
+    right: 8px;
+  }
+  .more.show {
+    opacity: 1;
+    scale: 1;
+    pointer-events: auto;
+  }
+  .more:hover {
+    color: var(--text);
   }
   .tabs button {
     padding: 4px 0 12px;

@@ -50,8 +50,8 @@ function clear(card: HTMLElement) {
     st.removeProperty(p)
 }
 
-/** `use:notch={island}` на карточке: вырез следует за размером островка (кнопка «Назад»
- *  выезжает — чёлка растёт вместе с ней, каждый кадр). */
+/** `use:notch={island}` на карточке: вырез следует за размером островка (например, в
+ *  полноэкранном плеере кнопок меньше — чёлка уже). */
 export function notch(card: HTMLElement, island: HTMLElement | undefined) {
   let raf = 0
   let target = island

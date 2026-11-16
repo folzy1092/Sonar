@@ -2,7 +2,7 @@
   import NavIcon from '../components/NavIcon.svelte'
   import type { NavIconName } from '../components/nav-icons'
   import { router, type Page } from './router.svelte'
-  import logo from '../assets/logo-mark.svg'
+  import LogoMark from '../components/LogoMark.svelte'
   import { settingsPanel } from '../pages/settings-section.svelte'
 
   const middle: { page: Page; icon: NavIconName; label: string }[] = [
@@ -31,7 +31,7 @@
 
 <nav class="rail" data-tauri-drag-region>
   <div class="group" data-tauri-drag-region>
-    <img class="logo" src={logo} alt="Sonar" draggable="false" />
+    <span class="logo" role="img" aria-label="Sonar"><LogoMark size={30} /></span>
     {@render item('home', 'home', 'Главная')}
   </div>
 
@@ -75,11 +75,11 @@
     gap: 6px;
   }
   .logo {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    margin-bottom: 10px;
-    pointer-events: none;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    margin-bottom: 8px;
   }
   .item {
     position: relative;
