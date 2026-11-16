@@ -112,11 +112,16 @@ export function pickAccent(px: Uint8ClampedArray | number[]): RGB | null {
 }
 
 /** Цвета темы из акцента: акцент поярче для тёмной темы, фон (L≈12 %), текст на акценте. */
-export function themeFrom(c: RGB): { accent: RGB; ink: RGB; bg: RGB } {
+export function themeFrom(c: RGB): { accent: RGB; ink: RGB; bg: RGB; base: RGB; surfaces: [RGB, RGB, RGB, RGB] } {
   const [h, s, l] = rgbToHsl(c)
   const accent = hslToRgb([h, Math.min(1, Math.max(s, 0.45)), Math.min(0.72, Math.max(l, 0.55))])
   const bg = hslToRgb([h, Math.min(s, 0.55), 0.12])
-  return { accent, ink: inkFor(accent), bg }
+  // фон окна — тот же оттенок, матовый и темнее обложки (решение владельца 2026-11-16); поверхности —
+  // ступенями светлее в том же оттенке, чтобы края карточек и всплывашек читались чётко
+  const sat = Math.min(s, 0.38)
+  const base = hslToRgb([h, sat, 0.05])
+  const surfaces = [0.07, 0.095, 0.125, 0.155].map((li) => hslToRgb([h, Math.min(sat, 0.3), li])) as [RGB, RGB, RGB, RGB]
+  return { accent, ink: inkFor(accent), bg, base, surfaces }
 }
 
 export const css = ([r, g, b]: RGB, a = 1) => (a === 1 ? `rgb(${r} ${g} ${b})` : `rgb(${r} ${g} ${b} / ${a})`)

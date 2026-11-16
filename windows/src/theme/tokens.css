@@ -15,6 +15,31 @@
   inherits: true;
   initial-value: rgba(245, 245, 246, 0.1);
 }
+@property --bg {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #050506;
+}
+@property --surface-0 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #0b0b0d;
+}
+@property --surface-1 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #121215;
+}
+@property --surface-2 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #1a1a1e;
+}
+@property --surface-3 {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #232328;
+}
 @property --tint {
   syntax: '<color>';
   inherits: true;
@@ -25,7 +50,12 @@
     --accent 0.6s ease,
     --accent-ink 0.6s ease,
     --accent-soft 0.6s ease,
-    --tint 0.9s ease;
+    --tint 0.9s ease,
+    --bg 0.9s ease,
+    --surface-0 0.9s ease,
+    --surface-1 0.9s ease,
+    --surface-2 0.9s ease,
+    --surface-3 0.9s ease;
   --bg: #050506;
   --surface-0: #0b0b0d;
   --surface-1: #121215;
