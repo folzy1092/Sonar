@@ -23,8 +23,14 @@ export const DEFAULTS = {
   'appearance.scale_window': 100,
   'appearance.scale_fullscreen': 100,
   'appearance.font': 'default' as string,
+  /** Размер шрифта: 16 — как задумано, остальные — множитель n / 16 ко всему тексту. */
+  'appearance.font_size': 16 as number,
+  /** Жирность обычного текста; заголовки и выделенное — как в вёрстке. */
+  'appearance.font_weight': 'auto' as 'auto' | '400' | '500' | '600' | '700',
   'appearance.corner_radius': 'rounded' as 'none' | 'soft' | 'rounded' | 'pill',
   'audio.output_device': '' as string,
+  /** Нормализация громкости (player/leveler.ts) — выравнивание тихих и громких треков. */
+  'audio.normalize': false,
   'player.cover_position': 'left' as 'left' | 'right',
   'queue.show': true,
   'queue.add_following': true,

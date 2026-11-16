@@ -284,7 +284,7 @@
     justify-content: var(--justify, center);
   }
   h1 {
-    font-size: 28px;
+    font-size: calc(28px * var(--fs, 1));
     font-weight: 800;
     white-space: nowrap;
     overflow: hidden;
@@ -297,7 +297,7 @@
     gap: 6px;
     margin: 4px 0 0;
     color: var(--text-2);
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
   }
   .artist img {
     width: 18px;
@@ -312,7 +312,7 @@
     display: flex;
     justify-content: space-between;
     margin-top: 6px;
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
   }
@@ -320,7 +320,7 @@
     padding: 1px 7px;
     border-radius: 999px;
     border: 1px solid var(--border-strong);
-    font-size: 10px;
+    font-size: calc(10px * var(--fs, 1));
     font-weight: 600;
     letter-spacing: 0.02em;
     color: var(--text-2);
@@ -402,7 +402,7 @@
   .err {
     margin: 0;
     color: var(--danger);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     text-align: center;
   }
   .queue {
@@ -418,12 +418,12 @@
     padding: 0 14px;
     border-radius: 999px;
     border: 1px solid var(--border-strong);
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-2);
   }
   h3 {
     margin: 16px 6px 6px;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-3);
   }
@@ -431,7 +431,7 @@
     margin: 10px 6px 4px;
     padding-top: 6px;
     border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
   }
   .empty {
     margin: 4px 6px;

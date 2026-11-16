@@ -133,12 +133,12 @@
   }
   .h b {
     font-family: var(--font-display);
-    font-size: 19px;
+    font-size: calc(19px * var(--fs, 1));
     font-weight: 800;
     letter-spacing: -0.01em;
   }
   .h small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
   }
@@ -181,16 +181,16 @@
     border-radius: 6px;
     background: var(--accent-soft);
     color: var(--accent);
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
   .eh b {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
   }
   .eh small {
     margin-left: auto;
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     color: var(--text-3);
   }
   ul {
@@ -201,7 +201,7 @@
   li {
     position: relative;
     padding: 3px 0;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     line-height: 1.5;
     color: var(--text-2);
   }
@@ -236,7 +236,7 @@
     padding: 0 16px;
     border-radius: 12px;
     background: var(--surface-3);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     transition:
       background var(--fast) var(--ease),

@@ -54,11 +54,11 @@
     padding: 9px 0;
   }
   .title {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
     font-weight: 600;
   }
   small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     line-height: 1.45;
     color: var(--text-3);
   }
@@ -140,7 +140,7 @@
     flex: 1;
   }
   .label {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
     color: var(--text);
     white-space: nowrap;
@@ -148,16 +148,16 @@
     text-overflow: ellipsis;
   }
   .list .label {
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
   }
   .sub {
-    font-size: 10px;
+    font-size: calc(10px * var(--fs, 1));
     color: var(--text-3);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .list .sub {
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
   }
 </style>

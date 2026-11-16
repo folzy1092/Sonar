@@ -190,7 +190,7 @@
   }
   .meta > span,
   small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   small b {
@@ -266,7 +266,7 @@
   }
   .none {
     margin: 6px 10px 8px;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     color: var(--text-3);
   }
 </style>

@@ -244,7 +244,7 @@
     padding: 0 12px;
     border-radius: 999px;
     border: 1px solid var(--border-strong);
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-2);
     white-space: nowrap;
@@ -278,7 +278,7 @@
     background: var(--plate);
     color: var(--text);
     font: inherit;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     outline: none;
   }
   .name button {
@@ -286,7 +286,7 @@
     border-radius: 10px;
     background: var(--text);
     color: var(--on-text);
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
   }
   .name button:disabled {
@@ -316,7 +316,7 @@
     display: flex;
     justify-content: space-between;
     padding: 4px 4px 0;
-    font-size: 9px;
+    font-size: calc(9px * var(--fs, 1));
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
   }
@@ -327,7 +327,7 @@
     border-radius: 10px;
     background: var(--text);
     color: var(--on-text);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
   }
   .remember {

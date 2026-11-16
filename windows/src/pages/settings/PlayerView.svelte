@@ -115,11 +115,11 @@
     padding: 9px 0;
   }
   .block b {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
     font-weight: 600;
   }
   .block small {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   .sliders {
@@ -151,7 +151,7 @@
   .name {
     width: 120px;
     flex-shrink: 0;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     white-space: nowrap;
   }

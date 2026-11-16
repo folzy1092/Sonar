@@ -97,7 +97,7 @@
     min-width: 0;
   }
   h1 {
-    font-size: 44px;
+    font-size: calc(44px * var(--fs, 1));
     font-weight: 800;
     line-height: 1.1;
     white-space: nowrap;
@@ -110,7 +110,7 @@
   }
   .meta {
     margin: 4px 0 0;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   .bar {

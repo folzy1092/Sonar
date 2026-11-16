@@ -137,7 +137,7 @@
   }
   .card.empty p {
     margin: 0;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     line-height: 1.5;
   }
   .main,
@@ -162,12 +162,12 @@
   }
   .main b {
     font-family: var(--font-display);
-    font-size: 28px;
+    font-size: calc(28px * var(--fs, 1));
     font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
   .minor b {
-    font-size: 16px;
+    font-size: calc(16px * var(--fs, 1));
     font-weight: 700;
     font-variant-numeric: tabular-nums;
   }
@@ -179,12 +179,12 @@
   }
   .main span,
   .minor span {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   h2 {
     margin: 26px 0 12px;
-    font-size: 22px;
+    font-size: calc(22px * var(--fs, 1));
     font-weight: 800;
   }
   .artists {
@@ -226,13 +226,13 @@
   }
   .artist b {
     max-width: 100%;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .artist small {
-    font-size: 11px;
+    font-size: calc(11px * var(--fs, 1));
     color: var(--text-3);
   }
   .tracks {
@@ -247,7 +247,7 @@
     padding: 4px 6px;
     border-radius: 8px;
     text-align: left;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     transition: background var(--fast) var(--ease);
   }

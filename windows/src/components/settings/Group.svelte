@@ -21,7 +21,7 @@
     align-items: center;
     gap: 12px;
     margin: 0 0 6px;
-    font-size: 15px;
+    font-size: calc(15px * var(--fs, 1));
     font-weight: 700;
   }
   i {

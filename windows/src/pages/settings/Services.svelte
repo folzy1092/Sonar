@@ -194,7 +194,7 @@
     height: 40px;
     padding: 0 14px;
     border-radius: 12px;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-3);
     transition:
@@ -224,12 +224,12 @@
     min-width: 0;
   }
   h2 {
-    font-size: 17px;
+    font-size: calc(17px * var(--fs, 1));
     font-weight: 700;
   }
   header p {
     margin: 2px 0 0;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     color: var(--text-3);
   }
   .logo {
@@ -239,7 +239,7 @@
     height: 40px;
     border-radius: var(--radius-m);
     font-weight: 800;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
   }
   .logo.sc,
   .logo.ym {
@@ -257,7 +257,7 @@
     gap: 6px;
   }
   label span {
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-2);
   }
@@ -282,7 +282,7 @@
   }
   .hint {
     margin: 0;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   code {
@@ -293,7 +293,7 @@
   }
   .error {
     margin: 0;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     color: var(--danger);
   }
   .primary {
@@ -326,7 +326,7 @@
     align-items: center;
     gap: 8px;
     color: var(--text-3);
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
   }
   .note {
     color: var(--text-3);

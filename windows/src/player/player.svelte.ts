@@ -3,8 +3,11 @@
 // запись player_state и plays в локальную базу (формат API.md §5).
 // Два элемента для бесшовности и кроссфейда, GainNode нормализации — позже (W5).
 import Hls from 'hls.js'
+import { untrack } from 'svelte'
 import { api, errorText, onMediaControl, type PlayerState, type Repeat, type Track } from '../lib/api'
 import { eq } from './eq.svelte'
+import { Leveler } from './leveler'
+import { settings } from '../lib/settings.svelte'
 import { Clock } from '../lyrics/core/clock'
 import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
 
@@ -62,6 +65,8 @@ class Player {
   private raf = 0
   private offMedia: (() => void) | null = null
   private ctx: AudioContext | null = null
+  /** Нормализация громкости (`audio.normalize`). */
+  leveler: Leveler | null = null
   /** Кто слушает конец трека (своя волна): трек, сколько прослушано, пропущен ли вручную. */
   private endHooks = new Set<(t: Track, listenedMs: number, skipped: boolean) => void>()
   /** Очередь доиграла до конца: вернуть true, если кто-то продолжил (похожие после очереди). */
@@ -125,6 +130,13 @@ class Player {
 
     void this.restore()
     void eq.load()
+    // нормализация громкости — включается и выключается сразу, без перезапуска трека
+    $effect.root(() => {
+      $effect(() => {
+        const on = settings.get('audio.normalize')
+        untrack(() => this.leveler?.setEnabled(on))
+      })
+    })
   }
 
   /** Полная остановка: при подмене модуля в dev (HMR), иначе старый <audio> играет «вторым потоком». */
@@ -150,9 +162,12 @@ class Player {
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 2048
       analyser.smoothingTimeConstant = 0.82
-      // источник → эквалайзер → анализатор волны → выход
-      eq.connect(ctx, ctx.createMediaElementSource(a), analyser)
+      // источник → эквалайзер → выравниватель громкости → анализатор волны → выход
+      const leveler = new Leveler(ctx)
+      eq.connect(ctx, ctx.createMediaElementSource(a), leveler.input)
+      leveler.node.connect(analyser)
       analyser.connect(ctx.destination)
+      this.leveler = leveler
       this.ctx = ctx
       this.analyser = analyser
     } catch {
@@ -344,6 +359,7 @@ class Player {
   }
 
   private async load(autoplay: boolean, startMs = 0) {
+    this.leveler?.trackChanged()
     const a = this.audio
     const track = this.current
     if (!a || !track) return

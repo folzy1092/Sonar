@@ -187,7 +187,7 @@
   }
   .tabs button {
     padding: 4px 0 12px;
-    font-size: 15px;
+    font-size: calc(15px * var(--fs, 1));
     color: var(--text-3);
     white-space: nowrap;
     transition: color var(--fast) var(--ease);
@@ -220,7 +220,7 @@
     padding: 0 12px;
     border-radius: 999px;
     color: var(--text-2);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     white-space: nowrap;
     transition: color var(--fast) var(--ease);
   }

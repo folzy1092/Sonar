@@ -175,12 +175,12 @@
     align-items: baseline;
     justify-content: space-between;
     margin: 22px 0 10px;
-    font-size: 20px;
+    font-size: calc(20px * var(--fs, 1));
     font-weight: 800;
   }
   .more {
     font-family: var(--font);
-    font-size: 12px;
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 400;
     color: var(--text-2);
   }

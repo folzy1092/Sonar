@@ -195,7 +195,7 @@
   }
   .tab {
     font-family: var(--font-display);
-    font-size: 26px;
+    font-size: calc(26px * var(--fs, 1));
     font-weight: 800;
     letter-spacing: -0.02em;
     color: var(--text-3);
@@ -213,7 +213,7 @@
     gap: 10px;
     margin: 12px 0 0;
     color: var(--text-2);
-    font-size: 16px;
+    font-size: calc(16px * var(--fs, 1));
   }
   .avatars {
     display: flex;
@@ -229,7 +229,7 @@
     border: 2px solid var(--surface-0);
     background: var(--surface-3);
     color: var(--text);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 700;
   }
   .av:first-child {
@@ -255,7 +255,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 24px;
+    font-size: calc(24px * var(--fs, 1));
     font-weight: 800;
     margin-bottom: 14px;
   }
@@ -307,7 +307,7 @@
     transform-origin: bottom left;
   }
   .create b {
-    font-size: 14px;
+    font-size: calc(14px * var(--fs, 1));
   }
   .create input {
     height: 36px;
@@ -331,7 +331,7 @@
     height: 32px;
     padding: 0 14px;
     border-radius: 10px;
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
     transition:
       background var(--fast) var(--ease),
