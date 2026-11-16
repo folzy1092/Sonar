@@ -156,6 +156,8 @@ pub fn run() {
       commands::storage_usage,
       commands::clear_storage,
       commands::open_url,
+      commands::add_to_start_menu,
+      commands::reveal_start_shortcut,
       commands::set_zoom,
       commands::set_autostart,
       commands::autostart_enabled,

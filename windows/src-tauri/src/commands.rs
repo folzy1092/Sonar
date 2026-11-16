@@ -800,6 +800,70 @@ pub fn open_url(url: String) -> Res<()> {
   Ok(())
 }
 
+/// Ярлык Sonar в меню «Пуск» — `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Sonar.lnk`.
+/// Установщик обычно уже создаёт его; готовый ярлык не трогаем (он может вести на установленную копию,
+/// а не на exe, из которого запущен этот Sonar). Вернёт путь и `true`, если ярлык создан сейчас.
+#[cfg(windows)]
+fn ensure_start_shortcut() -> Res<(std::path::PathBuf, bool)> {
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+  let appdata = std::env::var("APPDATA").map_err(err)?;
+  let lnk = std::path::PathBuf::from(appdata).join(r"Microsoft\Windows\Start Menu\Programs\Sonar.lnk");
+  if lnk.exists() {
+    return Ok((lnk, false));
+  }
+  let exe = std::env::current_exe().map_err(err)?;
+  let dir = exe.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+  // одинарные кавычки PowerShell экранируются удвоением (в имени пользователя может быть «'»)
+  let q = |p: &std::path::Path| p.to_string_lossy().replace('\'', "''");
+  let script = format!(
+    "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{}');$s.TargetPath='{}';$s.WorkingDirectory='{}';$s.IconLocation='{},0';$s.Description='Sonar';$s.Save()",
+    q(&lnk),
+    q(&exe),
+    q(&dir),
+    q(&exe)
+  );
+  let out = std::process::Command::new("powershell")
+    .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &script])
+    .creation_flags(CREATE_NO_WINDOW)
+    .output()
+    .map_err(err)?;
+  if !out.status.success() || !lnk.exists() {
+    return Err(format!("не удалось создать ярлык: {}", String::from_utf8_lossy(&out.stderr).trim()));
+  }
+  Ok((lnk, true))
+}
+
+/// «Добавить в меню Пуск»: ярлык Sonar в «Все приложения». Вернёт `true`, если создан сейчас, и `false`,
+/// если уже был.
+#[tauri::command]
+pub fn add_to_start_menu() -> Res<bool> {
+  #[cfg(windows)]
+  {
+    ensure_start_shortcut().map(|(_, created)| created)
+  }
+  #[cfg(not(windows))]
+  {
+    Err("только для Windows".into())
+  }
+}
+
+/// «Закрепить на панели задач»: Windows не даёт программе закрепить себя тихо (нужна идентичность
+/// MSIX-пакета), поэтому — ярлык в Проводнике, дальше «ПКМ → Закрепить на панели задач».
+#[tauri::command]
+pub fn reveal_start_shortcut() -> Res<()> {
+  #[cfg(windows)]
+  {
+    let (lnk, _) = ensure_start_shortcut()?;
+    std::process::Command::new("explorer").arg(format!("/select,{}", lnk.display())).spawn().map_err(err)?;
+    Ok(())
+  }
+  #[cfg(not(windows))]
+  {
+    Err("только для Windows".into())
+  }
+}
+
 /// Масштаб: `kind` — `window` (в окне) или `fullscreen` (развёрнуто), `percent` — 75–125.
 #[tauri::command]
 pub fn set_zoom(window: tauri::WebviewWindow, kind: String, percent: f64) {

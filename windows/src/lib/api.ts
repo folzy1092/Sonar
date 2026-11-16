@@ -292,6 +292,10 @@ export const api = {
   storageUsage: () => call<StorageUsage>('storage_usage'),
   clearStorage: (kind: 'covers' | 'lyrics' | 'track_prefs' | 'all') => call<void>('clear_storage', { kind }),
   openUrl: (url: string) => call<void>('open_url', { url }),
+  /** Ярлык Sonar в меню «Пуск»; true — создан сейчас, false — уже был. */
+  addToStartMenu: () => call<boolean>('add_to_start_menu'),
+  /** Показать ярлык в Проводнике — оттуда «Закрепить на панели задач» (тихо Windows закрепить не даёт). */
+  revealStartShortcut: () => call<void>('reveal_start_shortcut'),
   setZoom: (kind: 'window' | 'fullscreen', percent: number) => call<void>('set_zoom', { kind, percent }),
   setAutostart: (on: boolean) => call<void>('set_autostart', { on }),
   autostartEnabled: () => call<boolean>('autostart_enabled'),

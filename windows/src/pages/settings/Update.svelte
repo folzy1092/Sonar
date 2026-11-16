@@ -12,6 +12,8 @@
   import { updater } from '../../lib/updater.svelte'
   import { agoText, sizeText } from '../../lib/update-core'
   import { cascade } from '../../lib/cascade'
+  import { api } from '../../lib/api'
+  import { toast } from '../../lib/toast.svelte'
 
   let now = $state(Date.now())
   onMount(() => {
@@ -35,6 +37,22 @@
   const dateText = (d: string) => {
     const t = Date.parse(d)
     return Number.isNaN(t) ? d : new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+  }
+
+  async function addToStart() {
+    try {
+      toast.show((await api.addToStartMenu()) ? 'Sonar добавлен в меню «Пуск»' : 'Sonar уже есть в меню «Пуск»')
+    } catch (e) {
+      toast.show(String(e))
+    }
+  }
+  async function pinToTaskbar() {
+    try {
+      await api.revealStartShortcut()
+      toast.show('ПКМ по Sonar → «Закрепить на панели задач» (в Windows 11 — «Показать дополнительные параметры»)')
+    } catch (e) {
+      toast.show(String(e))
+    }
   }
 </script>
 
@@ -78,6 +96,17 @@
     </ul>
   </Group>
 {/if}
+
+<Group title="Быстрый доступ">
+  <p class="pin-hint">
+    Windows не даёт программе закрепить себя тихо, поэтому панель задач — в два клика: покажем ярлык, останется нажать
+    «Закрепить».
+  </p>
+  <div class="pins">
+    <button class="btn" onclick={addToStart}><Icon name="grid" size={16} /> Добавить в меню «Пуск»</button>
+    <button class="btn" onclick={pinToTaskbar}><Icon name="layoutBottom" size={16} /> Закрепить на панели задач</button>
+  </div>
+</Group>
 
 <Group title="Проверка">
   <Switch
@@ -129,6 +158,17 @@
 </Group>
 
 <style>
+  .pin-hint {
+    margin: 0 0 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-3);
+  }
+  .pins {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
   .card {
     position: relative;
     display: flex;
