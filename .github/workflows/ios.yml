@@ -1,10 +1,16 @@
 name: iOS
 
 # Сборка iPhone-клиента (Mac у владельца нет — только здесь): XcodeGen → тесты на симуляторе →
-# `xcodebuild archive` без подписи → Payload/Sonar.app → Sonar.ipa (артефакт запуска).
+# `xcodebuild archive` без подписи → Payload/Sonar.app → Sonar.ipa.
 # Подписывает IPA пользователь своей парой (P12 + mobileprovision): ESign / Feather, а потом само
 # приложение при автообновлении (порт ShadowSelfUpdate, SPEC §4.6).
-# Релиз `ios-build-<N>` + `updates/update.json` — следующим шагом (docs/IOS_PROMPT.md, этап «Релизы»).
+#
+# Каждая сборка из main — релиз `ios-build-<N>` (N = число коммитов = CFBundleVersion) с `Sonar.ipa`,
+# и тот же файл — в служебном релизе `ios-latest`, постоянная ссылка на свежую сборку:
+#   https://github.com/folzy1092/Sonar/releases/download/ios-latest/Sonar.ipa
+# Оба релиза НЕ помечаются Latest: Latest занят Windows (releases/latest/download/Sonar-setup.exe).
+# Объявляет обновление человек — правкой updates/ios-update.json (как «рубильник» в Shadow). Для
+# удобства ручной запуск с `announce: true` после сборки сам вписывает в него новую сборку.
 on:
   push:
     branches: [main]
@@ -12,17 +18,28 @@ on:
       - 'ios/**'
       - '.github/workflows/ios.yml'
   workflow_dispatch:
+    inputs:
+      announce:
+        description: 'Объявить эту сборку в updates/ios-update.json (телефоны предложат обновиться)'
+        type: boolean
+        default: false
+      title:
+        description: 'Заголовок обновления (необязательно)'
+        type: string
+        default: ''
 
 concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
     runs-on: macos-15
+    env:
+      GH_TOKEN: ${{ github.token }}
     defaults:
       run:
         working-directory: ios
@@ -39,9 +56,12 @@ jobs:
       - name: XcodeGen
         run: |
           brew install xcodegen
-          # номер сборки — число коммитов (SPEC §5)
+          # номер сборки — число коммитов (SPEC §5), версия Г.О.Ф — MARKETING_VERSION из project.yml
           BUILD=$(git rev-list --count HEAD)
+          VERSION=$(sed -n 's/^ *MARKETING_VERSION: *"\{0,1\}\([0-9.]*\)"\{0,1\}.*/\1/p' project.yml | head -1)
           echo "BUILD=$BUILD" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Sonar $VERSION ($BUILD)"
           xcodegen generate
 
       - name: Тесты
@@ -64,3 +84,58 @@ jobs:
         with:
           name: Sonar-ios-${{ env.BUILD }}
           path: ios/build/Sonar.ipa
+
+      - name: Релиз ios-build-${{ env.BUILD }}
+        if: github.ref == 'refs/heads/main'
+        run: |
+          TAG="ios-build-$BUILD"
+          # заметки — коммиты ios/ с прошлой iOS-сборки
+          PREV=$(git tag -l 'ios-build-*' --sort=-v:refname | grep -vx "$TAG" | head -1)
+          RANGE=${PREV:+$PREV..}HEAD
+          git log --no-merges --format='- %s' $RANGE -- . ../.github/workflows/ios.yml | head -40 > ../notes.md
+          [ -s ../notes.md ] || echo "- Сборка $BUILD" > ../notes.md
+          { echo "Sonar $VERSION ($BUILD) для iPhone. Ставится через ESign / Feather своей парой P12 + mobileprovision;"
+            echo "дальше Sonar обновляется сам (Профиль → Автообновление)."
+            echo; cat ../notes.md; } > ../release.md
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # перезапуск того же коммита — просто заменить файл
+            gh release upload "$TAG" build/Sonar.ipa --clobber
+          else
+            gh release create "$TAG" build/Sonar.ipa --target "$GITHUB_SHA" \
+              --title "Sonar $VERSION ($BUILD) для iPhone" --notes-file ../release.md --latest=false
+          fi
+          # постоянная ссылка на самую свежую IPA
+          gh release view ios-latest > /dev/null 2>&1 || \
+            gh release create ios-latest --target "$GITHUB_SHA" --latest=false \
+              --title "Sonar для iPhone — последняя сборка" \
+              --notes "Служебный релиз: здесь всегда самая свежая Sonar.ipa из main. Все сборки — релизы ios-build-*."
+          gh release upload ios-latest build/Sonar.ipa --clobber
+          gh release edit ios-latest --latest=false \
+            --notes "Служебный релиз: здесь всегда Sonar.ipa последней сборки — сейчас $VERSION ($BUILD), ios-build-$BUILD. Все сборки — релизы ios-build-*."
+
+      - name: Объявить обновление
+        if: github.ref == 'refs/heads/main' && inputs.announce
+        env:
+          TITLE: ${{ inputs.title }}
+        run: |
+          cd ..
+          git config user.name "Folzy"
+          git config user.email "87141318+folzy1092@users.noreply.github.com"
+          python3 - <<'PY'
+          import json, os
+          path = 'updates/ios-update.json'
+          data = json.load(open(path, encoding='utf-8'))
+          build, version = int(os.environ['BUILD']), os.environ['VERSION']
+          base = 'https://github.com/folzy1092/Sonar/releases'
+          data.update(enabled=True, build=build, version=version,
+                      ipa_url=f'{base}/download/ios-build-{build}/Sonar.ipa',
+                      url=f'{base}/tag/ios-build-{build}')
+          if os.environ.get('TITLE'):
+              data['title'] = os.environ['TITLE']
+          with open(path, 'w', encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+              f.write('\n')
+          PY
+          git add updates/ios-update.json
+          git commit -m "updates: iOS — объявлена сборка $VERSION ($BUILD) [skip ci]"
+          for i in 1 2 3 4; do git pull --rebase -q origin main && git push origin HEAD:main && break; sleep $((i * 5)); done
