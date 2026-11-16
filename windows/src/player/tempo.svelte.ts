@@ -33,6 +33,7 @@ interface Saved {
   linked: boolean
   keep: boolean
   reverb: number
+  reverbOn: boolean
 }
 
 class Tempo {
@@ -41,12 +42,18 @@ class Tempo {
   pitch = $state(0)
   linked = $state(true)
   keep = $state(true)
-  /** 0…1 */
-  reverb = $state(0)
+  /** Сила реверба 0…1 — запоминается и при выключенном реверберации. */
+  reverb = $state(0.35)
+  /** Переключатель «Реверберация». */
+  reverbOn = $state(false)
+  /** Что звучит: выключен — 0. */
+  wet = $derived(this.reverbOn ? this.reverb : 0)
 
   /** Тон, который звучит: связан — от скорости, иначе свой. */
   semitones = $derived(this.linked ? linkedSemitones(this.rate) : this.pitch)
-  badge = $derived(badge(this.rate, this.linked ? 0 : this.pitch, this.reverb))
+  badge = $derived(badge(this.rate, this.linked ? 0 : this.pitch, this.reverbOn ? this.reverb : 0))
+  /** Что-то настроено — кнопка в плеере подсвечена. */
+  active = $derived(this.rate !== 1 || (!this.linked && this.pitch !== 0) || this.reverbOn)
 
   private lastRef: string | null = null
   private timer: ReturnType<typeof setTimeout> | null = null
@@ -62,7 +69,9 @@ class Tempo {
         if (typeof s.pitch === 'number') this.pitch = clampPitch(s.pitch)
         if (typeof s.linked === 'boolean') this.linked = s.linked
         if (typeof s.keep === 'boolean') this.keep = s.keep
-        if (typeof s.reverb === 'number') this.reverb = Math.min(1, Math.max(0, s.reverb))
+        if (typeof s.reverb === 'number' && s.reverb > 0) this.reverb = Math.min(1, s.reverb)
+        if (typeof s.reverbOn === 'boolean') this.reverbOn = s.reverbOn
+        else if (typeof s.reverb === 'number') this.reverbOn = s.reverb > 0
       } else if (legacy === 'slowed' || legacy === 'speed') {
         // старая кнопка по кругу: Slowed 0.8× / Sped up 1.25×
         this.rate = legacy === 'slowed' ? 0.8 : 1.25
@@ -77,8 +86,16 @@ class Tempo {
     this.save()
   }
 
+  /** Тон. Связан со скоростью — двигается скорость (как у пластинки): −2 пт ≈ ×0.89. */
   setPitch(v: number) {
-    this.pitch = clampPitch(v)
+    if (this.linked) {
+      const next = clampRate(pitchRatio(clampPitch(v)))
+      // шаг питча 0.1 st мельче шага скорости 0.01 — сдвигаем скорость хотя бы на 0.01 в ту же сторону
+      const dir = Math.sign(v - this.semitones)
+      this.rate = next === this.rate && dir !== 0 ? clampRate(this.rate + dir * 0.01) : next
+    } else {
+      this.pitch = clampPitch(v)
+    }
     this.save()
   }
 
@@ -99,11 +116,17 @@ class Tempo {
     this.save()
   }
 
+  setReverbOn(on: boolean) {
+    this.reverbOn = on
+    if (on && this.reverb <= 0) this.reverb = 0.35
+    this.save()
+  }
+
   /** Всё как было: 1×, без сдвига и реверба. */
   reset() {
     this.rate = 1
     this.pitch = 0
-    this.reverb = 0
+    this.reverbOn = false
     this.save()
   }
 
@@ -122,7 +145,7 @@ class Tempo {
   private save() {
     if (this.timer) clearTimeout(this.timer)
     this.timer = setTimeout(() => {
-      const s: Saved = { rate: this.rate, pitch: this.pitch, linked: this.linked, keep: this.keep, reverb: this.reverb }
+      const s: Saved = { rate: this.rate, pitch: this.pitch, linked: this.linked, keep: this.keep, reverb: this.reverb, reverbOn: this.reverbOn }
       void api.setSetting('player.tempo', s).catch(() => {})
     }, 250)
   }
