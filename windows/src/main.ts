@@ -10,6 +10,11 @@ import { player } from './player/player.svelte'
 import { router } from './app/router.svelte'
 import { lyrics } from './lyrics/lyrics.svelte'
 import { settings } from './lib/settings.svelte'
+import { catchErrors } from './lib/errors'
+import { isTauri } from './lib/tauri'
+
+// ошибки интерфейса — в журнал сессии (после сбоя при следующем запуске предложим отправить лог)
+if (isTauri) catchErrors()
 
 const app = mount(App, {
   target: document.getElementById('app')!,

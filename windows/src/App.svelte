@@ -16,6 +16,7 @@
   import TrackMenu from './app/TrackMenu.svelte'
   import Toast from './app/Toast.svelte'
   import UpdatePopup from './app/UpdatePopup.svelte'
+  import CrashNotice from './app/CrashNotice.svelte'
   import { updater } from './lib/updater.svelte'
   import { library } from './lib/library.svelte'
   import { onMount } from 'svelte'
@@ -145,6 +146,7 @@
 
 <TrackMenu />
 <UpdatePopup />
+<CrashNotice />
 <Toast />
 
 <style>

@@ -198,8 +198,21 @@ function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
 /** Текст ошибки из Rust (строка) или из JS (Error). */
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
+/** Отчёт прошлого запуска (crashlog.rs): было падение или ошибки. */
+export interface CrashReport {
+  crashed: boolean
+  errors: number
+  last: string
+}
+export type ReportSent = { kind: 'telegram' } | { kind: 'saved'; path: string }
+
 export const api = {
   servicesStatus: () => call<ServicesStatus>('services_status'),
+  reportPending: () => call<CrashReport | null>('report_pending'),
+  reportSend: () => call<ReportSent>('report_send'),
+  reportDismiss: () => call<void>('report_dismiss'),
+  logFrontend: (level: 'error' | 'warn', message: string) => call<void>('log_frontend', { level, message }),
+  syncNow: () => call<{ pushed: number; pulled: number; plays: number }>('sync_now'),
   connectSoundcloud: (clientId: string, oauthToken: string | null) =>
     call<ServiceStatus>('connect_soundcloud', { clientId, oauthToken }),
   connectYandex: (token: string) => call<ServiceStatus>('connect_yandex', { token }),

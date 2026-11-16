@@ -1,4 +1,5 @@
 mod commands;
+mod crashlog;
 mod discord;
 mod login;
 mod lyrics;
@@ -31,6 +32,10 @@ pub fn run() {
     .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(tauri_plugin_process::init())
     .setup(|app| {
+      // журнал ошибок сессии и отчёт после сбоя (в отладке логгер ставит tauri-plugin-log)
+      if let Ok(dir) = app.path().app_log_dir() {
+        crashlog::init(&dir, !cfg!(debug_assertions));
+      }
       if cfg!(debug_assertions) {
         app.handle().plugin(
           tauri_plugin_log::Builder::default()
@@ -107,6 +112,10 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       commands::services_status,
       commands::sync_now,
+      commands::report_pending,
+      commands::report_send,
+      commands::report_dismiss,
+      commands::log_frontend,
       commands::connect_soundcloud,
       commands::connect_yandex,
       commands::obs_status,
