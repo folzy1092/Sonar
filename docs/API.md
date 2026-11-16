@@ -190,6 +190,7 @@
 |---|---|---|
 | GET | `/sync/pull?since=<rev>` | `{rev, changes: [{type, key, value\|null, rev}]}` |
 | POST | `/sync/push` | `{ops: [{op_id, type, key, value\|null, client_ts}]}` → `{rev, applied: [op_id]}` |
+| — | тип `wave_event` | события журнала волны едут в `sync/push` / `sync/pull` без `features_json` (WAVE.md §3а); профили тегов не синхронизируются — считаются из событий |
 | GET | `/sync/snapshot` | полный снимок: лайки, плейлисты, настройки, состояние плеера |
 | POST | `/sync/replace` | полный снимок с клиента → `{rev}` |
 
