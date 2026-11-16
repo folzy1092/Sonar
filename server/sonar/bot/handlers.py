@@ -373,11 +373,95 @@ async def cmd_emoji_pack(msg: Message, ctx: Ctx):
         cid = kv_get(ctx.accounts.con, f"pack:{k}")
         if cid:
             lines.append(f'<tg-emoji emoji-id="{cid}">{e}</tg-emoji> <code>{k}</code> — <code>{cid}</code>')
+    await swap_badges(ctx, msg.from_user.id, name)
+    lines = [f'<tg-emoji emoji-id="{kv_get(ctx.accounts.con, f"pack:{k}")}">{e}</tg-emoji> <code>{k}</code> — '
+             f'<code>{kv_get(ctx.accounts.con, f"pack:{k}")}</code>' for k, e in todo if kv_get(ctx.accounts.con, f"pack:{k}")]
     lines += await copy_picked(ctx, msg.from_user.id, name)
+    removed = await drop_unused(ctx, [name, f"sonar_logos_by_{ctx.bot_username}"])
+    if removed:
+        lines.append(f"Убрано дублей: {removed}")
     text = f"Паки: https://t.me/addemoji/{name} · https://t.me/addemoji/sonar_logos_by_{ctx.bot_username}\n\n"
     for i in range(0, len(lines), 40):  # 4096 знаков на сообщение
         await msg.answer((text if i == 0 else "") + "\n".join(lines[i:i + 40]), parse_mode="HTML",
                          link_preview_options={"is_disabled": True})
+
+
+# Нарисованные кодом значки заменены готовыми одноцветными из других паков (решение владельца 2026-11-15):
+# ключ → исходный custom_emoji_id (tgiosicons, ATechnologyEmoji, developeremojis, vector_icons_by_fStikBot).
+BADGE_SRC = {"windows": "5406785190490027556", "iphone": "5775870512127283512", "android": "5415685659807470630",
+             "music": "5938473438468378529", "diamond": "6037083366438737901", "heart": "5938368005611195877",
+             "bug": "5452051336881271172", "wave": "6044117517847236354"}
+
+
+async def swap_badges(ctx: Ctx, owner_id: int, name: str) -> None:
+    from aiogram.types import InputSticker
+    from ..db import kv_get, kv_set
+    con = ctx.accounts.con
+    for k, src in BADGE_SRC.items():
+        if kv_get(con, f"packbadge:{k}") == src:
+            continue
+        old_id = kv_get(con, f"pack:{k}")
+        pack = await ctx.bot.get_sticker_set(name)
+        old = next((s for s in pack.stickers if s.custom_emoji_id == old_id), None)
+        copy = kv_get(con, f"packsrc:{src}")
+        if copy and copy != "?":          # такой эмодзи уже скопирован — просто ссылаемся на него
+            if old:
+                await ctx.bot.delete_sticker_from_set(sticker=old.file_id)
+            new_id = copy
+        else:
+            st = (await ctx.bot.get_custom_emoji_stickers(custom_emoji_ids=[src]))[0]
+            fmt = "video" if st.is_video else "animated" if st.is_animated else "static"
+            inp = InputSticker(sticker=st.file_id, format=fmt, emoji_list=[st.emoji or "⭐"])
+            if old:
+                pos = [s.custom_emoji_id for s in pack.stickers].index(old_id)
+                await ctx.bot.replace_sticker_in_set(user_id=owner_id, name=name, old_sticker=old.file_id, sticker=inp)
+                new_id = (await ctx.bot.get_sticker_set(name)).stickers[pos].custom_emoji_id
+            else:
+                await ctx.bot.add_sticker_to_set(user_id=owner_id, name=name, sticker=inp)
+                new_id = (await ctx.bot.get_sticker_set(name)).stickers[-1].custom_emoji_id
+            kv_set(con, f"packsrc:{src}", new_id)
+        kv_set(con, f"pack:{k}", new_id)
+        kv_set(con, f"packbadge:{k}", src)
+
+
+async def patient(call, **kw):
+    """Вызов Bot API с ожиданием при флуд-контроле: Telegram сам говорит, сколько ждать (лимит не поднять)."""
+    from aiogram.exceptions import TelegramRetryAfter
+    for _ in range(10):
+        try:
+            return await call(**kw)
+        except TelegramRetryAfter as e:
+            await asyncio.sleep(e.retry_after + 1)
+    return await call(**kw)
+
+
+async def own_ids(ctx: Ctx, names: list[str]) -> set[str]:
+    out: set[str] = set()
+    for n in names:
+        try:
+            out |= {st.custom_emoji_id for st in (await ctx.bot.get_sticker_set(n)).stickers}
+        except TelegramBadRequest:
+            pass
+    return out
+
+
+async def drop_unused(ctx: Ctx, names: list[str]) -> int:
+    """Убирает из своих паков то, на что не ссылается ни таблица emoji.py, ни свои значки (дубли)."""
+    from .emoji import EMOJI
+    con = ctx.accounts.con
+    used = {cid for _, cid in EMOJI.values() if cid}
+    used |= {r["value"] for r in con.execute("SELECT value FROM kv WHERE key LIKE 'pack:%'")}
+    n = 0
+    for name in names:
+        try:
+            pack = await ctx.bot.get_sticker_set(name)
+        except TelegramBadRequest:
+            continue
+        for st in pack.stickers:
+            if st.custom_emoji_id not in used:
+                await patient(ctx.bot.delete_sticker_from_set, sticker=st.file_id)
+                n += 1
+    return n
 
 
 async def copy_picked(ctx: Ctx, owner_id: int, icons_set: str) -> list[str]:
@@ -394,15 +478,16 @@ async def copy_picked(ctx: Ctx, owner_id: int, icons_set: str) -> list[str]:
     for key, (_, cid) in EMOJI.items():
         if cid and not key.startswith("badge_") and key != "logo_sonar":
             src.setdefault(cid, []).append(key)
-    todo = [cid for cid in src if not kv_get(con, f"packsrc:{cid}")]
     logos = f"sonar_logos_by_{ctx.bot_username}"
+    ours = await own_ids(ctx, [icons_set, logos])
+    todo = [cid for cid in src if cid not in ours and not kv_get(con, f"packsrc:{cid}")]
     for i in range(0, len(todo), 200):
         for st in await ctx.bot.get_custom_emoji_stickers(custom_emoji_ids=todo[i:i + 200]):
             fmt = "video" if st.is_video else "animated" if st.is_animated else "static"
             inp = InputSticker(sticker=st.file_id, format=fmt, emoji_list=[st.emoji or "⭐"])
             target = icons_set if st.needs_repainting else logos
             try:
-                await ctx.bot.add_sticker_to_set(user_id=owner_id, name=target, sticker=inp)
+                await patient(ctx.bot.add_sticker_to_set, user_id=owner_id, name=target, sticker=inp)
             except TelegramBadRequest as e:
                 if target == logos and "STICKERSET_INVALID" in str(e):
                     await ctx.bot.create_new_sticker_set(user_id=owner_id, name=logos, title="Sonar Logos", stickers=[inp],
@@ -414,7 +499,7 @@ async def copy_picked(ctx: Ctx, owner_id: int, icons_set: str) -> list[str]:
             kv_set(con, f"packsrc:{st.custom_emoji_id}", pack.stickers[-1].custom_emoji_id)
     out = []
     for cid, keys in src.items():
-        new = kv_get(con, f"packsrc:{cid}")
+        new = cid if cid in ours else kv_get(con, f"packsrc:{cid}")
         if new:
             out.append(f'<tg-emoji emoji-id="{new}">{EMOJI[keys[0]][0]}</tg-emoji> <code>{",".join(keys)}</code> — <code>{new}</code>')
     return out
