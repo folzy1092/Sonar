@@ -151,7 +151,7 @@
 <style>
   .menu {
     position: fixed;
-    z-index: 50;
+    z-index: 58; /* выше всплывашки обновления (55), ниже тостов (60) */
     padding: 6px;
     border-radius: var(--radius-l);
     background: rgba(18, 18, 21, 0.96);
