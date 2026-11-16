@@ -88,11 +88,13 @@
   <ArtBackdrop />
 
   <header data-tauri-drag-region>
-    <div></div>
-    <div class="center">
+    <!-- «чёлки» по углам, как у главного окна: слева — свернуть, справа — кнопки окна -->
+    <div class="notch left">
       <button class="collapse" aria-label="Свернуть" title="Свернуть" onclick={() => lyrics.close()}>
-        <Icon name="chevronDown" size={22} />
+        <Icon name="chevronDown" size={20} />
       </button>
+    </div>
+    <div class="center">
       {#if !withCover && track}
         <!-- «только текст»: сверху плашка с обложкой, названием и исполнителем -->
         <div class="pill" transition:fade={{ duration: 200 }}>
@@ -104,7 +106,7 @@
         </div>
       {/if}
     </div>
-    <div class="win"><WindowControls history={false} /></div>
+    <div class="win"><div class="notch right"><WindowControls history={false} /></div></div>
   </header>
 
   <div class="body" class:text={withText && withCover} class:only-text={!withCover}>
@@ -242,8 +244,56 @@
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: start;
-    padding: 8px 10px 0;
+    padding: 0;
     min-height: 52px;
+  }
+  /* чёлка: тёмная плашка в углу окна, нижний угол скруглён, а с соседними краями она сходится
+     вогнутыми скруглениями (как вырез в главном окне, lib/notch) */
+  .notch {
+    --nb: rgba(6, 6, 8, 0.78);
+    --r: 14px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 4px 6px;
+    background: var(--nb);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+  .notch.left {
+    justify-self: start;
+    border-bottom-right-radius: var(--r);
+  }
+  .notch.right {
+    border-bottom-left-radius: var(--r);
+  }
+  .notch::before,
+  .notch::after {
+    content: '';
+    position: absolute;
+    width: var(--r);
+    height: var(--r);
+    pointer-events: none;
+  }
+  .notch.left::before {
+    top: 0;
+    left: 100%;
+    background: radial-gradient(circle at 100% 100%, transparent calc(var(--r) - 0.5px), var(--nb) var(--r));
+  }
+  .notch.left::after {
+    top: 100%;
+    left: 0;
+    background: radial-gradient(circle at 100% 100%, transparent calc(var(--r) - 0.5px), var(--nb) var(--r));
+  }
+  .notch.right::before {
+    top: 0;
+    right: 100%;
+    background: radial-gradient(circle at 0 100%, transparent calc(var(--r) - 0.5px), var(--nb) var(--r));
+  }
+  .notch.right::after {
+    top: 100%;
+    right: 0;
+    background: radial-gradient(circle at 0 100%, transparent calc(var(--r) - 0.5px), var(--nb) var(--r));
   }
   .win {
     display: flex;
@@ -255,10 +305,9 @@
   .collapse {
     display: grid;
     place-items: center;
-    width: 44px;
-    height: 36px;
-    margin-top: 10px;
-    border-radius: 12px;
+    width: 34px;
+    height: 28px;
+    border-radius: 8px;
     color: rgba(255, 255, 255, 0.6);
     transition: color var(--fast) var(--ease);
   }

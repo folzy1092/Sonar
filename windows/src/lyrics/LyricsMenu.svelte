@@ -155,10 +155,15 @@
     width: 206px;
     padding: 8px;
     border-radius: 14px;
-    background: rgba(44, 44, 48, 0.82);
-    backdrop-filter: blur(28px) saturate(140%);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 18px 48px -12px rgba(0, 0, 0, 0.6);
+    /* матовое стекло (как у Dotify): почти прозрачное, фон и текст под ним размыты — над светлым
+       текстом стекло само становится светлее */
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)), rgba(28, 28, 32, 0.38);
+    backdrop-filter: blur(22px) saturate(160%) brightness(1.08);
+    -webkit-backdrop-filter: blur(22px) saturate(160%) brightness(1.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 18px 48px -12px rgba(0, 0, 0, 0.55);
     color: #fff;
     font-family: var(--font);
     transform-origin: top left;
