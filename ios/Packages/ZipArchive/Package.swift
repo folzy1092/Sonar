@@ -25,6 +25,8 @@ let package = Package(
                 .linkedFramework("Foundation"),
                 .linkedFramework("Security"),
                 .linkedLibrary("z"),
+                // minizip перекодирует имена файлов в zip (mz_os_posix.c)
+                .linkedLibrary("iconv"),
             ]
         ),
     ]
