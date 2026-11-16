@@ -6,6 +6,13 @@
   import { settingsPanel } from '../pages/settings-section.svelte'
   import { settings } from '../lib/settings.svelte'
   import { t } from '../lib/i18n.svelte'
+  import { floating } from '../lib/floating'
+
+  // «Плавающий» стиль: панель — капсула над окном, её тянут куда угодно (lib/floating); за неё окно
+  // не таскается. Лежит вдоль, если в «Позиции» выбрано сверху / снизу.
+  const float = $derived(settings.get('tabs.style') === 'floating')
+  const flat = $derived(float && ['top', 'bottom'].includes(settings.get('tabs.position')))
+  const drag = $derived(float ? undefined : true)
 
   // подписи — ключи перевода, t() — при выводе
   const middle: { page: Page; icon: NavIconName; label: string }[] = [
@@ -32,20 +39,20 @@
   </button>
 {/snippet}
 
-<nav class="rail" data-tauri-drag-region>
-  <div class="group" data-tauri-drag-region>
+<nav class="rail" class:float class:flat data-tauri-drag-region={drag} use:floating={{ on: float, key: 'tabs', grabButtons: true }}>
+  <div class="group" data-tauri-drag-region={drag}>
     <!-- за лого окно тоже таскается, как за пустое место панели -->
-    <span class="logo" role="img" aria-label="Sonar" data-tauri-drag-region><LogoMark size={30} /></span>
+    <span class="logo" role="img" aria-label="Sonar" data-tauri-drag-region={drag}><LogoMark size={30} /></span>
     {@render item('home', 'home', t('Главная'))}
   </div>
 
-  <div class="group" data-tauri-drag-region>
+  <div class="group" data-tauri-drag-region={drag}>
     {#each middle as m (m.page)}
       {@render item(m.page, m.icon, t(m.label))}
     {/each}
   </div>
 
-  <div class="group" data-tauri-drag-region>
+  <div class="group" data-tauri-drag-region={drag}>
     <button
       class="item"
       class:active={settingsPanel.open}
@@ -294,24 +301,39 @@
   :global(.shell.tstyle-round) .item.active {
     border-radius: 50%;
   }
-  /* плавающий — островок по размеру содержимого, парит над фоном */
-  :global(.shell.tstyle-floating) .rail {
-    align-self: center;
+  /* плавающий — капсула над окном, стоит где поставили (lib/floating, tabs.float_x / _y) */
+  .rail.float {
+    position: fixed;
+    z-index: 25;
     justify-content: center;
     gap: 22px;
     height: auto;
+    margin: 0;
     padding: 12px 0;
-    margin-top: 0;
+    cursor: grab;
+    touch-action: none;
     box-shadow:
       0 18px 40px oklch(0 0 0 / 0.35),
       var(--sheen);
   }
-  :global(.shell.tstyle-floating.tabs-top) .rail,
-  :global(.shell.tstyle-floating.tabs-bottom) .rail {
-    justify-self: center;
+  .rail.float:global(.dragging) {
+    cursor: grabbing;
+    transition: none;
+  }
+  .rail.float.flat {
+    flex-direction: row;
     width: auto;
+    height: calc(var(--rail-w) - var(--gap));
     padding: 0 14px;
-    gap: 22px;
+  }
+  .rail.float.flat .group {
+    flex-direction: row;
+  }
+  .rail.float.flat .logo {
+    margin: 0 8px 0 0;
+  }
+  .rail.float.flat .avatar {
+    margin: 0 0 0 8px;
   }
 
   /* подстраивать вкладки — цвет панели от страницы (подкраска обложки) */

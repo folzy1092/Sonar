@@ -208,7 +208,8 @@
 | Ключ | Значения | По умолчанию | Синк |
 |---|---|---|---|
 | `tabs.position` | `left` / `right` / `top` (полоса, кнопки окна на её конце) / `bottom` | `left` | да |
-| `tabs.style` | `default` / `compact` / `full` (во всю высоту, у края) / `round` / `floating` (островок) | `default` | да |
+| `tabs.style` | `default` / `compact` / `full` (во всю высоту, у края) / `round` / `floating` (капсула над окном, тянется куда угодно; вдоль — при позиции сверху / снизу) | `default` | да |
+| `tabs.float_x`, `tabs.float_y` | центр плавающей панели в долях окна | `0.045`, `0.5` | да |
 | `tabs.adapt` | bool — цвет панели от подкраски страницы | `false` | да |
 | `tabs.autohide` | bool — мышь замерла 3 с: панель и мини-плеер гаснут | `false` | да |
 
