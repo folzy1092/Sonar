@@ -5,7 +5,9 @@
 // листает сам ряд, а дойдя до края — страницу.
 // `{ wheel: true, trap: true }` — плитки настроек: пока курсор над рядом, страница не едет вовсе, даже
 // когда ряд долистан до края (решение владельца 2026-11-17).
-export function hscroll(node: HTMLElement, opts: { wheel?: boolean; trap?: boolean } = {}) {
+// `trap: 'scrollable'` — то же, но только если ряду есть куда листать (полки главной: короткий ряд
+// страницу не держит, решение владельца 2026-11-17).
+export function hscroll(node: HTMLElement, opts: { wheel?: boolean; trap?: boolean | 'scrollable' } = {}) {
   let target = node.scrollLeft
   let raf = 0
 
@@ -23,7 +25,7 @@ export function hscroll(node: HTMLElement, opts: { wheel?: boolean; trap?: boole
 
   const onWheel = (e: WheelEvent) => {
     if (e.ctrlKey || (!e.shiftKey && !opts.wheel) || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
-    if (opts.trap) e.preventDefault()
+    if (opts.trap === true || (opts.trap === 'scrollable' && max() > 1)) e.preventDefault()
     if (max() <= 1) return
     if (!raf) target = node.scrollLeft
     const dy = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY

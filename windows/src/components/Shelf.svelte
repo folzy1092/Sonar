@@ -15,8 +15,10 @@
     /** Ключ каскада появления (новые результаты — карточки въезжают заново). */
     key?: unknown
     label?: string
+    /** Колесо листает ряд вбок, и пока курсор над ним, страница стоит (главная). */
+    wheel?: boolean
   }
-  let { children, key, label }: Props = $props()
+  let { children, key, label, wheel = false }: Props = $props()
 
   let row: HTMLDivElement | undefined = $state()
   let left = $state(false)
@@ -30,7 +32,7 @@
 </script>
 
 <div class="shelf">
-  <div class="row" bind:this={row} aria-label={label} use:cascade={key} use:hscroll use:edges={(l, r) => ((left = l), (right = r))}>
+  <div class="row" bind:this={row} aria-label={label} use:cascade={key} use:hscroll={{ wheel, trap: wheel ? 'scrollable' : false }} use:edges={(l, r) => ((left = l), (right = r))}>
     {@render children()}
   </div>
   <button class="nav prev" class:on={left} aria-label={t('Назад')} tabindex="-1" onclick={() => go(-1)}>
