@@ -14,8 +14,15 @@ final class ChromeState {
 
     /// Откуда считаем путь пальца с последнего переключения.
     private var anchor: CGFloat = 0
+    /// Развернули кнопкой посреди списка — опору ставим там, где палец двинется дальше.
+    private var reanchor = false
 
     func scrolled(to offset: CGFloat) {
+        if reanchor {
+            reanchor = false
+            anchor = offset
+            return
+        }
         if offset <= 0 {
             collapsed = false
             anchor = 0
@@ -36,6 +43,13 @@ final class ChromeState {
 
     func expand() {
         collapsed = false
+        reanchor = true
+    }
+
+    /// Новая вкладка — панель развёрнута.
+    func select(_ tab: Tab) {
+        self.tab = tab
+        expand()
     }
 }
 

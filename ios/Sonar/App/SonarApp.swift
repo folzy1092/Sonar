@@ -9,6 +9,8 @@ struct SonarApp: App {
     @State private var checker = UpdateChecker.shared
     @State private var updater = SelfUpdater.shared
     @State private var signing = SigningModel()
+    @State private var engine = PlaybackEngine.shared
+    @State private var library = LibraryStore.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -19,11 +21,15 @@ struct SonarApp: App {
                 .environment(checker)
                 .environment(updater)
                 .environment(signing)
+                .environment(engine)
+                .environment(library)
                 .preferredColorScheme(.dark)
                 .tint(Theme.accent)
                 .task {
                     // при запуске и раз в 6 часов (update.auto_check)
                     checker.startAutomatic(settings: settings)
+                    await MusicCore.shared.configure(maxKbps: MusicCore.qualityKbps(settings.string("audio.quality")),
+                                                     soundCloudViaYandex: settings.bool("audio.sc_via_yandex"))
                 }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { checker.checkIfStale(settings: settings) }

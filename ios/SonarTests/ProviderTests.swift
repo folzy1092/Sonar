@@ -198,3 +198,25 @@ final class QueueTests: XCTestCase {
         XCTAssertEqual(RepeatMode.one.next, .off)
     }
 }
+
+/// «Авто похожие» — те же случаи, что `windows/src/player/autoplay.test.ts`.
+final class AutoplayTests: XCTestCase {
+    private func track(_ ref: String, available: Bool = true) -> Track {
+        Track(ref: ref, title: ref, artist: "a", artists: [], album: nil, durationMs: 1, coverURL: nil, url: nil,
+              explicit: false, available: available)
+    }
+
+    func testFreshSimilarAlternatesSeeds() {
+        let a = [track("s1"), track("q1"), track("s3"), track("s4", available: false)]
+        let b = [track("s1"), track("d1"), track("s5"), track("s6")]
+        let out = Autoplay.freshSimilar([a, b], inQueue: ["q1"], disliked: { $0 == "d1" }, limit: 3)
+        XCTAssertEqual(out.map(\.ref), ["s1", "s3", "s5"])
+    }
+
+    func testSeeds() {
+        let queue = [track("a"), track("b"), track("x"), track("y")]
+        XCTAssertEqual(Autoplay.seeds(queue, auto: ["x", "y"], random: { 0.99 }).map(\.ref), ["y", "b"])
+        XCTAssertEqual(Autoplay.seeds([track("a")], auto: []).map(\.ref), ["a"])
+        XCTAssertTrue(Autoplay.seeds([], auto: []).isEmpty)
+    }
+}

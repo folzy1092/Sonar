@@ -40,6 +40,11 @@ final class SettingsStore {
         "update.auto_check": .bool(true),
         "update.channel": .string("stable"),
         "appearance.animations": .bool(true),
+        // потолок качества Яндекса: low 192 · medium 256 · high 320 · lossless FLAC
+        "audio.quality": .string("lossless"),
+        "audio.sc_via_yandex": .bool(true),
+        // «Авто похожие» после очереди, как в SoundCloud
+        "general.similar_autoplay": .bool(true),
     ]
 
     private static let storageKey = "sonar.settings"
