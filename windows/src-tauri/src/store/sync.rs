@@ -31,6 +31,7 @@ const LOCAL_SETTINGS: &[&str] = &[
   "audio.eq",
   "player.speed_mode",
   "player.tempo",
+  "obs.token",
   "lyrics.view",
 ];
 const LOCAL_PREFIXES: &[&str] = &["system.", "update.", "storage.", "sync."];

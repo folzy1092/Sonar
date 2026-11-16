@@ -117,8 +117,67 @@ pub fn load_player_state(db: State<'_, Db>) -> Res<Option<Restored>> {
 }
 
 #[tauri::command]
-pub fn record_play(db: State<'_, Db>, play: Play) -> Res<()> {
-  db.0.lock().unwrap().add_play(&play).map_err(err)
+pub fn record_play(core: State<'_, Arc<Core>>, db: State<'_, Db>, play: Play) -> Res<()> {
+  let store = db.0.lock().unwrap();
+  store.add_play(&play).map_err(err)?;
+  // скроббл в Last.fm (если вошёл и не выключено) — карточка трека из кэша
+  let on = store.setting("integrations.lastfm.scrobble").ok().flatten().and_then(|v| v.as_bool()).unwrap_or(true);
+  if on && crate::lastfm::session().is_some() {
+    if let Some(t) = store.tracks(std::slice::from_ref(&play.ref_)).ok().and_then(|v| v.into_iter().next()) {
+      let s = crate::lastfm::Scrobble {
+        artist: t.artist.clone(),
+        title: t.title.clone(),
+        album: t.album.as_ref().map(|a| a.title.clone()),
+        duration_s: Some(t.duration_ms / 1000),
+        started_at: Some(play.played_at / 1000),
+      };
+      let http = core.http.clone();
+      tauri::async_runtime::spawn(async move { crate::lastfm::scrobble(&http, s).await });
+    }
+  }
+  Ok(())
+}
+
+/// «Сейчас играет» в Last.fm — один раз на трек, когда он заиграл.
+fn now_playing_lastfm(core: &Core, db: &Db, info: &MediaInfo) {
+  static LAST: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+  if !info.active || !info.playing || crate::lastfm::session().is_none() {
+    return;
+  }
+  let r = info.track_ref.clone();
+  {
+    let mut last = LAST.lock().unwrap();
+    if r.is_none() || *last == r {
+      return;
+    }
+    *last = r;
+  }
+  let on = db.0.lock().unwrap().setting("integrations.lastfm.now_playing").ok().flatten().and_then(|v| v.as_bool()).unwrap_or(true);
+  let (Some(title), Some(artist)) = (info.title.clone(), info.artist.clone()) else { return };
+  if !on {
+    return;
+  }
+  let s = crate::lastfm::Scrobble { artist, title, album: info.album.clone(), duration_s: info.duration_ms.map(|d| d / 1000), started_at: None };
+  let http = core.http.clone();
+  tauri::async_runtime::spawn(async move { crate::lastfm::now_playing(&http, s).await });
+}
+
+/// Last.fm: вошёл ли и есть ли ключ в сборке.
+#[tauri::command]
+pub fn lastfm_status() -> crate::lastfm::Status {
+  crate::lastfm::status()
+}
+
+/// Last.fm в один клик: окно «Разрешить доступ», дальше сессия в keyring.
+#[tauri::command]
+pub async fn lastfm_login(app: tauri::AppHandle, core: State<'_, Arc<Core>>) -> Res<crate::lastfm::Status> {
+  crate::lastfm::login(app, core.http.clone()).await.map_err(err)
+}
+
+#[tauri::command]
+pub fn lastfm_logout() -> Res<crate::lastfm::Status> {
+  crate::lastfm::logout().map_err(err)?;
+  Ok(crate::lastfm::status())
 }
 
 #[tauri::command]
@@ -143,7 +202,17 @@ pub fn set_setting(
     "integrations.discord.enabled" => flag(&discord.enabled),
     "integrations.discord.cover" => flag(&discord.cover),
     "integrations.discord.progress" => flag(&discord.progress),
+    "integrations.discord.artist_photo" => flag(&discord.artist_photo),
+    "integrations.discord.show_paused" => flag(&discord.show_paused),
+    "integrations.discord.button_listen" => flag(&discord.button_listen),
+    "integrations.discord.button_download" => flag(&discord.button_download),
+    "integrations.discord.status_format" => {
+      let i = crate::discord::FORMATS.iter().position(|f| Some(*f) == value.as_str()).unwrap_or(0);
+      discord.format.store(i as u8, Ordering::Relaxed);
+      discord.refresh();
+    }
     "system.tray" => crate::tray::HIDE_ON_CLOSE.store(value.as_bool().unwrap_or(true), Ordering::Relaxed),
+    "obs.token" => *obs.token.write().unwrap() = value.as_str().unwrap_or_default().to_owned(),
     "obs.size" => *obs.size.write().unwrap() = value.as_str().unwrap_or("standard").to_owned(),
     "obs.hide_paused" => obs.hide_paused.store(value.as_bool().unwrap_or(true), Ordering::Relaxed),
     _ => {}
@@ -313,7 +382,15 @@ pub fn reorder_playlist(db: State<'_, Db>, id: String, item_ids: Vec<String>) ->
 }
 
 #[tauri::command]
-pub fn media_update(media: State<'_, Media>, discord: State<'_, Arc<crate::discord::Discord>>, obs: State<'_, Arc<crate::obs::Obs>>, info: MediaInfo) {
+pub fn media_update(
+  core: State<'_, Arc<Core>>,
+  db: State<'_, Db>,
+  media: State<'_, Media>,
+  discord: State<'_, Arc<crate::discord::Discord>>,
+  obs: State<'_, Arc<crate::obs::Obs>>,
+  info: MediaInfo,
+) {
+  now_playing_lastfm(&core, &db, &info);
   media::update(&media, &info);
   discord.update(&info);
   obs.update(&info);
@@ -323,8 +400,26 @@ pub fn media_update(media: State<'_, Media>, discord: State<'_, Arc<crate::disco
 #[tauri::command]
 pub fn obs_status(obs: State<'_, Arc<crate::obs::Obs>>) -> serde_json::Value {
   serde_json::json!({
-    "url": format!("http://127.0.0.1:{}/obs", crate::obs::PORT),
+    "url": obs.url(),
     "ok": !obs.failed.load(Ordering::Relaxed),
+  })
+}
+
+/// Новый токен плашки OBS: старая ссылка перестаёт работать (засветил на стриме — сбросил).
+#[tauri::command]
+pub fn obs_new_token(obs: State<'_, Arc<crate::obs::Obs>>, db: State<'_, Db>) -> Res<serde_json::Value> {
+  let t = crate::obs::new_token();
+  db.0.lock().unwrap().set_setting("obs.token", &serde_json::json!(t)).map_err(err)?;
+  *obs.token.write().unwrap() = t;
+  Ok(serde_json::json!({ "url": obs.url(), "ok": !obs.failed.load(Ordering::Relaxed) }))
+}
+
+/// Видит ли Sonar запущенный Discord (для «Ожидание Discord…» в настройках).
+#[tauri::command]
+pub fn discord_status(discord: State<'_, Arc<crate::discord::Discord>>) -> serde_json::Value {
+  serde_json::json!({
+    "enabled": discord.enabled.load(Ordering::Relaxed),
+    "connected": discord.connected.load(Ordering::Relaxed),
   })
 }
 

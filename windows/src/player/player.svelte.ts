@@ -519,6 +519,8 @@ class Player {
         t
           ? {
               active: true,
+              track_ref: t.ref,
+              artist_avatar: t.artists?.[0]?.avatar_url ?? null,
               title: t.title,
               artist: t.artist,
               album: t.album?.title,

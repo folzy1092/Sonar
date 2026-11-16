@@ -251,7 +251,7 @@
 
       async function poll() {
         try {
-          const r = await fetch('/obs/now', { cache: 'no-store' })
+          const r = await fetch('/obs/now' + location.search, { cache: 'no-store' })
           state = await r.json()
           at = performance.now()
           show(state)

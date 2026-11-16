@@ -179,7 +179,18 @@ export interface StorageUsage {
   db_bytes: number
 }
 
+/** Last.fm (lastfm.rs): `available` — ключ приложения есть в сборке. */
+export interface LastfmStatus {
+  available: boolean
+  name: string | null
+  avatar_url: string | null
+}
+
 export interface MediaInfo {
+  /** ref трека — кнопка «Слушать в Sonar» в Discord, «Сейчас играет» в Last.fm. */
+  track_ref?: string
+  /** Фото главного артиста — мини-значок в Discord. */
+  artist_avatar?: string | null
   title?: string
   artist?: string
   album?: string
@@ -233,6 +244,11 @@ export const api = {
   /** Вход в один клик: окно входа сервиса, ключи Sonar забирает сам. */
   /** Плашка OBS: адрес источника «Браузер» и работает ли сервер плашки. */
   obsStatus: () => call<{ url: string; ok: boolean }>('obs_status'),
+  obsNewToken: () => call<{ url: string; ok: boolean }>('obs_new_token'),
+  discordStatus: () => call<{ enabled: boolean; connected: boolean }>('discord_status'),
+  lastfmStatus: () => call<LastfmStatus>('lastfm_status'),
+  lastfmLogin: () => call<LastfmStatus>('lastfm_login'),
+  lastfmLogout: () => call<LastfmStatus>('lastfm_logout'),
   loginService: (service: 'soundcloud' | 'yandex') => call<ServiceStatus>('login_service', { service }),
   disconnectService: (service: 'soundcloud' | 'yandex') => call<void>('disconnect_service', { service }),
 
