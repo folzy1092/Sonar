@@ -7,7 +7,7 @@ import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { isTauri } from './tauri'
 import { settings } from './settings.svelte'
-import { compareVersions, noteLines, parseChangelog, type ChangelogEntry } from './update-core'
+import { compareVersions, isBeta, noteLines, parseChangelog, type ChangelogEntry } from './update-core'
 
 export type UpdatePhase = 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'installing' | 'error'
 
@@ -157,6 +157,8 @@ async function find(): Promise<Found | null> {
   if (isTauri) {
     const u = await check({ timeout: 20_000 })
     if (!u) return null
+    // бета приходит только тем, кто выбрал канал «Бета»; стабильному — ничего не предлагаем
+    if (isBeta(u.version) && settings.get('update.channel') !== 'beta') return null
     return { raw: u, version: u.version, date: u.date ?? '', notes: noteLines(u.body) }
   }
   // Превью интерфейса в браузере (npm run dev): показываем пример, чтобы видеть все состояния.
