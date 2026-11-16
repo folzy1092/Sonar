@@ -19,6 +19,8 @@ export const DEFAULTS = {
   'general.restore': 'queue' as 'none' | 'track' | 'queue',
   'general.similar_autoplay': true,
   'general.add_position': 'start' as 'start' | 'end',
+  /** Тема: тёмная / светлая / как в системе (меняется на лету). */
+  'appearance.mode': 'dark' as 'dark' | 'light' | 'system',
   'appearance.cover_theme': true,
   'appearance.preset': 'neutral' as string,
   'appearance.animations': true,

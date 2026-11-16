@@ -8,10 +8,10 @@
   import Icon from './Icon.svelte'
   import NavIcon from './NavIcon.svelte'
 
-  let { axes, accent, play = 0 }: { axes: StyleAxes; accent: RGB | null; play?: number } = $props()
+  let { axes, accent, play = 0, light = false }: { axes: StyleAxes; accent: RGB | null; play?: number; light?: boolean } = $props()
 
   const vars = $derived.by(() => {
-    const t = themeFrom(accent, axes.surface)
+    const t = themeFrom(accent, axes.surface, light)
     const tune = DISPLAY_TUNING[axes.font_display] ?? {}
     const v: Record<string, string> = {
       ...t.vars,

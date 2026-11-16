@@ -235,6 +235,19 @@ export const SURFACE_DECOR: Record<Surface, Record<string, string>> = {
 /** Все переменные особенностей — чтобы при смене поверхности снимать прошлые. */
 export const DECOR_VARS = ['--card-line', '--mini-bg', '--sheen', '--key', '--key-down', '--key-shift', '--well', '--cover-glow', '--mono-glow']
 
+/**
+ * Светлая тема (Интерфейс → Вид → Тема): те же поверхности, светлые формулы — фон ≈ .97–.985,
+ * поверхности темнее фона, текст .18 / .40 / .52, акцент темнее (≥ 3:1 к поверхности), текст на
+ * акценте — светлый. Особенности поверхностей (рамки, блики, выпуклость) — те же.
+ */
+export const SURFACES_LIGHT: Record<Surface, SurfaceFormula> = {
+  echo: { bgL: 0.975, bgC: 0.1, bgMax: 0.012, sL: [0.955, 0.93, 0.905], sC: 0.12, sMax: 0.016, bdL: 0.86, bdC: 0.15, bdMax: 0.02, txL: 0.18, t2L: 0.4, t3L: 0.52, accL: 0.55, accMax: 0.18, softA: 0.16 },
+  signal: { bgL: 0.965, bgC: 0.2, bgMax: 0.03, sL: [0.945, 0.915, 0.885], sC: 0.22, sMax: 0.032, bdL: 0.86, bdC: 0.25, bdMax: 0.035, txL: 0.18, t2L: 0.4, t3L: 0.52, accL: 0.55, accMax: 0.19, softA: 0.14 },
+  edge: { bgL: 0.985, bgC: 0.08, bgMax: 0.01, sL: [0.965, 0.94, 0.91], sC: 0.1, sMax: 0.012, bdL: 0.82, bdC: 0.15, bdMax: 0.02, txL: 0.17, t2L: 0.4, t3L: 0.52, accL: 0.55, accMax: 0.19, softA: 0.14 },
+  tactile: { bgL: 0.955, bgC: 0.08, bgMax: 0.01, sL: [0.935, 0.91, 0.88], sC: 0.1, sMax: 0.012, bdL: 0.84, bdC: 0.1, bdMax: 0.014, txL: 0.18, t2L: 0.4, t3L: 0.5, accL: 0.54, accMax: 0.18, softA: 0.22 },
+  monolith: { bgL: 0.985, bgC: 0, bgMax: 0, sL: [0.965, 0.94, 0.91], sC: 0, sMax: 0, bdL: 0.88, bdC: 0, bdMax: 0, txL: 0.16, t2L: 0.42, t3L: 0.52, accL: 0.54, accMax: 0.19, softA: 0.14, grayText: true },
+}
+
 /** Ниже этой насыщенности обложка считается монохромной. */
 export const MONO_C = 0.03
 
@@ -253,8 +266,8 @@ export interface ThemeTokens {
 }
 
 /** Токены темы: исходный цвет (обложка / готовая тема / null — монохром) × формулы поверхности. */
-export function themeFrom(src: RGB | null, surface: Surface = 'echo'): ThemeTokens {
-  const k = SURFACES[surface]
+export function themeFrom(src: RGB | null, surface: Surface = 'echo', light = false): ThemeTokens {
+  const k = (light ? SURFACES_LIGHT : SURFACES)[surface]
   const base = src ? rgbToOklch(src) : { l: 0, c: 0, h: 0 }
   const mono = base.c < MONO_C
   const c = mono ? 0 : base.c
@@ -272,10 +285,10 @@ export function themeFrom(src: RGB | null, surface: Surface = 'echo'): ThemeToke
     text: ok(k.txL, gray ? 0 : cc(0.03, 0.008)),
     t2: ok(k.t2L, gray ? 0 : cc(0.06, 0.014)),
     t3: ok(k.t3L, gray ? 0 : cc(0.08, 0.018)),
-    accent: mono ? ok(0.95, 0) : ok(k.accL, Math.min(c, k.accMax)),
-    ink: mono ? ok(0.16, 0) : gray ? ok(0.12, 0) : ok(0.18, cc(0.35, 0.05)),
+    accent: mono ? ok(light ? 0.22 : 0.95, 0) : ok(k.accL, Math.min(c, k.accMax)),
+    ink: light ? ok(0.985, mono || gray ? 0 : cc(0.03, 0.008)) : mono ? ok(0.16, 0) : gray ? ok(0.12, 0) : ok(0.18, cc(0.35, 0.05)),
     // дорожка прогресса: у Сигнала своя, насыщенная; у остальных — поверхность 3
-    track: surface === 'signal' ? ok(0.42, cc(0.4, 0.06)) : ok(k.sL[2], cc(k.sC, k.sMax)),
+    track: surface === 'signal' ? ok(light ? 0.82 : 0.42, cc(0.4, 0.06)) : ok(k.sL[2], cc(k.sC, k.sMax)),
   }
   const s = (x: Lch, a = 1) => oklch(x, a)
   const vars: Record<string, string> = {
@@ -291,12 +304,12 @@ export function themeFrom(src: RGB | null, surface: Surface = 'echo'): ThemeToke
     '--text-3': s(lch.t3),
     '--accent': s(lch.accent),
     '--accent-ink': s(lch.ink),
-    '--accent-soft': mono ? 'oklch(0.95 0 0 / 0.12)' : s(lch.accent, k.softA),
+    '--accent-soft': mono ? (light ? 'oklch(0.2 0 0 / 0.08)' : 'oklch(0.95 0 0 / 0.12)') : s(lch.accent, k.softA),
     // подкраска верха страницы; у Монолита поверхности серые — цвет обложки только в свечении и прогрессе
-    '--tint': s(ok(0.2, gray ? 0 : cc(0.6, 0.09))),
+    '--tint': s(ok(light ? 0.93 : 0.2, gray ? 0 : cc(light ? 0.3 : 0.6, light ? 0.04 : 0.09))),
     '--track': s(lch.track),
     // свечение за обложкой (поверхность и смена трека «Монолит»)
-    '--glow': mono ? 'oklch(0.7 0 0 / 0.25)' : s(ok(0.62, Math.min(c, 0.2)), 0.55),
+    '--glow': mono ? 'oklch(0.7 0 0 / 0.25)' : s(ok(light ? 0.7 : 0.62, Math.min(c, 0.2)), light ? 0.45 : 0.55),
     ...SURFACE_DECOR[surface],
   }
   return { lch, mono, vars, accent: oklchToRgb(lch.accent), bg: oklchToRgb(lch.bg), ink: oklchToRgb(lch.ink) }

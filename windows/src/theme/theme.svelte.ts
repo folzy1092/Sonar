@@ -81,14 +81,19 @@ class Theme {
   init() {
     if (this.started) return
     this.started = true
+    if (typeof matchMedia === 'function') {
+      const mq = matchMedia('(prefers-color-scheme: light)')
+      mq.addEventListener('change', (e) => (this.systemLight = e.matches))
+    }
     void settings.load()
     $effect.root(() => {
       $effect(() => {
         const on = settings.get('appearance.cover_theme')
         const preset = settings.get('appearance.preset')
         const surface = settings.get('appearance.surface')
+        const light = this.light
         const url = on ? (player.current?.cover_url ?? null) : null
-        void this.apply(on, url, preset, surface)
+        void this.apply(on, url, preset, surface, light)
       })
       $effect(() => {
         setAnimations(settings.get('appearance.animations'))
@@ -209,19 +214,31 @@ class Theme {
     settings.set('appearance.cover_theme', false)
   }
 
-  private async apply(cover: boolean, url: string | null, preset: string, surface: Surface) {
+  /** Системная тема светлая (для «Как в системе»), следим на лету. */
+  private systemLight = $state(typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: light)').matches)
+
+  /** Светлая ли сейчас тема (Интерфейс → Вид → Тема). */
+  get light() {
+    const mode = settings.get('appearance.mode')
+    return mode === 'light' || (mode === 'system' && this.systemLight)
+  }
+
+  private async apply(cover: boolean, url: string | null, preset: string, surface: Surface, light: boolean) {
     const my = ++this.seq
     const p = PRESETS.find((x) => x.id === preset) ?? PRESETS[0]
     const c = cover ? (url ? await colorOf(url) : null) : p.accent
     if (my !== this.seq) return
     if (cover) this.accent = c
     const root = document.documentElement
-    root.classList.toggle('amoled', !cover && !!p.black)
+    // AMOLED — чистый чёрный, в светлой теме его нет
+    root.classList.toggle('amoled', !cover && !!p.black && !light)
+    root.classList.toggle('light', light)
+    root.style.colorScheme = light ? 'light' : 'dark'
     const st = root.style
     const SHADE = ['--bg', '--surface-0', '--surface-1', '--surface-2', '--surface-3']
     // все цвета — по формулам OKLCH выбранной поверхности (palette.ts): обложка или готовая тема
     // дают оттенок, серая — монохром
-    const t = themeFrom(c, surface in SURFACE_IDS ? surface : 'monolith')
+    const t = themeFrom(c, surface in SURFACE_IDS ? surface : 'monolith', light)
     root.dataset.surface = surface
     for (const k of DECOR_VARS) if (!(k in t.vars)) st.removeProperty(k)
     // AMOLED — свой чистый чёрный фон и поверхности (tokens.css), их не трогаем

@@ -24,7 +24,7 @@
   /** Образец темы: два кружка — фон и акцент (как в Dotify). */
   function swatch(c: RGB | null, black = false): [string, string] {
     if (!c) return ['#f5f5f6', black ? '#000' : '#26262b']
-    const t = themeFrom(c)
+    const t = themeFrom(c, settings.get('appearance.surface'), theme.light)
     return [css(t.accent), css(t.bg)]
   }
 
@@ -65,12 +65,13 @@
   title="Тема"
   hint="Выберите цветовую схему интерфейса"
   icons
-  value="dark"
+  value={settings.get('appearance.mode')}
   options={[
-    { id: 'dark', label: 'Тёмная', icon: 'moon' },
-    { id: 'light', label: 'Светлая', icon: 'sun', soon: true },
-    { id: 'system', label: 'Как в системе', icon: 'monitor', soon: true },
+    { id: 'dark' as const, label: 'Тёмная', icon: 'moon' },
+    { id: 'light' as const, label: 'Светлая', icon: 'sun' },
+    { id: 'system' as const, label: 'Как в системе', icon: 'monitor' },
   ]}
+  onchange={(v) => settings.set('appearance.mode', v)}
 />
 
 <p class="caption">Готовые темы</p>
