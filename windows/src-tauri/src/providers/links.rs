@@ -14,7 +14,8 @@ pub enum Link {
   SoundCloud(String),
 }
 
-/// Похоже ли на ссылку (строка поиска сама решает, искать или открыть).
+/// Похоже ли на ссылку (то же решает строка поиска в api.ts `looksLikeLink`; здесь — для тестов).
+#[cfg(test)]
 pub fn looks_like_link(s: &str) -> bool {
   let s = s.trim();
   !s.contains(char::is_whitespace) && (s.starts_with("http://") || s.starts_with("https://") || s.contains("soundcloud.com/") || s.contains("music.yandex."))

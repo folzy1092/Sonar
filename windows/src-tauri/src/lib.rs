@@ -1,6 +1,7 @@
 mod commands;
 mod crashlog;
 mod discord;
+mod lastfm;
 mod login;
 mod lyrics;
 mod media;
@@ -85,12 +86,31 @@ pub fn run() {
       rpc.enabled.store(flag("integrations.discord.enabled"), std::sync::atomic::Ordering::Relaxed);
       rpc.cover.store(flag("integrations.discord.cover"), std::sync::atomic::Ordering::Relaxed);
       rpc.progress.store(flag("integrations.discord.progress"), std::sync::atomic::Ordering::Relaxed);
+      rpc.artist_photo.store(flag("integrations.discord.artist_photo"), std::sync::atomic::Ordering::Relaxed);
+      rpc.button_listen.store(flag("integrations.discord.button_listen"), std::sync::atomic::Ordering::Relaxed);
+      rpc.button_download.store(flag("integrations.discord.button_download"), std::sync::atomic::Ordering::Relaxed);
+      let off = |k: &str| db.setting(k).ok().flatten().and_then(|v| v.as_bool()).unwrap_or(false);
+      rpc.show_paused.store(off("integrations.discord.show_paused"), std::sync::atomic::Ordering::Relaxed);
+      if let Some(f) = db.setting("integrations.discord.status_format").ok().flatten() {
+        let i = discord::FORMATS.iter().position(|x| Some(*x) == f.as_str()).unwrap_or(0);
+        rpc.format.store(i as u8, std::sync::atomic::Ordering::Relaxed);
+      }
       app.manage(rpc);
 
       // плашка для OBS на постоянном адресе 127.0.0.1:53119/obs
+      // токен плашки OBS: создаётся один раз и хранится в настройках устройства
+      let obs_token = match db.setting("obs.token").ok().flatten().and_then(|v| v.as_str().map(str::to_owned)) {
+        Some(t) => t,
+        None => {
+          let t = obs::new_token();
+          let _ = db.set_setting("obs.token", &serde_json::json!(t));
+          t
+        }
+      };
       let obs = obs::Obs::new(
         db.setting("obs.size").ok().flatten().and_then(|v| v.as_str().map(str::to_owned)),
         flag("obs.hide_paused"),
+        obs_token,
       );
       tauri::async_runtime::spawn(obs::start(obs.clone()));
       app.manage(obs);
@@ -112,6 +132,11 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       commands::services_status,
       commands::sync_now,
+      commands::obs_new_token,
+      commands::lastfm_status,
+      commands::lastfm_login,
+      commands::lastfm_logout,
+      commands::discord_status,
       commands::resolve_link,
       commands::report_pending,
       commands::report_send,

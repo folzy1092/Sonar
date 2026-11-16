@@ -14,6 +14,7 @@
   "devDependencies": {
     "@iconify-json/circle-flags": "^1.2.14",
     "@iconify-json/mingcute": "^1.2.10",
+    "@iconify-json/simple-icons": "^1.2.102",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tauri-apps/cli": "^2.12.4",
     "@tsconfig/svelte": "^5.0.8",

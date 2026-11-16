@@ -7,7 +7,7 @@
 use crate::media::MediaInfo;
 use axum::{
   body::Body,
-  extract::State,
+  extract::{Query, State},
   http::{header, HeaderValue, Response},
   routing::get,
   Router,
@@ -16,6 +16,11 @@ use serde_json::json;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
+
+/// Случайный токен плашки (32 знака) — без него `/obs` и `/obs/now` отвечают 403.
+pub fn new_token() -> String {
+  crate::store::new_id("obs").trim_start_matches("obs_").to_lowercase()
+}
 
 pub const PORT: u16 = 53119;
 const PAGE: &str = include_str!("obs.html");
@@ -26,16 +31,33 @@ pub struct Obs {
   pub hide_paused: AtomicBool,
   /// Порт занят другой программой — плашка недоступна (показываем в настройках).
   pub failed: AtomicBool,
+  /// Токен в адресе: страницу и данные видит только тот, у кого ссылка (`obs.token`).
+  pub token: RwLock<String>,
 }
 
 impl Obs {
-  pub fn new(size: Option<String>, hide_paused: bool) -> Arc<Self> {
+  pub fn new(size: Option<String>, hide_paused: bool, token: String) -> Arc<Self> {
     Arc::new(Self {
+      token: RwLock::new(token),
       info: RwLock::new(None),
       size: RwLock::new(size.unwrap_or_else(|| "standard".into())),
       hide_paused: AtomicBool::new(hide_paused),
       failed: AtomicBool::new(false),
     })
+  }
+
+  /// Адрес для источника «Браузер» в OBS — с токеном. Токена нет (удалён) — пусто: плашка выключена.
+  pub fn url(&self) -> String {
+    let t = self.token.read().unwrap();
+    if t.is_empty() {
+      return String::new();
+    }
+    format!("http://127.0.0.1:{PORT}/obs?token={t}")
+  }
+
+  fn allowed(&self, q: &TokenQuery) -> bool {
+    let t = self.token.read().unwrap();
+    !t.is_empty() && q.token.as_deref() == Some(t.as_str())
   }
 
   pub fn update(&self, info: &MediaInfo) {
@@ -79,11 +101,28 @@ fn with_type(body: impl Into<Body>, ty: &'static str) -> Response<Body> {
   r
 }
 
-async fn page() -> Response<Body> {
+#[derive(serde::Deserialize)]
+struct TokenQuery {
+  token: Option<String>,
+}
+
+fn forbidden() -> Response<Body> {
+  let mut r = with_type("Нужна ссылка с токеном из Sonar → Настройки → Интеграции", "text/plain; charset=utf-8");
+  *r.status_mut() = axum::http::StatusCode::FORBIDDEN;
+  r
+}
+
+async fn page(State(obs): State<Arc<Obs>>, Query(q): Query<TokenQuery>) -> Response<Body> {
+  if !obs.allowed(&q) {
+    return forbidden();
+  }
   with_type(PAGE, "text/html; charset=utf-8")
 }
 
-async fn now(State(obs): State<Arc<Obs>>) -> Response<Body> {
+async fn now(State(obs): State<Arc<Obs>>, Query(q): Query<TokenQuery>) -> Response<Body> {
+  if !obs.allowed(&q) {
+    return forbidden();
+  }
   with_type(obs.now().to_string(), "application/json")
 }
 

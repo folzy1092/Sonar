@@ -1,23 +1,37 @@
 <script lang="ts">
-  // Интеграции → Приложения по pc/Screenshot_14, 15: Discord RPC, плашка OBS (Sonar сам отдаёт её на
-  // 127.0.0.1:53119/obs — obs.rs), Last.fm — с сервером («Скоро»). ID приложения Discord пользователь не вводит: он вшит в сборку, потом
-  // приходит с сервера (`GET /config`).
+  // Интеграции → Приложения (переделано по референсу владельца 2026-11-16): у каждой группы — знак
+  // сервиса. Discord: состояние (подключён / ожидание Discord), главный переключатель, параметры
+  // отображения вместе с кнопками профиля «Слушать в Sonar» и «Скачать Sonar». Last.fm — вход в
+  // один клик (lastfm.rs), карточка с аватаром и крестиком. OBS — ссылка с токеном: скопировать,
+  // новая ссылка, выключить плашку.
   import Icon from '../../components/Icon.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Choice from '../../components/settings/Choice.svelte'
+  import Select from '../../components/settings/Select.svelte'
   import Group from '../../components/settings/Group.svelte'
-  import Soon from '../../components/settings/Soon.svelte'
   import { settings } from '../../lib/settings.svelte'
-  import { api } from '../../lib/api'
+  import { api, errorText, type LastfmStatus } from '../../lib/api'
   import { toast } from '../../lib/toast.svelte'
+  import { isTauri } from '../../lib/tauri'
   import { onMount } from 'svelte'
 
-  const OBS_FALLBACK = 'http://127.0.0.1:53119/obs'
-  let obs = $state<{ url: string; ok: boolean }>({ url: OBS_FALLBACK, ok: true })
+  let obs = $state<{ url: string; ok: boolean }>({ url: '', ok: true })
   let copied = $state(false)
+  let discord = $state<{ enabled: boolean; connected: boolean } | null>(null)
+  let lastfm = $state<LastfmStatus | null>(null)
+  let lfBusy = $state(false)
+  let tokenSpin = $state(0)
+
+  const discordOn = $derived(settings.get('integrations.discord.enabled'))
 
   onMount(() => {
     api.obsStatus().then((s) => (obs = s)).catch(() => {})
+    api.lastfmStatus().then((s) => (lastfm = s)).catch(() => {})
+    // состояние Discord — раз в 2 с, пока открыт раздел (Discord могут запустить прямо сейчас)
+    const poll = () => api.discordStatus().then((s) => (discord = s)).catch(() => {})
+    void poll()
+    const t = setInterval(poll, 2000)
+    return () => clearInterval(t)
   })
 
   async function copyObs() {
@@ -29,50 +43,125 @@
       toast.show(obs.url)
     }
   }
+
+  async function newToken() {
+    tokenSpin++
+    try {
+      obs = await api.obsNewToken()
+      toast.show('Новая ссылка — старая больше не работает')
+    } catch (e) {
+      toast.show(errorText(e))
+    }
+  }
+
+  function dropToken() {
+    settings.set('obs.token', '')
+    obs = { ...obs, url: '' }
+    toast.show('Плашка выключена — нажми ↻, чтобы получить новую ссылку')
+  }
+
+  async function lastfmLogin() {
+    lfBusy = true
+    try {
+      lastfm = await api.lastfmLogin()
+      toast.show(`Last.fm подключён: ${lastfm.name}`)
+    } catch (e) {
+      toast.show(errorText(e))
+    } finally {
+      lfBusy = false
+    }
+  }
+
+  async function lastfmLogout() {
+    try {
+      lastfm = await api.lastfmLogout()
+    } catch (e) {
+      toast.show(errorText(e))
+    }
+  }
 </script>
 
-<Group title="Discord RPC">
-  <Switch
-    title="Активность в Discord"
-    hint="Показывать в Discord, что вы слушаете"
-    on={settings.get('integrations.discord.enabled')}
-    onchange={(v) => settings.set('integrations.discord.enabled', v)}
-  />
-  <Switch
-    title="Кастомная обложка"
-    hint="Отображать оригинальную обложку трека в статусе"
-    on={settings.get('integrations.discord.cover')}
-    onchange={(v) => settings.set('integrations.discord.cover', v)}
-  />
-  <Switch
-    title="Прогресс воспроизведения"
-    hint="Показывать оставшееся время прослушивания трека"
-    on={settings.get('integrations.discord.progress')}
-    onchange={(v) => settings.set('integrations.discord.progress', v)}
-  />
-</Group>
+{#snippet discordIcon()}<span class="brand discord"><Icon name="discord" size={18} filled /></span>{/snippet}
+{#snippet lastfmIcon()}<span class="brand lastfm"><Icon name="brandLastfm" size={18} stroke={2.2} /></span>{/snippet}
+{#snippet obsIcon()}<span class="brand obs"><Icon name="obs" size={18} /></span>{/snippet}
 
-<Group title="Last.fm">
-  <div class="account">
-    <span class="av"><Icon name="brandLastfm" size={26} /></span>
-    <b>Подключить Last.fm <Soon /></b>
-    <small>Вход появится вместе с сервером Sonar</small>
+<Group title="Discord RPC" icon={discordIcon}>
+  <div class="state" class:on={discord?.connected && discordOn} class:wait={discordOn && !discord?.connected}>
+    <span class="dot"></span>
+    <div>
+      <b>
+        {#if !discordOn}Выключено{:else if discord?.connected}Discord подключён{:else}Ожидание Discord…{/if}
+      </b>
+      <small>
+        {#if !discordOn}Включи активность, чтобы друзья видели, что ты слушаешь{:else if discord?.connected}Статус «Слушает» обновляется вместе с треком{:else}Запусти Discord на этом компьютере — Sonar подключится сам{/if}
+      </small>
+    </div>
   </div>
-  <Switch title="История прослушиваний" hint="Сохранять прослушанные треки" on={true} soon />
-  <Switch title="Сейчас играет" hint="Показывать текущий трек в профиле" on={true} soon />
+  <Switch title="Активность в Discord" hint="Показывать в профиле, что ты слушаешь" on={discordOn} onchange={(v) => settings.set('integrations.discord.enabled', v)} />
 </Group>
 
-<Group title="OBS Studio">
-  <div class="link selectable">{obs.url}</div>
+<div class="sub" class:dim={!discordOn}>
+  <Group title="Параметры отображения">
+    <div class="card">
+      <Select
+        title="Формат статуса"
+        hint="Что видно в заголовке «Слушает …»"
+        value={settings.get('integrations.discord.status_format')}
+        options={[
+          { id: 'artist', label: 'Исполнитель (по умолчанию)' },
+          { id: 'title', label: 'Название трека' },
+          { id: 'artist_title', label: 'Исполнитель — Трек' },
+          { id: 'title_artist', label: 'Трек — Исполнитель' },
+          { id: 'app', label: 'Sonar' },
+        ]}
+        onchange={(v) => settings.set('integrations.discord.status_format', v)}
+      />
+      <Switch title="Шкала времени трека" hint="Прошедшее и оставшееся время" on={settings.get('integrations.discord.progress')} onchange={(v) => settings.set('integrations.discord.progress', v)} />
+      <Switch title="Обложка трека" hint="Обложка альбома в карточке активности" on={settings.get('integrations.discord.cover')} onchange={(v) => settings.set('integrations.discord.cover', v)} />
+      <Switch title="Мини-фото артиста" hint="Маленький значок в углу обложки" on={settings.get('integrations.discord.artist_photo')} onchange={(v) => settings.set('integrations.discord.artist_photo', v)} />
+      <Switch title="Показывать при паузе" hint="Статус остаётся со значком паузы" on={settings.get('integrations.discord.show_paused')} onchange={(v) => settings.set('integrations.discord.show_paused', v)} />
+      <Switch title="Кнопка «Слушать в Sonar»" hint="Ссылка на этот трек в Sonar" on={settings.get('integrations.discord.button_listen')} onchange={(v) => settings.set('integrations.discord.button_listen', v)} />
+      <Switch title="Кнопка «Скачать Sonar»" hint="Ссылка на последнюю версию приложения" on={settings.get('integrations.discord.button_download')} onchange={(v) => settings.set('integrations.discord.button_download', v)} />
+    </div>
+  </Group>
+</div>
+
+<Group title="Last.fm" icon={lastfmIcon}>
+  {#if lastfm?.name}
+    <div class="account">
+      <button class="x" aria-label="Отключить Last.fm" title="Отключить" onclick={lastfmLogout}><Icon name="x" size={16} /></button>
+      <span class="av">{#if lastfm.avatar_url}<img src={lastfm.avatar_url} alt="" />{:else}{lastfm.name.slice(0, 1).toUpperCase()}{/if}</span>
+      <b>{lastfm.name}</b>
+    </div>
+    <Switch title="История прослушиваний" hint="Скробблить прослушанные треки" on={settings.get('integrations.lastfm.scrobble')} onchange={(v) => settings.set('integrations.lastfm.scrobble', v)} />
+    <Switch title="Сейчас играет" hint="Показывать текущий трек в профиле" on={settings.get('integrations.lastfm.now_playing')} onchange={(v) => settings.set('integrations.lastfm.now_playing', v)} />
+  {:else}
+    <button class="connect" disabled={lfBusy || !isTauri} onclick={lastfmLogin}>
+      <span class="lf-big"><Icon name="brandLastfm" size={40} stroke={2.2} /></span>
+      <b>{lfBusy ? 'Жду подтверждения в окне Last.fm…' : 'Войти через Last.fm'}</b>
+      <small>{lastfm && !lastfm.available ? 'Появится в ближайшем обновлении' : 'Подключи в один клик — история и «сейчас играет» в твоём профиле'}</small>
+    </button>
+  {/if}
+</Group>
+
+<Group title="OBS Studio" icon={obsIcon}>
+  {#if obs.url}
+    <div class="link selectable">{obs.url}</div>
+  {:else}
+    <div class="link off">Плашка выключена — нажми ↻, чтобы получить ссылку</div>
+  {/if}
   {#if !obs.ok}
     <p class="warn">Порт 53119 занят другой программой — закрой её и перезапусти Sonar.</p>
   {/if}
   <div class="tools">
-    <button class="copy" class:done={copied} onclick={copyObs}>
-      {#key copied}<span class="swap"><Icon name={copied ? 'check' : 'copy'} size={15} /> {copied ? 'Скопировано' : 'Скопировать'}</span>{/key}
+    <button class="copy" class:done={copied} disabled={!obs.url} onclick={copyObs}>
+      {#key copied}<span class="swap">{copied ? 'Скопировано' : 'Скопировать'} <Icon name={copied ? 'check' : 'copy'} size={15} /></span>{/key}
     </button>
-    <button class="sq" aria-label="Открыть в браузере" title="Посмотреть плашку в браузере" onclick={() => api.openUrl(obs.url).catch(() => toast.show(obs.url))}>
-      <Icon name="share" size={15} />
+    <button class="sq" aria-label="Новая ссылка" title="Новая ссылка (старая перестанет работать)" onclick={newToken}>
+      <span class="spin" style:rotate="{tokenSpin * 360}deg"><Icon name="refresh" size={15} /></span>
+    </button>
+    <button class="sq" aria-label="Выключить плашку" title="Выключить плашку" disabled={!obs.url} onclick={dropToken}>
+      <Icon name="trash" size={15} />
     </button>
   </div>
   <Choice
@@ -103,6 +192,143 @@
 </Group>
 
 <style>
+  .brand {
+    display: grid;
+    place-items: center;
+  }
+  .brand.discord {
+    color: #5865f2;
+  }
+  .brand.lastfm,
+  .lf-big {
+    color: #d51007;
+  }
+  .brand.obs {
+    color: var(--text-2);
+  }
+  .state {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 4px 0 6px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: var(--plate);
+    border: 1px solid var(--border);
+    transition: border-color var(--normal) var(--ease);
+  }
+  .state div {
+    display: grid;
+  }
+  .state b {
+    font-size: calc(13px * var(--fs, 1));
+  }
+  .state small {
+    font-size: calc(12px * var(--fs, 1));
+    color: var(--text-3);
+  }
+  .dot {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-3);
+    transition: background var(--normal) var(--ease);
+  }
+  .state.on {
+    border-color: color-mix(in srgb, var(--online) 35%, transparent);
+  }
+  .state.on .dot {
+    background: var(--online);
+    box-shadow: 0 0 10px var(--online);
+  }
+  .state.wait .dot {
+    background: #f5b942;
+    animation: wait 1.4s ease-in-out infinite;
+  }
+  @keyframes wait {
+    50% {
+      opacity: 0.3;
+      scale: 0.7;
+    }
+  }
+  .sub {
+    transition: opacity var(--normal) var(--ease);
+  }
+  .sub.dim {
+    opacity: 0.45;
+  }
+  .card {
+    padding: 4px 14px;
+    border-radius: 16px;
+    background: var(--plate);
+    border: 1px solid var(--border);
+  }
+  .account {
+    position: relative;
+  }
+  .account .x {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    color: var(--text-2);
+    transition:
+      color var(--fast) var(--ease),
+      background var(--fast) var(--ease);
+  }
+  .account .x:hover {
+    color: var(--text);
+    background: var(--hover);
+  }
+  .av img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .connect {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 26px 16px 22px;
+    border-radius: 16px;
+    background: var(--plate);
+    border: 1px solid var(--border);
+    text-align: center;
+    transition:
+      background var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .connect:hover:not(:disabled) {
+    background: var(--hover);
+  }
+  .connect:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .connect b {
+    font-size: calc(15px * var(--fs, 1));
+  }
+  .connect small {
+    max-width: 280px;
+    font-size: calc(12px * var(--fs, 1));
+    color: var(--text-3);
+  }
+  .link.off {
+    color: var(--text-3);
+    font-style: italic;
+  }
+  .spin {
+    display: grid;
+    transition: rotate 0.6s var(--ease);
+  }
   .account {
     display: flex;
     flex-direction: column;
@@ -126,10 +352,6 @@
   }
   .account b {
     font-size: calc(14px * var(--fs, 1));
-  }
-  .account small {
-    font-size: calc(12px * var(--fs, 1));
-    color: var(--text-3);
   }
   .link {
     padding: 11px 14px;

@@ -48,6 +48,12 @@ pub struct MediaInfo {
   pub position_ms: Option<u64>,
   /// false — ничего не играет (плашка скрывается).
   pub active: bool,
+  /// ref трека (`sc:…` / `ym:…`) — для кнопки «Слушать в Sonar» в Discord.
+  #[serde(default)]
+  pub track_ref: Option<String>,
+  /// Фото главного артиста — мини-значок в углу обложки в Discord.
+  #[serde(default)]
+  pub artist_avatar: Option<String>,
 }
 
 pub fn update(media: &Media, info: &MediaInfo) {

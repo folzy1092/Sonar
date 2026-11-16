@@ -1,4 +1,5 @@
 // Генератор src/components/mingcute.ts: тела SVG MingCute (Apache-2.0, тот же набор, что у Dotify)
+// и знаки брендов из Simple Icons (CC0)
 // для общих иконок интерфейса. Контур — `-line`, заливка (`filled`) — `-fill`.
 // Запуск: node scripts/gen-icons.mjs (после правки MAP).
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -27,8 +28,12 @@ const MAP = {
   layoutRight: 'layout-right', layoutFloat: 'layout-6', grid: 'layout-grid', circle: 'round', square: 'square',
   photo: 'pic', vinyl: 'disc', maximize: 'fullscreen-2', line: 'minimize', bars: 'chart-bar',
   waveform: 'audio-waveform', cloudUp: 'upload-2', cloudDown: 'download-3', compress: 'fullscreen-exit',
-  stack: 'layers', hash: 'hashtag', layout: 'layout', discord: 'discord', user2: 'user-2', login: 'entrance',
+  stack: 'layers', hash: 'hashtag', layout: 'layout', user2: 'user-2', login: 'entrance',
 }
+
+/** Знаки брендов — Simple Icons (CC0), одна заливка: и контур, и `filled` одинаковые. */
+const brands = JSON.parse(readFileSync(require.resolve('@iconify-json/simple-icons/icons.json'), 'utf8'))
+const BRANDS = { brandLastfm: 'lastdotfm', obs: 'obsstudio', discord: 'discord' }
 
 const body = (n) => {
   const icon = set.icons[n] ?? set.icons[set.aliases?.[n]?.parent]
@@ -39,6 +44,10 @@ const body = (n) => {
 const lines = Object.entries(MAP).map(
   ([k, v]) => `  ${k}: { line: ${JSON.stringify(body(`${v}-line`))}, fill: ${JSON.stringify(body(`${v}-fill`))} },`,
 )
+for (const [k, v] of Object.entries(BRANDS)) {
+  const b = JSON.stringify(brands.icons[v].body)
+  lines.push(`  ${k}: { line: ${b}, fill: ${b} },`)
+}
 writeFileSync(
   new URL('../src/components/mingcute.ts', import.meta.url),
   `// Сгенерировано scripts/gen-icons.mjs из @iconify-json/mingcute (Apache-2.0). Руками не править.\n` +

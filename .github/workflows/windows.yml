@@ -43,6 +43,9 @@ jobs:
       SONAR_REPORT_BOT_TOKEN: ${{ secrets.SONAR_REPORT_BOT_TOKEN }}
       SONAR_REPORT_CHAT: ${{ secrets.SONAR_REPORT_CHAT }}
       SONAR_REPORT_THREAD: ${{ secrets.SONAR_REPORT_THREAD }}
+      # Last.fm (lastfm.rs): ключ и секрет приложения с last.fm/api/account/create; нет — вход «появится позже»
+      SONAR_LASTFM_KEY: ${{ secrets.SONAR_LASTFM_KEY }}
+      SONAR_LASTFM_SECRET: ${{ secrets.SONAR_LASTFM_SECRET }}
     steps:
       - uses: actions/checkout@v5
         with:

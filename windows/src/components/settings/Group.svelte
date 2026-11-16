@@ -1,11 +1,11 @@
 <script lang="ts">
   // Заголовок группы с линией (pc/Screenshot_16 «Медиатека», «Запуск»), справа — необязательное действие.
   import type { Snippet } from 'svelte'
-  let { title, children, action }: { title: string; children: Snippet; action?: Snippet } = $props()
+  let { title, children, action, icon }: { title: string; children: Snippet; action?: Snippet; icon?: Snippet } = $props()
 </script>
 
 <section>
-  <h4><span>{title}</span><i></i>{#if action}{@render action()}{/if}</h4>
+  <h4>{#if icon}<span class="ic">{@render icon()}</span>{/if}<span>{title}</span><i></i>{#if action}{@render action()}{/if}</h4>
   {@render children()}
 </section>
 
@@ -23,6 +23,11 @@
     margin: 0 0 6px;
     font-size: calc(15px * var(--fs, 1));
     font-weight: 700;
+  }
+  .ic {
+    display: grid;
+    place-items: center;
+    margin-right: -4px;
   }
   i {
     flex: 1;
