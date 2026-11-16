@@ -25,9 +25,14 @@
 - **Интеграции:** Discord по шагам (статус подключения, формат статуса, кнопки «Слушать в Sonar» /
   «Скачать Sonar»), Last.fm в один клик (`lastfm.rs`), OBS по ссылке с токеном.
 
+- **Позже в тот же день:** NetEase (`lyrics/netease.rs`), аннотации Genius (`genius.rs` `annotations`,
+  `lyrics/core/annotations.ts`, свиток в `LyricsView`), окно в оттенке обложки (`palette.ts` `base`/`surfaces`),
+  своя папка медиатеки (`NavIcon.svelte`), ползунки и столбцы, мини-окно сверху по центру,
+  `docs/DESIGN_PROMPT.md` для Claude Design, Android = iOS в `PLATFORMS.md`.
+
 ## 2. Ждёт владельца (секреты CI, окружение `default`)
 
-- `SONAR_REPORT_BOT_TOKEN`, `SONAR_REPORT_CHAT`, `SONAR_REPORT_THREAD` — отдельный бот отчётов
+- (добавлены владельцем 2026-11-16) `SONAR_REPORT_BOT_TOKEN`, `SONAR_REPORT_CHAT`, `SONAR_REPORT_THREAD` — отдельный бот отчётов
   (не @SonarMusicApp), админ лог-группы, тема «Sonar ошибки». Без них «Отправить лог» кладёт файл в «Загрузки».
 - `SONAR_LASTFM_KEY`, `SONAR_LASTFM_SECRET` — last.fm/api/account/create. Без них «Войти через Last.fm» —
   «появится в обновлении».
