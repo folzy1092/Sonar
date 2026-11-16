@@ -1,9 +1,10 @@
 //! Тексты песен на устройстве (SPEC §3.7б, docs/LYRICS.md): lrclib → упрощённый запрос →
-//! Genius. Порт `selfbot/code/lyrics.py` + Genius-часть `ai_lyrics.py`, те же шаги и имена
+//! NetEase (пословный YRC) → Genius. Порт `selfbot/code/lyrics.py` + Genius-часть `ai_lyrics.py`, те же шаги и имена
 //! (`fetch_any`, `fetch`, `genius_text`, `genius_queries`). На выходе всегда `Lyrics` из §1.
 
 pub mod genius;
 pub mod lrclib;
+pub mod netease;
 
 use crate::providers::Track;
 use anyhow::Result;
@@ -352,6 +353,13 @@ pub async fn fetch_any(http: &reqwest::Client, meta: &Meta) -> Result<Option<Lyr
         break; // lrclib лежит — дальше спрашивать бесполезно
       }
     }
+  }
+
+  // lrclib синхронного не нашёл — NetEase (пословный YRC или построчный LRC); не ответил — дальше Genius
+  match netease::fetch(http, &first_artist(&meta.artist), &clean_title(&meta.title), meta.duration).await {
+    Ok(Some(l)) => return Ok(Some(l)),
+    Ok(None) => {}
+    Err(e) => log::warn!("[lyrics] NetEase: {e}"),
   }
 
   match genius::genius_text(http, &meta.artist, &meta.title).await {
