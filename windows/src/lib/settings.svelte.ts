@@ -31,6 +31,10 @@ export const DEFAULTS = {
   'audio.output_device': '' as string,
   /** Нормализация громкости (player/leveler.ts) — выравнивание тихих и громких треков. */
   'audio.normalize': false,
+  /** Кроссфейд, секунды (0 — выкл): следующий трек нарастает, пока текущий затухает. */
+  'audio.crossfade': 0 as number,
+  /** Бесшовное: без кроссфейда следующий трек стыкуется без паузы (короткое перекрытие). */
+  'audio.gapless': true,
   'player.cover_position': 'left' as 'left' | 'right',
   'queue.show': true,
   'queue.add_following': true,

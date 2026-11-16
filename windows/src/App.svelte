@@ -191,7 +191,8 @@
   }
   .shell.away {
     transform: translateX(calc(var(--settings-w) + 24px)) rotateY(-15deg) scale(0.9);
-    filter: brightness(0.42);
+    /* за панелью настроек окно чуть матовеет — как стекло в душе: темнее и самую малость размыто */
+    filter: brightness(0.42) blur(1.6px) saturate(0.85);
     border-radius: 18px;
     box-shadow: -30px 0 80px rgba(0, 0, 0, 0.6);
   }

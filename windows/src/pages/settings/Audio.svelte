@@ -5,6 +5,8 @@
   import { settingsPanel } from '../settings-section.svelte'
   import Cards from '../../components/settings/Cards.svelte'
   import Switch from '../../components/settings/Switch.svelte'
+  import Slider from '../../components/settings/Slider.svelte'
+  import { slide } from 'svelte/transition'
   import Group from '../../components/settings/Group.svelte'
   import { api } from '../../lib/api'
   import { settings } from '../../lib/settings.svelte'
@@ -110,8 +112,23 @@
     on={settings.get('audio.normalize')}
     onchange={(v) => settings.set('audio.normalize', v)}
   />
-  <Switch title="Бесшовное воспроизведение" hint="Плавный переход между треками без пауз и задержек" on={true} soon />
-  <Switch title="Кроссфейд" hint="Плавное затухание в конце трека и нарастание в начале следующего" on={false} soon />
+  <Switch
+    title="Бесшовное воспроизведение"
+    hint="Следующий трек начинается без паузы — заранее подгружается"
+    on={settings.get('audio.gapless')}
+    onchange={(v) => settings.set('audio.gapless', v)}
+  />
+  <Switch
+    title="Кроссфейд"
+    hint="Плавное затухание в конце трека и нарастание в начале следующего"
+    on={settings.get('audio.crossfade') > 0}
+    onchange={(v) => settings.set('audio.crossfade', v ? 6 : 0)}
+  />
+  {#if settings.get('audio.crossfade') > 0}
+    <div transition:slide={{ duration: 220 }}>
+      <Slider title="Длительность кроссфейда" value={settings.get('audio.crossfade')} min={1} max={12} unit=" с" onchange={(v) => settings.set('audio.crossfade', v)} />
+    </div>
+  {/if}
   <Switch title="Тише во время звонков" hint="Музыка стихает, пока идёт звонок или голосовой чат в другом приложении" on={true} soon />
 </Group>
 
