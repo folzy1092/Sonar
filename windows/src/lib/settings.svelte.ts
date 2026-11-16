@@ -43,6 +43,10 @@ export const DEFAULTS = {
   'mini.progress': 'background' as 'line' | 'background' | 'cover',
   'mini.cover_shape': 'default' as 'default' | 'circle',
   'mini.shape': 'default' as 'default' | 'capsule',
+  /** Скругление концов капсул (мини-плеер и левая панель), % от половины высоты: 100 — капсула. */
+  'mini.shape_round': 100 as number,
+  /** Скругление обложки в мини-плеере, %: 100 — круг. */
+  'mini.cover_round': 100 as number,
   'player.title_align': 'center' as 'left' | 'center' | 'right',
   'player.artist_avatars': true,
   'player.visualizer': 'bar' as 'off' | 'bar',

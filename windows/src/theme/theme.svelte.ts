@@ -113,6 +113,12 @@ class Theme {
         if (weight && weight !== 'auto') st.setProperty('--fw', weight)
         else st.removeProperty('--fw')
       })
+      // скругление капсул и обложки мини-плеера (Плеер → Мини плеер → Форма / Обложка)
+      $effect(() => {
+        const st = document.documentElement.style
+        st.setProperty('--cap-k', String(Math.max(0, Math.min(100, settings.get('mini.shape_round'))) / 100))
+        st.setProperty('--cover-k', String(Math.max(0, Math.min(100, settings.get('mini.cover_round'))) / 100))
+      })
       $effect(() => {
         const r = RADII[settings.get('appearance.corner_radius')] ?? RADII.rounded
         const st = document.documentElement.style

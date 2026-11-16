@@ -61,13 +61,23 @@
 </nav>
 
 <style>
+  /* панель — капсула, как мини-плеер: та же поверхность, рамка и скругление концов (--cap-k) */
   .rail {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     align-items: center;
+    box-sizing: border-box;
+    width: calc(var(--rail-w) - var(--gap));
+    height: calc(100% - var(--gap));
+    margin: var(--gap) 0 0 var(--gap);
     padding: 14px 0 12px;
-    height: 100%;
+    border-radius: max(var(--radius-l), calc((var(--rail-w) - var(--gap)) / 2 * var(--cap-k, 1)));
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    transition:
+      background 0.4s var(--ease),
+      border-radius 0.4s var(--ease);
   }
   .group {
     display: flex;
@@ -130,6 +140,6 @@
     height: 11px;
     border-radius: 50%;
     background: var(--online);
-    border: 2px solid var(--bg);
+    border: 2px solid var(--surface-1);
   }
 </style>
