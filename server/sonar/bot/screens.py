@@ -127,11 +127,11 @@ def profile(user: User, services: dict[str, bool], week: tuple[int, int], s: Set
     if s.lastfm_api_key:
         svc.append(f"{e('logo_lastfm')} {LASTFM} {mark(services['lastfm'])}")
     html = (f"{e('profile')} <b>Твой профиль</b>\n"
-            + quote(f"Имя: <b>{h(user.display_name)}</b>\nЛогин: {code('@' + user.username)} · {code(f'#{user.number}')}\n"
+            + quote(f"Имя: <a href=\"{s.site_url}/@{h(user.username)}\"><b>{h(user.display_name)}</b></a>\n"
+                    f"Логин: <tg-spoiler>@{h(user.login)}</tg-spoiler> · {code(f'#{user.number}')}\n"
                     f"{e('date')} с {date_ru(user.created_at)}", "Аккаунт")
             + quote("\n".join(svc), "Сервисы")
-            + quote(f"{e('time')} {week[0]} мин · {e('track')} {week[1]} треков", "Неделя")
-            + f"\n{e('web')} <a href=\"{s.site_url}/@{h(user.username)}\">{s.site_url.split('://')[-1]}/@{h(user.username)}</a>")
+            + quote(f"{e('time')} {week[0]} мин · {e('track')} {week[1]} треков", "Неделя"))
     return Screen(banner="profile", html=html, kb=[
         [Btn("Рефералка", "referral", "referral"), Btn("Интеграция", "integration", "integration")],
         [Btn("Выйти", "logout", "logout")],
