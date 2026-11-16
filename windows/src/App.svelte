@@ -14,6 +14,7 @@
   import ArtistPage from './pages/ArtistPage.svelte'
   import AlbumPage from './pages/AlbumPage.svelte'
   import TrackMenu from './app/TrackMenu.svelte'
+  import PlaylistMenu from './app/PlaylistMenu.svelte'
   import Toast from './app/Toast.svelte'
   import Tooltip from './app/Tooltip.svelte'
   import UpdatePopup from './app/UpdatePopup.svelte'
@@ -155,6 +156,7 @@
 <svelte:document onvisibilitychange={() => (hidden = document.hidden)} />
 
 <TrackMenu />
+<PlaylistMenu />
 <UpdatePopup />
 <CrashNotice />
 <Toast />
