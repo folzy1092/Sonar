@@ -16,6 +16,8 @@ export const MINI_PRESETS: Record<Exclude<MiniStyle, 'off'>, { bg: 'theme' | 'co
 
 export const DEFAULTS = {
   'general.platform': 'soundcloud' as 'soundcloud' | 'yandex',
+  /** Язык интерфейса (lib/i18n.svelte.ts), меняется на лету. */
+  'general.language': 'ru' as 'ru' | 'en' | 'uk',
   'general.restore': 'queue' as 'none' | 'track' | 'queue',
   'general.similar_autoplay': true,
   'general.add_position': 'start' as 'start' | 'end',
