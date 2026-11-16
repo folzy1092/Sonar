@@ -2,6 +2,8 @@ import { mount } from 'svelte'
 // Шрифты как в Dotify: Inter (интерфейс) и Roboto Flex (заголовок «Моя волна»), из fontsource — в exe
 import '@fontsource-variable/inter/opsz.css'
 import '@fontsource-variable/roboto-flex/full.css'
+// каталог шрифтов Интерфейс → Вид (латиница+кириллица; файл грузится, только когда шрифт показан)
+import './theme/fonts.css'
 import './app.css'
 import App from './App.svelte'
 import { player } from './player/player.svelte'
@@ -13,13 +15,13 @@ const app = mount(App, {
   target: document.getElementById('app')!,
 })
 
-// Заставка из index.html: знак крутится пропеллером, и почти сразу занавес уезжает вниз (класс .out).
+// Заставка из index.html: знак крутится пропеллером и, не останавливаясь, растворяется (класс .out).
 const splash = document.getElementById('splash')
 if (splash) {
   setTimeout(
     () => {
       splash.classList.add('out')
-      setTimeout(() => splash.remove(), 820)
+      setTimeout(() => splash.remove(), 700)
     },
     Math.max(0, 420 - performance.now()),
   )

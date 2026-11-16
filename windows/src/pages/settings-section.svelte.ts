@@ -45,9 +45,8 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
   integrations: [{ id: 'apps', title: 'Приложения', icon: 'stack' }],
   system: [
     { id: 'general', title: 'Общее', icon: 'adjustments' },
+    { id: 'update', title: 'Обновления', icon: 'download' },
     { id: 'storage', title: 'Хранилище', icon: 'database' },
-    { id: 'update', title: 'Автообновление', icon: 'download' },
-    { id: 'about', title: 'О приложении', icon: 'info' },
   ],
 }
 

@@ -8,7 +8,8 @@ import { player } from '../player/player.svelte'
 import { css, pickAccent, themeFrom, type RGB } from './palette'
 import { settings } from '../lib/settings.svelte'
 import { setAnimations } from '../lib/motion'
-import { fontStack, RADII } from './look'
+import { CUSTOM_PREFIX, fontStack, RADII } from './look'
+import { loadCustomFont } from './custom-font'
 
 let port: number | null = null
 
@@ -89,15 +90,17 @@ class Theme {
         setAnimations(settings.get('appearance.animations'))
       })
       // шрифт и скругления (Интерфейс → Вид)
+      // шрифт меняет весь интерфейс, включая заголовок «Моя волна» (у Dotify он оставался прежним)
       $effect(() => {
-        const st = document.documentElement.style
-        const f = fontStack(settings.get('appearance.font'))
-        if (f) {
-          st.setProperty('--font', f)
-          st.setProperty('--font-display', f)
-        } else {
-          st.removeProperty('--font')
-          st.removeProperty('--font-display')
+        const name = settings.get('appearance.font')
+        if (name.startsWith(CUSTOM_PREFIX)) void loadCustomFont()
+        const root = document.documentElement
+        const st = root.style
+        const f = fontStack(name)
+        root.classList.toggle('custom-font', !!f)
+        for (const k of ['--font', '--font-display', '--font-wave']) {
+          if (f) st.setProperty(k, f)
+          else st.removeProperty(k)
         }
       })
       $effect(() => {

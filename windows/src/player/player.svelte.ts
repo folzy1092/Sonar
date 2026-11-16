@@ -3,7 +3,6 @@
 // запись player_state и plays в локальную базу (формат API.md §5).
 // Два элемента для бесшовности и кроссфейда, GainNode нормализации — позже (W5).
 import Hls from 'hls.js'
-import { untrack } from 'svelte'
 import { api, errorText, onMediaControl, type PlayerState, type Repeat, type Track } from '../lib/api'
 import { eq } from './eq.svelte'
 import { Clock } from '../lyrics/core/clock'
@@ -126,13 +125,6 @@ class Player {
 
     void this.restore()
     void eq.load()
-    $effect.root(() => {
-      $effect(() => {
-        const ref = this.current?.ref ?? null
-        // внутри eq читает и пишет своё состояние — не подписываемся на него
-        untrack(() => void eq.onTrack(ref))
-      })
-    })
   }
 
   /** Полная остановка: при подмене модуля в dev (HMR), иначе старый <audio> играет «вторым потоком». */

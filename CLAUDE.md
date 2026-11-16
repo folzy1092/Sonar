@@ -23,7 +23,9 @@
 (`server/sonar`, aiogram 3 + SQLite, без API) и пока крутится на ПК владельца: «Запустить бота.bat» в корне
 (создаёт `server/.env` из `server/env.example`, токен вписывает владелец). Файлы `.env*` агенту закрыты.
 Текст песен — формулы Dotify в `lyrics/core/motion.ts`, фон плеера — WebGL `player/art-field.ts`,
-иконки левой панели — MingCute (`components/nav-icons.ts`, Apache-2.0). Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`),
+все значки — MingCute (Apache-2.0, как у Dotify): левая панель `components/nav-icons.ts`, остальные
+`components/mingcute.ts` из `windows/scripts/gen-icons.mjs` (Tabler `icons.ts` — только чего нет в MingCute).
+Шрифты интерфейса — `theme/look.ts` + `theme/fonts.css` из `windows/scripts/gen-fonts.mjs` (fontsource, латиница+кириллица). Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`),
 новые экраны собирать на них; настройки — `lib/settings.svelte.ts` (ключи и значения по умолчанию).
 Discord RPC: ID приложения Discord пользователь **не вводит** — до сервера он вшит в сборку
 (`discord.rs` `APP_ID` = 1571615944449466510, с 2026-11-15), потом приходит с сервера (`GET /config`). Тесты Windows: `npm test` (vitest),

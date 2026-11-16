@@ -1,12 +1,14 @@
 <script lang="ts">
   // Система → Общее по pc/Screenshot_16: язык, платформа волны, медиатека (добавление, облако), запуск
-  // (автозапуск, трей, экономия ресурсов). «Продолжить с прошлого раза» и «Авто похожие» — в Очереди.
+  // (автозапуск, трей, экономия ресурсов), внизу — о приложении (AboutBlock). «Продолжить с прошлого
+// раза» и «Авто похожие» — в Очереди.
   import { onMount } from 'svelte'
   import Icon from '../../components/Icon.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Choice from '../../components/settings/Choice.svelte'
   import Group from '../../components/settings/Group.svelte'
   import Soon from '../../components/settings/Soon.svelte'
+  import AboutBlock from './AboutBlock.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { api } from '../../lib/api'
   import { wave } from '../../player/my-wave.svelte'
@@ -98,6 +100,8 @@
     onchange={(v) => settings.set('system.power_saving', v)}
   />
 </Group>
+
+<AboutBlock />
 
 <style>
   .cloud {

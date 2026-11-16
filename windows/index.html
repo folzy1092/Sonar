@@ -8,8 +8,9 @@
     <style>
       /* Заставка при запуске и Ctrl+R (в HTML — появляется до загрузки интерфейса). Векторный знак
          раскручивается, как пропеллер кукурузника: с разгоном, за лопастями — короткие размытые
-         следы от скорости. Почти сразу «занавес» плавно уезжает вниз и открывает приложение.
-         Вращение ведёт скрипт ниже, занавес опускает src/main.ts (класс .out). */
+         следы от скорости. Не доходя до конца раскрутки, заставка плавно растворяется на месте
+         (без сдвигов — решение владельца 2026-11-16). Вращение ведёт скрипт ниже, затухание
+         запускает src/main.ts (класс .out). */
       #splash {
         position: fixed;
         inset: 0;
@@ -17,15 +18,22 @@
         display: grid;
         place-items: center;
         background: #050506;
-        transition:
-          transform 760ms cubic-bezier(0.65, 0, 0.35, 1),
-          opacity 760ms cubic-bezier(0.65, 0, 0.35, 1);
-        will-change: transform;
+        transition: opacity 640ms cubic-bezier(0.4, 0, 0.2, 1);
+        will-change: opacity;
       }
       #splash.out {
-        transform: translateY(100%);
-        opacity: 0.6;
+        opacity: 0;
         pointer-events: none;
+      }
+      /* знак при затухании чуть растёт и размывается — уходит «в глубину», не сдвигаясь */
+      #splash svg {
+        transition:
+          scale 640ms cubic-bezier(0.4, 0, 0.2, 1),
+          filter 640ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      #splash.out svg {
+        scale: 1.12;
+        filter: blur(3px);
       }
       #splash svg {
         width: 112px;
@@ -35,12 +43,13 @@
         opacity: 0;
       }
       @media (prefers-reduced-motion: reduce) {
-        #splash {
+        #splash,
+        #splash svg {
           transition: opacity 400ms ease;
         }
-        #splash.out {
-          transform: none;
-          opacity: 0;
+        #splash.out svg {
+          scale: none;
+          filter: none;
         }
       }
     </style>

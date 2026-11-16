@@ -12,7 +12,9 @@
   import { api } from '../../lib/api'
   import { PRESETS, theme } from '../../theme/theme.svelte'
   import { css, themeFrom, type RGB } from '../../theme/palette'
-  import { FONT_CATEGORIES, FONTS, fontCategory, fontLabel, fontStack, type FontCategory } from '../../theme/look'
+  import { CUSTOM_PREFIX, FONT_CATEGORIES, FONTS, fontCategory, fontLabel, fontStack, type FontCategory } from '../../theme/look'
+  import { saveCustomFont } from '../../theme/custom-font'
+  import { toast } from '../../lib/toast.svelte'
 
   const cover = $derived(settings.get('appearance.cover_theme'))
   const preset = $derived(settings.get('appearance.preset'))
@@ -29,6 +31,24 @@
   function setScale(key: 'appearance.scale_window' | 'appearance.scale_fullscreen', v: number) {
     settings.set(key, v)
     void api.setZoom(key === 'appearance.scale_window' ? 'window' : 'fullscreen', v).catch(() => {})
+  }
+
+  let filePick: HTMLInputElement | undefined = $state()
+  const custom = $derived(font.startsWith(CUSTOM_PREFIX))
+
+  /** «Свой» — файл шрифта с компьютера; выбирается сразу, хранится в IndexedDB. */
+  async function pickFont(e: Event) {
+    const input = e.currentTarget as HTMLInputElement
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file) return
+    try {
+      const name = await saveCustomFont(file)
+      settings.set('appearance.font', CUSTOM_PREFIX + name)
+      toast.show(`Шрифт «${name}» подключён`)
+    } catch {
+      toast.show('Не получилось прочитать шрифт — нужен файл .ttf, .otf, .woff или .woff2')
+    }
   }
 
   const scales = [75, 90, 100, 110, 125].map((n) => ({ id: n, label: `${n}%` }))
@@ -84,9 +104,15 @@
           {fontLabel(f)}
         </button>
       {/each}
-      <button class="chip" disabled title="Свой шрифт — скоро"><Icon name="download" size={13} /> Свой</button>
+      {#if custom}
+        <button class="chip on" style:font-family={fontStack(font)}>{fontLabel(font)}</button>
+      {/if}
+      <button class="chip" title="Свой шрифт с компьютера (.ttf, .otf, .woff, .woff2)" onclick={() => filePick?.click()}>
+        <Icon name="cloudUp" size={13} /> Свой
+      </button>
     </div>
   {/key}
+  <input bind:this={filePick} type="file" accept=".ttf,.otf,.woff,.woff2" hidden onchange={pickFont} />
   <div class="sample" style:font-family={fontStack(font) ?? 'var(--font)'}>Sonar — Съешь ещё этих мягких французских булок да выпей же чаю</div>
 </div>
 

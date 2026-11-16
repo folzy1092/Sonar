@@ -261,10 +261,16 @@ img.fade-img.loaded {
   animation-play-state: paused !important;
 }
 
-/* Заголовок «Моя волна» — Roboto Flex, широкий и плотный (как .font-wave у Dotify) */
+/* Заголовок «Моя волна» — Roboto Flex, широкий и плотный (как .font-wave у Dotify). Выбран другой
+   шрифт — заголовок тоже на нём, самым плотным начертанием, какое у шрифта есть (без подделки жирного). */
 .font-wave {
   font-family: var(--font-wave);
   font-variation-settings: 'wght' 636, 'GRAD' 105, 'XOPQ' 100, 'wdth' 134, 'opsz' 144;
+}
+:root.custom-font .font-wave {
+  font-variation-settings: normal;
+  font-weight: 800;
+  font-synthesis: none;
 }
 
 /* «Там ещё есть» у горизонтальных рядов (lib/edges.ts): край с пунктами за ним мягко затухает */
