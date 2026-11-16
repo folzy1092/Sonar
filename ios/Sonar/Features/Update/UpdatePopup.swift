@@ -5,7 +5,7 @@ import SwiftUI
 /// «Обновить».
 struct UpdatePopup: View {
     let release: UpdateRelease
-    var open: () -> Void
+    var open: @MainActor () -> Void
     @Environment(UpdateChecker.self) private var checker
     @Environment(SelfUpdater.self) private var updater
     @Environment(SigningModel.self) private var signing

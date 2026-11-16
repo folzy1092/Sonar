@@ -418,12 +418,19 @@ Telegram и задержки в мс. Формат — BOT.md §4.
 
 ### 4.6. Автообновление
 
-Порт `ShadowSelfUpdate` (≈2400 строк): `UpdateChecker` (JSON) → `IPADownloader` →
-`BundlePreparer` + zsign (переподпись P12 пользователя) → `InstallServer` на
-`127.0.0.1:<port>` + `manifest.plist` → `SFSafariViewController` открывает
-`itms-services://?action=download-manifest&url=...` → iOS ставит.
-Отличия от Shadow: SwiftSignalKit → async/await, Bazel → SwiftPM, manifest — с нашего сервера
-(`GET /updates/manifest.plist?ipa=...`) вместо `api.palera.in`.
+Порт `ShadowSelfUpdate` (сделан 2026-11-17, `ios/Sonar/Update/`): `UpdateChecker` (`updates/ios-update.json`,
+запасной путь — релизы GitHub `ios-build-*`) → `IPADownload` → `BundlePreparer` (bundle id и расширения как
+у установленной копии) + zsign (переподпись парой пользователя; в Sonar zsign на Security.framework, без
+OpenSSL — `ios/Packages/Zsign`) → SSZipArchive → `InstallServer` на `127.0.0.1:<port>` (Range) →
+`SFSafariViewController` со страницей `/install` → `itms-services://?action=download-manifest&url=…` → iOS
+ставит поверх, данные остаются.
+Манифест (`itms-services` требует https с доверенным сертификатом) пока собирает `api.palera.in/genPlist`
+из параметров — маршрут «Semi Local», как в IPA Hub / Feather (`InstallLinks.externalManifestBase`). С
+сервером переедет на `GET /updates/manifest.plist?ipa=...`. Маршрут через `*.backloop.dev` не переносили:
+его сертификат отозван 2026-07-31.
+Отличия от Shadow: SwiftSignalKit → async/await и `@Observable`, Bazel → SwiftPM, экраны — SwiftUI.
+CI подписью не занимается: выкладывает неподписанную IPA, каждый подписывает своей парой (сначала ESign /
+Feather, дальше — сам Sonar).
 
 ### 4.7. Чарты (после сервера, решение владельца 2026-11-15)
 

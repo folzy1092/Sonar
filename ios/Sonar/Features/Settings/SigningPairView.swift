@@ -253,7 +253,7 @@ private struct ProfileFacts: View {
 /// Результат проверки пары: «Пара подходит» или причина.
 private struct CheckRow: View {
     let state: SigningModel.CheckState
-    let recheck: () -> Void
+    let recheck: @MainActor () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
