@@ -220,8 +220,22 @@
     padding: 0 14px;
     border-radius: max(var(--radius-l), calc((var(--rail-w) - var(--gap)) / 2 * var(--cap-k, 1)));
   }
+  /* сверху и снизу — компактный островок из иконок по центру, без растяжки на всю ширину
+     (решение владельца 2026-11-17); во всю ширину — только стиль «Полный» */
+  :global(.shell.tabs-top:not(.tstyle-full)) .rail,
+  :global(.shell.tabs-bottom:not(.tstyle-full)) .rail {
+    position: relative;
+    z-index: 1;
+    justify-self: center;
+    justify-content: center;
+    width: auto;
+    gap: 18px;
+    padding: 0 12px;
+  }
   :global(.shell.tabs-top) .rail {
     margin: var(--gap) 0 0;
+  }
+  :global(.shell.tstyle-full.tabs-top) .rail {
     /* правый конец — под кнопки окна */
     padding-right: 150px;
   }
@@ -311,9 +325,6 @@
     width: auto;
     padding: 0 14px;
     gap: 22px;
-  }
-  :global(.shell.tstyle-floating.tabs-top) .rail {
-    padding-right: 14px;
   }
 
   /* подстраивать вкладки — цвет панели от страницы (подкраска обложки) */
