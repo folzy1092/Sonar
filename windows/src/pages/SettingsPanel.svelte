@@ -58,7 +58,7 @@
     data-tauri-drag-region
     bind:this={tabsEl}
     use:indicator={{ key: settingsPanel.tab }}
-    use:hscroll
+    use:hscroll={{ wheel: true }}
     use:edges={(l, r) => (more = { l, r })}
   >
     {#each TABS as t (t.id)}
@@ -81,7 +81,7 @@
 
   {#if subs.length > 1}
     {#key settingsPanel.tab}
-      <div class="subs tab-in" use:indicator={{ key: sub, kind: 'pill' }} use:hscroll use:edges>
+      <div class="subs tab-in" use:indicator={{ key: sub, kind: 'pill' }} use:hscroll={{ wheel: true }} use:edges>
         {#each subs as s (s.id)}
           <button
             class="sub"

@@ -1,7 +1,8 @@
 // Горизонтальный ряд (карточки качества и стиля, ряды обложек). Обычное колесо всегда крутит
 // страницу (решение владельца 2026-11-16: курсор над рядом не должен «залипать»). Вбок ряд листается
 // Shift+колесом, тачпадом (горизонтальная прокрутка) или перетаскиванием мышью — плавно.
-export function hscroll(node: HTMLElement) {
+// `{ wheel: true }` — ряд вкладок (настройки): там колесо листает сам ряд, а дойдя до края — страницу.
+export function hscroll(node: HTMLElement, opts: { wheel?: boolean } = {}) {
   let target = node.scrollLeft
   let raf = 0
 
@@ -18,7 +19,7 @@ export function hscroll(node: HTMLElement) {
   const max = () => node.scrollWidth - node.clientWidth
 
   const onWheel = (e: WheelEvent) => {
-    if (e.ctrlKey || !e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
+    if (e.ctrlKey || (!e.shiftKey && !opts.wheel) || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
     if (max() <= 1) return
     if (!raf) target = node.scrollLeft
     const dy = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY
