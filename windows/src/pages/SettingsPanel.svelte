@@ -14,6 +14,7 @@
   import PlayerView from './settings/PlayerView.svelte'
   import Integrations from './settings/Integrations.svelte'
   import General from './settings/General.svelte'
+  import Hotkeys from './settings/Hotkeys.svelte'
   import Storage from './settings/Storage.svelte'
   import Update from './settings/Update.svelte'
   import TabsView from './settings/TabsView.svelte'
@@ -131,6 +132,8 @@
           <Integrations />
         {:else if sub === 'general'}
           <General />
+        {:else if sub === 'hotkeys'}
+          <Hotkeys />
         {:else if sub === 'storage'}
           <Storage />
         {:else if sub === 'update'}

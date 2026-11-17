@@ -74,6 +74,18 @@
   ]}
   onchange={(v) => settings.set('player.visualizer_style', v)}
 />
+<Switch
+  title={t('Спектр в полноэкранном плеере')}
+  hint={t('Тихая волна звука на дне экрана, за текстом. С «Меньше движения» не рисуется')}
+  on={settings.get('player.visualizer_full')}
+  onchange={(v) => settings.set('player.visualizer_full', v)}
+/>
+<Switch
+  title={t('Почему этот трек')}
+  hint={t('Под артистом у треков «Моей волны» — откуда трек: похож на твой лайк, разведка, забытый любимый')}
+  on={settings.get('player.wave_why')}
+  onchange={(v) => settings.set('player.wave_why', v)}
+/>
 
 <div class="block">
   <b>{t('Тип ползунка')}</b>

@@ -26,7 +26,7 @@ CI `ios.yml` → неподписанная `Sonar.ipa`, подписывает 
 .mobileprovision в «Система → Обновления → Сертификат», zsign `ios/Packages/Zsign` на Security.framework —
 **в нём исправлен перевёрнутый флаг профиля, не откатывать**, установка через itms-services + api.palera.in);
 ядро `ios/Sonar/Core/` (SoundCloud и Яндекс с телефона, MusicCore — порт `services.rs`); плеер `ios/Sonar/Playback/`.
-Вид iOS (2026-11-17, по скринам владельца) — своя нижняя панель `App/RootView.swift` `BottomChrome` (таб-бар-капсула ⇄ строка «круг вкладки · мини-плеер · круг поиска» при прокрутке), тема под обложку `DesignSystem/Palette.swift` + `ThemeStore` (порт palette.ts), значки — MingCute в SwiftUI-путях `DesignSystem/Icons/IconPaths.swift` из `ios/scripts/gen-icons.mjs` (не SF Symbols), иконка приложения — `ios/scripts/gen-appicon.mjs` из `brand/` (как у exe), герой Главной — своё поле точек `Features/Home/SonarField.swift`, переходы и листы — `App/Router.swift`. Каждая новая логика на iOS — с XCTest; Foundation-часть можно гонять Swift'ом для Linux, остальное — только CI. Сервер — после покупки Velt, см. `docs/ROADMAP.md`. До сервера — «Моя волна 2» по спеке
+Вид iOS (2026-11-17, по скринам владельца) — своя нижняя панель `App/RootView.swift` `BottomChrome` (таб-бар-капсула ⇄ строка «круг вкладки · мини-плеер · круг поиска» при прокрутке), тема под обложку `DesignSystem/Palette.swift` + `ThemeStore` (порт palette.ts), значки — MingCute в SwiftUI-путях `DesignSystem/Icons/IconPaths.swift` из `ios/scripts/gen-icons.mjs` (не SF Symbols), иконка приложения — `ios/scripts/gen-appicon.mjs` из `brand/` (как у exe), герой Главной — своё поле точек `Features/Home/SonarField.swift`, переходы и листы — `App/Router.swift`. Виджет «Домой» — цель `SonarWidget` (`ios/SonarWidget/`, статичный, без App Groups: кнопки → `sonar://play/liked|wave|quick`, `App/DeepLink.swift`), Siri и «Команды» — App Intents `App/SonarIntents.swift` (без entitlement), «Быстрый плейлист» — `widget.quick_playlist`; CarPlay не делаем (entitlement только от Apple). Каждая новая логика на iOS — с XCTest; Foundation-часть можно гонять Swift'ом для Linux, остальное — только CI. Сервер — после покупки Velt, см. `docs/ROADMAP.md`. До сервера — «Моя волна 2» по спеке
 `docs/WAVE.md` (шесть этапов, отметки в ROADMAP; сделаны 1, 5, 6 и профиль тегов по режимам из этапа 2 — 2026-11-16). Бот `@SonarMusicApp` уже написан
 (`server/sonar`, aiogram 3 + SQLite, без API) и пока крутится на ПК владельца: «Запустить бота.bat» в корне
 (создаёт `server/.env` из `server/env.example`, токен вписывает владелец). Файлы `.env*` агенту закрыты.
@@ -134,8 +134,10 @@ Discord RPC: ID приложения Discord пользователь **не в�
   Last.fm — тоже в браузере по умолчанию; SoundCloud — окно входа внутри Sonar (своего OAuth-приложения
   SoundCloud с адресом возврата нет, cookie чужого браузера не прочитать).
 - Регистрация открыта для всех. Приватность, друзья, Canvas, **Мастерская целиком**, баннер и
-  значки профиля, подписка, прокси, горячие клавиши — **не делаем** (приватность — пункт с
+  значки профиля, подписка, прокси — **не делаем** (приватность — пункт с
   замком «В разработке»). Можно: свой фон (картинка или видео до 10 с), только аватар в шапке.
+  **Горячие клавиши теперь делаем** (решение владельца 2026-11-17): на ПК — по всей системе,
+  `hotkeys.rs` + Система → Горячие клавиши, по умолчанию выключены.
 - Канал новостей и обновлений — **`@SonarUpdates`** (`t.me/SonarUpdates`); кнопка «Телеграм» в «О приложении» ведёт туда. Сайт — **`sonar.folzy.ru`** (решение владельца 2026-11-15), кнопка «Сайт» берёт адрес из конфига.
 - Бот «Sonar» — **`@SonarMusicApp`**, спека — **`docs/BOT.md`** (2026-11-15): в меню только
   `/start` и `/status`, остальное кнопками (Профиль, Статистика, Сервисы, Ключ API, Баг / Идея).

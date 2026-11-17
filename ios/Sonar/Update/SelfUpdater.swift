@@ -185,7 +185,9 @@ final class SelfUpdater {
         guard unzipped, let app = BundlePreparer.findApp(inPayloadParent: root) else {
             throw unzipError ?? SelfUpdateError.badArchive
         }
-        try BundlePreparer.prepare(app: app, installed: installed, profileURL: store.profileURL)
+        // профиль на «*» подходит и к виджету — его можно оставить, даже если раньше его не было
+        try BundlePreparer.prepare(app: app, installed: installed, profileURL: store.profileURL,
+                                   keepNewPlugIns: store.profile?.isWildcard ?? false)
 
         progress(.signing)
         try AppSigner.sign(app: app, store: store)

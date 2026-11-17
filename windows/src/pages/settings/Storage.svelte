@@ -75,6 +75,12 @@
       options={[512, 1024, 2048, 5120, 10240].map((n) => ({ id: n, label: n < 1024 ? t('{n} МБ', { n }) : t('{n} ГБ', { n: n / 1024 }) }))}
       onchange={(v) => settings.set('storage.cache_limit_mb', v)}
     />
+    <Switch
+      title={t('Волна офлайн')}
+      hint={t('Следующие 15 треков «Моей волны» заранее скачиваются в кэш — волна доиграет и без сети')}
+      on={settings.get('storage.wave_offline')}
+      onchange={(v) => settings.set('storage.wave_offline', v)}
+    />
   {/if}
 
   <Group title={t('Очистка кеша')}>

@@ -824,6 +824,22 @@ pub fn insert_liked(mut out: Vec<Picked>, liked: Vec<Picked>, n: usize) -> Vec<P
   out
 }
 
+/// «Почему этот трек» — строка под названием в плеере для треков волны: откуда трек пришёл в
+/// порцию. `kind`: `liked` (свой забытый лайк), `artist` (популярное у любимого артиста), `explore`
+/// (разведка — похожие на похожие), `session` (похож на то, что зашло сейчас), `seed` (волна по
+/// треку), `similar` (похож на твой лайк / дослушанный). Второе — ref сида, от которого пришёл.
+pub fn why(p: &Picked, origin: &Origin, by_seed: Option<&str>) -> (&'static str, Option<String>) {
+  let seed = origin.seed_of.get(&p.track.ref_).cloned();
+  match p.source {
+    "liked" => ("liked", None),
+    "artist" => ("artist", seed),
+    "hop2" => ("explore", None),
+    _ if seed.is_some() && seed.as_deref() == by_seed => ("seed", seed),
+    _ if origin.from_session.contains(&p.track.ref_) => ("session", seed),
+    _ => ("similar", seed),
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -1423,5 +1439,20 @@ mod tests {
     let got = pick_liked(vec![sad, fun], &Taste::default(), &Session::default(), &Filter::default(), "sad", 2, &mut Rng::new(1));
     assert_eq!(got.iter().map(|p| p.track.ref_.as_str()).collect::<Vec<_>>(), vec!["sc:1"]);
     assert!(got.iter().all(|p| p.source == "liked"));
+  }
+
+  #[test]
+  fn why_names_the_source() {
+    let mut origin = Origin::default();
+    origin.add("sc:seed", &[t("sc:1", "a")], false);
+    origin.add("sc:live", &[t("sc:2", "b")], true);
+    origin.add_artist("sca:9", &[t("sc:3", "c")]);
+    let picked = |r: &str, source: &'static str| Picked { track: t(r, "x"), features: Features::default(), source };
+    assert_eq!(why(&picked("sc:1", "similar"), &origin, None), ("similar", Some("sc:seed".into())));
+    assert_eq!(why(&picked("sc:1", "similar"), &origin, Some("sc:seed")), ("seed", Some("sc:seed".into())));
+    assert_eq!(why(&picked("sc:2", "similar"), &origin, None), ("session", Some("sc:live".into())));
+    assert_eq!(why(&picked("sc:3", "artist"), &origin, None), ("artist", Some("sca:9".into())));
+    assert_eq!(why(&picked("sc:4", "liked"), &origin, None).0, "liked");
+    assert_eq!(why(&picked("sc:5", "hop2"), &origin, None).0, "explore");
   }
 }
