@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Мини-плеер (`IMG_6768`): капсула в цвет обложки — обложка кружком, название и исполнитель, лайк,
+/// Мини-плеер (`IMG_6768`): капсула в цвет обложки — обложка кружком в кольце прогресса (`IMG` 09:53), название и исполнитель, лайк,
 /// пауза. Свёрнутая панель (`IMG_6769`): уже, без лайка, название бежит строкой. Тап — полный плеер,
 /// свайп вбок — следующий / предыдущий трек. Форма и размер задаёт `BottomChrome`, тут — содержимое.
 struct MiniPlayer: View {
@@ -10,16 +10,14 @@ struct MiniPlayer: View {
     @Environment(LibraryStore.self) private var library
     @State private var drag: CGFloat = 0
 
+    private var progress: Double {
+        engine.duration > 0 ? min(1, max(0, engine.position / engine.duration)) : 0
+    }
+
     var body: some View {
         if let track = engine.current {
             HStack(spacing: compact ? 10 : 12) {
-                CoverImage(url: track.coverURL, cornerRadius: 40)
-                    .frame(width: compact ? 40 : 46, height: compact ? 40 : 46)
-                    .overlay {
-                        if engine.isLoading {
-                            ProgressView().tint(.white).scaleEffect(0.8)
-                        }
-                    }
+                CoverRing(url: track.coverURL, progress: progress, side: compact ? 42 : 48, loading: engine.isLoading)
                     .id(track.ref)
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
                 VStack(alignment: .leading, spacing: 1) {
@@ -57,18 +55,6 @@ struct MiniPlayer: View {
             .padding(.leading, compact ? 7 : 9)
             .padding(.trailing, compact ? 6 : 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .bottom) {
-                // тонкая полоска прогресса по низу капсулы
-                GeometryReader { proxy in
-                    Capsule()
-                        .fill(Theme.text.opacity(0.85))
-                        .frame(width: proxy.size.width * (engine.duration > 0 ? min(1, engine.position / engine.duration) : 0), height: 2)
-                }
-                .frame(height: 2)
-                .padding(.horizontal, compact ? 22 : 30)
-                .padding(.bottom, 4)
-                .opacity(compact ? 0 : 1)
-            }
             .offset(x: drag)
             .contentShape(Capsule())
             .onTapGesture(perform: open)
@@ -83,5 +69,34 @@ struct MiniPlayer: View {
             .animation(Motion.spring, value: track.ref)
             .animation(Motion.spring, value: library.isLiked(track))
         }
+    }
+}
+
+/// Обложка кружком, вокруг — кольцо прогресса цветом темы по тусклой дорожке; грузится — крутилка.
+struct CoverRing: View {
+    let url: String?
+    let progress: Double
+    let side: CGFloat
+    var loading = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Theme.text.opacity(0.18), lineWidth: 2.5)
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(Theme.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.linear(duration: 0.25), value: progress)
+            CoverImage(url: url, cornerRadius: side)
+                .padding(4.5)
+                .overlay {
+                    if loading {
+                        ProgressView().tint(.white).scaleEffect(0.8)
+                    }
+                }
+        }
+        .frame(width: side, height: side)
+        .accessibilityLabel("Прогресс \(Int(progress * 100)) %")
     }
 }
