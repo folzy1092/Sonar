@@ -8,6 +8,7 @@
   import Slider from '../../components/settings/Slider.svelte'
   import { slide } from 'svelte/transition'
   import Group from '../../components/settings/Group.svelte'
+  import More from '../../components/settings/More.svelte'
   import { api } from '../../lib/api'
   import { settings } from '../../lib/settings.svelte'
   import { player } from '../../player/player.svelte'
@@ -107,18 +108,12 @@
   onchange={setQuality}
 />
 
-<Group title={t('Громкость и переходы')}>
+<Group title={t('Громкость и переходы')} hint={t('Как звучат треки и стыки между ними')}>
   <Switch
     title={t('Нормализация громкости')}
     hint={t('Тихие и громкие треки звучат ровно — без докручивания громкости')}
     on={settings.get('audio.normalize')}
     onchange={(v) => settings.set('audio.normalize', v)}
-  />
-  <Switch
-    title={t('Бесшовное воспроизведение')}
-    hint={t('Следующий трек начинается без паузы — заранее подгружается')}
-    on={settings.get('audio.gapless')}
-    onchange={(v) => settings.set('audio.gapless', v)}
   />
   <Switch
     title={t('Кроссфейд')}
@@ -131,22 +126,33 @@
       <Slider title={t('Длительность кроссфейда')} value={settings.get('audio.crossfade')} min={1} max={12} unit=" {t('с')}" onchange={(v) => settings.set('audio.crossfade', v)} />
     </div>
   {/if}
-  <Switch
-    title={t('Тише во время звонков')}
-    hint={t('Музыка стихает до 20 %, пока другое приложение занимает микрофон: звонок, голосовой чат Discord или Telegram')}
-    on={settings.get('audio.duck_calls')}
-    onchange={(v) => {
-      settings.set('audio.duck_calls', v)
-      player.setCall(player.inCall)
-    }}
-  />
 </Group>
 
-<Group title="SoundCloud">
-  <Switch
-    title={t('SoundCloud в качестве Яндекса')}
-    hint={t('Если тот же трек есть на Яндексе (исполнитель, название и длительность совпадают), играть его оттуда — в качестве выше. Иначе SoundCloud: AAC 160 кбит/с, с Go+ — 256.')}
-    on={scViaYandex}
-    onchange={setVia}
-  />
-</Group>
+<More>
+  <Group title={t('Переходы и звонки')} hint={t('Паузы между треками и музыка во время разговора')}>
+    <Switch
+      title={t('Бесшовное воспроизведение')}
+      hint={t('Следующий трек начинается без паузы — заранее подгружается')}
+      on={settings.get('audio.gapless')}
+      onchange={(v) => settings.set('audio.gapless', v)}
+    />
+    <Switch
+      title={t('Тише во время звонков')}
+      hint={t('Музыка стихает до 20 %, пока другое приложение занимает микрофон: звонок, голосовой чат Discord или Telegram')}
+      on={settings.get('audio.duck_calls')}
+      onchange={(v) => {
+        settings.set('audio.duck_calls', v)
+        player.setCall(player.inCall)
+      }}
+    />
+  </Group>
+
+  <Group title="SoundCloud" hint={t('Откуда брать звук для треков SoundCloud')}>
+    <Switch
+      title={t('SoundCloud в качестве Яндекса')}
+      hint={t('Если тот же трек есть на Яндексе (исполнитель, название и длительность совпадают), играть его оттуда — в качестве выше. Иначе SoundCloud: AAC 160 кбит/с, с Go+ — 256.')}
+      on={scViaYandex}
+      onchange={setVia}
+    />
+  </Group>
+</More>
