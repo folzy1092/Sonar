@@ -10,6 +10,7 @@ import { Leveler } from './leveler'
 import { Effects } from './effects'
 import { pitchRatio, tempo } from './tempo.svelte'
 import { settings } from '../lib/settings.svelte'
+import { isFallbackError } from '../lib/services'
 import { t } from '../lib/i18n.svelte'
 import { Clock } from '../lyrics/core/clock'
 import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
@@ -47,6 +48,8 @@ class Player {
     if (p >= 1) this.loadDone = setTimeout(() => (this.loadProgress = null), 250)
   }
   error = $state<string | null>(null)
+  /** Сервис трека сам не играет (Spotify без Premium) — нужен резервный сервис, не сбой. */
+  fallbackNeeded = $state(false)
   positionMs = $state(0)
   durationMs = $state(0)
   /** Реальный формат потока для плашки: «AAC 160», «MP3 320», «FLAC». */
@@ -487,6 +490,7 @@ class Player {
     if (!a || !track) return
     const token = ++this.loadToken
     this.error = null
+    this.fallbackNeeded = false
     this.loading = true
     this.stage(0)
     this.durationMs = track.duration_ms
@@ -527,7 +531,9 @@ class Player {
       }
       this.saveState()
     } catch (e) {
-      if (token === this.loadToken) this.onError(errorText(e))
+      if (token !== this.loadToken) return
+      this.fallbackNeeded = isFallbackError(track.ref, e)
+      this.onError(errorText(e))
     }
   }
 

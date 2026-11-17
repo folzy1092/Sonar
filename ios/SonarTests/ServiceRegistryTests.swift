@@ -24,7 +24,7 @@ final class ServiceRegistryTests: XCTestCase {
         Row(id: .vk, key: "vk", name: "VK Музыка", color: "#0077FF", icon: "vk.svg", iconMono: "vk-mono.svg",
             prefixes: ServicePrefixes(track: "vk", album: "vkalb", artist: "vka", playlist: "vkpl"), implemented: false),
         Row(id: .sp, key: "spotify", name: "Spotify", color: "#1ED760", icon: "spotify.svg", iconMono: "spotify-mono.svg",
-            prefixes: ServicePrefixes(track: "sp", album: "spalb", artist: "spa", playlist: "sppl"), implemented: false),
+            prefixes: ServicePrefixes(track: "sp", album: "spalb", artist: "spa", playlist: "sppl"), implemented: true),
         Row(id: .local, key: "local", name: "Локальные файлы", color: "#8E8E93", icon: nil, iconMono: nil,
             prefixes: ServicePrefixes(track: "local", album: nil, artist: nil, playlist: nil), implemented: false),
     ]
@@ -45,10 +45,11 @@ final class ServiceRegistryTests: XCTestCase {
         }
         let spotify = ServiceRegistry.info(.sp).caps
         XCTAssertFalse(spotify.stream)
-        XCTAssertFalse(spotify.key)
+        XCTAssertTrue(spotify.key)
+        XCTAssertFalse(spotify.similar)
         let local = ServiceRegistry.info(.local).caps
         XCTAssertEqual(local, ServiceCaps(search: false, stream: true, library: true, playlists: false, similar: false, login: false, key: false))
-        XCTAssertEqual(ServiceRegistry.implemented.map(\.id), [.sc, .ym])
+        XCTAssertEqual(ServiceRegistry.implemented.map(\.id), [.sc, .ym, .sp])
     }
 
     func testPrefixesUnique() {
@@ -160,7 +161,9 @@ final class ServiceRegistryTests: XCTestCase {
     func testProvidersInRegistry() {
         XCTAssertEqual(SoundCloud.serviceID, .sc)
         XCTAssertEqual(Yandex.serviceID, .ym)
+        XCTAssertEqual(Spotify.serviceID, .sp)
         XCTAssertTrue(ServiceRegistry.info(SoundCloud.serviceID).implemented)
         XCTAssertTrue(ServiceRegistry.info(Yandex.serviceID).implemented)
+        XCTAssertTrue(ServiceRegistry.info(Spotify.serviceID).implemented)
     }
 }

@@ -94,13 +94,13 @@
 | `ym` | `yandex` | Яндекс Музыка | `ym:<id>` | `ymalb:<id>` | `yma:<id>` | `ympl:<uid>:<kind>` | да |
 | `yt` | `youtube` | YouTube Music | `yt:<videoId>` | `ytalb:<browseId>` | `yta:<channelId>` | `ytpl:<playlistId>` | нет |
 | `vk` | `vk` | VK Музыка | `vk:<owner>_<id>` | `vkalb:<owner>_<id>` | `vka:<id>` | `vkpl:<owner>_<id>` | нет |
-| `sp` | `spotify` | Spotify | `sp:<id>` | `spalb:<id>` | `spa:<id>` | `sppl:<id>` | нет |
+| `sp` | `spotify` | Spotify | `sp:<id>` | `spalb:<id>` | `spa:<id>` | `sppl:<id>` | да (медиатека; поток — ПК с Premium) |
 | `local` | `local` | Локальные файлы | `local:<sha1 пути>` | — | — | — | нет |
 
 Сервисы с «нет» пока только описаны: интерфейс их не показывает, сервер и клиенты отвечают
 «`<Название>`: пока не поддерживается». Что каждый сервис умеет (`caps`) — в `GET /services`.
 
-Особые ref: `scpl:likes` и `ympl:likes` — лайки аккаунта сервиса как плейлист; `ympl:<uid>:<kind>` — плейлист
+Особые ref: `scpl:likes`, `ympl:likes` и `sppl:likes` — лайки аккаунта сервиса как плейлист (у Spotify — «Любимые треки», `me/tracks`); `ympl:<uid>:<kind>` — плейлист
 пользователя Яндекса; `scpl:<id>` — плейлист SoundCloud. Формат ref не меняется.
 
 Разбор ref (одинаково в Rust, TS и Swift):
@@ -155,6 +155,7 @@ prefix = текст до ПЕРВОГО ':'   (нет ':' или пустой п
 |---|---|
 | `sc` / `soundcloud` | `client_id` — обязательно (32 символа); `oauth_token` — необязательно, `OAuth ` в начале срезается |
 | `ym` / `yandex` | `token` — обязательно |
+| `sp` / `spotify` | `sp_dc` — обязательно: значение cookie `sp_dc` с open.spotify.com; `sp_dc=`, кавычки и соседние cookie (`a=1; sp_dc=…; b=2`) срезаются |
 
 Ключ проверяется запросом аккаунта к сервису и сохраняется только в Keychain / keyring. Неизвестный сервис —
 «Неизвестный сервис: `<svc>`», ещё не работающий — «`<Название>`: пока не поддерживается». Значения полей не
@@ -185,6 +186,33 @@ prefix = текст до ПЕРВОГО ':'   (нет ':' или пустой п
 ```
 
 `icon` / `icon_mono` — файлы знаков в `brand/icon/`; у неработающих сервисов `connected: false`, остальное `null`.
+
+### Spotify
+
+Строка реестра: `caps` — `search`, `library`, `playlists`, `login`, `key` — `true`; `stream: false`, `similar: false`
+(рекомендаций Spotify не берём, «Моя волна» и «Похожие» его не трогают). `premium` — `product == "premium"` из `/me`.
+
+- **Ключ** — cookie `sp_dc` веб-плеера. ПК: «Войти» (`login_service {service: "spotify"}` — окно accounts.spotify.com,
+  cookie забирается сама) или «Вставить ключ» (`connect_service_key {service: "spotify", fields: {sp_dc}}`). iPhone —
+  то же в «Сервисах» (окно WKWebView или поле). Хранится в keyring / Keychain под key `spotify` как `{"sp_dc": "…"}`;
+  в ошибки, лог, журнал сбоев и всплывашки не попадает.
+- **Токен** — `GET https://open.spotify.com/api/token?reason=init&productType=web-player&totp=<код>&totpServer=<код>&totpVer=<v>`
+  с cookie `sp_dc`. Код — TOTP (RFC 6238: HMAC-SHA1, 6 цифр, шаг 30 с) от ключа = десятичная запись байтов
+  `cipher[i] ^ ((i % 33) + 9)` подряд. Шифр и версия до сервера вшиты в клиент (ПК `providers/spotify.rs`
+  `default_totp`, iPhone `Spotify.TotpSecret.default`), потом — с сервера: `GET /config` → `spotify_totp: {ver, cipher}`.
+  Ответ `400` или тело с `totp` → «Spotify: ключ веб-плеера устарел — нужно обновление Sonar»; `isAnonymous: true`
+  или без `accessToken` → «Spotify: ключ sp_dc не подошёл — войди заново». Токен общий на все запросы, живёт до
+  `accessTokenExpirationTimestampMs` минус минута; `401` Web API — один повтор со свежим токеном.
+- **Метаданные** — только Web API `https://api.spotify.com/v1` с `Bearer`: `search` (track/artist/album/playlist),
+  `me`, `me/tracks`, `me/playlists`, `playlists/{id}` (+ `/tracks`, строки `track` или `item`), `artists/{id}`
+  (+ `/top-tracks`, `/albums`), `albums/{id}` (+ `/tracks`). Локальные файлы и эпизоды подкастов пропускаются.
+- **Поток.** ПК с Premium — librespot за cargo-фичей `spotify-playback` (по умолчанию выключена: librespot-core 0.8
+  тянет зависимости, которые надо проверить на windows-latest): провайдер отдаёт `Source::File` с меткой
+  `librespot:<id>`, локальный аудио-сервер её не проксирует, а скачивает трек librespot'ом (Ogg Vorbis) и отдаёт
+  из памяти как `audio/ogg` с Range (`spotify_play.rs`, `stream.rs`). Без фичи, без Premium и
+  всегда на iPhone `stream` отвечает «Spotify: нужен резервный сервис» — Spotify остаётся источником медиатеки и
+  ссылок, трек сыграет резервный сервис (резерв — NEXT_PROMPT, этап 4). Сервер, когда появится, Spotify тоже не
+  проксирует.
 
 ## 3. Каталог и поток
 
@@ -397,7 +425,7 @@ selfbot переключился сменой адреса:
 ```
 
 - `state`: `playing` / `paused` / `stopped` (`track: null`, если ничего ещё не играло).
-- `source`: key сервиса из §2 «Префиксы ref» (`soundcloud` / `yandex`; позже `youtube` / `vk` / `spotify`). `id` и `track_id` — id без префикса трека (`sc:`/`ym:`).
+- `source`: key сервиса из §2 «Префиксы ref» (`soundcloud` / `yandex` / `spotify`; позже `youtube` / `vk`). `id` и `track_id` — id без префикса трека (`sc:`/`ym:`).
 - `duration` — секунды (целое), `duration_ms` — миллисекунды.
 
 ## 9. Статус (SPEC §3.11)

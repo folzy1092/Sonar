@@ -196,19 +196,27 @@ export const SERVICES: readonly ServiceInfo[] = Object.freeze([
     short: 'SP',
     color: '#1ED760',
     prefixes: prefixes('sp'),
-    caps: { ...ALL_CAPS, stream: false, key: false },
-    implemented: false,
+    // играет только Premium в сборке с librespot — иначе резервный сервис; рекомендаций Spotify не берём
+    caps: { ...ALL_CAPS, stream: false, similar: false },
+    implemented: true,
     gender: 'm',
     nameIn: 'Spotify',
-    openIn: null,
+    openIn: 'Открыть в Spotify',
     status: MALE_STATUS,
     loginLabel: 'Войти через Spotify',
-    loginBusyLabel: LOGIN_BUSY,
+    loginBusyLabel: 'Войди в открывшемся окне…',
     reloginLabel: RELOGIN,
     reloginWhen: 'connected',
-    keyFields: [],
-    keyHint: null,
-    keyReplaceLabel: null,
+    keyFields: [{ name: 'sp_dc', label: 'sp_dc', secret: true, optional: false, placeholder: 'AQ…' }],
+    keyHint: [
+      { text: 'Spotify — медиатека и ссылки; играет резервный сервис.' },
+      { raw: ' ' },
+      { text: 'open.spotify.com → F12 → Приложение → Файлы cookie:' },
+      { raw: ' ' },
+      { code: 'sp_dc' },
+      { raw: '.' },
+    ],
+    keyReplaceLabel: 'Заменить ключ',
   },
   {
     id: 'local',
@@ -275,7 +283,7 @@ export function connected(list: readonly ServiceState[]): ServiceInfo[] {
   return SERVICES.filter((s) => s.implemented && list.some((row) => row.connected && (row.id === s.id || row.key === s.key)))
 }
 
-/** Статус сервиса из `services_status` по ключу (там только soundcloud/yandex). */
+/** Статус сервиса из `services_status` по ключу (soundcloud / yandex / spotify). */
 export function statusOf(status: ServicesStatus | null | undefined, service: ServiceInfo): ServiceStatus | null {
   const byKey: Partial<Record<ServiceKey, ServiceStatus>> | null | undefined = status
   return byKey?.[service.key] ?? null
@@ -286,5 +294,23 @@ export function playlistWebUrl(ref: string): string | null {
   const m = /^ympl:([^:]+):(.+)$/.exec(ref)
   if (m) return `https://music.yandex.ru/users/${m[1]}/playlists/${m[2]}`
   if (ref === 'scpl:likes') return 'https://soundcloud.com/you/likes'
+  if (ref === 'sppl:likes') return 'https://open.spotify.com/collection/tracks'
+  const sp = /^sppl:([A-Za-z0-9]+)$/.exec(ref)
+  if (sp) return `https://open.spotify.com/playlist/${sp[1]}`
   return null
+}
+
+/** Ответ Rust (providers/spotify.rs `NEEDS_FALLBACK`), когда сервис сам трек не играет. */
+export const FALLBACK_ERROR = 'Spotify: нужен резервный сервис'
+
+/** Трек сервиса без своего потока (Spotify): играть его будет резервный сервис. */
+export function needsFallback(ref: string | null | undefined): boolean {
+  const parsed = parseRef(ref)
+  return parsed !== null && parsed.kind === 'track' && parsed.service.implemented && !parsed.service.caps.stream
+}
+
+/** Ошибка загрузки трека — это «нужен резервный сервис» (понятное состояние, а не сбой). */
+export function isFallbackError(ref: string | null | undefined, e: unknown): boolean {
+  const message = e instanceof Error ? e.message : String(e)
+  return needsFallback(ref) && message === FALLBACK_ERROR
 }

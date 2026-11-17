@@ -90,8 +90,10 @@ enum ServiceRegistry {
             id: .sp, key: "spotify", name: "Spotify", color: "#1ED760",
             icon: "spotify.svg", iconMono: "spotify-mono.svg",
             prefixes: ServicePrefixes(track: "sp", album: "spalb", artist: "spa", playlist: "sppl"),
-            caps: ServiceCaps(search: true, stream: false, library: true, playlists: true, similar: true, login: true, key: false),
-            implemented: false
+            // играет только на ПК с Premium (librespot); на iPhone — метаданные, трек играет резервный сервис.
+            // Рекомендаций Spotify не берём
+            caps: ServiceCaps(search: true, stream: false, library: true, playlists: true, similar: false, login: true, key: true),
+            implemented: true
         ),
         ServiceInfo(
             id: .local, key: "local", name: "Локальные файлы", color: "#8E8E93",

@@ -57,6 +57,8 @@ fn ym_creds(token: &str) -> yandex::Creds {
 enum KeyCreds {
   Sc(soundcloud::Creds),
   Ym(yandex::Creds),
+  /// Cookie `sp_dc` как есть: разбор и проверка — в Core::connect_spotify.
+  Sp(String),
 }
 
 /// Поля формы → ключи сервиса. Нет обязательного поля — пустая строка, её отклонит проверка
@@ -66,6 +68,7 @@ fn key_creds(info: &ServiceInfo, fields: &HashMap<String, String>) -> Res<KeyCre
   match info.id {
     ServiceId::Sc => Ok(KeyCreds::Sc(sc_creds(field("client_id").unwrap_or(""), field("oauth_token")))),
     ServiceId::Ym => Ok(KeyCreds::Ym(ym_creds(field("token").unwrap_or("")))),
+    ServiceId::Sp => Ok(KeyCreds::Sp(field("sp_dc").unwrap_or("").to_owned())),
     _ => Err(format!("{}: пока не поддерживается", info.name)),
   }
 }
@@ -83,6 +86,7 @@ pub async fn connect_service_key(core: State<'_, Arc<Core>>, service: String, fi
   match key_creds(info, &fields)? {
     KeyCreds::Sc(creds) => core.connect_soundcloud(creds).await,
     KeyCreds::Ym(creds) => core.connect_yandex(creds).await,
+    KeyCreds::Sp(sp_dc) => core.connect_spotify(&sp_dc).await,
   }
   .map_err(err)
 }
@@ -102,6 +106,7 @@ pub async fn login_service(app: tauri::AppHandle, core: State<'_, Arc<Core>>, db
       }
     }
     "soundcloud" => crate::login::soundcloud(app, core).await,
+    "spotify" => crate::login::spotify(app, core).await,
     _ => Err(anyhow::anyhow!("Неизвестный сервис: {service}")),
   }
   .map_err(err)
@@ -1372,6 +1377,8 @@ mod tests {
     assert_eq!(c.token, "t");
     let KeyCreds::Ym(c) = key_creds(info(ServiceId::Ym), &fields(&[("client_id", "x")])).unwrap() else { panic!("ожидался Яндекс") };
     assert_eq!(c.token, "");
+    let KeyCreds::Sp(v) = key_creds(info(ServiceId::Sp), &fields(&[("sp_dc", "sp_dc=AQ")])).unwrap() else { panic!("ожидался Spotify") };
+    assert_eq!(v, "sp_dc=AQ");
   }
 
   #[test]
@@ -1393,6 +1400,9 @@ mod tests {
     assert_eq!(e, "client_id SoundCloud — строка из 32 символов");
     let KeyCreds::Ym(creds) = key_creds(info(ServiceId::Ym), &fields(&[("token", "   ")])).unwrap() else { panic!("ожидался Яндекс") };
     assert_eq!(core.connect_yandex(creds).await.map_err(err).unwrap_err(), "Вставь токен Яндекс Музыки");
+    let KeyCreds::Sp(raw) = key_creds(info(ServiceId::Sp), &fields(&[("sp_dc", "SECRET123")])).unwrap() else { panic!("ожидался Spotify") };
+    let e = core.connect_spotify(&raw).await.map_err(err).unwrap_err();
+    assert!(!e.contains(secret), "{e}");
     let e = key_creds(info(ServiceId::Vk), &fields(&[("token", secret)])).unwrap_err();
     assert!(!e.contains(secret), "{e}");
   }

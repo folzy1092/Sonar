@@ -3,7 +3,7 @@
 
 use crate::providers::registry::{by_key, parse_ref, split_ref, RefKind, ServiceId, ServiceInfo, REGISTRY};
 use crate::providers::{
-  soundcloud, yandex, Account, Album, AlbumPage, Artist, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track,
+  soundcloud, spotify, yandex, Account, Album, AlbumPage, Artist, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track,
 };
 use crate::secrets;
 use anyhow::{anyhow, bail, Result};
@@ -17,6 +17,7 @@ use tokio::sync::RwLock;
 
 mod provider;
 mod sc;
+mod sp;
 mod ym;
 pub use provider::{AnyProvider, Provider};
 
@@ -52,6 +53,7 @@ pub struct ServiceStatus {
 pub struct ServicesStatus {
   pub soundcloud: ServiceStatus,
   pub yandex: ServiceStatus,
+  pub spotify: ServiceStatus,
 }
 
 /// Сервис из реестра и состояние его подключения (команда `services_list`).
@@ -76,6 +78,11 @@ pub struct Core {
   pub http: reqwest::Client,
   sc: RwLock<Option<Stored<soundcloud::Creds>>>,
   ym: RwLock<Option<Stored<yandex::Creds>>>,
+  sp: RwLock<Option<Stored<spotify::Creds>>>,
+  /// Токен веб-плеера Spotify (живёт около часа) — общий для всех запросов.
+  sp_token: tokio::sync::Mutex<Option<spotify::WebToken>>,
+  /// Шифр TOTP для токена Spotify; потом — с сервера (`GET /config`).
+  sp_totp: spotify::TotpSecret,
   /// Сырой JSON треков SoundCloud из поиска — в нём `transcodings` для потока.
   sc_raw: Mutex<HashMap<String, Value>>,
   /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
@@ -112,6 +119,9 @@ impl Core {
       http,
       sc: RwLock::new(secrets::load(ServiceId::Sc.key())),
       ym: RwLock::new(secrets::load(ServiceId::Ym.key())),
+      sp: RwLock::new(secrets::load(ServiceId::Sp.key())),
+      sp_token: tokio::sync::Mutex::new(None),
+      sp_totp: spotify::default_totp(),
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
@@ -182,6 +192,9 @@ impl Core {
       http: reqwest::Client::new(),
       sc: RwLock::new(None),
       ym: RwLock::new(None),
+      sp: RwLock::new(None),
+      sp_token: tokio::sync::Mutex::new(None),
+      sp_totp: spotify::default_totp(),
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
@@ -192,18 +205,23 @@ impl Core {
   }
 
   pub async fn status(&self) -> ServicesStatus {
-    ServicesStatus { soundcloud: status(&*self.sc.read().await), yandex: status(&*self.ym.read().await) }
+    ServicesStatus {
+      soundcloud: status(&*self.sc.read().await),
+      yandex: status(&*self.ym.read().await),
+      spotify: status(&*self.sp.read().await),
+    }
   }
 
   /// Все сервисы реестра по порядку; у работающих — подключён ли и чей аккаунт.
   pub async fn list(&self) -> Vec<ServiceEntry> {
-    let ServicesStatus { soundcloud, yandex } = self.status().await;
+    let ServicesStatus { soundcloud, yandex, spotify } = self.status().await;
     REGISTRY
       .iter()
       .map(|info| {
         let st = match info.id {
           ServiceId::Sc => soundcloud.clone(),
           ServiceId::Ym => yandex.clone(),
+          ServiceId::Sp => spotify.clone(),
           _ => ServiceStatus::default(),
         };
         ServiceEntry { info, connected: st.connected, account_name: st.name, avatar_url: st.avatar_url, premium: st.premium }
@@ -240,6 +258,7 @@ impl Core {
     match info.id {
       ServiceId::Sc => *self.sc.write().await = None,
       ServiceId::Ym => *self.ym.write().await = None,
+      ServiceId::Sp => self.forget_spotify().await,
       _ => bail!("неизвестный сервис {service}"),
     }
     secrets::delete(info.key)
@@ -250,6 +269,7 @@ impl Core {
     match id {
       ServiceId::Sc => Ok(AnyProvider::Sc(sc::ScProvider { core: self })),
       ServiceId::Ym => Ok(AnyProvider::Ym(ym::YmProvider { core: self })),
+      ServiceId::Sp => Ok(AnyProvider::Sp(sp::SpProvider { core: self })),
       other => bail!("{}: пока не поддерживается", other.info().name),
     }
   }
@@ -561,12 +581,13 @@ mod tests {
     let core = Core::new_empty();
     assert_eq!(core.provider(ServiceId::Sc).unwrap().id(), ServiceId::Sc);
     assert_eq!(core.provider(ServiceId::Ym).unwrap().id(), ServiceId::Ym);
+    assert_eq!(core.provider(ServiceId::Sp).unwrap().id(), ServiceId::Sp);
   }
 
   #[test]
   fn provider_unimplemented_errors() {
     let core = Core::new_empty();
-    for id in [ServiceId::Yt, ServiceId::Vk, ServiceId::Sp, ServiceId::Local] {
+    for id in [ServiceId::Yt, ServiceId::Vk, ServiceId::Local] {
       let e = err_text(core.provider(id));
       assert!(e.contains("пока не поддерживается"), "{e}");
       assert!(e.starts_with(id.info().name), "{e}");
@@ -686,6 +707,59 @@ mod tests {
     let stored = Some(Stored { creds: (), account: Account { premium: Some(true), ..Account::default() } });
     assert_eq!(status(&stored).premium, Some(true));
     assert_eq!(status::<()>(&None).premium, None);
+  }
+
+  /// Без ключа Spotify ветки sp доходят до провайдера и отвечают «не подключён» — без сети.
+  #[tokio::test]
+  async fn sp_dispatch_without_account() {
+    let core = Core::new_empty();
+    let nc = spotify::NOT_CONNECTED;
+    assert_eq!(err_text(core.search("x", "sp", 5).await), nc);
+    assert_eq!(err_text(core.search_more("x", "sp", 5).await), nc);
+    assert_eq!(err_text(core.artist_page("spa:1").await), nc);
+    assert_eq!(err_text(core.artist_tracks("spa:1").await), nc);
+    assert_eq!(err_text(core.album_page("spalb:1").await), nc);
+    assert_eq!(err_text(core.service_playlist("sppl:1").await), nc);
+    assert_eq!(err_text(core.service_playlist("sppl:likes").await), nc);
+    // плейлисты аккаунта без ключа — пусто, похожих у Spotify нет
+    assert!(core.service_playlists("spotify").await.unwrap().is_empty());
+    assert!(core.similar("sp:1", 5).await.unwrap().is_empty());
+  }
+
+  /// Трек Spotify без Premium-сборки не играет, а просит резервный сервис — без паники и сети.
+  #[cfg(not(feature = "spotify-playback"))]
+  #[tokio::test]
+  async fn sp_stream_needs_fallback() {
+    let core = Core::new_empty();
+    assert_eq!(err_text(core.resolve("sp:4uLU6hMCjMI75M1A2tKUQC", false).await), spotify::NEEDS_FALLBACK);
+    *core.sp.write().await = Some(Stored {
+      creds: spotify::Creds { sp_dc: "x".repeat(40) },
+      account: Account { premium: Some(true), ..Account::default() },
+    });
+    assert_eq!(err_text(core.resolve("sp:4uLU6hMCjMI75M1A2tKUQC", true).await), spotify::NEEDS_FALLBACK);
+  }
+
+  #[tokio::test]
+  async fn connect_spotify_rejects_garbage_without_network() {
+    let core = Core::new_empty();
+    assert_eq!(err_text(core.connect_spotify("  ").await), "Вставь значение cookie sp_dc с open.spotify.com");
+    assert_eq!(err_text(core.connect_spotify("sp_dc=a b").await), "Вставь значение cookie sp_dc с open.spotify.com");
+  }
+
+  #[tokio::test]
+  async fn status_and_list_show_spotify() {
+    let core = Core::new_empty();
+    *core.sp.write().await = Some(Stored {
+      creds: spotify::Creds { sp_dc: "x".repeat(40) },
+      account: Account { name: Some("F".into()), premium: Some(false), ..Account::default() },
+    });
+    let st = core.status().await;
+    assert!(st.spotify.connected && st.spotify.premium == Some(false));
+    let list = core.list().await;
+    let sp = list.iter().find(|e| e.info.id == ServiceId::Sp).unwrap();
+    assert!(sp.connected && sp.account_name.as_deref() == Some("F"));
+    let json = serde_json::to_value(&st).unwrap();
+    assert_eq!(json["spotify"]["name"], "F");
   }
 
   #[tokio::test]

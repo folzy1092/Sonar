@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { ServiceState } from './api'
 import {
+  FALLBACK_ERROR,
   IMPLEMENTED,
   SERVICES,
   byId,
   connected,
+  isFallbackError,
   isTrackRef,
+  needsFallback,
   parseRef,
   playlistWebUrl,
   refKind,
@@ -22,7 +25,7 @@ const TABLE = [
   { id: 'ym', key: 'yandex', name: 'Яндекс Музыка', short: 'Я', color: '#FFBC0D', pre: ['ym', 'ymalb', 'yma', 'ympl'], caps: '1111111', implemented: true },
   { id: 'yt', key: 'youtube', name: 'YouTube Music', short: 'YT', color: '#FF0033', pre: ['yt', 'ytalb', 'yta', 'ytpl'], caps: '1111110', implemented: false },
   { id: 'vk', key: 'vk', name: 'VK Музыка', short: 'VK', color: '#0077FF', pre: ['vk', 'vkalb', 'vka', 'vkpl'], caps: '1111111', implemented: false },
-  { id: 'sp', key: 'spotify', name: 'Spotify', short: 'SP', color: '#1ED760', pre: ['sp', 'spalb', 'spa', 'sppl'], caps: '1011110', implemented: false },
+  { id: 'sp', key: 'spotify', name: 'Spotify', short: 'SP', color: '#1ED760', pre: ['sp', 'spalb', 'spa', 'sppl'], caps: '1011011', implemented: true },
   { id: 'local', key: 'local', name: 'Локальные файлы', short: '♪', color: '#8E8E93', pre: ['local', null, null, null], caps: '0110000', implemented: false },
 ] as const
 
@@ -146,8 +149,8 @@ describe('byId', () => {
 })
 
 describe('IMPLEMENTED', () => {
-  it('только sc и ym, в порядке таблицы', () => {
-    expect(IMPLEMENTED.map((s) => s.id)).toEqual(['sc', 'ym'])
+  it('sc, ym и sp, в порядке таблицы', () => {
+    expect(IMPLEMENTED.map((s) => s.id)).toEqual(['sc', 'ym', 'sp'])
   })
 })
 
@@ -155,6 +158,7 @@ describe('connected', () => {
   it('только реализованные и подключённые, в порядке реестра; подключённый yt игнорируется', () => {
     const list = [row('yt', true), row('ym', true), row('vk', true), row('sc', true), row('local', true)]
     expect(connected(list).map((s) => s.id)).toEqual(['sc', 'ym'])
+    expect(connected([...list, row('sp', true)]).map((s) => s.id)).toEqual(['sc', 'ym', 'sp'])
   })
 
   it('неподключённые отбрасываются', () => {
@@ -168,7 +172,9 @@ describe('statusOf', () => {
   it('берёт статус по длинному ключу', () => {
     const sc = { connected: true, name: 'dj', avatar_url: null }
     const ym = { connected: false, name: null, avatar_url: null }
-    const status = { soundcloud: sc, yandex: ym }
+    const sp = { connected: true, name: 'folk', avatar_url: null }
+    const status = { soundcloud: sc, yandex: ym, spotify: sp }
+    expect(statusOf(status, byId('sp')!)).toBe(sp)
     expect(statusOf(status, byId('sc')!)).toBe(sc)
     expect(statusOf(status, byId('ym')!)).toBe(ym)
     expect(statusOf(status, byId('yt')!)).toBeNull()
@@ -180,6 +186,7 @@ describe('isTrackRef', () => {
   it('трек реализованного сервиса', () => {
     expect(isTrackRef('sc:1')).toBe(true)
     expect(isTrackRef('ym:1')).toBe(true)
+    expect(isTrackRef('sp:4uLU6hMCjMI75M1A2tKUQC')).toBe(true)
     expect(isTrackRef('yt:1')).toBe(false)
     expect(isTrackRef('scpl:likes')).toBe(false)
     expect(isTrackRef('pl_x')).toBe(false)
@@ -194,6 +201,30 @@ describe('playlistWebUrl', () => {
     expect(playlistWebUrl('scpl:123')).toBeNull()
     expect(playlistWebUrl('pl_x')).toBeNull()
     expect(playlistWebUrl('ympl:likes')).toBeNull()
+  })
+
+  it('Spotify: «Любимые треки» и плейлист', () => {
+    expect(playlistWebUrl('sppl:likes')).toBe('https://open.spotify.com/collection/tracks')
+    expect(playlistWebUrl('sppl:37i9dQZF1DXcBWIGoYBM5M')).toBe('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M')
+    expect(playlistWebUrl('sppl:a/b')).toBeNull()
+  })
+})
+
+describe('резервный сервис', () => {
+  it('needsFallback — только треки сервиса без своего потока', () => {
+    expect(needsFallback('sp:4uLU6hMCjMI75M1A2tKUQC')).toBe(true)
+    expect(needsFallback('sc:1')).toBe(false)
+    expect(needsFallback('ym:1')).toBe(false)
+    expect(needsFallback('sppl:likes')).toBe(false)
+    expect(needsFallback('yt:1')).toBe(false)
+    expect(needsFallback(null)).toBe(false)
+  })
+
+  it('isFallbackError — ответ Rust «нужен резервный сервис» на треке Spotify', () => {
+    expect(isFallbackError('sp:1', FALLBACK_ERROR)).toBe(true)
+    expect(isFallbackError('sp:1', new Error(FALLBACK_ERROR))).toBe(true)
+    expect(isFallbackError('sp:1', 'Spotify: open.spotify.com недоступен')).toBe(false)
+    expect(isFallbackError('sc:1', FALLBACK_ERROR)).toBe(false)
   })
 })
 
