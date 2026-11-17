@@ -20,6 +20,7 @@ from ..accounts import AccountError, Accounts, User, looks_like_token
 from ..config import Settings
 from ..db import now_ms
 from ..logs import LogGroup
+from ..releases import PLATFORMS, ReleaseError, Releases, check_url, parse_targets, version_from_url
 from ..status import Status
 from . import screens as S
 from .emoji import e
@@ -45,6 +46,14 @@ class Report(StatesGroup):
     first = State()
 
 
+class RelAdd(StatesGroup):
+    """Владелец закрепляет проверенную версию (BOT.md §2.12)."""
+    url = State()
+    version = State()
+    notes = State()
+    targets = State()
+
+
 @dataclass
 class Ctx:
     bot: Bot
@@ -54,6 +63,7 @@ class Ctx:
     status: Status
     support: Support
     logs: LogGroup
+    releases: Releases | None = None
     bot_username: str = "SonarMusicApp"
 
     def is_owner(self, tg_id: int) -> bool:
@@ -165,7 +175,9 @@ async def on_button(q: CallbackQuery, state: FSMContext, ctx: Ctx):
     if head == "referral":
         return await edit(S.referral(user, ctx.accounts.referral_count(user), ctx.bot_username))
     if head == "versions":
-        return await edit(S.versions(ctx.settings))
+        return await edit(versions_screen(ctx, user, q.from_user.id))
+    if head == "rel":
+        return await rel_button(q, rest, state, ctx)
     if head == "logout":
         if rest != "yes":
             return await edit(S.logout_ask())
@@ -214,6 +226,134 @@ async def report_button(q: CallbackQuery, rest: str, state: FSMContext, ctx: Ctx
     await state.set_state(Report.first)
     await state.update_data(kind=kind, platform=platform)
     return await edit(S.report_prompt(kind))
+
+
+def versions_screen(ctx: Ctx, user: User, tg_id: int):
+    r = ctx.releases
+    return S.versions(ctx.settings, r.current("windows", user) if r else None, r.current("ios", user) if r else None,
+                      owner=ctx.is_owner(tg_id))
+
+
+# ---- проверенные версии: только владелец (BOT.md §2.12) ----
+
+async def rel_button(q: CallbackQuery, rest: str, state: FSMContext, ctx: Ctx):
+    if not ctx.is_owner(q.from_user.id) or ctx.releases is None:
+        return None
+    edit = lambda s: ctx.shower.edit(q.message, s)  # noqa: E731
+    action, _, arg = rest.partition(":")
+    rels = ctx.releases
+    if action == "admin":
+        await state.clear()
+        return await edit(S.rel_admin({p: rels.current(p, None) for p in PLATFORMS}, ctx.settings))
+    if action == "new" and arg in PLATFORMS:
+        await state.clear()
+        await state.set_state(RelAdd.url)
+        await state.update_data(platform=arg)
+        return await edit(S.rel_ask_url(arg))
+    if action == "ver":
+        d = await state.get_data()
+        if "url" not in d:
+            return None
+        await state.update_data(version=version_from_url(d["url"]) or "")
+        await state.set_state(RelAdd.notes)
+        return await edit(S.rel_ask_notes())
+    if action == "nonotes":
+        await state.update_data(notes="")
+        await state.set_state(None)
+        return await edit(S.rel_ask_audience())
+    if action == "aud" and arg in ("all", "only", "except"):
+        await state.update_data(audience=arg, targets=[])
+        if arg == "all":
+            return await edit(S.rel_confirm(await state.get_data()))
+        await state.set_state(RelAdd.targets)
+        return await edit(S.rel_ask_targets(arg))
+    if action == "save":
+        d = await state.get_data()
+        await state.clear()
+        try:
+            rel = rels.add(d["platform"], d.get("version", ""), d["url"], d.get("notes", ""), d.get("audience", "all"),
+                           d.get("targets") or [])
+        except (ReleaseError, KeyError) as err:
+            await q.answer(getattr(err, "text", "Не хватает данных — начни заново"), show_alert=True)
+            return await edit(S.rel_admin({p: rels.current(p, None) for p in PLATFORMS}, ctx.settings))
+        await ctx.logs.event("📦", f"Версия {rel.platform_name} {rel.version}", q.from_user, [rel.url])
+        if arg == "1":
+            await send_alert(ctx, q, rel)
+        return await edit(S.rel_item(rel, len(rels.recipients(rel))))
+    if action == "list" and arg in PLATFORMS:
+        return await edit(S.rel_list(arg, rels.history(arg)))
+    if action == "item" and arg.isdigit() and (rel := rels.get(int(arg))):
+        return await edit(S.rel_item(rel, len(rels.recipients(rel))))
+    if action == "toggle" and arg.isdigit() and (rel := rels.get(int(arg))):
+        rel = rels.set_active(rel.id, not rel.active)
+        return await edit(S.rel_item(rel, len(rels.recipients(rel))))
+    if action == "alert" and arg.isdigit() and (rel := rels.get(int(arg))):
+        await send_alert(ctx, q, rel)
+        return await edit(S.rel_item(rels.get(rel.id), len(rels.recipients(rel))))
+    return None
+
+
+async def send_alert(ctx: Ctx, q: CallbackQuery, rel) -> None:
+    """Сообщение о версии всем, кому она видна; 20 в секунду — в лимитах Telegram."""
+    if not rel.active:
+        await q.answer("Версия снята — алерт не отправлен", show_alert=True)
+        return
+    users = ctx.releases.recipients(rel)
+    sent = failed = 0
+    for u in users:
+        try:
+            await ctx.shower.send(u.tg_id, S.rel_alert(rel))
+            sent += 1
+        except Exception:  # noqa: BLE001 — заблокировал бота, удалил чат: просто не дошло
+            failed += 1
+        await asyncio.sleep(0.05)
+    ctx.releases.mark_alerted(rel.id)
+    await ctx.logs.event("📣", f"Алерт {rel.platform_name} {rel.version}", q.from_user, [f"Доставлено: {sent} · не дошло: {failed}"])
+    await say(ctx, q.message.chat.id, f"{e('sent')} Алерт: доставлено <b>{sent}</b>" + (f", не дошло {failed}" if failed else ""))
+
+
+@router.message(RelAdd.url, F.text)
+async def rel_url(msg: Message, state: FSMContext, ctx: Ctx):
+    if not ctx.is_owner(msg.from_user.id):
+        return
+    try:
+        url = check_url(msg.text)
+    except ReleaseError as err:
+        return await say(ctx, msg.chat.id, f"{e('cancel')} {err.text}")
+    d = await state.get_data()
+    await state.update_data(url=url)
+    await state.set_state(RelAdd.version)
+    await ctx.shower.send(msg.chat.id, S.rel_ask_version(d["platform"], version_from_url(url)))
+
+
+@router.message(RelAdd.version, F.text)
+async def rel_version(msg: Message, state: FSMContext, ctx: Ctx):
+    if not ctx.is_owner(msg.from_user.id):
+        return
+    await state.update_data(version=msg.text.strip()[:60])
+    await state.set_state(RelAdd.notes)
+    await ctx.shower.send(msg.chat.id, S.rel_ask_notes())
+
+
+@router.message(RelAdd.notes, F.text)
+async def rel_notes(msg: Message, state: FSMContext, ctx: Ctx):
+    if not ctx.is_owner(msg.from_user.id):
+        return
+    await state.update_data(notes=msg.text.strip()[:1500])
+    await state.set_state(None)
+    await ctx.shower.send(msg.chat.id, S.rel_ask_audience())
+
+
+@router.message(RelAdd.targets, F.text)
+async def rel_targets(msg: Message, state: FSMContext, ctx: Ctx):
+    if not ctx.is_owner(msg.from_user.id):
+        return
+    targets = parse_targets(msg.text)
+    if not targets:
+        return await say(ctx, msg.chat.id, f"{e('cancel')} Не нашёл ни одного аккаунта — пришли ещё раз")
+    await state.update_data(targets=targets)
+    await state.set_state(None)
+    await ctx.shower.send(msg.chat.id, S.rel_confirm(await state.get_data()))
 
 
 async def staff_button(q: CallbackQuery, ctx: Ctx):

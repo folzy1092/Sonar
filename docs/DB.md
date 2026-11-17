@@ -281,3 +281,18 @@ CREATE TABLE status_daily (                     -- свёртка по дням,
 
 Объёмы: `plays` ≈ 100 строк × 10 пользователей × 365 дней ≈ 365 тыс. строк ≈ 40 МБ в год.
 Старше 2 лет можно сворачивать в помесячные агрегаты — пока не нужно.
+
+## releases — проверенные версии (бот, BOT.md §2.6г, 2026-11-17)
+
+| Поле | Тип | Что |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `platform` | TEXT | `windows` / `ios` |
+| `version` | TEXT | подпись: `0.1.42`, `ios-build-229` |
+| `url` | TEXT | https-ссылка на сборку или страницу релиза |
+| `notes` | TEXT | «Что нового» |
+| `audience` | TEXT | `all` / `only` / `except` |
+| `targets` | TEXT (JSON) | ключи аккаунтов: `u:<username>`, `l:<логин>`, `n:<номер>`, `tg:<id>` |
+| `active` | INTEGER | 1 — закреплена, 0 — снята |
+| `created_at` | INTEGER | мс |
+| `alerted_at` | INTEGER NULL | когда разослан алерт |

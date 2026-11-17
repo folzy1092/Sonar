@@ -5,6 +5,7 @@ import json
 from datetime import datetime, timezone
 
 from ..accounts import User
+from ..releases import AUDIENCES, PLATFORMS, Release, target_label
 from ..config import REPO_DIR, Settings
 from ..status import DOWN, OK, PARTIAL, Item
 from .emoji import e, h
@@ -88,7 +89,7 @@ def register_again() -> Screen:
 
 def registered(login: str, s: Settings) -> Screen:
     return Screen(html=f"<b>Успешно!</b> {e('success')}\n" + quote(f"Аккаунт {code(login)} создан и привязан к Telegram"),
-                  kb=[[Btn("Скачать Sonar", "download", url=s.download_url)]])
+                  kb=[[Btn("Скачать Sonar", "download", "versions")]])
 
 
 def bye() -> Screen:
@@ -116,7 +117,7 @@ def main(user: User, s: Settings) -> Screen:
              + quote(f"Поддержка — кнопка {e('bug')} Баг / Идея ниже"),
         kb=[[Btn("Профиль", "profile", "profile"), Btn("Статистика", "stats", "stats:week")],
             [Btn("Сервисы", "services", "services"), Btn("Баг / Идея", "bug", "report")],
-            [Btn("Скачать Sonar", "download", url=s.download_url)]],
+            [Btn("Скачать Sonar", "download", "versions")]],
     )
 
 
@@ -183,16 +184,138 @@ def _latest_release() -> dict | None:
         return None
 
 
-def versions(s: Settings) -> Screen:
+def download_links(s: Settings, win: Release | None, ios: Release | None) -> list[list[Btn]]:
+    """Кнопки скачивания: закреплённая проверенная версия, иначе — общая ссылка платформы."""
+    return [[Btn("Windows", "logo_windows", url=win.url if win else s.download_url),
+             Btn("iPhone", "logo_apple", url=ios.url if ios else s.download_url_ios)]]
+
+
+def versions(s: Settings, win: Release | None = None, ios: Release | None = None, owner: bool = False) -> Screen:
     rel = _latest_release()
-    html = f"{e('versions')} <b>Тестирование</b>\n" + quote("Скачивай свежие сборки. Выбери файл для установки:")
-    kb = []
-    if rel:
+    html = f"{e('versions')} <b>Версии</b>\n" + quote("Скачивай свежие сборки. Выбери платформу:")
+    lines = []
+    for r in (win, ios):
+        if r:
+            lines.append(f"{e('logo_windows' if r.platform == 'windows' else 'logo_apple')} {r.platform_name}: <b>{h(r.version)}</b>")
+    if lines:
+        html += quote("\n".join(lines), "Проверенные")
+    notes = next((r.notes for r in (ios, win) if r and r.notes), "")
+    if notes:
+        html += quote(f"{e('new')} <b>Что нового:</b>\n{h(notes)}")
+    elif rel:
         changes = "\n".join(f"• {h(c)}" for c in rel.get("changes", [])[:4])
         html += quote(f"{e('new')} <b>Что нового:</b>\n{changes}")
-        kb.append([Btn("Windows", "logo_windows", url=s.download_url)])
+    html += quote("iPhone: ставь IPA через ESign / Feather своей парой, дальше Sonar обновляется сам.")
+    kb = download_links(s, win, ios)
+    if owner:
+        kb.append([Btn("Управление версиями", "integration", "rel:admin")])
     kb.append([back("profile")])
     return Screen(html=html, kb=kb)
+
+
+# ---- управление версиями (только владелец, BOT.md §2.12) ----
+
+def _audience(r: Release) -> str:
+    if r.audience == "all":
+        return "всем"
+    names = ", ".join(target_label(t) for t in r.targets[:6]) + (" …" if len(r.targets) > 6 else "")
+    return ("только: " if r.audience == "only" else "всем, кроме: ") + h(names)
+
+
+def rel_admin(current: dict[str, Release | None], s: Settings) -> Screen:
+    rows = []
+    for key, name in PLATFORMS.items():
+        r = current.get(key)
+        fallback = s.download_url if key == "windows" else s.download_url_ios
+        rows.append(f"<b>{name}</b>: " + (f"{h(r.version)} · {_audience(r)}" if r else f"общая ссылка ({h(fallback)})"))
+    return Screen(
+        html=f"{e('versions')} <b>Управление версиями</b>\n"
+        + quote("\n".join(rows), "Сейчас у всех")
+        + quote("Закрепи проверенную сборку ссылкой — её увидят в «Версии» и «Скачать». Можно показать только "
+                "списку аккаунтов (тестерам) или скрыть от кого-то; алерт — сообщение всем, кому версия видна."),
+        kb=[[Btn("+ Windows", "logo_windows", "rel:new:windows"), Btn("+ iPhone", "logo_apple", "rel:new:ios")],
+            [Btn("История Windows", "logo_windows", "rel:list:windows"), Btn("История iPhone", "logo_apple", "rel:list:ios")],
+            [back("versions")]],
+    )
+
+
+def rel_ask_url(platform: str) -> Screen:
+    return Screen(html=f"{e('versions')} <b>Новая версия · {PLATFORMS[platform]}</b>\n"
+                  + quote("Пришли ссылку на сборку: прямую на файл (.exe / .ipa) или на страницу релиза GitHub."),
+                  kb=[[Btn("Отмена", "cancel", "rel:admin")]])
+
+
+def rel_ask_version(platform: str, guess: str | None) -> Screen:
+    return Screen(html=f"{e('versions')} <b>Номер версии · {PLATFORMS[platform]}</b>\n"
+                  + quote("Как подписать версию? Например <code>0.1.42</code> или <code>build 229</code>."
+                          + (f"\nИз ссылки: <code>{h(guess)}</code> — нажми кнопку, чтобы взять его." if guess else "")),
+                  kb=([[Btn(guess, "confirm", "rel:ver")]] if guess else []) + [[Btn("Отмена", "cancel", "rel:admin")]])
+
+
+def rel_ask_notes() -> Screen:
+    return Screen(html=f"{e('new')} <b>Что нового</b>\n" + quote("Коротко, что в этой версии (покажется в «Версии» и в алерте)."),
+                  kb=[[Btn("Без описания", "noop", "rel:nonotes")], [Btn("Отмена", "cancel", "rel:admin")]])
+
+
+def rel_ask_audience() -> Screen:
+    return Screen(html=f"{e('users')} <b>Кому видна версия?</b>\n"
+                  + quote("«Только списку» — тестерам, остальные видят прошлую проверенную. «Всем, кроме» — спрятать от кого-то."),
+                  kb=[[Btn(AUDIENCES["all"], "users", "rel:aud:all")],
+                      [Btn(AUDIENCES["only"], "profile", "rel:aud:only")],
+                      [Btn(AUDIENCES["except"], "warning", "rel:aud:except")],
+                      [Btn("Отмена", "cancel", "rel:admin")]])
+
+
+def rel_ask_targets(audience: str) -> Screen:
+    what = "кому показать" if audience == "only" else "от кого спрятать"
+    return Screen(html=f"{e('users')} <b>Список аккаунтов</b>\n"
+                  + quote(f"Пришли, {what}: <code>@username</code>, логин, <code>#номер</code> или Telegram id — "
+                          "через пробел, запятую или с новой строки."),
+                  kb=[[Btn("Отмена", "cancel", "rel:admin")]])
+
+
+def rel_confirm(d: dict) -> Screen:
+    aud = AUDIENCES[d["audience"]] + (": " + ", ".join(target_label(t) for t in d.get("targets", [])) if d.get("targets") else "")
+    return Screen(
+        html=f"{e('versions')} <b>Проверь</b>\n"
+        + quote(f"Платформа: <b>{PLATFORMS[d['platform']]}</b>\nВерсия: <b>{h(d['version'])}</b>\n"
+                f"Ссылка: {h(d['url'])}\nКому: {h(aud)}" + (f"\n\n{h(d['notes'])}" if d.get("notes") else "")),
+        kb=[[Btn("Сохранить", "confirm", "rel:save:0"), Btn("Сохранить и разослать", "sent", "rel:save:1")],
+            [Btn("Отмена", "cancel", "rel:admin")]],
+    )
+
+
+def rel_list(platform: str, items: list[Release]) -> Screen:
+    if not items:
+        body = quote("Закреплённых версий пока нет — у всех общая ссылка.")
+    else:
+        body = quote("\n".join(f"{'🟢' if r.active else '⚪️'} <b>{h(r.version)}</b> · {date_ru(r.created_at)} · {_audience(r)}"
+                                for r in items))
+    kb = [[Btn(f"{'' if r.active else '(снята) '}{r.version}", "versions", f"rel:item:{r.id}")] for r in items]
+    kb.append([back("rel:admin")])
+    return Screen(html=f"{e('versions')} <b>История · {PLATFORMS[platform]}</b>\n" + body, kb=kb)
+
+
+def rel_item(r: Release, recipients: int) -> Screen:
+    state = "закреплена" if r.active else "снята"
+    alerted = f"\nАлерт: {date_ru(r.alerted_at)}" if r.alerted_at else ""
+    return Screen(
+        html=f"{e('versions')} <b>{r.platform_name} · {h(r.version)}</b>\n"
+        + quote(f"Статус: {state}\nКому: {_audience(r)}\nПолучат алерт: <b>{recipients}</b>{alerted}\nСсылка: {h(r.url)}")
+        + (quote(h(r.notes)) if r.notes else ""),
+        kb=[[Btn("Разослать алерт", "sent", f"rel:alert:{r.id}")],
+            [Btn("Снять" if r.active else "Вернуть", "revoke" if r.active else "refresh", f"rel:toggle:{r.id}")],
+            [back(f"rel:list:{r.platform}")]],
+    )
+
+
+def rel_alert(r: Release) -> Screen:
+    """Само сообщение пользователю о новой версии."""
+    return Screen(
+        html=f"{e('new')} <b>Новая версия Sonar · {r.platform_name}</b>\n"
+        + quote(f"<b>{h(r.version)}</b>" + (f"\n{h(r.notes)}" if r.notes else "")),
+        kb=[[Btn("Скачать", "download", url=r.url)]],
+    )
 
 
 def logout_ask() -> Screen:
