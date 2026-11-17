@@ -34,6 +34,11 @@ const MAP = {
   globe: 'globe', telegram: 'telegram', document: 'document', fire: 'fire', trophy: 'trophy', headphone: 'headphone', calendar: 'calendar',
   broom: 'broom', externalLink: 'external-link', server: 'server', exit: 'exit', clock: 'clock', fingerprint: 'fingerprint', userHeart: 'user-heart',
   arrowUp: 'arrow-up', arrowDown: 'arrow-down',
+  // Плеер: настройки Аудио / Вид плеера / Очередь / Жесты
+  alignCenter: 'align-center', alignRight: 'align-right', volume: 'volume', volumeOff: 'volume-off', headphone: 'headphone',
+  phoneCall: 'phone-call', fingerTap: 'finger-tap', arrowLeft: 'arrow-left', arrowRight: 'arrow-right', speaker: 'speaker',
+  chartBar: 'chart-bar', playCircle: 'play-circle', thinLine: 'line', fullscreen: 'fullscreen', listExpand: 'list-expansion',
+  listCollapse: 'list-collapse', crossfade: 'transfer-3', contrast: 'contrast', handFinger: 'hand-finger', waveLine: 'wave',
 }
 
 /** Знаки сервисов — одна заливка (Simple Icons, 24×24). */

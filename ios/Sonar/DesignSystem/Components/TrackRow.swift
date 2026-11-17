@@ -44,7 +44,8 @@ struct EqualizerBars: View {
 }
 
 /// Строка трека (`IMG_6764`, `IMG_6770`): обложка, название и исполнитель, длительность в плашке, ⋮.
-/// Играющий — название цветом темы, в плашке столбики. ⋮ и долгое нажатие — лист трека.
+/// Играющий — название цветом темы, в плашке столбики. ⋮ и долгое нажатие — лист трека, свайп вбок —
+/// действие из «Жестов» (`gestures.library.*`).
 struct TrackRow: View {
     let track: Track
     var playing = false
@@ -80,6 +81,8 @@ struct TrackRow: View {
             .accessibilityLabel("Меню трека")
         }
         .padding(.vertical, 5)
+        // свайпы из Профиль → Жесты → Медиатека (по умолчанию — «Играть следующим»)
+        .trackSwipe(.library, track: track, remove: remove)
         .opacity(track.available ? 1 : 0.4)
     }
 
