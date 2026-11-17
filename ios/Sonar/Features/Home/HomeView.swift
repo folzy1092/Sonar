@@ -20,7 +20,7 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                DotField(active: active && !showModes, playing: myWavePlaying, color: Theme.accent) {
+                SonarField(active: active && !showModes, playing: myWavePlaying, color: Theme.accent) {
                     showModes = true
                 }
                     .frame(height: 290)

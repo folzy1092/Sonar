@@ -1,12 +1,12 @@
 import SwiftUI
 import UIKit
 
-/// Герой «Моей волны» — поле точек (своё, не сердце Dotify): сетка кружков, размер каждого — яркость
+/// Герой «Моей волны» — SonarField, поле точек: сетка кружков, размер каждого — яркость
 /// фигуры в этом месте. Фигуры по кругу перетекают друг в друга: знак Sonar → шар со светом → две волны.
 /// Сами по себе точки всё время чуть плывут и дышат размером; когда играет музыка — сильнее и с бегущей
 /// рябью. Цвет — акцент темы (под обложку). Касание — точки под пальцем коротко шевелятся (отскок от
 /// пальца и обратно) и лёгкий тактильный отклик; долгое нажатие — лист настроений волны (`onHold`). Рисует Canvas одним путём, ~1800 точек, 30 кадров/с; вне экрана — пауза.
-struct DotField: View {
+struct SonarField: View {
     var active: Bool
     var playing: Bool
     var color: Color
@@ -36,7 +36,7 @@ struct DotField: View {
             let logo = self.logo, playing = self.playing, color = self.color, step = self.step
             let pokes = self.pokes.filter { t - $0.time < Self.pokeLife }
             Canvas { gc, canvas in
-                let grid = DotGrid(size: canvas, step: step)
+                let grid = FieldGrid(size: canvas, step: step)
                 guard grid.cols > 0, grid.rows > 0 else { return }
                 var dots = Path()
                 let maxR = Double(step) * 0.5
@@ -74,7 +74,7 @@ struct DotField: View {
         .onGeometryChange(for: CGSize.self) { $0.size } action: { new in
             guard new != size else { return }
             size = new
-            logo = Self.logoMask(DotGrid(size: new, step: step))
+            logo = Self.logoMask(FieldGrid(size: new, step: step))
         }
         .accessibilityHidden(true)
     }
@@ -120,7 +120,7 @@ struct DotField: View {
     // MARK: - Фигуры
 
     /// Яркость точки 0…1: смесь текущей и следующей фигуры, дыхание, рябь.
-    static func value(col: Int, row: Int, grid: DotGrid, logo: [Float], t: Double, playing: Bool) -> Double {
+    static func value(col: Int, row: Int, grid: FieldGrid, logo: [Float], t: Double, playing: Bool) -> Double {
         let hold = 6.5, morph = 2.5, period = hold + morph
         let shapes = 3
         let phase = t.truncatingRemainder(dividingBy: period * Double(shapes))
@@ -156,7 +156,7 @@ struct DotField: View {
     }
 
     /// Знак Sonar с бегущим бликом.
-    private static func logoValue(col: Int, row: Int, grid: DotGrid, logo: [Float], x: Double, y: Double, t: Double) -> Double {
+    private static func logoValue(col: Int, row: Int, grid: FieldGrid, logo: [Float], x: Double, y: Double, t: Double) -> Double {
         let i = row * grid.cols + col
         guard i < logo.count else { return 0 }
         let m = Double(logo[i])
@@ -201,7 +201,7 @@ struct DotField: View {
     }
 
     /// Маска знака: точка внутри — 1, края смягчены размытием.
-    static func logoMask(_ grid: DotGrid) -> [Float] {
+    static func logoMask(_ grid: FieldGrid) -> [Float] {
         guard grid.cols > 0, grid.rows > 0 else { return [] }
         let side = min(grid.size.width, grid.size.height) * 0.92
         let rect = CGRect(x: (grid.size.width - side) / 2, y: (grid.size.height - side) / 2, width: side, height: side)
@@ -242,7 +242,7 @@ struct DotField: View {
 }
 
 /// Сетка точек по центру области.
-struct DotGrid {
+struct FieldGrid {
     let size: CGSize
     let step: CGFloat
     let cols: Int
