@@ -411,6 +411,10 @@
   /* «Обычная»: слово заливается слева направо, будущие — 55 %, прошедшие — ярко */
   .anim-normal .line.active .w {
     --p: 0;
+  }
+  /* заливка — на внутреннем .h: у него своя трансформация (holdLook), а background-clip: text родителя
+     в Chromium не красит слой потомка — строка становилась прозрачной целиком */
+  .anim-normal .line.active .w .h {
     color: transparent;
     background: linear-gradient(
       90deg,
