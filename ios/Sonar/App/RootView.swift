@@ -233,7 +233,7 @@ struct BottomChrome: View {
 
                 if hasMini {
                     MiniPlayer(compact: collapsed, open: openPlayer)
-                        .background(MiniSurface())
+                        .background(MiniPlayerSurface())
                         .frame(width: max(0, miniRight - miniLeft), height: miniHeight)
                         .position(x: (miniLeft + miniRight) / 2, y: miniY)
                         .transition(.offset(y: 40).combined(with: .opacity))
@@ -282,7 +282,7 @@ private struct BarSurface: View {
 }
 
 /// Мини-плеер в цвет обложки (`IMG_6768`, `IMG_6770`).
-private struct MiniSurface: View {
+struct MiniPlayerSurface: View {
     var body: some View {
         Capsule()
             .fill(.ultraThinMaterial)

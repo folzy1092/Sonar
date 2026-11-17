@@ -33,8 +33,15 @@ struct ProfileView: View {
                     SettingsSection(title: section.0) {
                         ForEach(Array(section.1.enumerated()), id: \.element.id) { row, item in
                             if row > 0 { RowDivider() }
-                            SettingsRowLabel(icon: item.icon, title: item.title, value: item.locked ? "В разработке" : "Скоро",
-                                             chevron: false, locked: item.locked, dimmed: true)
+                            if item.title == "Мини-плеер" {
+                                NavigationLink { MiniPlayerSettingsView() } label: {
+                                    SettingsRowLabel(icon: item.icon, title: item.title)
+                                }
+                                .buttonStyle(PressableStyle(scale: 0.99))
+                            } else {
+                                SettingsRowLabel(icon: item.icon, title: item.title, value: item.locked ? "В разработке" : "Скоро",
+                                                 chevron: false, locked: item.locked, dimmed: true)
+                            }
                         }
                     }
                     .cascade(index + 1)

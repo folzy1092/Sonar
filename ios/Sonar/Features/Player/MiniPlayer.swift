@@ -8,7 +8,13 @@ struct MiniPlayer: View {
     let open: @MainActor () -> Void
     @Environment(PlaybackEngine.self) private var engine
     @Environment(LibraryStore.self) private var library
+    @Environment(SettingsStore.self) private var settings
     @State private var drag: CGFloat = 0
+
+    /// Как показывать прогресс (Профиль → Мини-плеер): кольцо, линия, заливка — можно вместе.
+    private var indicators: Set<ProgressIndicator> {
+        ProgressIndicator.parse(settings.string(ProgressIndicator.key))
+    }
 
     private var progress: Double {
         engine.duration > 0 ? min(1, max(0, engine.position / engine.duration)) : 0
@@ -17,7 +23,8 @@ struct MiniPlayer: View {
     var body: some View {
         if let track = engine.current {
             HStack(spacing: compact ? 10 : 12) {
-                CoverRing(url: track.coverURL, progress: progress, side: compact ? 42 : 48, loading: engine.isLoading)
+                CoverRing(url: track.coverURL, progress: progress, side: compact ? 42 : 48, ring: indicators.contains(.ring),
+                          loading: engine.isLoading)
                     .id(track.ref)
                     .transition(.scale(scale: 0.7).combined(with: .opacity))
                 VStack(alignment: .leading, spacing: 1) {
@@ -55,6 +62,35 @@ struct MiniPlayer: View {
             .padding(.leading, compact ? 7 : 9)
             .padding(.trailing, compact ? 6 : 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(alignment: .leading) {
+                // «Заливка фона»: пройденная часть капсулы светлее
+                if indicators.contains(.fill) {
+                    GeometryReader { proxy in
+                        Rectangle()
+                            .fill(Theme.text.opacity(0.12))
+                            .frame(width: proxy.size.width * progress)
+                            .animation(.linear(duration: 0.25), value: progress)
+                    }
+                    .clipShape(Capsule())
+                    .transition(.opacity)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                // «Линия внизу»: тонкая полоска по низу капсулы
+                if indicators.contains(.line) {
+                    GeometryReader { proxy in
+                        Capsule()
+                            .fill(Theme.accent)
+                            .frame(width: proxy.size.width * progress, height: 2.5)
+                            .animation(.linear(duration: 0.25), value: progress)
+                    }
+                    .frame(height: 2.5)
+                    .padding(.horizontal, compact ? 20 : 28)
+                    .padding(.bottom, 3)
+                    .transition(.opacity)
+                }
+            }
+            .animation(Motion.spring, value: indicators)
             .offset(x: drag)
             .contentShape(Capsule())
             .onTapGesture(perform: open)
@@ -77,19 +113,25 @@ struct CoverRing: View {
     let url: String?
     let progress: Double
     let side: CGFloat
+    /// Кольцо выключено — просто обложка кружком.
+    var ring = true
     var loading = false
 
     var body: some View {
         ZStack {
-            Circle()
-                .stroke(Theme.text.opacity(0.18), lineWidth: 2.5)
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(Theme.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(.linear(duration: 0.25), value: progress)
+            if ring {
+                Circle()
+                    .stroke(Theme.text.opacity(0.18), lineWidth: 2.5)
+                    .transition(.opacity)
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(Theme.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 0.25), value: progress)
+                    .transition(.opacity)
+            }
             CoverImage(url: url, cornerRadius: side)
-                .padding(4.5)
+                .padding(ring ? 4.5 : 0)
                 .overlay {
                     if loading {
                         ProgressView().tint(.white).scaleEffect(0.8)
@@ -97,6 +139,7 @@ struct CoverRing: View {
                 }
         }
         .frame(width: side, height: side)
+        .animation(Motion.spring, value: ring)
         .accessibilityLabel("Прогресс \(Int(progress * 100)) %")
     }
 }
