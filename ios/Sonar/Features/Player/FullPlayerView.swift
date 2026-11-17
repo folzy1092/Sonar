@@ -46,6 +46,8 @@ struct FullPlayerView: View {
                 lyricsBackground
                     .transition(.opacity)
                 lyricsLayer
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
                     .transition(.opacity)
             } else if style == .large {
                 background
@@ -429,7 +431,10 @@ struct FullPlayerView: View {
             }
             .buttonStyle(PressableStyle())
             .accessibilityLabel("Вернуться к обложке")
-            Button { showLyricsMenu = true } label: {
+            Button {
+                touched()
+                showLyricsMenu = true
+            } label: {
                 SonarIcon(.more, size: 26)
                     .foregroundStyle(Theme.text)
                     .frame(width: 44, height: 44)
