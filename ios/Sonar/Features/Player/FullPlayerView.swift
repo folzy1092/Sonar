@@ -418,42 +418,74 @@ struct FullPlayerView: View {
         .background(.ultraThinMaterial, in: Capsule())
     }
 
+    /// Низ (`player.jpg`): слева капсула ♥ · + · ⤓, справа — T (текст) и ползунки (скорость).
     private var bottomRow: some View {
         HStack {
-            HStack(spacing: 22) {
-                if let track = engine.current {
+            if let track = engine.current {
+                HStack(spacing: 26) {
                     Button { withAnimation(Motion.spring) { library.toggleLike(track) } } label: {
                         SonarIcon(.heart, filled: library.isLiked(track), size: 26)
                             .foregroundStyle(library.isLiked(track) ? Theme.accent : Theme.text)
                             .scaleEffect(library.isLiked(track) ? 1.08 : 1)
                     }
+                    .accessibilityLabel(library.isLiked(track) ? "Убрать из Любимых" : "В Любимые")
+                    Button {
+                        engine.message = "Свои плейлисты Sonar появятся вместе с сервером"
+                    } label: { SonarIcon(.plus, size: 26) }
+                        .accessibilityLabel("В плейлист")
+                    downloadButton(track)
                 }
-                Button { showQueue = true } label: { SonarIcon(.queue, size: 26) }
-                Button {
-                    showLyrics = true
-                } label: {
-                    SonarIcon(.lyrics, size: 24)
+                .padding(.horizontal, 22)
+                .frame(height: 52)
+                .background(.ultraThinMaterial, in: Capsule())
+            }
+            Spacer()
+            HStack(spacing: 26) {
+                Button { showLyrics = true } label: {
+                    SonarIcon(.letterT, size: 26)
                         .foregroundStyle(lyricsStore.lyrics != nil && lyricsStore.trackRef == engine.current?.ref
-                            ? Theme.text : Theme.textSecondary)
+                            ? Theme.text : Theme.textTertiary)
                 }
                 .accessibilityLabel("Текст песни")
+                Button { showSpeed = true } label: {
+                    SonarIcon(.sliders, size: 26)
+                        .foregroundStyle(engine.rate == 1 ? Theme.text : Theme.accent)
+                }
+                .accessibilityLabel(engine.rate == 1 ? "Скорость" : "Скорость \(String(format: "%g", engine.rate))×")
             }
-            .padding(.horizontal, 20)
-            .frame(height: 50)
+            .padding(.horizontal, 22)
+            .frame(height: 52)
             .background(.ultraThinMaterial, in: Capsule())
-            Spacer()
-            Button { showSpeed = true } label: {
-                Text(engine.rate == 1 ? "1×" : String(format: "%g×", engine.rate))
-                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(engine.rate == 1 ? Theme.text : Theme.accent)
-                    .padding(.horizontal, 20)
-                    .frame(height: 50)
-                    .background(.ultraThinMaterial, in: Capsule())
-            }
         }
-        .font(.system(size: 20))
         .foregroundStyle(Theme.text)
         .buttonStyle(PressableStyle(scale: 0.9))
+    }
+
+    /// ⤓: скачать / качается (кольцо) / скачан (заливка, тап — удалить).
+    private func downloadButton(_ track: Track) -> some View {
+        let downloads = DownloadStore.shared
+        return Button {
+            if downloads.isDownloaded(track.ref) {
+                downloads.remove(track.ref)
+                engine.message = "Загрузка удалена"
+            } else if downloads.progress[track.ref] == nil {
+                downloads.download(track)
+            }
+        } label: {
+            ZStack {
+                if let progress = downloads.progress[track.ref] {
+                    Circle().stroke(Theme.text.opacity(0.2), lineWidth: 2.5)
+                    Circle().trim(from: 0, to: progress)
+                        .stroke(Theme.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                } else {
+                    SonarIcon(.download, filled: downloads.isDownloaded(track.ref), size: 26)
+                        .foregroundStyle(downloads.isDownloaded(track.ref) ? Theme.accent : Theme.text)
+                }
+            }
+            .frame(width: 26, height: 26)
+        }
+        .accessibilityLabel(downloads.isDownloaded(track.ref) ? "Удалить загрузку" : "Скачать")
     }
 
     static func time(_ seconds: Double) -> String {
