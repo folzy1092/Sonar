@@ -101,8 +101,11 @@ targets:
 
   # Виджет «Домой» (WidgetKit): статичные кнопки «Любимые», «Моя волна», «Быстрый плейлист» — открывают Sonar
   # ссылкой sonar://play/… App Groups нет (сторонняя подпись их не даёт), поэтому данных приложения виджет
-  # не читает. Подпись: zsign / ESign подписывают .appex тем же профилем; профиль не на «*» — расширение
-  # убирается при установке (BundlePreparer, docs/ROADMAP.md «Блок I»), Sonar работает и без него.
+  # не читает. Там же (iOS 18) — кнопка «Моя волна» в Пункте управления (ControlWidget, значок — свой символ
+  # SonarWidget/Assets.xcassets/sonar.mark.symbolset из ios/scripts/gen-symbol.mjs) и значки экрана блокировки.
+  # Отдельного расширения под них нет — одна .appex, одна подпись. Подпись: zsign / ESign подписывают .appex
+  # тем же профилем; профиль не на «*» — расширение убирается при установке (BundlePreparer,
+  # docs/ROADMAP.md «Блок I»), Sonar работает и без него.
   SonarWidget:
     type: app-extension
     platform: iOS
@@ -112,6 +115,8 @@ targets:
       - path: Sonar/DesignSystem/Icons/IconPaths.swift
       - path: Sonar/DesignSystem/Icons/IconShape.swift
       - path: Sonar/Core/Shortcuts/PlayTarget.swift
+      # интент кнопки Пункта управления: с openAppWhenRun он должен быть и в приложении, и в расширении
+      - path: Sonar/Core/Shortcuts/OpenWaveIntent.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.folzy.sonar.widget

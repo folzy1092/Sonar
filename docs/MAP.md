@@ -102,12 +102,14 @@ Sonar/
 │
 ├── ios/
 │   ├── project.yml           XcodeGen: таргеты Sonar, SonarWidget, SonarTests; bundle com.folzy.sonar
-│   ├── SonarWidget/          виджет «Домой» (WidgetKit, com.folzy.sonar.widget): кнопки → sonar://play/…
+│   ├── SonarWidget/          виджет «Домой» (WidgetKit, com.folzy.sonar.widget): кнопки → sonar://play/…;
+│   │                         «Моя волна» в Пункте управления и на экране блокировки, символ знака sonar.mark
 │   ├── Sonar/
 │   │   ├── App/
 │   │   │   ├── SonarApp.swift        @main, сцена
 │   │   │   ├── DeepLink.swift        ссылки sonar:// (play/liked|wave|quick — виджет)
 │   │   │   ├── SonarIntents.swift    Siri и «Команды» (App Intents, без entitlement)
+│   │   │   (Core/Shortcuts/OpenWaveIntent.swift — интент кнопки Пункта управления, общий с виджетом)
 │   │   │   ├── AppState.swift        вошёл/не вошёл, текущий пользователь
 │   │   │   ├── RootView.swift        свой таб-бар + мини-плеер + полный плеер
 │   │   │   ├── ChromeState.swift     свёрнут ли таб-бар (прокрутка, гистерезис)
