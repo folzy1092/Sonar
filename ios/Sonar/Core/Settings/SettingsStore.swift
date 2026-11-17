@@ -93,6 +93,7 @@ final class SettingsStore {
         if let data = try? JSONEncoder().encode(values) {
             storage.set(data, forKey: Self.storageKey)
         }
+        onChange?(key)
     }
 
     /// «Сбросить настройки»: все значения — к умолчаниям (ключи без умолчания — тоже стираются).
@@ -103,5 +104,23 @@ final class SettingsStore {
 
     func set(_ key: String, _ value: Bool) {
         set(key, .bool(value))
+    }
+
+    // MARK: - Синк (`Core/Sync/StoreAdapters.swift`)
+
+    /// Настройка поменялась (ключ) — журнал синка сверяет снимок.
+    @ObservationIgnored var onChange: (@MainActor (String) -> Void)?
+
+    /// Явно заданные значения, без умолчаний — то, что едет в синк.
+    var storedValues: [String: SettingValue] { values }
+
+    /// Убрать значение (пришло удаление) — снова действует умолчание.
+    func remove(_ key: String) {
+        guard values[key] != nil else { return }
+        values[key] = nil
+        if let data = try? JSONEncoder().encode(values) {
+            storage.set(data, forKey: Self.storageKey)
+        }
+        onChange?(key)
     }
 }
