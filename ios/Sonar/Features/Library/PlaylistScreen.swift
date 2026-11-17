@@ -11,6 +11,8 @@ struct PlaylistScreen: View {
         case downloaded
         case recent
         case service(ServicePlaylist)
+        /// Свой плейлист Sonar (`PlaylistStore`).
+        case sonar(String)
     }
 
     let source: Source
@@ -28,6 +30,10 @@ struct PlaylistScreen: View {
     @State private var filter: LibraryView.SourceFilter = .all
     @State private var showMenu = false
     @State private var showConvert = false
+    @State private var renaming = false
+    @State private var nameDraft = ""
+    @State private var confirmDelete = false
+    @State private var addAllToPlaylist = false
     @FocusState private var searchFocused: Bool
 
     // режим выбора
@@ -40,6 +46,12 @@ struct PlaylistScreen: View {
     static let editRowHeight: CGFloat = 64
 
     private var downloads: DownloadStore { DownloadStore.shared }
+    private var store: PlaylistStore { PlaylistStore.shared }
+
+    private var own: SonarPlaylist? {
+        if case let .sonar(id) = source { return store.playlist(id) }
+        return nil
+    }
 
     // MARK: - Данные
 
@@ -49,6 +61,7 @@ struct PlaylistScreen: View {
         case .downloaded: "Скачанные"
         case .recent: "Недавнее"
         case let .service(playlist): playlist.title
+        case .sonar: own?.name ?? t("Плейлист Sonar")
         }
     }
 
@@ -58,6 +71,7 @@ struct PlaylistScreen: View {
         case .downloaded: downloads.downloaded
         case .recent: PlayHistory.shared.recent
         case .service: loaded
+        case .sonar: own?.tracks ?? []
         }
     }
 
@@ -70,13 +84,18 @@ struct PlaylistScreen: View {
 
     private var editable: Bool {
         switch source {
-        case .liked, .downloaded: true
+        case .liked, .downloaded, .sonar: true
         default: false
         }
     }
 
-    /// Порядок можно менять только у Любимых (Скачанные — по дате загрузки).
-    private var reorderable: Bool { source == .liked }
+    /// Порядок можно менять у Любимых и своих плейлистов (Скачанные — по дате загрузки).
+    private var reorderable: Bool {
+        switch source {
+        case .liked, .sonar: true
+        default: false
+        }
+    }
 
     private var isThisPlaying: Bool {
         engine.isPlaying && engine.contextTitle == title && !engine.isWave
@@ -103,7 +122,7 @@ struct PlaylistScreen: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)
                     .padding(.top, editing ? 18 : 44)
-                Text(tracksCount(tracks.count))
+                Text(countLine)
                     .font(.system(size: 17))
                     .foregroundStyle(Theme.textSecondary)
                     .contentTransition(.numericText())
@@ -138,6 +157,28 @@ struct PlaylistScreen: View {
         .animation(Motion.spring, value: searching)
         .animation(Motion.spring, value: tracks.count)
         .task(id: source) { await load() }
+        .onChange(of: own == nil) { _, gone in
+            // свой плейлист удалили (здесь или синком) — назад
+            if gone, case .sonar = source { dismiss() }
+        }
+        .alert(t("Переименовать"), isPresented: $renaming) {
+            TextField(t("Название"), text: $nameDraft)
+            Button(t("Отмена"), role: .cancel) {}
+            Button(t("Сохранить")) {
+                if case let .sonar(id) = source { store.rename(id, to: nameDraft) }
+            }
+        }
+        .alert(t("Удалить плейлист?"), isPresented: $confirmDelete) {
+            Button(t("Отмена"), role: .cancel) {}
+            Button(t("Удалить"), role: .destructive) {
+                guard case let .sonar(id) = source else { return }
+                let name = title
+                store.delete(id)
+                router.say(t("Плейлист «{name}» удалён", ["name": name]))
+            }
+        } message: {
+            Text(t("Треки останутся в Любимых и сервисах — удалится только список"))
+        }
         .onDisappear { if editing { finishEditing(apply: false) } }
         .sheet(isPresented: $showMenu) {
             PlaylistSheet(
@@ -149,9 +190,20 @@ struct PlaylistScreen: View {
                 shuffle: { play(shuffle: true) },
                 download: downloadAll,
                 edit: startEditing,
-                convert: { showConvert = true }
+                convert: { showConvert = true },
+                rows: menuRows
             )
-            .presentationDetents([.height(editable ? 470 : 400)])
+            .presentationDetents([.height(PlaylistSheet.height(rows: menuRows.count + (editable ? 2 : 1))), .large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(30)
+            .presentationBackground(Theme.background)
+        }
+        .sheet(isPresented: $addAllToPlaylist) {
+            AddToPlaylistSheet(tracks: tracks) { message in
+                addAllToPlaylist = false
+                router.say(message)
+            }
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
             .presentationCornerRadius(30)
             .presentationBackground(Theme.background)
@@ -219,6 +271,11 @@ struct PlaylistScreen: View {
         case let .service(playlist):
             CoverImage(url: playlist.coverURL, cornerRadius: 24)
                 .frame(width: 220, height: 220)
+                .shadow(color: Theme.glow.opacity(0.35), radius: 24, y: 10)
+        case .sonar:
+            PlaylistCollage(covers: own?.covers ?? [], cornerRadius: 24)
+                .frame(width: editing ? 0 : 220, height: editing ? 0 : 220)
+                .opacity(editing ? 0 : 1)
                 .shadow(color: Theme.glow.opacity(0.35), radius: 24, y: 10)
         }
     }
@@ -295,6 +352,7 @@ struct PlaylistScreen: View {
         case .downloaded: "Скачанные треки играют без интернета. Скачать — в меню трека или плейлиста"
         case .recent: "Здесь будут треки, которые ты слушал"
         case .service: "В плейлисте пусто"
+        case .sonar: t("Добавляй треки через меню трека: «Добавить в плейлист».")
         }
     }
 
@@ -305,6 +363,8 @@ struct PlaylistScreen: View {
             return { withAnimation(Motion.spring) { library.removeLiked([track.ref]) } }
         case .downloaded:
             return { withAnimation(Motion.spring) { downloads.remove(track.ref) } }
+        case let .sonar(id):
+            return { withAnimation(Motion.spring) { store.remove([track.ref], from: id) } }
         default:
             return nil
         }
@@ -474,6 +534,8 @@ struct PlaylistScreen: View {
                 applyOrder(draft.map(\.ref))
             case .downloaded:
                 for ref in removed { downloads.remove(ref) }
+            case let .sonar(id):
+                store.setOrder(draft.map(\.ref), in: id)
             default:
                 break
             }
@@ -514,6 +576,84 @@ struct PlaylistScreen: View {
         router.say("Скачиваю " + tracksCount(missing.count))
     }
 
+    /// «217 треков, 6 ч 51 мин» — у своих плейлистов, как на ПК; у остальных — только число.
+    private var countLine: String {
+        guard case .sonar = source, let own, own.durationMs > 0 else { return tracksCount(tracks.count) }
+        return tracksCount(tracks.count) + ", " + PlaylistDuration.text(ms: own.durationMs)
+    }
+
+    /// Пункты меню списка сверх «Редактировать» / «Конвертировать» (на ПК — `PlaylistMenu.svelte`).
+    private var menuRows: [PlaylistSheet.Row] {
+        var rows: [PlaylistSheet.Row] = []
+        let list = tracks
+        if !list.isEmpty {
+            rows.append(.init(icon: .next, title: t("Следующими"), subtitle: t("Сыграют после текущего")) {
+                // каждый встаёт сразу за текущим — идём с конца, чтобы порядок сохранился
+                for track in list.reversed() { engine.enqueue(track, next: true) }
+                router.say(t("Треки будут играть следующими"))
+            })
+            rows.append(.init(icon: .queue, title: t("В очередь"), subtitle: t("В конец очереди")) {
+                for track in list { engine.enqueue(track, next: false) }
+                router.say(t("Треки добавлены в очередь"))
+            })
+            if source != .liked {
+                rows.append(.init(icon: .heart, title: t("Лайкнуть все треки"), subtitle: t("Все — в Любимые")) {
+                    let missing = list.filter { !library.isLiked($0) }
+                    guard !missing.isEmpty else {
+                        router.say(t("Все треки уже в Любимых"))
+                        return
+                    }
+                    // toggleLike кладёт сверху — с конца, чтобы порядок списка сохранился
+                    for track in missing.reversed() { library.toggleLike(track) }
+                    router.say(t("В Любимых: {count}", ["count": tracksCount(missing.count)]))
+                })
+            }
+            rows.append(.init(icon: .listCheck, title: t("Добавить в плейлист"), subtitle: t("Все треки списка")) {
+                addAllToPlaylist = true
+            })
+        }
+        rows.append(.init(icon: .copy, title: t("Копировать название"), subtitle: title) {
+            UIPasteboard.general.string = title
+            router.say(t("Название скопировано"))
+        })
+        switch source {
+        case let .service(playlist):
+            if let existing = store.playlist(source: playlist.ref) {
+                rows.append(.init(icon: .transfer, title: t("Открыть в Sonar"), subtitle: existing.name) {
+                    router.push(.sonarPlaylist(id: existing.id), on: chrome.tab, chrome: chrome)
+                })
+            } else if !list.isEmpty {
+                rows.append(.init(icon: .transfer, title: t("Перенести в Sonar"), subtitle: t("Свой плейлист из этих треков")) {
+                    transfer(playlist, tracks: list)
+                })
+            }
+        case let .sonar(id):
+            let hidden = own?.hidden ?? false
+            rows.append(.init(icon: .edit, title: t("Переименовать"), subtitle: title) {
+                nameDraft = title
+                renaming = true
+            })
+            rows.append(.init(icon: .eyeClosed, title: hidden ? t("Показать в «Все»") : t("Скрыть из «Все»"),
+                              subtitle: hidden ? t("Снова в общей сетке Медиатеки") : t("Останется во вкладке «Плейлисты»")) {
+                store.setHidden(id, !hidden)
+                router.say(hidden ? t("Плейлист снова виден") : t("Плейлист скрыт из «Все»"))
+            })
+            rows.append(.init(icon: .trash, title: t("Удалить плейлист"), tint: Theme.danger) {
+                confirmDelete = true
+            })
+        default:
+            break
+        }
+        return rows
+    }
+
+    /// «Перенести в Sonar»: свой плейлист с треками сервиса (`source_ref` — чтобы не перенести дважды).
+    private func transfer(_ playlist: ServicePlaylist, tracks list: [Track]) {
+        guard let id = store.create(name: playlist.title, tracks: list, sourceRef: playlist.ref) else { return }
+        router.say(t("Плейлист перенесён в Sonar"))
+        router.push(.sonarPlaylist(id: id), on: chrome.tab, chrome: chrome)
+    }
+
     private func load() async {
         guard case let .service(playlist) = source else { return }
         loading = true
@@ -538,9 +678,26 @@ struct PlaylistSheet: View {
     let download: @MainActor () -> Void
     let edit: @MainActor () -> Void
     let convert: @MainActor () -> Void
+    var rows: [Row] = []
     @Environment(\.dismiss) private var dismiss
 
+    /// Пункт меню сверх встроенных.
+    struct Row: Identifiable {
+        let id = UUID()
+        let icon: IconName
+        let title: String
+        var subtitle: String?
+        var tint: Color?
+        let action: @MainActor () -> Void
+    }
+
+    /// Высота листа: шапка с капсулой и строки по ~70 pt (больше экрана — лист растягивается).
+    static func height(rows: Int) -> CGFloat {
+        min(330 + CGFloat(rows) * 70, 760)
+    }
+
     var body: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
                 .font(.system(size: 30, weight: .semibold))
@@ -561,6 +718,9 @@ struct PlaylistSheet: View {
                     SheetMenuRow(icon: .listCheck, title: "Редактировать", subtitle: "Порядок и удаление треков") { close(edit) }
                 }
                 SheetMenuRow(icon: .transfer, title: "Конвертировать", subtitle: "На другой сервис") { close(convert) }
+                ForEach(rows) { row in
+                    SheetMenuRow(icon: row.icon, title: row.title, subtitle: row.subtitle, tint: row.tint) { close(row.action) }
+                }
             }
             .padding(.top, 26)
             .padding(.horizontal, 6)
@@ -568,6 +728,10 @@ struct PlaylistSheet: View {
         }
         .padding(.horizontal, Theme.gutter)
         .padding(.top, 30)
+        .padding(.bottom, 20)
+        }
+        .scrollIndicators(.hidden)
+        .scrollBounceBehavior(.basedOnSize)
     }
 
     /// Сначала закрыть лист, потом действие — иначе второй лист не откроется.

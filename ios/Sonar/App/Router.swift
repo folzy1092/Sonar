@@ -7,6 +7,8 @@ enum Route: Hashable {
     /// Вся история «Недавнее».
     case recent
     case playlist(ServicePlaylist)
+    /// Свой плейлист Sonar (`PlaylistStore`).
+    case sonarPlaylist(id: String)
     case artist(ref: String, name: String)
     case album(ref: String, title: String)
 }
