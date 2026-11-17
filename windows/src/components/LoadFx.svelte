@@ -37,7 +37,7 @@
 
 {#if shown}
   {#if look === 'color'}
-    <span class="ld color" out:fade={{ duration: 320 }} class:unknown style:--p="{pct}%" style:--p-num={pct / 100} aria-hidden="true">
+    <span class="ld color" out:fade={{ duration: 320 }} class:unknown style:--ld-p="{pct}%" style:--p-num={pct / 100} aria-hidden="true">
       {#if url}
         <img class="bw" src={url} alt="" draggable="false" />
         <img class="tint" src={url} alt="" draggable="false" />
@@ -45,14 +45,14 @@
       <span class="edge"></span>
     </span>
   {:else}
-    <span class="ld ring" out:fade={{ duration: 320 }} class:unknown style:--p="{pct}%" aria-hidden="true">
+    <span class="ld ring" out:fade={{ duration: 320 }} class:unknown style:--ld-p="{pct}%" aria-hidden="true">
       <span class="disc"></span>
     </span>
   {/if}
 {/if}
 
 <style>
-  @property --p {
+  @property --ld-p {
     syntax: '<percentage>';
     inherits: true;
     initial-value: 0%;
@@ -85,14 +85,14 @@
     filter: grayscale(1) brightness(0.82);
   }
   .tint {
-    clip-path: inset(0 calc(100% - var(--p)) 0 0);
+    clip-path: inset(0 calc(100% - var(--ld-p)) 0 0);
     transition: clip-path 0.65s cubic-bezier(0.33, 1, 0.68, 1);
   }
   .edge {
     position: absolute;
     top: 0;
     bottom: 0;
-    left: var(--p);
+    left: var(--ld-p);
     width: 1.5px;
     margin-left: -0.75px;
     background: oklch(1 0 0 / 0.85);
@@ -122,8 +122,8 @@
     aspect-ratio: 1;
     border-radius: 50%;
     border: 1.5px solid oklch(1 0 0 / 0.7);
-    background: conic-gradient(var(--accent) var(--p), transparent 0);
-    transition: --p 0.65s cubic-bezier(0.33, 1, 0.68, 1);
+    background: conic-gradient(var(--accent) var(--ld-p), transparent 0);
+    transition: --ld-p 0.65s cubic-bezier(0.33, 1, 0.68, 1);
   }
   /* неизвестно — круг мягко дышит, без рывков вращения */
   .ring.unknown .disc {
