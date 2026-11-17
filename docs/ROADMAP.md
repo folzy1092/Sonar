@@ -282,6 +282,10 @@ SoundCloud — `/resolve`, короткие on.soundcloud.com тоже), ком�
 
 **Следующая волна фич (2026-11-17)** — задание `docs/NEXT_PROMPT.md`: 14 этапов, от YouTube Music до пульта; знаки сервисов (цветные и моно) — уже в `brand/icon/` (§5); Этап 0 — интерфейс и баги ПК.
 
+- [x] **§2. Реестр сервисов** — один список сервисов для Rust (`providers/registry.rs`, `services/provider.rs`),
+  интерфейса (`lib/services.ts`, карточки `pages/settings/ServiceCard.svelte`) и iPhone
+  (`Core/Models/ServiceRegistry.swift`); префиксы `yt`/`vk`/`sp`/`local` заложены. ✅ сделано 2026-11-18 (ветка dev)
+
 **Следующий шаг — iOS без сервера** (владелец начинает 2026-11-18), параллельно фиксы Windows 0.1.x по
 отзывам; сервер (Этап 0 → Этап 1) — когда владелец купит Velt.
 
