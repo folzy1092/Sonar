@@ -53,6 +53,12 @@ final class Pattern: @unchecked Sendable {
         }
     }
 
+    /// Все совпадения с диапазонами групп (UTF-16, как у NSString): `[0]` — совпадение целиком,
+    /// группа, которой нет, — `NSNotFound` в `location`. Нужен разбору LRC, где важно, где стоит тег.
+    func matchRanges(_ s: String) -> [[NSRange]] {
+        all(s).map { match in (0 ..< match.numberOfRanges).map { match.range(at: $0) } }
+    }
+
     /// Первое совпадение: группа `group` и где кончается совпадение (в UTF-16, для хвоста строки).
     func firstCapture(_ s: String, group: Int = 1) -> (value: String, end: Int)? {
         guard let match = regex.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) else { return nil }
