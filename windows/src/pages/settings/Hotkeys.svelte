@@ -2,6 +2,7 @@
   // Система → Горячие клавиши (решение владельца 2026-11-17): сочетания работают по всей системе,
   // даже когда Sonar свёрнут в трей. По умолчанию выключены. Клик по сочетанию — «нажми новое»:
   // Esc — отмена, Backspace / Delete — без клавиши. Нужен хотя бы один модификатор.
+  // «Быстрое окно» (Ctrl+K) — отдельная строка: работает только внутри окна и не зависит от переключателя.
   import { slide } from 'svelte/transition'
   import Switch from '../../components/settings/Switch.svelte'
   import Group from '../../components/settings/Group.svelte'
@@ -10,8 +11,10 @@
   import { comboFrom, comboLabel, HOTKEY_ACTIONS, hotkeys, type HotkeyAction } from '../../lib/hotkeys.svelte'
   import { t } from '../../lib/i18n.svelte'
 
-  let listening = $state<HotkeyAction | null>(null)
+  /** Что ждёт новое сочетание: команда по всей системе или быстрое окно. */
+  let listening = $state<HotkeyAction | 'quick' | null>(null)
   const map = $derived(settings.get('hotkeys.map'))
+  const quickCombo = $derived(settings.get('hotkeys.quick'))
   const enabled = $derived(settings.get('hotkeys.enabled'))
 
   // пока ждём новое сочетание, свои сняты — иначе нажатие сработает как команда
@@ -29,13 +32,17 @@
       return
     }
     if ((e.key === 'Backspace' || e.key === 'Delete') && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
-      hotkeys.set(listening, '')
-      listening = null
+      assign(listening, '')
       return
     }
     const combo = comboFrom(e)
     if (!combo) return
-    hotkeys.set(listening, combo)
+    assign(listening, combo)
+  }
+
+  function assign(target: HotkeyAction | 'quick', combo: string) {
+    if (target === 'quick') hotkeys.setQuick(combo)
+    else hotkeys.set(target, combo)
     listening = null
   }
 
@@ -45,6 +52,38 @@
 </script>
 
 <svelte:window onkeydown={capture} onblur={() => (listening = null)} />
+
+<Group title={t('Внутри Sonar')}>
+  <div class="row">
+    <span class="text">
+      <b>{t('Быстрое окно')}</b>
+      <small>{t('Действия, настройки, плейлисты и поиск треков в одном поле')}</small>
+    </span>
+    {#if quickCombo !== DEFAULTS['hotkeys.quick']}
+      <button class="reset" onclick={() => hotkeys.setQuick(DEFAULTS['hotkeys.quick'])} transition:slide={{ duration: 180, axis: 'x' }}>{t('Сбросить')}</button>
+    {/if}
+    {@render comboButton('quick', quickCombo, false, t('Быстрое окно'))}
+  </div>
+</Group>
+
+{#snippet comboButton(id: HotkeyAction | 'quick', combo: string, bad: boolean, title: string)}
+  <button
+    class="combo"
+    class:listening={listening === id}
+    class:empty={!combo}
+    class:bad
+    aria-label={t('Изменить сочетание: {action}', { action: title })}
+    onclick={() => (listening = listening === id ? null : id)}
+  >
+    {#if listening === id}
+      <span class="wait">{t('Нажми сочетание…')}</span>
+    {:else if combo}
+      {#each comboLabel(combo) as k, i (i)}<kbd>{k}</kbd>{/each}
+    {:else}
+      <span class="wait">{t('Без клавиши')}</span>
+    {/if}
+  </button>
+{/snippet}
 
 <Group title={t('Горячие клавиши')}>
   <Switch
@@ -70,22 +109,7 @@
               <b>{t(a.title)}</b>
               {#if bad}<small class="bad" transition:slide={{ duration: 180 }}>{t('Не встало: сочетание занято другой программой')}</small>{/if}
             </span>
-            <button
-              class="combo"
-              class:listening={listening === a.id}
-              class:empty={!combo}
-              class:bad
-              aria-label={t('Изменить сочетание: {action}', { action: t(a.title) })}
-              onclick={() => (listening = listening === a.id ? null : a.id)}
-            >
-              {#if listening === a.id}
-                <span class="wait">{t('Нажми сочетание…')}</span>
-              {:else if combo}
-                {#each comboLabel(combo) as k, i (i)}<kbd>{k}</kbd>{/each}
-              {:else}
-                <span class="wait">{t('Без клавиши')}</span>
-              {/if}
-            </button>
+            {@render comboButton(a.id, combo, bad, t(a.title))}
           </div>
         {/each}
       </div>
@@ -115,8 +139,11 @@
     font-size: calc(14px * var(--fs, 1));
     font-weight: 600;
   }
-  small.bad {
+  small {
     font-size: calc(12px * var(--fs, 1));
+    color: var(--text-3);
+  }
+  small.bad {
     color: var(--danger, #e5484d);
   }
   .combo {

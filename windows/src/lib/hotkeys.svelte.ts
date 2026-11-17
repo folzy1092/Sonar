@@ -7,6 +7,7 @@ import { isTauri } from './tauri'
 import { settings } from './settings.svelte'
 import { library } from './library.svelte'
 import { player } from '../player/player.svelte'
+import { withCombo, withoutCombo } from './hotkeys-core'
 
 export { comboFrom, comboLabel } from './hotkeys-core'
 
@@ -61,11 +62,15 @@ class Hotkeys {
   }
 
   set(action: HotkeyAction, combo: string) {
-    const map = { ...settings.get('hotkeys.map') }
-    // то же сочетание у другого действия — снимаем там, чтобы не было двух на одно
-    if (combo) for (const k of Object.keys(map)) if (k !== action && map[k] === combo) map[k] = ''
-    map[action] = combo
-    settings.set('hotkeys.map', map)
+    // то же сочетание у другого действия (или у быстрого окна) — снимаем там, чтобы не было двух на одно
+    settings.set('hotkeys.map', withCombo(settings.get('hotkeys.map'), action, combo))
+    if (combo && settings.get('hotkeys.quick') === combo) settings.set('hotkeys.quick', '')
+  }
+
+  /** Сочетание быстрого окна (Ctrl+K). Занято глобальным действием — там снимается. */
+  setQuick(combo: string) {
+    settings.set('hotkeys.quick', combo)
+    if (combo) settings.set('hotkeys.map', withoutCombo(settings.get('hotkeys.map'), combo))
   }
 }
 
