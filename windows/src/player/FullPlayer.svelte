@@ -87,7 +87,7 @@
 
 <svelte:document onmouseleave={() => (away = true)} onmouseenter={() => (away = false)} />
 
-<div class="fs" class:away onmousemove={() => (away = false)} transition:zoom role="dialog" aria-label={t('Полноэкранный плеер')} tabindex="-1" oncontextmenu={openMenu}>
+<div class="fs" data-fx-overlay class:away onmousemove={() => (away = false)} transition:zoom role="dialog" aria-label={t('Полноэкранный плеер')} tabindex="-1" oncontextmenu={openMenu}>
   <ArtBackdrop />
   {#if settings.get('player.visualizer_full')}
     <!-- спектр звука тихо лежит на дне, за управлением и текстом (Плеер → Вид) -->

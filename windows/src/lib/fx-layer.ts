@@ -12,8 +12,11 @@ function host(): HTMLDivElement {
   return layer
 }
 
-/** Виден ли элемент (есть размер и попадает в окно). */
+/** Виден ли элемент (есть размер, попадает в окно и не закрыт полноэкранным слоем `data-fx-overlay` —
+ *  иначе дуга мини-плеера рисовалась бы поверх полноэкранного плеера). */
 export function visible(el: Element): DOMRect | null {
+  const overlay = document.querySelector('[data-fx-overlay]')
+  if (overlay && !overlay.contains(el)) return null
   const r = el.getBoundingClientRect()
   if (r.width < 2 || r.height < 2 || r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) return null
   return r
