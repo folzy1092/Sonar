@@ -13,6 +13,7 @@ const brands = require('@iconify-json/simple-icons/icons.json')
 
 /** Наше имя → имя MingCute (без -line / -fill). */
 const MAP = {
+  stats: 'chart-bar', shield: 'shield',
   home: 'home-4', library: 'folder', search: 'search', settings: 'settings-3',
   play: 'play', pause: 'pause', next: 'skip-forward', prev: 'skip-previous',
   heart: 'heart', plus: 'add', filter: 'filter', sortLines: 'filter-2', sortArrows: 'transfer-vertical',
