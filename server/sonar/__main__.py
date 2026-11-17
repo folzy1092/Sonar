@@ -16,6 +16,7 @@ from .bot.support import Support
 from .bot.ui import Shower
 from .db import connect
 from .logs import LogGroup
+from .releases import Releases
 from .status import Status
 
 log = logging.getLogger("sonar")
@@ -31,7 +32,8 @@ async def main() -> None:
     status = Status(con, settings.data_dir, settings, bot)
     logs = LogGroup(bot, con, settings.log_chat_id, settings.owner_tg_id, settings.data_thread_id)
     ctx = Ctx(bot=bot, settings=settings, accounts=Accounts(con, settings.fernet_key), shower=Shower(bot, con),
-              status=status, support=Support(bot, con, settings), logs=logs, bot_username=me.username or "SonarMusicApp")
+              status=status, support=Support(bot, con, settings), logs=logs, releases=Releases(con),
+              bot_username=me.username or "SonarMusicApp")
     dp = Dispatcher(storage=MemoryStorage())
     dp["ctx"] = ctx
     dp.include_router(router)

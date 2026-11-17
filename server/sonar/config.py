@@ -29,6 +29,8 @@ class Settings:
     public_url: str = ""
     site_url: str = "https://sonar.folzy.ru"
     download_url: str = "https://github.com/folzy1092/Sonar/releases/latest"
+    # iPhone — постоянный релиз ios-latest (CI перезаливает, Latest не трогает — он у Windows)
+    download_url_ios: str = "https://github.com/folzy1092/Sonar/releases/download/ios-latest/Sonar.ipa"
     support_group_id: int | None = None
     log_chat_id: int | None = None
     data_thread_id: int | None = None   # тема «Data» лог-группы (бэкапы), создана другим ботом
