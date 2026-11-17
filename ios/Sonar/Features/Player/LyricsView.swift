@@ -67,7 +67,7 @@ struct LyricsView: View {
             let gap = lyrics.synced && LyricsClock.isGap(lyrics.lines, at: t)
             let gapProgress = gap ? LyricsClock.gapProgress(lyrics.lines, at: t) : 0
             ScrollViewReader { proxy in
-                ScrollView {
+                ScrollView(.vertical) {
                     LazyVStack(alignment: .leading, spacing: 26) {
                         ForEach(lyrics.lines) { line in
                             let index = line.id
@@ -95,11 +95,11 @@ struct LyricsView: View {
                     onLineChange(line)
                     guard let line, Date() > manualUntil else { return }
                     withAnimation(reduceMotion ? .easeInOut(duration: 0.3) : .spring(response: 0.75, dampingFraction: 0.92)) {
-                        proxy.scrollTo(line, anchor: UnitPoint(x: 0, y: LyricsMotion.anchor))
+                        proxy.scrollTo(line, anchor: UnitPoint(x: 0.5, y: LyricsMotion.anchor))
                     }
                 }
                 .onAppear {
-                    if let current { proxy.scrollTo(current, anchor: UnitPoint(x: 0, y: LyricsMotion.anchor)) }
+                    if let current { proxy.scrollTo(current, anchor: UnitPoint(x: 0.5, y: LyricsMotion.anchor)) }
                 }
             }
         }
@@ -145,7 +145,7 @@ struct LyricsView: View {
         .opacity(m.opacity)
         .blur(radius: m.blur)
         .scaleEffect(m.scale, anchor: .leading)
-        .rotation3DEffect(.degrees(m.rotateX), axis: (x: 1, y: 0, z: 0), anchor: .leading, perspective: 0.6)
+        .rotation3DEffect(.degrees(m.rotateX), axis: (x: 1, y: 0, z: 0), anchor: .center, perspective: 0.6)
         .rotationEffect(.degrees(m.rotateZ), anchor: .leading)
         .offset(x: m.dx, y: m.dy)
         .animation(m.bounce

@@ -87,6 +87,12 @@ struct UpdateView: View {
                     .cascade(2)
             }
         }
+        .overlay(alignment: .bottom) {
+            if let hint = HomeScreenHint.text(for: updater.stage) {
+                HomeScreenHint(title: hint.title, text: hint.text)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .animation(Motion.spring, value: updater.stage)
         .task {
             if checker.status == nil { await checker.check() }
@@ -389,5 +395,54 @@ struct VersionArchiveView: View {
             }
         }
         .task { await checker.loadArchive() }
+    }
+}
+
+/// На пол экрана после подписи (владелец, 2026-11-17): iOS начинает ставить обновление, только когда
+/// Sonar свёрнут — поэтому прямо говорим «выйди на рабочий стол».
+struct HomeScreenHint: View {
+    let title: String
+    let text: String
+    @State private var bounce = false
+
+    static func text(for stage: SelfUpdateStage) -> (title: String, text: String)? {
+        switch stage {
+        case .startingServer, .waitingForConfirmation(hint: false):
+            return ("Нажми «Установить», потом выйди на рабочий стол",
+                    "Sonar подписал обновление. iOS начнёт его ставить, когда ты свернёшь Sonar — смахни вверх от нижнего края.")
+        case .sending, .installing:
+            return ("Sonar ждёт, пока ты выйдешь на рабочий стол",
+                    "Обновление уже у iOS. Сверни Sonar — смахни вверх от нижнего края, установка начнётся сама. Любимые и настройки сохранятся.")
+        default:
+            return nil
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Capsule().fill(Theme.text.opacity(0.25)).frame(width: 40, height: 5)
+            SonarIcon(.chevronDown, size: 40)
+                .rotationEffect(.degrees(180))
+                .foregroundStyle(Theme.accent)
+                .offset(y: bounce ? -10 : 4)
+                .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: bounce)
+            Text(title)
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(Theme.text)
+                .multilineTextAlignment(.center)
+            Text(text)
+                .font(.system(size: 16))
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 26)
+        .padding(.top, 14)
+        .padding(.bottom, 40)
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 380, alignment: .top)
+        .background(.ultraThinMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32, style: .continuous))
+        .overlay(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32, style: .continuous).strokeBorder(Theme.line))
+        .ignoresSafeArea(edges: .bottom)
+        .onAppear { bounce = true }
     }
 }
