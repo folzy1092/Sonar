@@ -27,6 +27,8 @@ final class Router {
     var library = NavigationPath()
     var search = NavigationPath()
     var trackMenu: TrackMenuItem?
+    /// Открыт полный плеер.
+    var playerOpen = false
     private(set) var toast: String?
 
     @ObservationIgnored private var toastTask: Task<Void, Never>?
