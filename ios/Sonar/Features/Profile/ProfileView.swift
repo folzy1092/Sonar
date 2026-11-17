@@ -17,11 +17,11 @@ struct ProfileView: View {
                     link("Статистика", .stats) { StatsView() }
                     divider
                     link("Безопасность", .lock) {
-                        ServerOnlyView(title: "Безопасность", text: "Пароль, привязанный Telegram и вход на других устройствах — вместе с аккаунтом Sonar на сервере.")
+                        ServerOnlyView(.security)
                     }
                     divider
                     link("Приватность", .shield, value: "В разработке") {
-                        ServerOnlyView(title: "Приватность", text: "Кто видит твой профиль и что ты слушаешь — в разработке.")
+                        ServerOnlyView(.privacy)
                     }
                 }
                 section("Интерфейс", 2) {
@@ -49,7 +49,7 @@ struct ProfileView: View {
                     link("Last.fm", .wave) { LastfmSettingsView() }
                     divider
                     link("Ключ API", .link) {
-                        ServerOnlyView(title: "Ключ API", text: "Ключ для selfbot и своих сервисов («сейчас играет», профиль) выдаёт сервер Sonar — появится вместе с ним.")
+                        ServerOnlyView(.apiKey)
                     }
                 }
                 section("Система", 6) {

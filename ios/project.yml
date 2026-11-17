@@ -27,6 +27,9 @@ settings:
     CODE_SIGNING_ALLOWED: NO
     CODE_SIGNING_REQUIRED: NO
     CODE_SIGN_IDENTITY: ""
+    # Last.fm: ключ и секрет подставляет CI из секретов (ios.yml); пусто — «появится в сборке с ключом»
+    SONAR_LASTFM_KEY: ""
+    SONAR_LASTFM_SECRET: ""
 
 targets:
   Sonar:
@@ -69,6 +72,9 @@ targets:
               - sonar
         # адрес API не зашит в код (SPEC §3.2); до сервера не используется
         SonarAPIBaseURL: https://sonar-api.folzy.ru
+        # Last.fm (Core/Integrations/Lastfm.swift) — из настроек сборки выше
+        SonarLastfmKey: $(SONAR_LASTFM_KEY)
+        SonarLastfmSecret: $(SONAR_LASTFM_SECRET)
         # тип файла профиля подписи — чтобы при выборе в «Файлах» были видны только .mobileprovision
         UTImportedTypeDeclarations:
           - UTTypeIdentifier: com.apple.mobileprovision
