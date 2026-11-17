@@ -39,23 +39,30 @@ enum ProgressIndicator: String, CaseIterable, Identifiable {
     }
 }
 
-/// Профиль → Мини-плеер (`IMG_6780`): живой мини-плеер сверху, ниже — «Прогресс» с листом выбора.
+/// Профиль → Мини-плеер (`IMG_6780..6783`): живой мини-плеер, заготовки Капсула / Стандартный /
+/// Минимализм и пункты Фон, Индикаторы прогресса, Форма обложки, Скругление границ — у каждого лист
+/// выбора. Поменял пункт — вид становится «своим», плитки заготовок гаснут.
 struct MiniPlayerSettingsView: View {
+    enum Option: String, Identifiable {
+        case background, progress, cover, corners
+        var id: String { rawValue }
+    }
+
     @Environment(SettingsStore.self) private var settings
     @Environment(PlaybackEngine.self) private var engine
     @Environment(\.dismiss) private var dismiss
-    @State private var showProgress = false
+    @State private var picker: Option?
 
-    private var chosen: Set<ProgressIndicator> { ProgressIndicator.parse(settings.string(ProgressIndicator.key)) }
+    private var style: MiniStyle { MiniStyle.current(settings) }
 
-    private var summary: String {
-        let list = ProgressIndicator.allCases.filter(chosen.contains).map(\.title)
+    private var progressSummary: String {
+        let list = ProgressIndicator.allCases.filter(style.progress.contains).map(\.title)
         return list.isEmpty ? "Нет" : list.joined(separator: ", ")
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 12) {
                     CircleButton(icon: .back, label: "Назад") { dismiss() }
                     Text("Мини-плеер")
@@ -67,41 +74,25 @@ struct MiniPlayerSettingsView: View {
                 }
                 .padding(.top, 8)
 
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Так он выглядит")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Theme.textSecondary)
-                        .padding(.leading, 6)
-                    if engine.current != nil {
-                        MiniPlayer { }
-                            .frame(height: BottomChrome.miniHeight)
-                            .background(MiniPlayerSurface())
-                    } else {
-                        HintCard(icon: .play, text: "Включи любой трек — здесь появится живой мини-плеер")
-                    }
+                if engine.current != nil {
+                    MiniPlayer { }
+                        .frame(height: BottomChrome.miniHeight)
+                        .background(MiniPlayerSurface(height: BottomChrome.miniHeight))
+                        .padding(.top, 6)
+                } else {
+                    HintCard(icon: .play, text: "Включи любой трек — здесь появится живой мини-плеер")
                 }
 
-                SettingsSection(title: "Прогресс") {
-                    Button { showProgress = true } label: {
-                        HStack(spacing: 14) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("Индикатор прогресса")
-                                    .font(.system(size: 17))
-                                    .foregroundStyle(Theme.text)
-                                Text(summary)
-                                    .font(.system(size: 15))
-                                    .foregroundStyle(Theme.textSecondary)
-                                    .contentTransition(.opacity)
-                            }
-                            Spacer()
-                            SonarIcon(.chevronRight, size: 20).foregroundStyle(Theme.textTertiary)
-                        }
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 14)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PressableStyle(scale: 0.99))
+                presets
+
+                VStack(spacing: 0) {
+                    row("Фон", style.background.title, icon: style.background.icon) { picker = .background }
+                    row("Индикаторы прогресса", progressSummary, icon: .wave) { picker = .progress }
+                    row("Форма обложки", style.cover.title, icon: style.cover.icon) { picker = .cover }
+                    row("Скругление границ", style.corners.title, icon: style.corners.icon) { picker = .corners }
                 }
+                .padding(.vertical, 6)
+                .background(Theme.raised.opacity(0.6), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
             }
             .padding(.horizontal, Theme.gutter)
             .padding(.bottom, 170)
@@ -109,33 +100,98 @@ struct MiniPlayerSettingsView: View {
         .scrollIndicators(.hidden)
         .background(Theme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        .animation(Motion.spring, value: summary)
-        .sheet(isPresented: $showProgress) {
-            ProgressIndicatorSheet()
-                .presentationDetents([.height(400)])
+        .animation(Motion.spring, value: style)
+        .sheet(item: $picker) { kind in
+            OptionSheet(kind: kind)
+                .presentationDetents([.height(kind == .progress || kind == .corners ? 400 : 330)])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(30)
                 .presentationBackground(Theme.background)
         }
     }
+
+    private var presets: some View {
+        HStack(spacing: 10) {
+            ForEach([MiniStyle.Preset.capsule, .standard, .minimal]) { preset in
+                let on = style.preset == preset
+                Button {
+                    MiniStyle.presets[preset]?.save(settings)
+                    UISelectionFeedbackGenerator().selectionChanged()
+                } label: {
+                    VStack(spacing: 10) {
+                        SonarIcon(preset.icon, filled: on, size: 30)
+                        Text(preset.title)
+                            .font(.system(size: 16, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .foregroundStyle(on ? Theme.text : Theme.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 100)
+                    .background(on ? Theme.raisedHigh : Theme.raised.opacity(0.6),
+                                in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+                .buttonStyle(PressableStyle(scale: 0.95))
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+    }
+
+    private func row(_ title: String, _ value: String, icon: IconName, action: @escaping @MainActor () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 17))
+                        .foregroundStyle(Theme.text)
+                    Text(value)
+                        .font(.system(size: 15))
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(1)
+                        .contentTransition(.opacity)
+                }
+                Spacer()
+                SonarIcon(icon, size: 26).foregroundStyle(Theme.textSecondary)
+            }
+            .padding(.horizontal, 22)
+            .frame(height: 72)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle(scale: 0.99))
+    }
 }
 
-/// Лист выбора: «Нет» и три вида, у выбранных — галочка цветом темы.
-struct ProgressIndicatorSheet: View {
+/// Лист выбора пункта: у выбранного — галочка цветом темы. Прогресс — можно несколько, «Нет» снимает всё;
+/// остальное — одно значение.
+struct OptionSheet: View {
+    let kind: MiniPlayerSettingsView.Option
     @Environment(SettingsStore.self) private var settings
 
-    private var chosen: Set<ProgressIndicator> { ProgressIndicator.parse(settings.string(ProgressIndicator.key)) }
+    private var style: MiniStyle { MiniStyle.current(settings) }
 
     var body: some View {
         VStack(spacing: 0) {
-            row(icon: .eyeClosed, title: "Нет", on: chosen.isEmpty) {
-                settings.set(ProgressIndicator.key, .string("none"))
-            }
-            ForEach(ProgressIndicator.allCases) { item in
-                row(icon: item.icon, title: item.title, on: chosen.contains(item)) {
-                    var next = chosen
-                    if next.contains(item) { next.remove(item) } else { next.insert(item) }
-                    settings.set(ProgressIndicator.key, .string(ProgressIndicator.encode(next)))
+            switch kind {
+            case .background:
+                ForEach(MiniStyle.Background.allCases) { item in
+                    row(icon: item.icon, title: item.title, on: style.background == item) { change { $0.background = item } }
+                }
+            case .progress:
+                row(icon: .eyeClosed, title: "Нет", on: style.progress.isEmpty) { change { $0.progress = [] } }
+                ForEach(ProgressIndicator.allCases) { item in
+                    row(icon: item.icon, title: item.title, on: style.progress.contains(item)) {
+                        change { style in
+                            if style.progress.contains(item) { style.progress.remove(item) } else { style.progress.insert(item) }
+                        }
+                    }
+                }
+            case .cover:
+                ForEach(MiniStyle.CoverShape.allCases) { item in
+                    row(icon: item.icon, title: item.title, on: style.cover == item) { change { $0.cover = item } }
+                }
+            case .corners:
+                ForEach(MiniStyle.Corners.allCases) { item in
+                    row(icon: item.icon, title: item.title, on: style.corners == item) { change { $0.corners = item } }
                 }
             }
         }
@@ -144,14 +200,18 @@ struct ProgressIndicatorSheet: View {
         .padding(.horizontal, Theme.gutter)
         .padding(.top, 34)
         .frame(maxHeight: .infinity, alignment: .top)
-        .animation(Motion.spring, value: chosen)
+        .animation(Motion.spring, value: style)
+    }
+
+    private func change(_ edit: (inout MiniStyle) -> Void) {
+        var next = style
+        edit(&next)
+        next.save(settings)
+        UISelectionFeedbackGenerator().selectionChanged()
     }
 
     private func row(icon: IconName, title: String, on: Bool, action: @escaping @MainActor () -> Void) -> some View {
-        Button {
-            action()
-            UISelectionFeedbackGenerator().selectionChanged()
-        } label: {
+        Button(action: action) {
             HStack(spacing: 26) {
                 SonarIcon(icon, size: 26).foregroundStyle(Theme.text)
                     .frame(width: 34)
