@@ -9,14 +9,18 @@
   let left = $state(0)
   let noBtn: HTMLButtonElement | undefined = $state()
 
+  // отсчёт зависит только от окна: `left` здесь лишь пишется — иначе каждое «−1» перезапускало бы эффект
+  // и он снова ставил полную задержку (на кнопке навсегда висело «3»)
   $effect(() => {
     const cur = q
     if (!cur) return
-    left = cur.delay ?? 0
-    if (!left) return
+    let rest = cur.delay ?? 0
+    left = rest
+    if (rest <= 0) return
     const timer = setInterval(() => {
-      left -= 1
-      if (left <= 0) clearInterval(timer)
+      rest -= 1
+      left = rest
+      if (rest <= 0) clearInterval(timer)
     }, 1000)
     return () => clearInterval(timer)
   })
