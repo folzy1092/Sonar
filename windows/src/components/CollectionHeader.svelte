@@ -2,6 +2,7 @@
   // Шапка плейлиста / Любимых / альбома / исполнителя (pc/Screenshot_28, 19): крупная обложка
   // слева, справа название и подписи; ниже — Слушать · перемешать · В очередь и свои кнопки.
   import Icon from './Icon.svelte'
+  import ListenButton from './ListenButton.svelte'
   import type { IconName } from './icons'
   import type { Snippet } from 'svelte'
   import { t } from '../lib/i18n.svelte'
@@ -15,6 +16,8 @@
     icon?: IconName
     round?: boolean
     disabled?: boolean
+    /** Контекст очереди этой подборки: играет она — «Слушать» становится «Пауза» (ListenButton). */
+    context?: string | null
     onplay: () => void
     onshuffle: () => void
     onqueue: () => void
@@ -24,7 +27,7 @@
     tools?: Snippet
   }
 
-  let { title, subtitle, meta, image = null, covers = [], icon = 'music', round = false, disabled = false, onplay, onshuffle, onqueue, actions, tools }: Props = $props()
+  let { title, subtitle, meta, image = null, covers = [], icon = 'music', round = false, disabled = false, context = null, onplay, onshuffle, onqueue, actions, tools }: Props = $props()
   let failed = $state(false)
 </script>
 
@@ -48,7 +51,7 @@
 </header>
 
 <div class="bar">
-  <button class="listen" {disabled} onclick={onplay}><Icon name="play" size={16} filled /> {t('Слушать')}</button>
+  <ListenButton {context} {disabled} {onplay} />
   <button class="round-btn" aria-label={t('Перемешать')} title={t('Перемешать')} {disabled} onclick={onshuffle}><Icon name="shuffle" size={17} /></button>
   <button class="pill" {disabled} onclick={onqueue}><Icon name="queue" size={16} /> {t('В очередь')}</button>
   {#if actions}{@render actions()}{/if}
@@ -123,7 +126,6 @@
   .spacer {
     flex: 1;
   }
-  .listen,
   .pill,
   .round-btn {
     display: inline-flex;
@@ -136,13 +138,6 @@
     transition:
       transform var(--fast) var(--ease),
       background var(--fast) var(--ease);
-  }
-  /* «Слушать» — белая, как у Dotify (не в цвет темы) */
-  .listen {
-    padding: 0 20px;
-    border-radius: 10px;
-    background: var(--text);
-    color: var(--on-text);
   }
   .pill {
     padding: 0 16px;
