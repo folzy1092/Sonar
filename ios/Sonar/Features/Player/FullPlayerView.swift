@@ -566,6 +566,7 @@ struct SpeedSheet: View {
 /// Очередь (`photo_2, 3`): контекст сверху, разделы Предыдущие · Сейчас играет · Далее, открыт на текущем.
 struct QueueSheet: View {
     @Environment(PlaybackEngine.self) private var engine
+    @Environment(SettingsStore.self) private var settings
 
     var body: some View {
         NavigationStack {
