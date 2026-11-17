@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 /// Состояние пары для подписи на экране (сам `SigningStore` — не наблюдаемый: файлы и Keychain).
 @MainActor
@@ -198,13 +199,18 @@ struct SigningPairView: View {
         }
         .animation(Motion.spring, value: model.isConfigured)
         .animation(Motion.spring, value: model.importError)
-        .fileImporter(isPresented: $showImporter,
-                      allowedContentTypes: picking == .certificate ? Self.certificateTypes : Self.profileTypes) { result in
-            let target = picking
-            picking = nil
-            withAnimation(Motion.spring) {
-                if target == .certificate { model.importCertificate(result) } else { model.importProfile(result) }
+        .sheet(isPresented: $showImporter) {
+            // системный выбор файлов напрямую: у SwiftUI `fileImporter` тап по файлу иногда теряется
+            DocumentPicker(types: picking == .certificate ? Self.certificateTypes : Self.profileTypes) { result in
+                let target = picking
+                picking = nil
+                showImporter = false
+                guard let result else { return }
+                withAnimation(Motion.spring) {
+                    if target == .certificate { model.importCertificate(result) } else { model.importProfile(result) }
+                }
             }
+            .ignoresSafeArea()
         }
         .onAppear {
             model.reload()
@@ -316,4 +322,41 @@ private struct CheckRow: View {
 
 extension String {
     var nonEmpty: String? { isEmpty ? nil : self }
+}
+
+/// Выбор файла из «Файлов» (UIDocumentPickerViewController, копия файла — без security-scoped доступа).
+/// nil — закрыли без выбора.
+struct DocumentPicker: UIViewControllerRepresentable {
+    let types: [UTType]
+    let done: @MainActor (Result<URL, Error>?) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(done: done) }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        picker.allowsMultipleSelection = false
+        picker.shouldShowFileExtensions = true
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+
+    @MainActor
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let done: @MainActor (Result<URL, Error>?) -> Void
+
+        init(done: @escaping @MainActor (Result<URL, Error>?) -> Void) {
+            self.done = done
+        }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            let url = urls.first
+            done(url.map { .success($0) })
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            done(nil)
+        }
+    }
 }
