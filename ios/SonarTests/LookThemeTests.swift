@@ -152,7 +152,7 @@ final class LookThemeTests: XCTestCase {
         let suite = "look-tests-\(UUID().uuidString)"
         let settings = SettingsStore(storage: UserDefaults(suiteName: suite)!)
         let inputs = LookInputs(settings)
-        XCTAssertEqual(inputs, LookInputs(mode: .dark, coverTheme: true, preset: "neutral", surface: .monolith))
+        XCTAssertEqual(inputs, LookInputs(mode: .dark, coverTheme: true, preset: "neutral", surface: .echo))  // iPhone по умолчанию — «Эхо»
         XCTAssertEqual(settings.string("appearance.tab_style"), "floating")
         XCTAssertEqual(settings.string("appearance.background"), "cover_color")
         XCTAssertEqual(settings.number("appearance.opacity", fallback: 0), 80)
