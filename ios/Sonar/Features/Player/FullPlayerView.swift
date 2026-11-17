@@ -157,7 +157,7 @@ struct FullPlayerView: View {
         }
         .sheet(isPresented: $showSpeed) {
             SpeedSheet()
-                .presentationDetents([.height(330)])
+                .presentationDetents([.height(440)])
                 .presentationBackground(.ultraThinMaterial)
         }
         .overlay(alignment: .top) {
@@ -537,6 +537,19 @@ struct FullPlayerView: View {
                     .lineLimit(1)
                     .textSelection(.enabled)
             }
+            // «Почему этот трек» — у треков волны, одной строкой
+            if let reason = engine.waveReason(for: track) {
+                HStack(spacing: 5) {
+                    SonarIcon(.sparkles, size: 13)
+                    Text(reason)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Theme.textSecondary)
+                .transition(.opacity.combined(with: .offset(y: 4)))
+                .accessibilityLabel("Почему этот трек: \(reason)")
+            }
             if let quality = engine.quality {
                 Text(quality)
                     .font(.system(size: 11, weight: .semibold))
@@ -690,9 +703,19 @@ struct FullPlayerView: View {
                 .accessibilityLabel("Текст песни")
                 Button { showSpeed = true } label: {
                     SonarIcon(.sliders, size: 26)
-                        .foregroundStyle(engine.rate == 1 ? Theme.text : Theme.accent)
+                        .foregroundStyle(engine.rate == 1 && engine.sleep == nil ? Theme.text : Theme.accent)
+                        // включён таймер сна — луна в углу
+                        .overlay(alignment: .topTrailing) {
+                            if engine.sleep != nil {
+                                SonarIcon(.moon, filled: true, size: 12)
+                                    .foregroundStyle(Theme.accent)
+                                    .offset(x: 7, y: -6)
+                                    .transition(.scale.combined(with: .opacity))
+                            }
+                        }
+                        .animation(Motion.spring, value: engine.sleep != nil)
                 }
-                .accessibilityLabel(engine.rate == 1 ? "Скорость" : "Скорость \(String(format: "%g", engine.rate))×")
+                .accessibilityLabel(engine.rate == 1 ? "Скорость и таймер сна" : "Скорость \(String(format: "%g", engine.rate))×, таймер сна")
             }
             .padding(.horizontal, 22)
             .frame(height: 52)
@@ -776,6 +799,8 @@ struct SpeedSheet: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            SleepTimerSection()
+                .padding(.top, 4)
             if let track = engine.current {
                 let remembered = library.speed(for: track.ref) != nil
                 Button {

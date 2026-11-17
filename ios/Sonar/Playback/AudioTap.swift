@@ -15,11 +15,13 @@ enum AudioTap {
 
     /// Подключить обработку к элементу. Звуковая дорожка известна, когда элемент готов (`readyToPlay`):
     /// тогда `tracks` у файла уже есть. Уже подключено или дорожки нет — ничего.
+    /// leveler — выравнивать громкость на лету; у трека с громкостью от сервиса (R128 Яндекса) — нет:
+    /// его уже выровняла громкость плеера (`Loudness`), второй раз не надо.
     @MainActor
-    static func attach(to item: AVPlayerItem) {
+    static func attach(to item: AVPlayerItem, leveler: Bool = true) {
         guard item.audioMix == nil,
               let track = item.tracks.compactMap(\.assetTrack).first(where: { $0.mediaType == .audio }) else { return }
-        guard let tap = makeTap(TapContext(params: params)) else { return }
+        guard let tap = makeTap(TapContext(params: params, leveler: leveler)) else { return }
         let input = AVMutableAudioMixInputParameters(track: track)
         input.audioTapProcessor = tap
         let mix = AVMutableAudioMix()
@@ -101,6 +103,8 @@ private final class TapContext: @unchecked Sendable {
     private static let maxChannels = 8
 
     private let params: AudioTapParams
+    /// Выравниватель для этого трека (нет — громкость уже выровнена по R128).
+    private let leveler: Bool
     private var version = -1
     private var sampleRate: Double = 44100
     private var ready = false
@@ -112,8 +116,9 @@ private final class TapContext: @unchecked Sendable {
     private let active = UnsafeMutablePointer<Bool>.allocate(capacity: TapContext.bands)
     private let states = UnsafeMutablePointer<BiquadState>.allocate(capacity: TapContext.bands * TapContext.maxChannels)
 
-    init(params: AudioTapParams) {
+    init(params: AudioTapParams, leveler: Bool) {
         self.params = params
+        self.leveler = leveler
         coefficients.initialize(repeating: FloatBiquad(.identity), count: Self.bands)
         active.initialize(repeating: false, count: Self.bands)
         states.initialize(repeating: BiquadState(), count: Self.bands * Self.maxChannels)
@@ -144,7 +149,7 @@ private final class TapContext: @unchecked Sendable {
     private func refresh() {
         guard let values = params.values(newerThan: version) else { return }
         version = values.version
-        normalize = values.normalize
+        normalize = values.normalize && leveler
         eqOn = values.eqEnabled && !Equalizer.isFlat(values.gains)
         let filters = Equalizer.filters(values.gains, sampleRate: sampleRate)
         for band in 0 ..< Self.bands {

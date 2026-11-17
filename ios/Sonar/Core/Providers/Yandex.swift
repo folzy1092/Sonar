@@ -253,7 +253,8 @@ struct Yandex: Sendable {
             explicit: json["contentWarning"].string == "explicit",
             available: json["available"].bool ?? true,
             plays: nil,
-            tags: album["genre"].string.flatMap { $0.isEmpty ? nil : $0.lowercased() }
+            tags: album["genre"].string.flatMap { $0.isEmpty ? nil : $0.lowercased() },
+            loudness: json["r128"]["i"].number
         )
     }
 }

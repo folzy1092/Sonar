@@ -52,7 +52,7 @@ struct AudioSettingsView: View {
 
             PlayerCard(title: "Громкость и переходы", footer: transitionsFooter) {
                 PlayerToggleRow(icon: .volume, title: "Нормализация громкости",
-                                subtitle: "Тихие и громкие треки звучат ровно — без докручивания громкости",
+                                subtitle: "Тихие и громкие треки звучат ровно — громкие Яндекса приглушаются по их громкости R128",
                                 isOn: flag("audio.normalize"))
                 PlayerRowDivider()
                 PlayerToggleRow(icon: .link, title: "Бесшовное воспроизведение",
@@ -60,7 +60,7 @@ struct AudioSettingsView: View {
                                 isOn: flag("audio.gapless"))
                 PlayerRowDivider()
                 PlayerToggleRow(icon: .crossfade, title: "Кроссфейд",
-                                subtitle: "Конец трека плавно затихает, следующий плавно нарастает",
+                                subtitle: "Следующий начинается поверх конца текущего: один плавно затихает, другой нарастает",
                                 isOn: Binding(get: { crossfade > 0 }, set: { settings.set("audio.crossfade", .int($0 ? 6 : 0)) }))
                 if crossfade > 0 {
                     crossfadeSlider
@@ -99,9 +99,9 @@ struct AudioSettingsView: View {
     }
 
     private var transitionsFooter: String {
-        "Нормализация и эквалайзер слышны на файлах: Яндекс, SoundCloud через Яндекс, скачанные треки. Потоки HLS "
-            + "SoundCloud iPhone проигрывает мимо обработки звука — там громкость и тембр как есть. Кроссфейд на iPhone — "
-            + "затухание и нарастание без наложения двух треков."
+        "Эквалайзер и выравнивание на лету слышны на файлах: Яндекс, SoundCloud через Яндекс, скачанные треки. Потоки HLS "
+            + "SoundCloud iPhone проигрывает мимо обработки звука — там тембр как есть. Громкость R128 Яндекса работает везде. "
+            + "Кроссфейд — две деки, как на ПК: треки накладываются; выключен — бесшовно, без тишины между треками."
     }
 
     private var crossfadeSlider: some View {

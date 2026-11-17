@@ -14,10 +14,13 @@ import UIKit
 /// прослушивание засчитывается на пороге min(30 с, половины трека), при смене трека — дослушан / пропущен.
 /// «Моя волна» и «Волна по треку» — `MyWave`, догружается вместо «Авто похожих».
 ///
-/// Настройки раздела «Плеер» применяются на лету (`observeSettings`): эквалайзер и нормализация —
-/// `AudioTap` (только файлы, не HLS), бесшовность (`audio.gapless` — подгрузка следующего), кроссфейд
-/// (`audio.crossfade` — громкость плеера), звонки (`audio.on_interruption`), «Добавлять следующие»
-/// (`queue.add_following`), «Продолжить с прошлого раза» (`general.restore` — `PlaybackSnapshot`).
+/// Настройки раздела «Плеер» применяются на лету (`observeSettings`): эквалайзер и выравниватель —
+/// `AudioTap` (только файлы, не HLS), нормализация по R128 Яндекса — громкость плеера (`Loudness`, и на HLS),
+/// бесшовность (`audio.gapless` — следующий подгружается в ту же очередь AVQueuePlayer), кроссфейд
+/// (`audio.crossfade` — две деки, как на ПК: следующий подгружается во вторую и за N секунд до конца
+/// начинает играть поверх, громкости — равной мощностью), звонки (`audio.on_interruption`), «Добавлять
+/// следующие» (`queue.add_following`), «Продолжить с прошлого раза» (`general.restore` — `PlaybackSnapshot`).
+/// Таймер сна (`SleepTimer`) — плавное затухание и пауза. Волна без сети (`wave.offline`) — `WaveCache`.
 ///
 /// Колбэки AVFoundation приходят на главной очереди (Combine `receive(on:)`, наблюдатель времени,
 /// уведомления с `queue: .main`) — состояние живёт на главном акторе.
@@ -60,6 +63,10 @@ final class PlaybackEngine {
     private(set) var waveMode: WaveMode = .own
     /// Текущий трек идёт потоком HLS — эквалайзер и нормализация на нём не звучат (AVFoundation).
     private(set) var isHLS = false
+    /// Таймер сна (nil — выключен).
+    private(set) var sleep: SleepTimer?
+    /// «Почему этот трек» у треков волны: ref → строка.
+    private(set) var waveReasons: [String: String] = [:]
 
     var current: Track? {
         order.indices.contains(pos) ? tracks[order[pos]] : nil
@@ -74,18 +81,34 @@ final class PlaybackEngine {
         order.indices.contains(pos) ? order[..<pos].map { tracks[$0] } : []
     }
 
-    @ObservationIgnored private let player = AVQueuePlayer()
+    /// Две деки, как на ПК: играет `player`, во второй ждёт следующий трек для кроссфейда (или затихает
+    /// ушедший). Без кроссфейда вторая не используется — следующий стоит в очереди той же деки (бесшовно).
+    @ObservationIgnored private let decks = [AVQueuePlayer(), AVQueuePlayer()]
+    @ObservationIgnored private var active = 0
+    private var player: AVQueuePlayer { decks[active] }
+    private var standby: AVQueuePlayer { decks[1 - active] }
     @ObservationIgnored private var currentItem: AVPlayerItem?
-    @ObservationIgnored private var preloaded: (pos: Int, item: AVPlayerItem)?
+    /// Подгруженный следующий: где он (в очереди текущей деки или во второй деке) и что играет.
+    private struct Preloaded {
+        var pos: Int
+        var item: AVPlayerItem
+        var onStandby: Bool
+        var quality: String
+        var hls: Bool
+    }
+    @ObservationIgnored private var preloaded: Preloaded?
     @ObservationIgnored private var preloading = false
+    /// Кроссфейд идёт: уходящая дека затихает, текущая нарастает.
+    @ObservationIgnored private var outgoing: (deck: AVQueuePlayer, start: Date, span: Double, gain: Double)?
+    @ObservationIgnored private var fadeIn: (start: Date, span: Double)?
     @ObservationIgnored private var loadToken = 0
     @ObservationIgnored private var retried = false
     /// Третья попытка: поток не открылся и со свежей ссылкой — берём попроще (mp3 вместо FLAC, SC без двойника).
     @ObservationIgnored private var safeRetried = false
     @ObservationIgnored private var safeNext = false
     @ObservationIgnored private var itemStatus: AnyCancellable?
-    @ObservationIgnored private var timeControl: AnyCancellable?
-    @ObservationIgnored private var timeObserver: Any?
+    @ObservationIgnored private var timeControls: [AnyCancellable] = []
+    @ObservationIgnored private var timeObservers: [Any] = []
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var sessionActive = false
     @ObservationIgnored private lazy var nowPlaying = NowPlaying(engine: self)
@@ -103,11 +126,11 @@ final class PlaybackEngine {
     @ObservationIgnored private var counted = false
     /// Подгруженный следующий: ждём готовности, чтобы подключить эквалайзер заранее.
     @ObservationIgnored private var preloadStatus: AnyCancellable?
-    /// Кроссфейд, секунды (0 — выкл), и бесшовность — из настроек.
+    /// Кроссфейд, секунды (0 — выкл), бесшовность и нормализация — из настроек.
     @ObservationIgnored private var crossfade: Double = 0
     @ObservationIgnored private var gapless = true
-    /// Текущий трек начался сам после прошлого — нарастает (кроссфейд).
-    @ObservationIgnored private var fadeInCurrent = false
+    @ObservationIgnored private var normalize = true
+    @ObservationIgnored private var waveOffline: Bool?
     /// Возвращение после звонка: с какого момента нарастает громкость.
     @ObservationIgnored private var rampStart: Date?
     @ObservationIgnored private var fadeTask: Task<Void, Never>?
@@ -124,21 +147,24 @@ final class PlaybackEngine {
         waveMode = WaveMode(rawValue: SettingsStore.shared.string("wave.mode")) ?? .own
         restore()
         observeSettings()
-        player.automaticallyWaitsToMinimizeStalling = true
-        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.25, preferredTimescale: 600), queue: .main) { [weak self] time in
-            MainActor.assumeIsolated { self?.tick(time) }
+        for (index, deck) in decks.enumerated() {
+            deck.automaticallyWaitsToMinimizeStalling = true
+            timeObservers.append(deck.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.25, preferredTimescale: 600), queue: .main) { [weak self] time in
+                MainActor.assumeIsolated { self?.tick(time, deck: index) }
+            })
+            // состояние «играет» — только у текущей деки (уходящая на паузе ничего не значит)
+            timeControls.append(deck.publisher(for: \.timeControlStatus)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] status in
+                    MainActor.assumeIsolated {
+                        guard let self, index == self.active else { return }
+                        self.isPlaying = status != .paused
+                        self.nowPlaying.update()
+                        self.updateFades()
+                        if status == .paused { self.saveSnapshot(force: true) }
+                    }
+                })
         }
-        timeControl = player.publisher(for: \.timeControlStatus)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] status in
-                MainActor.assumeIsolated {
-                    guard let self else { return }
-                    self.isPlaying = status != .paused
-                    self.nowPlaying.update()
-                    self.updateFades()
-                    if status == .paused { self.saveSnapshot(force: true) }
-                }
-            }
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification, object: nil, queue: .main) { [weak self] note in
             // сам элемент через границу актора не передаём — только его идентичность
@@ -178,6 +204,7 @@ final class PlaybackEngine {
         finishPlay(skipped: true, toWave: false)
         isWave = false
         waveSeed = nil
+        waveReasons = [:]
         tracks = list
         contextTitle = context
         queueId += 1
@@ -185,7 +212,6 @@ final class PlaybackEngine {
         deadQueue = ""
         order = QueueMath.makeOrder(length: list.count, current: index, shuffle: shuffle)
         pos = shuffle ? 0 : index
-        fadeInCurrent = false
         load(autoplay: true)
     }
 
@@ -199,11 +225,14 @@ final class PlaybackEngine {
             load(autoplay: true)
             return
         }
+        if let sleep, sleep.isDue(now: Date()) { self.sleep = nil }
         activateSession()
         player.playImmediately(atRate: rate)
     }
 
+    /// Пауза; идёт кроссфейд — уходящий трек замолкает сразу.
     func pause() {
+        stopOutgoing()
         player.pause()
     }
 
@@ -211,7 +240,6 @@ final class PlaybackEngine {
         guard let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode, manual: true) else { return }
         finishPlay(skipped: true)
         pos = target
-        fadeInCurrent = false
         load(autoplay: true)
     }
 
@@ -223,7 +251,6 @@ final class PlaybackEngine {
         }
         finishPlay(skipped: true)
         pos = QueueMath.prevPos(pos, length: order.count, repeat: repeatMode)
-        fadeInCurrent = false
         load(autoplay: true)
     }
 
@@ -232,7 +259,6 @@ final class PlaybackEngine {
         guard order.indices.contains(target) else { return }
         finishPlay(skipped: true)
         pos = target
-        fadeInCurrent = false
         load(autoplay: true)
     }
 
@@ -240,8 +266,11 @@ final class PlaybackEngine {
         position = max(0, min(seconds, duration))
         // восстановленный трек ещё не загружен — начнётся с этой секунды
         if currentItem == nil, let track = current { pendingStart = (track.ref, position) }
+        stopOutgoing()
+        fadeIn = nil
         player.seek(to: CMTime(seconds: position, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         nowPlaying.update()
+        updateFades()
     }
 
     func toggleShuffle() {
@@ -317,12 +346,21 @@ final class PlaybackEngine {
         return item
     }
 
-    /// Скачанный — из файла (без сети); fresh (файл не открылся или ссылка протухла) — из сети.
+    /// Скачанный (или из офлайн-кэша волны) — из файла, без сети; fresh (файл не открылся или ссылка
+    /// протухла) — из сети.
     private static func source(for track: Track, fresh: Bool, safe: Bool = false) async throws -> StreamSource {
         if !fresh, !safe, let local = DownloadStore.shared.localURL(track.ref) {
             return .file(url: local, quality: DownloadStore.shared.quality(track.ref) ?? "Скачан")
         }
+        if !fresh, !safe, let cached = WaveCache.shared.localURL(track.ref) {
+            return .file(url: cached, quality: WaveCache.shared.quality(track.ref) ?? "Офлайн")
+        }
         return try await MusicCore.shared.stream(track.ref, fresh: fresh, safe: safe)
+    }
+
+    /// Трек есть на телефоне — сыграет без сети.
+    private static func isLocal(_ ref: String) -> Bool {
+        DownloadStore.shared.localURL(ref) != nil || WaveCache.shared.localURL(ref) != nil
     }
 
     private static func streamsHLS(_ source: StreamSource) -> Bool {
@@ -338,6 +376,12 @@ final class PlaybackEngine {
 
     /// Загрузить трек на позиции pos. fresh — ссылка протухла, взять новую.
     private func load(autoplay: Bool, fresh: Bool = false) {
+        guard let wanted = current else { return }
+        // волна без сети: этого трека на телефоне нет — сразу к ближайшему подкачанному
+        if isWave, !fresh, !WaveCache.shared.isOnline, !Self.isLocal(wanted.ref),
+           let target = WaveCachePlan.nextPlayable(from: pos, refs: order.map { tracks[$0].ref }, isLocal: { Self.isLocal($0) }) {
+            pos = target
+        }
         guard let track = current else { return }
         loadToken += 1
         let token = loadToken
@@ -352,6 +396,8 @@ final class PlaybackEngine {
         let start = fresh ? position : (pendingStart?.ref == track.ref ? pendingStart?.seconds ?? 0 : 0)
         pendingStart = nil
         dropPreload()
+        stopOutgoing()
+        fadeIn = nil
         player.pause()
         player.removeAllItems()
         currentItem = nil
@@ -385,6 +431,7 @@ final class PlaybackEngine {
                 self.isLoading = false
                 self.nowPlaying.update(artworkFor: track)
                 self.topUpAutoplay()
+                self.refreshWaveCache()
             } catch {
                 guard token == self.loadToken else { return }
                 self.isLoading = false
@@ -405,8 +452,8 @@ final class PlaybackEngine {
                     case .readyToPlay:
                         let seconds = item.duration.seconds
                         if seconds.isFinite, seconds > 0 { self.duration = seconds }
-                        // эквалайзер и нормализация — у файла (HLS их не пропускает)
-                        if !self.isHLS { AudioTap.attach(to: item) }
+                        // эквалайзер и выравниватель — у файла (HLS их не пропускает)
+                        if !self.isHLS { AudioTap.attach(to: item, leveler: self.current?.loudness == nil) }
                         self.nowPlaying.update()
                     case .failed:
                         guard let track = self.current else { return }
@@ -439,7 +486,7 @@ final class PlaybackEngine {
 
     private func dropPreload() {
         if let preloaded {
-            player.remove(preloaded.item)
+            if preloaded.onStandby { standby.removeAllItems() } else { player.remove(preloaded.item) }
         }
         preloaded = nil
         preloading = false
@@ -448,42 +495,118 @@ final class PlaybackEngine {
 
     // MARK: - Время и переходы
 
-    private func tick(_ time: CMTime) {
+    private func tick(_ time: CMTime, deck: Int) {
         let seconds = time.seconds
-        guard seconds.isFinite, currentItem != nil, player.currentItem === currentItem else { return }
+        guard deck == active, seconds.isFinite, currentItem != nil, player.currentItem === currentItem else { return }
         listened(at: seconds)
         position = seconds
         saveSnapshot()
-        if duration > 0, duration - seconds < Self.preloadLead {
+        guard duration > 0 else { return }
+        if duration - seconds < max(Self.preloadLead, crossfade + 10) {
             preloadNext()
+        }
+        // кроссфейд: следующий готов во второй деке — за N секунд (реальных, со скоростью) до конца он
+        // начинает играть поверх
+        if crossfade > 0, outgoing == nil, sleep?.isEndOfTrack != true, let preloaded, preloaded.onStandby,
+           preloaded.item.status == .readyToPlay, order.indices.contains(preloaded.pos) {
+            let next = tracks[order[preloaded.pos]]
+            let span = Fades.overlapSpan(seconds: crossfade, outgoing: duration, incoming: Double(next.durationMs) / 1000)
+            if span > 0, (duration - seconds) / Double(max(rate, 0.5)) <= span {
+                startCrossfade(span: span)
+            }
         }
     }
 
-    /// Подгрузить следующий трек в очередь AVQueuePlayer — переход без паузы. «Бесшовное» выключено (и нет
-    /// кроссфейда) — следующий грузится, когда текущий кончился, с короткой паузой.
+    /// Подгрузить следующий трек. Без кроссфейда — в очередь той же деки (AVQueuePlayer перейдёт без
+    /// паузы); с кроссфейдом — во вторую деку, на паузе и без звука (буферизуется заранее). «Бесшовное»
+    /// выключено (и нет кроссфейда) — следующий грузится, когда текущий кончился, с короткой паузой.
+    /// Таймер сна «конец трека» — следующий не подгружается.
     private func preloadNext() {
-        guard gapless || crossfade > 0, preloaded == nil, !preloading, repeatMode != .one, let currentItem,
+        guard gapless || crossfade > 0, preloaded == nil, !preloading, outgoing == nil, repeatMode != .one,
+              sleep?.isEndOfTrack != true, let currentItem,
               let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode, manual: false), target != pos else { return }
         let track = tracks[order[target]]
         let token = loadToken
+        let overlap = crossfade > 0
         preloading = true
         Task {
             defer { if token == self.loadToken { self.preloading = false } }
             guard let source = try? await Self.source(for: track, fresh: false),
-                  token == self.loadToken, self.currentItem === currentItem, self.preloaded == nil else { return }
+                  token == self.loadToken, self.currentItem === currentItem, self.preloaded == nil, self.outgoing == nil else { return }
             let item = self.makeItem(source)
-            self.player.insert(item, after: currentItem)
-            self.preloaded = (target, item)
-            if !Self.streamsHLS(source) {
+            if overlap {
+                let deck = self.standby
+                deck.pause()
+                deck.removeAllItems()
+                deck.volume = 0
+                deck.insert(item, after: nil)
+            } else {
+                self.player.insert(item, after: currentItem)
+            }
+            let hls = Self.streamsHLS(source)
+            self.preloaded = Preloaded(pos: target, item: item, onStandby: overlap, quality: Self.label(source), hls: hls)
+            if !hls {
+                let leveler = track.loudness == nil
                 self.preloadStatus = item.publisher(for: \.status)
                     .receive(on: DispatchQueue.main)
                     .sink { [weak item] status in
                         MainActor.assumeIsolated {
-                            if status == .readyToPlay, let item { AudioTap.attach(to: item) }
+                            if status == .readyToPlay, let item { AudioTap.attach(to: item, leveler: leveler) }
                         }
                     }
             }
         }
+    }
+
+    /// Кроссфейд: ушедшая дека затихает за span секунд, подгруженный во второй деке начинает играть и
+    /// нарастает. Для истории и волны ушедший трек — дослушан.
+    private func startCrossfade(span: Double) {
+        guard let next = preloaded, next.onStandby else { return }
+        let old = player
+        let oldGain = trackGain()
+        finishPlay(skipped: false)
+        preloaded = nil
+        preloadStatus = nil
+        active = 1 - active
+        outgoing = (old, Date(), span, oldGain)
+        fadeIn = (Date(), span)
+        advance(to: next)
+        player.volume = 0
+        activateSession()
+        player.playImmediately(atRate: rate)
+        isPlaying = true
+        updateFades()
+    }
+
+    /// Текущий трек сменился сам на подгруженный: позиция, история, подписи. Сам звук уже идёт (AVQueuePlayer
+    /// перешёл или вторая дека включилась).
+    private func advance(to next: Preloaded) {
+        pos = next.pos
+        loadToken += 1
+        retried = false
+        safeRetried = false
+        resetListening()
+        position = 0
+        quality = next.quality
+        isHLS = next.hls
+        if let track = current {
+            duration = Double(track.durationMs) / 1000
+            setRate(LibraryStore.shared.speed(for: track.ref) ?? 1)
+            nowPlaying.update(artworkFor: track)
+        }
+        attach(next.item)
+        saveSnapshot(force: true)
+        topUpAutoplay()
+        refreshWaveCache()
+    }
+
+    /// Уходящая дека замолкает и освобождается.
+    private func stopOutgoing() {
+        guard let outgoing else { return }
+        outgoing.deck.pause()
+        outgoing.deck.removeAllItems()
+        outgoing.deck.volume = 0
+        self.outgoing = nil
     }
 
     private func itemEnded(_ id: ObjectIdentifier?) {
@@ -494,33 +617,35 @@ final class PlaybackEngine {
             player.playImmediately(atRate: rate)
             return
         }
-        if let preloaded {
-            // AVQueuePlayer уже перешёл на подгруженный трек сам
-            self.preloaded = nil
+        // таймер сна «конец трека»: следующий — на паузе
+        if sleep?.isEndOfTrack == true {
+            sleep = nil
+            dropPreload()
+            if let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode, manual: false) {
+                pos = target
+                load(autoplay: false)
+            } else {
+                player.pause()
+                seek(to: 0)
+            }
+            return
+        }
+        if let next = preloaded {
+            preloaded = nil
             preloadStatus = nil
-            pos = preloaded.pos
-            fadeInCurrent = true
-            loadToken += 1
-            retried = false
-            safeRetried = false
-            resetListening()
-            position = 0
-            if let track = current {
-                duration = Double(track.durationMs) / 1000
-                setRate(LibraryStore.shared.speed(for: track.ref) ?? 1)
-                nowPlaying.update(artworkFor: track)
+            if next.onStandby {
+                // кроссфейд не успел (следующий не был готов) — вторая дека включается сразу, без наложения
+                active = 1 - active
+                fadeIn = nil
+                advance(to: next)
+                activateSession()
+                player.playImmediately(atRate: rate)
+                isPlaying = true
+            } else {
+                // AVQueuePlayer уже перешёл на подгруженный трек сам
+                advance(to: next)
             }
-            Task {
-                // подпись качества у подгруженного — из кэша ссылок MusicCore
-                if let track = self.current, let source = try? await Self.source(for: track, fresh: false) {
-                    self.quality = Self.label(source)
-                    self.isHLS = Self.streamsHLS(source)
-                }
-            }
-            attach(preloaded.item)
             updateFades()
-            saveSnapshot(force: true)
-            topUpAutoplay()
             return
         }
         guard let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode, manual: false) else {
@@ -530,7 +655,6 @@ final class PlaybackEngine {
             return
         }
         pos = target
-        fadeInCurrent = true
         load(autoplay: true)
     }
 
@@ -646,6 +770,8 @@ final class PlaybackEngine {
                 self.play(list, at: 0, context: seed.map { "Волна по «\($0.title)»" } ?? "Моя волна")
                 self.isWave = true
                 self.waveSeed = seed
+                self.waveReasons = self.wave.reasons
+                self.refreshWaveCache()
             } catch {
                 self.message = error.localizedDescription
             }
@@ -671,6 +797,8 @@ final class PlaybackEngine {
                 self.tracks.append(track)
                 self.order.append(self.tracks.count - 1)
             }
+            self.waveReasons = self.wave.reasons
+            self.refreshWaveCache()
         }
     }
 
@@ -738,10 +866,19 @@ final class PlaybackEngine {
                                eqEnabled: settings.bool(Equalizer.enabledKey),
                                normalize: settings.bool("audio.normalize"))
         let wasCrossfade = crossfade
+        let wasNormalize = normalize
         crossfade = Double(PlayerPrefs.crossfade(settings))
         gapless = settings.bool("audio.gapless")
-        if !gapless, crossfade == 0, preloaded != nil { dropPreload() }
-        if wasCrossfade != crossfade { updateFades() }
+        normalize = settings.bool("audio.normalize")
+        // подгруженный лежит не там, где нужен новому режиму (очередь деки ⇄ вторая дека) — подгрузить заново
+        if let preloaded, preloaded.onStandby != (crossfade > 0) || (!gapless && crossfade == 0) { dropPreload() }
+        // громкость — вне слежения за настройками (иначе оно подписалось бы на позицию и очередь)
+        if wasCrossfade != crossfade || wasNormalize != normalize { Task { self.updateFades() } }
+        let offline = settings.bool("wave.offline")
+        if offline != waveOffline {
+            waveOffline = offline
+            Task { self.refreshWaveCache() }
+        }
         let kbps = MusicCore.qualityKbps(AudioQuality.current(settings).rawValue)
         let viaYandex = settings.bool("audio.sc_via_yandex")
         if appliedQuality?.kbps != kbps || appliedQuality?.viaYandex != viaYandex {
@@ -750,11 +887,11 @@ final class PlaybackEngine {
         }
     }
 
-    /// Громкость плеера: кроссфейд (затухание в конце, нарастание после перехода) и возвращение после
-    /// звонка. Пока что-то меняется — обновляется 20 раз в секунду, иначе стоит на месте.
+    /// Громкость дек: нормализация (R128), кроссфейд (уходящая затихает, текущая нарастает), возвращение
+    /// после звонка, таймер сна. Пока что-то меняется — обновляется 20 раз в секунду, иначе стоит на месте.
     private func updateFades() {
-        player.volume = Float(fadeFactor())
-        guard isPlaying, crossfade > 0 || rampStart != nil else {
+        applyVolumes()
+        guard isPlaying, rampStart != nil || fadeIn != nil || outgoing != nil || sleep != nil else {
             fadeTask?.cancel()
             fadeTask = nil
             return
@@ -762,10 +899,13 @@ final class PlaybackEngine {
         guard fadeTask == nil else { return }
         fadeTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(50))
+                // далеко до затухания (таймер сна на час) — раз в полсекунды, а не 20 раз
+                let busy = self?.fadeBusy ?? false
+                try? await Task.sleep(for: .milliseconds(busy ? 50 : 500))
                 guard let self, !Task.isCancelled else { return }
-                self.player.volume = Float(self.fadeFactor())
-                if !self.isPlaying || (self.crossfade == 0 && self.rampStart == nil) {
+                self.applyVolumes()
+                self.checkSleep()
+                if !self.isPlaying || (self.rampStart == nil && self.fadeIn == nil && self.outgoing == nil && self.sleep == nil) {
                     self.fadeTask = nil
                     return
                 }
@@ -773,21 +913,90 @@ final class PlaybackEngine {
         }
     }
 
-    private func fadeFactor() -> Double {
-        var factor = 1.0
+    /// Громкость меняется прямо сейчас (или вот-вот начнёт).
+    private var fadeBusy: Bool {
+        if rampStart != nil || fadeIn != nil || outgoing != nil { return true }
+        guard let sleep else { return false }
+        switch sleep.mode {
+        case let .deadline(date): return date.timeIntervalSinceNow < SleepTimer.fadeSeconds + 1
+        case .endOfTrack: return duration - position < SleepTimer.trackFadeSeconds + 1
+        }
+    }
+
+    private func applyVolumes() {
+        let now = Date()
+        let sleepFactor = sleep?.factor(now: now, position: currentSeconds(), duration: duration) ?? 1
+        player.volume = Float(fadeFactor(now: now) * sleepFactor)
+        if let outgoing {
+            let t = outgoing.span > 0 ? now.timeIntervalSince(outgoing.start) / outgoing.span : 1
+            if t >= 1 {
+                stopOutgoing()
+            } else {
+                // таймер «конец трека» к уходящему не относится — он уже кончился
+                let sleepOut = sleep?.isEndOfTrack == true ? 1 : sleepFactor
+                outgoing.deck.volume = Float(outgoing.gain * Fades.crossOut(t) * sleepOut)
+            }
+        }
+    }
+
+    private func currentSeconds() -> Double {
+        let time = player.currentTime().seconds
+        return time.isFinite ? time : position
+    }
+
+    /// Нормализация текущего трека: громкость по R128 Яндекса (1 — нет данных или выключено).
+    private func trackGain() -> Double {
+        Loudness.gain(lufs: current?.loudness, enabled: normalize)
+    }
+
+    /// Громкость текущей деки без таймера сна.
+    private func fadeFactor(now: Date) -> Double {
+        var factor = trackGain()
         if let rampStart {
-            let elapsed = Date().timeIntervalSince(rampStart)
-            factor = Fades.rampFactor(elapsed: elapsed)
+            let elapsed = now.timeIntervalSince(rampStart)
+            factor *= Fades.rampFactor(elapsed: elapsed)
             if elapsed >= 2 { self.rampStart = nil }
         }
-        if crossfade > 0, currentItem != nil {
-            let time = player.currentTime().seconds
-            let next = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode, manual: false)
-            let hasNext = repeatMode != .one && next != nil && next != pos
-            factor *= Fades.crossfadeFactor(position: time.isFinite ? time : position, duration: duration, seconds: crossfade,
-                                            fadeIn: fadeInCurrent, fadeOut: hasNext)
+        if let fadeIn {
+            let t = fadeIn.span > 0 ? now.timeIntervalSince(fadeIn.start) / fadeIn.span : 1
+            factor *= Fades.crossIn(t)
+            if t >= 1 { self.fadeIn = nil }
         }
         return factor
+    }
+
+    // MARK: - Таймер сна
+
+    /// Включить таймер (nil — выключить). «Конец трека» — следующий не подгружается и начнётся на паузе.
+    func setSleep(_ option: SleepOption?) {
+        sleep = option.map { SleepTimer($0) }
+        if sleep?.isEndOfTrack == true {
+            dropPreload()
+            stopOutgoing()
+        }
+        updateFades()
+    }
+
+    /// Минуты вышли — пауза (громкость к этому моменту уже ушла в ноль).
+    private func checkSleep() {
+        guard let sleep, sleep.isDue(now: Date()) else { return }
+        self.sleep = nil
+        pause()
+        applyVolumes()
+    }
+
+    // MARK: - Волна: «почему» и офлайн
+
+    /// «Почему этот трек» — только у трека волны и если включено (`wave.reasons`).
+    func waveReason(for track: Track) -> String? {
+        guard isWave, SettingsStore.shared.bool("wave.reasons") else { return nil }
+        return waveReasons[track.ref]
+    }
+
+    /// Волна без сети: следующие треки волны — в кэш (на Wi‑Fi), сыгранное — из кэша вон.
+    private func refreshWaveCache() {
+        WaveCache.shared.update(upcoming: upNext, current: current, isWave: isWave,
+                                enabled: SettingsStore.shared.bool("wave.offline"))
     }
 
     /// Вернуть очередь с прошлого запуска (`general.restore`) — на паузе, с той же секунды.

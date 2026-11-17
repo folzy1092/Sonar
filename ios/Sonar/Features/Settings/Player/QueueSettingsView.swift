@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Профиль → Очередь (по ПК `pages/settings/Queue.svelte`, SETTINGS.md «Очередь»): что вернуть при
-/// запуске, вид очереди, карточка «Дальше», «Авто похожие», «Добавлять следующие». Положение и показ
+/// запуске, вид очереди, карточка «Дальше», «Авто похожие», «Добавлять следующие», «Моя волна» (без сети,
+/// «Почему этот трек»). Положение и показ
 /// панели очереди — только ПК (на iPhone очередь — лист из плеера).
 struct QueueSettingsView: View {
     @Environment(SettingsStore.self) private var settings
@@ -45,6 +46,18 @@ struct QueueSettingsView: View {
                                 isOn: flag("queue.add_following"))
             }
             .cascade(2)
+
+            PlayerCard(title: "Моя волна", footer: "Без сети волна играет то, что успела подкачать: на Wi‑Fi следующие 15 треков "
+                + "сохраняются на телефон (файлами — потоки HLS SoundCloud так не сохранить). Сыгранное удаляется само.") {
+                PlayerToggleRow(icon: .cloudOff, title: "Волна без сети",
+                                subtitle: "Подкачивать следующие треки волны на Wi‑Fi",
+                                isOn: flag("wave.offline"))
+                PlayerRowDivider()
+                PlayerToggleRow(icon: .sparkles, title: "Почему этот трек",
+                                subtitle: "Строка под названием в плеере: «Похож на …», «Ты лайкал …»",
+                                isOn: flag("wave.reasons"))
+            }
+            .cascade(3)
         }
     }
 }
