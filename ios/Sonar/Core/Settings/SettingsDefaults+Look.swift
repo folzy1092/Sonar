@@ -7,6 +7,7 @@ extension SettingsDefaults {
     static let look: [String: SettingValue] = [
         "appearance.mode": .string("dark"),
         "appearance.cover_theme": .bool(true),
+        "appearance.cover_strength": .string("medium"),
         "appearance.preset": .string("neutral"),
         // iPhone — «Эхо»: поверхности в оттенке обложки, как на скринах владельца (ПК — «Sonar» = Монолит)
         "appearance.style": .string("echo"),
