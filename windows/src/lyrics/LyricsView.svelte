@@ -412,17 +412,11 @@
   .anim-normal .line.active .w {
     --p: 0;
   }
-  /* заливка — на внутреннем .h: у него своя трансформация (holdLook), а background-clip: text родителя
-     в Chromium не красит слой потомка — строка становилась прозрачной целиком */
+  /* слово светлеет по мере пения: без background-clip: text — в WebView2 под маской прокрутки и
+     трансформациями строки он не рисовался, и текущая строка пропадала целиком */
   .anim-normal .line.active .w .h {
-    color: transparent;
-    background: linear-gradient(
-      90deg,
-      rgb(var(--ink)) calc(var(--p) * 114% - 14%),
-      rgba(var(--ink), 0.55) calc(var(--p) * 114%)
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
+    color: rgba(var(--ink), calc(0.5 + 0.5 * var(--p)));
+    transition: color 90ms linear;
   }
 
   /* проигрыш «•••» — точки загораются по очереди */
