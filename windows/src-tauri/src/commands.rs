@@ -115,8 +115,8 @@ pub fn cancel_login() {
 
 #[tauri::command]
 pub async fn disconnect_service(core: State<'_, Arc<Core>>, service: String) -> Res<()> {
-  // `sc` → `soundcloud`; неизвестное — как есть, Core ответит прежним текстом
-  core.disconnect(by_key(&service).map(|s| s.key).unwrap_or(service.as_str())).await.map_err(err)
+  // Core сам понимает и `sc`, и `soundcloud`; неизвестное — прежний текст с тем, что прислали
+  core.disconnect(&service).await.map_err(err)
 }
 
 #[tauri::command]

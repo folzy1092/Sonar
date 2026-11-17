@@ -1065,7 +1065,7 @@ mod tests {
     let affinity = 2.0 * beta(1 + plays.round() as u32, 1 + skips.round() as u32, rng) - 1.0;
     let liked = if keys.iter().any(|k| taste.liked_artists.contains(k)) { 2.0 } else { 0.0 };
     let platform = match prefer {
-      Some(p) if is_track_of(&t.ref_, p) => 0.6,
+      Some(p) if t.ref_.starts_with(&format!("{p}:")) => 0.6,
       _ => 0.0,
     };
     let hour = keys.iter().filter_map(|k| taste.hour_share.get(k).copied()).fold(0.0, f64::max);

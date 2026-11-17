@@ -30,11 +30,12 @@ impl SoundCloud<'_> {
     if let Some(t) = self.creds.oauth_token.as_deref().filter(|t| !t.is_empty()) {
       req = req.header("Authorization", format!("OAuth {t}"));
     }
-    let r = req.send().await?;
+    // client_id едет в адресе — убираем адрес из ошибок reqwest, чтобы ключ не попал в текст
+    let r = req.send().await.map_err(reqwest::Error::without_url)?;
     if !r.status().is_success() {
       return Err(http_error("SoundCloud", r.status()));
     }
-    Ok(r.json().await?)
+    Ok(r.json().await.map_err(reqwest::Error::without_url)?)
   }
 
   /// Проверка ключей: с токеном — профиль, без — пробный поиск.
@@ -358,6 +359,46 @@ pub fn big_artwork(url: &str) -> String {
 mod tests {
   use super::*;
   use serde_json::json;
+
+  const SECRET: &str = "SECRETabcdefghijklmnopqrstuvwxyz";
+
+  /// Текст ошибки `get` с секретным client_id (как его увидит пользователь).
+  async fn sc_err(url: &str) -> String {
+    let http = reqwest::Client::new();
+    let creds = Creds { client_id: SECRET.into(), oauth_token: None };
+    let e = SoundCloud { http: &http, creds: &creds }.get(url, &[("q", "a")]).await.unwrap_err();
+    format!("{e:#}")
+  }
+
+  /// Сеть недоступна — client_id из адреса в текст ошибки не попадает.
+  #[tokio::test]
+  async fn send_error_hides_client_id() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    let e = sc_err(&format!("http://127.0.0.1:{port}/search/tracks")).await;
+    assert!(!e.contains(SECRET), "{e}");
+    assert!(!e.contains("client_id"), "{e}");
+  }
+
+  /// Ответ не JSON — client_id тоже не попадает.
+  #[tokio::test]
+  async fn decode_error_hides_client_id() {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+      let (mut sock, _) = listener.accept().unwrap();
+      let mut buf = [0u8; 4096];
+      let _ = sock.read(&mut buf);
+      let body = "<html>не JSON</html>";
+      let resp = format!("HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+      sock.write_all(resp.as_bytes()).unwrap();
+    });
+    let e = sc_err(&format!("http://127.0.0.1:{port}/search/tracks")).await;
+    assert!(!e.contains(SECRET), "{e}");
+    assert!(!e.contains("client_id"), "{e}");
+  }
 
   fn tc(proto: &str, mime: &str, preset: &str, snipped: bool) -> Value {
     json!({"url": format!("u-{proto}-{preset}"), "preset": preset, "snipped": snipped,
