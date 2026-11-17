@@ -29,6 +29,15 @@
 - Логика (агент): `PlayHistory`, «Не интересно», `DownloadStore` (офлайн), `HomeFeed`, `MyWave` с режимами,
   `Converter`, артист / альбом / плейлисты сервисов в `MusicCore`. 81 XCTest гонялся Swift'ом на Linux.
 
+## Позже в тот же день
+
+- Текст песни на iPhone (`Core/Lyrics/` — второй агент, `Features/Player/LyricsView.swift`, `LyricsMenuSheet.swift`):
+  ключи `lyrics.mode / size / style / animation` общие с ПК; находка — lrclib отдаёт пословный тайминг (`hasWordSync`).
+- Мини-плеер: заготовки Тихий / Капсула / Лента / Обложка (`Features/Player/MiniStyle.swift`), Профиль → Мини-плеер.
+- Сертификат: выбор файлов через `UIDocumentPickerViewController` (fileImporter терял тап), только .p12/.pfx и .mobileprovision.
+- Бот: проверенные версии и алерты (`server/sonar/releases.py`, BOT.md §2.6г) — владельцу перезапустить бота.
+- Сборка с этим: **ios-build-239**.
+
 ## Не проверено
 
 Глазами на iPhone ничего (Mac нет): перетекание панели, поле точек и его скорость, перетаскивание в режиме
