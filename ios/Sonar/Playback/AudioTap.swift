@@ -55,10 +55,11 @@ enum AudioTap {
                     .process(buffers, frames: Int(framesOut.pointee))
             }
         )
-        var tap: MTAudioProcessingTap?
+        var unmanaged: Unmanaged<MTAudioProcessingTap>?
         let status = MTAudioProcessingTapCreate(kCFAllocatorDefault, &callbacks,
-                                                MTAudioProcessingTapCreationFlags(kMTAudioProcessingTapCreationFlag_PostEffects), &tap)
-        guard status == noErr, let tap else {
+                                                MTAudioProcessingTapCreationFlags(kMTAudioProcessingTapCreationFlag_PostEffects), &unmanaged)
+        // Create отдаёт +1 (правило Create) — забираем владение
+        guard status == noErr, let tap = unmanaged?.takeRetainedValue() else {
             // init не позвали — удержание снимаем сами
             Unmanaged<TapContext>.fromOpaque(info).release()
             return nil
