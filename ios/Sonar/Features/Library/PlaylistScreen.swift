@@ -97,8 +97,9 @@ struct PlaylistScreen: View {
         }
     }
 
-    private var isThisPlaying: Bool {
-        engine.isPlaying && engine.contextTitle == title && !engine.isWave
+    /// «Слушать» ⇄ «Пауза»: играет эта подборка — пауза, на паузе — продолжить с места.
+    private var listen: ListenAction {
+        .resolve(page: title, context: engine.contextTitle, isWave: engine.isWave, hasCurrent: engine.current != nil, isPlaying: engine.isPlaying)
     }
 
     // MARK: - Вид
@@ -289,11 +290,11 @@ struct PlaylistScreen: View {
 
     private var actions: some View {
         HStack(spacing: 12) {
-            AccentCapsuleButton(icon: isThisPlaying ? .pause : .play, title: isThisPlaying ? "Пауза" : "Слушать") {
-                if engine.contextTitle == title, !engine.isWave, engine.current != nil {
-                    engine.toggle()
-                } else {
-                    play(shuffle: false)
+            ListenCapsuleButton(playing: listen.showsPause) {
+                switch listen {
+                case .pause: engine.pause()
+                case .resume: engine.resume()
+                case .start: play(shuffle: false)
                 }
             }
             .disabled(tracks.isEmpty)

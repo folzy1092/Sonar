@@ -48,6 +48,44 @@ struct AccentCapsuleButton: View {
     }
 }
 
+/// «Слушать» ⇄ «Пауза» на экране подборки (`Playback/ListenAction.swift`): значки перетекают
+/// (прозрачность + масштаб + поворот, как `PlayPause` на ПК), подпись сменяется прозрачностью.
+/// «Уменьшение движения» — только прозрачность.
+struct ListenCapsuleButton: View {
+    let playing: Bool
+    let action: @MainActor () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                ZStack {
+                    morphIcon(.play, shown: !playing, angle: 30)
+                    morphIcon(.pause, shown: playing, angle: -30)
+                }
+                .frame(width: 24, height: 24)
+                Text(playing ? t("Пауза") : t("Слушать"))
+                    .font(.system(size: 18, weight: .semibold))
+                    .contentTransition(.opacity)
+            }
+            .foregroundStyle(Theme.accentInk)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(Theme.accent, in: Capsule())
+            .contentShape(Capsule())
+            .animation(reduceMotion ? Motion.quick : Motion.spring, value: playing)
+        }
+        .buttonStyle(PressableStyle(scale: 0.97))
+    }
+
+    private func morphIcon(_ icon: IconName, shown: Bool, angle: Double) -> some View {
+        SonarIcon(icon, filled: true, size: 24)
+            .opacity(shown ? 1 : 0)
+            .scaleEffect(shown || reduceMotion ? 1 : 0.6)
+            .rotationEffect(.degrees(shown || reduceMotion ? 0 : angle))
+    }
+}
+
 /// Ряд значков в капсуле (листы плейлиста и трека: ♥ + ≡▶ ⤴ / ▶ ⤮ ⤓).
 struct IconCapsuleRow: View {
     struct Item: Identifiable {
