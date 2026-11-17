@@ -563,6 +563,8 @@ final class PlaybackEngine {
         listenedMs = 0
         lastTick = nil
         counted = false
+        // Last.fm: новое прослушивание («сейчас играет», скроббл по половине / 4 мин)
+        if let track = current { LastfmScrobbler.shared.trackStarted(track) }
     }
 
     /// Копим реально прослушанное (перемотка не считается) и засчитываем прослушивание на пороге
@@ -573,6 +575,7 @@ final class PlaybackEngine {
         let delta = seconds - last
         guard delta > 0, delta < 2 else { return }
         listenedMs += delta * 1000
+        LastfmScrobbler.shared.progress(listenedMs: Int(listenedMs))
         if !counted, let track = current,
            QueueMath.countsAsPlay(listenedMs: Int(listenedMs), durationMs: track.durationMs > 0 ? track.durationMs : Int(duration * 1000)) {
             counted = true
