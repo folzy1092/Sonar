@@ -61,17 +61,43 @@ struct TrackMatch: Sendable {
         return out
     }
 
+    /// Трек Sonar → что искать на другом сервисе: SoundCloud — как `soundCloud(…)` (залил — исполнитель,
+    /// «АРТИСТ - ТРЕК» в названии), Яндекс — его артисты и название.
+    static func from(_ track: Track) -> TrackMatch {
+        if track.service == .soundcloud {
+            return soundCloud(uploader: track.artist, metaArtist: nil, title: track.title, durationMs: track.durationMs)
+        }
+        var artists = track.artists.map(\.name).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        if artists.isEmpty { artists = [track.artist] }
+        var titles: [String] = []
+        let keyword = TrackText.keywordTitle(track.title)
+        for candidate in [TrackText.cleanTitle(track.title), keyword.core] where !candidate.isEmpty && !titles.contains(candidate) {
+            titles.append(candidate)
+        }
+        return TrackMatch(artists: artists, titles: titles, durationMs: track.durationMs, versions: versions(track.title))
+    }
+
     /// Лучший кандидат из выдачи или nil.
     func best(_ candidates: [Track]) -> Track? {
+        best(candidates, reuploads: false)
+    }
+
+    /// reuploads — кандидаты с SoundCloud: у них настоящий артист часто в названии «АРТИСТ - ТРЕК».
+    func best(_ candidates: [Track], reuploads: Bool) -> Track? {
         let wanted = Set(artists.flatMap(Self.artistNames))
         var best: (track: Track, score: Double)?
         for candidate in candidates where candidate.available {
             if durationMs > 0, candidate.durationMs > 0, abs(durationMs - candidate.durationMs) > Self.maxDurationDiffMs { continue }
-            let theirs = Set((candidate.artists.map { TrackText.norm($0.name) } + Self.artistNames(candidate.artist)).filter { !$0.isEmpty })
+            var names = candidate.artists.map { TrackText.norm($0.name) } + Self.artistNames(candidate.artist)
+            var foundTitles = [TrackText.norm(TrackText.cleanTitle(candidate.title))]
+            if reuploads, let reupload = TrackText.reuploadVariant(candidate.title) {
+                names += Self.artistNames(reupload.artist)
+                foundTitles.append(TrackText.norm(TrackText.cleanTitle(reupload.title)))
+            }
+            let theirs = Set(names.filter { !$0.isEmpty })
             if theirs.isDisjoint(with: wanted) { continue }
             if Self.versions(candidate.title) != versions { continue }
-            let found = TrackText.norm(TrackText.cleanTitle(candidate.title))
-            let score = titles.map { TrackText.similarity(TrackText.norm($0), found) }.max() ?? 0
+            let score = titles.flatMap { title in foundTitles.map { TrackText.similarity(TrackText.norm(title), $0) } }.max() ?? 0
             if score >= Self.minTitle, best.map({ score > $0.score }) ?? true {
                 best = (candidate, score)
             }

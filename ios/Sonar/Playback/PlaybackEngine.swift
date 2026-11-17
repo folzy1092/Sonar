@@ -10,6 +10,10 @@ import UIKit
 /// ссылкой (протухла), потом пропуск с сообщением. Очередь — как Windows `player.svelte.ts`:
 /// список треков + порядок (перемешанный или нет) + позиция в порядке.
 ///
+/// Скачанный трек (`DownloadStore`) играет из файла, без сети. История и сигналы волны — `PlayHistory`:
+/// прослушивание засчитывается на пороге min(30 с, половины трека), при смене трека — дослушан / пропущен.
+/// «Моя волна» и «Волна по треку» — `MyWave`, догружается вместо «Авто похожих».
+///
 /// Колбэки AVFoundation приходят на главной очереди (Combine `receive(on:)`, наблюдатель времени,
 /// уведомления с `queue: .main`) — состояние живёт на главном акторе.
 @MainActor
@@ -41,6 +45,14 @@ final class PlaybackEngine {
     private(set) var rate: Float = 1
     /// Треки, дописанные «Авто похожими» (в очереди — отдельным блоком).
     private(set) var autoRefs: Set<String> = []
+    /// Сейчас играет «Моя волна» или «Волна по треку» — для кнопки ▶/⏸ на Главной.
+    private(set) var isWave = false
+    /// Волна подбирает первую порцию.
+    private(set) var waveLoading = false
+    /// «Волна по треку»: от какого трека (nil — «Моя волна»).
+    private(set) var waveSeed: Track?
+    /// Режим волны (настройка `wave.mode`).
+    private(set) var waveMode: WaveMode = .own
 
     var current: Track? {
         order.indices.contains(pos) ? tracks[order[pos]] : nil
@@ -72,8 +84,16 @@ final class PlaybackEngine {
     @ObservationIgnored private var autoplayLoading = false
     /// Очередь, для которой похожих не нашлось, — не долбить сервис, пока она не изменится.
     @ObservationIgnored private var deadQueue = ""
+    @ObservationIgnored private lazy var wave = MyWave(source: MusicCore.shared, library: .shared, history: .shared)
+    @ObservationIgnored private var waveMoreLoading = false
+    /// Сколько реально прослушано у текущего трека (мс) — для истории и сигналов волны.
+    @ObservationIgnored private var listenedMs: Double = 0
+    @ObservationIgnored private var lastTick: Double?
+    /// Текущий трек уже записан в историю.
+    @ObservationIgnored private var counted = false
 
     init() {
+        waveMode = WaveMode(rawValue: SettingsStore.shared.string("wave.mode")) ?? .own
         player.automaticallyWaitsToMinimizeStalling = true
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.25, preferredTimescale: 600), queue: .main) { [weak self] time in
             MainActor.assumeIsolated { self?.tick(time) }
@@ -112,6 +132,10 @@ final class PlaybackEngine {
     /// Играть список с трека index. context — откуда («Поиск», «Любимые»…).
     func play(_ list: [Track], at index: Int, context: String) {
         guard list.indices.contains(index) else { return }
+        // новая очередь — прошлая волна (если была) закончилась, её сессии исход уже не нужен
+        finishPlay(skipped: true, toWave: false)
+        isWave = false
+        waveSeed = nil
         tracks = list
         contextTitle = context
         queueId += 1
@@ -142,6 +166,7 @@ final class PlaybackEngine {
 
     func next() {
         guard let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode, manual: true) else { return }
+        finishPlay(skipped: true)
         pos = target
         load(autoplay: true)
     }
@@ -152,6 +177,7 @@ final class PlaybackEngine {
             seek(to: 0)
             return
         }
+        finishPlay(skipped: true)
         pos = QueueMath.prevPos(pos, length: order.count, repeat: repeatMode)
         load(autoplay: true)
     }
@@ -159,6 +185,7 @@ final class PlaybackEngine {
     func jump(toUpcoming offset: Int) {
         let target = pos + 1 + offset
         guard order.indices.contains(target) else { return }
+        finishPlay(skipped: true)
         pos = target
         load(autoplay: true)
     }
@@ -223,6 +250,14 @@ final class PlaybackEngine {
         return item
     }
 
+    /// Скачанный — из файла (без сети); fresh (файл не открылся или ссылка протухла) — из сети.
+    private static func source(for track: Track, fresh: Bool) async throws -> StreamSource {
+        if !fresh, let local = DownloadStore.shared.localURL(track.ref) {
+            return .file(url: local, quality: DownloadStore.shared.quality(track.ref) ?? "Скачан")
+        }
+        return try await MusicCore.shared.stream(track.ref, fresh: fresh)
+    }
+
     private static func label(_ source: StreamSource) -> String {
         switch source {
         case let .file(_, quality), let .hls(_, quality): quality
@@ -234,7 +269,10 @@ final class PlaybackEngine {
         guard let track = current else { return }
         loadToken += 1
         let token = loadToken
-        if !fresh { retried = false }
+        if !fresh {
+            retried = false
+            resetListening()
+        }
         dropPreload()
         player.pause()
         player.removeAllItems()
@@ -249,7 +287,7 @@ final class PlaybackEngine {
         nowPlaying.update()
         Task {
             do {
-                let source = try await MusicCore.shared.stream(track.ref, fresh: fresh)
+                let source = try await Self.source(for: track, fresh: fresh)
                 guard token == self.loadToken else { return }
                 let item = self.makeItem(source)
                 self.quality = Self.label(source)
@@ -321,6 +359,7 @@ final class PlaybackEngine {
     private func tick(_ time: CMTime) {
         let seconds = time.seconds
         guard seconds.isFinite, currentItem != nil, player.currentItem === currentItem else { return }
+        listened(at: seconds)
         position = seconds
         if duration > 0, duration - seconds < Self.preloadLead {
             preloadNext()
@@ -336,7 +375,7 @@ final class PlaybackEngine {
         preloading = true
         Task {
             defer { if token == self.loadToken { self.preloading = false } }
-            guard let source = try? await MusicCore.shared.stream(track.ref),
+            guard let source = try? await Self.source(for: track, fresh: false),
                   token == self.loadToken, self.currentItem === currentItem, self.preloaded == nil else { return }
             let item = self.makeItem(source)
             self.player.insert(item, after: currentItem)
@@ -346,6 +385,7 @@ final class PlaybackEngine {
 
     private func itemEnded(_ id: ObjectIdentifier?) {
         guard let id, let currentItem, ObjectIdentifier(currentItem) == id else { return }
+        finishPlay(skipped: false)
         if repeatMode == .one {
             seek(to: 0)
             player.playImmediately(atRate: rate)
@@ -357,6 +397,7 @@ final class PlaybackEngine {
             pos = preloaded.pos
             loadToken += 1
             retried = false
+            resetListening()
             position = 0
             if let track = current {
                 duration = Double(track.durationMs) / 1000
@@ -365,7 +406,7 @@ final class PlaybackEngine {
             }
             Task {
                 // подпись качества у подгруженного — из кэша ссылок MusicCore
-                if let track = self.current, let source = try? await MusicCore.shared.stream(track.ref) {
+                if let track = self.current, let source = try? await Self.source(for: track, fresh: false) {
                     self.quality = Self.label(source)
                 }
             }
@@ -385,6 +426,10 @@ final class PlaybackEngine {
 
     /// «Авто похожие»: до конца очереди меньше трёх треков — дописать похожие (повтор трека — не надо).
     private func topUpAutoplay() {
+        if isWave {
+            topUpWave()
+            return
+        }
         guard SettingsStore.shared.bool("general.similar_autoplay"), repeatMode != .one, !autoplayLoading,
               order.count - pos - 1 < Autoplay.left else { return }
         let queue = order.map { tracks[$0] }
@@ -400,7 +445,7 @@ final class PlaybackEngine {
                 if let list = try? await MusicCore.shared.similar(to: seed.ref) { lists.append(list) }
             }
             guard id == self.queueId else { return }
-            let fresh = Autoplay.freshSimilar(lists, inQueue: Set(self.tracks.map(\.ref)), disliked: { _ in false }, limit: Autoplay.batch)
+            let fresh = Autoplay.freshSimilar(lists, inQueue: Set(self.tracks.map(\.ref)), disliked: { LibraryStore.shared.isDisliked($0) }, limit: Autoplay.batch)
             guard !fresh.isEmpty else {
                 self.deadQueue = key
                 return
@@ -411,6 +456,130 @@ final class PlaybackEngine {
                 self.autoRefs.insert(track.ref)
             }
         }
+    }
+
+    // MARK: - История и сигналы
+
+    private func resetListening() {
+        listenedMs = 0
+        lastTick = nil
+        counted = false
+    }
+
+    /// Копим реально прослушанное (перемотка не считается) и засчитываем прослушивание на пороге
+    /// min(30 с, половины трека) — как Windows `plays`.
+    private func listened(at seconds: Double) {
+        defer { lastTick = seconds }
+        guard isPlaying, let last = lastTick else { return }
+        let delta = seconds - last
+        guard delta > 0, delta < 2 else { return }
+        listenedMs += delta * 1000
+        if !counted, let track = current,
+           QueueMath.countsAsPlay(listenedMs: Int(listenedMs), durationMs: track.durationMs > 0 ? track.durationMs : Int(duration * 1000)) {
+            counted = true
+            PlayHistory.shared.record(track)
+        }
+    }
+
+    /// Трек сменился: дослушан / пропущен — в историю, исход — волне. Вызывать до смены позиции.
+    private func finishPlay(skipped: Bool, toWave: Bool = true) {
+        guard let track = current, listenedMs > 0 else { return }
+        let library = LibraryStore.shared
+        let reward = PlayHistory.shared.ended(track, listenedMs: Int(listenedMs), manualSkip: skipped,
+                                              liked: library.isLiked(track), disliked: library.isDisliked(track.ref))
+        resetListening()
+        guard isWave, toWave else { return }
+        if wave.ended(track, reward: reward, manualSkip: skipped) {
+            // два ранних пропуска подряд — «Далее» подобрано не то; позицию плеер сменит сразу после
+            // этого вызова, поэтому пересборка — следующим шагом главной очереди
+            Task { self.rebuildWave() }
+        }
+    }
+
+    // MARK: - Волна
+
+    /// «Моя волна»: сиды из Любимых и недавнего, похожие SoundCloud и Яндекса, учится на лайках и
+    /// пропусках, без 👎, бесконечно догружается. Уже играет — пауза / продолжить.
+    func playMyWave() {
+        if isWave, waveSeed == nil, current != nil {
+            toggle()
+            return
+        }
+        startWave(seed: nil)
+    }
+
+    /// «Волна по треку»: он первым, дальше — похожие на него (стиль держится всю сессию).
+    func playWave(from track: Track) {
+        startWave(seed: track)
+    }
+
+    /// Сменить режим волны и запомнить; если волна играет — перезапустить её в новом режиме (волна по
+    /// треку остаётся по тому же треку).
+    func setWaveMode(_ mode: WaveMode) {
+        guard mode != waveMode else { return }
+        waveMode = mode
+        SettingsStore.shared.set("wave.mode", .string(mode.rawValue))
+        if isWave { startWave(seed: waveSeed) }
+    }
+
+    private func startWave(seed: Track?) {
+        guard !waveLoading else { return }
+        waveLoading = true
+        Task {
+            defer { self.waveLoading = false }
+            do {
+                let list = try await self.wave.start(seed: seed, mode: self.waveMode)
+                if self.shuffle { self.shuffle = false }
+                self.play(list, at: 0, context: seed.map { "Волна по «\($0.title)»" } ?? "Моя волна")
+                self.isWave = true
+                self.waveSeed = seed
+            } catch {
+                self.message = error.localizedDescription
+            }
+        }
+    }
+
+    /// Волна: до конца очереди меньше трёх — следующая порция.
+    private func topUpWave() {
+        guard !waveMoreLoading, order.count - pos - 1 < Autoplay.left else { return }
+        let id = queueId
+        waveMoreLoading = true
+        Task {
+            defer { self.waveMoreLoading = false }
+            guard let fresh = try? await self.wave.more() else { return }
+            guard id == self.queueId, self.isWave else {
+                // очередь пересобрана, пока шёл запрос, — порция подобрана под старое: вернуть в пул
+                // и (если волна ещё играет) попросить заново
+                self.wave.unserve(fresh)
+                if self.isWave { Task { self.topUpWave() } }
+                return
+            }
+            for track in fresh {
+                self.tracks.append(track)
+                self.order.append(self.tracks.count - 1)
+            }
+        }
+    }
+
+    /// Серия ранних пропусков: убрать ещё не игравшие треки волны, кроме ближайшего, и подобрать заново.
+    private func rebuildWave() {
+        guard isWave, order.indices.contains(pos) else { return }
+        let keep = min(order.count, pos + 2)
+        let gone = order[keep...].map { tracks[$0] }
+        guard !gone.isEmpty else { return }
+        if let preloaded, preloaded.pos >= keep { dropPreload() }
+        order.removeSubrange(keep...)
+        wave.unserve(gone)
+        queueId += 1
+        topUpWave()
+    }
+
+    /// 👎 «Не интересно»: больше не попадёт в подборки, волну и «Авто похожие»; если играет — сразу
+    /// следующий. Повторно — вернуть.
+    func dislike(_ track: Track) {
+        LibraryStore.shared.toggleDislike(track)
+        guard LibraryStore.shared.isDisliked(track.ref), current?.ref == track.ref else { return }
+        next()
     }
 
     private func interrupted(_ type: AVAudioSession.InterruptionType?, resume: Bool) {
