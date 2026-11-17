@@ -64,6 +64,15 @@ enum JSONValue: Sendable, Hashable, Codable {
         }
     }
 
+    /// Любое число (длительности с дробью).
+    var number: Double? {
+        switch self {
+        case let .int(value): Double(value)
+        case let .double(value): value
+        default: nil
+        }
+    }
+
     var bool: Bool? {
         if case let .bool(value) = self { return value }
         return nil
