@@ -78,7 +78,6 @@ struct SettingsSection<Content: View>: View {
             }
             .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).strokeBorder(Theme.line))
-            .simultaneousGesture(TapGesture().onEnded { Haptics.tap() })
             if let footer {
                 Text(footer)
                     .font(.system(size: 13))
@@ -147,7 +146,7 @@ struct SettingsToggle: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        Toggle(isOn: $isOn.animation(Motion.spring)) {
+        Toggle(isOn: Binding(get: { isOn }, set: { isOn = $0; Haptics.tap() }).animation(Motion.spring)) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 16, weight: .medium))

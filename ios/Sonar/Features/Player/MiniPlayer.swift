@@ -10,7 +10,9 @@ struct MiniPlayer: View {
     @Environment(PlaybackEngine.self) private var engine
     @Environment(LibraryStore.self) private var library
     @Environment(SettingsStore.self) private var settings
-    @State private var drag: CGFloat = 0
+    /// Сдвиг под пальцем: GestureState сам возвращается в 0, даже если жест прервали (смена трека, прокрутка) —
+    /// раньше `@State` мог застрять, и содержимое уезжало мимо капсулы.
+    @GestureState(resetTransaction: Transaction(animation: Motion.spring)) private var drag: CGFloat = 0
 
     /// Вид (Профиль → Мини-плеер): фон, прогресс, обложка, скругление.
     private var style: MiniStyle { MiniStyle.current(settings) }
@@ -113,21 +115,21 @@ struct MiniPlayer: View {
             }
             .animation(Motion.spring, value: style)
             .offset(x: drag)
+            .clipShape(RoundedRectangle(cornerRadius: style.corners.radius(height: compact ? 56 : 64), style: .continuous))
             .contentShape(Rectangle())
             .onTapGesture(perform: open)
             .gesture(
                 DragGesture(minimumDistance: 20)
-                    .onChanged { value in
+                    .updating($drag) { value, state, _ in
                         // жест в эту сторону выключен — капсула лишь чуть поддаётся
                         let direction: SwipeDirection = value.translation.width < 0 ? .left : .right
                         let live = Gestures.action(settings, .mini, direction) != .off
-                        drag = value.translation.width * (live ? 0.4 : 0.08)
+                        state = value.translation.width * (live ? 0.4 : 0.08)
                     }
                     .onEnded { value in
                         if let action = Gestures.resolve(settings, .mini, dx: value.translation.width, dy: value.translation.height) {
                             GestureRunner.perform(action, track: track)
                         }
-                        withAnimation(Motion.spring) { drag = 0 }
                     }
             )
             .animation(Motion.spring, value: track.ref)

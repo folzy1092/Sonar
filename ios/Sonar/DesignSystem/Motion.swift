@@ -32,13 +32,19 @@ extension View {
 }
 
 /// Нажатие — лёгкое сжатие и подсветка.
+/// Нажатие + лёгкий тактильный отклик (`Haptics`, выключается в Общем). Строки треков — без отклика
+/// (`haptic: false`): их много, тык на каждую прокрутку раздражает.
 struct PressableStyle: ButtonStyle {
     var scale: CGFloat = 0.97
+    var haptic = true
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? scale : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(Motion.quick, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                if pressed, haptic { Haptics.tap() }
+            }
     }
 }
