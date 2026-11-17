@@ -37,6 +37,12 @@
 - Сертификат: выбор файлов через `UIDocumentPickerViewController` (fileImporter терял тап), только .p12/.pfx и .mobileprovision.
 - Бот: проверенные версии и алерты (`server/sonar/releases.py`, BOT.md §2.6г) — владельцу перезапустить бота.
 - Сборка с этим: **ios-build-239**.
+- Вечер 2026-11-17 (**ios-build-277**, Windows тоже выпущен): все настройки с ПК; журнал сбоев (`Core/Diagnostics/`);
+  аккаунт и синк за флагом (`Core/Account/`, `Core/Sync/`, экраны `Features/Account/`); отклик `DesignSystem/Haptics.swift`
+  (в `PressableStyle`, строки треков без него); полный плеер закрывается флагом `Router.playerOpen`; Яндекс на iPhone —
+  только `flac-mp4` (голый flac AVPlayer не открывает) + запасная попытка mp3; **`audio.sc_via_yandex` по умолчанию
+  выключен** на обеих платформах (на Яндексе треки бывают заблюрены). Бот: посты в канал `posts.py`, BOT.md §2.6д–ж
+  (версии на устройствах, завершение сессий с правилом 24 ч — с сервером).
 
 ## Не проверено
 
