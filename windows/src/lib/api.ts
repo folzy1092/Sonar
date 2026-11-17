@@ -144,6 +144,7 @@ export interface ServiceStatus {
 export interface ServicesStatus {
   soundcloud: ServiceStatus
   yandex: ServiceStatus
+  spotify: ServiceStatus
 }
 
 /** Строка `services_list`: реестр + состояние подключения (ключи — snake_case, как в Rust). */

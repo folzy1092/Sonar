@@ -14,6 +14,8 @@ mod obs;
 mod providers;
 mod secrets;
 mod services;
+#[cfg(feature = "spotify-playback")]
+mod spotify_play;
 mod store;
 mod stream;
 mod sync;

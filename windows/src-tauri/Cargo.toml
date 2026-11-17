@@ -35,6 +35,8 @@ futures-util = "0.3"
 anyhow = "1"
 regex = "1"
 sha2 = "0.10"
+# TOTP токена веб-плеера Spotify (HMAC-SHA1, providers/spotify.rs)
+sha1 = "0.10"
 base64 = "0.22"
 tauri-plugin-single-instance = "2"
 discord-rich-presence = "1.1"
@@ -43,6 +45,17 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 # горячие клавиши по всей системе (hotkeys.rs, Система → Горячие клавиши)
 tauri-plugin-global-shortcut = "2"
+# Поток Spotify Premium (spotify_play.rs) — только с фичей `spotify-playback`, см. [features]
+librespot-core = { version = "0.8.0", default-features = false, features = ["rustls-tls-webpki-roots"], optional = true }
+librespot-audio = { version = "0.8.0", default-features = false, optional = true }
+librespot-metadata = { version = "0.8.0", default-features = false, optional = true }
+
+[features]
+# Воспроизведение Spotify Premium через librespot. По умолчанию ВЫКЛЮЧЕНО: librespot-core 0.8 не
+# собирается «чисто» (сборочный vergen новее 9.0.6 ломает его build.rs — в Cargo.lock закреплён 9.0.6),
+# тянет ~290 крейтов, а вход в точку доступа токеном веб-плеера не проверен на живом Premium.
+# Без фичи Spotify — источник медиатеки и ссылок, играет резервный сервис (docs/API.md «Spotify»).
+spotify-playback = ["dep:librespot-core", "dep:librespot-audio", "dep:librespot-metadata"]
 
 # Кнопки «назад / пауза / вперёд» в превью окна на панели задач (thumbbar.rs) — та же версия, что у Tauri
 [target.'cfg(windows)'.dependencies]

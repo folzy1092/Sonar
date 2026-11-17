@@ -243,7 +243,7 @@ actor MusicCore {
         return (parts[0], parts[1])
     }
 
-    /// Страница исполнителя (`sca:` / `yma:`): шапка, популярные треки, альбомы и синглы.
+    /// Страница исполнителя (`sca:` / `yma:` / `spa:`): шапка, популярные треки, альбомы и синглы.
     func artist(_ ref: String) async throws -> (artist: Artist, tracks: [Track], albums: [Album]) {
         let (kind, id) = try Self.split(ref)
         switch kind {
@@ -259,12 +259,14 @@ actor MusicCore {
         case "yma":
             let page = try await yandexClient().artist(id)
             return (page.artist, page.top, page.albums)
+        case "spa":
+            return try await SpotifyCore.shared.artist(id)
         default:
             throw ServiceError(message: "Неизвестный исполнитель \(ref)")
         }
     }
 
-    /// Альбом или релиз (`scalb:` / `ymalb:`) с треками.
+    /// Альбом или релиз (`scalb:` / `ymalb:` / `spalb:`) с треками.
     func album(_ ref: String) async throws -> (album: Album, tracks: [Track]) {
         let (kind, id) = try Self.split(ref)
         switch kind {
@@ -274,6 +276,8 @@ actor MusicCore {
             return (album, keep(raw))
         case "ymalb":
             return try await yandexClient().album(id)
+        case "spalb":
+            return try await SpotifyCore.shared.album(id)
         default:
             throw ServiceError(message: "Неизвестный альбом \(ref)")
         }
@@ -285,6 +289,7 @@ actor MusicCore {
         switch kind {
         case "sca": return keep(try await withSoundCloud { try await $0.topTracks(id, limit: limit) })
         case "yma": return Array(try await yandexClient().artist(id).top.prefix(limit))
+        case "spa": return Array(try await SpotifyCore.shared.artist(id).tracks.prefix(limit))
         default: throw ServiceError(message: "Неизвестный исполнитель \(ref)")
         }
     }
@@ -295,6 +300,7 @@ actor MusicCore {
         switch kind {
         case "sca": return try await withSoundCloud { try await $0.userAlbums(id) }
         case "yma": return try await yandexClient().artist(id).albums
+        case "spa": return try await SpotifyCore.shared.artistAlbums(id)
         default: throw ServiceError(message: "Неизвестный исполнитель \(ref)")
         }
     }
@@ -312,7 +318,7 @@ actor MusicCore {
 
     /// Свои плейлисты подключённых сервисов для Медиатеки: сначала SoundCloud (первым — «Лайки
     /// SoundCloud», нужен OAuth-токен), потом Яндекс («Мне нравится» первым). Ошибка одного сервиса не
-    /// мешает другому.
+    /// мешает другому. Spotify («Любимые треки» первыми) — последним.
     func myPlaylists() async -> [ServicePlaylist] {
         var out: [ServicePlaylist] = []
         if let soundCloud, let token = soundCloud.creds.oauthToken, !token.isEmpty, let uid = soundCloud.account.uid {
@@ -326,10 +332,10 @@ actor MusicCore {
             let lists = (try? await Yandex(token: yandex.creds.token).userPlaylists(uid)) ?? []
             out += lists.filter { !$0.ref.hasSuffix(":3") }
         }
-        return out
+        return out + (await SpotifyCore.shared.playlists())
     }
 
-    /// Плейлист сервиса с треками: `scpl:<id>`, `scpl:likes`, `ympl:<uid>:<kind>`, `ympl:likes`.
+    /// Плейлист сервиса с треками: `scpl:<id>`, `scpl:likes`, `ympl:<uid>:<kind>`, `ympl:likes`, `sppl:<id>`, `sppl:likes`.
     func playlist(_ ref: String) async throws -> (head: ServicePlaylist, tracks: [Track]) {
         let (kind, id) = try Self.split(ref)
         switch (kind, id) {
@@ -354,6 +360,8 @@ actor MusicCore {
             let ids = id.split(separator: ":").map(String.init)
             guard ids.count == 2 else { throw ServiceError(message: "Неверная ссылка на плейлист") }
             return try await yandexClient().playlist(uid: ids[0], kind: ids[1])
+        case ("sppl", _):
+            return try await SpotifyCore.shared.playlist(id, max: Self.maxServiceLikes)
         default:
             throw ServiceError(message: "Неизвестный плейлист \(ref)")
         }
@@ -368,6 +376,8 @@ actor MusicCore {
         let (kind, id) = try Self.split(ref)
         let cannot = ServiceError(message: "Этот трек нельзя скачать")
         switch kind {
+        case "sp":
+            throw ServiceError(message: Spotify.needsFallback)
         case "ym":
             guard let source = DownloadSource.from(try await yandexClient().stream(id, maxKbps: maxKbps)) else { throw cannot }
             return source
@@ -405,6 +415,8 @@ actor MusicCore {
     /// Ссылка на поток для `sc:123` / `ym:456`. fresh — не брать из кэша (ссылка протухла).
     /// safe — запасной путь, если поток не открылся: без FLAC (Яндекс — mp3 до 320), SoundCloud — сам, без двойника.
     func stream(_ ref: String, fresh: Bool = false, safe: Bool = false) async throws -> StreamSource {
+        // Spotify на iPhone не играет — трек отметить для резервного сервиса (этап 4), не падать
+        if ServiceRegistry.service(of: ref) == .sp { throw ServiceError(message: Spotify.needsFallback) }
         if safe {
             let parts = ref.split(separator: ":", maxSplits: 1).map(String.init)
             guard parts.count == 2 else { throw ServiceError(message: "Неверный трек \(ref)") }
