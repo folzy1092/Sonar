@@ -19,11 +19,13 @@ struct Track: Codable, Hashable, Sendable, Identifiable {
     var plays: Int?
     /// Жанр и теги — для режимов волны.
     var tags: String?
+    /// Громкость EBU R128, LUFS (Яндекс `r128.i`) — для нормализации (`Loudness`); SoundCloud не отдаёт.
+    var loudness: Double? = nil
 
     var id: String { ref }
 
     enum CodingKeys: String, CodingKey {
-        case ref, title, artist, artists, album, explicit, available, plays, tags, url
+        case ref, title, artist, artists, album, explicit, available, plays, tags, url, loudness
         case durationMs = "duration_ms"
         case coverURL = "cover_url"
     }

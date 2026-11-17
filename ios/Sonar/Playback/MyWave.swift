@@ -486,6 +486,8 @@ final class MyWave {
     private let history: PlayHistory
     private let random: () -> Double
     private(set) var session = WaveSession()
+    /// «Почему этот трек» — ref → одна строка (`WaveReason`), для выданных в этой сессии.
+    private(set) var reasons: [String: String] = [:]
 
     init(source: MusicSource, library: LibraryStore, history: PlayHistory, random: @escaping () -> Double = { Double.random(in: 0 ..< 1) }) {
         self.source = source
@@ -497,11 +499,13 @@ final class MyWave {
     /// Новая сессия и первая порция. seed — «Волна по треку»: он играет первым; mode — режим волны.
     func start(seed: Track?, mode: WaveMode = .own) async throws -> [Track] {
         session = WaveSession(seed: seed, mode: mode)
+        reasons = [:]
         var list = try await portion()
         if let seed {
             list.removeAll { $0.ref == seed.ref }
             list.insert(seed, at: 0)
             session.serve(seed)
+            reasons[seed.ref] = "С него началась волна"
         }
         guard !list.isEmpty else { throw ServiceError(message: "Волне пока нечего предложить") }
         return list
@@ -520,6 +524,26 @@ final class MyWave {
     /// Выданные треки так и не прозвучали — вернуть в пул.
     func unserve(_ tracks: [Track]) {
         for track in tracks { session.unserve(track) }
+    }
+
+    /// «Почему этот трек» для порции: от какого сида (трек или артист) волна его взяла.
+    private func explain(_ out: [Track], origin: WaveOrigin, taste: Taste, liked: [Track], candidates: [Track], forgotten: [Track]) {
+        var context = WaveReason.Context(seedOf: origin.seedOf, likes: Set(liked.map(\.ref)), forgotten: Set(forgotten.map(\.ref)),
+                                         live: Set(session.good.map(\.ref)), waveSeed: session.seed?.ref, mode: session.mode)
+        var pool: [Track] = candidates
+        pool += history.recent
+        pool += liked
+        pool += session.good
+        if let seed = session.seed { pool.append(seed) }
+        for track in pool {
+            context.tracks[track.ref] = track
+            for artist in track.artists where context.artistNames[artist.ref] == nil {
+                context.artistNames[artist.ref] = artist.name
+            }
+        }
+        for track in out {
+            reasons[track.ref] = WaveReason.text(for: track, known: taste.isKnown(track), context)
+        }
     }
 
     private func portion() async throws -> [Track] {
@@ -588,12 +612,14 @@ final class MyWave {
         let noise = random
         var out = WaveMath.portion(candidates, taste: taste, origin: origin, session: session, filter: filter, noise: noise)
         let share = WaveMath.likedShare(mode, bySeed: bySeed)
+        var forgotten: [Track] = []
         if share > 0 {
-            let mine = WaveMath.pickLiked(liked, taste: taste, session: session, filter: filter,
-                                          playedMonth: history.playedRefs(withinDays: 30), k: share, noise: noise)
-            out = WaveMath.insertLiked(out, liked: mine)
+            forgotten = WaveMath.pickLiked(liked, taste: taste, session: session, filter: filter,
+                                           playedMonth: history.playedRefs(withinDays: 30), k: share, noise: noise)
+            out = WaveMath.insertLiked(out, liked: forgotten)
         }
         for track in out { session.serve(track) }
+        explain(out, origin: origin, taste: taste, liked: liked, candidates: candidates, forgotten: forgotten)
         return out
     }
 }

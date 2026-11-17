@@ -20,7 +20,9 @@ final class PlayerSettingsTests: XCTestCase {
     func testDefaultsMatchSettingsDoc() {
         let settings = store()
         XCTAssertTrue(settings.bool("audio.gapless"))
-        XCTAssertFalse(settings.bool("audio.normalize"))
+        XCTAssertTrue(settings.bool("audio.normalize"), "на iPhone нормализация включена сразу")
+        XCTAssertTrue(settings.bool("wave.offline"))
+        XCTAssertTrue(settings.bool("wave.reasons"))
         XCTAssertEqual(PlayerPrefs.crossfade(settings), 0)
         XCTAssertEqual(InterruptionMode.current(settings), .duck)
         XCTAssertTrue(settings.bool(Equalizer.enabledKey))

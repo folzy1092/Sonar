@@ -7,7 +7,8 @@ extension SettingsDefaults {
         var out: [String: SettingValue] = [
             // Аудио
             "audio.gapless": .bool(true),
-            "audio.normalize": .bool(false),
+            // на iPhone нормализация включена сразу (R128 Яндекса — громкостью плеера, остальное — выравнивателем)
+            "audio.normalize": .bool(true),
             // кроссфейд, секунды: 0 — выключен (как на ПК)
             "audio.crossfade": .int(0),
             "audio.on_interruption": .string(InterruptionMode.fallback.rawValue),
@@ -26,6 +27,9 @@ extension SettingsDefaults {
             "queue.view": .string(QueueView.fallback.rawValue),
             "queue.add_following": .bool(true),
             "general.restore": .string(RestoreMode.fallback.rawValue),
+            // Моя волна: подкачка следующих на Wi‑Fi для игры без сети (`WaveCache`) и «Почему этот трек»
+            "wave.offline": .bool(true),
+            "wave.reasons": .bool(true),
         ]
         for (key, value) in Gestures.defaults { out[key] = .string(value) }
         return out

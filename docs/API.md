@@ -110,6 +110,8 @@
  "album": null, "duration_ms": 123000,
  "cover_url": "https://i1.sndcdn.com/artworks-...-t500x500.png",
  "url": "https://soundcloud.com/odisseya/more", "explicit": false, "available": true}
+// необязательное "loudness": -8.1 — громкость EBU R128, LUFS (Яндекс `r128.i`), для нормализации; у SC нет
+
 
 // StreamInfo
 {"url": "https://cf-hls-media.sndcdn.com/...", "protocol": "hls", "codec": "aac",
