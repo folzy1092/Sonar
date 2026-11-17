@@ -91,8 +91,7 @@ struct FullPlayerView: View {
     private var topBar: some View {
         HStack {
             Button { dismiss() } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 20, weight: .semibold))
+                SonarIcon(.chevronDown, size: 28)
                     .foregroundStyle(Theme.text)
                     .frame(width: 44, height: 44)
             }
@@ -122,9 +121,7 @@ struct FullPlayerView: View {
             .animation(Motion.spring, value: engine.shuffle)
             Spacer()
             Button { showQueue = true } label: {
-                Image(systemName: "ellipsis")
-                    .rotationEffect(.degrees(90))
-                    .font(.system(size: 18, weight: .semibold))
+                SonarIcon(.more, size: 26)
                     .foregroundStyle(Theme.text)
                     .frame(width: 44, height: 44)
             }
@@ -222,26 +219,25 @@ struct FullPlayerView: View {
     private var controls: some View {
         HStack {
             Button { engine.cycleRepeat() } label: {
-                Image(systemName: engine.repeatMode == .one ? "repeat.1" : "repeat")
+                SonarIcon(engine.repeatMode == .one ? .repeatOne : .repeatAll, size: 26)
                     .foregroundStyle(engine.repeatMode == .off ? Theme.textSecondary : Theme.accent)
-                    .contentTransition(.symbolEffect(.replace))
             }
             Spacer()
-            Button { engine.previous() } label: { Image(systemName: "backward.end.fill") }
+            Button { engine.previous() } label: { SonarIcon(.prev, filled: true, size: 30) }
             Spacer()
             Button { engine.toggle() } label: {
-                Image(systemName: engine.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 30))
-                    .foregroundStyle(.black)
-                    .contentTransition(.symbolEffect(.replace))
+                SonarIcon(engine.isPlaying ? .pause : .play, filled: true, size: 34)
+                    .foregroundStyle(Theme.accentInk)
+                    .contentTransition(.opacity)
                     .frame(width: 72, height: 72)
-                    .background(Color.white, in: Circle())
+                    .background(Theme.accent, in: Circle())
+                    .shadow(color: Theme.glow.opacity(0.4), radius: 16, y: 4)
             }
             Spacer()
-            Button { engine.next() } label: { Image(systemName: "forward.end.fill") }
+            Button { engine.next() } label: { SonarIcon(.next, filled: true, size: 30) }
             Spacer()
             Button { engine.toggleShuffle() } label: {
-                Image(systemName: "shuffle")
+                SonarIcon(.shuffle, size: 26)
                     .foregroundStyle(engine.shuffle ? Theme.accent : Theme.textSecondary)
             }
         }
@@ -258,12 +254,12 @@ struct FullPlayerView: View {
             HStack(spacing: 22) {
                 if let track = engine.current {
                     Button { withAnimation(Motion.spring) { library.toggleLike(track) } } label: {
-                        Image(systemName: library.isLiked(track) ? "heart.fill" : "heart")
+                        SonarIcon(.heart, filled: library.isLiked(track), size: 26)
                             .foregroundStyle(library.isLiked(track) ? Theme.accent : Theme.text)
-                            .symbolEffect(.bounce, value: library.isLiked(track))
+                            .scaleEffect(library.isLiked(track) ? 1.08 : 1)
                     }
                 }
-                Button { showQueue = true } label: { Image(systemName: "list.bullet") }
+                Button { showQueue = true } label: { SonarIcon(.queue, size: 26) }
             }
             .padding(.horizontal, 20)
             .frame(height: 50)
