@@ -1,137 +1,170 @@
 import SwiftUI
 
-/// Профиль (`photo_1..3`, SETTINGS.md «Меню настроек iOS»): шапка и меню разделов — тот же порядок и
-/// названия, что вкладки настроек в Windows. Разделы, которых ещё нет на iPhone, видны приглушёнными
-/// с пометкой «Скоро»; Приватность — с замком (не делаем).
+/// Профиль (`photo_1..3`, SETTINGS.md «Меню настроек iOS»): шапка — аватар, имя, «Поделиться» и ✎;
+/// ниже разделы в стеклянных карточках, порядок и названия — как вкладки настроек на Windows. Без сервера
+/// аккаунта нет: «Безопасность», «Приватность», «Ключ API» — честные экраны «появится с сервером».
 struct ProfileView: View {
     @Environment(ChromeState.self) private var chrome
     @Environment(UpdateChecker.self) private var checker
-
-    private struct Item: Identifiable {
-        let icon: String
-        let title: String
-        var locked = false
-        var id: String { title }
-    }
-
-    private let sections: [(String, [Item])] = [
-        ("Аккаунт", [Item(icon: "chart.bar", title: "Статистика"), Item(icon: "lock.shield", title: "Безопасность"),
-                     Item(icon: "hand.raised", title: "Приватность", locked: true)]),
-        ("Интерфейс", [Item(icon: "paintpalette", title: "Вид"), Item(icon: "square.grid.2x2", title: "Вкладки")]),
-        ("Плеер", [Item(icon: "speaker.wave.2", title: "Аудио"), Item(icon: "play.rectangle", title: "Вид плеера"),
-                   Item(icon: "list.bullet", title: "Очередь"), Item(icon: "rectangle.bottomthird.inset.filled", title: "Мини-плеер"),
-                   Item(icon: "hand.tap", title: "Жесты")]),
-    ]
-    private let integrations = [Item(icon: "dot.radiowaves.left.and.right", title: "Last.fm"), Item(icon: "key.horizontal", title: "Ключ API")]
+    @Environment(SettingsStore.self) private var settings
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 header
                     .cascade(0)
-                ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
-                    SettingsSection(title: section.0) {
-                        ForEach(Array(section.1.enumerated()), id: \.element.id) { row, item in
-                            if row > 0 { RowDivider() }
-                            if item.title == "Мини-плеер" {
-                                NavigationLink { MiniPlayerSettingsView() } label: {
-                                    SettingsRowLabel(icon: item.icon, title: item.title)
-                                }
-                                .buttonStyle(PressableStyle(scale: 0.99))
-                            } else {
-                                SettingsRowLabel(icon: item.icon, title: item.title, value: item.locked ? "В разработке" : "Скоро",
-                                                 chevron: false, locked: item.locked, dimmed: true)
-                            }
-                        }
+                section("Аккаунт", 1) {
+                    link("Статистика", .stats) { StatsView() }
+                    divider
+                    link("Безопасность", .lock) {
+                        ServerOnlyView(title: "Безопасность", text: "Пароль, привязанный Telegram и вход на других устройствах — вместе с аккаунтом Sonar на сервере.")
                     }
-                    .cascade(index + 1)
-                }
-                SettingsSection(title: "Сервисы") {
-                    NavigationLink { ServicesView() } label: {
-                        SettingsRowLabel(icon: "cloud", title: "SoundCloud")
-                    }
-                    .buttonStyle(PressableStyle(scale: 0.99))
-                    RowDivider()
-                    NavigationLink { ServicesView() } label: {
-                        SettingsRowLabel(icon: "music.note", title: "Яндекс Музыка")
-                    }
-                    .buttonStyle(PressableStyle(scale: 0.99))
-                }
-                .cascade(sections.count)
-                SettingsSection(title: "Интеграции") {
-                    ForEach(Array(integrations.enumerated()), id: \.element.id) { row, item in
-                        if row > 0 { RowDivider() }
-                        SettingsRowLabel(icon: item.icon, title: item.title, value: "Скоро", chevron: false, dimmed: true)
+                    divider
+                    link("Приватность", .shield, value: "В разработке") {
+                        ServerOnlyView(title: "Приватность", text: "Кто видит твой профиль и что ты слушаешь — в разработке.")
                     }
                 }
-                .cascade(sections.count + 1)
-                SettingsSection(title: "Система") {
-                    SettingsRowLabel(icon: "gearshape", title: "Общее", value: "Скоро", chevron: false, dimmed: true)
-                    RowDivider()
-                    NavigationLink {
-                        UpdatesSettingsView()
-                    } label: {
-                        SettingsRowLabel(icon: "arrow.down.circle", title: "Обновления", badge: checker.available != nil)
-                    }
-                    .buttonStyle(PressableStyle(scale: 0.99))
-                    RowDivider()
-                    SettingsRowLabel(icon: "internaldrive", title: "Хранилище", value: "Скоро", chevron: false, dimmed: true)
+                section("Интерфейс", 2) {
+                    link("Вид", .palette) { LookSettingsView() }
+                    divider
+                    link("Вкладки", .grid) { TabsSettingsView() }
                 }
-                .cascade(sections.count + 2)
-                about
-                    .cascade(sections.count + 3)
+                section("Плеер", 3) {
+                    link("Аудио", .sliders) { AudioSettingsView() }
+                    divider
+                    link("Вид плеера", .play) { PlayerViewSettingsView() }
+                    divider
+                    link("Очередь", .queue) { QueueSettingsView() }
+                    divider
+                    link("Мини-плеер", .capsule) { MiniPlayerSettingsView() }
+                    divider
+                    link("Жесты", .wave) { GesturesSettingsView() }
+                }
+                section("Сервисы", 4) {
+                    link("SoundCloud", .soundcloud) { ServicesView() }
+                    divider
+                    link("Яндекс Музыка", .music) { ServicesView() }
+                }
+                section("Интеграции", 5) {
+                    link("Last.fm", .wave) { LastfmSettingsView() }
+                    divider
+                    link("Ключ API", .link) {
+                        ServerOnlyView(title: "Ключ API", text: "Ключ для selfbot и своих сервисов («сейчас играет», профиль) выдаёт сервер Sonar — появится вместе с ним.")
+                    }
+                }
+                section("Система", 6) {
+                    link("Общее", .settings) { GeneralSettingsView() }
+                    divider
+                    link("Обновления", .download, badge: checker.available != nil) { UpdatesSettingsView() }
+                    divider
+                    link("Хранилище", .album) { StorageSettingsView() }
+                }
             }
             .padding(.horizontal, Theme.gutter)
             .padding(.top, 8)
-            .padding(.bottom, 130)
+            .padding(.bottom, 170)
         }
         .scrollIndicators(.hidden)
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, offset in
-            chrome.scrolled(to: offset)
+            if chrome.tab == .profile { chrome.scrolled(to: offset) }
         }
         .background(Theme.background.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .animation(Motion.spring, value: checker.available)
     }
 
-    /// Шапка: только аватар, имя, @username (без баннера и значков). Аккаунт появится с сервером —
-    /// до тех пор локальный профиль.
+    /// Шапка (`photo_1`): аватар в обводке акцентом, имя, подпись; «Поделиться» — широкая кнопка акцентом, ✎ — профиль.
     private var header: some View {
-        HStack(spacing: 14) {
-            Text("S")
-                .font(.system(size: 30, weight: .heavy))
-                .foregroundStyle(Theme.accentInk)
-                .frame(width: 72, height: 72)
-                .background(Theme.accent, in: Circle())
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Sonar")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(Theme.text)
-                Text("Аккаунт появится вместе с сервером")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.textSecondary)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 16) {
+                ProfileAvatar(size: 76)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(LocalProfile.name(settings))
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(1)
+                    Text("Аккаунт Sonar появится вместе с сервером")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.textSecondary)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            HStack(spacing: 12) {
+                ShareLink(item: URL(string: "https://sonar.folzy.ru")!, message: Text("Слушаю музыку в Sonar")) {
+                    HStack(spacing: 10) {
+                        SonarIcon(.share, size: 22)
+                        Text("Поделиться")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .foregroundStyle(Theme.accentInk)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(Theme.accent, in: Capsule())
+                }
+                .buttonStyle(PressableStyle(scale: 0.97))
+                NavigationLink { ProfileEditView() } label: {
+                    SonarIcon(.edit, size: 24)
+                        .foregroundStyle(Theme.text)
+                        .frame(width: 52, height: 52)
+                        .background(Theme.raised, in: Circle())
+                }
+                .buttonStyle(PressableStyle(scale: 0.9))
+                .accessibilityLabel("Изменить профиль")
+            }
         }
-        .padding(16)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Theme.line))
+        .padding(18)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(Theme.line))
     }
 
-    /// «О приложении» — внизу, как в «Общем» на Windows.
-    private var about: some View {
-        VStack(spacing: 6) {
-            Text("Sonar \(UpdateChecker.installedLabel)")
-                .font(.system(size: 13, weight: .medium).monospacedDigit())
-                .foregroundStyle(Theme.textTertiary)
-            HStack(spacing: 18) {
-                Link("Сайт", destination: URL(string: "https://sonar.folzy.ru")!)
-                Link("Телеграм", destination: URL(string: "https://t.me/SonarUpdates")!)
-            }
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(Theme.textSecondary)
+    private func section<Content: View>(_ title: String, _ index: Int, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.leading, 8)
+            VStack(spacing: 0) { content() }
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Theme.line))
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 6)
+        .cascade(index)
+    }
+
+    private var divider: some View {
+        Rectangle().fill(Theme.line).frame(height: 1).padding(.leading, 58)
+    }
+
+    /// Строка раздела: значок MingCute, название, значение / бейдж, › — открывает экран.
+    private func link<Destination: View>(_ title: String, _ icon: IconName, value: String? = nil, badge: Bool = false,
+                                         @ViewBuilder destination: @escaping () -> Destination) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            HStack(spacing: 16) {
+                SonarIcon(icon, size: 24)
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(width: 28)
+                Text(title)
+                    .font(.system(size: 17))
+                    .foregroundStyle(Theme.text)
+                Spacer(minLength: 8)
+                if badge {
+                    Circle().fill(Theme.accent).frame(width: 9, height: 9)
+                        .transition(.scale.combined(with: .opacity))
+                }
+                if let value {
+                    Text(value)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.textTertiary)
+                }
+                SonarIcon(.chevronRight, size: 20)
+                    .foregroundStyle(Theme.textTertiary)
+            }
+            .padding(.horizontal, 16)
+            .frame(minHeight: 58)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressableStyle(scale: 0.99))
     }
 }
