@@ -104,7 +104,7 @@ private final class TapContext: @unchecked Sendable {
 
     private let params: AudioTapParams
     /// Выравниватель для этого трека (нет — громкость уже выровнена по R128).
-    private let leveler: Bool
+    private let useLeveler: Bool
     private var version = -1
     private var sampleRate: Double = 44100
     private var ready = false
@@ -118,7 +118,7 @@ private final class TapContext: @unchecked Sendable {
 
     init(params: AudioTapParams, leveler: Bool) {
         self.params = params
-        self.leveler = leveler
+        self.useLeveler = leveler
         coefficients.initialize(repeating: FloatBiquad(.identity), count: Self.bands)
         active.initialize(repeating: false, count: Self.bands)
         states.initialize(repeating: BiquadState(), count: Self.bands * Self.maxChannels)
@@ -149,7 +149,7 @@ private final class TapContext: @unchecked Sendable {
     private func refresh() {
         guard let values = params.values(newerThan: version) else { return }
         version = values.version
-        normalize = values.normalize && leveler
+        normalize = values.normalize && useLeveler
         eqOn = values.eqEnabled && !Equalizer.isFlat(values.gains)
         let filters = Equalizer.filters(values.gains, sampleRate: sampleRate)
         for band in 0 ..< Self.bands {
