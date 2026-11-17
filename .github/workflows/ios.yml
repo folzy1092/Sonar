@@ -5,6 +5,7 @@ name: iOS
 # Подписывает IPA пользователь своей парой (P12 + mobileprovision): ESign / Feather, а потом само
 # приложение при автообновлении (порт ShadowSelfUpdate, SPEC §4.6).
 #
+# Ветка dev — только тесты и сборка, без релиза.
 # Каждая сборка из main — релиз `ios-build-<N>` (N = число коммитов = CFBundleVersion) с `Sonar.ipa`,
 # и тот же файл — в служебном релизе `ios-latest`, постоянная ссылка на свежую сборку:
 #   https://github.com/folzy1092/Sonar/releases/download/ios-latest/Sonar.ipa
@@ -13,7 +14,7 @@ name: iOS
 # удобства ручной запуск с `announce: true` после сборки сам вписывает в него новую сборку.
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'ios/**'
       - '.github/workflows/ios.yml'

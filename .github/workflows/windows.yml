@@ -1,5 +1,6 @@
 name: Windows
 
+# Ветка dev — только проверка, тесты и сборка (артефакт), без релиза.
 # Сборка ПК-клиента (Tauri 2) → установщик NSIS. КАЖДЫЙ пуш в main с изменениями windows/ публикует
 # релиз `windows-v<версия>` (помечен Latest) — в Releases всегда самая свежая сборка, постоянная ссылка:
 #   https://github.com/folzy1092/Sonar/releases/latest/download/Sonar-setup.exe
@@ -11,7 +12,7 @@ name: Windows
 # добавить запись в updates/changelog.json.
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'windows/**'
       - 'updates/changelog.json'
