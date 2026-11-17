@@ -39,8 +39,8 @@ enum ProgressIndicator: String, CaseIterable, Identifiable {
     }
 }
 
-/// Профиль → Мини-плеер (`IMG_6780..6783`): живой мини-плеер, заготовки Капсула / Стандартный /
-/// Минимализм и пункты Фон, Индикаторы прогресса, Форма обложки, Скругление границ — у каждого лист
+/// Профиль → Мини-плеер (`IMG_6780..6784`): живой мини-плеер, заготовки Капсула / Обложка / Тихий /
+/// Лента и пункты Фон, Индикаторы прогресса, Форма обложки, Скругление границ — у каждого лист
 /// выбора. Поменял пункт — вид становится «своим», плитки заготовок гаснут.
 struct MiniPlayerSettingsView: View {
     enum Option: String, Identifiable {
@@ -110,9 +110,25 @@ struct MiniPlayerSettingsView: View {
         }
     }
 
+    /// Четыре плитки заготовок — листаются вбок, выбранная подъезжает в поле зрения.
     private var presets: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal) {
+                presetTiles
+                    .padding(.horizontal, Theme.gutter)
+            }
+            .scrollIndicators(.hidden)
+            .padding(.horizontal, -Theme.gutter)
+            .onAppear { proxy.scrollTo(style.preset, anchor: .center) }
+            .onChange(of: style.preset) { _, preset in
+                withAnimation(Motion.spring) { proxy.scrollTo(preset, anchor: .center) }
+            }
+        }
+    }
+
+    private var presetTiles: some View {
         HStack(spacing: 10) {
-            ForEach([MiniStyle.Preset.capsule, .standard, .minimal]) { preset in
+            ForEach(MiniStyle.Preset.shown) { preset in
                 let on = style.preset == preset
                 Button {
                     MiniStyle.presets[preset]?.save(settings)
@@ -126,13 +142,13 @@ struct MiniPlayerSettingsView: View {
                             .minimumScaleFactor(0.8)
                     }
                     .foregroundStyle(on ? Theme.text : Theme.textSecondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 100)
+                    .frame(width: 124, height: 100)
                     .background(on ? Theme.raisedHigh : Theme.raised.opacity(0.6),
                                 in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
                 .buttonStyle(PressableStyle(scale: 0.95))
                 .accessibilityAddTraits(on ? .isSelected : [])
+                .id(preset)
             }
         }
     }
