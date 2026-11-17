@@ -47,6 +47,10 @@ struct SonarApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { checker.checkIfStale(settings: settings) }
                 }
+                // «выйди на рабочий стол» — в своём окне поверх всего (Update/HomeHintWindow.swift)
+                .onChange(of: updater.stage, initial: true) { _, stage in
+                    HomeHintWindow.shared.update(for: stage)
+                }
                 .onOpenURL { url in
                     // sonar://play/<liked|wave|quick> (виджет), sonar://auth/<code>; track и user — разбор позже
                     DeepLink.handle(url)
