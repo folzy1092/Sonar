@@ -166,5 +166,6 @@ struct ProfileView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle(scale: 0.99))
+        .simultaneousGesture(TapGesture().onEnded { Haptics.tap() })
     }
 }

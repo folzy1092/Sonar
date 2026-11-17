@@ -78,6 +78,7 @@ struct SettingsSection<Content: View>: View {
             }
             .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).strokeBorder(Theme.line))
+            .simultaneousGesture(TapGesture().onEnded { Haptics.tap() })
             if let footer {
                 Text(footer)
                     .font(.system(size: 13))

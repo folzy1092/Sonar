@@ -39,6 +39,12 @@ struct GeneralSettingsView: View {
             }
             .cascade(2)
 
+            SystemSection(title: t("Отклик")) {
+                SystemToggle(icon: .wave, title: t("Тактильный отклик"), subtitle: t("Лёгкий тык при нажатиях в настройках, вкладках и «Моей волне»"),
+                             isOn: Binding(get: { settings.bool(Haptics.key) }, set: { settings.set(Haptics.key, $0); if $0 { Haptics.tap() } }))
+            }
+            .cascade(2)
+
             SystemSection(title: t("Синхронизация"), footer: t("Лайки, плейлисты и настройки будут общими на iPhone и компьютере, когда появится сервер Sonar. Пока всё хранится на этом телефоне.")) {
                 SystemRow(icon: .cloudSync, title: t("Сохранить в облако"), subtitle: t("Лайки и плейлисты с этого устройства"), value: t("С сервером"))
                     .opacity(0.55)
