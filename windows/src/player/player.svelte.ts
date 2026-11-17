@@ -22,6 +22,10 @@ class Player {
   /** Порядок воспроизведения: индексы в `tracks` (перемешанный, если shuffle). */
   order = $state<number[]>([])
   pos = $state(0)
+  /** Стабильные id элементов очереди, параллельно `tracks` (ключи строк очереди на странице плеера:
+   *  при «вперёд / назад» строка переезжает, а не появляется заново — player/queue-view.ts). */
+  entryIds = $state<number[]>([])
+  private lastEntryId = 0
   context = $state<string | null>(null)
   /** Название контекста для очереди («Любимые», имя плейлиста, альбома, исполнителя). */
   contextTitle = $state<string | null>(null)
@@ -262,6 +266,7 @@ class Player {
     if (!tracks.length) return
     this.finishPlay()
     this.tracks = tracks
+    this.entryIds = this.freshIds(tracks.length)
     this.context = context
     this.contextTitle = title
     this.autoRefs = new Set()
@@ -287,16 +292,19 @@ class Player {
     let order = this.order
     const pos = this.pos
     const list = this.tracks.slice()
+    const ids = this.syncedIds()
     // первое ещё не игравшее похожее автоплея — свои треки встают перед ним
     const firstAuto = next || auto ? -1 : order.findIndex((i, k) => k > pos && this.autoRefs.has(list[i]?.ref))
     let at = firstAuto
     for (const t of next ? [...tracks].reverse() : tracks) {
       list.push(t)
+      ids.push(++this.lastEntryId)
       if (at >= 0) order = enqueueAt(order, at++, list.length - 1)
       else order = enqueue(order, pos, list.length - 1, next)
     }
     if (auto) this.autoRefs = new Set([...this.autoRefs, ...tracks.map((t) => t.ref)])
     this.tracks = list
+    this.entryIds = ids
     this.order = order
     this.saveState()
   }
@@ -306,9 +314,7 @@ class Player {
     const at = this.pos + 1 + upNextIndex
     const idx = this.order[at]
     if (idx === undefined) return
-    const out = dropUpcoming(this.tracks.map((tr, i) => ({ tr, i })), this.order, this.pos, (x) => x.i === idx)
-    this.tracks = out.tracks.map((x) => x.tr)
-    this.order = out.order
+    this.dropEntries((_, i) => i === idx)
     this.saveState()
   }
 
@@ -316,9 +322,7 @@ class Player {
   dropAuto() {
     const auto = this.autoRefs
     if (!auto.size) return
-    const out = dropUpcoming(this.tracks, this.order, this.pos, (t) => auto.has(t.ref))
-    this.tracks = out.tracks
-    this.order = out.order
+    this.dropEntries((t) => auto.has(t.ref))
     this.autoRefs = new Set()
     this.saveState()
   }
@@ -326,18 +330,43 @@ class Player {
   /** Убрать из «Далее» ещё не игравшие треки, подходящие под `drop`, кроме `keep` ближайших
    *  (волна после серии пропусков: очередь подбиралась под вкус, которого сейчас нет). Вернёт убранные. */
   dropUpNext(keep: number, drop: (t: Track) => boolean): Track[] {
-    const out = dropUpcoming(this.tracks, this.order, this.pos, drop, keep)
+    const dropped = this.dropEntries(drop, keep)
+    if (dropped.length) this.saveState()
+    return dropped
+  }
+
+  /** Новые id для `n` элементов очереди. */
+  private freshIds(n: number): number[] {
+    return Array.from({ length: n }, () => ++this.lastEntryId)
+  }
+
+  /** id элементов очереди той же длины, что `tracks` (копия; не совпало — выдать новые). */
+  private syncedIds(): number[] {
+    return this.entryIds.length === this.tracks.length ? this.entryIds.slice() : this.freshIds(this.tracks.length)
+  }
+
+  /** Убрать из «Далее» не игравшие треки под `drop` (с номером в `tracks`), id уходят вместе с ними. */
+  private dropEntries(drop: (t: Track, index: number) => boolean, keep = 0): Track[] {
+    const ids = this.syncedIds()
+    const rows = this.tracks.map((tr, i) => ({ tr, i, id: ids[i] }))
+    const out = dropUpcoming(rows, this.order, this.pos, (x) => drop(x.tr, x.i), keep)
     if (!out.dropped.length) return []
-    this.tracks = out.tracks
+    this.tracks = out.tracks.map((x) => x.tr)
+    this.entryIds = out.tracks.map((x) => x.id)
     this.order = out.order
-    this.saveState()
-    return out.dropped
+    return out.dropped.map((x) => x.tr)
   }
 
   /** Перейти к треку из «Далее» (номер в upNext). */
   async jumpTo(upNextIndex: number) {
+    await this.playPos(this.pos + 1 + upNextIndex)
+  }
+
+  /** Сыграть трек с позиции `p` в порядке воспроизведения (строки «Ранее» и «Далее» в очереди). */
+  async playPos(p: number) {
+    if (!Number.isInteger(p) || p < 0 || p >= this.order.length) return
     this.finishPlay(true)
-    this.pos = this.pos + 1 + upNextIndex
+    this.pos = p
     await this.load(true)
   }
 
@@ -758,6 +787,7 @@ class Player {
       if (!tracks.length) return
       const index = Math.max(0, tracks.findIndex((t) => t.ref === state.ref))
       this.tracks = tracks
+      this.entryIds = this.freshIds(tracks.length)
       this.context = state.context
       this.repeat = state.repeat
       this.shuffle = state.shuffle
