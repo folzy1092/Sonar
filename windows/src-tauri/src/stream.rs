@@ -199,6 +199,63 @@ async fn cache_hls(core: Arc<Core>, track_ref: String, playlist: String, base: u
   track_cache::release(&track_ref);
 }
 
+/// Поколение заказа «волна офлайн»: новый заказ отменяет недокачанный старый.
+static PREFETCH_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// «Волна офлайн» (Система → Хранилище): заранее скачать следующие треки волны в кэш треков, по
+/// одному, чтобы не забивать сеть. Только при включённом кэше; уже лежащие на диске — мимо.
+pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
+  use std::sync::atomic::Ordering;
+  let ticket = PREFETCH_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+  for r in refs {
+    if PREFETCH_GEN.load(Ordering::SeqCst) != ticket || !track_cache::enabled() {
+      return;
+    }
+    if !track_cache::claim(&r) {
+      continue;
+    }
+    match core.resolve(&r, false).await {
+      Ok(Source::Hls { url, .. }) => {
+        let up = core.http.get(&url).header("User-Agent", UA).send().await;
+        match up {
+          Ok(up) if up.status().is_success() => {
+            let base = up.url().clone();
+            let text = up.text().await.unwrap_or_default();
+            // cache_hls сам отпустит трек
+            cache_hls(core.clone(), r.clone(), text, base).await;
+            continue;
+          }
+          _ => {}
+        }
+      }
+      Ok(Source::File { url, .. }) => {
+        let ok = async {
+          let up = core.http.get(&url).header("User-Agent", UA).send().await.ok()?;
+          if !up.status().is_success() {
+            return None;
+          }
+          let mime = up.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("audio/mpeg").to_owned();
+          let mut w = track_cache::Writer::new(&r, &mime, up.content_length())?;
+          // потоком, а не целиком в память: FLAC бывает за 40 МБ
+          use futures_util::StreamExt;
+          let mut body = up.bytes_stream();
+          while let Some(chunk) = body.next().await {
+            w.write(&chunk.ok()?);
+          }
+          w.finish();
+          Some(())
+        }
+        .await;
+        if ok.is_none() {
+          log::info!("волна офлайн: {r} не скачался");
+        }
+      }
+      Err(e) => log::info!("волна офлайн: {r}: {e}"),
+    }
+    track_cache::release(&r);
+  }
+}
+
 async fn file(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>, headers: HeaderMap) -> Response<Body> {
   let range = headers.get(header::RANGE);
   // трек уже на диске — без сети
