@@ -36,7 +36,13 @@ final class SettingsStore {
     static let shared = SettingsStore()
 
     /// Умолчания. Новый раздел — сначала строка в SETTINGS.md, потом сюда.
-    static let defaults: [String: SettingValue] = [
+    /// Умолчания: общие здесь + по разделам (`SettingsDefaults+*.swift` — у каждого раздела свой файл).
+    static let defaults: [String: SettingValue] = base
+        .merging(SettingsDefaults.look) { a, _ in a }
+        .merging(SettingsDefaults.player) { a, _ in a }
+        .merging(SettingsDefaults.system) { a, _ in a }
+
+    private static let base: [String: SettingValue] = [
         "update.auto_check": .bool(true),
         "update.channel": .string("stable"),
         "appearance.animations": .bool(true),
