@@ -4,6 +4,11 @@ import SwiftUI
 /// токены сервисов в Keychain, данные на устройстве.
 @main
 struct SonarApp: App {
+    init() {
+        // журнал сбоев — первым делом: ловит сбои и читает отчёт прошлого запуска
+        CrashLog.start()
+    }
+
     @State private var chrome = ChromeState()
     @State private var settings = SettingsStore.shared
     @State private var checker = UpdateChecker.shared
