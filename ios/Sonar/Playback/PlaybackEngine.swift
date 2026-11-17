@@ -14,6 +14,11 @@ import UIKit
 /// прослушивание засчитывается на пороге min(30 с, половины трека), при смене трека — дослушан / пропущен.
 /// «Моя волна» и «Волна по треку» — `MyWave`, догружается вместо «Авто похожих».
 ///
+/// Настройки раздела «Плеер» применяются на лету (`observeSettings`): эквалайзер и нормализация —
+/// `AudioTap` (только файлы, не HLS), бесшовность (`audio.gapless` — подгрузка следующего), кроссфейд
+/// (`audio.crossfade` — громкость плеера), звонки (`audio.on_interruption`), «Добавлять следующие»
+/// (`queue.add_following`), «Продолжить с прошлого раза» (`general.restore` — `PlaybackSnapshot`).
+///
 /// Колбэки AVFoundation приходят на главной очереди (Combine `receive(on:)`, наблюдатель времени,
 /// уведомления с `queue: .main`) — состояние живёт на главном акторе.
 @MainActor
@@ -53,6 +58,8 @@ final class PlaybackEngine {
     private(set) var waveSeed: Track?
     /// Режим волны (настройка `wave.mode`).
     private(set) var waveMode: WaveMode = .own
+    /// Текущий трек идёт потоком HLS — эквалайзер и нормализация на нём не звучат (AVFoundation).
+    private(set) var isHLS = false
 
     var current: Track? {
         order.indices.contains(pos) ? tracks[order[pos]] : nil
@@ -91,9 +98,29 @@ final class PlaybackEngine {
     @ObservationIgnored private var lastTick: Double?
     /// Текущий трек уже записан в историю.
     @ObservationIgnored private var counted = false
+    /// Подгруженный следующий: ждём готовности, чтобы подключить эквалайзер заранее.
+    @ObservationIgnored private var preloadStatus: AnyCancellable?
+    /// Кроссфейд, секунды (0 — выкл), и бесшовность — из настроек.
+    @ObservationIgnored private var crossfade: Double = 0
+    @ObservationIgnored private var gapless = true
+    /// Текущий трек начался сам после прошлого — нарастает (кроссфейд).
+    @ObservationIgnored private var fadeInCurrent = false
+    /// Возвращение после звонка: с какого момента нарастает громкость.
+    @ObservationIgnored private var rampStart: Date?
+    @ObservationIgnored private var fadeTask: Task<Void, Never>?
+    /// До звонка играло — после звонка можно вернуть.
+    @ObservationIgnored private var playingBeforeInterruption = false
+    /// Восстановленный трек (ref) начнётся с этой секунды; другой трек — с начала.
+    @ObservationIgnored private var pendingStart: (ref: String, seconds: Double)?
+    @ObservationIgnored private let snapshotFile = PlaybackSnapshotFile()
+    @ObservationIgnored private var lastSnapshot = Date.distantPast
+    /// Последние применённые качество и «SoundCloud через Яндекс» — чтобы не дёргать MusicCore зря.
+    @ObservationIgnored private var appliedQuality: (kbps: Int, viaYandex: Bool)?
 
     init() {
         waveMode = WaveMode(rawValue: SettingsStore.shared.string("wave.mode")) ?? .own
+        restore()
+        observeSettings()
         player.automaticallyWaitsToMinimizeStalling = true
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.25, preferredTimescale: 600), queue: .main) { [weak self] time in
             MainActor.assumeIsolated { self?.tick(time) }
@@ -105,6 +132,8 @@ final class PlaybackEngine {
                     guard let self else { return }
                     self.isPlaying = status != .paused
                     self.nowPlaying.update()
+                    self.updateFades()
+                    if status == .paused { self.saveSnapshot(force: true) }
                 }
             }
         let center = NotificationCenter.default
@@ -125,13 +154,23 @@ final class PlaybackEngine {
                 MainActor.assumeIsolated { self?.pause() }
             }
         })
+        // ушли в фон — запомнить, где остановились (iOS может выгрузить приложение)
+        observers.append(center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.saveSnapshot(force: true) }
+        })
     }
 
     // MARK: - Очередь
 
-    /// Играть список с трека index. context — откуда («Поиск», «Любимые»…).
-    func play(_ list: [Track], at index: Int, context: String) {
+    /// Играть список с трека index. context — откуда («Поиск», «Любимые»…). tapped — нажали на трек в
+    /// списке: с выключенным «Добавлять следующие» (`queue.add_following`) играет только он (дальше —
+    /// «Авто похожие», если включены). Кнопки «Слушать» / «Перемешать» зовут без tapped — весь список.
+    func play(_ list: [Track], at index: Int, context: String, tapped: Bool = false) {
         guard list.indices.contains(index) else { return }
+        if tapped, list.count > 1, !SettingsStore.shared.bool("queue.add_following") {
+            play([list[index]], at: 0, context: context)
+            return
+        }
         // новая очередь — прошлая волна (если была) закончилась, её сессии исход уже не нужен
         finishPlay(skipped: true, toWave: false)
         isWave = false
@@ -143,6 +182,7 @@ final class PlaybackEngine {
         deadQueue = ""
         order = QueueMath.makeOrder(length: list.count, current: index, shuffle: shuffle)
         pos = shuffle ? 0 : index
+        fadeInCurrent = false
         load(autoplay: true)
     }
 
@@ -168,6 +208,7 @@ final class PlaybackEngine {
         guard let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode, manual: true) else { return }
         finishPlay(skipped: true)
         pos = target
+        fadeInCurrent = false
         load(autoplay: true)
     }
 
@@ -179,6 +220,7 @@ final class PlaybackEngine {
         }
         finishPlay(skipped: true)
         pos = QueueMath.prevPos(pos, length: order.count, repeat: repeatMode)
+        fadeInCurrent = false
         load(autoplay: true)
     }
 
@@ -187,11 +229,14 @@ final class PlaybackEngine {
         guard order.indices.contains(target) else { return }
         finishPlay(skipped: true)
         pos = target
+        fadeInCurrent = false
         load(autoplay: true)
     }
 
     func seek(to seconds: Double) {
         position = max(0, min(seconds, duration))
+        // восстановленный трек ещё не загружен — начнётся с этой секунды
+        if currentItem == nil, let track = current { pendingStart = (track.ref, position) }
         player.seek(to: CMTime(seconds: position, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         nowPlaying.update()
     }
@@ -226,6 +271,25 @@ final class PlaybackEngine {
             pos = 0
             load(autoplay: true)
         }
+        saveSnapshot(force: true)
+    }
+
+    /// Убрать трек «Далее» (offset 0 — ближайший) — жест «Удалить» в очереди.
+    func removeUpcoming(_ offset: Int) {
+        let next = QueueMath.removeUpcoming(order: order, pos: pos, offset: offset)
+        guard next != order else { return }
+        dropPreload()
+        order = next
+        saveSnapshot(force: true)
+    }
+
+    /// Трек «Далее» — сразу следующим или в конец очереди (жесты в очереди).
+    func moveUpcoming(_ offset: Int, toEnd: Bool) {
+        let next = QueueMath.moveUpcoming(order: order, pos: pos, offset: offset, toEnd: toEnd)
+        guard next != order else { return }
+        dropPreload()
+        order = next
+        saveSnapshot(force: true)
     }
 
     // MARK: - Загрузка
@@ -258,6 +322,11 @@ final class PlaybackEngine {
         return try await MusicCore.shared.stream(track.ref, fresh: fresh)
     }
 
+    private static func streamsHLS(_ source: StreamSource) -> Bool {
+        if case .hls = source { return true }
+        return false
+    }
+
     private static func label(_ source: StreamSource) -> String {
         switch source {
         case let .file(_, quality), let .hls(_, quality): quality
@@ -273,6 +342,9 @@ final class PlaybackEngine {
             retried = false
             resetListening()
         }
+        // откуда начать: свежая ссылка — с того же места, восстановленный трек — с запомненной секунды
+        let start = fresh ? position : (pendingStart?.ref == track.ref ? pendingStart?.seconds ?? 0 : 0)
+        pendingStart = nil
         dropPreload()
         player.pause()
         player.removeAllItems()
@@ -291,8 +363,15 @@ final class PlaybackEngine {
                 guard token == self.loadToken else { return }
                 let item = self.makeItem(source)
                 self.quality = Self.label(source)
+                self.isHLS = Self.streamsHLS(source)
                 self.attach(item)
                 self.player.insert(item, after: nil)
+                if start > 1 {
+                    self.position = start
+                    self.player.seek(to: CMTime(seconds: start, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+                }
+                self.updateFades()
+                self.saveSnapshot(force: true)
                 if autoplay {
                     self.activateSession()
                     self.player.playImmediately(atRate: self.rate)
@@ -320,6 +399,8 @@ final class PlaybackEngine {
                     case .readyToPlay:
                         let seconds = item.duration.seconds
                         if seconds.isFinite, seconds > 0 { self.duration = seconds }
+                        // эквалайзер и нормализация — у файла (HLS их не пропускает)
+                        if !self.isHLS { AudioTap.attach(to: item) }
                         self.nowPlaying.update()
                     case .failed:
                         guard let track = self.current else { return }
@@ -352,6 +433,7 @@ final class PlaybackEngine {
         }
         preloaded = nil
         preloading = false
+        preloadStatus = nil
     }
 
     // MARK: - Время и переходы
@@ -361,14 +443,16 @@ final class PlaybackEngine {
         guard seconds.isFinite, currentItem != nil, player.currentItem === currentItem else { return }
         listened(at: seconds)
         position = seconds
+        saveSnapshot()
         if duration > 0, duration - seconds < Self.preloadLead {
             preloadNext()
         }
     }
 
-    /// Подгрузить следующий трек в очередь AVQueuePlayer — переход без паузы.
+    /// Подгрузить следующий трек в очередь AVQueuePlayer — переход без паузы. «Бесшовное» выключено (и нет
+    /// кроссфейда) — следующий грузится, когда текущий кончился, с короткой паузой.
     private func preloadNext() {
-        guard preloaded == nil, !preloading, repeatMode != .one, let currentItem,
+        guard gapless || crossfade > 0, preloaded == nil, !preloading, repeatMode != .one, let currentItem,
               let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode, manual: false), target != pos else { return }
         let track = tracks[order[target]]
         let token = loadToken
@@ -380,6 +464,15 @@ final class PlaybackEngine {
             let item = self.makeItem(source)
             self.player.insert(item, after: currentItem)
             self.preloaded = (target, item)
+            if !Self.streamsHLS(source) {
+                self.preloadStatus = item.publisher(for: \.status)
+                    .receive(on: DispatchQueue.main)
+                    .sink { [weak item] status in
+                        MainActor.assumeIsolated {
+                            if status == .readyToPlay, let item { AudioTap.attach(to: item) }
+                        }
+                    }
+            }
         }
     }
 
@@ -394,7 +487,9 @@ final class PlaybackEngine {
         if let preloaded {
             // AVQueuePlayer уже перешёл на подгруженный трек сам
             self.preloaded = nil
+            preloadStatus = nil
             pos = preloaded.pos
+            fadeInCurrent = true
             loadToken += 1
             retried = false
             resetListening()
@@ -408,9 +503,12 @@ final class PlaybackEngine {
                 // подпись качества у подгруженного — из кэша ссылок MusicCore
                 if let track = self.current, let source = try? await Self.source(for: track, fresh: false) {
                     self.quality = Self.label(source)
+                    self.isHLS = Self.streamsHLS(source)
                 }
             }
             attach(preloaded.item)
+            updateFades()
+            saveSnapshot(force: true)
             topUpAutoplay()
             return
         }
@@ -421,6 +519,7 @@ final class PlaybackEngine {
             return
         }
         pos = target
+        fadeInCurrent = true
         load(autoplay: true)
     }
 
@@ -582,15 +681,130 @@ final class PlaybackEngine {
         next()
     }
 
+    /// Звонок, Siri, будильник: система уже поставила паузу. После — по `audio.on_interruption`: вернуть
+    /// плавно (с 20 % громкости), сразу или оставить на паузе. Возвращаем, только если до звонка играло и
+    /// система разрешила (`shouldResume`; не разрешает, если пользователь включил другую музыку).
     private func interrupted(_ type: AVAudioSession.InterruptionType?, resume: Bool) {
         switch type {
         case .began?:
+            playingBeforeInterruption = isPlaying || playingBeforeInterruption
             isPlaying = false
         case .ended?:
-            if resume { player.playImmediately(atRate: rate) }
+            defer { playingBeforeInterruption = false }
+            guard resume, playingBeforeInterruption else { return }
+            switch InterruptionMode.current(SettingsStore.shared) {
+            case .pause:
+                return
+            case .duck:
+                rampStart = Date()
+            case .none:
+                rampStart = nil
+            }
+            player.playImmediately(atRate: rate)
+            updateFades()
         default:
             break
         }
+    }
+
+    // MARK: - Настройки, громкость переходов, снимок
+
+    /// Следить за настройками: любая правка (экран, синк) — применить сразу.
+    private func observeSettings() {
+        withObservationTracking {
+            applySettings()
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.observeSettings() }
+        }
+    }
+
+    private func applySettings() {
+        let settings = SettingsStore.shared
+        AudioTap.params.update(gains: Equalizer.parse(settings.string(Equalizer.gainsKey)),
+                               eqEnabled: settings.bool(Equalizer.enabledKey),
+                               normalize: settings.bool("audio.normalize"))
+        let wasCrossfade = crossfade
+        crossfade = Double(PlayerPrefs.crossfade(settings))
+        gapless = settings.bool("audio.gapless")
+        if !gapless, crossfade == 0, preloaded != nil { dropPreload() }
+        if wasCrossfade != crossfade { updateFades() }
+        let kbps = MusicCore.qualityKbps(AudioQuality.current(settings).rawValue)
+        let viaYandex = settings.bool("audio.sc_via_yandex")
+        if appliedQuality?.kbps != kbps || appliedQuality?.viaYandex != viaYandex {
+            appliedQuality = (kbps, viaYandex)
+            Task { await MusicCore.shared.configure(maxKbps: kbps, soundCloudViaYandex: viaYandex) }
+        }
+    }
+
+    /// Громкость плеера: кроссфейд (затухание в конце, нарастание после перехода) и возвращение после
+    /// звонка. Пока что-то меняется — обновляется 20 раз в секунду, иначе стоит на месте.
+    private func updateFades() {
+        player.volume = Float(fadeFactor())
+        guard isPlaying, crossfade > 0 || rampStart != nil else {
+            fadeTask?.cancel()
+            fadeTask = nil
+            return
+        }
+        guard fadeTask == nil else { return }
+        fadeTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(50))
+                guard let self, !Task.isCancelled else { return }
+                self.player.volume = Float(self.fadeFactor())
+                if !self.isPlaying || (self.crossfade == 0 && self.rampStart == nil) {
+                    self.fadeTask = nil
+                    return
+                }
+            }
+        }
+    }
+
+    private func fadeFactor() -> Double {
+        var factor = 1.0
+        if let rampStart {
+            let elapsed = Date().timeIntervalSince(rampStart)
+            factor = Fades.rampFactor(elapsed: elapsed)
+            if elapsed >= 2 { self.rampStart = nil }
+        }
+        if crossfade > 0, currentItem != nil {
+            let time = player.currentTime().seconds
+            let next = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode, manual: false)
+            let hasNext = repeatMode != .one && next != nil && next != pos
+            factor *= Fades.crossfadeFactor(position: time.isFinite ? time : position, duration: duration, seconds: crossfade,
+                                            fadeIn: fadeInCurrent, fadeOut: hasNext)
+        }
+        return factor
+    }
+
+    /// Вернуть очередь с прошлого запуска (`general.restore`) — на паузе, с той же секунды.
+    private func restore() {
+        guard let snapshot = snapshotFile.load()?.restored(RestoreMode.current(SettingsStore.shared)) else { return }
+        tracks = snapshot.tracks
+        order = snapshot.order
+        pos = snapshot.pos
+        contextTitle = snapshot.context
+        shuffle = snapshot.shuffle
+        repeatMode = snapshot.repeatMode
+        autoRefs = Set(snapshot.autoRefs)
+        queueId += 1
+        if let track = current {
+            duration = Double(track.durationMs) / 1000
+            position = max(0, min(snapshot.position, duration - 1))
+            pendingStart = (track.ref, position)
+            rate = LibraryStore.shared.speed(for: track.ref) ?? 1
+        }
+    }
+
+    /// Запомнить, что играет: при смене трека и паузе сразу, во время игры — раз в 10 с.
+    private func saveSnapshot(force: Bool = false) {
+        guard force || Date().timeIntervalSince(lastSnapshot) > 10 else { return }
+        lastSnapshot = Date()
+        guard current != nil else {
+            snapshotFile.save(nil)
+            return
+        }
+        snapshotFile.save(PlaybackSnapshot(tracks: tracks, order: order, pos: pos, position: position, context: contextTitle,
+                                           shuffle: shuffle, repeatMode: repeatMode, autoRefs: Array(autoRefs)))
     }
 }
 
