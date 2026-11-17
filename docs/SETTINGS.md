@@ -69,7 +69,8 @@
 | `appearance.preset` | `neutral`, `amoled`, `crimson`, `nord`, `sky`, `mint`, `violet`, `blossom`, `sakura`, `terminal`, `aqua`, `sunset`, `slate` — выбор готовой темы выключает «Под трек» | `neutral` | да |
 | `appearance.animations` | bool — выключено: только прозрачность, как «Меньше движения» | `true` | да |
 | `appearance.tab_style` | `standard` / `rounded` / `floating` | `floating` | да |
-| `appearance.mini_player` | `capsule` / `standard` / `minimal` | `capsule` | да |
+| `appearance.mini_player` | `capsule` / `standard` / `minimal` / `custom` — заготовка мини-плеера (выставляет фон, прогресс, обложку, скругление; поменял пункт — `custom`). iOS: Капсула = цвет обложки + кольцо + круг + круглое; Стандартный = сама обложка + заливка + закруглённая + среднее; Минимализм = стандартный + линия + закруглённая + мягкое | `capsule` | да |
+| `appearance.mini_background` | `cover_color` (цвет обложки) / `cover` (сама обложка, размытая) / `theme` (стандартный) — фон мини-плеера (iOS, 2026-11-17) | `cover_color` | да |
 | `appearance.background` | `standard` (тема) / `cover_color` / `cover` (сама обложка, размытая) / `custom` (свой фон) | `cover_color` | да |
 | `appearance.progress_indicator` | `none` или набор через запятую из `line` (линия внизу мини-плеера) / `fill` (заливка фона) / `ring` (кольцо на обложке) — можно несколько сразу (`line,ring`); iOS — Профиль → Мини-плеер (2026-11-17) | `ring` | да |
 | `appearance.cover_shape` | `rounded` / `circle` / `hidden` (обложка в мини-плеере) | `circle` | да |

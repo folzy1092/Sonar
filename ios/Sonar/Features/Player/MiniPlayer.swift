@@ -11,10 +11,9 @@ struct MiniPlayer: View {
     @Environment(SettingsStore.self) private var settings
     @State private var drag: CGFloat = 0
 
-    /// Как показывать прогресс (Профиль → Мини-плеер): кольцо, линия, заливка — можно вместе.
-    private var indicators: Set<ProgressIndicator> {
-        ProgressIndicator.parse(settings.string(ProgressIndicator.key))
-    }
+    /// Вид (Профиль → Мини-плеер): фон, прогресс, обложка, скругление.
+    private var style: MiniStyle { MiniStyle.current(settings) }
+    private var indicators: Set<ProgressIndicator> { style.progress }
 
     private var progress: Double {
         engine.duration > 0 ? min(1, max(0, engine.position / engine.duration)) : 0
@@ -23,10 +22,14 @@ struct MiniPlayer: View {
     var body: some View {
         if let track = engine.current {
             HStack(spacing: compact ? 10 : 12) {
-                CoverRing(url: track.coverURL, progress: progress, side: compact ? 42 : 48, ring: indicators.contains(.ring),
-                          loading: engine.isLoading)
-                    .id(track.ref)
-                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+                if style.cover != .hidden {
+                    CoverRing(url: track.coverURL, progress: progress, side: compact ? 42 : 48, ring: indicators.contains(.ring),
+                              round: style.cover == .circle, loading: engine.isLoading)
+                        .id(track.ref)
+                        .transition(.scale(scale: 0.7).combined(with: .opacity))
+                } else {
+                    Color.clear.frame(width: 6, height: 1)
+                }
                 VStack(alignment: .leading, spacing: 1) {
                     MarqueeText(text: track.title, font: .system(size: compact ? 16 : 17, weight: .medium), color: Theme.text)
                     MarqueeText(text: track.artist, font: .system(size: compact ? 14 : 15), color: Theme.text.opacity(0.7))
@@ -59,7 +62,7 @@ struct MiniPlayer: View {
                 .buttonStyle(PressableStyle(scale: 0.82))
                 .accessibilityLabel(engine.isPlaying ? "Пауза" : "Играть")
             }
-            .padding(.leading, compact ? 7 : 9)
+            .padding(.leading, style.cover == .hidden ? 12 : (compact ? 7 : 9))
             .padding(.trailing, compact ? 6 : 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(alignment: .leading) {
@@ -71,7 +74,7 @@ struct MiniPlayer: View {
                             .frame(width: proxy.size.width * progress)
                             .animation(.linear(duration: 0.25), value: progress)
                     }
-                    .clipShape(Capsule())
+                    .clipShape(RoundedRectangle(cornerRadius: style.corners.radius(height: compact ? 56 : 64), style: .continuous))
                     .transition(.opacity)
                 }
             }
@@ -90,9 +93,9 @@ struct MiniPlayer: View {
                     .transition(.opacity)
                 }
             }
-            .animation(Motion.spring, value: indicators)
+            .animation(Motion.spring, value: style)
             .offset(x: drag)
-            .contentShape(Capsule())
+            .contentShape(Rectangle())
             .onTapGesture(perform: open)
             .gesture(
                 DragGesture(minimumDistance: 20)
@@ -110,27 +113,34 @@ struct MiniPlayer: View {
 
 /// Обложка кружком, вокруг — кольцо прогресса цветом темы по тусклой дорожке; грузится — крутилка.
 struct CoverRing: View {
+    /// Контур кольца: круг или закруглённый квадрат (начало — сверху по центру у круга).
+    private var outline: AnyShape {
+        round ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
     let url: String?
     let progress: Double
     let side: CGFloat
-    /// Кольцо выключено — просто обложка кружком.
+    /// Кольцо выключено — просто обложка.
     var ring = true
+    /// Круг; иначе закруглённый квадрат, и «кольцо» идёт по его краю.
+    var round = true
     var loading = false
 
     var body: some View {
         ZStack {
             if ring {
-                Circle()
+                outline
                     .stroke(Theme.text.opacity(0.18), lineWidth: 2.5)
                     .transition(.opacity)
-                Circle()
+                outline
                     .trim(from: 0, to: progress)
                     .stroke(Theme.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .animation(.linear(duration: 0.25), value: progress)
                     .transition(.opacity)
             }
-            CoverImage(url: url, cornerRadius: side)
+            CoverImage(url: url, cornerRadius: round ? side : (ring ? 7 : 10))
                 .padding(ring ? 4.5 : 0)
                 .overlay {
                     if loading {
@@ -140,6 +150,7 @@ struct CoverRing: View {
         }
         .frame(width: side, height: side)
         .animation(Motion.spring, value: ring)
+        .animation(Motion.spring, value: round)
         .accessibilityLabel("Прогресс \(Int(progress * 100)) %")
     }
 }

@@ -239,7 +239,7 @@ struct BottomChrome: View {
 
                 if hasMini {
                     MiniPlayer(compact: collapsed, open: openPlayer)
-                        .background(MiniPlayerSurface())
+                        .background(MiniPlayerSurface(height: miniHeight))
                         .frame(width: max(0, miniRight - miniLeft), height: miniHeight)
                         .position(x: (miniLeft + miniRight) / 2, y: miniY)
                         .transition(.offset(y: 40).combined(with: .opacity))
@@ -284,16 +284,5 @@ private struct BarSurface: View {
             .overlay(Capsule().fill(Theme.surface.opacity(0.62)))
             .overlay(Capsule().strokeBorder(Theme.line, lineWidth: 1))
             .shadow(color: .black.opacity(0.28), radius: 14, y: 6)
-    }
-}
-
-/// Мини-плеер в цвет обложки (`IMG_6768`, `IMG_6770`).
-struct MiniPlayerSurface: View {
-    var body: some View {
-        Capsule()
-            .fill(.ultraThinMaterial)
-            .overlay(Capsule().fill(Theme.accent.opacity(ThemeStore.shared.isMono ? 0.32 : 0.58)))
-            .overlay(Capsule().strokeBorder(Theme.text.opacity(0.08), lineWidth: 1))
-            .shadow(color: .black.opacity(0.3), radius: 16, y: 6)
     }
 }

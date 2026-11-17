@@ -24,7 +24,7 @@ const MAP = {
   link: 'link', trash: 'delete-2', drag: 'menu', music: 'music-2', lyrics: 'quote-left', time: 'time',
   refresh: 'refresh-2', info: 'information', lock: 'lock', album: 'album', mic: 'mic',
   bolt: 'flash', moon: 'moon', sun: 'sun', disc: 'disc', compass: 'compass', sparkles: 'sparkles', rain: 'drizzle',
-  eyeClosed: 'eye-close', dash: 'minimize', square: 'square', palette: 'palette', capsule: 'layout-bottom',
+  eyeClosed: 'eye-close', dash: 'minimize', square: 'square', palette: 'palette', capsule: 'layout-bottom', pic: 'pic', brush: 'brush', circle: 'round', grid: 'grid',
 }
 
 /** Знаки сервисов — одна заливка (Simple Icons, 24×24). */
