@@ -6,14 +6,18 @@ import SwiftUI
 /// `appearance.corner_radius`. Пустое значение — умолчание заготовки «Капсула».
 struct MiniStyle: Equatable {
     enum Preset: String, CaseIterable, Identifiable {
-        case capsule, standard, minimal, custom
+        case capsule, standard, minimal, deck, custom
         var id: String { rawValue }
+
+        /// Заготовки на экране настроек — по порядку.
+        static let shown: [Preset] = [.capsule, .standard, .minimal, .deck]
 
         var title: String {
             switch self {
             case .capsule: "Капсула"
-            case .standard: "Стандартный"
-            case .minimal: "Минимализм"
+            case .standard: "Обложка"
+            case .minimal: "Тихий"
+            case .deck: "Лента"
             case .custom: "Свой"
             }
         }
@@ -21,8 +25,9 @@ struct MiniStyle: Equatable {
         var icon: IconName {
             switch self {
             case .capsule: .capsule
-            case .standard: .grid
+            case .standard: .pic
             case .minimal: .square
+            case .deck: .layers
             case .custom: .edit
             }
         }
@@ -36,7 +41,7 @@ struct MiniStyle: Equatable {
             switch self {
             case .coverColor: "Цвет обложки"
             case .cover: "Сама обложка"
-            case .theme: "Стандартный"
+            case .theme: "Цвет темы"
             }
         }
 
@@ -110,6 +115,7 @@ struct MiniStyle: Equatable {
         .capsule: MiniStyle(background: .coverColor, progress: [.ring], cover: .circle, corners: .pill),
         .standard: MiniStyle(background: .cover, progress: [.fill], cover: .rounded, corners: .rounded),
         .minimal: MiniStyle(background: .theme, progress: [.line], cover: .rounded, corners: .soft),
+        .deck: MiniStyle(background: .cover, progress: [.line], cover: .hidden, corners: .none),
     ]
 
     static let keys = (preset: "appearance.mini_player", background: "appearance.mini_background",
