@@ -1,0 +1,41 @@
+import Foundation
+
+/// Ссылки `sonar://` (BOT.md, SPEC §4.5а):
+/// - `sonar://play/liked|wave|quick` — кнопки виджета: включить Любимые, «Мою волну», быстрый плейлист;
+/// - `sonar://auth/<code>` — вход с другого устройства (окно подтверждения, с сервером);
+/// - `sonar://track/<ref>`, `sonar://user/<username>` — пока только узнаём вид ссылки.
+enum DeepLink: Equatable {
+    case track(String)
+    case auth(String)
+    case user(String)
+    case play(PlayTarget)
+
+    init?(_ url: URL) {
+        guard url.scheme?.lowercased() == "sonar", let host = url.host()?.lowercased() else { return nil }
+        let value = url.pathComponents.dropFirst().joined(separator: "/")
+        guard !value.isEmpty else { return nil }
+        switch host {
+        case "track": self = .track(value)
+        case "auth": self = .auth(value)
+        case "user": self = .user(value)
+        case "play":
+            guard let target = PlayTarget(rawValue: value.lowercased()) else { return nil }
+            self = .play(target)
+        default: return nil
+        }
+    }
+
+    @MainActor
+    static func handle(_ url: URL) {
+        guard let link = DeepLink(url) else { return }
+        switch link {
+        case let .auth(code):
+            // вход с другого устройства / из бота — окно подтверждения (работает, только когда включён сервер)
+            AccountStore.shared.handleAuthLink(code)
+        case let .play(target):
+            Task { await QuickPlay.start(target) }
+        default:
+            break
+        }
+    }
+}
