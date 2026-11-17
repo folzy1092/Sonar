@@ -185,7 +185,7 @@ struct FullPlayerView: View {
 
     // MARK: - Обложка: стили, жесты
 
-    private static let space = "player"
+    nonisolated private static let space = "player"
     /// Градусов в секунду — 33⅓ оборота в минуту.
     private static let spinSpeed = 200.0
 
