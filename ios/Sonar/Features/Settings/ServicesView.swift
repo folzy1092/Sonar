@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import WebKit
 
 /// Сервисы (`pc/Screenshot_12, 13`, как Windows «Сервисы»): SoundCloud — client_id и OAuth-токен
 /// (без своих ключей поиск и открытые треки идут на публичном client_id с сайта), Яндекс Музыка —
@@ -14,6 +15,7 @@ struct ServicesView: View {
     /// Вход в Яндекс по коду: код на экране, пока ждём подтверждения на ya.ru/device.
     @State private var deviceCode: YandexLogin.DeviceCode?
     @State private var login: Task<Void, Never>?
+    @State private var showSoundCloudLogin = false
     @Environment(SettingsStore.self) private var settings
     @Environment(\.openURL) private var openURL
 
@@ -25,6 +27,14 @@ struct ServicesView: View {
                 if let account = status.soundCloud {
                     connected(.soundcloud, account)
                 } else {
+                    Button { error = nil; showSoundCloudLogin = true } label: {
+                        Label("Войти в SoundCloud", systemImage: "person.badge.key")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .disabled(busy != nil)
+                    RowDivider()
                     field("client_id", text: $clientId)
                     RowDivider()
                     field("OAuth-токен (необязательно)", text: $oauth, secure: true)
@@ -82,7 +92,30 @@ struct ServicesView: View {
         .onDisappear { login?.cancel() }
         .animation(Motion.spring, value: error)
         .task { status = await MusicCore.shared.status() }
+        .sheet(isPresented: $showSoundCloudLogin) {
+            SoundCloudLoginSheet { token in
+                showSoundCloudLogin = false
+                connectSoundCloud(token: token)
+            }
+            .presentationDragIndicator(.visible)
+        }
         .onChange(of: settings.bool("audio.sc_via_yandex")) { applySettings() }
+    }
+
+    /// После входа в окне SoundCloud: публичный client_id с сайта + токен из cookie → подключение.
+    private func connectSoundCloud(token: String) {
+        busy = .soundcloud
+        Task {
+            defer { busy = nil }
+            do {
+                let id = try await SoundCloud.publicClientId()
+                _ = try await MusicCore.shared.connectSoundCloud(SoundCloudCreds(clientId: id, oauthToken: token))
+                withAnimation(Motion.spring) { error = nil }
+                status = await MusicCore.shared.status()
+            } catch {
+                withAnimation(Motion.spring) { self.error = error.localizedDescription }
+            }
+        }
     }
 
     /// Код устройства → ya.ru/device в Safari → ждём подтверждения → токен → подключение.
@@ -209,5 +242,97 @@ struct ServicesView: View {
             .foregroundStyle(Theme.danger)
         }
         .padding(16)
+    }
+}
+
+/// Вход в SoundCloud как на ПК (`login.rs`): обычная страница входа soundcloud.com внутри Sonar; после входа
+/// сайт ставит cookie `oauth_token` — забираем её и закрываем окно. Своего OAuth-приложения SoundCloud с
+/// адресом возврата нет, поэтому так. Хранилище cookie — временное (не путается со старым входом).
+struct SoundCloudLoginSheet: View {
+    let done: @MainActor (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Вход в SoundCloud")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                Spacer()
+                Button("Отмена") { dismiss() }
+                    .foregroundStyle(Theme.accent)
+            }
+            .padding(.horizontal, 18)
+            .frame(height: 52)
+            SoundCloudWebView(done: done)
+        }
+        .background(Theme.background.ignoresSafeArea())
+    }
+}
+
+private struct SoundCloudWebView: UIViewRepresentable {
+    let done: @MainActor (String) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(done: done) }
+
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .nonPersistent()
+        let view = WKWebView(frame: .zero, configuration: config)
+        // мобильный Safari: со «встроенным браузером» Google и Apple вход иногда не пускают
+        view.customUserAgent = HTTP.browserAgent
+        view.navigationDelegate = context.coordinator
+        context.coordinator.start(view)
+        view.load(URLRequest(url: URL(string: "https://soundcloud.com/signin")!))
+        return view
+    }
+
+    func updateUIView(_ view: WKWebView, context: Context) {}
+
+    static func dismantleUIView(_ view: WKWebView, coordinator: Coordinator) {
+        coordinator.stop()
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        let done: @MainActor (String) -> Void
+        private var timer: Timer?
+        private weak var view: WKWebView?
+        private var finished = false
+
+        init(done: @escaping @MainActor (String) -> Void) {
+            self.done = done
+        }
+
+        /// Cookie проверяем раз в секунду и после каждой загрузки страницы.
+        func start(_ view: WKWebView) {
+            self.view = view
+            timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.check() }
+            }
+        }
+
+        func stop() {
+            timer?.invalidate()
+            timer = nil
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            check()
+        }
+
+        private func check() {
+            guard !finished, let store = view?.configuration.websiteDataStore.httpCookieStore else { return }
+            store.getAllCookies { [weak self] cookies in
+                let token = cookies.first { $0.name == "oauth_token" && $0.domain.hasSuffix("soundcloud.com") && !$0.value.isEmpty }?.value
+                guard let token else { return }
+                MainActor.assumeIsolated {
+                    guard let self, !self.finished else { return }
+                    self.finished = true
+                    self.stop()
+                    self.done(token)
+                }
+            }
+        }
     }
 }
