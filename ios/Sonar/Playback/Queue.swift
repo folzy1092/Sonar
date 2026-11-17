@@ -55,4 +55,23 @@ enum QueueMath {
         out.insert(newIndex, at: next ? min(pos + 1, out.count) : out.count)
         return out
     }
+
+    /// Убрать из порядка трек «Далее» со смещением offset (0 — ближайший). Текущий и прошлые не трогаются.
+    static func removeUpcoming(order: [Int], pos: Int, offset: Int) -> [Int] {
+        let at = pos + 1 + offset
+        guard offset >= 0, order.indices.contains(at) else { return order }
+        var out = order
+        out.remove(at: at)
+        return out
+    }
+
+    /// Переставить трек «Далее» со смещением offset сразу за текущий (toEnd — в конец очереди).
+    static func moveUpcoming(order: [Int], pos: Int, offset: Int, toEnd: Bool) -> [Int] {
+        let at = pos + 1 + offset
+        guard offset >= 0, order.indices.contains(at) else { return order }
+        var out = order
+        let index = out.remove(at: at)
+        out.insert(index, at: toEnd ? out.count : min(pos + 1, out.count))
+        return out
+    }
 }
