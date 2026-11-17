@@ -41,9 +41,9 @@ struct ProfileView: View {
                     link("Жесты", .wave) { GesturesSettingsView() }
                 }
                 section("Сервисы", 4) {
-                    link("SoundCloud", .soundcloud) { ServicesView() }
+                    link("SoundCloud", .soundcloud) { ServicesView(only: .soundcloud) }
                     divider
-                    link("Яндекс Музыка", .music) { ServicesView() }
+                    link("Яндекс Музыка", .music) { ServicesView(only: .yandex) }
                 }
                 section("Интеграции", 5) {
                     link("Last.fm", .wave) { LastfmSettingsView() }

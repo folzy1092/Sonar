@@ -158,6 +158,8 @@ struct RootView: View {
             }
         case .profile:
             NavigationStack { ProfileView() }
+                .id(router.profileRoot)
+                .transition(.opacity)
         }
     }
 }
@@ -332,7 +334,7 @@ struct BottomChrome: View {
         if collapsed, tab == chrome.tab {
             chrome.expand()
         } else if tab == chrome.tab {
-            router.popToRoot(tab)
+            withAnimation(Motion.spring) { router.popToRoot(tab) }
         } else {
             chrome.select(tab)
         }

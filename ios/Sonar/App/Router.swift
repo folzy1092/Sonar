@@ -29,6 +29,8 @@ final class Router {
     var trackMenu: TrackMenuItem?
     /// Открыт полный плеер.
     var playerOpen = false
+    /// Стек Профиля без пути (экраны настроек открываются ссылками-видами) — к началу его возвращает новый id.
+    var profileRoot = UUID()
     private(set) var toast: String?
 
     @ObservationIgnored private var toastTask: Task<Void, Never>?
@@ -55,7 +57,7 @@ final class Router {
         case .home: home = NavigationPath()
         case .library: library = NavigationPath()
         case .search: search = NavigationPath()
-        case .profile: break
+        case .profile: profileRoot = UUID()
         }
     }
 

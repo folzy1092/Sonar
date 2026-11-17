@@ -6,6 +6,8 @@ import WebKit
 /// (без своих ключей поиск и открытые треки идут на публичном client_id с сайта), Яндекс Музыка —
 /// токен `y0_…`. Ключи — только в Keychain этого iPhone.
 struct ServicesView: View {
+    /// Только один сервис (Профиль → SoundCloud / Яндекс Музыка ведут каждый на свой экран); nil — оба.
+    var only: Service?
     @State private var status = MusicCore.Status()
     @State private var clientId = ""
     @State private var oauth = ""
@@ -20,7 +22,8 @@ struct ServicesView: View {
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        SettingsScreen(title: "Сервисы") {
+        SettingsScreen(title: only?.title ?? "Сервисы") {
+            if only != .yandex {
             SettingsSection(title: "SoundCloud", footer: status.soundCloud == nil
                             ? "Без своих ключей поиск и открытые треки работают на публичном client_id с сайта. OAuth-токен нужен для лайков, плейлистов и закрытых треков."
                             : nil) {
@@ -45,7 +48,9 @@ struct ServicesView: View {
                 }
             }
             .cascade(0)
+            }
 
+            if only != .soundcloud {
             SettingsSection(title: "Яндекс Музыка", footer: status.yandex == nil
                             ? "«Войти через Яндекс» покажет код и откроет ya.ru/device — подтверди вход там, Sonar заберёт токен сам. Или вставь токен y0_… вручную."
                             : nil) {
@@ -71,6 +76,7 @@ struct ServicesView: View {
                 }
             }
             .cascade(1)
+            }
 
             if let error {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -278,10 +284,13 @@ private struct SoundCloudWebView: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
+        // Google / Apple / Facebook открывают вход всплывающим окном — разрешаем
+        config.preferences.javaScriptCanOpenWindowsAutomatically = true
         let view = WKWebView(frame: .zero, configuration: config)
         // мобильный Safari: со «встроенным браузером» Google и Apple вход иногда не пускают
         view.customUserAgent = HTTP.browserAgent
         view.navigationDelegate = context.coordinator
+        view.uiDelegate = context.coordinator
         context.coordinator.start(view)
         view.load(URLRequest(url: URL(string: "https://soundcloud.com/signin")!))
         return view
@@ -294,8 +303,10 @@ private struct SoundCloudWebView: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         let done: @MainActor (String) -> Void
+        /// Всплывающее окно входа (Google / Apple / Facebook) — поверх страницы SoundCloud.
+        private var popup: WKWebView?
         private var timer: Timer?
         private weak var view: WKWebView?
         private var finished = false
@@ -318,6 +329,27 @@ private struct SoundCloudWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            check()
+        }
+
+        /// window.open → своё окно поверх: та же конфигурация (общие cookie), закроется само по window.close.
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                     for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            let child = WKWebView(frame: webView.bounds, configuration: configuration)
+            child.customUserAgent = webView.customUserAgent
+            child.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            child.navigationDelegate = self
+            child.uiDelegate = self
+            webView.addSubview(child)
+            popup?.removeFromSuperview()
+            popup = child
+            return child
+        }
+
+        func webViewDidClose(_ webView: WKWebView) {
+            guard webView === popup else { return }
+            webView.removeFromSuperview()
+            popup = nil
             check()
         }
 

@@ -163,18 +163,19 @@ struct EqualizerSheet: View {
                     + "Треки Яндекса, SoundCloud через Яндекс и скачанные звучат с ним.")
             }
 
-            bands
-                .frame(height: 280)
-                .opacity(enabled ? 1 : 0.4)
-                .allowsHitTesting(enabled)
-                .padding(.vertical, 8)
-                .background(Theme.raised.opacity(0.6), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-
             presets
                 .opacity(enabled ? 1 : 0.4)
                 .allowsHitTesting(enabled)
 
-            Spacer(minLength: 0)
+            ScrollView {
+                bands
+            }
+            .scrollIndicators(.hidden)
+            .scrollDisabled(dragging != nil)
+            .opacity(enabled ? 1 : 0.4)
+            .allowsHitTesting(enabled)
+
+
         }
         .padding(.horizontal, Theme.gutter)
         .padding(.top, 30)
@@ -182,87 +183,75 @@ struct EqualizerSheet: View {
         .onAppear { gains = Equalizer.parse(settings.string(Equalizer.gainsKey)) }
     }
 
-    /// Полосы: вертикальные дорожки с ручкой, над ними — дБ, под ними — частота; кривая — за ними.
+    /// Полосы сверху вниз (владелец, 2026-11-17): у каждой частоты — строка с горизонтальным ползунком,
+    /// слева частота, справа дБ; середина — 0 дБ, влево — тише, вправо — громче.
     private var bands: some View {
-        GeometryReader { proxy in
-            let count = Equalizer.frequencies.count
-            let columnWidth = proxy.size.width / CGFloat(count)
-            let top: CGFloat = 26, bottom: CGFloat = 26
-            let height = proxy.size.height - top - bottom
-            let y: (Double) -> CGFloat = { db in top + height * CGFloat((Equalizer.maxDb - db) / (2 * Equalizer.maxDb)) }
-            ZStack(alignment: .topLeading) {
-                // ноль
-                Rectangle().fill(Theme.line)
-                    .frame(height: 1)
-                    .offset(y: y(0))
-                // кривая через ручки
-                Path { path in
-                    let points = gains.indices.map { CGPoint(x: columnWidth * (CGFloat($0) + 0.5), y: y(gains[$0])) }
-                    guard let first = points.first else { return }
-                    path.move(to: first)
-                    for i in 1 ..< points.count {
-                        let previous = points[i - 1], point = points[i]
-                        let mid = CGPoint(x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2)
-                        path.addQuadCurve(to: mid, control: previous)
-                        if i == points.count - 1 { path.addQuadCurve(to: point, control: point) }
-                    }
-                }
-                .stroke(Theme.accent.opacity(0.55), style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                HStack(spacing: 0) {
-                    ForEach(0 ..< count, id: \.self) { i in
-                        column(i, y: y, top: top, height: height)
-                            .frame(width: columnWidth)
-                    }
-                }
+        VStack(spacing: 4) {
+            ForEach(0 ..< Equalizer.frequencies.count, id: \.self) { i in
+                row(i)
             }
         }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        .background(Theme.raised.opacity(0.6), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
     }
 
-    private func column(_ i: Int, y: @escaping (Double) -> CGFloat, top: CGFloat, height: CGFloat) -> some View {
+    private func row(_ i: Int) -> some View {
         let gain = i < gains.count ? gains[i] : 0
         let active = dragging == i
-        return ZStack(alignment: .top) {
-            Capsule()
-                .fill(Color.white.opacity(0.08))
-                .frame(width: 4, height: height)
-                .offset(y: top)
-            Circle()
-                .fill(active ? Theme.accent : Theme.text)
-                .frame(width: active ? 22 : 16, height: active ? 22 : 16)
-                .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
-                .offset(y: y(gain) - (active ? 11 : 8))
-            Text(gain == 0 ? "0" : String(format: "%+.0f", gain))
-                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+        return HStack(spacing: 12) {
+            Text(Equalizer.label(Equalizer.frequencies[i]))
+                .font(.system(size: 14, weight: .semibold).monospacedDigit())
+                .foregroundStyle(active ? Theme.text : Theme.textSecondary)
+                .frame(width: 40, alignment: .leading)
+            GeometryReader { proxy in
+                let w = proxy.size.width
+                let x: (Double) -> CGFloat = { db in w * CGFloat((db + Equalizer.maxDb) / (2 * Equalizer.maxDb)) }
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.08)).frame(height: 4)
+                    // заливка от нуля к значению
+                    Capsule()
+                        .fill(Theme.accent.opacity(0.7))
+                        .frame(width: abs(x(gain) - x(0)), height: 4)
+                        .offset(x: min(x(gain), x(0)))
+                    Rectangle().fill(Theme.line).frame(width: 1, height: 14).offset(x: x(0))
+                    Circle()
+                        .fill(active ? Theme.accent : Theme.text)
+                        .frame(width: active ? 24 : 18, height: active ? 24 : 18)
+                        .shadow(color: .black.opacity(0.3), radius: 3, y: 1)
+                        .offset(x: x(gain) - (active ? 12 : 9))
+                }
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { drag in
+                            if dragging != i {
+                                dragging = i
+                                UISelectionFeedbackGenerator().selectionChanged()
+                            }
+                            let part = Double(drag.location.x / max(1, w))
+                            let db = Equalizer.clamp(part * 2 * Equalizer.maxDb - Equalizer.maxDb)
+                            // шаг 0.5 дБ — пальцем точнее не нужно
+                            let stepped = (db * 2).rounded() / 2
+                            guard stepped != gains[i] else { return }
+                            gains[i] = stepped
+                            // звучит сразу, сохраняется, когда отпустил
+                            AudioTap.params.update(gains: gains, eqEnabled: true, normalize: settings.bool("audio.normalize"))
+                        }
+                        .onEnded { _ in
+                            withAnimation(Motion.spring) { dragging = nil }
+                            save()
+                        }
+                )
+            }
+            .frame(height: 36)
+            Text(gain == 0 ? "0" : String(format: "%+.1f", gain))
+                .font(.system(size: 14, weight: .semibold).monospacedDigit())
                 .foregroundStyle(active ? Theme.text : Theme.textTertiary)
                 .contentTransition(.numericText(value: gain))
-            Text(Equalizer.label(Equalizer.frequencies[i]))
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(Theme.textTertiary)
-                .offset(y: top + height + 8)
+                .frame(width: 44, alignment: .trailing)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { drag in
-                    if dragging != i {
-                        dragging = i
-                        UISelectionFeedbackGenerator().selectionChanged()
-                    }
-                    let part = Double((drag.location.y - top) / max(1, height))
-                    let db = Equalizer.clamp(Equalizer.maxDb - part * 2 * Equalizer.maxDb)
-                    // шаг 0.5 дБ — пальцем точнее не нужно
-                    let stepped = (db * 2).rounded() / 2
-                    guard stepped != gains[i] else { return }
-                    gains[i] = stepped
-                    // звучит сразу, сохраняется, когда отпустил
-                    AudioTap.params.update(gains: gains, eqEnabled: true, normalize: settings.bool("audio.normalize"))
-                }
-                .onEnded { _ in
-                    withAnimation(Motion.spring) { dragging = nil }
-                    save()
-                }
-        )
         .animation(Motion.quick, value: active)
     }
 

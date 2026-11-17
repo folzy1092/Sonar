@@ -4,8 +4,8 @@ import UIKit
 /// Герой «Моей волны» — SonarField, поле точек: сетка кружков, размер каждого — яркость
 /// фигуры в этом месте. Фигуры по кругу перетекают друг в друга: знак Sonar → шар со светом → две волны.
 /// Сами по себе точки всё время чуть плывут и дышат размером; когда играет музыка — сильнее и с бегущей
-/// рябью. Цвет — акцент темы (под обложку). Касание — точки под пальцем коротко шевелятся (отскок от
-/// пальца и обратно) и лёгкий тактильный отклик; долгое нажатие — лист настроений волны (`onHold`). Рисует Canvas одним путём, ~1800 точек, 30 кадров/с; вне экрана — пауза.
+/// рябью. Цвет — акцент темы (под обложку). Касание — фигура целиком пружинит, как желе (сжалась,
+/// качнулась к пальцу, успокоилась) и лёгкий тактильный отклик; долгое нажатие — лист настроений волны (`onHold`). Рисует Canvas одним путём, ~1800 точек, 30 кадров/с; вне экрана — пауза.
 struct SonarField: View {
     var active: Bool
     var playing: Bool
@@ -22,8 +22,6 @@ struct SonarField: View {
 
     /// Сколько шевелятся точки после касания, с.
     static let pokeLife = 0.9
-    /// Радиус шевеления вокруг пальца, pt.
-    static let pokeRadius = 80.0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var size: CGSize = .zero
@@ -38,6 +36,9 @@ struct SonarField: View {
             Canvas { gc, canvas in
                 let grid = FieldGrid(size: canvas, step: step)
                 guard grid.cols > 0, grid.rows > 0 else { return }
+                // касание: вся фигура пружинит одним целым (желе) — не продавливается под пальцем
+                let jelly = Self.jelly(pokes: pokes, t: t, size: canvas)
+                let mid = CGPoint(x: canvas.width / 2, y: canvas.height / 2)
                 var dots = Path()
                 let maxR = Double(step) * 0.5
                 for row in 0 ..< grid.rows {
@@ -49,11 +50,10 @@ struct SonarField: View {
                         c.x += drift.dx
                         c.y += drift.dy
                         v *= drift.scale
-                        if !pokes.isEmpty {
-                            let w = Self.wiggle(at: c, pokes: pokes, t: t)
-                            c.x += w.dx
-                            c.y += w.dy
-                            v = min(1, v + w.bump)
+                        if let jelly {
+                            c.x = mid.x + (c.x - mid.x) * jelly.sx + jelly.dx
+                            c.y = mid.y + (c.y - mid.y) * jelly.sy + jelly.dy
+                            v = min(1, v * jelly.grow)
                         }
                         let r = maxR * v
                         if r < 0.45 { continue }
@@ -95,26 +95,20 @@ struct SonarField: View {
         return (CGFloat(dx), CGFloat(dy), scale)
     }
 
-    /// Шевеление от касания: точки рядом с пальцем отскакивают от него на пару pt, качнутся и
-    /// успокаиваются (затухающее колебание), чуть набухают. Дальше `pokeRadius` — ничего.
-    static func wiggle(at c: CGPoint, pokes: [Poke], t: TimeInterval) -> (dx: CGFloat, dy: CGFloat, bump: Double) {
-        var dx = 0.0, dy = 0.0, bump = 0.0
-        for poke in pokes {
-            let age = t - poke.time
-            guard age >= 0, age < pokeLife else { continue }
-            let vx = Double(c.x - poke.point.x), vy = Double(c.y - poke.point.y)
-            let d = (vx * vx + vy * vy).squareRoot()
-            guard d < pokeRadius else { continue }
-            let fall = pow(1 - d / pokeRadius, 2)
-            let swing = sin(age * 22) * exp(-age * 4.5)
-            let push = 3.5 * fall * swing
-            if d > 0.5 {
-                dx += vx / d * push
-                dy += vy / d * push
-            }
-            bump += 0.18 * fall * exp(-age * 4)
-        }
-        return (CGFloat(dx), CGFloat(dy), bump)
+    /// Желе от касания: фигура целиком сжимается по одной оси и вытягивается по другой, качается и
+    /// успокаивается (затухающее колебание ~0,9 с), чуть наклоняется к пальцу и на миг «надувается».
+    static func jelly(pokes: [Poke], t: TimeInterval, size: CGSize) -> (sx: CGFloat, sy: CGFloat, dx: CGFloat, dy: CGFloat, grow: Double)? {
+        guard let poke = pokes.last else { return nil }
+        let age = t - poke.time
+        guard age >= 0, age < pokeLife else { return nil }
+        let env = exp(-age * 4.2)
+        let wobble = sin(age * 15) * env
+        let squash = 0.09 * wobble
+        // к пальцу: смещение по направлению касания, затухает
+        let lx = Double(poke.point.x - size.width / 2) / Double(max(1, size.width / 2))
+        let ly = Double(poke.point.y - size.height / 2) / Double(max(1, size.height / 2))
+        let lean = 7 * sin(age * 11) * env
+        return (CGFloat(1 + squash), CGFloat(1 - squash), CGFloat(lx * lean), CGFloat(ly * lean), 1 + 0.12 * max(0, wobble))
     }
 
     // MARK: - Фигуры
