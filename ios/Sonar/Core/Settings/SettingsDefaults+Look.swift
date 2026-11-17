@@ -8,9 +8,9 @@ extension SettingsDefaults {
         "appearance.mode": .string("dark"),
         "appearance.cover_theme": .bool(true),
         "appearance.preset": .string("neutral"),
-        // стиль Sonar = поверхность «Монолит», как на ПК
-        "appearance.style": .string("sonar"),
-        "appearance.surface": .string("monolith"),
+        // iPhone — «Эхо»: поверхности в оттенке обложки, как на скринах владельца (ПК — «Sonar» = Монолит)
+        "appearance.style": .string("echo"),
+        "appearance.surface": .string("echo"),
         "appearance.background": .string("cover_color"),
         "appearance.bg_dim": .int(0),
         "appearance.bg_blur": .int(0),

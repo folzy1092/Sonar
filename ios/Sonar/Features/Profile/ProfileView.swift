@@ -68,7 +68,7 @@ struct ProfileView: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, offset in
             if chrome.tab == .profile { chrome.scrolled(to: offset) }
         }
-        .background(Theme.background.ignoresSafeArea())
+        .pageBackground()
         .toolbar(.hidden, for: .navigationBar)
         .animation(Motion.spring, value: checker.available)
     }
