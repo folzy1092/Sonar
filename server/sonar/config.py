@@ -30,6 +30,8 @@ class Settings:
     site_url: str = "https://sonar.folzy.ru"
     download_url: str = "https://github.com/folzy1092/Sonar/releases/latest"
     # iPhone — постоянный релиз ios-latest (CI перезаливает, Latest не трогает — он у Windows)
+    # канал новостей и обновлений — посты с кнопками от имени бота (бот — админ канала)
+    channel: str = "@SonarUpdates"
     download_url_ios: str = "https://github.com/folzy1092/Sonar/releases/download/ios-latest/Sonar.ipa"
     support_group_id: int | None = None
     log_chat_id: int | None = None
@@ -58,6 +60,8 @@ def load(env_file: Path | None = None) -> Settings:
     )
     if os.getenv("SONAR_DATA_DIR"):
         s.data_dir = Path(os.environ["SONAR_DATA_DIR"])
+    if os.getenv("SONAR_CHANNEL"):
+        s.channel = os.environ["SONAR_CHANNEL"].strip()
     if os.getenv("SONAR_SITE_URL"):
         s.site_url = os.environ["SONAR_SITE_URL"].rstrip("/")
     s.data_dir.mkdir(parents=True, exist_ok=True)
