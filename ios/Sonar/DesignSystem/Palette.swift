@@ -48,6 +48,8 @@ struct ThemeTokens: Equatable, Sendable {
     var mono: Bool
     /// Светлая тема.
     var light: Bool
+    /// Сдвиг светлоты поверхностей под обложку, который реально применён (−0.2…0.2; 0 — без сдвига).
+    var shift: Double = 0
 }
 
 /// Поверхность стиля Sonar (`appearance.surface`, SETTINGS.md «Стиль»): формулы фона, поверхностей и
@@ -283,8 +285,31 @@ enum Palette {
     ]
 
     /// Токены: исходный цвет (обложка / готовая тема / nil — монохром) × формулы поверхности, как
-    /// `themeFrom` в `palette.ts`. Без аргументов — «Эхо» тёмной темы.
-    static func theme(from source: RGB?, surface: Surface = .echo, light: Bool = false) -> ThemeTokens {
+    /// `themeFrom` в `palette.ts`. Без аргументов — «Эхо» тёмной темы. `cover` — тема идёт за обложкой:
+    /// поверхности сдвигаются по её светлоте (`CoverShift.swift`), текст остаётся читаемым (AA).
+    static func theme(from source: RGB?, surface: Surface = .echo, light: Bool = false, cover: CoverShift? = nil) -> ThemeTokens {
+        guard let cover else { return build(source, surface: surface, light: light, shade: .identity) }
+        let k = cover.strength.params
+        let base = build(source, surface: surface, light: light, shade: Shade(f: 0, chroma: k.chroma, hue: k.hue))
+        var f = coverBias(cover)
+        for _ in 0 ..< guardTries where f != 0 {
+            let t = build(source, surface: surface, light: light, shade: Shade(f: f, chroma: k.chroma, hue: k.hue))
+            if keepsContrast(t, base: base) { return t }
+            f *= guardStep
+        }
+        return base
+    }
+
+    /// Сдвиг поверхностей: светлота, множитель подкраски и нижняя граница насыщенности (оттенок обложки).
+    struct Shade {
+        var f: Double
+        var chroma: Double
+        var hue: Double
+
+        static let identity = Shade(f: 0, chroma: 1, hue: 0)
+    }
+
+    private static func build(_ source: RGB?, surface: Surface, light: Bool, shade: Shade) -> ThemeTokens {
         let k = (light ? surfacesLight : surfaces)[surface] ?? surfaces[.echo]!
         let base = source.map(oklch) ?? Lch(l: 0, c: 0, h: 0)
         let mono = base.c < monoChroma
@@ -293,6 +318,12 @@ enum Palette {
         let gray = k.grayText
         func cc(_ m: Double, _ mx: Double) -> Double { min(c * m, mx) }
         func ok(_ l: Double, _ ch: Double) -> RGB { rgb(Lch(l: l, c: ch, h: h)) }
+        // поверхности: светлота со сдвигом, насыщенность × сила, но не ниже лёгкого оттенка обложки
+        func sh(_ l: Double) -> Double { shiftLightness(l, f: shade.f, light: light) }
+        func sc(_ m: Double, _ mx: Double) -> Double {
+            mono ? 0 : max(min(c * m * shade.chroma, mx * shade.chroma), min(c, shade.hue))
+        }
+        func surf(_ l: Double, _ m: Double, _ mx: Double) -> RGB { ok(sh(l), sc(m, mx)) }
         let ink: RGB
         if light {
             ink = ok(0.985, mono || gray ? 0 : cc(0.03, 0.008))
@@ -304,23 +335,24 @@ enum Palette {
             ink = ok(0.18, cc(0.35, 0.05))
         }
         return ThemeTokens(
-            bg: ok(k.bgL, cc(k.bgC, k.bgMax)),
-            s0: ok((k.bgL + k.sL.0) / 2, cc(k.sC, k.sMax)),
-            s1: ok(k.sL.0, cc(k.sC, k.sMax)),
-            s2: ok(k.sL.1, cc(k.sC, k.sMax)),
-            s3: ok(k.sL.2, cc(k.sC, k.sMax)),
-            border: ok(k.bdL, cc(k.bdC, k.bdMax)),
+            bg: surf(k.bgL, k.bgC, k.bgMax),
+            s0: surf((k.bgL + k.sL.0) / 2, k.sC, k.sMax),
+            s1: surf(k.sL.0, k.sC, k.sMax),
+            s2: surf(k.sL.1, k.sC, k.sMax),
+            s3: surf(k.sL.2, k.sC, k.sMax),
+            border: surf(k.bdL, k.bdC, k.bdMax),
             text: ok(k.txL, gray ? 0 : cc(0.03, 0.008)),
             t2: ok(k.t2L, gray ? 0 : cc(0.06, 0.014)),
             t3: ok(k.t3L, gray ? 0 : cc(0.08, 0.018)),
             accent: mono ? ok(light ? 0.22 : 0.95, 0) : ok(k.accL, min(c, k.accMax)),
             ink: ink,
-            tint: ok(light ? 0.93 : 0.2, gray ? 0 : cc(light ? 0.3 : 0.6, light ? 0.04 : 0.09)),
+            tint: ok(sh(light ? 0.93 : 0.2), gray ? sc(0, 0) : cc(light ? 0.3 : 0.6, light ? 0.04 : 0.09)),
             glow: mono ? ok(0.7, 0) : ok(light ? 0.7 : 0.62, min(c, 0.2)),
-            track: surface == .signal ? ok(light ? 0.82 : 0.42, cc(0.4, 0.06)) : ok(k.sL.2, cc(k.sC, k.sMax)),
+            track: surface == .signal ? ok(sh(light ? 0.82 : 0.42), cc(0.4, 0.06)) : surf(k.sL.2, k.sC, k.sMax),
             softAlpha: mono ? (light ? 0.08 : 0.12) : k.softA,
             mono: mono,
-            light: light
+            light: light,
+            shift: shade.f
         )
     }
 
