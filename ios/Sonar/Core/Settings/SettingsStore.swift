@@ -47,6 +47,11 @@ final class SettingsStore {
         "general.similar_autoplay": .bool(true),
         // режим «Моей волны»: own · hard · calm · sad · fun · new (`WaveMode`)
         "wave.mode": .string("own"),
+        // текст песни (SETTINGS.md «Текст песни»): rawValue `LyricsMode` / `LyricsSize` / `LyricsTextStyle` / `LyricsAnimation`
+        "lyrics.mode": .string("words"),
+        "lyrics.size": .string("L"),
+        "lyrics.style": .string("blur"),
+        "lyrics.animation": .string("normal"),
     ]
 
     private static let storageKey = "sonar.settings"
