@@ -276,6 +276,16 @@ enum LocalProfile {
         return s.unicodeScalars.allSatisfy { allowed.contains($0) }
     }
 
+    /// Публичный сайт (как ПК `SITE_URL`): профиль по ссылке `https://sonar.folzy.ru/@username`.
+    static let siteURL = "https://sonar.folzy.ru"
+
+    /// Ссылка на профиль (ПК `profileUrl`): @username без «@», строчными. Пусто или с ошибкой — nil.
+    static func profileURL(_ raw: String) -> String? {
+        let name = cleanUsername(raw).lowercased()
+        guard !name.isEmpty, usernameValid(name) else { return nil }
+        return "\(siteURL)/@\(name)"
+    }
+
     /// Первая буква для заглушки аватара.
     static func initial(_ name: String) -> String {
         name.trimmingCharacters(in: .whitespacesAndNewlines).first.map { String($0).uppercased() } ?? "S"

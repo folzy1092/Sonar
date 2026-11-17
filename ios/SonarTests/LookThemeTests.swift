@@ -186,6 +186,15 @@ final class LookThemeTests: XCTestCase {
         UserDefaults.standard.removePersistentDomain(forName: suite)
     }
 
+    func testProfileURL() {
+        XCTAssertEqual(LocalProfile.profileURL("folzy"), "https://sonar.folzy.ru/@folzy")
+        XCTAssertEqual(LocalProfile.profileURL("  @Folzy_1 "), "https://sonar.folzy.ru/@folzy_1")
+        XCTAssertNil(LocalProfile.profileURL(""))
+        XCTAssertNil(LocalProfile.profileURL("ab"))
+        XCTAssertNil(LocalProfile.profileURL("фолзи"))
+        XCTAssertNil(LocalProfile.profileURL("bad name"))
+    }
+
     func testAvatarDataURL() {
         let bytes = Data([0xFF, 0xD8, 0xFF, 0x00, 0x42])
         let url = LocalProfile.dataURL(jpeg: bytes)
