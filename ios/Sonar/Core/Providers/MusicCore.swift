@@ -235,6 +235,171 @@ actor MusicCore {
         }
     }
 
+    // MARK: - Страницы: исполнитель, альбом, плейлисты
+
+    private static func split(_ ref: String) throws -> (kind: String, id: String) {
+        let parts = ref.split(separator: ":", maxSplits: 1).map(String.init)
+        guard parts.count == 2, !parts[1].isEmpty else { throw ServiceError(message: "Неверная ссылка \(ref)") }
+        return (parts[0], parts[1])
+    }
+
+    /// Страница исполнителя (`sca:` / `yma:`): шапка, популярные треки, альбомы и синглы.
+    func artist(_ ref: String) async throws -> (artist: Artist, tracks: [Track], albums: [Album]) {
+        let (kind, id) = try Self.split(ref)
+        switch kind {
+        case "sca":
+            let (user, top, albums) = try await withSoundCloud { client in
+                async let user = client.user(id)
+                async let top = try? client.topTracks(id, limit: 10)
+                async let albums = try? client.userAlbums(id)
+                return (try await user, await top ?? [], await albums ?? [])
+            }
+            guard let artist = SoundCloud.parseArtist(user) else { throw ServiceError(message: "SoundCloud: исполнитель не найден") }
+            return (artist, keep(top), albums)
+        case "yma":
+            let page = try await yandexClient().artist(id)
+            return (page.artist, page.top, page.albums)
+        default:
+            throw ServiceError(message: "Неизвестный исполнитель \(ref)")
+        }
+    }
+
+    /// Альбом или релиз (`scalb:` / `ymalb:`) с треками.
+    func album(_ ref: String) async throws -> (album: Album, tracks: [Track]) {
+        let (kind, id) = try Self.split(ref)
+        switch kind {
+        case "scalb":
+            let (head, raw) = try await withSoundCloud { try await $0.playlist(id) }
+            guard let album = SoundCloud.parseAlbum(head) else { throw ServiceError(message: "SoundCloud: альбом не найден") }
+            return (album, keep(raw))
+        case "ymalb":
+            return try await yandexClient().album(id)
+        default:
+            throw ServiceError(message: "Неизвестный альбом \(ref)")
+        }
+    }
+
+    /// Популярные треки исполнителя — «знакомое» для волны и «Для вас».
+    func artistTop(_ ref: String, limit: Int) async throws -> [Track] {
+        let (kind, id) = try Self.split(ref)
+        switch kind {
+        case "sca": return keep(try await withSoundCloud { try await $0.topTracks(id, limit: limit) })
+        case "yma": return Array(try await yandexClient().artist(id).top.prefix(limit))
+        default: throw ServiceError(message: "Неизвестный исполнитель \(ref)")
+        }
+    }
+
+    /// Альбомы и синглы исполнителя — для «Релизов».
+    func artistAlbums(_ ref: String) async throws -> [Album] {
+        let (kind, id) = try Self.split(ref)
+        switch kind {
+        case "sca": return try await withSoundCloud { try await $0.userAlbums(id) }
+        case "yma": return try await yandexClient().artist(id).albums
+        default: throw ServiceError(message: "Неизвестный исполнитель \(ref)")
+        }
+    }
+
+    /// Новинки Яндекса; не подключён — пусто.
+    func newReleases(limit: Int) async throws -> [Album] {
+        guard yandex != nil else { return [] }
+        return try await yandexClient().newReleases(limit: limit)
+    }
+
+    var hasYandex: Bool { yandex != nil }
+
+    /// Лайков сервиса в плейлисте «Лайки» — не больше.
+    static let maxServiceLikes = 2000
+
+    /// Свои плейлисты подключённых сервисов для Медиатеки: сначала SoundCloud (первым — «Лайки
+    /// SoundCloud», нужен OAuth-токен), потом Яндекс («Мне нравится» первым). Ошибка одного сервиса не
+    /// мешает другому.
+    func myPlaylists() async -> [ServicePlaylist] {
+        var out: [ServicePlaylist] = []
+        if let soundCloud, let token = soundCloud.creds.oauthToken, !token.isEmpty, let uid = soundCloud.account.uid {
+            let client = SoundCloud(clientId: soundCloud.creds.clientId, oauthToken: token)
+            out.append(ServicePlaylist(ref: "scpl:likes", title: "Лайки SoundCloud", owner: soundCloud.account.name ?? "", coverURL: nil, trackCount: 0))
+            out += (try? await client.userPlaylists(uid)) ?? []
+        }
+        if let yandex, let uid = yandex.account.uid {
+            out.append(ServicePlaylist(ref: "ympl:likes", title: "Мне нравится", owner: yandex.account.name ?? "", coverURL: nil, trackCount: 0))
+            // «Мне нравится» в Яндексе — kind 3, он уже есть строкой выше
+            let lists = (try? await Yandex(token: yandex.creds.token).userPlaylists(uid)) ?? []
+            out += lists.filter { !$0.ref.hasSuffix(":3") }
+        }
+        return out
+    }
+
+    /// Плейлист сервиса с треками: `scpl:<id>`, `scpl:likes`, `ympl:<uid>:<kind>`, `ympl:likes`.
+    func playlist(_ ref: String) async throws -> (head: ServicePlaylist, tracks: [Track]) {
+        let (kind, id) = try Self.split(ref)
+        switch (kind, id) {
+        case ("scpl", "likes"):
+            guard let soundCloud, let token = soundCloud.creds.oauthToken, !token.isEmpty, let uid = soundCloud.account.uid else {
+                throw ServiceError(message: "Для лайков SoundCloud нужен OAuth-токен — Профиль → Сервисы")
+            }
+            let client = SoundCloud(clientId: soundCloud.creds.clientId, oauthToken: token)
+            let tracks = keep(try await client.userLikes(uid, max: Self.maxServiceLikes))
+            return (ServicePlaylist(ref: ref, title: "Лайки SoundCloud", owner: soundCloud.account.name ?? "",
+                                    coverURL: tracks.first?.coverURL, trackCount: tracks.count), tracks)
+        case ("scpl", _):
+            let (head, raw) = try await withSoundCloud { try await $0.playlist(id) }
+            guard let playlist = SoundCloud.parsePlaylist(head) else { throw ServiceError(message: "SoundCloud: плейлист не найден") }
+            return (playlist, keep(raw))
+        case ("ympl", "likes"):
+            guard let yandex, let uid = yandex.account.uid else { throw ServiceError(message: "Яндекс Музыка не подключена — открой Профиль → Сервисы") }
+            let tracks = try await Yandex(token: yandex.creds.token).likes(uid: uid, max: Self.maxServiceLikes)
+            return (ServicePlaylist(ref: ref, title: "Мне нравится", owner: yandex.account.name ?? "",
+                                    coverURL: tracks.first?.coverURL, trackCount: tracks.count), tracks)
+        case ("ympl", _):
+            let ids = id.split(separator: ":").map(String.init)
+            guard ids.count == 2 else { throw ServiceError(message: "Неверная ссылка на плейлист") }
+            return try await yandexClient().playlist(uid: ids[0], kind: ids[1])
+        default:
+            throw ServiceError(message: "Неизвестный плейлист \(ref)")
+        }
+    }
+
+    // MARK: - Скачивание
+
+    /// Откуда скачать трек файлом. Яндекс — mp3 / FLAC как для плеера. SoundCloud: Яндекс-двойник (если
+    /// включено «SoundCloud в качестве Яндекса»), иначе прямой mp3 SoundCloud, иначе двойник всё равно;
+    /// только HLS — «Этот трек нельзя скачать».
+    func downloadSource(_ ref: String) async throws -> DownloadSource {
+        let (kind, id) = try Self.split(ref)
+        let cannot = ServiceError(message: "Этот трек нельзя скачать")
+        switch kind {
+        case "ym":
+            guard let source = DownloadSource.from(try await yandexClient().stream(id, maxKbps: maxKbps)) else { throw cannot }
+            return source
+        case "sc":
+            if soundCloudViaYandex, let source = await twinDownload(ref, id: id) { return source }
+            var json = soundCloudRaw[ref]
+            if json == nil {
+                json = try await withSoundCloud { try await $0.trackJSON(id) }
+                soundCloudRaw[ref] = json
+            }
+            if let json, let progressive = SoundCloud.pickProgressive(json) {
+                var stream = try? await withSoundCloud { try await $0.stream(json, transcoding: progressive) }
+                if stream == nil, let fresh = try? await withSoundCloud({ try await $0.trackJSON(id) }),
+                   let again = SoundCloud.pickProgressive(fresh) {
+                    // в сохранённом JSON могла протухнуть track_authorization
+                    soundCloudRaw[ref] = fresh
+                    stream = try? await withSoundCloud { try await $0.stream(fresh, transcoding: again) }
+                }
+                if let stream, let source = DownloadSource.from(stream) { return source }
+            }
+            if !soundCloudViaYandex, let source = await twinDownload(ref, id: id) { return source }
+            throw cannot
+        default:
+            throw ServiceError(message: "Неизвестный источник в \(ref)")
+        }
+    }
+
+    private func twinDownload(_ ref: String, id: String) async -> DownloadSource? {
+        guard yandex != nil, let stream = await yandexTwin(ref, id: id) else { return nil }
+        return DownloadSource.from(stream)
+    }
+
     // MARK: - Поток
 
     /// Ссылка на поток для `sc:123` / `ym:456`. fresh — не брать из кэша (ссылка протухла).
