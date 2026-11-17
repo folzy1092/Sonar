@@ -71,7 +71,7 @@
 | `appearance.tab_style` | `standard` / `rounded` / `floating` | `floating` | да |
 | `appearance.mini_player` | `capsule` / `standard` / `minimal` | `capsule` | да |
 | `appearance.background` | `standard` (тема) / `cover_color` / `cover` (сама обложка, размытая) / `custom` (свой фон) | `cover_color` | да |
-| `appearance.progress_indicator` | `none` / `line` (линия внизу мини-плеера) / `fill` (заливка фона) / `ring` (кольцо на обложке) | `ring` | да |
+| `appearance.progress_indicator` | `none` или набор через запятую из `line` (линия внизу мини-плеера) / `fill` (заливка фона) / `ring` (кольцо на обложке) — можно несколько сразу (`line,ring`); iOS — Профиль → Мини-плеер (2026-11-17) | `ring` | да |
 | `appearance.cover_shape` | `rounded` / `circle` / `hidden` (обложка в мини-плеере) | `circle` | да |
 | `appearance.corner_radius` | `none` / `soft` / `rounded` / `pill` (Нет / Маленькое / Среднее / Большое) | `rounded` | да |
 | `appearance.glass` | bool — прозрачность окна: Windows 11 — Mica, Windows 10 — Acrylic (`glass.rs`) | `false` (PC) | да |
