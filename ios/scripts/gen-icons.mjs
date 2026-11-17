@@ -25,10 +25,17 @@ const MAP = {
   refresh: 'refresh-2', info: 'information', lock: 'lock', album: 'album', mic: 'mic',
   bolt: 'flash', moon: 'moon', sun: 'sun', disc: 'disc', compass: 'compass', sparkles: 'sparkles', rain: 'drizzle',
   eyeClosed: 'eye-close', dash: 'minimize', square: 'square', palette: 'palette', capsule: 'layout-bottom', pic: 'pic', brush: 'brush', circle: 'round', grid: 'grid', layers: 'layers', translate: 'translate', textLines: 'align-left', sliders: 'settings-6', letterT: 'text',
+  // Система: Статистика, Общее, Хранилище, Last.fm, экраны «с сервером»
+  chart: 'chart-bar', pie: 'chart-pie', storage: 'storage', cloud: 'cloud', cloudSync: 'cloud-sync', shield: 'safe-shield', key: 'key-2',
+  globe: 'globe', telegram: 'telegram', document: 'document', fire: 'fire', trophy: 'trophy', headphone: 'headphone', calendar: 'calendar',
+  broom: 'broom', externalLink: 'external-link', server: 'server', exit: 'exit', clock: 'clock', fingerprint: 'fingerprint', userHeart: 'user-heart',
+  arrowUp: 'arrow-up', arrowDown: 'arrow-down',
 }
 
 /** Знаки сервисов — одна заливка (Simple Icons, 24×24). */
 const BRANDS = { soundcloud: 'soundcloud' }
+// Система: знак Last.fm
+BRANDS.lastfm = 'lastdotfm'
 
 const paths = (body) => [...body.matchAll(/<path[^>]*\sd="([^"]+)"/g)].map((m) => m[1])
 
