@@ -43,11 +43,21 @@
 | `audio.sc_via_yandex` | bool — трек SoundCloud играть с Яндекса, если там есть тот же (исполнитель, название ±0.9, длительность ±3 с, одинаковые «версии»); нет — SoundCloud | `true` | нет |
 | `audio.gapless` | bool | `true` | да |
 | `audio.normalize` | bool | `false` | да |
-| `audio.on_interruption` | `duck` / `pause` / `none` | `duck` | да |
-| `audio.crossfade` (PC) | bool | `false` | да |
+| `audio.on_interruption` (iOS) | `duck` / `pause` / `none` — что после звонка, Siri, будильника (паузу ставит сама iOS): вернуть плавно (с 20 % громкости за 2 с) / оставить на паузе / вернуть сразу; возвращает, только если до звонка играло и iOS разрешила (`shouldResume`) | `duck` | да |
+| `audio.crossfade` | число, секунды 0…12 (0 — выкл; включение ставит 6). ПК — наложение двух дек; iPhone — затухание конца и нарастание следующего без наложения (AVQueuePlayer играет по одному) | `0` | да |
 | `audio.output_device` (PC) | id устройства | системное | нет |
 
-Качество — пожелание: сервер выбирает ближайшее доступное (SC выше 256 не даёт).
+Качество — пожелание: сервер выбирает ближайшее доступное (SC выше 256 не даёт). На iPhone старое
+значение `lossless` читается как `max`.
+
+**iPhone** (Профиль → Аудио, `ios/Sonar/Features/Settings/Player/AudioSettingsView.swift`): всё применяется
+сразу — `PlaybackEngine` следит за настройками. Эквалайзер (`audio.eq`, `audio.eq_enabled` — на iPhone
+`audio.eq` строкой «12 чисел через запятую», пусто — ровно) и нормализация — `MTAudioProcessingTap`
+(`Playback/AudioTap.swift`, формулы `Playback/PlayerDSP.swift`): звучат только на **файлах** (Яндекс mp3 / FLAC,
+SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, скачанные). Поток **HLS** (почти весь SoundCloud) AVPlayer
+проигрывает мимо `audioMix` — там без эквалайзера и нормализации, в настройках так и написано. Свои пресеты
+(`audio.eq_presets`) на iPhone пока нет — только встроенные; правка кривой сохраняется сразу (без «Сохранить»).
+`audio.gapless` выключен (и нет кроссфейда) — следующий трек не подгружается заранее.
 
 ## Профиль — `profile.*` (Аккаунт → Профиль, Windows 2026-11-16)
 
@@ -141,14 +151,18 @@
 
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
-| `player.style` | `standard` / `vinyl` (винил крутится, игла) / `large` (обложка на всю колонку) | `standard` (PC) | да |
+| `player.style` | `standard` / `vinyl` (винил крутится, игла) / `large` (обложка на всю колонку; на iPhone — на весь фон, `player.jpg`) | `standard` (PC), `large` (iOS) | да |
 | `player.visualizer` (PC) | `off` / `bar` / `cover` (на обложке) / `slider` (на ползунке) | `bar` | да |
 | `player.queue_view` | `normal` / `extended` | `extended` | да |
-| `player.background` | `none` / `cover_blur` / `cover_color` | `none` | да |
+| `player.background` | `none` / `cover_blur` / `cover_color` (iPhone: для `standard` и `vinyl`; у `large` фон — сама обложка) | `none` (PC), `cover_blur` (iOS) | да |
 | `player.title_align` | `left` / `center` / `right` | `center` | да |
 | `player.slider` | `normal` / `thin` / `smooth` / `wave_bars` / `wavy` | `normal` | да |
 | `player.play_button` | `circle` / `square` / `clean` | `circle` | да |
 | `player.artist_avatars` | bool | `true` | да |
+
+**iPhone** (Профиль → Вид плеера, `PlayerViewSettingsView`): стиль, фон, выравнивание, ползунок (все пять, `Features/Player/PlayerSlider.swift`),
+кнопка и аватарки применяются в `FullPlayerView` сразу; сверху экрана — живой пример. Визуализатора и позиции
+обложки на iPhone нет. Значения — rawValue в `ios/Sonar/Playback/PlayerPrefs.swift`, умолчания — `SettingsDefaults+Player.swift`.
 
 Скорость воспроизведения — не настройка, а лист в плеере (`photo_30`); «Запомнить» пишет в
 `track_prefs` (см. `DB.md`).
@@ -182,9 +196,15 @@
 |---|---|---|---|
 | `queue.show` (PC) | bool | `true` | да |
 | `queue.preview` | bool — карточка «Дальше» за 10 с до конца (мини-плеер и плеер) | `true` | да |
-| `queue.view` (PC) | `normal` (компактно, без обложек) / `extended` | `extended` | да |
+| `queue.view` | `normal` (компактно, без обложек) / `extended` | `extended` | да |
 | `queue.position` (PC) | `bottom` / `left` / `right` | `bottom` | да |
-| `queue.add_following` | bool — тап по треку ставит и следующие за ним | `true` | да |
+| `queue.add_following` | bool — тап по треку ставит и следующие за ним (iPhone: `engine.play(…, tapped: true)` у строк треков; «Слушать» / «Перемешать» — всегда весь список) | `true` | да |
+
+**iPhone** (Профиль → Очередь, `QueueSettingsView`): «Продолжить с прошлого раза» (`general.restore`: очередь —
+`Application Support/Sonar/player-state.json`, до 50 прошлых и 300 следующих, на паузе с той же секунды),
+`queue.view` (лист очереди без обложек / с обложками), `queue.preview` (мини-плеер: «Дальше · …» вместо
+исполнителя, плеер: «через N с» у «Далее»), «Авто похожие» и `queue.add_following`. `queue.show` и
+`queue.position` — только ПК.
 
 ## Жесты — `gestures.*` (`photo_18..20`)
 
@@ -203,7 +223,14 @@
 | `gestures.cover.double_tap` | `like` |
 | `gestures.cover.triple_tap` | `next` |
 
-Все — sync. `delete` в Медиатеке = убрать из плейлиста/лайков (с «Отменить» 4 с).
+Все — sync. `delete` в Медиатеке = убрать из плейлиста/лайков (с «Отменить» 4 с — на iPhone пока без «Отменить»).
+
+Что где можно выбрать (`GestureContext.allowed` в `ios/Sonar/Playback/Gestures.swift`; чужое значение — умолчание):
+Медиатека — `off` / `play_next` / `enqueue` / `like` / `delete`; Очередь — `off` / `delete` / `play_next`
+(переставить следующим) / `enqueue` (в конец) / `like`; Мини-плеер и Плеер — `off` / `next` / `previous` / `like`;
+тапы по обложке — `off` / `like` / `next` / `previous`. «Влево» — палец едет влево. Двойной тап `like` только
+ставит лайк (с большим сердцем), не снимает. iPhone (Профиль → Жесты, `GesturesSettingsView`): свайпы по
+строкам треков (`TrackRow`), «Далее» в очереди, мини-плееру и обложке полного плеера; тапы — по обложке.
 
 ## Вкладки PC — `tabs.*` (Интерфейс → Вкладки, 2026-11-16)
 

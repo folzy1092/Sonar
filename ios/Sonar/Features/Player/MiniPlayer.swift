@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Мини-плеер (`IMG_6768`): капсула в цвет обложки — обложка кружком в кольце прогресса (`IMG` 09:53), название и исполнитель, лайк,
 /// пауза. Свёрнутая панель (`IMG_6769`): уже, без лайка, название бежит строкой. Тап — полный плеер,
-/// свайп вбок — следующий / предыдущий трек. Форма и размер задаёт `BottomChrome`, тут — содержимое.
+/// свайп вбок — действие из Профиль → Жесты → Мини-плеер (по умолчанию следующий / предыдущий). За 10 с до
+/// конца вместо исполнителя — «Дальше · …» (`queue.preview`). Форма и размер задаёт `BottomChrome`.
 struct MiniPlayer: View {
     var compact = false
     let open: @MainActor () -> Void
@@ -14,6 +15,13 @@ struct MiniPlayer: View {
     /// Вид (Профиль → Мини-плеер): фон, прогресс, обложка, скругление.
     private var style: MiniStyle { MiniStyle.current(settings) }
     private var indicators: Set<ProgressIndicator> { style.progress }
+
+    /// «Дальше»: последние 10 секунд трека, если в очереди есть следующий.
+    private var previewNext: Track? {
+        guard settings.bool("queue.preview"), engine.duration > 0, engine.position > 0,
+              engine.duration - engine.position <= 10 else { return nil }
+        return engine.upNext.first
+    }
 
     private var progress: Double {
         engine.duration > 0 ? min(1, max(0, engine.position / engine.duration)) : 0
@@ -32,8 +40,18 @@ struct MiniPlayer: View {
                 }
                 VStack(alignment: .leading, spacing: 1) {
                     MarqueeText(text: track.title, font: .system(size: compact ? 16 : 17, weight: .medium), color: Theme.text)
-                    MarqueeText(text: track.artist, font: .system(size: compact ? 14 : 15), color: Theme.text.opacity(0.7))
+                    Group {
+                        if let next = previewNext {
+                            MarqueeText(text: "Дальше · \(next.title)", font: .system(size: compact ? 14 : 15, weight: .medium), color: Theme.accent)
+                                .id("next-\(next.ref)")
+                        } else {
+                            MarqueeText(text: track.artist, font: .system(size: compact ? 14 : 15), color: Theme.text.opacity(0.7))
+                                .id("artist")
+                        }
+                    }
+                    .transition(.opacity.combined(with: .offset(y: 6)))
                 }
+                .animation(Motion.spring, value: previewNext?.ref)
                 .id(track.ref)
                 .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                 if !compact {
@@ -99,9 +117,16 @@ struct MiniPlayer: View {
             .onTapGesture(perform: open)
             .gesture(
                 DragGesture(minimumDistance: 20)
-                    .onChanged { drag = $0.translation.width * 0.4 }
+                    .onChanged { value in
+                        // жест в эту сторону выключен — капсула лишь чуть поддаётся
+                        let direction: SwipeDirection = value.translation.width < 0 ? .left : .right
+                        let live = Gestures.action(settings, .mini, direction) != .off
+                        drag = value.translation.width * (live ? 0.4 : 0.08)
+                    }
                     .onEnded { value in
-                        if value.translation.width < -70 { engine.next() } else if value.translation.width > 70 { engine.previous() }
+                        if let action = Gestures.resolve(settings, .mini, dx: value.translation.width, dy: value.translation.height) {
+                            GestureRunner.perform(action, track: track)
+                        }
                         withAnimation(Motion.spring) { drag = 0 }
                     }
             )
