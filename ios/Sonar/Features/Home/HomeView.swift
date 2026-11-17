@@ -20,7 +20,7 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                DotField(active: active && !showModes, playing: engine.isPlaying && engine.isWave, color: Theme.accent) {
+                DotField(active: active && !showModes, playing: myWavePlaying, color: Theme.accent) {
                     showModes = true
                 }
                     .frame(height: 290)
@@ -120,18 +120,30 @@ struct HomeView: View {
             }
             Spacer(minLength: 8)
             Button {
-                if engine.isWave { engine.toggle() } else { engine.playMyWave() }
+                // сама ставит на паузу / продолжает, если «Моя волна» уже играет
+                engine.playMyWave()
             } label: {
-                SonarIcon(engine.isWave && engine.isPlaying ? .pause : .play, filled: true, size: 34)
-                    .foregroundStyle(Theme.accentInk)
-                    .contentTransition(.opacity)
+                ZStack {
+                    if engine.waveLoading {
+                        ProgressView().tint(Theme.accentInk).scaleEffect(1.2)
+                    } else {
+                        SonarIcon(myWavePlaying ? .pause : .play, filled: true, size: 34)
+                            .foregroundStyle(Theme.accentInk)
+                            .transition(.opacity)
+                    }
+                }
                     .frame(width: 70, height: 70)
                     .background(Theme.accent, in: Circle())
                     .shadow(color: Theme.glow.opacity(0.45), radius: 18, y: 6)
             }
             .buttonStyle(PressableStyle(scale: 0.9))
-            .accessibilityLabel(engine.isWave && engine.isPlaying ? "Пауза" : "Включить Мою волну")
+            .accessibilityLabel(myWavePlaying ? "Пауза" : "Включить Мою волну")
         }
+    }
+
+    /// Играет именно «Моя волна» (не «Волна по треку»).
+    private var myWavePlaying: Bool {
+        engine.isWave && engine.waveSeed == nil && engine.isPlaying
     }
 
     /// «Что включим этим утром?» — по времени суток.

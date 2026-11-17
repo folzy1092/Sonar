@@ -66,6 +66,12 @@ struct RootView: View {
                 engine.message = nil
             }
         }
+        .onChange(of: DownloadStore.shared.message) { _, message in
+            if let message {
+                router.say(message)
+                DownloadStore.shared.message = nil
+            }
+        }
         .fullScreenCover(isPresented: $showPlayer) {
             FullPlayerView()
         }

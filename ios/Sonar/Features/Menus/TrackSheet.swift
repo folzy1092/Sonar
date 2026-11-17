@@ -49,7 +49,8 @@ struct TrackSheet: View {
                         SheetMenuRow(icon: .dislike, title: library.isDisliked(track.ref) ? "Снова интересно" : "Не интересно",
                                      subtitle: library.isDisliked(track.ref) ? "Вернётся в подборки" : "Не попадётся в подборках") {
                             let was = library.isDisliked(track.ref)
-                            library.toggleDislike(track)
+                            // 👎 через плеер: если трек играет — сразу следующий
+                            if was { library.toggleDislike(track) } else { engine.dislike(track) }
                             done(was ? "Трек вернётся в подборки" : "Больше не попадётся в подборках")
                         }
                         if let remove = item.remove {
