@@ -279,7 +279,7 @@ struct SearchView: View {
             TrackRow(track: track, playing: engine.current?.ref == track.ref) {
                 focused = false
                 remember(query)
-                engine.play(tracks, at: index + offset, context: "Поиск")
+                engine.play(tracks, at: index + offset, context: "Поиск", tapped: true)
             }
             .cascade(index)
         }

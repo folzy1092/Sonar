@@ -91,7 +91,7 @@ struct ArtistScreen: View {
                         LazyVStack(spacing: 4) {
                             ForEach(Array(page.tracks.enumerated()), id: \.element.ref) { index, track in
                                 TrackRow(track: track, playing: engine.current?.ref == track.ref) {
-                                    engine.play(page.tracks, at: index, context: page.artist.name)
+                                    engine.play(page.tracks, at: index, context: page.artist.name, tapped: true)
                                 }
                                 .cascade(index)
                             }
@@ -172,7 +172,7 @@ struct AlbumScreen: View {
                     LazyVStack(spacing: 4) {
                         ForEach(Array(page.tracks.enumerated()), id: \.element.ref) { index, track in
                             TrackRow(track: track, playing: engine.current?.ref == track.ref) {
-                                engine.play(page.tracks, at: index, context: page.album.title)
+                                engine.play(page.tracks, at: index, context: page.album.title, tapped: true)
                             }
                             .cascade(index)
                         }
