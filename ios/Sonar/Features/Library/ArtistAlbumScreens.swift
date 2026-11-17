@@ -24,7 +24,7 @@ private struct PageHeader: View {
 
     /// «Слушать» ⇄ «Пауза»: играет эта подборка — пауза, на паузе — продолжить с места.
     private var listen: ListenAction {
-        .resolve(page: context, context: engine.contextTitle, isWave: engine.isWave, hasCurrent: engine.current != nil, isPlaying: engine.isPlaying)
+        .resolve(page: context, context: engine.contextTitle, isWave: engine.isWave, hasCurrent: engine.current != nil, isPlaying: engine.isPlaying, ended: engine.queueEnded)
     }
 
     var body: some View {

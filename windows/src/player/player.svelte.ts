@@ -31,6 +31,9 @@ class Player {
   contextTitle = $state<string | null>(null)
 
   playing = $state(false)
+  /** Очередь доиграла до конца (стоит на последнем треке, пауза): «Слушать» начинает подборку заново
+   *  (lib/listen.ts), а не продолжает последний трек. Снимается при загрузке трека и при игре. */
+  ended = $state(false)
   loading = $state(false)
   /** Прогресс загрузки трека для анимации загрузки (components/LoadFx.svelte): `null` — не грузится,
    *  0…1 — этапы (ссылка на поток → метаданные / манифест → первый фрагмент → можно играть),
@@ -378,6 +381,7 @@ class Player {
     if (p === null) {
       this.pause()
       this.seek(0)
+      this.ended = true
       return
     }
     this.pos = p
@@ -515,6 +519,7 @@ class Player {
     const track = this.current
     if (!a || !track) return
     const token = ++this.loadToken
+    this.ended = false
     this.error = null
     this.loading = true
     this.stage(0)
@@ -699,6 +704,7 @@ class Player {
 
   private setPlaying(on: boolean) {
     this.playing = on
+    if (on) this.ended = false
     if (on && this.ctx?.state === 'suspended') void this.ctx.resume()
     if (on) this.error = null
     if (this.heartbeat) clearInterval(this.heartbeat)
