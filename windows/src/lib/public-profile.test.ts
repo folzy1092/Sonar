@@ -2,13 +2,15 @@ import { describe, expect, it } from 'vitest'
 import type { ArtistStat, ListTrack, Playlist, Stats, Track } from './api'
 import {
   buildPublicProfile,
+  formatHours,
+  hoursPluralCount,
   profileInitial,
   profileUrl,
   PROFILE_ARTISTS_SHOWN,
   PROFILE_LIKES_SHOWN,
   PROFILE_PLAYLISTS_SHOWN,
-  SITE_URL,
 } from './public-profile'
+import { SITE_URL } from './site'
 
 const track = (n: number): Track => ({
   ref: `sc:${n}`,
@@ -91,10 +93,11 @@ describe('buildPublicProfile', () => {
     expect(p.created_at).toBeNull()
   })
 
-  it('пустой профиль — имя и аватар подключённого сервиса, как на главной', () => {
-    const p = buildPublicProfile({ ...base, account: { name: 'SC Name', avatar_url: 'https://a/1.jpg' } })
-    expect(p.display_name).toBe('SC Name')
-    expect(p.avatar_url).toBe('https://a/1.jpg')
+  it('пустой профиль — без имени и аватара: аккаунт SoundCloud / Яндекса гость не видит', () => {
+    const p = buildPublicProfile({ ...base, name: '   ' })
+    expect(p.display_name).toBe('')
+    expect(p.avatar_url).toBeNull()
+    expect(Object.keys(p)).not.toContain('account')
   })
 
   it('ничего нет — пустое имя, без аватара и @username', () => {
@@ -146,9 +149,40 @@ describe('buildPublicProfile', () => {
   })
 
   it('сейчас играет — текущий трек', () => {
-    const p = buildPublicProfile({ ...base, current: track(7) })
+    const p = buildPublicProfile({ ...base, current: track(7), playing: true })
     expect(p.now_playing?.ref).toBe('sc:7')
     expect(p.now_playing?.cover_url).toBe('https://img/7.jpg')
+  })
+
+  it('трек на паузе или восстановленный при запуске — «Сейчас слушает» нет', () => {
+    expect(buildPublicProfile({ ...base, current: track(7), playing: false }).now_playing).toBeNull()
+    expect(buildPublicProfile({ ...base, current: track(7) }).now_playing).toBeNull()
+  })
+
+  it('артисты с одинаковым ref (Яндекс «A» и «A, B») остаются оба, имена разные', () => {
+    const solo: ArtistStat = { name: 'A', avatar_url: null, ref: 'yma:1', ms: 9000, plays: 9 }
+    const feat: ArtistStat = { name: 'A, B', avatar_url: null, ref: 'yma:1', ms: 5000, plays: 5 }
+    const p = buildPublicProfile({ ...base, stats: stats({ top_artist: solo, more_artists: [feat] }) })
+    const names = p.top_artists.map((a) => a.name)
+    expect(names).toEqual(['A', 'A, B'])
+    // список на странице ключуется по имени — оно уникально, ref нет
+    expect(new Set(names).size).toBe(names.length)
+  })
+})
+
+describe('часы музыки', () => {
+  it('до 10 — с одной цифрой после точки, дальше целыми', () => {
+    expect(formatHours(1.44)).toBe('1.4')
+    expect(formatHours(0)).toBe('0.0')
+    expect(formatHours(12.6)).toBe('13')
+  })
+
+  it('дробное число — форма как у 2 («1.4 часа», «1.4 hours»), целое — по самому числу', () => {
+    expect(hoursPluralCount(1.4)).toBe(2)
+    expect(hoursPluralCount(0.6)).toBe(2)
+    expect(hoursPluralCount(1)).toBe(2) // «1.0» — тоже дробь
+    expect(hoursPluralCount(21.2)).toBe(21)
+    expect(hoursPluralCount(11)).toBe(11)
   })
 })
 

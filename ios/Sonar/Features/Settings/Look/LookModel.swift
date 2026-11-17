@@ -276,7 +276,8 @@ enum LocalProfile {
         return s.unicodeScalars.allSatisfy { allowed.contains($0) }
     }
 
-    /// Публичный сайт (как ПК `SITE_URL`): профиль по ссылке `https://sonar.folzy.ru/@username`.
+    /// Публичный сайт (как ПК `lib/site.ts` `SITE_URL`) — один адрес на всё приложение: «Сайт» в
+    /// «О приложении» (`AboutSection.site`) и профиль по ссылке `https://sonar.folzy.ru/@username`.
     static let siteURL = "https://sonar.folzy.ru"
 
     /// Ссылка на профиль (ПК `profileUrl`): @username без «@», строчными. Пусто или с ошибкой — nil.

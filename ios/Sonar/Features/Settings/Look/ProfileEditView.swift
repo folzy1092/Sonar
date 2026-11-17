@@ -80,6 +80,8 @@ struct ProfileEditView: View {
     @State private var failed = false
     @State private var loaded = false
     @State private var copied = false
+    /// Возврат «Ссылка скопирована» → «Копировать…»; повторное нажатие отменяет прежний (ПК — `clearTimeout`).
+    @State private var copiedReset: Task<Void, Never>?
     @FocusState private var focus: Field?
 
     private enum Field { case name, username }
@@ -189,8 +191,10 @@ struct ProfileEditView: View {
                 UIPasteboard.general.string = url
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
                 withAnimation(Motion.quick) { copied = true }
-                Task {
+                copiedReset?.cancel()
+                copiedReset = Task {
                     try? await Task.sleep(for: .seconds(1.8))
+                    guard !Task.isCancelled else { return }
                     withAnimation(Motion.quick) { copied = false }
                 }
             } label: {

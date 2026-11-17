@@ -2,17 +2,18 @@
 // увидит гость. `PublicProfile` — тот же объект, что потом отдаст `GET /public/users/{username}`
 // (docs/API.md) и нарисует страница сайта `site/`. До сервера предпросмотр «Как видят мой профиль»
 // собирает его здесь, на компьютере: профиль из настроек (`profile.*`), Любимые, плейлисты Sonar,
-// статистика из `plays` и текущий трек. Приватности пока нет (вопрос владельцу, NEXT_PROMPT этап 0
-// п. 9) — видно всё, в том числе плейлисты, скрытые из «Все» в Медиатеке.
+// статистика из `plays` и то, что играет сейчас. Приватности пока нет (вопрос владельцу, NEXT_PROMPT
+// этап 0 п. 9) — предпросмотр показывает всё как открытое, в том числе плейлисты, скрытые из «Все».
+// Имя и аватар — только профиля Sonar: аккаунт SoundCloud / Яндекса сервер гостю не покажет.
 import type { ListTrack, Playlist, Stats, Track } from './api'
 import { cleanUsername, USERNAME_RE } from './avatar'
-
-/** Публичный сайт (GitHub Pages), как «Сайт» в «О приложении». */
-export const SITE_URL = 'https://sonar.folzy.ru'
+import { SITE_URL } from './site'
 /** Сколько Любимых видно на странице профиля (остальное — числом). */
 export const PROFILE_LIKES_SHOWN = 8
 export const PROFILE_PLAYLISTS_SHOWN = 12
 export const PROFILE_ARTISTS_SHOWN = 6
+/** Часы музыки до этого числа показываются с одной цифрой после точки («1.4»), дальше — целыми. */
+const HOURS_DECIMAL_BELOW = 10
 
 /** Ссылка на профиль: `https://sonar.folzy.ru/@folzy`. Нет @username или он с ошибкой — null. */
 export function profileUrl(username: string): string | null {
@@ -74,12 +75,12 @@ export interface ProfileSource {
   name: string
   username: string
   avatar: string
-  /** Аккаунт подключённого сервиса — запасные имя и аватар, как на главной. */
-  account?: { name: string | null; avatar_url: string | null } | null
   favorites?: ListTrack[] | null
   playlists?: Playlist[] | null
   stats?: Stats | null
   current?: Track | null
+  /** Играет ли `current` сейчас: на паузе или восстановленный при запуске трек гостю не виден. */
+  playing?: boolean
 }
 
 export function toPublicTrack(track: Track): PublicTrack {
@@ -121,11 +122,11 @@ export function buildPublicProfile(src: ProfileSource): PublicProfile {
   const playlists = src.playlists ?? []
   return {
     username: USERNAME_RE.test(username) ? username : null,
-    display_name: src.name.trim() || src.account?.name?.trim() || '',
+    display_name: src.name.trim(),
     number: null,
-    avatar_url: src.avatar || src.account?.avatar_url || null,
+    avatar_url: src.avatar || null,
     created_at: null,
-    now_playing: src.current ? toPublicTrack(src.current) : null,
+    now_playing: src.playing && src.current ? toPublicTrack(src.current) : null,
     stats: publicStats(src.stats),
     top_artists: topArtists(src.stats),
     likes: { count: favorites.length, tracks: favorites.slice(0, PROFILE_LIKES_SHOWN).map(toPublicTrack) },
@@ -138,4 +139,18 @@ export function buildPublicProfile(src: ProfileSource): PublicProfile {
 export function profileInitial(profile: Pick<PublicProfile, 'display_name' | 'username'>): string {
   const source = profile.display_name.trim() || profile.username || 'S'
   return [...source][0].toUpperCase()
+}
+
+/** Часы музыки так, как их видно на странице: до 10 — с одной цифрой после точки, дальше — целыми. */
+export function formatHours(hours: number): string {
+  return hours < HOURS_DECIMAL_BELOW ? hours.toFixed(1) : String(Math.round(hours))
+}
+
+/**
+ * Число для `tn` к подписи часов: дробное («1.4») требует «часа» / «години» / «hours», как у 2, —
+ * поэтому форма выбирается по показанной строке, а не по округлённому числу.
+ */
+export function hoursPluralCount(hours: number): number {
+  const shown = formatHours(hours)
+  return shown.includes('.') ? 2 : Number(shown)
 }

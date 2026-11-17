@@ -11,8 +11,8 @@
   import { updater } from '../../lib/updater.svelte'
   import { settingsPanel } from '../settings-section.svelte'
   import { t } from '../../lib/i18n.svelte'
+  import { SITE_URL as SITE } from '../../lib/site'
 
-  const SITE = 'https://sonar.folzy.ru'
   const LINKS = [
     { label: 'Сайт', url: SITE },
     { label: 'Телеграм', url: 'https://t.me/SonarUpdates' },
