@@ -241,7 +241,7 @@ pub fn set_setting(
     _ => {}
   }
   if key == "audio.sc_via_yandex" {
-    core.sc_via_yandex.store(value.as_bool().unwrap_or(true), Ordering::Relaxed);
+    core.sc_via_yandex.store(value.as_bool().unwrap_or(false), Ordering::Relaxed);
   }
   if key == "audio.quality" {
     core.max_kbps.store(crate::services::quality_kbps(value.as_str()), Ordering::Relaxed);
@@ -1044,7 +1044,7 @@ pub fn all_settings(db: State<'_, Db>) -> Res<std::collections::HashMap<String, 
 #[tauri::command]
 pub fn reset_settings(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<()> {
   db.0.lock().unwrap().reset_settings().map_err(err)?;
-  core.sc_via_yandex.store(true, Ordering::Relaxed);
+  core.sc_via_yandex.store(false, Ordering::Relaxed);
   core.max_kbps.store(crate::services::quality_kbps(None), Ordering::Relaxed);
   Ok(())
 }

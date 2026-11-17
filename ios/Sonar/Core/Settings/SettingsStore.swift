@@ -48,7 +48,8 @@ final class SettingsStore {
         "appearance.animations": .bool(true),
         // потолок качества Яндекса: low 192 · medium 256 · high 320 · lossless FLAC
         "audio.quality": .string("lossless"),
-        "audio.sc_via_yandex": .bool(true),
+        // SoundCloud не подменять Яндексом по умолчанию: на Яндексе треки бывают заблюрены (решение 2026-11-17)
+        "audio.sc_via_yandex": .bool(false),
         // «Авто похожие» после очереди, как в SoundCloud
         "general.similar_autoplay": .bool(true),
         // режим «Моей волны»: own · hard · calm · sad · fun · new (`WaveMode`)
