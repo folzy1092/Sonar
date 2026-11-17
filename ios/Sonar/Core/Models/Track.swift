@@ -144,3 +144,65 @@ struct ServiceError: LocalizedError, Equatable {
         return ServiceError(message: "\(service): \(why) (HTTP \(status))")
     }
 }
+
+extension Track {
+    /// Артисты трека для вкуса и волны (как `wave.rs` `artist_keys`): имена из `artists` в нижнем
+    /// регистре без крайних пробелов, а если списка нет — строка `artist` целиком. Первый — главный.
+    /// По запятым и `&` не режем («Tyler, The Creator», «Simon & Garfunkel»).
+    var artistKeys: [String] {
+        var out: [String] = []
+        for artist in artists {
+            let key = artist.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if !key.isEmpty, !out.contains(key) { out.append(key) }
+        }
+        if out.isEmpty { out.append(artist.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) }
+        return out
+    }
+
+    /// Главный артист — по нему лимиты разнообразия волны, пауза, подборки.
+    var artistKey: String { artistKeys[0] }
+
+    /// ref главного артиста (`sca:` / `yma:`) — для его страницы, популярных треков и релизов.
+    /// У SoundCloud без id пользователя приходит `sca:0` — такого нет.
+    var mainArtistRef: String? {
+        artists.lazy.map(\.ref).first { ($0.hasPrefix("sca:") || $0.hasPrefix("yma:")) && $0 != "sca:0" }
+    }
+
+    /// Имя главного артиста для подписи.
+    var mainArtistName: String {
+        let name = artists.first?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return name.isEmpty ? artist : name
+    }
+}
+
+/// Оценка исхода трека — одна шкала для всех сигналов (docs/WAVE.md 1.3; та же функция — Windows
+/// `src/player/reward.ts` и `wave.rs` `reward`).
+///
+/// | исход (f = прослушано / длительность)        | оценка |
+/// |----------------------------------------------|--------|
+/// | 👎                                           | −2     |
+/// | лайк во время трека или трек уже в Любимых   | +1.5   |
+/// | ручной пропуск, f < 0.25 или < 30 с — ранний  | −1     |
+/// | ручной пропуск, 0.25 ≤ f < 0.5               | −0.4   |
+/// | ручной пропуск, 0.5 ≤ f < 0.8                | 0      |
+/// | f ≥ 0.8 (как угодно закончился)              | +1     |
+/// | сменился не пропуском, f < 0.8               | 0      |
+///
+/// Длительность 0 — по секундам: < 30 с — ранний пропуск, ≥ 150 с — дослушан.
+enum Outcome {
+    static func reward(listenedMs: Int, durationMs: Int, manualSkip: Bool, liked: Bool = false, disliked: Bool = false) -> Double {
+        if disliked { return -2 }
+        if liked { return 1.5 }
+        let early = listenedMs < 30_000
+        guard durationMs > 0 else {
+            if listenedMs >= 150_000 { return 1 }
+            return manualSkip && early ? -1 : 0
+        }
+        let f = Double(listenedMs) / Double(durationMs)
+        if f >= 0.8 { return 1 }
+        if !manualSkip { return 0 }
+        if f < 0.25 || early { return -1 }
+        if f < 0.5 { return -0.4 }
+        return 0
+    }
+}

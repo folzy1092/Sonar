@@ -45,6 +45,8 @@ final class SettingsStore {
         "audio.sc_via_yandex": .bool(true),
         // «Авто похожие» после очереди, как в SoundCloud
         "general.similar_autoplay": .bool(true),
+        // режим «Моей волны»: own · hard · calm · sad · fun · new (`WaveMode`)
+        "wave.mode": .string("own"),
     ]
 
     private static let storageKey = "sonar.settings"

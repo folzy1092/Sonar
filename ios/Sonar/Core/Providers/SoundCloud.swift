@@ -121,6 +121,11 @@ struct SoundCloud: Sendable {
         guard let transcoding = Self.pickTranscoding(track) else {
             throw ServiceError(message: "SoundCloud: у трека нет доступного потока")
         }
+        return try await stream(track, transcoding: transcoding)
+    }
+
+    /// Ссылка на поток выбранного варианта (для скачивания — `pickProgressive`).
+    func stream(_ track: JSONValue, transcoding: JSONValue) async throws -> StreamSource {
         guard let url = transcoding["url"].string else { throw ServiceError(message: "SoundCloud: пустая ссылка потока") }
         let data = try await get(url, [("track_authorization", track["track_authorization"].string ?? "")])
         guard let link = data["url"].string.flatMap(URL.init(string:)) else {
@@ -208,6 +213,13 @@ struct SoundCloud: Sendable {
         return track["media"]["transcodings"].items
             .compactMap { t in score(t).map { (score: $0, t: t) } }
             .max { $0.score < $1.score }?.t
+    }
+
+    /// Прямой mp3 файлом (`progressive`, не превью) — его можно скачать; у многих треков его нет, только HLS.
+    static func pickProgressive(_ track: JSONValue) -> JSONValue? {
+        track["media"]["transcodings"].items.first { t in
+            t["format"]["protocol"].string == "progressive" && t["format"]["mime_type"].string == "audio/mpeg" && t["snipped"].bool != true
+        }
     }
 
     static func parseTrack(_ json: JSONValue) -> Track? {
