@@ -11,6 +11,8 @@
   interface Props {
     /** Контекст очереди этой подборки (`playlist:<id>`, `favorites`, `album:<ref>`, `artist:<ref>`). */
     context?: string | null
+    /** Начинать нечего (нет треков или фильтр всё спрятал) — блокирует только «Слушать» с начала:
+     *  пауза и продолжение играющей подборки работают и так. */
     disabled?: boolean
     /** Начать подборку с начала. */
     onplay: () => void
@@ -18,9 +20,10 @@
 
   let { context = null, disabled = false, onplay }: Props = $props()
 
-  const action = $derived(listenAction(context, { context: player.context, playing: player.playing, hasCurrent: !!player.current }))
+  const action = $derived(listenAction(context, { context: player.context, playing: player.playing, hasCurrent: !!player.current, ended: player.ended }))
   const playing = $derived(action === 'pause')
   const label = $derived(playing ? t('Пауза') : t('Слушать'))
+  const blocked = $derived(disabled && action === 'start')
   // ширина содержимого: кнопка тянется к ней через transition (при «меньше движения» — сразу)
   let innerWidth = $state(0)
 
@@ -31,7 +34,7 @@
   }
 </script>
 
-<button class="listen" {disabled} {onclick} style:width={innerWidth ? `${innerWidth}px` : null}>
+<button class="listen" disabled={blocked} {onclick} style:width={innerWidth ? `${innerWidth}px` : null}>
   <span class="inner" bind:offsetWidth={innerWidth}>
     <PlayPause {playing} size={16} />
     {#key label}<span class="label" in:xfade={{ duration: 180 }}>{label}</span>{/key}

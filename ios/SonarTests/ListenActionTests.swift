@@ -4,8 +4,8 @@ import XCTest
 /// Кнопка «Слушать» ⇄ «Пауза» на экранах подборок (`Playback/ListenAction.swift`), как на ПК.
 @MainActor
 final class ListenActionTests: XCTestCase {
-    private func resolve(page: String = "Микс", context: String = "Микс", isWave: Bool = false, hasCurrent: Bool = true, isPlaying: Bool) -> ListenAction {
-        ListenAction.resolve(page: page, context: context, isWave: isWave, hasCurrent: hasCurrent, isPlaying: isPlaying)
+    private func resolve(page: String = "Микс", context: String = "Микс", isWave: Bool = false, hasCurrent: Bool = true, isPlaying: Bool, ended: Bool = false) -> ListenAction {
+        ListenAction.resolve(page: page, context: context, isWave: isWave, hasCurrent: hasCurrent, isPlaying: isPlaying, ended: ended)
     }
 
     func testPausesWhenThisCollectionPlays() {
@@ -25,6 +25,10 @@ final class ListenActionTests: XCTestCase {
     func testStartsWhenWaveOrEmptyQueue() {
         XCTAssertEqual(resolve(isWave: true, isPlaying: true), .start)
         XCTAssertEqual(resolve(hasCurrent: false, isPlaying: false), .start)
+    }
+
+    func testStartsOverWhenCollectionFinished() {
+        XCTAssertEqual(resolve(isPlaying: false, ended: true), .start)
     }
 
     func testStartsWithoutPageContext() {

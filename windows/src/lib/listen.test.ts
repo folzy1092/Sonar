@@ -18,6 +18,10 @@ describe('listenAction', () => {
     expect(listenAction('playlist:7', { context: 'playlist:7', playing: false, hasCurrent: false })).toBe('start')
   })
 
+  it('подборка доиграла до конца — начать заново, а не повторить последний трек', () => {
+    expect(listenAction('album:ym:1', { context: 'album:ym:1', playing: false, hasCurrent: true, ended: true })).toBe('start')
+  })
+
   it('у страницы нет контекста — всегда начать', () => {
     expect(listenAction(null, { context: null, playing: true, hasCurrent: true })).toBe('start')
     expect(listenAction(undefined, { context: null, playing: false, hasCurrent: true })).toBe('start')

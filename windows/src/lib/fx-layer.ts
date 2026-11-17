@@ -47,16 +47,22 @@ function host(): HTMLDivElement {
   return layer
 }
 
-/** Виден ли элемент (есть размер, попадает в окно и не закрыт полноэкранным слоем `data-fx-overlay` —
- *  иначе дуга мини-плеера рисовалась бы поверх полноэкранного плеера) и стоит ли на своём месте: окно
- *  уехало под панель настроек, предок сдвинут или сейчас двигается — эффект не рисуем, иначе кольца
- *  и дуга повисли бы мимо мини-плеера (lib/fx-displaced.ts). */
-export function visible(el: Element): DOMRect | null {
+export interface VisibleOptions {
+  /** Ещё и стоит ли на своём месте: окно уехало под панель настроек, предок сдвинут или сейчас
+   *  двигается — эффект не рисуем, иначе кольца и дуга смены трека повисли бы мимо мини-плеера
+   *  (lib/fx-displaced.ts). Только для эффектов смены трека (track-fx): лайк рисуется по клику, и у
+   *  кнопки-предка в этот миг ещё идёт свой press-scale (`:active` → обратный переход). */
+  steady?: boolean
+}
+
+/** Виден ли элемент: есть размер, попадает в окно и не закрыт полноэкранным слоем `data-fx-overlay`
+ *  (иначе дуга мини-плеера рисовалась бы поверх полноэкранного плеера). `steady` — см. VisibleOptions. */
+export function visible(el: Element, { steady = false }: VisibleOptions = {}): DOMRect | null {
   const overlay = document.querySelector('[data-fx-overlay]')
   if (overlay && !overlay.contains(el)) return null
   const r = el.getBoundingClientRect()
   if (r.width < 2 || r.height < 2 || r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) return null
-  if (displaced(ancestors(el))) return null
+  if (steady && displaced(ancestors(el))) return null
   return r
 }
 
