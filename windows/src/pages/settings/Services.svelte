@@ -12,6 +12,7 @@
   import { IMPLEMENTED, statusOf, type ServiceInfo } from '../../lib/services'
   import { listen } from '@tauri-apps/api/event'
   import { isTauri } from '../../lib/tauri'
+  import { cascade } from '../../lib/cascade'
 
   let status = $state<ServicesStatus | null>(null)
   let loadError = $state<string | null>(null)
@@ -42,13 +43,23 @@
   <p class="note">{loadError}</p>
 {/if}
 
-{#each IMPLEMENTED as s (s.id)}
-  <ServiceCard info={s} state={statusOf(status, s)} onchange={(next) => update(s, next)} bind:lock />
-{/each}
+<div class="cards" use:cascade={IMPLEMENTED.length}>
+  {#each IMPLEMENTED as s (s.id)}
+    <ServiceCard info={s} state={statusOf(status, s)} onchange={(next) => update(s, next)} bind:lock />
+  {/each}
+</div>
 
 <p class="safe"><Icon name="key" size={16} /> {t('Вход идёт на сайте самого сервиса — Sonar пароль не видит. Ключи хранятся в Диспетчере учётных данных Windows и никуда не отправляются.')}</p>
 
 <style>
+  /* карточки сервисов — сетка: одна колонка в узкой панели, две — в широкой */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+    align-items: start;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
   .safe {
     display: flex;
     align-items: center;

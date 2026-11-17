@@ -5,6 +5,7 @@
   import Choice from '../../components/settings/Choice.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Group from '../../components/settings/Group.svelte'
+  import More from '../../components/settings/More.svelte'
   import Soon from '../../components/settings/Soon.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { t } from '../../lib/i18n.svelte'
@@ -44,12 +45,6 @@
   ]}
   onchange={(v) => settings.set('player.title_align', v)}
 />
-<Switch
-  title={t('Аватарки артистов')}
-  hint={t('Отображать аватарки исполнителей перед их именами в плеере и мини плеере')}
-  on={settings.get('player.artist_avatars')}
-  onchange={(v) => settings.set('player.artist_avatars', v)}
-/>
 <Choice
   title={t('Визуализатор')}
   hint={t('Где показывать визуализацию звука')}
@@ -64,29 +59,6 @@
   ]}
   onchange={(v) => settings.set('player.visualizer', v)}
 />
-<Choice
-  title={t('Стиль')}
-  hint={t('Выберите стиль визуализации аудио')}
-  value={settings.get('player.visualizer_style')}
-  options={[
-    { id: 'wave', label: t('Волна'), icon: 'waveform' },
-    { id: 'bars', label: t('Столбцы'), icon: 'bars' },
-  ]}
-  onchange={(v) => settings.set('player.visualizer_style', v)}
-/>
-<Switch
-  title={t('Спектр в полноэкранном плеере')}
-  hint={t('Тихая волна звука на дне экрана, за текстом. С «Меньше движения» не рисуется')}
-  on={settings.get('player.visualizer_full')}
-  onchange={(v) => settings.set('player.visualizer_full', v)}
-/>
-<Switch
-  title={t('Почему этот трек')}
-  hint={t('Под артистом у треков «Моей волны» — откуда трек: похож на твой лайк, разведка, забытый любимый')}
-  on={settings.get('player.wave_why')}
-  onchange={(v) => settings.set('player.wave_why', v)}
-/>
-
 <div class="block">
   <b>{t('Тип ползунка')}</b>
   <small>{t('Выберите стиль ползунка прогресса')}</small>
@@ -108,19 +80,50 @@
   </div>
 </div>
 
-<Group title={t('Обложка')}>
-  <Choice
-    title={t('Позиция обложки')}
-    hint={t('Выберите где отображается обложка')}
-    value={settings.get('player.cover_position')}
-    options={[
-      { id: 'left', label: t('Слева'), icon: 'layoutLeft' },
-      { id: 'right', label: t('Справа'), icon: 'layoutRight' },
-    ]}
-    onchange={(v) => settings.set('player.cover_position', v)}
+<More>
+  <Switch
+    title={t('Аватарки артистов')}
+    hint={t('Отображать аватарки исполнителей перед их именами в плеере и мини плеере')}
+    on={settings.get('player.artist_avatars')}
+    onchange={(v) => settings.set('player.artist_avatars', v)}
   />
-  <Switch title={t('Обложка в обложке')} hint={t('Отображать меньшую обложку внутри основной')} on={settings.get('player.pip_cover')} onchange={(v) => settings.set('player.pip_cover', v)} />
-</Group>
+  <Choice
+    title={t('Вид визуализатора')}
+    hint={t('Выберите стиль визуализации аудио')}
+    value={settings.get('player.visualizer_style')}
+    options={[
+      { id: 'wave', label: t('Волна'), icon: 'waveform' },
+      { id: 'bars', label: t('Столбцы'), icon: 'bars' },
+    ]}
+    onchange={(v) => settings.set('player.visualizer_style', v)}
+  />
+  <Switch
+    title={t('Спектр в полноэкранном плеере')}
+    hint={t('Тихая волна звука на дне экрана, за текстом. С «Меньше движения» не рисуется')}
+    on={settings.get('player.visualizer_full')}
+    onchange={(v) => settings.set('player.visualizer_full', v)}
+  />
+  <Switch
+    title={t('Почему этот трек')}
+    hint={t('Под артистом у треков «Моей волны» — откуда трек: похож на твой лайк, разведка, забытый любимый')}
+    on={settings.get('player.wave_why')}
+    onchange={(v) => settings.set('player.wave_why', v)}
+  />
+
+  <Group title={t('Обложка')} hint={t('Обложка на странице плеера')}>
+    <Choice
+      title={t('Позиция обложки')}
+      hint={t('Выберите где отображается обложка')}
+      value={settings.get('player.cover_position')}
+      options={[
+        { id: 'left', label: t('Слева'), icon: 'layoutLeft' },
+        { id: 'right', label: t('Справа'), icon: 'layoutRight' },
+      ]}
+      onchange={(v) => settings.set('player.cover_position', v)}
+    />
+    <Switch title={t('Обложка в обложке')} hint={t('Отображать меньшую обложку внутри основной')} on={settings.get('player.pip_cover')} onchange={(v) => settings.set('player.pip_cover', v)} />
+  </Group>
+</More>
 
 <style>
   .block {

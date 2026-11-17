@@ -10,6 +10,7 @@
   import Select from '../../components/settings/Select.svelte'
   import Group from '../../components/settings/Group.svelte'
   import Soon from '../../components/settings/Soon.svelte'
+  import More from '../../components/settings/More.svelte'
   import AboutBlock from './AboutBlock.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { api } from '../../lib/api'
@@ -66,7 +67,13 @@
   onchange={setPlatform}
 />
 
-<Group title={t('Медиатека')}>
+<Group title={t('Запуск')} hint={t('Что делает Sonar при входе в Windows и по крестику')}>
+  <Switch title={t('Автозапуск')} hint={t('Открывать Sonar при входе в систему')} on={autostart} onchange={setAutostart} />
+  <Switch title={t('Сворачивать в трей')} hint={t('Крестик прячет окно, музыка играет дальше')} on={settings.get('system.tray')} onchange={setTray} />
+</Group>
+
+<More>
+<Group title={t('Медиатека')} hint={t('Плейлисты и лайки на этом компьютере')}>
   <Choice
     title={t('Добавление')}
     hint={t('Куда добавлять новые треки в плейлистах')}
@@ -87,12 +94,9 @@
   </button>
 </Group>
 
-<Group title={t('Запуск')}>
-  <Switch title={t('Автозапуск')} hint={t('Открывать Sonar при входе в систему')} on={autostart} onchange={setAutostart} />
-  <Switch title={t('Сворачивать в трей')} hint={t('Крестик прячет окно, музыка играет дальше')} on={settings.get('system.tray')} onchange={setTray} />
+<Group title={t('Ресурсы')} hint={t('Когда упрощать эффекты, чтобы не нагружать компьютер')}>
   <Choice
     title={t('Экономия ресурсов')}
-    hint={t('Когда упрощать эффекты, чтобы не нагружать компьютер')}
     wide
     value={settings.get('system.power_saving')}
     options={[
@@ -103,6 +107,7 @@
     onchange={(v) => settings.set('system.power_saving', v)}
   />
 </Group>
+</More>
 
 <AboutBlock />
 
