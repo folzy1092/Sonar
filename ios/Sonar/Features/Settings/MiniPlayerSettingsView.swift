@@ -98,7 +98,7 @@ struct MiniPlayerSettingsView: View {
             .padding(.bottom, 170)
         }
         .scrollIndicators(.hidden)
-        .background(Theme.background.ignoresSafeArea())
+        .pageBackground()
         .toolbar(.hidden, for: .navigationBar)
         .animation(Motion.spring, value: style)
         .sheet(item: $picker) { kind in

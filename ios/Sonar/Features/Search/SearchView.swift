@@ -87,7 +87,7 @@ struct SearchView: View {
                 if chrome.tab == .search { chrome.scrolled(to: offset) }
             }
         }
-        .background(Theme.background.ignoresSafeArea())
+        .pageBackground()
         .onChange(of: query) { search(immediately: false) }
         .onChange(of: sourceRaw) { search(immediately: true) }
         .onChange(of: kind) { search(immediately: true) }

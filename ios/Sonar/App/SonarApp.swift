@@ -25,7 +25,6 @@ struct SonarApp: App {
                 .environment(engine)
                 .environment(library)
                 .environment(router)
-                .preferredColorScheme(.dark)
                 .tint(Theme.accent)
                 .task {
                     // при запуске и раз в 6 часов (update.auto_check)

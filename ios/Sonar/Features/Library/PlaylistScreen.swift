@@ -125,7 +125,7 @@ struct PlaylistScreen: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, offset in
             if !editing { chrome.scrolled(to: offset) }
         }
-        .background(Theme.background.ignoresSafeArea())
+        .pageBackground()
         .overlay(alignment: .bottom) {
             if editing {
                 selectionPanel
