@@ -20,7 +20,7 @@ import UIKit
 /// (`audio.crossfade` — две деки, как на ПК: следующий подгружается во вторую и за N секунд до конца
 /// начинает играть поверх, громкости — равной мощностью), звонки (`audio.on_interruption`), «Добавлять
 /// следующие» (`queue.add_following`), «Продолжить с прошлого раза» (`general.restore` — `PlaybackSnapshot`).
-/// Таймер сна (`SleepTimer`) — плавное затухание и пауза. Волна без сети (`wave.offline`) — `WaveCache`.
+/// Таймер сна (`SleepTimer`) — плавное затухание и пауза. Волна без сети (`storage.wave_offline`) — `WaveCache`.
 ///
 /// Колбэки AVFoundation приходят на главной очереди (Combine `receive(on:)`, наблюдатель времени,
 /// уведомления с `queue: .main`) — состояние живёт на главном акторе.
@@ -874,7 +874,7 @@ final class PlaybackEngine {
         if let preloaded, preloaded.onStandby != (crossfade > 0) || (!gapless && crossfade == 0) { dropPreload() }
         // громкость — вне слежения за настройками (иначе оно подписалось бы на позицию и очередь)
         if wasCrossfade != crossfade || wasNormalize != normalize { Task { self.updateFades() } }
-        let offline = settings.bool("wave.offline")
+        let offline = settings.bool("storage.wave_offline")
         if offline != waveOffline {
             waveOffline = offline
             Task { self.refreshWaveCache() }
@@ -987,16 +987,16 @@ final class PlaybackEngine {
 
     // MARK: - Волна: «почему» и офлайн
 
-    /// «Почему этот трек» — только у трека волны и если включено (`wave.reasons`).
+    /// «Почему этот трек» — только у трека волны и если включено (`player.wave_why`).
     func waveReason(for track: Track) -> String? {
-        guard isWave, SettingsStore.shared.bool("wave.reasons") else { return nil }
+        guard isWave, SettingsStore.shared.bool("player.wave_why") else { return nil }
         return waveReasons[track.ref]
     }
 
     /// Волна без сети: следующие треки волны — в кэш (на Wi‑Fi), сыгранное — из кэша вон.
     private func refreshWaveCache() {
         WaveCache.shared.update(upcoming: upNext, current: current, isWave: isWave,
-                                enabled: SettingsStore.shared.bool("wave.offline"))
+                                enabled: SettingsStore.shared.bool("storage.wave_offline"))
     }
 
     /// Вернуть очередь с прошлого запуска (`general.restore`) — на паузе, с той же секунды.
