@@ -46,11 +46,11 @@ final class SigningModel {
     }
 
     func importCertificate(_ result: Result<URL, Error>) {
-        importFile(result) { try self.store.importCertificate(from: $0) }
+        importFile(result, extensions: ["p12", "pfx"], what: "сертификат .p12") { try self.store.importCertificate(from: $0) }
     }
 
     func importProfile(_ result: Result<URL, Error>) {
-        importFile(result) { try self.store.importProfile(from: $0) }
+        importFile(result, extensions: ["mobileprovision"], what: "профиль .mobileprovision") { try self.store.importProfile(from: $0) }
     }
 
     func savePassword(_ password: String) {
@@ -84,9 +84,15 @@ final class SigningModel {
         }
     }
 
-    private func importFile(_ result: Result<URL, Error>, _ save: (URL) throws -> Void) {
+    /// Берём только файл с нужным расширением — даже если «Файлы» дали выбрать другой.
+    private func importFile(_ result: Result<URL, Error>, extensions: Set<String>, what: String, _ save: (URL) throws -> Void) {
         do {
-            try save(try result.get())
+            let url = try result.get()
+            guard extensions.contains(url.pathExtension.lowercased()) else {
+                importError = "Нужен \(what), а выбран «\(url.lastPathComponent)»"
+                return
+            }
+            try save(url)
             importError = nil
         } catch {
             importError = error.localizedDescription
@@ -111,7 +117,13 @@ struct SigningPairView: View {
         case certificate, profile
     }
 
-    private static let profileType = UTType(filenameExtension: "mobileprovision") ?? .data
+    /// `.p12` / `.pfx` — системный тип PKCS #12; `.mobileprovision` — объявлен в Info.plist
+    /// (`UTImportedTypeDeclarations`, project.yml), поэтому «Файлы» показывают только такие файлы.
+    private static let certificateTypes: [UTType] = [.pkcs12]
+    private static let profileTypes: [UTType] = [
+        UTType(importedAs: "com.apple.mobileprovision", conformingTo: .data),
+        UTType(filenameExtension: "mobileprovision", conformingTo: .data),
+    ].compactMap { $0 }
 
     var body: some View {
         SettingsScreen(title: "Сертификат") {
@@ -187,7 +199,7 @@ struct SigningPairView: View {
         .animation(Motion.spring, value: model.isConfigured)
         .animation(Motion.spring, value: model.importError)
         .fileImporter(isPresented: $showImporter,
-                      allowedContentTypes: picking == .certificate ? [.pkcs12, .data] : [Self.profileType, .data]) { result in
+                      allowedContentTypes: picking == .certificate ? Self.certificateTypes : Self.profileTypes) { result in
             let target = picking
             picking = nil
             withAnimation(Motion.spring) {

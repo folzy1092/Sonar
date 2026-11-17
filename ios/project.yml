@@ -69,6 +69,15 @@ targets:
               - sonar
         # адрес API не зашит в код (SPEC §3.2); до сервера не используется
         SonarAPIBaseURL: https://sonar-api.folzy.ru
+        # тип файла профиля подписи — чтобы при выборе в «Файлах» были видны только .mobileprovision
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.apple.mobileprovision
+            UTTypeDescription: Provisioning Profile
+            UTTypeConformsTo:
+              - public.data
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - mobileprovision
         # автообновление: локальный сервер установки на 127.0.0.1 (как в Shadow, SPEC §4.6)
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
