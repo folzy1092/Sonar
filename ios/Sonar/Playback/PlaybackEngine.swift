@@ -368,7 +368,7 @@ final class PlaybackEngine {
                 self.player.insert(item, after: nil)
                 if start > 1 {
                     self.position = start
-                    self.player.seek(to: CMTime(seconds: start, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+                    self.player.seek(to: CMTime(seconds: start, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { _ in }
                 }
                 self.updateFades()
                 self.saveSnapshot(force: true)
