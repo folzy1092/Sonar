@@ -27,7 +27,8 @@ struct AudioSettingsView: View {
         guard settings.bool(Equalizer.enabledKey) else { return "Выключен" }
         let gains = Equalizer.parse(settings.string(Equalizer.gainsKey))
         if Equalizer.isFlat(gains) { return "Ровно" }
-        return Equalizer.preset(matching: gains)?.name ?? "Своя кривая"
+        let user = EqualizerUserPresets.parse(settings.string(EqualizerUserPresets.key))
+        return EqualizerUserPresets.matching(gains, user: user)?.name ?? "Своя кривая"
     }
 
     var body: some View {
@@ -132,15 +133,19 @@ struct AudioSettingsView: View {
 }
 
 /// Эквалайзер (как на ПК, `EqButton.svelte`): 12 полос ±12 дБ — тянуть пальцем вверх-вниз, звучит сразу;
-/// пресеты чипами; переключатель вкл/выкл. Кривая одна на все треки. Сейчас играет поток HLS — подсказка,
-/// что на нём эквалайзер не слышен.
+/// сверху — кривая (настоящая АЧХ фильтров), пресеты чипами: свои («Мои» на ПК, `audio.eq_presets`) первыми,
+/// «+» сохраняет текущую кривую, долгое нажатие на свой — удалить; переключатель вкл/выкл. Кривая одна на
+/// все треки. Сейчас играет поток HLS — подсказка, что на нём эквалайзер не слышен.
 struct EqualizerSheet: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(PlaybackEngine.self) private var engine
     @State private var gains: [Double] = Equalizer.flat
     @State private var dragging: Int?
+    @State private var naming = false
+    @State private var newName = ""
 
     private var enabled: Bool { settings.bool(Equalizer.enabledKey) }
+    private var userPresets: [Equalizer.Preset] { EqualizerUserPresets.parse(settings.string(EqualizerUserPresets.key)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -163,6 +168,8 @@ struct EqualizerSheet: View {
                     + "Треки Яндекса, SoundCloud через Яндекс и скачанные звучат с ним.")
             }
 
+            EqualizerCurveView(gains: gains, active: dragging, enabled: enabled)
+
             presets
                 .opacity(enabled ? 1 : 0.4)
                 .allowsHitTesting(enabled)
@@ -181,6 +188,18 @@ struct EqualizerSheet: View {
         .padding(.top, 30)
         .animation(Motion.spring, value: enabled)
         .onAppear { gains = Equalizer.parse(settings.string(Equalizer.gainsKey)) }
+        .alert(t("Сохранить текущий"), isPresented: $naming) {
+            TextField(t("Название"), text: $newName)
+            Button(t("Отмена"), role: .cancel) { newName = "" }
+            Button(t("Сохранить")) {
+                let list = EqualizerUserPresets.adding(newName, gains: gains, to: userPresets)
+                settings.set(EqualizerUserPresets.key, .string(EqualizerUserPresets.encode(list)))
+                newName = ""
+                UISelectionFeedbackGenerator().selectionChanged()
+            }
+        } message: {
+            Text(t("Подвигай полосы и сохрани кривую — она появится здесь"))
+        }
     }
 
     /// Полосы сверху вниз (владелец, 2026-11-17): у каждой частоты — строка с горизонтальным ползунком,
@@ -256,24 +275,33 @@ struct EqualizerSheet: View {
     }
 
     private var presets: some View {
-        let current = Equalizer.preset(matching: gains)?.name
+        let mine = userPresets
+        let current = EqualizerUserPresets.matching(gains, user: mine)?.name
         return ScrollView(.horizontal) {
             HStack(spacing: 8) {
+                Button {
+                    newName = ""
+                    naming = true
+                } label: {
+                    SonarIcon(.plus, size: 18)
+                        .foregroundStyle(Theme.text)
+                        .frame(width: 40, height: 40)
+                        .background(Theme.raised.opacity(0.8), in: Circle())
+                }
+                .buttonStyle(PressableStyle(scale: 0.9))
+                .accessibilityLabel(t("Сохранить текущий"))
+                ForEach(mine) { preset in
+                    presetChip(preset, on: preset.name == current, builtin: false)
+                        .contextMenu {
+                            Button(t("Удалить"), role: .destructive) {
+                                let list = EqualizerUserPresets.removing(preset.name, from: mine)
+                                settings.set(EqualizerUserPresets.key, .string(EqualizerUserPresets.encode(list)))
+                            }
+                        }
+                        .transition(.scale(scale: 0.8).combined(with: .opacity))
+                }
                 ForEach(Equalizer.presets) { preset in
-                    let on = preset.name == current
-                    Button {
-                        withAnimation(Motion.spring) { gains = preset.gains }
-                        save()
-                        UISelectionFeedbackGenerator().selectionChanged()
-                    } label: {
-                        Text(preset.name)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(on ? Theme.accentInk : Theme.text)
-                            .padding(.horizontal, 16)
-                            .frame(height: 40)
-                            .background(on ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Theme.raised.opacity(0.8)), in: Capsule())
-                    }
-                    .buttonStyle(PressableStyle(scale: 0.94))
+                    presetChip(preset, on: preset.name == current, builtin: true)
                 }
             }
             .padding(.horizontal, Theme.gutter)
@@ -281,6 +309,23 @@ struct EqualizerSheet: View {
         .scrollIndicators(.hidden)
         .padding(.horizontal, -Theme.gutter)
         .animation(Motion.spring, value: current)
+        .animation(Motion.spring, value: mine.map(\.name))
+    }
+
+    private func presetChip(_ preset: Equalizer.Preset, on: Bool, builtin: Bool) -> some View {
+        Button {
+            withAnimation(Motion.spring) { gains = preset.gains }
+            save()
+            UISelectionFeedbackGenerator().selectionChanged()
+        } label: {
+            Text(builtin ? t(preset.name) : preset.name)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(on ? Theme.accentInk : Theme.text)
+                .padding(.horizontal, 16)
+                .frame(height: 40)
+                .background(on ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Theme.raised.opacity(0.8)), in: Capsule())
+        }
+        .buttonStyle(PressableStyle(scale: 0.94))
     }
 
     private func save() {

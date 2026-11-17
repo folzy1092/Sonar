@@ -1,9 +1,10 @@
 import SwiftUI
+import UIKit
 
 /// Лист трека (`IMG_6774`): сверху обложка во всю ширину, растворяется в фон, на ней название,
 /// исполнитель и знак сервиса; капсула ♥ · + · в очередь · поделиться; ниже — Следующим, Волна по
-/// треку, Перейти к артисту, Скачать, Не интересно, Удалить из плейлиста (если трек в списке).
-/// «Из кеша» и «Закрепить в профиле» — с сервером.
+/// треку, Перейти к артисту, Скачать, Копировать название, Не интересно, Удалить из плейлиста (если трек
+/// в списке). «+» — свои плейлисты Sonar (`AddToPlaylistSheet`). «Из кеша» и «Закрепить в профиле» — с сервером.
 struct TrackSheet: View {
     let item: TrackMenuItem
     @Environment(PlaybackEngine.self) private var engine
@@ -11,6 +12,7 @@ struct TrackSheet: View {
     @Environment(ChromeState.self) private var chrome
     @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
+    @State private var addToPlaylist = false
 
     private var track: Track { item.track }
     private var downloads: DownloadStore { DownloadStore.shared }
@@ -46,6 +48,10 @@ struct TrackSheet: View {
                             }
                         }
                         downloadRow
+                        SheetMenuRow(icon: .copy, title: t("Копировать название"), subtitle: CopyText.track(track)) {
+                            UIPasteboard.general.string = CopyText.track(track)
+                            done(t("Название скопировано"))
+                        }
                         SheetMenuRow(icon: .dislike, title: library.isDisliked(track.ref) ? "Снова интересно" : "Не интересно",
                                      subtitle: library.isDisliked(track.ref) ? "Вернётся в подборки" : "Не попадётся в подборках") {
                             let was = library.isDisliked(track.ref)
@@ -70,6 +76,17 @@ struct TrackSheet: View {
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .background(Theme.background)
+        .sheet(isPresented: $addToPlaylist) {
+            AddToPlaylistSheet(tracks: [track]) { message in
+                // закрыть оба листа разом (вложенный и лист трека) и показать плашку
+                router.trackMenu = nil
+                router.say(message)
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(30)
+            .presentationBackground(Theme.background)
+        }
     }
 
     private var banner: some View {
@@ -117,8 +134,8 @@ struct TrackSheet: View {
             capsuleButton(.heart, filled: liked, tint: liked ? Theme.accent : nil, label: liked ? "Убрать из Любимых" : "В Любимые") {
                 withAnimation(Motion.spring) { library.toggleLike(track) }
             }
-            capsuleButton(.plus, label: "В плейлист") {
-                router.say("Свои плейлисты Sonar появятся вместе с сервером")
+            capsuleButton(.plus, label: t("Добавить в плейлист")) {
+                addToPlaylist = true
             }
             capsuleButton(.queue, label: "В очередь") {
                 engine.enqueue(track, next: false)
