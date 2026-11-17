@@ -77,7 +77,7 @@ struct LibraryView: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, offset in
             if chrome.tab == .library { chrome.scrolled(to: offset) }
         }
-        .background(Theme.background.ignoresSafeArea())
+        .pageBackground()
         .animation(Motion.spring, value: section)
         .animation(Motion.spring, value: searching)
         .task { playlists = await MusicCore.shared.myPlaylists() }

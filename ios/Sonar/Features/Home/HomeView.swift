@@ -44,7 +44,7 @@ struct HomeView: View {
         }
         .refreshable { await feed.refresh(force: true) }
         .animation(Motion.spring, value: engine.waveMode)
-        .background(Theme.background.ignoresSafeArea())
+        .pageBackground()
         .task { await feed.refresh() }
         .onChange(of: library.liked.count) { Task { await feed.refresh() } }
         .sheet(isPresented: $showModes) {

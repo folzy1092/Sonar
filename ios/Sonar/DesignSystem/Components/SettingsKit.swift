@@ -54,7 +54,7 @@ struct SettingsScreen<Content: View>: View {
                 chrome.scrolled(to: offset)
             }
         }
-        .background(Theme.background.ignoresSafeArea())
+        .pageBackground()
         .toolbar(.hidden, for: .navigationBar)
     }
 }
