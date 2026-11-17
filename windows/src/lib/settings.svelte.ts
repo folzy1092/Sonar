@@ -78,6 +78,8 @@ export const DEFAULTS = {
   'storage.cache_tracks': false,
   /** Лимит кэша треков, МБ; сверх — вытесняются давно не игравшие. */
   'storage.cache_limit_mb': 2048 as number,
+  /** Волна офлайн: следующие 15 треков «Моей волны» заранее скачиваются в кэш треков. */
+  'storage.wave_offline': false,
   'audio.output_device': '' as string,
   /** Нормализация громкости (player/leveler.ts) — выравнивание тихих и громких треков. */
   'audio.normalize': false,
@@ -117,6 +119,10 @@ export const DEFAULTS = {
   'player.style': 'standard' as 'standard' | 'vinyl' | 'large',
   /** Стиль визуализатора: волна или столбцы. */
   'player.visualizer_style': 'wave' as 'wave' | 'bars',
+  /** Спектр звука на дне полноэкранного плеера (тихо, за текстом). */
+  'player.visualizer_full': false,
+  /** Строка «Почему этот трек» под артистом у треков «Моей волны». */
+  'player.wave_why': true,
   /** Тип ползунка прогресса (Плеер → Вид). */
   'player.slider': 'normal' as 'normal' | 'thin' | 'smooth' | 'wavy' | 'wave_bars',
   /** Маленькая копия обложки в углу большой. */
@@ -133,6 +139,18 @@ export const DEFAULTS = {
   'integrations.lastfm.scrobble': true,
   'integrations.lastfm.now_playing': true,
   'system.autostart': true,
+  /** Горячие клавиши по всей системе (hotkeys.rs) — выключены, пока не включишь. */
+  'hotkeys.enabled': false,
+  /** Действие → сочетание (коды KeyboardEvent.code); пустая строка — без клавиши. */
+  'hotkeys.map': {
+    toggle: 'Ctrl+Alt+Space',
+    next: 'Ctrl+Alt+ArrowRight',
+    prev: 'Ctrl+Alt+ArrowLeft',
+    like: 'Ctrl+Alt+KeyL',
+    volume_up: 'Ctrl+Alt+ArrowUp',
+    volume_down: 'Ctrl+Alt+ArrowDown',
+    window: 'Ctrl+Alt+KeyS',
+  } as Record<string, string>,
   'system.tray': true,
   'system.power_saving': 'background' as 'off' | 'minimized' | 'background',
   'wave.mode': 'own' as 'own' | 'hard' | 'calm' | 'sad' | 'fun' | 'new',

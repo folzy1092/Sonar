@@ -15,8 +15,15 @@ unsafe impl Send for Media {}
 unsafe impl Sync for Media {}
 
 pub fn attach(app: &AppHandle, window: &WebviewWindow) -> Option<MediaControls> {
-  let hwnd = window.hwnd().ok()?;
-  let config = PlatformConfig { display_name: "Sonar", dbus_name: "sonar", hwnd: Some(hwnd.0 as *mut _) };
+  // окно нужно только SMTC Windows; на других системах (тесты в Linux) — без него
+  #[cfg(windows)]
+  let hwnd = Some(window.hwnd().ok()?.0 as *mut _);
+  #[cfg(not(windows))]
+  let hwnd = {
+    let _ = window;
+    None
+  };
+  let config = PlatformConfig { display_name: "Sonar", dbus_name: "sonar", hwnd };
   let mut controls = MediaControls::new(config).ok()?;
   let app = app.clone();
   controls

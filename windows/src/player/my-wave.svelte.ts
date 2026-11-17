@@ -44,6 +44,8 @@ const newSessionId = () =>
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 /** Догружать, когда до конца очереди осталось столько треков. */
 const PREFETCH_LEFT = 3
+/** «Волна офлайн»: сколько следующих треков держать скачанными. */
+const OFFLINE_AHEAD = 15
 /** Сколько последних «хороших» треков сессии отправлять сидами. */
 const SESSION_SEEDS = 4
 /** Сколько последних пропущенных треков сессии отправлять — их теги идут в минус. */
@@ -86,6 +88,8 @@ class Wave {
   /** Растёт, когда очередь пересобрана или волна началась заново: порция, запрошенная до этого,
    *  устарела и выбрасывается. */
   private epoch = 0
+  /** Последний заказ «Волны офлайн» — тот же список второй раз не отправляем. */
+  private offlineKey = ''
   /** Идущий запрос следующей порции — чтобы дождаться его после пересборки. */
   private moreRun: Promise<void> | null = null
 
@@ -108,6 +112,19 @@ class Wave {
         if (player.context !== WAVE_CONTEXT) return
         const left = player.order.length - 1 - player.pos
         if (left < PREFETCH_LEFT) untrack(() => void this.more())
+      })
+      // «Волна офлайн» (Система → Хранилище): следующие треки волны — в кэш треков заранее.
+      // Заказ обновляется, когда меняется сам список следующих (новая порция, пропуск), Rust качает по одному.
+      $effect(() => {
+        if (player.context !== WAVE_CONTEXT || !settings.get('storage.wave_offline') || !settings.get('storage.cache_tracks')) return
+        const refs = player.order
+          .slice(player.pos + 1, player.pos + 1 + OFFLINE_AHEAD)
+          .map((i) => player.tracks[i]?.ref)
+          .filter((r): r is string => !!r)
+        const key = refs.join(',')
+        if (!refs.length || key === this.offlineKey) return
+        this.offlineKey = key
+        void api.prefetchTracks(refs).catch(() => {})
       })
     })
   }

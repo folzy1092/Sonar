@@ -44,6 +44,9 @@ targets:
     dependencies:
       - package: Zsign
       - package: ZipArchive
+      # виджет «Домой» — встраивается в Sonar.app/PlugIns/SonarWidget.appex
+      - target: SonarWidget
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.folzy.sonar
@@ -95,6 +98,35 @@ targets:
         # автообновление: локальный сервер установки на 127.0.0.1 (как в Shadow, SPEC §4.6)
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+
+  # Виджет «Домой» (WidgetKit): статичные кнопки «Любимые», «Моя волна», «Быстрый плейлист» — открывают Sonar
+  # ссылкой sonar://play/… App Groups нет (сторонняя подпись их не даёт), поэтому данных приложения виджет
+  # не читает. Подпись: zsign / ESign подписывают .appex тем же профилем; профиль не на «*» — расширение
+  # убирается при установке (BundlePreparer, docs/ROADMAP.md «Блок I»), Sonar работает и без него.
+  SonarWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SonarWidget
+      # общие с приложением файлы — только фигуры значков и цели ссылок, без темы и настроек
+      - path: Sonar/DesignSystem/Icons/IconPaths.swift
+      - path: Sonar/DesignSystem/Icons/IconShape.swift
+      - path: Sonar/Core/Shortcuts/PlayTarget.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.folzy.sonar.widget
+        PRODUCT_NAME: SonarWidget
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: SonarWidget/Info.plist
+        SKIP_INSTALL: YES
+    info:
+      path: SonarWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Sonar
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
   SonarTests:
     type: bundle.unit-test

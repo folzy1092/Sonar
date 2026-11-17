@@ -18,9 +18,11 @@
   import { autoplay } from '../player/autoplay.svelte'
   import SeekBar from '../player/SeekBar.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
+  import SleepButton from '../player/SleepButton.svelte'
   import EqButton from '../player/EqButton.svelte'
   import { mini } from '../lib/mini.svelte'
   import Wave from '../player/Wave.svelte'
+  import WhyLine from '../player/WhyLine.svelte'
   import { formatTime, player } from '../player/player.svelte'
   import { library } from '../lib/library.svelte'
   import { trackMenu } from '../lib/menu.svelte'
@@ -128,6 +130,7 @@
           {t('Найди трек в поиске')}
         {/if}
       </p>
+      <WhyLine {track} />
       <NextUp />
       <!-- что реально играет — своё место под артистом, а не под полосой -->
       {#if player.quality}
@@ -199,6 +202,7 @@
       </div>
       <div class="panel extra">
         <SpeedButton />
+        <SleepButton />
         <EqButton />
         <IconButton icon="layoutFloat" label={mini.open ? t('Закрыть мини-окно') : t('Мини-окно поверх всех окон')} size={17} active={mini.open} onclick={() => mini.toggle()} />
       </div>

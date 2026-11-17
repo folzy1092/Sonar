@@ -48,34 +48,9 @@ struct SonarApp: App {
                     if phase == .active { checker.checkIfStale(settings: settings) }
                 }
                 .onOpenURL { url in
-                    // sonar://track/<ref>, sonar://auth/<code>, sonar://user/<username> — разбор позже
+                    // sonar://play/<liked|wave|quick> (виджет), sonar://auth/<code>; track и user — разбор позже
                     DeepLink.handle(url)
                 }
         }
-    }
-}
-
-/// Ссылки `sonar://` (BOT.md, SPEC §4.5а). Заготовка: пока только узнаём вид ссылки.
-enum DeepLink: Equatable {
-    case track(String)
-    case auth(String)
-    case user(String)
-
-    init?(_ url: URL) {
-        guard url.scheme == "sonar", let host = url.host() else { return nil }
-        let value = url.pathComponents.dropFirst().joined(separator: "/")
-        guard !value.isEmpty else { return nil }
-        switch host {
-        case "track": self = .track(value)
-        case "auth": self = .auth(value)
-        case "user": self = .user(value)
-        default: return nil
-        }
-    }
-
-    @MainActor
-    static func handle(_ url: URL) {
-        // вход с другого устройства / из бота — окно подтверждения (работает, только когда включён сервер)
-        if case let .auth(code) = DeepLink(url) { AccountStore.shared.handleAuthLink(code) }
     }
 }
