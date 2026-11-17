@@ -87,12 +87,6 @@ struct UpdateView: View {
                     .cascade(2)
             }
         }
-        .overlay(alignment: .bottom) {
-            if let hint = HomeScreenHint.text(for: updater.stage) {
-                HomeScreenHint(title: hint.title, text: hint.text)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
         .animation(Motion.spring, value: updater.stage)
         .task {
             if checker.status == nil { await checker.check() }
