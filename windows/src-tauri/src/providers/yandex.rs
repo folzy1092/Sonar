@@ -75,12 +75,10 @@ impl Yandex<'_> {
 
   pub async fn account(&self) -> Result<Account> {
     let st = self.get(&format!("{API}/account/status"), &[]).await?;
-    let acc = &st["account"];
-    let name = acc["displayName"].as_str().or(acc["login"].as_str()).map(str::to_owned);
-    if acc["uid"].is_null() {
+    if st["account"]["uid"].is_null() {
       return Err(anyhow!("Яндекс Музыка: токен не подошёл"));
     }
-    Ok(Account { name, avatar_url: None, uid: id_str(&acc["uid"]) })
+    Ok(account_from_status(&st))
   }
 
   /// Исполнители, альбомы и плейлисты для вкладок поиска (один запрос `type=all`).
@@ -313,6 +311,13 @@ pub fn signed_link(xml: &str) -> Option<String> {
   Some(format!("https://{host}/get-mp3/{sign:x}/{ts}{path}"))
 }
 
+/// Ответ `/account/status` → аккаунт: имя, uid и есть ли Плюс (`plus.hasPlus`; нет поля — None).
+pub(crate) fn account_from_status(st: &Value) -> Account {
+  let acc = &st["account"];
+  let name = acc["displayName"].as_str().or(acc["login"].as_str()).map(str::to_owned);
+  Account { name, avatar_url: None, uid: id_str(&acc["uid"]), premium: st["plus"]["hasPlus"].as_bool() }
+}
+
 fn id_str(v: &Value) -> Option<String> {
   v.as_str().map(str::to_owned).or_else(|| v.as_u64().map(|n| n.to_string()))
 }
@@ -413,6 +418,17 @@ pub fn track_from_json(j: &Value) -> Option<Track> {
 mod tests {
   use super::*;
   use serde_json::json;
+
+  #[test]
+  fn account_from_status_premium() {
+    let st = json!({"account": {"uid": 42, "login": "anna", "displayName": "Анна"}, "plus": {"hasPlus": true}});
+    let a = account_from_status(&st);
+    assert_eq!((a.name.as_deref(), a.uid.as_deref(), a.avatar_url, a.premium), (Some("Анна"), Some("42"), None, Some(true)));
+    let no = json!({"account": {"uid": "42", "login": "anna"}, "plus": {"hasPlus": false}});
+    assert_eq!((account_from_status(&no).name.as_deref(), account_from_status(&no).premium), (Some("anna"), Some(false)));
+    let missing = json!({"account": {"uid": 42, "login": "anna"}});
+    assert_eq!(account_from_status(&missing).premium, None);
+  }
 
   #[test]
   fn signs_link_like_library() {

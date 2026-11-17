@@ -15,6 +15,7 @@
   import { router } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
   import { t } from '../lib/i18n.svelte'
+  import { byId, serviceOf } from '../lib/services'
 
   const id = router.param ?? 'favorites'
   const kind: 'favorites' | 'own' | 'service' = id === 'favorites' ? 'favorites' : id.startsWith('pl_') ? 'own' : 'service'
@@ -181,7 +182,7 @@
   {#snippet subtitle()}
     {#if kind === 'favorites'}{t('Лайкнутые треки')}
     {:else if kind === 'own'}{t('Плейлист Sonar')}{#if hidden} · {t('скрыт')}{/if}
-    {:else}{owner ? `${owner} · ` : ''}{id.startsWith('sc') ? 'SoundCloud' : t('Яндекс Музыка')}{/if}
+    {:else}{owner ? `${owner} · ` : ''}{t(byId(serviceOf(id))?.name ?? 'Яндекс Музыка')}{/if}
   {/snippet}
   {#snippet actions()}
     {#if kind === 'service'}

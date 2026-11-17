@@ -14,6 +14,25 @@ protocol MusicSource: Sendable {
     func search(_ query: String, in service: Service, limit: Int) async throws -> [Track]
 }
 
+/// Один клиент стримингового сервиса. В этой волне — SoundCloud и Яндекс; новые сервисы реестра
+/// (`ServiceRegistry`) подключаются сюда же. `MusicCore` пока выбирает клиента сам, по строке сервиса.
+protocol MusicProvider: Sendable {
+    /// Строка реестра этого клиента.
+    static var serviceID: ServiceID { get }
+    /// Проверка ключей и аккаунт для экрана «Сервисы».
+    func account() async throws -> ServiceAccount
+    /// Исполнители, альбомы и плейлисты для вкладок поиска.
+    func searchMore(_ query: String, limit: Int) async throws -> (artists: [Artist], albums: [Album], playlists: [ServicePlaylist])
+}
+
+extension SoundCloud: MusicProvider {
+    static var serviceID: ServiceID { .sc }
+}
+
+extension Yandex: MusicProvider {
+    static var serviceID: ServiceID { .ym }
+}
+
 /// Параллельно позвать сервис для каждого элемента, ответы — в том же порядке; ошибка — nil.
 func concurrentMap<T: Sendable, R: Sendable>(_ items: [T], _ call: @escaping @Sendable (T) async throws -> R) async -> [R?] {
     await withTaskGroup(of: (Int, R?).self) { group in

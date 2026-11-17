@@ -46,9 +46,15 @@ struct Yandex: Sendable {
     }
 
     func account() async throws -> ServiceAccount {
-        let account = try await get("/account/status")["account"]
+        try Self.parseAccount(await get("/account/status"))
+    }
+
+    /// Аккаунт из ответа `/account/status` (`result`): имя, uid и Плюс (`plus.hasPlus`, нет поля — nil).
+    static func parseAccount(_ status: JSONValue) throws -> ServiceAccount {
+        let account = status["account"]
         guard let uid = account["uid"].idString else { throw ServiceError(message: "Яндекс Музыка: токен не подошёл") }
-        return ServiceAccount(name: account["displayName"].string ?? account["login"].string, avatarURL: nil, uid: uid)
+        return ServiceAccount(name: account["displayName"].string ?? account["login"].string, avatarURL: nil, uid: uid,
+                              premium: status["plus"]["hasPlus"].bool)
     }
 
     func search(_ query: String, limit: Int) async throws -> [Track] {

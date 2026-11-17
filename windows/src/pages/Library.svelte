@@ -11,12 +11,14 @@
   import NavIcon from '../components/NavIcon.svelte'
   import { playlistMenu } from '../lib/playlist-menu.svelte'
   import Tile from '../components/Tile.svelte'
-  import { api, type Album, type Artist, type ServicePlaylist, type ServicesStatus } from '../lib/api'
+  import { api, type Album, type Artist, type ServicePlaylist, type ServiceStatus, type ServicesStatus } from '../lib/api'
   import { tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
   import { openRef, router } from '../app/router.svelte'
   import { settingsPanel } from './settings-section.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
+  import { IMPLEMENTED, byId, isTrackRef, serviceOf, statusOf, type ServiceId } from '../lib/services'
+  import { ICONS } from '../lib/service-icons'
   import { reducedMotion } from '../lib/motion'
   import { cubicOut } from 'svelte/easing'
   import { t } from '../lib/i18n.svelte'
@@ -27,29 +29,27 @@
   let status = $state<ServicesStatus | null>(null)
   let albums = $state<Album[]>([])
   let artists = $state<Artist[]>([])
-  let phantom = $state<{ sc: ServicePlaylist[]; ym: ServicePlaylist[] }>({ sc: [], ym: [] })
+  let phantom = $state<Partial<Record<ServiceId, ServicePlaylist[]>>>({})
   let phantomError = $state<string | null>(null)
   /** Статус сервисов уже запрошен (успешно или нет) — дальше не скелет, а ответ. */
   let servicesTried = $state(false)
   let creating = $state(false)
   let newName = $state('')
 
-  const favCount = $derived([...library.liked].filter((r) => r.startsWith('sc:') || r.startsWith('ym:')).length)
+  const favCount = $derived([...library.liked].filter(isTrackRef).length)
   const own = $derived(tab === 'Все' ? library.playlists.filter((p) => !p.hidden) : library.playlists)
   const imported = $derived(new Set(library.playlists.map((p) => p.source_ref).filter(Boolean)))
   /** Сервисы блока «плейлисты сервисов» по кругу (решение владельца 2026-11-16): клик по названию —
-   *  следующий, ряд уезжает свайпом. Spotify и VK Музыка встанут сюда же, когда появятся. */
-  const SERVICES = [
-    { id: 'sc', name: 'SoundCloud' },
-    { id: 'ym', name: 'Яндекс Музыка' },
-  ] as const
-  let svc = $state<'sc' | 'ym'>('sc')
+   *  следующий, ряд уезжает свайпом. Сервисы — реализованные из реестра (lib/services): Spotify и
+   *  VK Музыка встанут сюда сами, когда их включат. */
+  let svc = $state<ServiceId>(IMPLEMENTED[0].id)
   /** Куда едет свайп: 1 — следующий справа налево. */
   let dir = $state(1)
-  const svcName = $derived(t(SERVICES.find((x) => x.id === svc)!.name))
-  const svcConnected = $derived(svc === 'sc' ? !!status?.soundcloud.connected : !!status?.yandex.connected)
+  const svcInfo = $derived(byId(svc) ?? IMPLEMENTED[0])
+  const svcName = $derived(t(svcInfo.name))
+  const svcConnected = $derived(!!statusOf(status, svcInfo)?.connected)
   /** Плейлисты выбранного сервиса, ещё не перенесённые в Sonar (перенесённые уже есть среди своих). */
-  const services = $derived(phantom[svc].filter((p) => !imported.has(p.ref)))
+  const services = $derived((phantom[svc] ?? []).filter((p) => !imported.has(p.ref)))
 
   // ширина текущего названия сервиса: последнее появившееся название задаёт ширину кнопки
   let faceW = $state(0)
@@ -64,9 +64,9 @@
   }
 
   function nextService() {
-    const i = SERVICES.findIndex((x) => x.id === svc)
+    const i = IMPLEMENTED.findIndex((x) => x.id === svc)
     dir = 1
-    svc = SERVICES[(i + 1) % SERVICES.length].id
+    svc = IMPLEMENTED[(i + 1) % IMPLEMENTED.length].id
   }
 
   /** Смена сервиса снизу вверх (решение владельца 2026-11-16): прежний уходит вверх, следующий
@@ -81,7 +81,7 @@
     }
   }
   const accounts = $derived(
-    status ? [status.soundcloud, status.yandex].filter((s) => s.connected) : [],
+    status ? IMPLEMENTED.map((s) => statusOf(status, s)).filter((s): s is ServiceStatus => !!s?.connected) : [],
   )
 
   async function loadSaved() {
@@ -95,12 +95,14 @@
   async function loadServices() {
     phantomError = null
     try {
-      status = await api.servicesStatus()
-      const [sc, ym] = await Promise.all([
-        status.soundcloud.connected ? api.servicePlaylists('soundcloud').catch((e) => ((phantomError = String(e)), [])) : [],
-        status.yandex.connected ? api.servicePlaylists('yandex').catch((e) => ((phantomError = String(e)), [])) : [],
-      ])
-      phantom = { sc, ym }
+      const st = await api.servicesStatus()
+      status = st
+      const lists = await Promise.all(
+        IMPLEMENTED.map((s): Promise<ServicePlaylist[]> | ServicePlaylist[] =>
+          statusOf(st, s)?.connected ? api.servicePlaylists(s.key).catch((e) => ((phantomError = String(e)), [])) : [],
+        ),
+      )
+      phantom = Object.fromEntries(IMPLEMENTED.map((s, i) => [s.id, lists[i]]))
     } catch {
       status = null
     } finally {
@@ -156,13 +158,15 @@
 {/if}
 
 {#snippet phantomTile(p: ServicePlaylist)}
+  {@const ps = byId(serviceOf(p.ref)) ?? byId('ym')!}
+  {#snippet likeArt()}<span class="svc-like"><SourceIcon service={ps.id} size={ICONS[ps.id]?.likeArtSize ?? 54} mono /></span>{/snippet}
   <Tile
     title={p.title}
-    subtitle={p.owner || (p.ref.startsWith('sc') ? 'SoundCloud' : t('Яндекс Музыка'))}
+    subtitle={p.owner || t(ps.name)}
     meta={p.track_count ? tracksText(p.track_count) : undefined}
     image={p.cover_url}
     icon={p.ref.endsWith('likes') ? 'heart' : 'music'}
-    art={p.ref.endsWith('likes') && !p.cover_url ? (p.ref.startsWith('sc') ? scLikeArt : ymLikeArt) : undefined}
+    art={p.ref.endsWith('likes') && !p.cover_url ? likeArt : undefined}
     onclick={() => openRef(p.ref)}
     oncontextmenu={(e) => {
       e.preventDefault()
@@ -171,8 +175,6 @@
   />
 {/snippet}
 
-{#snippet scLikeArt()}<span class="svc-like"><SourceIcon kind="sc" size={56} mono /></span>{/snippet}
-{#snippet ymLikeArt()}<span class="svc-like"><SourceIcon kind="ym" size={52} mono /></span>{/snippet}
 {#snippet favArt()}<NavIcon name="heart" active size={44} />{/snippet}
 
 {#if tab === 'Все' || tab === 'Плейлисты'}
@@ -217,7 +219,7 @@
         <span class="svc-faces" style:width={faceW ? `${faceW}px` : undefined}>
           {#key svc}
             <span class="svc-face" in:swipe out:swipe={{ out: true }} use:measureFace>
-              <SourceIcon kind={svc} size={20} />
+              <SourceIcon service={svc} size={20} />
               {svcName}
             </span>
           {/key}
@@ -231,7 +233,7 @@
           {#if !status && !servicesTried}
             <div class="row"><div class="sk-tile skel"></div><div class="sk-tile skel"></div><div class="sk-tile skel"></div></div>
           {:else if !svcConnected}
-            <p class="hint">{svc === 'sc' ? t('{service} не подключён', { service: svcName }) : t('{service} не подключена', { service: svcName })} — <button class="link" onclick={openServices}>{t('Настройки → Сервисы')}</button></p>
+            <p class="hint">{svcInfo.gender === 'f' ? t('{service} не подключена', { service: svcName }) : t('{service} не подключён', { service: svcName })} — <button class="link" onclick={openServices}>{t('Настройки → Сервисы')}</button></p>
           {:else if services.length}
             <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={svc} use:hscroll use:edges>
               {#each services as p (p.ref)}{@render phantomTile(p)}{/each}

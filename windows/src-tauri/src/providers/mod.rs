@@ -3,6 +3,7 @@
 
 pub mod links;
 pub mod matching;
+pub mod registry;
 pub mod soundcloud;
 pub mod yandex;
 
@@ -136,6 +137,9 @@ pub struct Account {
   /// id аккаунта в сервисе (uid Яндекса, id пользователя SoundCloud) — для его плейлистов и лайков.
   #[serde(default)]
   pub uid: Option<String>,
+  /// Подписка сервиса (Яндекс Плюс). None — сервис не говорит; старый JSON из keyring без поля — тоже None.
+  #[serde(default)]
+  pub premium: Option<bool>,
 }
 
 pub const UA: &str =
@@ -151,4 +155,17 @@ pub fn http_error(service: &str, status: reqwest::StatusCode) -> anyhow::Error {
     _ => "сервис ответил ошибкой",
   };
   anyhow::anyhow!("{service}: {why} (HTTP {})", status.as_u16())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn account_old_json_without_premium() {
+    let a: Account = serde_json::from_str(r#"{"name":"a","avatar_url":null,"uid":"1"}"#).unwrap();
+    assert_eq!((a.name.as_deref(), a.uid.as_deref(), a.premium), (Some("a"), Some("1"), None));
+    let b: Account = serde_json::from_str(r#"{"name":null,"avatar_url":null,"uid":null,"premium":true}"#).unwrap();
+    assert_eq!(b.premium, Some(true));
+  }
 }

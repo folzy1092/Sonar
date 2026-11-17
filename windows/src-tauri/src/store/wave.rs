@@ -1,6 +1,7 @@
 //! Данные для своей волны (SPEC §3.7): сиды, сигналы вкуса, дизлайки и пропуски.
 
 use super::{now_ms, Store, LOCAL_USER};
+use crate::providers::registry::{parse_ref, RefKind};
 use anyhow::Result;
 use rusqlite::{params, OptionalExtension};
 use std::collections::{HashMap, HashSet};
@@ -458,7 +459,8 @@ impl Store {
       }
       let Ok(list) = serde_json::from_str::<Vec<crate::providers::ArtistRef>>(&json) else { continue };
       if let Some(a) = list.first() {
-        if (a.ref_.starts_with("sca:") || a.ref_.starts_with("yma:")) && !out.contains(&a.ref_) {
+        let artist = matches!(parse_ref(&a.ref_), Some((s, RefKind::Artist)) if s.implemented);
+        if artist && !out.contains(&a.ref_) {
           out.push(a.ref_.clone());
         }
       }

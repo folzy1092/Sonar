@@ -3,6 +3,7 @@ import Foundation
 // Модели — тот же JSON, что в docs/API.md §3 и Windows-клиенте (`windows/src-tauri/src/providers/mod.rs`):
 // когда появится сервер, клиент получит их же. ref: `sc:<id>` / `ym:<id>` — трек, `sca:` / `yma:` —
 // исполнитель, `scalb:` / `ymalb:` — альбом, `scpl:<id>` / `ympl:<uid>:<kind>` — плейлист сервиса.
+// Все префиксы — в реестре `ServiceRegistry.swift` (docs/API.md «Префиксы ref»).
 
 struct Track: Codable, Hashable, Sendable, Identifiable {
     var ref: String
@@ -110,23 +111,33 @@ enum StreamSource: Equatable, Sendable {
     case hls(url: URL, quality: String)
 }
 
+/// Подключаемые сервисы приложения. Сырые значения хранятся в настройках и Keychain — не менять.
+/// Остальные сервисы реестра (`ServiceID`) появятся здесь, когда заработают.
 enum Service: String, Codable, Sendable, CaseIterable {
     case soundcloud
     case yandex
 
-    /// По префиксу ref: `sc…` — SoundCloud, `ym…` — Яндекс.
-    init?(ref: String) {
-        if ref.hasPrefix("sc") { self = .soundcloud }
-        else if ref.hasPrefix("ym") { self = .yandex }
-        else { return nil }
-    }
+    /// Короткий id в реестре.
+    var id: ServiceID { self == .soundcloud ? .sc : .ym }
 
-    var title: String {
-        switch self {
-        case .soundcloud: "SoundCloud"
-        case .yandex: "Яндекс Музыка"
+    var info: ServiceInfo { ServiceRegistry.info(id) }
+
+    /// `.sc` — SoundCloud, `.ym` — Яндекс; у остальных сервисов реестра пока нет клиента.
+    init?(id: ServiceID) {
+        switch id {
+        case .sc: self = .soundcloud
+        case .ym: self = .yandex
+        case .yt, .vk, .sp, .local: return nil
         }
     }
+
+    /// По префиксу ref из реестра: `sc:`, `sca:`, `scalb:`, `scpl:` — SoundCloud, `ym…:` — Яндекс.
+    init?(ref: String) {
+        guard let service = ServiceRegistry.service(of: ref).flatMap(Service.init(id:)) else { return nil }
+        self = service
+    }
+
+    var title: String { info.name }
 }
 
 /// Ошибка сервиса — понятным текстом для пользователя (как `http_error` в Rust).
@@ -164,10 +175,16 @@ extension Track {
     /// Главный артист — по нему лимиты разнообразия волны, пауза, подборки.
     var artistKey: String { artistKeys[0] }
 
+    /// Префиксы исполнителей работающих сервисов: `sca:`, `yma:`.
+    private static let artistPrefixes = Service.allCases.map { $0.info.prefixes.artist! + ":" }
+    /// У SoundCloud без id пользователя приходит `sca:0` — такого исполнителя нет.
+    private static let missingArtist = Service.soundcloud.info.prefixes.artist! + ":0"
+
     /// ref главного артиста (`sca:` / `yma:`) — для его страницы, популярных треков и релизов.
-    /// У SoundCloud без id пользователя приходит `sca:0` — такого нет.
     var mainArtistRef: String? {
-        artists.lazy.map(\.ref).first { ($0.hasPrefix("sca:") || $0.hasPrefix("yma:")) && $0 != "sca:0" }
+        artists.lazy.map(\.ref).first { ref in
+            Self.artistPrefixes.contains { ref.hasPrefix($0) } && ref != Self.missingArtist
+        }
     }
 
     /// Имя главного артиста для подписи.
