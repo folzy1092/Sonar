@@ -51,11 +51,11 @@ struct QueueSettingsView: View {
                 + "сохраняются на телефон (файлами — потоки HLS SoundCloud так не сохранить). Сыгранное удаляется само.") {
                 PlayerToggleRow(icon: .cloudOff, title: "Волна без сети",
                                 subtitle: "Подкачивать следующие треки волны на Wi‑Fi",
-                                isOn: flag("wave.offline"))
+                                isOn: flag("storage.wave_offline"))
                 PlayerRowDivider()
                 PlayerToggleRow(icon: .sparkles, title: "Почему этот трек",
                                 subtitle: "Строка под названием в плеере: «Похож на …», «Ты лайкал …»",
-                                isOn: flag("wave.reasons"))
+                                isOn: flag("player.wave_why"))
             }
             .cascade(3)
         }

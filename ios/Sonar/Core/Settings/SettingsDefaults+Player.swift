@@ -28,8 +28,8 @@ extension SettingsDefaults {
             "queue.add_following": .bool(true),
             "general.restore": .string(RestoreMode.fallback.rawValue),
             // Моя волна: подкачка следующих на Wi‑Fi для игры без сети (`WaveCache`) и «Почему этот трек»
-            "wave.offline": .bool(true),
-            "wave.reasons": .bool(true),
+            "storage.wave_offline": .bool(true),
+            "player.wave_why": .bool(true),
         ]
         for (key, value) in Gestures.defaults { out[key] = .string(value) }
         return out
