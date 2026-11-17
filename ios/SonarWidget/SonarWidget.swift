@@ -6,12 +6,16 @@ import WidgetKit
 // приложения — поэтому он статичный: знак Sonar и кнопки, которые открывают приложение ссылкой
 // `sonar://play/liked|wave|quick` (`App/DeepLink.swift`). Строго чёрно-белый, как знак (brand/README.md).
 // Значки — те же MingCute-пути, что в приложении (`IconShape.swift`, `IconPaths.swift` — общие файлы).
+// Пункт управления и экран блокировки (iOS 18): кнопка и значки «Моя волна» — внизу файла. Всё живёт в
+// одном расширении SonarWidget.appex — его подписывает та же пара, что и приложение (ios.yml, BundlePreparer).
 
 @main
 struct SonarWidgets: WidgetBundle {
     var body: some Widget {
         SonarButtonsWidget()
         SonarQuickWidget()
+        SonarLockWidget()
+        SonarWaveControl()
     }
 }
 
@@ -206,5 +210,77 @@ struct SonarQuickWidget: Widget {
         .configurationDisplayName("Sonar — кнопка")
         .description("Одно касание — и играет «Моя волна», Любимые или быстрый плейлист.")
         .supportedFamilies([.systemSmall])
+    }
+}
+
+// MARK: - Экран блокировки: «Моя волна»
+
+/// Значки экрана блокировки: круглый — знак Sonar, прямоугольный — знак и «Моя волна». Касание — та же
+/// ссылка, что у кнопки виджета «Домой» (`sonar://play/wave`). Цвет и прозрачность красит система.
+private struct LockView: View {
+    @Environment(\.widgetFamily) private var family
+
+    var body: some View {
+        content
+            .widgetURL(OpenWaveIntent.target.url)
+            .containerBackground(for: .widget) { Color.clear }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch family {
+        case .accessoryRectangular:
+            HStack(spacing: 8) {
+                LogoMark(size: 30)
+                    .widgetAccentable()
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(OpenWaveIntent.target.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .widgetAccentable()
+                    Text("Sonar")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+        default:
+            ZStack {
+                AccessoryWidgetBackground()
+                LogoMark(size: 30)
+                    .widgetAccentable()
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(OpenWaveIntent.target.title))
+        }
+    }
+}
+
+struct SonarLockWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "com.folzy.sonar.widget.lock-wave", provider: StaticProvider()) { _ in
+            LockView()
+        }
+        .configurationDisplayName("Моя волна")
+        .description("Знак Sonar на экране блокировки: касание — и играет «Моя волна».")
+        .supportedFamilies([.accessoryCircular, .accessoryRectangular])
+    }
+}
+
+// MARK: - Пункт управления: «Моя волна»
+
+/// Кнопка в Пункте управления, на экране блокировки (вместо фонарика и камеры) и на кнопке действия.
+/// Значок — знак Sonar своим символом `sonar.mark` (`Assets.xcassets`, `ios/scripts/gen-symbol.mjs`):
+/// кнопки Пункта управления показывают только символы, SwiftUI-фигуру туда не поставить.
+struct SonarWaveControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "com.folzy.sonar.widget.wave-control") {
+            ControlWidgetButton(action: OpenWaveIntent()) {
+                Label("Моя волна", image: "sonar.mark")
+            }
+        }
+        .displayName("Моя волна")
+        .description("Открывает Sonar и включает «Мою волну».")
     }
 }
