@@ -58,7 +58,7 @@
 |---|---|---|---|
 | `profile.name` | отображаемое имя (приветствие на главной), до 40 знаков | `''` | да |
 | `profile.username` | `@username`: латиница, цифры, `_`, 3–32 | `''` | да |
-| `profile.avatar` | WebP data URL 256×256, обрезан в круг | `''` | да |
+| `profile.avatar` | WebP data URL 256×256, обрезан в круг (iPhone — JPEG data URL 256×256 из галереи, `ProfileEditView`) | `''` | да |
 
 ## Вид — `appearance.*` (`photo_13..15`, `pc/1..3`)
 
@@ -68,19 +68,19 @@
 | `appearance.cover_theme` | bool — тема под обложку | `true` | да |
 | `appearance.preset` | `neutral`, `amoled`, `crimson`, `nord`, `sky`, `mint`, `violet`, `blossom`, `sakura`, `terminal`, `aqua`, `sunset`, `slate` — выбор готовой темы выключает «Под трек» | `neutral` | да |
 | `appearance.animations` | bool — выключено: только прозрачность, как «Меньше движения» | `true` | да |
-| `appearance.tab_style` | `standard` / `rounded` / `floating` | `floating` | да |
+| `appearance.tab_style` | `standard` (во всю ширину у края) / `rounded` (во всю ширину, скруглён сверху) / `floating` (капсула) / `compact` (узкая капсула, только значки) — нижняя панель iPhone (`BottomChrome`, Интерфейс → Вкладки, 2026-11-17) | `floating` | да |
 | `appearance.mini_player` | `capsule` / `standard` / `minimal` / `deck` / `custom` — заготовка мини-плеера (выставляет фон, прогресс, обложку, скругление; поменял пункт — `custom`). iOS (названия 2026-11-17): Капсула = цвет обложки + кольцо + круг + круглое; Обложка (`standard`) = сама обложка + заливка + закруглённая + среднее; Тихий (`minimal`) = цвет темы + линия + закруглённая + мягкое; Лента (`deck`) = сама обложка + линия + без обложки + без скругления | `capsule` | да |
 | `appearance.mini_background` | `cover_color` (цвет обложки) / `cover` (сама обложка, размытая) / `theme` (цвет темы) — фон мини-плеера (iOS, 2026-11-17) | `cover_color` | да |
-| `appearance.background` | `standard` (тема) / `cover_color` / `cover` (сама обложка, размытая) / `custom` (свой фон) | `cover_color` | да |
+| `appearance.background` | `standard` (тема) / `cover_color` (мягкое свечение цвета обложки сверху) / `cover` (сама обложка, размытая) / `custom` (свой фон; iPhone — картинка из галереи, файл на телефоне `Application Support/Look/backdrop.jpg`, до сервера) — фон под экранами (`AppBackdrop`) | `cover_color` | да |
 | `appearance.progress_indicator` | `none` или набор через запятую из `line` (линия внизу мини-плеера) / `fill` (заливка фона) / `ring` (кольцо на обложке) — можно несколько сразу (`line,ring`); iOS — Профиль → Мини-плеер (2026-11-17) | `ring` | да |
 | `appearance.cover_shape` | `rounded` / `circle` / `hidden` (обложка в мини-плеере) | `circle` | да |
 | `appearance.corner_radius` | `none` / `soft` / `rounded` / `pill` (Нет / Маленькое / Среднее / Большое) | `rounded` | да |
-| `appearance.glass` | bool — прозрачность окна: Windows 11 — Mica, Windows 10 — Acrylic (`glass.rs`) | `false` (PC) | да |
-| `appearance.glass_type` | `balance` / `ultra` / `no_blur` | `ultra` | да |
-| `appearance.opacity` | 15–100 % — альфа фона окна и карточек при прозрачности | `80` (PC) | да |
+| `appearance.glass` | bool — прозрачность окна: Windows 11 — Mica, Windows 10 — Acrylic (`glass.rs`); iPhone — стекло нижней панели (выкл. — плотная поверхность темы) | `false` (PC), `true` (iOS) | да |
+| `appearance.glass_type` | `balance` / `ultra` / `no_blur` — iPhone: Баланс — плотное размытие, Ультра — тонкое, Без размытия — только прозрачность | `ultra` | да |
+| `appearance.opacity` | 15–100 % — альфа фона окна и карточек при прозрачности (iPhone — поверхности панели) | `80` | да |
 | `appearance.glass_blur` | 0–40 px — радиус размытия у панелей и меню | `16` (PC) | да |
-| `appearance.bg_blur` | 0–40 px | `0` | да |
-| `appearance.bg_dim` | 0–90 % | `0` | да |
+| `appearance.bg_blur` | 0–40 px — размытие фона-картинки (у «Самой обложки» поверх своего) | `0` | да |
+| `appearance.bg_dim` | 0–90 % — затемнение фона-картинки сверх базового | `0` | да |
 | `appearance.bg_custom` | id своего фона на сервере (картинка или видео ≤ 10 с) / null | `null` | да |
 | `appearance.font` | `default`, имя шрифта из списка ниже или `custom:<имя>` (свой файл, PC — в IndexedDB); ось стиля «шрифт интерфейса» | `Golos Text Variable` (стиль Sonar) | да |
 | `appearance.font_size` | 12 / 14 / 16 / 18 / 20 | `16` | да |
@@ -214,6 +214,9 @@
 | `tabs.float_x`, `tabs.float_y` | центр плавающей панели в долях окна | `0.045`, `0.5` | да |
 | `tabs.adapt` | bool — цвет панели от подкраски страницы | `false` | да |
 | `tabs.autohide` | bool — мышь замерла 3 с: панель и мини-плеер гаснут | `false` | да |
+| `tabs.collapse` (iOS) | bool — при прокрутке вниз вкладки и мини-плеер сворачиваются в одну строку | `true` | да |
+
+На iPhone «Вкладки» — стиль нижней панели (`appearance.tab_style`), `tabs.adapt` (панель в цвет подкраски темы) и `tabs.collapse`; позиции нет — панель всегда снизу. Экраны iOS «Интерфейса» — `ios/Sonar/Features/Settings/Look/` (`LookSettingsView`, `TabsSettingsView`, `ProfileEditView`); на iPhone из осей стиля пока применяется только поверхность, остальные оси выбор стиля пишет как ПК — синк не превращает стиль в «Свой».
 
 ## Мини-плеер PC — `mini.*` (`pc/8, 9`)
 

@@ -25,6 +25,9 @@ const MAP = {
   refresh: 'refresh-2', info: 'information', lock: 'lock', album: 'album', mic: 'mic',
   bolt: 'flash', moon: 'moon', sun: 'sun', disc: 'disc', compass: 'compass', sparkles: 'sparkles', rain: 'drizzle',
   eyeClosed: 'eye-close', dash: 'minimize', square: 'square', palette: 'palette', capsule: 'layout-bottom', pic: 'pic', brush: 'brush', circle: 'round', grid: 'grid', layers: 'layers', translate: 'translate', textLines: 'align-left', sliders: 'settings-6', letterT: 'text',
+  // Интерфейс → Вид / Вкладки / Профиль
+  contrast: 'contrast', tabStandard: 'layout-bottom-close', tabRounded: 'layout-bottom-open', drop: 'drop', dropOff: 'droplet-off',
+  background: 'background', imagePlus: 'image-plus', magic: 'magic-2', paintBrush: 'paint-brush', camera: 'camera', userEdit: 'user-edit', rectangle: 'rectangle',
 }
 
 /** Знаки сервисов — одна заливка (Simple Icons, 24×24). */
