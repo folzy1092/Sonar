@@ -2,7 +2,8 @@
   // Меню плейлиста (правый клик по плитке в медиатеке): открыть, слушать, перемешать, следующими, в
   // очередь, скопировать название. У плейлиста сервиса ещё «Перенести в Sonar» и сайт сервиса, у своего
   // плейлиста Sonar — «Лайкнуть все треки» и внизу «Скрыть плейлист» / «Показать плейлист»
-  // (решение владельца 2026-11-17). Треки сервиса грузятся один раз и запоминаются.
+  // (решение владельца 2026-11-17). Любимые — те же действия и «Очистить Любимые» с двойным подтверждением
+  // окном по центру (второй раз — «Да» через 3 с). Треки сервиса грузятся один раз и запоминаются.
   import Cover from '../components/Cover.svelte'
   import Icon from '../components/Icon.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
@@ -16,12 +17,15 @@
   import { openRef, router } from './router.svelte'
   import { pop } from '../lib/motion'
   import { t } from '../lib/i18n.svelte'
+  import { confirm } from '../lib/confirm.svelte'
+  import NavIcon from '../components/NavIcon.svelte'
 
   const W = 260
   let el: HTMLElement | undefined = $state()
   let pos = $state({ left: 0, top: 0 })
   const p = $derived(playlistMenu.target)
   const own = $derived(playlistMenu.own)
+  const fav = $derived(playlistMenu.fav)
   const sc = $derived(!!p?.ref.startsWith('sc'))
 
   const cache = new Map<string, Promise<Track[]>>()
@@ -37,7 +41,7 @@
 
   // не вылезать за окно
   $effect(() => {
-    if ((!p && !own) || !el) return
+    if ((!p && !own && !fav) || !el) return
     const h = el.offsetHeight
     const left = Math.min(Math.max(8, playlistMenu.x), innerWidth - W - 8)
     const top = Math.min(playlistMenu.y, innerHeight - h - 8)
@@ -45,7 +49,7 @@
   })
 
   function onPointerDown(e: PointerEvent) {
-    if ((p || own) && el && !el.contains(e.target as Node)) playlistMenu.close()
+    if ((p || own || fav) && el && !el.contains(e.target as Node)) playlistMenu.close()
   }
 
   /** Действие с треками плейлиста: меню закрывается сразу, треки догружаются в фоне. */
@@ -78,6 +82,41 @@
         })
       })
       .catch((e) => toast.show(errorText(e)))
+  }
+
+  /** Действие с Любимыми: треки берутся из базы при каждом действии. */
+  function withFav(fn: (tracks: Track[]) => unknown, done?: string) {
+    playlistMenu.close()
+    api
+      .favorites()
+      .then((tracks) => {
+        if (!tracks.length) return toast.show(t('В Любимых пока пусто'))
+        fn(tracks)
+        if (done) toast.show(done)
+      })
+      .catch((e) => toast.show(errorText(e)))
+  }
+
+  /** Очистить Любимые — два вопроса подряд, во втором «Да» доступна через 3 секунды. */
+  async function clearFav() {
+    playlistMenu.close()
+    const first = await confirm.ask({
+      title: t('Очистить Любимые?'),
+      text: t('Из Любимых уберутся все треки. Альбомы и исполнители останутся.'),
+      yes: t('Да'),
+      no: t('Нет'),
+      danger: true,
+    })
+    if (!first) return
+    const sure = await confirm.ask({
+      title: t('Точно очистить Любимые?'),
+      text: t('Это действие невозможно отменить.'),
+      yes: t('Да, очистить'),
+      no: t('Нет'),
+      danger: true,
+      delay: 3,
+    })
+    if (sure) await library.clearFavorites()
   }
 
   async function toggleHidden() {
@@ -173,7 +212,44 @@
   </button>
 {/snippet}
 
-{#if own}
+{#if fav}
+  <div
+    class="menu"
+    role="menu"
+    tabindex="-1"
+    bind:this={el}
+    style:left="{pos.left}px"
+    style:top="{pos.top}px"
+    style:width="{W}px"
+    in:pop={{ y: -6 }}
+    out:pop={{ y: -6 }}
+    oncontextmenu={(e) => e.preventDefault()}
+  >
+    <div class="head">
+      <span class="fav-art"><NavIcon name="heart" active size={24} /></span>
+      <div class="meta">
+        <b>{t('Любимые')}</b>
+        <span>{t('Лайкнутые треки')}</span>
+        {#if library.liked.size}<small>{tracksText([...library.liked].filter((r) => /^(sc|ym):/.test(r)).length)}</small>{/if}
+      </div>
+    </div>
+
+    {@render item('chevronRight', t('Открыть'), () => {
+      playlistMenu.close()
+      router.go('playlist', 'favorites')
+    })}
+    {@render item('play', t('Слушать'), () => withFav((list) => player.playList(list, 0, 'favorites', t('Любимые'))))}
+    {@render item('shuffle', t('Слушать вперемешку'), () => withFav((list) => player.playShuffled(list, 'favorites', t('Любимые'))))}
+    <hr />
+    {@render item('playNext', t('Следующими'), () => withFav((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
+    {@render item('queue', t('В очередь'), () => withFav((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}
+    <hr />
+    <button class="item danger" role="menuitem" onclick={clearFav}>
+      <Icon name="trash" size={17} />
+      <span>{t('Очистить Любимые')}</span>
+    </button>
+  </div>
+{:else if own}
   {@const ctx = `playlist:${own.id}`}
   <div
     class="menu"
@@ -303,6 +379,15 @@
   small {
     font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
+  }
+  .fav-art {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-s);
+    background: var(--hover);
+    flex: none;
   }
   hr {
     margin: 4px 8px;

@@ -308,6 +308,8 @@ export const api = {
   setLike: (itemRef: string, on: boolean, item?: Track | Album | Artist) => call<void>('set_like', { itemRef, on, item }),
   likedRefs: () => call<string[]>('liked_refs'),
   favorites: () => call<ListTrack[]>('favorites'),
+  /** «Очистить Любимые»: снять все лайки треков; вернёт, сколько убрано. */
+  clearFavorites: () => call<number>('clear_favorites'),
   likedCatalog: <T>(kind: 'album' | 'artist') => call<T[]>('liked_catalog', { kind }),
   playlists: () => call<Playlist[]>('playlists'),
   playlist: (id: string) => call<Playlist>('playlist', { id }),

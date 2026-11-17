@@ -63,6 +63,18 @@ class Library {
     return fresh.length
   }
 
+  /** Снять все лайки треков (после двойного подтверждения в меню Любимых). */
+  async clearFavorites() {
+    try {
+      const n = await api.clearFavorites()
+      await this.load(true)
+      this.version++
+      toast.show(n ? t('Любимые очищены — убрано {tracks}', { tracks: tracksText(n) }) : t('В Любимых и так пусто'))
+    } catch (e) {
+      toast.show(errorText(e))
+    }
+  }
+
   async refreshPlaylists() {
     try {
       this.playlists = await api.playlists()

@@ -352,6 +352,12 @@ pub fn liked_refs(db: State<'_, Db>) -> Res<Vec<String>> {
   Ok(out)
 }
 
+/// «Очистить Любимые»: снять все лайки треков; вернёт, сколько убрано.
+#[tauri::command]
+pub fn clear_favorites(db: State<'_, Db>) -> Res<usize> {
+  db.0.lock().unwrap().clear_track_likes().map_err(err)
+}
+
 #[tauri::command]
 pub fn favorites(db: State<'_, Db>) -> Res<Vec<ListTrack>> {
   db.0.lock().unwrap().favorites().map_err(err)

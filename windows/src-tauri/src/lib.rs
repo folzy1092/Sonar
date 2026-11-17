@@ -199,6 +199,7 @@ pub fn run() {
       commands::set_like,
       commands::liked_refs,
       commands::favorites,
+      commands::clear_favorites,
       commands::liked_catalog,
       commands::playlists,
       commands::playlist,

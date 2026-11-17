@@ -181,7 +181,17 @@
       <h2>{t('Плейлисты')} <button class="more" aria-label={t('Все плейлисты')} onclick={() => (tab = 'Плейлисты')}><Icon name="chevronRight" size={18} /></button></h2>
     {/if}
     <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll use:edges>
-      <Tile title={t('Любимые')} subtitle={t('Лайкнутые треки')} meta={tracksText(favCount)} art={favArt} onclick={() => router.go('playlist', 'favorites')} />
+      <Tile
+        title={t('Любимые')}
+        subtitle={t('Лайкнутые треки')}
+        meta={tracksText(favCount)}
+        art={favArt}
+        onclick={() => router.go('playlist', 'favorites')}
+        oncontextmenu={(e) => {
+          e.preventDefault()
+          playlistMenu.openFav(e.clientX, e.clientY)
+        }}
+      />
       {#each own as p (p.id)}
         <Tile
           title={p.name}

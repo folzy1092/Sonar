@@ -434,6 +434,16 @@ impl Store {
     Ok(())
   }
 
+  /// Снять все лайки треков разом («Очистить Любимые»): строки остаются с `deleted = 1` для синка.
+  /// Вернёт, сколько треков убрано.
+  pub fn clear_track_likes(&self) -> Result<usize> {
+    let rev = self.next_rev()?;
+    Ok(self.db.execute(
+      "UPDATE likes SET deleted = 1, rev = ?2 WHERE user_id = ?1 AND kind = 'track' AND deleted = 0",
+      params![LOCAL_USER, rev],
+    )?)
+  }
+
   /// Лайкнутое одного вида: (ref, added_at), новые первыми.
   pub fn likes(&self, kind: &str) -> Result<Vec<(String, i64)>> {
     let mut st = self.db.prepare(
@@ -890,6 +900,11 @@ mod tests {
     assert_eq!(fav.iter().map(|t| t.track.ref_.as_str()).collect::<Vec<_>>(), ["ym:2", "sc:1"]);
     s.set_like("ym:2", false).unwrap();
     assert_eq!(s.favorites().unwrap().len(), 1);
+    // «Очистить Любимые» снимает только треки, лайки альбомов и артистов остаются
+    s.set_like("scalb:9", true).unwrap();
+    assert_eq!(s.clear_track_likes().unwrap(), 1);
+    assert!(s.favorites().unwrap().is_empty());
+    assert_eq!(s.likes("album").unwrap().len(), 1);
     assert_eq!(s.likes("album").unwrap().len(), 1);
     assert!(s.set_like("pl_x", true).is_err());
   }
