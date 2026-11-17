@@ -8,10 +8,11 @@
   import Cards from '../../components/settings/Cards.svelte'
   import Divider from '../../components/settings/Divider.svelte'
   import { indicator } from '../../lib/indicator'
+  import { rise } from '../../lib/motion'
   import { settings } from '../../lib/settings.svelte'
   import { api } from '../../lib/api'
   import { PRESETS, theme } from '../../theme/theme.svelte'
-  import { css, themeFrom, type RGB } from '../../theme/palette'
+  import { COVER_STRENGTHS, css, themeFrom, type CoverStrength, type RGB } from '../../theme/palette'
   import { CUSTOM_PREFIX, FONT_CATEGORIES, FONTS, fontCategory, fontLabel, fontStack, type FontCategory } from '../../theme/look'
   import { saveCustomFont } from '../../theme/custom-font'
   import { toast } from '../../lib/toast.svelte'
@@ -52,6 +53,9 @@
     }
   }
 
+  const STRENGTH_LABELS: Record<CoverStrength, string> = { weak: 'Слабо', medium: 'Средне', strong: 'Сильно' }
+  const strengths = $derived(COVER_STRENGTHS.map((id) => ({ id, label: t(STRENGTH_LABELS[id]) })))
+
   const scales = [75, 90, 100, 110, 125].map((n) => ({ id: n, label: `${n}%` }))
 </script>
 
@@ -82,6 +86,19 @@
     {@render tile(p.title, swatch(p.accent, p.black), !cover && preset === p.id, () => theme.setPreset(p.id))}
   {/each}
 </div>
+{#if cover}
+  <div transition:rise={{ y: 6 }}>
+    <Choice
+      title={t('Сила темы под обложку')}
+      hint={t('Насколько фон и карточки темнеют под тёмную обложку и светлеют под светлую')}
+      wide
+      fill
+      value={settings.get('appearance.cover_strength')}
+      options={strengths}
+      onchange={(v) => settings.set('appearance.cover_strength', v)}
+    />
+  </div>
+{/if}
 
 <Divider />
 
