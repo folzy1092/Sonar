@@ -13,7 +13,6 @@ struct FullPlayerView: View {
     @State private var showQueue = false
     @State private var showSpeed = false
     @State private var dragDown: CGFloat = 0
-    @Environment(SettingsStore.self) private var settings
     /// Текст песни на весь экран (`IMG_6787..6790`); держится между открытиями плеера.
     @AppStorage("player.lyrics_open") private var showLyrics = false
     /// Кнопки спрятаны: текст открыт, экран не трогали ~2,5 с, и сменилась строка.
@@ -80,6 +79,14 @@ struct FullPlayerView: View {
         .animation(.easeInOut(duration: 0.6), value: chromeHidden)
         .task(id: engine.current?.ref) {
             if let track = engine.current { await lyricsStore.load(for: track) }
+            // следующий в очереди — заранее, чтобы текст открывался сразу
+            if let next = engine.upNext.first { await lyricsStore.preload(next) }
+        }
+        .onChange(of: lyricsStore.translationMessage) { _, message in
+            if let message {
+                engine.message = message
+                lyricsStore.translationMessage = nil
+            }
         }
         .onChange(of: showLyrics) { _, open in
             if !open { chromeHidden = false }
@@ -153,7 +160,7 @@ struct FullPlayerView: View {
                     LyricsView(
                         lyrics: lyrics,
                         offset: lyricsStore.offset(for: track.ref),
-                        look: LyricsLook.current(settings),
+                        look: LyricsLook.current(),
                         translation: lyricsStore.translation,
                         topInset: 110,
                         bottomInset: chromeHidden ? 120 : 280,
@@ -559,7 +566,6 @@ struct SpeedSheet: View {
 /// Очередь (`photo_2, 3`): контекст сверху, разделы Предыдущие · Сейчас играет · Далее, открыт на текущем.
 struct QueueSheet: View {
     @Environment(PlaybackEngine.self) private var engine
-    @Environment(SettingsStore.self) private var settings
 
     var body: some View {
         NavigationStack {

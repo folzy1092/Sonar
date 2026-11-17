@@ -6,11 +6,10 @@ import UIKit
 /// сброс), «Перевод», «Найти заново».
 struct LyricsMenuSheet: View {
     let track: Track
-    @Environment(SettingsStore.self) private var settings
     @State private var dragStart: Double?
 
     private var store: LyricsStore { LyricsStore.shared }
-    private var look: LyricsLook { LyricsLook.current(settings) }
+    private var look: LyricsLook { LyricsLook.current() }
     private var offset: Double { store.offset(for: track.ref) }
 
     var body: some View {
@@ -20,7 +19,7 @@ struct LyricsMenuSheet: View {
                 Button {
                     let all = LyricsSize.allCases
                     let next = all[((all.firstIndex(of: look.size) ?? 0) + 1) % all.count]
-                    settings.set(LyricsLook.keys.size, .string(next.rawValue))
+                    store.size = next
                     UISelectionFeedbackGenerator().selectionChanged()
                 } label: {
                     Text(look.size.rawValue)
@@ -38,12 +37,12 @@ struct LyricsMenuSheet: View {
                 cycleRow("Стиль текста", look.style.title) {
                     let all = LyricsTextStyle.allCases
                     let next = all[((all.firstIndex(of: look.style) ?? 0) + 1) % all.count]
-                    settings.set(LyricsLook.keys.style, .string(next.rawValue))
+                    store.style = next
                 }
                 cycleRow("Анимация", look.animation.title) {
                     let all = LyricsAnimation.allCases
                     let next = all[((all.firstIndex(of: look.animation) ?? 0) + 1) % all.count]
-                    settings.set(LyricsLook.keys.animation, .string(next.rawValue))
+                    store.animation = next
                 }
             }
             .padding(.top, 18)
@@ -94,7 +93,7 @@ struct LyricsMenuSheet: View {
             ForEach([true, false], id: \.self) { words in
                 let on = look.words == words
                 Button {
-                    settings.set(LyricsLook.keys.sync, .string(words ? "words" : "lines"))
+                    store.mode = words ? .words : .lines
                     UISelectionFeedbackGenerator().selectionChanged()
                 } label: {
                     Text(words ? "По словам" : "По строкам")

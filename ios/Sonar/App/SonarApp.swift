@@ -30,6 +30,8 @@ struct SonarApp: App {
                 .task {
                     // при запуске и раз в 6 часов (update.auto_check)
                     checker.startAutomatic(settings: settings)
+                    // кэш текстов чистится при создании хранилища (неделя / две у Любимых)
+                    _ = LyricsStore.shared
                     await MusicCore.shared.configure(maxKbps: MusicCore.qualityKbps(settings.string("audio.quality")),
                                                      soundCloudViaYandex: settings.bool("audio.sc_via_yandex"))
                 }
