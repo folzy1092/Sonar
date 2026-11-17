@@ -3,9 +3,9 @@ import UIKit
 
 /// Герой «Моей волны» — поле точек (своё, не сердце Dotify): сетка кружков, размер каждого — яркость
 /// фигуры в этом месте. Фигуры по кругу перетекают друг в друга: знак Sonar → шар со светом → две волны.
-/// Всё дышит; когда играет музыка — сильнее и с бегущей рябью. Цвет — акцент темы (под обложку).
-/// Касание — от пальца расходится кольцо из точек и лёгкий тактильный отклик; долгое нажатие — лист
-/// настроений волны (`onHold`). Рисует Canvas одним путём, ~1800 точек, 30 кадров/с; вне экрана — пауза.
+/// Сами по себе точки всё время чуть плывут и дышат размером; когда играет музыка — сильнее и с бегущей
+/// рябью. Цвет — акцент темы (под обложку). Касание — точки под пальцем коротко шевелятся (отскок от
+/// пальца и обратно) и лёгкий тактильный отклик; долгое нажатие — лист настроений волны (`onHold`). Рисует Canvas одним путём, ~1800 точек, 30 кадров/с; вне экрана — пауза.
 struct DotField: View {
     var active: Bool
     var playing: Bool
@@ -20,8 +20,10 @@ struct DotField: View {
         let time: TimeInterval
     }
 
-    /// Сколько живёт кольцо от касания, с.
-    static let pokeLife = 1.4
+    /// Сколько шевелятся точки после касания, с.
+    static let pokeLife = 0.9
+    /// Радиус шевеления вокруг пальца, pt.
+    static let pokeRadius = 80.0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var size: CGSize = .zero
@@ -40,9 +42,19 @@ struct DotField: View {
                 let maxR = Double(step) * 0.5
                 for row in 0 ..< grid.rows {
                     for col in 0 ..< grid.cols {
-                        let c = grid.center(col: col, row: row)
+                        var c = grid.center(col: col, row: row)
                         var v = Self.value(col: col, row: row, grid: grid, logo: logo, t: t, playing: playing)
-                        if !pokes.isEmpty { v = min(1, v + Self.ripple(at: c, pokes: pokes, t: t)) }
+                        // сами по себе: медленное течение и лёгкое дыхание каждой точки
+                        let drift = Self.drift(col: col, row: row, t: t)
+                        c.x += drift.dx
+                        c.y += drift.dy
+                        v *= drift.scale
+                        if !pokes.isEmpty {
+                            let w = Self.wiggle(at: c, pokes: pokes, t: t)
+                            c.x += w.dx
+                            c.y += w.dy
+                            v = min(1, v + w.bump)
+                        }
                         let r = maxR * v
                         if r < 0.45 { continue }
                         dots.addEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
@@ -70,23 +82,39 @@ struct DotField: View {
     private func poke(at point: CGPoint) {
         let now = Date().timeIntervalSinceReferenceDate
         pokes = pokes.filter { now - $0.time < Self.pokeLife } + [Poke(point: point, time: now)]
-        UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.8)
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.7)
     }
 
-    /// Кольцо от касания: бежит наружу и гаснет; под пальцем точки на миг набухают.
-    static func ripple(at c: CGPoint, pokes: [Poke], t: TimeInterval) -> Double {
-        var bump = 0.0
+    /// Течение без касаний: каждая точка плавает на ~1.5 pt по своей медленной синусоиде, соседние —
+    /// почти в такт (видно как мягкое волнение), и чуть меняет размер.
+    static func drift(col: Int, row: Int, t: TimeInterval) -> (dx: CGFloat, dy: CGFloat, scale: Double) {
+        let c = Double(col), r = Double(row)
+        let dx = 1.5 * sin(t * 0.9 + r * 0.32 + c * 0.07)
+        let dy = 1.5 * cos(t * 0.75 + c * 0.28 - r * 0.05)
+        let scale = 0.9 + 0.1 * sin(t * 1.1 + c * 0.45 + r * 0.6)
+        return (CGFloat(dx), CGFloat(dy), scale)
+    }
+
+    /// Шевеление от касания: точки рядом с пальцем отскакивают от него на пару pt, качнутся и
+    /// успокаиваются (затухающее колебание), чуть набухают. Дальше `pokeRadius` — ничего.
+    static func wiggle(at c: CGPoint, pokes: [Poke], t: TimeInterval) -> (dx: CGFloat, dy: CGFloat, bump: Double) {
+        var dx = 0.0, dy = 0.0, bump = 0.0
         for poke in pokes {
             let age = t - poke.time
             guard age >= 0, age < pokeLife else { continue }
-            let fade = 1 - age / pokeLife
-            let d = Double(hypot(c.x - poke.point.x, c.y - poke.point.y))
-            let ring = age * 240
-            let x = (d - ring) / 20
-            bump += exp(-x * x) * fade * 0.85
-            if d < 44 { bump += (1 - d / 44) * max(0, 0.7 - age) }
+            let vx = Double(c.x - poke.point.x), vy = Double(c.y - poke.point.y)
+            let d = (vx * vx + vy * vy).squareRoot()
+            guard d < pokeRadius else { continue }
+            let fall = pow(1 - d / pokeRadius, 2)
+            let swing = sin(age * 22) * exp(-age * 4.5)
+            let push = 3.5 * fall * swing
+            if d > 0.5 {
+                dx += vx / d * push
+                dy += vy / d * push
+            }
+            bump += 0.18 * fall * exp(-age * 4)
         }
-        return bump
+        return (CGFloat(dx), CGFloat(dy), bump)
     }
 
     // MARK: - Фигуры

@@ -9,8 +9,8 @@ struct MiniStyle: Equatable {
         case capsule, standard, minimal, deck, custom
         var id: String { rawValue }
 
-        /// Заготовки на экране настроек — по порядку.
-        static let shown: [Preset] = [.capsule, .standard, .minimal, .deck]
+        /// Заготовки на экране настроек: от самой тихой к самой яркой.
+        static let shown: [Preset] = [.minimal, .capsule, .deck, .standard]
 
         var title: String {
             switch self {
