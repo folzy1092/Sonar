@@ -20,7 +20,7 @@
 `version` в `tauri.conf.json` / `Cargo.toml` / `package.json` + запись в `updates/changelog.json`.
 **iOS начата автономно, до сервера** (решение владельца 2026-11-17): каркас `ios/` (XcodeGen, свой таб-бар,
 CI `ios.yml` → неподписанная `Sonar.ipa`, подписывает каждый пользователь сам), задание с этапами и
-автообновлением как в Shadow — `docs/IOS_PROMPT.md` (ROADMAP «Блок I»). Сделано 2026-11-17: релизы `ios-build-<N>` +
+автообновлением как в Shadow — `docs/IOS_PROMPT.md` (ROADMAP «Блок I»). **Следующая волна фич** (YouTube Music, VK Музыка, Spotify, резерв из другого сервиса, импорт по ссылке, умные плейлисты, дубли, экспорт, Ctrl+K, локальные файлы, итоги, пульт с iPhone по Wi-Fi) — задание `docs/NEXT_PROMPT.md` (2026-11-17). Сделано 2026-11-17: релизы `ios-build-<N>` +
 постоянная `releases/download/ios-latest/Sonar.ipa` (`--latest=false`, Latest — за Windows), «рубильник»
 `updates/ios-update.json` (ручной запуск `ios.yml` с `announce`); автообновление `ios/Sonar/Update/` (пара .p12 +
 .mobileprovision в «Система → Обновления → Сертификат», zsign `ios/Packages/Zsign` на Security.framework —
