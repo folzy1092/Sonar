@@ -263,10 +263,126 @@ export interface ThemeTokens {
   accent: RGB
   bg: RGB
   ink: RGB
+  /** Сдвиг светлоты поверхностей под обложку, который реально применён (−0.2…0.2; 0 — без сдвига). */
+  shift: number
 }
 
-/** Токены темы: исходный цвет (обложка / готовая тема / null — монохром) × формулы поверхности. */
-export function themeFrom(src: RGB | null, surface: Surface = 'echo', light = false): ThemeTokens {
+/**
+ * Сила темы под обложку (Интерфейс → Тема, `appearance.cover_strength`): насколько поверхности
+ * уходят по светлоте за обложкой (тёмная — темнее, светлая — светлее), во сколько раз сильнее
+ * их подкраска и минимальная насыщенность оттенка, чтобы поверхность не стала серой.
+ */
+export type CoverStrength = 'weak' | 'medium' | 'strong'
+export const COVER_STRENGTHS: CoverStrength[] = ['weak', 'medium', 'strong']
+export const COVER_STRENGTH: Record<CoverStrength, { shift: number; chroma: number; hue: number }> = {
+  weak: { shift: 0.08, chroma: 0.8, hue: 0.004 },
+  medium: { shift: 0.14, chroma: 1, hue: 0.008 },
+  strong: { shift: 0.2, chroma: 1.3, hue: 0.012 },
+}
+/** Сдвиг светлоты не больше 20 % — и при любом раскладе ниже порога контраста не опускаемся. */
+export const MAX_COVER_SHIFT = 0.2
+
+/** Обложка для сдвига: сила из настроек и средняя светлота OKLCH (0…1) её пикселей. */
+export interface CoverShift {
+  strength: CoverStrength
+  lightness: number
+}
+
+/** Средняя светлота обложки — середина и разброс шкалы: L ≤ .3 — «тёмная», L ≥ .9 — «светлая». */
+export const PIVOT_L = 0.6
+const SPAN_L = 0.3
+/** Тёмная тема не уходит в чёрный, светлая — в белый. */
+const DARK_FLOOR = 0.075
+const LIGHT_CEIL = 0.992
+/** Если контраст текста просел — сдвиг ослабляем шагами, пока не пройдёт. */
+const GUARD_STEP = 0.7
+const GUARD_TRIES = 8
+
+/** Средняя светлота OKLCH непрозрачных пикселей (RGBA подряд); пустая картинка — середина шкалы. */
+export function coverLightness(px: Uint8ClampedArray | number[]): number {
+  let sum = 0
+  let n = 0
+  for (let i = 0; i + 3 < px.length; i += 4) {
+    if (px[i + 3] < 128) continue
+    sum += rgbToOklch([px[i], px[i + 1], px[i + 2]]).l
+    n++
+  }
+  return n ? sum / n : PIVOT_L
+}
+
+/** Насколько и куда сдвигать (−shift…shift): тёмная обложка — минус, светлая — плюс. */
+export function coverBias(shift: CoverShift): number {
+  const k = COVER_STRENGTH[shift.strength] ?? COVER_STRENGTH.medium
+  const bias = Math.max(-1, Math.min(1, (shift.lightness - PIVOT_L) / SPAN_L))
+  return Math.max(-MAX_COVER_SHIFT, Math.min(MAX_COVER_SHIFT, bias * k.shift))
+}
+
+/** Светлота поверхности со сдвигом f: в тёмной теме — от нуля, в светлой — от белого. */
+export function shiftLightness(l: number, f: number, light: boolean): number {
+  if (!f) return l
+  return light ? Math.min(LIGHT_CEIL, 1 - (1 - l) * (1 - f)) : Math.max(DARK_FLOOR, l * (1 + f))
+}
+
+/** Пары цветов и порог контраста WCAG, которые держит тема (как в тестах палитры). */
+const CONTRAST_PAIRS: readonly (readonly [TokenName, TokenName, number])[] = [
+  ['text', 'bg', 12],
+  ['t3', 'bg', 4.5],
+  ['t3', 's1', 4.5],
+  ['t2', 's3', 4.5],
+  ['accent', 's1', 3],
+  ['accent', 'ink', 4.5],
+]
+/** Погрешность округления sRGB при сравнении контраста до и после сдвига. */
+const CONTRAST_EPS = 1e-6
+
+function contrasts(t: ThemeTokens): number[] {
+  return CONTRAST_PAIRS.map(([a, b]) => contrast(oklchToRgb(t.lch[a]), oklchToRgb(t.lch[b])))
+}
+
+/** Текст и акцент читаются на всех поверхностях (WCAG AA). */
+export function readable(t: ThemeTokens): boolean {
+  return contrasts(t).every((c, i) => c >= CONTRAST_PAIRS[i][2])
+}
+
+/**
+ * Сдвиг под обложку не портит чтение: каждая пара не ниже порога AA — а где тема и без сдвига
+ * ниже порога (например, акцент на светлой теме), не ниже, чем была. Иначе такая обложка
+ * совсем отключала бы сдвиг из-за пары, которую он даже не трогает.
+ */
+export function keepsContrast(t: ThemeTokens, base: ThemeTokens): boolean {
+  const before = contrasts(base)
+  return contrasts(t).every((c, i) => c >= Math.min(CONTRAST_PAIRS[i][2], before[i]) - CONTRAST_EPS)
+}
+
+interface Shade {
+  /** Сдвиг светлоты поверхностей. */
+  f: number
+  /** Множитель подкраски поверхностей. */
+  chroma: number
+  /** Нижняя граница насыщенности поверхностей — лёгкий оттенок обложки. */
+  hue: number
+}
+const NO_SHADE: Shade = { f: 0, chroma: 1, hue: 0 }
+
+/**
+ * Токены темы: исходный цвет (обложка / готовая тема / null — монохром) × формулы поверхности.
+ * `cover` — тема идёт за обложкой: поверхности сдвигаются по светлоте (10–15 % по умолчанию, до 20 %)
+ * и чуть сильнее подкрашиваются её оттенком; текст остаётся читаемым (сдвиг ослабляется до AA).
+ */
+export function themeFrom(src: RGB | null, surface: Surface = 'echo', light = false, cover: CoverShift | null = null): ThemeTokens {
+  if (!cover) return build(src, surface, light, NO_SHADE)
+  const k = COVER_STRENGTH[cover.strength] ?? COVER_STRENGTH.medium
+  const base = build(src, surface, light, { f: 0, chroma: k.chroma, hue: k.hue })
+  let f = coverBias(cover)
+  for (let i = 0; i < GUARD_TRIES && f; i++) {
+    const t = build(src, surface, light, { f, chroma: k.chroma, hue: k.hue })
+    if (keepsContrast(t, base)) return t
+    f *= GUARD_STEP
+  }
+  return base
+}
+
+function build(src: RGB | null, surface: Surface, light: boolean, shade: Shade): ThemeTokens {
   const k = (light ? SURFACES_LIGHT : SURFACES)[surface]
   const base = src ? rgbToOklch(src) : { l: 0, c: 0, h: 0 }
   const mono = base.c < MONO_C
@@ -274,21 +390,25 @@ export function themeFrom(src: RGB | null, surface: Surface = 'echo', light = fa
   const h = base.h
   const cc = (m: number, mx: number) => Math.min(c * m, mx)
   const ok = (l: number, ch: number): Lch => fitGamut({ l, c: ch, h })
+  // поверхности: светлота со сдвигом, насыщенность × сила, но не ниже лёгкого оттенка обложки
+  const sh = (l: number) => shiftLightness(l, shade.f, light)
+  const sc = (m: number, mx: number) => (mono ? 0 : Math.max(Math.min(c * m * shade.chroma, mx * shade.chroma), Math.min(c, shade.hue)))
+  const surf = (l: number, m: number, mx: number) => ok(sh(l), sc(m, mx))
   const gray = !!k.grayText
   const lch: ThemeTokens['lch'] = {
-    bg: ok(k.bgL, cc(k.bgC, k.bgMax)),
-    s0: ok((k.bgL + k.sL[0]) / 2, cc(k.sC, k.sMax)),
-    s1: ok(k.sL[0], cc(k.sC, k.sMax)),
-    s2: ok(k.sL[1], cc(k.sC, k.sMax)),
-    s3: ok(k.sL[2], cc(k.sC, k.sMax)),
-    border: ok(k.bdL, cc(k.bdC, k.bdMax)),
+    bg: surf(k.bgL, k.bgC, k.bgMax),
+    s0: surf((k.bgL + k.sL[0]) / 2, k.sC, k.sMax),
+    s1: surf(k.sL[0], k.sC, k.sMax),
+    s2: surf(k.sL[1], k.sC, k.sMax),
+    s3: surf(k.sL[2], k.sC, k.sMax),
+    border: surf(k.bdL, k.bdC, k.bdMax),
     text: ok(k.txL, gray ? 0 : cc(0.03, 0.008)),
     t2: ok(k.t2L, gray ? 0 : cc(0.06, 0.014)),
     t3: ok(k.t3L, gray ? 0 : cc(0.08, 0.018)),
     accent: mono ? ok(light ? 0.22 : 0.95, 0) : ok(k.accL, Math.min(c, k.accMax)),
     ink: light ? ok(0.985, mono || gray ? 0 : cc(0.03, 0.008)) : mono ? ok(0.16, 0) : gray ? ok(0.12, 0) : ok(0.18, cc(0.35, 0.05)),
     // дорожка прогресса: у Сигнала своя, насыщенная; у остальных — поверхность 3
-    track: surface === 'signal' ? ok(light ? 0.82 : 0.42, cc(0.4, 0.06)) : ok(k.sL[2], cc(k.sC, k.sMax)),
+    track: surface === 'signal' ? ok(sh(light ? 0.82 : 0.42), cc(0.4, 0.06)) : surf(k.sL[2], k.sC, k.sMax),
   }
   const s = (x: Lch, a = 1) => oklch(x, a)
   const vars: Record<string, string> = {
@@ -306,13 +426,13 @@ export function themeFrom(src: RGB | null, surface: Surface = 'echo', light = fa
     '--accent-ink': s(lch.ink),
     '--accent-soft': mono ? (light ? 'oklch(0.2 0 0 / 0.08)' : 'oklch(0.95 0 0 / 0.12)') : s(lch.accent, k.softA),
     // подкраска верха страницы; у Монолита поверхности серые — цвет обложки только в свечении и прогрессе
-    '--tint': s(ok(light ? 0.93 : 0.2, gray ? 0 : cc(light ? 0.3 : 0.6, light ? 0.04 : 0.09))),
+    '--tint': s(ok(sh(light ? 0.93 : 0.2), gray ? sc(0, 0) : cc(light ? 0.3 : 0.6, light ? 0.04 : 0.09))),
     '--track': s(lch.track),
     // свечение за обложкой (поверхность и смена трека «Монолит»)
     '--glow': mono ? 'oklch(0.7 0 0 / 0.25)' : s(ok(light ? 0.7 : 0.62, Math.min(c, 0.2)), light ? 0.45 : 0.55),
     ...SURFACE_DECOR[surface],
   }
-  return { lch, mono, vars, accent: oklchToRgb(lch.accent), bg: oklchToRgb(lch.bg), ink: oklchToRgb(lch.ink) }
+  return { lch, mono, vars, accent: oklchToRgb(lch.accent), bg: oklchToRgb(lch.bg), ink: oklchToRgb(lch.ink), shift: shade.f }
 }
 
 export const css = ([r, g, b]: RGB, a = 1) => (a === 1 ? `rgb(${r} ${g} ${b})` : `rgb(${r} ${g} ${b} / ${a})`)

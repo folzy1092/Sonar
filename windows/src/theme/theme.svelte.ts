@@ -5,7 +5,7 @@
 import { api } from '../lib/api'
 import { isTauri } from '../lib/tauri'
 import { player } from '../player/player.svelte'
-import { DECOR_VARS, oklch, pickAccent, themeFrom, type RGB, type Surface } from './palette'
+import { COVER_STRENGTH, coverLightness, DECOR_VARS, oklch, pickAccent, themeFrom, type CoverStrength, type RGB, type Surface } from './palette'
 import { settings } from '../lib/settings.svelte'
 import { setAnimations } from '../lib/motion'
 import { CUSTOM_PREFIX, fontStack, RADII, WIDE_FONTS } from './look'
@@ -23,32 +23,47 @@ export async function proxied(url: string): Promise<string> {
   return `http://127.0.0.1:${port}/cover?u=${encodeURIComponent(url)}`
 }
 
-const cache = new Map<string, RGB | null>()
+/** Что тема берёт из обложки: акцент (null — серая) и средняя светлота OKLCH (тёмная / светлая). */
+export interface CoverInfo {
+  accent: RGB | null
+  lightness: number
+}
 
-/** Акцентный цвет картинки (кэш в памяти). */
-export async function colorOf(url: string): Promise<RGB | null> {
+const cache = new Map<string, CoverInfo | null>()
+const CACHE_MAX = 300
+const SAMPLE = 64
+
+/** Акцент и светлота картинки (кэш в памяти); не загрузилась — null. */
+export async function coverInfo(url: string): Promise<CoverInfo | null> {
   if (cache.has(url)) return cache.get(url)!
   const src = await proxied(url)
-  const color = await new Promise<RGB | null>((resolve) => {
+  const info = await new Promise<CoverInfo | null>((resolve) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
     img.onload = () => {
       try {
         const c = document.createElement('canvas')
-        c.width = c.height = 64
+        c.width = c.height = SAMPLE
         const g = c.getContext('2d', { willReadFrequently: true })!
-        g.drawImage(img, 0, 0, 64, 64)
-        resolve(pickAccent(g.getImageData(0, 0, 64, 64).data))
+        g.drawImage(img, 0, 0, SAMPLE, SAMPLE)
+        const px = g.getImageData(0, 0, SAMPLE, SAMPLE).data
+        resolve({ accent: pickAccent(px), lightness: coverLightness(px) })
       } catch {
+        // картинка без CORS (canvas «испорчен») — тема как у серой обложки
         resolve(null)
       }
     }
     img.onerror = () => resolve(null)
     img.src = src
   })
-  if (cache.size > 300) cache.clear()
-  cache.set(url, color)
-  return color
+  if (cache.size > CACHE_MAX) cache.clear()
+  cache.set(url, info)
+  return info
+}
+
+/** Акцентный цвет картинки (кэш в памяти). */
+export async function colorOf(url: string): Promise<RGB | null> {
+  return (await coverInfo(url))?.accent ?? null
 }
 
 /** Готовые темы (`appearance.preset`, pc/Screenshot_1): акцент; фон — его оттенок. */
@@ -67,6 +82,17 @@ export const PRESETS: { id: string; title: string; accent: RGB | null; black?: b
   { id: 'sunset', title: 'Sunset', accent: [255, 138, 61] },
   { id: 'slate', title: 'Slate', accent: [107, 140, 255] },
 ]
+
+interface ApplyInput {
+  cover: boolean
+  url: string | null
+  preset: string
+  surface: Surface
+  light: boolean
+  /** Альфа фона и поверхностей при прозрачности окна (1 — непрозрачно). */
+  glass: number
+  strength: CoverStrength
+}
 
 class Theme {
   /** Цвет текущей обложки (для образца «Под трек» в настройках). */
@@ -94,7 +120,8 @@ class Theme {
         const light = this.light
         const glass = settings.get('appearance.glass') ? Math.max(0.15, Math.min(1, settings.get('appearance.opacity') / 100)) : 1
         const url = on ? (player.current?.cover_url ?? null) : null
-        void this.apply(on, url, preset, surface, light, glass)
+        const strength = settings.get('appearance.cover_strength')
+        void this.apply({ cover: on, url, preset, surface, light, glass, strength })
       })
       $effect(() => {
         setAnimations(settings.get('appearance.animations'))
@@ -241,11 +268,11 @@ class Theme {
     return mode === 'light' || (mode === 'system' && this.systemLight)
   }
 
-  /** `glass` — альфа фона и поверхностей при прозрачности окна (1 — непрозрачно). */
-  private async apply(cover: boolean, url: string | null, preset: string, surface: Surface, light: boolean, glass = 1) {
+  private async apply({ cover, url, preset, surface, light, glass, strength }: ApplyInput) {
     const my = ++this.seq
     const p = PRESETS.find((x) => x.id === preset) ?? PRESETS[0]
-    const c = cover ? (url ? await colorOf(url) : null) : p.accent
+    const info = cover && url ? await coverInfo(url) : null
+    const c = cover ? (info?.accent ?? null) : p.accent
     if (my !== this.seq) return
     if (cover) this.accent = c
     const root = document.documentElement
@@ -257,7 +284,9 @@ class Theme {
     const SHADE = ['--bg', '--surface-0', '--surface-1', '--surface-2', '--surface-3']
     // все цвета — по формулам OKLCH выбранной поверхности (palette.ts): обложка или готовая тема
     // дают оттенок, серая — монохром
-    const t = themeFrom(c, surface in SURFACE_IDS ? surface : 'monolith', light)
+    // под обложку поверхности ещё и уходят за её светлотой (Интерфейс → Тема → Сила)
+    const shift = info ? { strength: strength in COVER_STRENGTH ? strength : 'medium', lightness: info.lightness } : null
+    const t = themeFrom(c, surface in SURFACE_IDS ? surface : 'monolith', light, shift)
     root.dataset.surface = surface
     for (const k of DECOR_VARS) if (!(k in t.vars)) st.removeProperty(k)
     // прозрачность: фон окна — с альфой непрозрачности, карточки чуть плотнее (текст читается)

@@ -79,6 +79,8 @@
   <!-- фон и полоса прогресса обрезаются по скруглению отдельным слоем: сам плеер не обрезает
        содержимое, иначе всплывашки эквалайзера и скорости прятались бы под страницей -->
   <div class="clip" aria-hidden="true">
+    <!-- мягкое свечение цвета обложки слева (тема под обложку): появляется и гаснет прозрачностью -->
+    <span class="cover-glow" class:on={!!track && settings.get('appearance.cover_theme') && settings.get('mini.background') !== 'cover'}></span>
     {#if settings.get('mini.background') === 'cover' && track?.cover_url}
       <!-- фон «Обложка» как у Dotify: сама обложка, чёткая, на всю ширину, затемнена для читаемости -->
       {#key track.cover_url}
@@ -217,6 +219,17 @@
     /* второстепенный текст и значки поверх обложки — светлее, чтобы читались на любой картинке */
     --text-2: rgba(255, 255, 255, 0.88);
     --text-3: rgba(255, 255, 255, 0.74);
+  }
+  /* свечение обложки: --glow меняется плавно (tokens.css @property), сам слой — только прозрачностью */
+  .cover-glow {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(90% 180% at 0% 50%, var(--glow), transparent 62%);
+    opacity: 0;
+    transition: opacity 0.6s var(--ease);
+  }
+  .cover-glow.on {
+    opacity: 0.75;
   }
   .cover-bg {
     position: absolute;
