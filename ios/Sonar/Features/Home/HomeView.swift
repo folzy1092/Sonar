@@ -120,6 +120,7 @@ struct HomeView: View {
             }
             Spacer(minLength: 8)
             Button {
+                Haptics.tap()
                 // сама ставит на паузу / продолжает, если «Моя волна» уже играет
                 engine.playMyWave()
             } label: {

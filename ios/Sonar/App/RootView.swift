@@ -314,6 +314,7 @@ struct BottomChrome: View {
     }
 
     private func tapped(_ tab: Tab, collapsed: Bool) {
+        Haptics.tap()
         if collapsed, tab == chrome.tab {
             chrome.expand()
         } else if tab == chrome.tab {
