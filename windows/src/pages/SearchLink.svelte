@@ -15,6 +15,7 @@
   import { trackMenu } from '../lib/menu.svelte'
   import { pulse } from '../lib/pulse'
   import { t } from '../lib/i18n.svelte'
+  import { serviceOf } from '../lib/services'
 
   let { url }: { url: string } = $props()
 
@@ -109,7 +110,7 @@
       <span class="hover"><Icon name={item?.kind === 'track' ? 'play' : 'chevronRight'} size={28} filled={item?.kind === 'track'} /></span>
     </button>
     <div class="info">
-      <span class="kind"><SourceIcon kind={view.ref.startsWith("sc") ? "sc" : "ym"} size={14} /> {view.label}</span>
+      <span class="kind"><SourceIcon service={serviceOf(view.ref) ?? 'ym'} size={14} /> {view.label}</span>
       <b class="selectable">{view.title}</b>
       <small>{view.sub}</small>
       <div class="btns">

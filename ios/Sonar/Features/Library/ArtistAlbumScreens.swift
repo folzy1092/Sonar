@@ -187,7 +187,7 @@ struct ArtistScreen: View {
     }
 
     private var followers: String {
-        guard let count = page?.artist.followers, count > 0 else { return ref.hasPrefix("sc") ? "SoundCloud" : "Яндекс Музыка" }
+        guard let count = page?.artist.followers, count > 0 else { return Service(ref: ref)?.title ?? "Яндекс Музыка" }
         return "\(count.formatted()) " + ruPlural(count, "слушатель", "слушателя", "слушателей")
     }
 }
