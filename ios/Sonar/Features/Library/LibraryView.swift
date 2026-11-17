@@ -6,8 +6,9 @@ func tracksCount(_ n: Int) -> String {
 }
 
 /// Медиатека (`photo_28, 29`, `IMG_6766`): сверху капсула «фильтр · сортировка», поиск и «+»; крупные
-/// вкладки Все / Плейлисты / Альбомы / Исполнители; сетка в две колонки — Любимые, Скачанные, плейлисты
-/// сервисов («фантомные», пока не перенесены в Sonar), альбомы и артисты из Любимых.
+/// вкладки Все / Плейлисты / Альбомы / Исполнители; сетка в две колонки — Любимые, Скачанные, свои плейлисты
+/// Sonar (`PlaylistStore`, скрытые — только во вкладке «Плейлисты»), плейлисты сервисов («фантомные», пока не
+/// перенесены в Sonar), сохранённые альбомы и исполнители с подпиской, затем — из Любимых.
 struct LibraryView: View {
     enum Shelf: String, CaseIterable, Identifiable {
         case all = "Все"
@@ -45,8 +46,10 @@ struct LibraryView: View {
     @State private var searching = false
     @State private var query = ""
     @State private var playlists: [ServicePlaylist] = []
+    @State private var creating = false
     @FocusState private var searchFocused: Bool
     private var downloads: DownloadStore { DownloadStore.shared }
+    private var store: PlaylistStore { PlaylistStore.shared }
 
     private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
@@ -80,6 +83,9 @@ struct LibraryView: View {
         .pageBackground()
         .animation(Motion.spring, value: section)
         .animation(Motion.spring, value: searching)
+        .newPlaylistAlert(isPresented: $creating) { id in
+            router.push(.sonarPlaylist(id: id), on: .library, chrome: chrome)
+        }
         .task { playlists = await MusicCore.shared.myPlaylists() }
         .refreshable { playlists = await MusicCore.shared.myPlaylists() }
     }
@@ -118,8 +124,8 @@ struct LibraryView: View {
                 searching.toggle()
                 if searching { searchFocused = true } else { query = "" }
             }
-            CircleButton(icon: .plus, label: "Новый плейлист") {
-                router.say("Свои плейлисты Sonar появятся вместе с сервером, пока — Любимые и плейлисты сервисов")
+            CircleButton(icon: .plus, label: t("Новый плейлист")) {
+                creating = true
             }
         }
     }
@@ -171,14 +177,37 @@ struct LibraryView: View {
     }
 
     private var shownPlaylists: [ServicePlaylist] {
-        let list = playlists.filter { source.keeps($0.ref) && (matches($0.title) || matches($0.owner)) }
+        // перенесённые в Sonar — уже среди своих, второй раз не показываем
+        let moved = Set(store.playlists.compactMap(\.sourceRef))
+        let list = playlists.filter { !moved.contains($0.ref) && source.keeps($0.ref) && (matches($0.title) || matches($0.owner)) }
         return sort == .title ? list.sorted { $0.title.localizedCompare($1.title) == .orderedAscending } : list
     }
 
-    /// Альбомы из Любимых — по ref альбома, обложка от первого трека.
+    /// Свои плейлисты: во «Все» — без скрытых. Фильтр сервиса — по происхождению (перенесённые) или по
+    /// трекам (смешанный показывается, если в нём есть треки сервиса).
+    private var ownPlaylists: [SonarPlaylist] {
+        let list = store.playlists.filter(keepsOwn)
+        return sort == .title ? list.sorted { $0.name.localizedCompare($1.name) == .orderedAscending } : list
+    }
+
+    private func keepsOwn(_ playlist: SonarPlaylist) -> Bool {
+        if section != .playlists, playlist.hidden { return false }
+        guard matches(playlist.name) else { return false }
+        if source == .all { return true }
+        if let origin = playlist.sourceRef, source.keeps(origin) { return true }
+        return playlist.tracks.contains { source.keeps($0.ref) }
+    }
+
+    /// Альбомы: сохранённые («Сохранить в медиатеку»), затем из Любимых — по ref альбома, обложка от первого трека.
     private var albums: [LibraryAlbum] {
         var seen = Set<String>()
         var out: [LibraryAlbum] = []
+        for saved in store.albums where source.keeps(saved.album.ref) {
+            let album = saved.album
+            guard !seen.contains(album.ref), matches(album.title) || matches(album.artist) else { continue }
+            seen.insert(album.ref)
+            out.append(LibraryAlbum(ref: album.ref, title: album.title, artist: album.artist, cover: album.coverURL))
+        }
         for track in library.liked where source.keeps(track.ref) {
             guard let album = track.album, !seen.contains(album.ref), matches(album.title) || matches(track.artist) else { continue }
             seen.insert(album.ref)
@@ -187,8 +216,19 @@ struct LibraryView: View {
         return sort == .title ? out.sorted { $0.title.localizedCompare($1.title) == .orderedAscending } : out
     }
 
-    /// Артисты из Любимых — чаще встречаются первыми.
+    /// Артисты: с подпиской — первыми, затем из Любимых (чаще встречаются — выше).
     private var artists: [LibraryArtist] {
+        let followed = store.artists
+            .filter { source.keeps($0.artist.ref) && matches($0.artist.name) }
+            .map { LibraryArtist(ref: $0.artist.ref, name: $0.artist.name, avatar: $0.artist.avatarURL, cover: nil, count: 0, followed: true) }
+        let followedRefs = Set(followed.map(\.ref))
+        let sortedFollowed = sort == .title
+            ? followed.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
+            : followed
+        return sortedFollowed + likedArtists.filter { !followedRefs.contains($0.ref) }
+    }
+
+    private var likedArtists: [LibraryArtist] {
         var order: [String] = []
         var info: [String: LibraryArtist] = [:]
         for track in library.liked where source.keeps(track.ref) {
@@ -225,11 +265,20 @@ struct LibraryView: View {
                     }
                     .cascade(1)
                 }
+                let own = ownPlaylists
+                ForEach(Array(own.enumerated()), id: \.element.id) { index, playlist in
+                    LibraryTile(title: playlist.name,
+                                subtitle: playlist.hidden ? tracksCount(playlist.tracks.count) + " · " + t("скрыт") : tracksCount(playlist.tracks.count),
+                                covers: playlist.covers) {
+                        router.push(.sonarPlaylist(id: playlist.id), on: .library, chrome: chrome)
+                    }
+                    .cascade(index + 2)
+                }
                 ForEach(Array(shownPlaylists.enumerated()), id: \.element.ref) { index, playlist in
                     LibraryTile(title: playlist.title, subtitle: playlist.owner, cover: playlist.coverURL) {
                         router.push(.playlist(playlist), on: .library, chrome: chrome)
                     }
-                    .cascade(index + 2)
+                    .cascade(index + 2 + own.count)
                 }
             }
             if section == .all || section == .albums {
@@ -242,7 +291,9 @@ struct LibraryView: View {
             }
             if section == .all || section == .artists {
                 ForEach(Array(artists.prefix(section == .all ? 6 : 200).enumerated()), id: \.element.ref) { index, artist in
-                    LibraryTile(title: artist.name, subtitle: tracksCount(artist.count) + " в Любимых", cover: artist.avatar ?? artist.cover, round: true) {
+                    LibraryTile(title: artist.name,
+                                subtitle: artist.followed ? t("Вы подписаны") : tracksCount(artist.count) + " в Любимых",
+                                cover: artist.avatar ?? artist.cover, round: true) {
                         router.push(.artist(ref: artist.ref, name: artist.name), on: .library, chrome: chrome)
                     }
                     .cascade(index + 6)
@@ -266,8 +317,8 @@ struct LibraryView: View {
     private var emptyText: String {
         if !query.isEmpty { return "Ничего не нашлось" }
         return section == .artists
-            ? "Здесь появятся артисты из Любимых"
-            : "Здесь появятся альбомы треков из Любимых"
+            ? t("Здесь появятся артисты из Любимых и те, на кого ты подписан")
+            : t("Здесь появятся сохранённые альбомы и альбомы треков из Любимых")
     }
 }
 
@@ -284,6 +335,8 @@ struct LibraryArtist: Hashable {
     var avatar: String?
     let cover: String?
     var count: Int
+    /// Подписка («Подписаться» на странице артиста), а не из Любимых.
+    var followed = false
 }
 
 /// Плитка медиатеки: квадрат (обложка или значок на поверхности), название и подпись.
@@ -292,6 +345,8 @@ struct LibraryTile: View {
     let subtitle: String
     var icon: IconName?
     var cover: String?
+    /// Коллаж своего плейлиста (`PlaylistCollage`) вместо одной обложки.
+    var covers: [String]?
     var round = false
     let action: @MainActor () -> Void
 
@@ -308,6 +363,8 @@ struct LibraryTile: View {
                                     .foregroundStyle(Theme.text)
                                     .padding(18)
                             }
+                        } else if let covers {
+                            PlaylistCollage(covers: covers, cornerRadius: 0)
                         } else {
                             CoverImage(url: cover, cornerRadius: 0)
                         }

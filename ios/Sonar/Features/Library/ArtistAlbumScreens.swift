@@ -1,7 +1,9 @@
 import SwiftUI
+import UIKit
 
 /// Шапка страниц артиста и альбома: ‹ слева, крупная обложка (у артиста — круг), заголовок, подпись,
-/// «▶ Слушать / ⏸ Пауза» и ⤮.
+/// «▶ Слушать / ⏸ Пауза», ⤮, в очередь, сохранить (альбом — в медиатеку, артист — подписка; как на ПК)
+/// и поделиться.
 private struct PageHeader: View {
     let cover: String?
     var round = false
@@ -9,18 +11,43 @@ private struct PageHeader: View {
     let subtitle: String
     let tracks: [Track]
     let context: String
+    /// Кнопка «сохранить»: nil — нет (страница ещё грузится).
+    var saved: Bool?
+    var saveIcon: IconName = .heart
+    var savedIcon: IconName = .heart
+    var saveLabel = ""
+    var onSave: (@MainActor () -> Void)?
+    var shareURL: URL?
     @Environment(PlaybackEngine.self) private var engine
+    @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
 
     private var isThisPlaying: Bool { engine.isPlaying && engine.contextTitle == context && !engine.isWave }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
+            HStack(spacing: 12) {
                 CircleButton(icon: .back, label: "Назад") { dismiss() }
                 Spacer()
+                if let saved, let onSave {
+                    CircleButton(icon: saved ? savedIcon : saveIcon, filled: saved, label: saveLabel) {
+                        withAnimation(Motion.spring) { onSave() }
+                        UISelectionFeedbackGenerator().selectionChanged()
+                    }
+                    .transition(.scale.combined(with: .opacity))
+                }
+                if let shareURL {
+                    ShareLink(item: shareURL) {
+                        SonarIcon(.share, size: 22)
+                            .foregroundStyle(Theme.text)
+                            .frame(width: 52, height: 52)
+                            .background(Theme.raised.opacity(0.92), in: Circle())
+                    }
+                    .accessibilityLabel(t("Поделиться"))
+                }
             }
             .padding(.top, 8)
+            .animation(Motion.spring, value: saved)
             CoverImage(url: cover, cornerRadius: round ? 120 : 24)
                 .frame(width: 220, height: 220)
                 .shadow(color: Theme.glow.opacity(0.35), radius: 24, y: 10)
@@ -54,6 +81,11 @@ private struct PageHeader: View {
                     engine.play(tracks, at: Int.random(in: 0 ..< tracks.count), context: context)
                 }
                 .disabled(tracks.isEmpty)
+                CircleButton(icon: .queue, label: t("В очередь")) {
+                    for track in tracks { engine.enqueue(track, next: false) }
+                    router.say(t("Треки добавлены в очередь"))
+                }
+                .disabled(tracks.isEmpty)
             }
             .padding(.top, 20)
         }
@@ -69,6 +101,7 @@ struct ArtistScreen: View {
     @Environment(Router.self) private var router
     @State private var page: (artist: Artist, tracks: [Track], albums: [Album])?
     @State private var failed: String?
+    private var collections: PlaylistStore { PlaylistStore.shared }
 
     var body: some View {
         ScrollView {
@@ -79,7 +112,17 @@ struct ArtistScreen: View {
                     title: page?.artist.name ?? name,
                     subtitle: followers,
                     tracks: page?.tracks ?? [],
-                    context: page?.artist.name ?? name
+                    context: page?.artist.name ?? name,
+                    saved: page.map { collections.isFollowed(artist: $0.artist.ref) },
+                    saveIcon: .userAdd,
+                    savedIcon: .check,
+                    saveLabel: page.map { collections.isFollowed(artist: $0.artist.ref) } == true ? t("Вы подписаны") : t("Подписаться"),
+                    onSave: {
+                        guard let artist = page?.artist else { return }
+                        let now = collections.toggleFollow(artist)
+                        router.say(now ? t("Вы подписаны") : t("Подписка отменена"))
+                    },
+                    shareURL: page?.artist.url.flatMap(URL.init(string:))
                 )
                 if let page {
                     if !page.tracks.isEmpty {
@@ -155,8 +198,10 @@ struct AlbumScreen: View {
     let title: String
     @Environment(PlaybackEngine.self) private var engine
     @Environment(ChromeState.self) private var chrome
+    @Environment(Router.self) private var router
     @State private var page: (album: Album, tracks: [Track])?
     @State private var failed: String?
+    private var collections: PlaylistStore { PlaylistStore.shared }
 
     var body: some View {
         ScrollView {
@@ -166,7 +211,15 @@ struct AlbumScreen: View {
                     title: page?.album.title ?? title,
                     subtitle: subtitle,
                     tracks: page?.tracks ?? [],
-                    context: page?.album.title ?? title
+                    context: page?.album.title ?? title,
+                    saved: page.map { collections.isSaved(album: $0.album.ref) },
+                    saveLabel: page.map { collections.isSaved(album: $0.album.ref) } == true ? t("Убрать из медиатеки") : t("Сохранить в медиатеку"),
+                    onSave: {
+                        guard let album = page?.album else { return }
+                        let now = collections.toggleSave(album)
+                        router.say(now ? t("Альбом в медиатеке") : t("Альбом убран из медиатеки"))
+                    },
+                    shareURL: page?.album.url.flatMap(URL.init(string:))
                 )
                 if let page {
                     LazyVStack(spacing: 4) {
