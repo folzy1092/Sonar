@@ -1,0 +1,20 @@
+/* Фразы Siri по-английски (у Siri нет русского). Ключ — русская фраза из SonarShortcuts (App/SonarIntents.swift). */
+
+"Включи мою волну в ${applicationName}" = "Play My Wave in ${applicationName}";
+"Моя волна в ${applicationName}" = "My Wave in ${applicationName}";
+"${applicationName} моя волна" = "${applicationName} My Wave";
+
+"Включи любимые в ${applicationName}" = "Play my favorites in ${applicationName}";
+"${applicationName} любимые" = "${applicationName} favorites";
+
+"Включи быстрый плейлист в ${applicationName}" = "Play quick playlist in ${applicationName}";
+"${applicationName} быстрый плейлист" = "${applicationName} quick playlist";
+
+"Пауза в ${applicationName}" = "Pause ${applicationName}";
+"Поставь ${applicationName} на паузу" = "Pause music in ${applicationName}";
+
+"Продолжи ${applicationName}" = "Resume ${applicationName}";
+"Играй ${applicationName}" = "Play ${applicationName}";
+
+"Следующий трек в ${applicationName}" = "Next track in ${applicationName}";
+"${applicationName} дальше" = "${applicationName} next";

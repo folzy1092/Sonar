@@ -5,7 +5,8 @@ import Foundation
 /// - главный bundle id = установленный (ESign мог его переименовать); id расширений и BGTask — на тот же
 ///   префикс;
 /// - остаются только расширения, которые есть у установленной копии (что установщик оставил, то и
-///   работает с этим сертификатом), то же для Watch;
+///   работает с этим сертификатом), то же для Watch; новые расширения (виджет Sonar) — только при
+///   профиле на «*» (`keepNewPlugIns`): он подходит и к id `<приложение>.widget`, иначе установка бы упала;
 /// - в каждое оставшееся расширение кладётся тот же профиль, что и в приложение.
 /// Только Foundation — покрыт тестами.
 enum BundlePreparer {
@@ -60,7 +61,7 @@ enum BundlePreparer {
     }
 
     @discardableResult
-    static func prepare(app: URL, installed: Installed, profileURL: URL?) throws -> Summary {
+    static func prepare(app: URL, installed: Installed, profileURL: URL?, keepNewPlugIns: Bool = false) throws -> Summary {
         guard !installed.bundleId.isEmpty else { throw PrepareError.noInstalledBundleId }
         let fileManager = FileManager.default
         let infoURL = app.appendingPathComponent("Info.plist")
@@ -81,7 +82,7 @@ enum BundlePreparer {
         if let names = try? fileManager.contentsOfDirectory(atPath: plugInsURL.path) {
             for name in names.sorted() where name.hasSuffix(".appex") {
                 let appex = plugInsURL.appendingPathComponent(name, isDirectory: true)
-                guard installed.plugIns.contains(name) else {
+                guard installed.plugIns.contains(name) || keepNewPlugIns else {
                     try fileManager.removeItem(at: appex)
                     removed.append(name)
                     continue

@@ -17,5 +17,9 @@ extension SettingsDefaults {
         "storage.covers_limit_mb": .int(256),
         // Статистика: открытый период — week / month / year / all
         "stats.period": .string("month"),
+        // Виджет и Siri: что играет «Быстрый плейлист» (sonar://play/quick) — liked / downloaded / ref плейлиста
+        // сервиса (`QuickPlaylist`); название плейлиста сервиса — для строки в настройках
+        "widget.quick_playlist": .string("liked"),
+        "widget.quick_playlist_title": .string(""),
     ]
 }
