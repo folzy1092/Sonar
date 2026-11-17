@@ -38,6 +38,8 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
+    # секреты Last.fm (SONAR_LASTFM_KEY, LASTFM_API_SECRET) — в окружении default, как у windows.yml
+    environment: default
     timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
