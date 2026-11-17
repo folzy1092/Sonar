@@ -2,7 +2,7 @@ import Foundation
 
 /// Сборка, система и устройство — шапка отчёта. Пишется в `session.json` при каждом запуске, чтобы
 /// отчёт показал ту сборку, что упала (после обновления текущая уже другая).
-struct DeviceInfo: Codable, Equatable, Sendable {
+struct CrashDevice: Codable, Equatable, Sendable {
     var version: String
     var build: String
     /// `iOS 18.1.1`
@@ -13,7 +13,7 @@ struct DeviceInfo: Codable, Equatable, Sendable {
     var imageStart: UInt64?
     var imageEnd: UInt64?
 
-    static func current(bundle: [String: Any]? = Bundle.main.infoDictionary) -> DeviceInfo {
+    static func current(bundle: [String: Any]? = Bundle.main.infoDictionary) -> CrashDevice {
         let version = bundle?["CFBundleShortVersionString"] as? String ?? "?"
         let build = bundle?["CFBundleVersion"] as? String ?? "?"
         let os = ProcessInfo.processInfo.operatingSystemVersion
@@ -23,7 +23,7 @@ struct DeviceInfo: Codable, Equatable, Sendable {
         #else
         let system = "\(ProcessInfo.processInfo.operatingSystemVersionString)"
         #endif
-        return DeviceInfo(version: version, build: build, system: system, model: machine())
+        return CrashDevice(version: version, build: build, system: system, model: machine())
     }
 
     private static func machine() -> String {
@@ -45,7 +45,7 @@ struct DeviceInfo: Codable, Equatable, Sendable {
 /// отправят или не закроют.
 struct CrashReport: Codable, Equatable, Sendable, Identifiable {
     var id: String
-    var device: DeviceInfo
+    var device: CrashDevice
     var crashedAt: Date
     var cause: CrashCause
     var marker: CrashMarker?
@@ -122,7 +122,7 @@ struct CrashReport: Codable, Equatable, Sendable, Identifiable {
     }
 
     /// Собрать отчёт из того, что осталось от упавшего запуска.
-    static func make(marker: CrashMarker, device: DeviceInfo, journal: String, stack: [String], now: Date = Date()) -> CrashReport {
+    static func make(marker: CrashMarker, device: CrashDevice, journal: String, stack: [String], now: Date = Date()) -> CrashReport {
         let crashedAt = marker.time ?? now
         return CrashReport(id: "\(Int(crashedAt.timeIntervalSince1970))-\(marker.signal ?? 0)", device: device,
                            crashedAt: crashedAt, cause: marker.cause, marker: marker, stack: stack,
@@ -130,7 +130,7 @@ struct CrashReport: Codable, Equatable, Sendable, Identifiable {
     }
 
     /// Отчёт только из MetricKit (наш обработчик сбой не застал).
-    static func make(metric: [MetricCrash], device: DeviceInfo, at date: Date) -> CrashReport {
+    static func make(metric: [MetricCrash], device: CrashDevice, at date: Date) -> CrashReport {
         var device = device
         if let first = metric.first {
             device.version = first.appVersion ?? device.version
@@ -157,7 +157,7 @@ enum CrashStack {
     /// `crashed` — образ приложения в упавшем запуске, `current` — в этом (адреса сдвинуты ASLR);
     /// `symbol` ищет имя по адресу этого запуска (`dladdr`). Системные библиотеки лежат в общем кэше,
     /// его сдвиг меняется только при перезагрузке — их ищем по старому адресу.
-    static func describe(_ address: UInt64, crashed: DeviceInfo, current: DeviceInfo?, symbol: (UInt64) -> String?) -> String {
+    static func describe(_ address: UInt64, crashed: CrashDevice, current: CrashDevice?, symbol: (UInt64) -> String?) -> String {
         let hex = "0x" + String(address, radix: 16)
         if let offset = offset(address, start: crashed.imageStart, end: crashed.imageEnd) {
             let inSonar = "Sonar + 0x\(String(offset, radix: 16))"

@@ -3,7 +3,7 @@ import XCTest
 
 /// Журнал сбоев: кольцевой журнал, маркер, отчёт, MetricKit, бот отчётов, окно — без сети и сбоев.
 final class CrashLogTests: XCTestCase {
-    private let device = DeviceInfo(version: "0.1.0", build: "239", system: "iOS 18.1", model: "iPhone15,2",
+    private let device = CrashDevice(version: "0.1.0", build: "239", system: "iOS 18.1", model: "iPhone15,2",
                                     imageStart: 0x1_0000_0000, imageEnd: 0x1_0040_0000)
 
     // MARK: - Кольцевой журнал

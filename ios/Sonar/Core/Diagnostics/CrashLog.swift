@@ -19,7 +19,7 @@ enum CrashLog {
     static func start() {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
-        var device = DeviceInfo.current()
+        var device = CrashDevice.current()
         let image = CrashSignals.imageRange()
         device.imageStart = image?.start
         device.imageEnd = image?.end
@@ -84,7 +84,7 @@ final class Journal: @unchecked Sendable {
     // поля ниже — только на `queue`
     private var ring: LogRing
     private var directory: URL?
-    private var device: DeviceInfo?
+    private var device: CrashDevice?
     private var handle: FileHandle?
     private var written = 0
     // под `lock`
@@ -115,7 +115,7 @@ final class Journal: @unchecked Sendable {
     private func url(_ name: String) -> URL? { directory?.appendingPathComponent(name) }
 
     /// Разобрать прошлый запуск и начать новый журнал. Синхронно: к возврату `pending` уже известен.
-    func start(directory: URL, device: DeviceInfo, symbol: @escaping (UInt64) -> String? = { _ in nil }) {
+    func start(directory: URL, device: CrashDevice, symbol: @escaping (UInt64) -> String? = { _ in nil }) {
         queue.sync {
             let fm = FileManager.default
             try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -128,7 +128,7 @@ final class Journal: @unchecked Sendable {
             let markerText = (try? String(contentsOf: directory.appendingPathComponent(Self.markerName), encoding: .utf8)) ?? ""
             if let marker = CrashMarker.parse(markerText) {
                 let previous = (try? Data(contentsOf: directory.appendingPathComponent(Self.metaName)))
-                    .flatMap { try? decoder.decode(DeviceInfo.self, from: $0) } ?? device
+                    .flatMap { try? decoder.decode(CrashDevice.self, from: $0) } ?? device
                 let journal = (try? String(contentsOf: directory.appendingPathComponent(Self.sessionName), encoding: .utf8)) ?? ""
                 let stack = marker.frames.map { CrashStack.describe($0, crashed: previous, current: device, symbol: symbol) }
                 report = CrashReport.make(marker: marker, device: previous, journal: journal, stack: stack)
