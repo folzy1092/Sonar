@@ -22,15 +22,19 @@ CREATE TABLE users (
   created_at    INTEGER NOT NULL
 );
 
-CREATE TABLE sessions (
-  id            TEXT PRIMARY KEY,               -- d_...
+CREATE TABLE sessions (                         -- одна строка = одно устройство в «Устройствах» (API.md §1)
+  id            TEXT PRIMARY KEY,               -- d_... (id сессии, в API — Device.id)
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token_hash    TEXT UNIQUE NOT NULL,           -- sha256(session)
-  device_name   TEXT NOT NULL,
-  platform      TEXT NOT NULL,                  -- ios | windows
-  app_version   TEXT,
-  created_at    INTEGER NOT NULL,
-  last_seen_at  INTEGER NOT NULL
+  device_id     TEXT NOT NULL,                  -- постоянный id от клиента: iPhone — UUID из Keychain, ПК — HWID
+  device_name   TEXT NOT NULL,                  -- «iPhone 15 Pro», «Windows 10 (Folzy)»; пользователь может переименовать
+  platform      TEXT NOT NULL,                  -- ios | windows | android
+  os            TEXT,                           -- «iOS 18.1», «Windows 10 22H2»
+  app_version   TEXT,                           -- последняя версия Sonar, о которой сообщило устройство
+  build         INTEGER,
+  created_at    INTEGER NOT NULL,               -- вход; моложе 24 ч — завершать другие сессии нельзя
+  last_seen_at  INTEGER NOT NULL,               -- последний запрос (и PUT /me/device при запуске)
+  UNIQUE (user_id, device_id)                   -- повторный вход с того же устройства заменяет строку
 );
 
 CREATE TABLE tg_requests (                      -- быстрый вход и привязка
