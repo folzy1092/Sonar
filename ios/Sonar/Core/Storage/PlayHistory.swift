@@ -183,7 +183,11 @@ final class PlayHistory {
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: file, options: .atomic)
+        onChange?()
     }
+
+    /// Новое прослушивание или очистка — синк отправит прослушивания (`POST /plays`, `SyncService`).
+    @ObservationIgnored var onChange: (@MainActor () -> Void)?
 
     // MARK: - Чтение
 

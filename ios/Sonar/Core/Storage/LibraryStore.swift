@@ -98,6 +98,23 @@ final class LibraryStore {
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: file, options: .atomic)
+        onChange?()
+    }
+
+    // MARK: - Синк (`Core/Sync/StoreAdapters.swift`)
+
+    /// Любое изменение медиатеки — журнал синка сверяет снимок (`SyncService.noteLocalChange`).
+    @ObservationIgnored var onChange: (@MainActor () -> Void)?
+
+    /// Пришло с другого устройства: заменить списки целиком (nil — не трогать).
+    func applySynced(liked: [Track]? = nil, disliked: Set<String>? = nil, speeds: [String: Float]? = nil) {
+        if let liked {
+            self.liked = liked
+            likedRefs = Set(liked.map(\.ref))
+        }
+        if let disliked { self.disliked = disliked }
+        if let speeds { self.speeds = speeds }
+        save()
     }
 }
 
