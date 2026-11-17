@@ -169,10 +169,11 @@
 | `lyrics.mode` | `words` / `lines` — «По словам» работает, только если у текста есть пословный тайминг | `words` | да |
 | `lyrics.size` | `S` / `M` / `L` / `XL` (1.25 / 1.6 / 2 / 2.5 rem) | `L` | да |
 | `lyrics.style` | `normal` / `scale` / `blur` / `cinema` / `shift` | `blur` | да |
-| `lyrics.animation` | `normal` / `fade` / `blur` (остальные из Dotify — потом) | `normal` | да |
+| `lyrics.animation` | `normal` / `fade` / `blur` / `flip3d` / `bounce` / `wave` / `float` / `drift` / `zoom` / `ladder` («Лесенка» — прокрутка «магнитом», строки как в «Обычной») | `normal` | да |
 | `lyrics.view` (PC) | `both` (обложка и текст) / `cover` (только обложка) / `lyrics` (только текст, сверху плашка с треком) — «глаза» в меню полноэкранного плеера | `both` | нет |
 
 Сдвиг тайминга — не настройка, а `track_prefs.lyrics_offset_ms` на трек (LYRICS.md §5).
+На iPhone те же ключи и значения (rawValue `LyricsMode` / `LyricsSize` / `LyricsTextStyle` / `LyricsAnimation` в `ios/Sonar/Core/Lyrics/LyricsModels.swift`, умолчания — `SettingsStore.defaults`); сдвиг — `lyrics-offsets.json` в Application Support, пока нет SQLite.
 
 ## Очередь — `queue.*` (PC `pc/7`; на iOS — часть «Плеера»)
 
