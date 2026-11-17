@@ -3,6 +3,7 @@
   import Icon from '../components/Icon.svelte'
   import { router } from './router.svelte'
   import { search, type Source } from './search.svelte'
+  import { IMPLEMENTED } from '../lib/services'
   import Cover from '../components/Cover.svelte'
   import { onMount } from 'svelte'
   import { fly } from 'svelte/transition'
@@ -41,11 +42,12 @@
     } else openRef(e.ref)
   }
 
-  // title — ключ перевода, t() — при выводе
-  const sources: { id: Source; label: string; title: string }[] = [
-    { id: 'sc', label: 'SC', title: 'SoundCloud' },
-    { id: 'ym', label: 'Я', title: 'Яндекс Музыка' },
-  ]
+  // label / title — ключи перевода, t() — при выводе; источники — реализованные сервисы с поиском
+  const sources: { id: Source; label: string; title: string }[] = IMPLEMENTED.filter((s) => s.caps.search).map((s) => ({
+    id: s.id,
+    label: s.short,
+    title: s.name,
+  }))
 
   function onInput() {
     if (search.query.trim() && router.page !== 'search') router.go('search')
@@ -100,7 +102,7 @@
         title={t(s.title)}
         onclick={() => (search.source = s.id)}
       >
-        <SourceIcon kind={s.id} size={16} plain />
+        <SourceIcon service={s.id} size={16} plain />
       </button>
     {/each}
   </div>

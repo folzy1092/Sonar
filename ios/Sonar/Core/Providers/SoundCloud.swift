@@ -297,4 +297,6 @@ struct ServiceAccount: Codable, Equatable, Sendable {
     var avatarURL: String?
     /// id аккаунта в сервисе — для его плейлистов и лайков.
     var uid: String?
+    /// Подписка (Яндекс Плюс); nil — сервис не говорит. Старый JSON в Keychain без поля читается как nil.
+    var premium: Bool? = nil
 }

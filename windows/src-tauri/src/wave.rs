@@ -3,6 +3,7 @@
 //! (не играть прослушанное за 7 дней, дизлайки, артисты на паузе) и выбор порции с разнообразием.
 //! Сессию (что уже выдано, кто на паузе) держит интерфейс и передаёт сюда — ядро без состояния.
 
+use crate::providers::registry::{parse_ref, RefKind};
 use crate::providers::{ArtistRef, Track};
 use crate::store::Taste;
 use serde::Serialize;
@@ -92,6 +93,11 @@ pub fn familiarity(mode: &str, by_seed: bool, n: usize) -> (Option<usize>, u64) 
     "own" => (share(0.3), 1000),
     _ => (share(0.4), 1000),
   }
+}
+
+/// Трек сервиса с коротким id `p` (`sc`, `ym`) — по префиксу ref из реестра.
+fn is_track_of(r: &str, p: &str) -> bool {
+  matches!(parse_ref(r), Some((s, RefKind::Track)) if s.id.as_str() == p)
 }
 
 /// Знакомый артист трека: лайкнут или его слушали (по любому из артистов трека).
@@ -597,7 +603,7 @@ fn features(t: &Track, taste: &Taste, origin: &Origin, session: &Session, prefer
   let affinity = 2.0 * beta(1 + plays.round() as u32, 1 + skips.round() as u32, rng) - 1.0;
   let liked = keys.iter().any(|k| taste.liked_artists.contains(k));
   let known = liked || plays > 0.0;
-  let platform = matches!(prefer, Some(p) if t.ref_.starts_with(&format!("{p}:")));
+  let platform = matches!(prefer, Some(p) if is_track_of(&t.ref_, p));
   let tags = tag_set(t);
   let session_tags = if session.tags.is_empty() {
     0.0

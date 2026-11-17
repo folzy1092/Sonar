@@ -187,13 +187,15 @@ pub struct Playlist {
   pub tracks: Option<Vec<ListTrack>>,
 }
 
-/// Вид лайка по префиксу ref: `sc:`/`ym:` трек, `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист.
+/// Вид лайка по префиксу ref (реестр сервисов, только работающие): `sc:`/`ym:` трек,
+/// `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист. Плейлисты и прочее — None.
 pub fn like_kind(r: &str) -> Option<&'static str> {
-  match r.split_once(':')?.0 {
-    "sc" | "ym" => Some("track"),
-    "scalb" | "ymalb" => Some("album"),
-    "sca" | "yma" => Some("artist"),
-    _ => None,
+  use crate::providers::registry::{parse_ref, RefKind};
+  match parse_ref(r).filter(|(s, _)| s.implemented)?.1 {
+    RefKind::Track => Some("track"),
+    RefKind::Album => Some("album"),
+    RefKind::Artist => Some("artist"),
+    RefKind::Playlist => None,
   }
 }
 
@@ -767,6 +769,29 @@ impl Store {
 mod tests {
   use super::*;
   use crate::providers::ArtistRef;
+
+  #[test]
+  fn like_kind_unchanged() {
+    for (r, want) in [
+      ("sc:1", Some("track")),
+      ("ym:1", Some("track")),
+      ("scalb:1", Some("album")),
+      ("ymalb:1", Some("album")),
+      ("sca:1", Some("artist")),
+      ("yma:1", Some("artist")),
+      ("scpl:likes", None),
+      ("ympl:42:3", None),
+      ("yt:1", None),
+      ("yta:1", None),
+      ("local:1", None),
+      ("pl_x", None),
+      ("similar:sc:1", None),
+      ("sc", None),
+      ("", None),
+    ] {
+      assert_eq!(like_kind(r), want, "{r}");
+    }
+  }
 
   fn track(r: &str) -> Track {
     Track {

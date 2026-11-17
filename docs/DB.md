@@ -4,6 +4,19 @@
 Время — `INTEGER` миллисекунды Unix. `rev` — значение глобального счётчика `sync_rev`
 на момент изменения (для `/sync/pull`).
 
+Префиксы `ref` — из реестра сервисов (полная таблица и правило разбора — `API.md` §2 «Префиксы ref»):
+
+| id | key | трек | альбом | артист | плейлист |
+|---|---|---|---|---|---|
+| `sc` | `soundcloud` | `sc:` | `scalb:` | `sca:` | `scpl:` |
+| `ym` | `yandex` | `ym:` | `ymalb:` | `yma:` | `ympl:` |
+| `yt` | `youtube` | `yt:` | `ytalb:` | `yta:` | `ytpl:` |
+| `vk` | `vk` | `vk:` | `vkalb:` | `vka:` | `vkpl:` |
+| `sp` | `spotify` | `sp:` | `spalb:` | `spa:` | `sppl:` |
+| `local` | `local` | `local:` | — | — | — |
+
+Работают пока `sc` и `ym`. Префикс — текст до первого `:`, сравнивается целиком. Не сервисы: `pl_…`, `similar:<ref>`.
+
 ```sql
 CREATE TABLE users (
   id            TEXT PRIMARY KEY,
@@ -51,7 +64,7 @@ CREATE TABLE tg_requests (                      -- быстрый вход и п
 
 CREATE TABLE service_accounts (
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  service       TEXT NOT NULL,                  -- soundcloud | yandex
+  service       TEXT NOT NULL,                  -- key сервиса из таблицы префиксов: soundcloud | yandex (позже youtube | vk | spotify)
   credentials   BLOB NOT NULL,                  -- Fernet(JSON: client_id, oauth_token / token)
   ext_user_id   TEXT,
   ext_name      TEXT,
@@ -61,7 +74,7 @@ CREATE TABLE service_accounts (
 );
 
 CREATE TABLE tracks (                           -- кэш метаданных
-  ref           TEXT PRIMARY KEY,               -- sc:123 | ym:456
+  ref           TEXT PRIMARY KEY,               -- ref трека по таблице префиксов: sc:123 | ym:456
   title         TEXT NOT NULL,
   artist        TEXT NOT NULL,
   artists_json  TEXT,
@@ -76,8 +89,8 @@ CREATE TABLE tracks (                           -- кэш метаданных
 
 CREATE TABLE likes (                            -- треки, альбомы, исполнители
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  ref           TEXT NOT NULL,                  -- sc:/ym: трек, scalb:/ymalb: альбом, sca:/yma: артист
-  kind          TEXT NOT NULL,                  -- track | album | artist (дублирует префикс для индекса)
+  ref           TEXT NOT NULL,                  -- по таблице префиксов: sc:/ym: трек, scalb:/ymalb: альбом, sca:/yma: артист
+  kind          TEXT NOT NULL,                  -- track | album | artist (вид по префиксу из таблицы, дублируется для индекса)
   added_at      INTEGER NOT NULL,
   deleted       INTEGER NOT NULL DEFAULT 0,     -- tombstone для синка
   rev           INTEGER NOT NULL,
@@ -172,7 +185,7 @@ CREATE TABLE track_prefs (                      -- «Запомнить» ско
 );
 
 CREATE TABLE catalog (                          -- кэш альбомов и исполнителей (как tracks)
-  ref           TEXT PRIMARY KEY,               -- scalb:/ymalb: | sca:/yma: | similar:<ref трека>
+  ref           TEXT PRIMARY KEY,               -- scalb:/ymalb: | sca:/yma: (таблица префиксов) | similar:<ref трека>
   kind          TEXT NOT NULL,                  -- album | artist | similar (кэш «похожих» волны, 24 ч, только локально)
   json          TEXT NOT NULL,                  -- Album / Artist (API.md §3) | [Track] для similar
   fetched_at    INTEGER NOT NULL

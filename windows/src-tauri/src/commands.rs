@@ -2,10 +2,12 @@
 
 use crate::lyrics::{self, Lyrics};
 use crate::media::{self, Media, MediaInfo};
+use crate::providers::registry::{by_key, is_kind, likes_ref, RefKind, ServiceId, ServiceInfo};
 use crate::providers::{soundcloud, yandex, AlbumPage, ArtistPage, SearchResults, ServicePlaylist, Source, Track};
-use crate::services::{Core, PlaylistPage, ServiceStatus, ServicesStatus};
+use crate::services::{Core, PlaylistPage, ServiceEntry, ServiceStatus, ServicesStatus};
 use crate::store::{like_kind, ListTrack, Play, PlayerState, Playlist, Store};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -30,23 +32,66 @@ pub async fn connect_soundcloud(
   client_id: String,
   oauth_token: Option<String>,
 ) -> Res<ServiceStatus> {
-  let creds = soundcloud::Creds {
-    client_id: client_id.trim().to_owned(),
-    oauth_token: oauth_token.map(|t| t.trim().trim_start_matches("OAuth ").to_owned()).filter(|t| !t.is_empty()),
-  };
-  core.connect_soundcloud(creds).await.map_err(err)
+  core.connect_soundcloud(sc_creds(&client_id, oauth_token.as_deref())).await.map_err(err)
 }
 
 #[tauri::command]
 pub async fn connect_yandex(core: State<'_, Arc<Core>>, token: String) -> Res<ServiceStatus> {
-  core.connect_yandex(yandex::Creds { token: token.trim().to_owned() }).await.map_err(err)
+  core.connect_yandex(ym_creds(&token)).await.map_err(err)
+}
+
+/// Ключи SoundCloud как их вставили: без пробелов по краям и без `OAuth ` перед токеном.
+fn sc_creds(client_id: &str, oauth_token: Option<&str>) -> soundcloud::Creds {
+  soundcloud::Creds {
+    client_id: client_id.trim().to_owned(),
+    oauth_token: oauth_token.map(|t| t.trim().trim_start_matches("OAuth ").to_owned()).filter(|t| !t.is_empty()),
+  }
+}
+
+fn ym_creds(token: &str) -> yandex::Creds {
+  yandex::Creds { token: token.trim().to_owned() }
+}
+
+/// Ключи из формы «Вставить ключ» для своего сервиса.
+#[derive(Debug)]
+enum KeyCreds {
+  Sc(soundcloud::Creds),
+  Ym(yandex::Creds),
+}
+
+/// Поля формы → ключи сервиса. Нет обязательного поля — пустая строка, её отклонит проверка
+/// в Core прежним текстом. Чужие поля не смотрим. Значения полей в ошибки не попадают.
+fn key_creds(info: &ServiceInfo, fields: &HashMap<String, String>) -> Res<KeyCreds> {
+  let field = |name: &str| fields.get(name).map(String::as_str);
+  match info.id {
+    ServiceId::Sc => Ok(KeyCreds::Sc(sc_creds(field("client_id").unwrap_or(""), field("oauth_token")))),
+    ServiceId::Ym => Ok(KeyCreds::Ym(ym_creds(field("token").unwrap_or("")))),
+    _ => Err(format!("{}: пока не поддерживается", info.name)),
+  }
+}
+
+/// Все сервисы реестра с состоянием подключения.
+#[tauri::command]
+pub async fn services_list(core: State<'_, Arc<Core>>) -> Res<Vec<ServiceEntry>> {
+  Ok(core.list().await)
+}
+
+/// Подключить сервис по вставленному ключу (`service` — `sc` или `soundcloud` и т. д.).
+#[tauri::command]
+pub async fn connect_service_key(core: State<'_, Arc<Core>>, service: String, fields: HashMap<String, String>) -> Res<ServiceStatus> {
+  let info = by_key(&service).ok_or_else(|| format!("Неизвестный сервис: {service}"))?;
+  match key_creds(info, &fields)? {
+    KeyCreds::Sc(creds) => core.connect_soundcloud(creds).await,
+    KeyCreds::Ym(creds) => core.connect_yandex(creds).await,
+  }
+  .map_err(err)
 }
 
 /// Подключить сервис в один клик: окно входа самого сервиса, ключи Sonar забирает сам (login.rs).
 #[tauri::command]
 pub async fn login_service(app: tauri::AppHandle, core: State<'_, Arc<Core>>, db: State<'_, Db>, service: String) -> Res<ServiceStatus> {
   let core = core.inner().clone();
-  match service.as_str() {
+  match by_key(&service).map(|s| s.key).unwrap_or(service.as_str()) {
     // Яндекс — в браузере по умолчанию по коду; вход по коду недоступен — прежнее окно
     "yandex" => {
       let device = db.0.lock().unwrap().device_id().unwrap_or_else(|_| "sonar-windows".into());
@@ -70,6 +115,7 @@ pub fn cancel_login() {
 
 #[tauri::command]
 pub async fn disconnect_service(core: State<'_, Arc<Core>>, service: String) -> Res<()> {
+  // Core сам понимает и `sc`, и `soundcloud`; неизвестное — прежний текст с тем, что прислали
   core.disconnect(&service).await.map_err(err)
 }
 
@@ -804,14 +850,15 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   };
 
   let has_ym = core.has_yandex().await;
-  let mut seeds: Vec<String> = seeds.into_iter().filter(|r| has_ym || !r.starts_with("ym:")).collect();
+  let mut seeds: Vec<String> = seeds.into_iter().filter(|r| has_ym || !is_kind(r, ServiceId::Ym, RefKind::Track)).collect();
   let mut taste = taste;
   // Новичок: в Sonar ни лайков, ни прослушиваний — волна стартует от лайков (а если их нет —
   // от плейлистов) в выбранном сервисе. Их артисты считаются любимыми.
   if seeds.is_empty() {
-    let svc = if has_ym && platform.as_deref() == Some("yandex") { "yandex" } else { "soundcloud" };
-    let pl = if svc == "yandex" { "ympl:likes" } else { "scpl:likes" };
-    let mut pool: Vec<Track> = core.service_playlist(pl).await.map(|p| p.tracks).unwrap_or_default();
+    let id = if has_ym && platform.as_deref() == Some(ServiceId::Ym.key()) { ServiceId::Ym } else { ServiceId::Sc };
+    let svc = id.key();
+    let pl = likes_ref(id).expect("sc/ym have likes");
+    let mut pool: Vec<Track> = core.service_playlist(&pl).await.map(|p| p.tracks).unwrap_or_default();
     if pool.is_empty() {
       if let Ok(lists) = core.service_playlists(svc).await {
         for l in lists.iter().filter(|l| !l.ref_.ends_with("likes")).take(3) {
@@ -832,7 +879,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
     return Err("Волне пока не от чего оттолкнуться — лайкни или послушай пару треков.".into());
   }
   let limit = if mode == "own" { 25 } else { 35 };
-  let fav_artists: Vec<String> = fav_artists.into_iter().filter(|r| has_ym || !r.starts_with("yma:")).collect();
+  let fav_artists: Vec<String> = fav_artists.into_iter().filter(|r| has_ym || !is_kind(r, ServiceId::Ym, RefKind::Artist)).collect();
   let (results, tops) = futures_util::join!(
     futures_util::future::join_all(seeds.iter().map(|r| similar_cached(&core, &db, r, limit))),
     futures_util::future::join_all(fav_artists.iter().map(|a| core.artist_top(a, 10))),
@@ -894,7 +941,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
       }
     }
   }
-  let prefer = if has_ym && platform.as_deref() == Some("yandex") { "ym" } else { "sc" };
+  let prefer = if has_ym && platform.as_deref() == Some(ServiceId::Ym.key()) { ServiceId::Ym } else { ServiceId::Sc }.as_str();
   let n = req.n.unwrap_or(PORTION);
   let mut out = pick_with(cands.clone(), &taste, &origin, &session, &filter, Some(prefer), &mode, n, false, &mut rng);
   // знакомого не хватило — лучше незнакомые, чем пустая волна
@@ -1048,7 +1095,7 @@ pub fn daypart_mix(db: State<'_, Db>, tz_min: Option<i64>, limit: Option<usize>)
 pub async fn home_releases(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<Vec<crate::providers::Album>> {
   let artists = db.0.lock().unwrap().release_artist_refs(16).map_err(err)?;
   let has_ym = core.has_yandex().await;
-  let artists: Vec<String> = artists.into_iter().filter(|r| has_ym || r.starts_with("sca:")).collect();
+  let artists: Vec<String> = artists.into_iter().filter(|r| has_ym || is_kind(r, ServiceId::Sc, RefKind::Artist)).collect();
   let lists = futures_util::future::join_all(artists.iter().map(|r| core.artist_albums(r))).await;
   let mut seen = std::collections::HashSet::new();
   let mut albums: Vec<crate::providers::Album> =
@@ -1292,4 +1339,61 @@ pub fn autostart_enabled(app: tauri::AppHandle) -> Res<bool> {
 #[tauri::command]
 pub fn set_tray_mode(on: bool) {
   crate::tray::HIDE_ON_CLOSE.store(on, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::providers::registry::info;
+
+  fn fields(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+    pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+  }
+
+  #[test]
+  fn sc_creds_normalises() {
+    let c = sc_creds("  abc  ", Some(" OAuth tok "));
+    assert_eq!(c.client_id, "abc");
+    assert_eq!(c.oauth_token.as_deref(), Some("tok"));
+    assert_eq!(sc_creds("abc", Some("  ")).oauth_token, None);
+    assert_eq!(sc_creds("abc", None).oauth_token, None);
+    assert_eq!(ym_creds("  y0_tok \n").token, "y0_tok");
+  }
+
+  #[test]
+  fn key_creds_fields_per_service() {
+    let sc = key_creds(info(ServiceId::Sc), &fields(&[("client_id", " id "), ("oauth_token", "OAuth t"), ("token", "x")])).unwrap();
+    let KeyCreds::Sc(c) = sc else { panic!("ожидался SoundCloud") };
+    assert_eq!((c.client_id.as_str(), c.oauth_token.as_deref()), ("id", Some("t")));
+    // нет обязательного поля — пустая строка, её отклонит Core прежним текстом
+    let KeyCreds::Sc(c) = key_creds(info(ServiceId::Sc), &fields(&[])).unwrap() else { panic!("ожидался SoundCloud") };
+    assert_eq!((c.client_id.as_str(), c.oauth_token), ("", None));
+    let KeyCreds::Ym(c) = key_creds(info(ServiceId::Ym), &fields(&[("token", " t ")])).unwrap() else { panic!("ожидался Яндекс") };
+    assert_eq!(c.token, "t");
+    let KeyCreds::Ym(c) = key_creds(info(ServiceId::Ym), &fields(&[("client_id", "x")])).unwrap() else { panic!("ожидался Яндекс") };
+    assert_eq!(c.token, "");
+  }
+
+  #[test]
+  fn key_creds_unimplemented_service() {
+    let e = key_creds(info(ServiceId::Yt), &fields(&[("token", "SECRET123")])).unwrap_err();
+    assert_eq!(e, "YouTube Music: пока не поддерживается");
+  }
+
+  /// Ключ в текст ошибки не попадает: ни из формы, ни из проверки Core.
+  #[tokio::test]
+  async fn connect_key_error_hides_secret() {
+    let secret = "SECRET123";
+    let core = Core::new_empty_for_tests();
+    let KeyCreds::Sc(creds) = key_creds(info(ServiceId::Sc), &fields(&[("client_id", secret)])).unwrap() else {
+      panic!("ожидался SoundCloud")
+    };
+    let e = core.connect_soundcloud(creds).await.map_err(err).unwrap_err();
+    assert!(!e.contains(secret), "{e}");
+    assert_eq!(e, "client_id SoundCloud — строка из 32 символов");
+    let KeyCreds::Ym(creds) = key_creds(info(ServiceId::Ym), &fields(&[("token", "   ")])).unwrap() else { panic!("ожидался Яндекс") };
+    assert_eq!(core.connect_yandex(creds).await.map_err(err).unwrap_err(), "Вставь токен Яндекс Музыки");
+    let e = key_creds(info(ServiceId::Vk), &fields(&[("token", secret)])).unwrap_err();
+    assert!(!e.contains(secret), "{e}");
+  }
 }

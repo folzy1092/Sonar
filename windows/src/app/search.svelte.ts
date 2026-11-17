@@ -1,5 +1,7 @@
 // Состояние строки поиска: запрос и выбранный источник.
-export type Source = 'sc' | 'ym'
+import type { Source } from '../lib/api'
+
+export type { Source }
 
 class SearchState {
   query = $state('')

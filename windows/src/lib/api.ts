@@ -4,8 +4,10 @@ import { listen } from '@tauri-apps/api/event'
 import { isTauri } from './tauri'
 import { t } from './i18n.svelte'
 import type { Lyrics } from '../lyrics/core/types'
+import type { ServiceId, ServiceKey, ServiceCaps, ServicePrefixes } from './services'
 
-export type Source = 'sc' | 'ym'
+/** Короткий id сервиса (lib/services): параметр `src` поиска, корень префикса ref. */
+export type Source = ServiceId
 export type Repeat = 'off' | 'all' | 'one'
 
 export interface ArtistRef {
@@ -115,7 +117,8 @@ export interface SearchMore {
   playlists: ServicePlaylist[]
 }
 
-export type Service = 'soundcloud' | 'yandex'
+/** Длинный ключ сервиса (lib/services): имя в хранилище ключей, `general.platform`, поля ServicesStatus. */
+export type Service = ServiceKey
 
 export interface PlayerState {
   device_id: string | null
@@ -134,11 +137,30 @@ export interface ServiceStatus {
   connected: boolean
   name: string | null
   avatar_url: string | null
+  /** Подписка (Яндекс Плюс); у SoundCloud всегда null. */
+  premium?: boolean | null
 }
 
 export interface ServicesStatus {
   soundcloud: ServiceStatus
   yandex: ServiceStatus
+}
+
+/** Строка `services_list`: реестр + состояние подключения (ключи — snake_case, как в Rust). */
+export interface ServiceState {
+  id: ServiceId
+  key: ServiceKey
+  name: string
+  color: string
+  icon: string | null
+  icon_mono: string | null
+  prefixes: ServicePrefixes
+  caps: ServiceCaps
+  implemented: boolean
+  connected: boolean
+  account_name: string | null
+  avatar_url: string | null
+  premium: boolean | null
 }
 
 export interface StreamUrl {
@@ -261,6 +283,11 @@ export type ReportSent = { kind: 'telegram' } | { kind: 'saved'; path: string }
 
 export const api = {
   servicesStatus: () => call<ServicesStatus>('services_status'),
+  /** Все сервисы реестра в порядке показа, с состоянием подключения. */
+  servicesList: () => call<ServiceState[]>('services_list'),
+  /** «Вставить ключ»: поля по сервису (sc: client_id, oauth_token; ym: token). Значения в ошибках не возвращаются. */
+  connectServiceKey: (service: ServiceId | ServiceKey, fields: Record<string, string>) =>
+    call<ServiceStatus>('connect_service_key', { service, fields }),
   resolveLink: (url: string) => call<LinkItem>('resolve_link', { url }),
   reportPending: () => call<CrashReport | null>('report_pending'),
   reportSend: () => call<ReportSent>('report_send'),
@@ -278,10 +305,10 @@ export const api = {
   lastfmStatus: () => call<LastfmStatus>('lastfm_status'),
   lastfmLogin: () => call<LastfmStatus>('lastfm_login'),
   lastfmLogout: () => call<LastfmStatus>('lastfm_logout'),
-  loginService: (service: 'soundcloud' | 'yandex') => call<ServiceStatus>('login_service', { service }),
+  loginService: (service: Service) => call<ServiceStatus>('login_service', { service }),
   /** Отменить ожидание входа через браузер (Яндекс по коду, Last.fm). */
   cancelLogin: () => call<void>('cancel_login'),
-  disconnectService: (service: 'soundcloud' | 'yandex') => call<void>('disconnect_service', { service }),
+  disconnectService: (service: Service) => call<void>('disconnect_service', { service }),
 
   search: (q: string, src: Source, limit = 30) => call<Track[]>('search', { q, src, limit }),
   streamUrl: (trackRef: string) => call<StreamUrl>('stream_url', { trackRef }),
