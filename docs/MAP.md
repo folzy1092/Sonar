@@ -101,10 +101,13 @@ Sonar/
 │   └── .env.example
 │
 ├── ios/
-│   ├── project.yml           XcodeGen: таргеты Sonar, SonarTests; bundle com.folzy.sonar
+│   ├── project.yml           XcodeGen: таргеты Sonar, SonarWidget, SonarTests; bundle com.folzy.sonar
+│   ├── SonarWidget/          виджет «Домой» (WidgetKit, com.folzy.sonar.widget): кнопки → sonar://play/…
 │   ├── Sonar/
 │   │   ├── App/
-│   │   │   ├── SonarApp.swift        @main, сцена, ссылки sonar://
+│   │   │   ├── SonarApp.swift        @main, сцена
+│   │   │   ├── DeepLink.swift        ссылки sonar:// (play/liked|wave|quick — виджет)
+│   │   │   ├── SonarIntents.swift    Siri и «Команды» (App Intents, без entitlement)
 │   │   │   ├── AppState.swift        вошёл/не вошёл, текущий пользователь
 │   │   │   ├── RootView.swift        свой таб-бар + мини-плеер + полный плеер
 │   │   │   ├── ChromeState.swift     свёрнут ли таб-бар (прокрутка, гистерезис)
