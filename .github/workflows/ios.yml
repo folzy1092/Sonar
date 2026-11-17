@@ -106,6 +106,9 @@ jobs:
             SONAR_REPORT_THREAD="$SONAR_REPORT_THREAD" | xcbeautify
           mkdir -p build/Payload
           cp -R build/Sonar.xcarchive/Products/Applications/Sonar.app build/Payload/
+          # виджет «Домой» встроен в приложение (без него сборка не нужна — ловим сразу)
+          test -f build/Payload/Sonar.app/PlugIns/SonarWidget.appex/Info.plist
+          ls build/Payload/Sonar.app/PlugIns
           (cd build && zip -qry Sonar.ipa Payload)
           ls -lh build/Sonar.ipa
 

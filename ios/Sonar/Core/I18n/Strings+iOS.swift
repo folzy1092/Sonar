@@ -83,6 +83,17 @@ extension I18n {
         "Создать, перевыпустить или удалить ключ — показывается один раз": "Create, reissue or delete the key — it’s shown only once",
         "«Сейчас играет» для selfbot и других сервисов (GET /oauth/now)": "“Now playing” for selfbot and other services (GET /oauth/now)",
         "Треки и статистика из API Sonar": "Tracks and stats from the Sonar API",
+        // виджет и Siri (быстрый плейлист)
+        "В Любимых пока пусто": "Your favorites are empty for now",
+        "Скачанных треков пока нет": "No downloaded tracks yet",
+        "Плейлист «{title}» пуст": "Playlist “{title}” is empty",
+        "Сейчас ничего не играет": "Nothing is playing right now",
+        "Виджет и Siri": "Widget and Siri",
+        "Быстрый плейлист": "Quick playlist",
+        "Его играют кнопка «Быстрый плейлист» в виджете и команда «Быстрый плейлист» в Siri и «Командах»": "Played by the “Quick playlist” widget button and the “Quick playlist” command in Siri and Shortcuts",
+        "Плейлисты сервисов": "Service playlists",
+        "Подключи SoundCloud или Яндекс Музыку в Сервисах — здесь появятся их плейлисты": "Connect SoundCloud or Yandex Music in Services — their playlists will show up here",
+        "Играет кнопка «Быстрый плейлист» в виджете и команда Siri": "Played by the “Quick playlist” widget button and the Siri command",
     ]
 
     static let iosUK: [String: String] = [
@@ -165,5 +176,16 @@ extension I18n {
         "Создать, перевыпустить или удалить ключ — показывается один раз": "Створити, перевипустити або видалити ключ — показується один раз",
         "«Сейчас играет» для selfbot и других сервисов (GET /oauth/now)": "«Зараз грає» для selfbot та інших сервісів (GET /oauth/now)",
         "Треки и статистика из API Sonar": "Треки й статистика з API Sonar",
+        // виджет и Siri (быстрый плейлист)
+        "В Любимых пока пусто": "В Улюблених поки порожньо",
+        "Скачанных треков пока нет": "Завантажених треків поки немає",
+        "Плейлист «{title}» пуст": "Плейлист «{title}» порожній",
+        "Сейчас ничего не играет": "Зараз нічого не грає",
+        "Виджет и Siri": "Віджет і Siri",
+        "Быстрый плейлист": "Швидкий плейлист",
+        "Его играют кнопка «Быстрый плейлист» в виджете и команда «Быстрый плейлист» в Siri и «Командах»": "Його вмикають кнопка «Швидкий плейлист» у віджеті та команда «Швидкий плейлист» у Siri і «Командах»",
+        "Плейлисты сервисов": "Плейлисти сервісів",
+        "Подключи SoundCloud или Яндекс Музыку в Сервисах — здесь появятся их плейлисты": "Підключи SoundCloud або Яндекс Музику в Сервісах — тут з'являться їхні плейлисти",
+        "Играет кнопка «Быстрый плейлист» в виджете и команда Siri": "Грає кнопка «Швидкий плейлист» у віджеті та команда Siri",
     ]
 }
