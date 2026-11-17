@@ -16,6 +16,7 @@
   import AlbumPage from './pages/AlbumPage.svelte'
   import TrackMenu from './app/TrackMenu.svelte'
   import PlaylistMenu from './app/PlaylistMenu.svelte'
+  import ConfirmDialog from './app/ConfirmDialog.svelte'
   import Toast from './app/Toast.svelte'
   import Tooltip from './app/Tooltip.svelte'
   import UpdatePopup from './app/UpdatePopup.svelte'
@@ -207,6 +208,7 @@
 
 <TrackMenu />
 <PlaylistMenu />
+<ConfirmDialog />
 <UpdatePopup />
 <CrashNotice />
 <Toast />
