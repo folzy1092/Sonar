@@ -266,7 +266,7 @@ struct PlaylistScreen: View {
             LazyVStack(spacing: 4) {
                 ForEach(Array(list.enumerated()), id: \.element.ref) { index, track in
                     TrackRow(track: track, playing: engine.current?.ref == track.ref, remove: removal(for: track)) {
-                        engine.play(list, at: index, context: title)
+                        engine.play(list, at: index, context: title, tapped: true)
                     }
                     .cascade(index)
                 }

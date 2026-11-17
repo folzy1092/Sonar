@@ -364,7 +364,7 @@ struct RecentPager: View {
                         VStack(spacing: 4) {
                             ForEach(Array(list.enumerated()), id: \.element.ref) { row, track in
                                 TrackRow(track: track, playing: engine.current?.ref == track.ref) {
-                                    engine.play(tracks, at: index * 4 + row, context: "Недавнее")
+                                    engine.play(tracks, at: index * 4 + row, context: "Недавнее", tapped: true)
                                 }
                             }
                             Spacer(minLength: 0)
