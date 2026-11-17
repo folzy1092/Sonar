@@ -28,8 +28,9 @@ enum LyricsAnnotations {
         return 2 * Double(common) / Double(wa.count + wb.count)
     }
 
-    /// Номер строки текста → аннотация. Каждая строка фрагмента ищет лучшую строку текста (> 0.7),
-    /// идя по порядку (фрагмент — подряд идущие строки, поэтому поиск следующей начинается дальше).
+    /// Номер строки текста → аннотация. Строки фрагмента по порядку ищут лучшую строку текста (> 0.7);
+    /// аннотация встаёт один раз — на первую найденную (решение владельца 2026-11-17). Строка занята
+    /// другой — берётся следующая строка фрагмента.
     static func map(_ lines: [String], _ annotations: [LyricsAnnotation]) -> [Int: LyricsAnnotation] {
         var out: [Int: LyricsAnnotation] = [:]
         for annotation in annotations {
@@ -48,7 +49,10 @@ enum LyricsAnnotations {
                     i += 1
                 }
                 if best >= 0 {
-                    if out[best] == nil { out[best] = annotation }
+                    if out[best] == nil {
+                        out[best] = annotation
+                        break
+                    }
                     from = best + 1
                 }
             }
