@@ -230,7 +230,8 @@ fn unescape(s: &str) -> String {
   while let Some(i) = rest.find('&') {
     out.push_str(&rest[..i]);
     rest = &rest[i..];
-    let Some(end) = rest[..rest.len().min(12)].find(';') else {
+    // `;` ищем в первых 12 байтах по символам: срез `rest[..12]` мог попасть в середину буквы («&мама»)
+    let Some(end) = rest.char_indices().take_while(|&(i, _)| i < 12).find(|&(_, c)| c == ';').map(|(i, _)| i) else {
       out.push('&');
       rest = &rest[1..];
       continue;
@@ -316,6 +317,9 @@ mod tests {
   #[test]
   fn unescape_entities() {
     assert_eq!(unescape("a&#x27;b &#39; &quot;q&quot; & x"), "a'b ' \"q\" & x");
+    // «&» перед кириллицей: раньше срез на 12-м байте падал посреди буквы
+    assert_eq!(unescape("Мы &мама папа брат"), "Мы &мама папа брат");
+    assert_eq!(unescape("&ёёёёёё;x"), "&ёёёёёё;x");
   }
 
   #[test]
