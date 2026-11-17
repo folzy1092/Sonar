@@ -11,7 +11,6 @@
   import { buildPublicProfile, profileUrl } from '../lib/public-profile'
   import { settings } from '../lib/settings.svelte'
   import { player } from '../player/player.svelte'
-  import { home } from './home-data.svelte'
   import { settingsPanel } from './settings-section.svelte'
 
   let favorites = $state<ListTrack[] | null>(null)
@@ -26,11 +25,11 @@
       name: settings.get('profile.name'),
       username,
       avatar: settings.get('profile.avatar'),
-      account: home.account,
       favorites,
       playlists,
       stats,
       current: player.current,
+      playing: player.playing,
     }),
   )
 

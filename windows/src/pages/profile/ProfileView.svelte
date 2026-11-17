@@ -9,7 +9,7 @@
   import { cascade } from '../../lib/cascade'
   import { dateLong, durationText, tracksText } from '../../lib/format'
   import { t, tn } from '../../lib/i18n.svelte'
-  import { profileInitial, type PublicProfile, type PublicTrack } from '../../lib/public-profile'
+  import { formatHours, hoursPluralCount, profileInitial, type PublicProfile, type PublicTrack } from '../../lib/public-profile'
 
   const MS_PER_HOUR = 3_600_000
 
@@ -22,7 +22,6 @@
   const empty = $derived(!loading && !profile.stats && !profile.likes.count && !profile.playlist_count && !profile.now_playing)
 
   const loaded = (e: Event) => (e.currentTarget as HTMLElement).classList.add('loaded')
-  const hours = (n: number) => (n < 10 ? n.toFixed(1) : String(Math.round(n)))
 </script>
 
 {#snippet cover(url: string | null, size: number)}
@@ -85,7 +84,7 @@
       {#if profile.stats}
         <section class="stats">
           <div><b><CountUp value={profile.stats.plays} /></b><span>{t('Прослушивания')}</span></div>
-          <div><b><CountUp value={profile.stats.total_ms / MS_PER_HOUR} format={hours} /></b><span>{tn(Math.round(profile.stats.total_ms / MS_PER_HOUR), ['час музыки', 'часа музыки', 'часов музыки'])}</span></div>
+          <div><b><CountUp value={profile.stats.total_ms / MS_PER_HOUR} format={formatHours} /></b><span>{tn(hoursPluralCount(profile.stats.total_ms / MS_PER_HOUR), ['час музыки', 'часа музыки', 'часов музыки'])}</span></div>
           <div><b><CountUp value={profile.stats.tracks} /></b><span>{t('Треки')}</span></div>
           <div><b><CountUp value={profile.stats.artists} /></b><span>{t('Артисты')}</span></div>
           {#if profile.stats.streak_days > 1}
@@ -132,7 +131,7 @@
         <section>
           <h2><Icon name="user" size={18} />{t('Чаще всего слушает')}</h2>
           <ul class="artists" use:cascade>
-            {#each profile.top_artists as artist (artist.ref ?? artist.name)}
+            {#each profile.top_artists as artist (artist.name)}
               <li>
                 <span class="art">
                   {#if artist.avatar_url}<img src={artist.avatar_url} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="user" size={26} />{/if}

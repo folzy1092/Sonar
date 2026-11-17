@@ -8,7 +8,7 @@ import UIKit
 struct AboutSection: View {
     enum Mark { case idle, spin, done }
 
-    static let site = "https://sonar.folzy.ru"
+    static let site = LocalProfile.siteURL
     static let links: [(title: String, icon: IconName, url: String)] = [
         ("Сайт", .globe, site),
         ("Телеграм", .telegram, "https://t.me/SonarUpdates"),
