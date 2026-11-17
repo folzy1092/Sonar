@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Полный плеер (`reference/mobile/player.jpg`): сверху ⌄ · контекст «❤ Любимые ⤮» · ⋮, обложка на весь
 /// фон с затемнением к низу, название и исполнитель (выделяются и копируются), ползунок, время и «Далее»,
@@ -12,26 +13,55 @@ struct FullPlayerView: View {
     @State private var showQueue = false
     @State private var showSpeed = false
     @State private var dragDown: CGFloat = 0
+    @Environment(SettingsStore.self) private var settings
+    /// Текст песни на весь экран (`IMG_6787..6790`); держится между открытиями плеера.
+    @AppStorage("player.lyrics_open") private var showLyrics = false
+    /// Кнопки спрятаны: текст открыт, экран не трогали ~2,5 с, и сменилась строка.
+    @State private var chromeHidden = false
+    @State private var lastTouch = Date()
+    @State private var showLyricsMenu = false
+
+    private var lyricsStore: LyricsStore { LyricsStore.shared }
 
     var body: some View {
         ZStack {
-            background
+            if showLyrics {
+                lyricsBackground
+                    .transition(.opacity)
+                lyricsLayer
+                    .transition(.opacity)
+            } else {
+                background
+                    .transition(.opacity)
+            }
             VStack(spacing: 0) {
-                topBar
+                Group {
+                    if showLyrics { lyricsTopBar } else { topBar }
+                }
+                .opacity(chromeHidden ? 0 : 1)
+                .allowsHitTesting(!chromeHidden)
                 Spacer(minLength: 20)
-                if let track = engine.current {
+                if let track = engine.current, !showLyrics {
                     titleBlock(track)
                         .id(track.ref)
                         .transition(.opacity.combined(with: .offset(y: 8)))
                 }
-                slider
-                    .padding(.top, 22)
-                timeRow
-                    .padding(.top, 8)
-                controls
-                    .padding(.top, 18)
-                bottomRow
-                    .padding(.top, 14)
+                VStack(spacing: 0) {
+                    slider
+                        .padding(.top, 22)
+                    timeRow
+                        .padding(.top, 8)
+                    controls
+                        .padding(.top, 18)
+                    if !showLyrics {
+                        bottomRow
+                            .padding(.top, 14)
+                            .transition(.opacity.combined(with: .offset(y: 10)))
+                    }
+                }
+                .opacity(chromeHidden ? 0 : 1)
+                .offset(y: chromeHidden ? 24 : 0)
+                .allowsHitTesting(!chromeHidden)
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 10)
@@ -42,8 +72,28 @@ struct FullPlayerView: View {
                 .onChanged { dragDown = $0.translation.height }
                 .onEnded { value in
                     if value.translation.height > 140 { dismiss() } else { withAnimation(Motion.spring) { dragDown = 0 } }
-                }
+                },
+            // в тексте вертикальный жест — прокрутка строк, закрывать плеер нельзя
+            including: showLyrics ? .subviews : .all
         )
+        .animation(.easeInOut(duration: 0.45), value: showLyrics)
+        .animation(.easeInOut(duration: 0.6), value: chromeHidden)
+        .task(id: engine.current?.ref) {
+            if let track = engine.current { await lyricsStore.load(for: track) }
+        }
+        .onChange(of: showLyrics) { _, open in
+            if !open { chromeHidden = false }
+            lastTouch = Date()
+        }
+        .sheet(isPresented: $showLyricsMenu) {
+            if let track = engine.current {
+                LyricsMenuSheet(track: track)
+                    .presentationDetents([.height(520)])
+                    .presentationDragIndicator(.visible)
+                    .presentationCornerRadius(30)
+                    .presentationBackground(Theme.background)
+            }
+        }
         .animation(Motion.spring, value: engine.current?.ref)
         .sheet(isPresented: $showQueue) {
             QueueSheet()
@@ -69,6 +119,125 @@ struct FullPlayerView: View {
             }
         }
         .animation(Motion.spring, value: engine.message)
+    }
+
+    // MARK: - Текст песни
+
+    /// Фон текста: обложка, сильно размытая и затемнённая, — цветные пятна, как на скринах.
+    private var lyricsBackground: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Color.black
+                CoverImage(url: engine.current?.coverURL, cornerRadius: 0)
+                    .frame(width: proxy.size.width * 1.6, height: proxy.size.height * 1.2)
+                    .blur(radius: 70)
+                    .saturation(1.3)
+                    .opacity(0.85)
+                    .id(engine.current?.ref)
+                    .transition(.opacity)
+                LinearGradient(colors: [.black.opacity(0.15), .black.opacity(0.35), .black.opacity(0.7)],
+                               startPoint: .top, endPoint: .bottom)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
+        }
+        .ignoresSafeArea()
+        .animation(.easeInOut(duration: 0.8), value: engine.current?.ref)
+    }
+
+    @ViewBuilder
+    private var lyricsLayer: some View {
+        if let track = engine.current {
+            Group {
+                if let lyrics = lyricsStore.lyrics, lyricsStore.trackRef == track.ref, !lyrics.lines.isEmpty {
+                    LyricsView(
+                        lyrics: lyrics,
+                        offset: lyricsStore.offset(for: track.ref),
+                        look: LyricsLook.current(settings),
+                        translation: lyricsStore.translation,
+                        topInset: 110,
+                        bottomInset: chromeHidden ? 120 : 280,
+                        onSeek: { engine.seek(to: $0) },
+                        onTouch: touched,
+                        onLineChange: { _ in lineChanged() }
+                    )
+                    .id(track.ref)
+                } else if lyricsStore.loading {
+                    ProgressView().tint(.white).frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    VStack(spacing: 12) {
+                        SonarIcon(.lyrics, size: 34).foregroundStyle(Color.white.opacity(0.6))
+                        Text(lyricsStore.failed ?? "Текст не найден")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.75))
+                        Button("Найти заново") { Task { await lyricsStore.reload(for: track) } }
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { touched() }
+            .onLongPressGesture(minimumDuration: 0.45) {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                showLyricsMenu = true
+            }
+        }
+    }
+
+    /// Шапка в тексте: ⌄ · капсула с треком (тап — обратно к обложке) · ⋮ (меню текста).
+    private var lyricsTopBar: some View {
+        HStack(spacing: 10) {
+            Button { dismiss() } label: {
+                SonarIcon(.chevronDown, size: 28)
+                    .foregroundStyle(Theme.text)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(PressableStyle(scale: 0.88))
+            Button { showLyrics = false } label: {
+                HStack(spacing: 10) {
+                    CoverImage(url: engine.current?.coverURL, cornerRadius: 9)
+                        .frame(width: 38, height: 38)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(engine.current?.title ?? "")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Theme.text)
+                            .lineLimit(1)
+                        Text(engine.current?.artist ?? "")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.textSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, 6)
+                .padding(.trailing, 14)
+                .frame(height: 52)
+                .background(.ultraThinMaterial, in: Capsule())
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel("Вернуться к обложке")
+            Button { showLyricsMenu = true } label: {
+                SonarIcon(.more, size: 26)
+                    .foregroundStyle(Theme.text)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(PressableStyle(scale: 0.88))
+            .accessibilityLabel("Меню текста")
+        }
+    }
+
+    /// Касание экрана — кнопки возвращаются, отсчёт простоя сначала.
+    private func touched() {
+        lastTouch = Date()
+        if chromeHidden { chromeHidden = false }
+    }
+
+    /// Новая строка: если ~2,5 с не трогали и музыка играет — кнопки плавно уходят.
+    private func lineChanged() {
+        guard showLyrics, !chromeHidden, engine.isPlaying, !showLyricsMenu else { return }
+        if Date().timeIntervalSince(lastTouch) > 2.5 { chromeHidden = true }
     }
 
     /// Обложка на весь экран, к низу — в чёрный.
@@ -260,6 +429,14 @@ struct FullPlayerView: View {
                     }
                 }
                 Button { showQueue = true } label: { SonarIcon(.queue, size: 26) }
+                Button {
+                    showLyrics = true
+                } label: {
+                    SonarIcon(.lyrics, size: 24)
+                        .foregroundStyle(lyricsStore.lyrics != nil && lyricsStore.trackRef == engine.current?.ref
+                            ? Theme.text : Theme.textSecondary)
+                }
+                .accessibilityLabel("Текст песни")
             }
             .padding(.horizontal, 20)
             .frame(height: 50)
