@@ -39,6 +39,9 @@ const MAP = {
   phoneCall: 'phone-call', fingerTap: 'finger-tap', arrowLeft: 'arrow-left', arrowRight: 'arrow-right', speaker: 'speaker',
   chartBar: 'chart-bar', playCircle: 'play-circle', thinLine: 'line', fullscreen: 'fullscreen', listExpand: 'list-expansion',
   listCollapse: 'list-collapse', crossfade: 'transfer-3', contrast: 'contrast', handFinger: 'hand-finger', waveLine: 'wave',
+  // Аккаунт: вход, устройства, безопасность
+  cellphone: 'cellphone', computer: 'computer', android: 'android-2', qrcode: 'qrcode-2', copy: 'copy-2',
+  userAdd: 'user-add-2', enterDoor: 'enter-door', userSecurity: 'user-security',
 }
 
 /** Знаки сервисов — одна заливка (Simple Icons, 24×24). */
