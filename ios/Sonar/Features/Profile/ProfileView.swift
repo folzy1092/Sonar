@@ -17,7 +17,7 @@ struct ProfileView: View {
                     link("Статистика", .stats) { StatsView() }
                     divider
                     link("Безопасность", .lock) {
-                        ServerOnlyView(.security)
+                        if AccountStore.serverEnabled { AccountSecurityView() } else { ServerOnlyView(.security) }
                     }
                     divider
                     link("Приватность", .shield, value: "В разработке") {

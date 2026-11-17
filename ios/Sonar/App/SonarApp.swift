@@ -38,6 +38,9 @@ struct SonarApp: App {
                     _ = LyricsStore.shared
                     StorageUsage.applyCoverLimit(settings)
                     LastfmScrobbler.shared.flush()
+                    // сервер: синхронизация и версия устройства — без включённого сервера ничего не делают
+                    SyncService.shared.start()
+                    await AccountStore.shared.reportLaunch()
                     await MusicCore.shared.configure(maxKbps: MusicCore.qualityKbps(settings.string("audio.quality")),
                                                      soundCloudViaYandex: settings.bool("audio.sc_via_yandex"))
                 }
@@ -70,7 +73,9 @@ enum DeepLink: Equatable {
         }
     }
 
+    @MainActor
     static func handle(_ url: URL) {
-        _ = DeepLink(url)
+        // вход с другого устройства / из бота — окно подтверждения (работает, только когда включён сервер)
+        if case let .auth(code) = DeepLink(url) { AccountStore.shared.handleAuthLink(code) }
     }
 }

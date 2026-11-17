@@ -49,8 +49,8 @@ enum Lang: String, CaseIterable, Identifiable, Sendable {
 enum I18n {
     /// Словарь языка: Windows + iOS (iOS главнее).
     static let dictionaries: [Lang: [String: String]] = [
-        .en: windowsEN.merging(iosEN) { _, ios in ios },
-        .uk: windowsUK.merging(iosUK) { _, ios in ios },
+        .en: windowsEN.merging(iosEN) { _, ios in ios }.merging(accountEN) { _, a in a },
+        .uk: windowsUK.merging(iosUK) { _, ios in ios }.merging(accountUK) { _, a in a },
     ]
 
     /// Перевод строки (ключ — русский текст, можно с контекстом `контекст::Текст`).
