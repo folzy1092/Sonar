@@ -36,9 +36,28 @@
 | DELETE | `/me/avatar` | → `204` |
 | PUT | `/me/background` | multipart `file` (картинка ≤ 5 МБ или видео ≤ 10 с, ≤ 15 МБ) → `{id, kind: "image"\|"video", url}` |
 | DELETE | `/me/background` | → `204` |
-| GET | `/public/users/{username}` (без авт., CORS для сайта) | → `{username, display_name, number, avatar_url, created_at}` |
+| GET | `/public/users/{username}` (без авт., CORS для сайта) | → `PublicProfile` (ниже) |
 | GET | `/notifications?since=` | → `[{id, title, text, created_at, read}]` |
 | POST | `/notifications/read` | `{ids: [id]}` → `204` |
+
+`PublicProfile` — страница профиля по ссылке `https://sonar.folzy.ru/@username` (SPEC §4.5а). Тот же объект
+уже собирает ПК для предпросмотра «Как видят мой профиль» (`windows/src/lib/public-profile.ts`
+`buildPublicProfile`), сайт рисует его той же раскладкой (`pages/profile/ProfileView.svelte`):
+
+```
+{username, display_name, number, avatar_url, created_at,
+ now_playing: PublicTrack | null,
+ stats: {plays, total_ms, tracks, artists, streak_days} | null,   // null — ещё ничего не прослушано
+ top_artists: [{name, avatar_url, ref, plays}],                    // до 6
+ likes: {count, tracks: [PublicTrack]},                            // треков до 8, count — все
+ playlists: [{id, name, track_count, duration_ms, covers}],        // свои плейлисты Sonar, до 12, обложек до 4
+ playlist_count}
+PublicTrack = {ref, title, artist, cover_url, duration_ms}
+```
+
+Только публичные поля: ни `item_id`, ни токенов, ни устройств. Приватности пока нет (вопрос владельцу,
+NEXT_PROMPT этап 0 п. 9) — отдаётся всё, в том числе плейлисты, скрытые из «Все»; когда появятся настройки
+приватности, сервер будет вырезать закрытые разделы здесь же.
 
 `device` = `{id, name, platform, os, app_version, build}`, например
 `{"id": "6f1c…-uuid", "name": "iPhone 15 Pro", "platform": "ios", "os": "iOS 18.1", "app_version": "0.1.0", "build": 239}`:

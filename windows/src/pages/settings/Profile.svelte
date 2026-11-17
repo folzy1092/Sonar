@@ -3,12 +3,16 @@
   // аватар в левой панели. До сервера — локально в настройках (`profile.*`, синхронизируются как
   // остальные); с сервером профиль приходит из GET /me и меняется PATCH /me (docs/API.md).
   // Пусто — как раньше: имя и аватар из подключённого сервиса.
+  import CopyProfileLink from '../../components/CopyProfileLink.svelte'
   import Icon from '../../components/Icon.svelte'
   import { t } from '../../lib/i18n.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { avatarFromFile, cleanUsername, USERNAME_RE } from '../../lib/avatar'
   import { toast } from '../../lib/toast.svelte'
+  import { profileUrl } from '../../lib/public-profile'
+  import { router } from '../../app/router.svelte'
   import { home } from '../home-data.svelte'
+  import { settingsPanel } from '../settings-section.svelte'
 
   let name = $state(settings.get('profile.name'))
   let username = $state(settings.get('profile.username'))
@@ -35,6 +39,13 @@
   function saveUser() {
     if (!userOk) return
     settings.set('profile.username', cleanUsername(username))
+  }
+  /** «Как видят мой профиль»: сохранить поля, закрыть настройки и открыть предпросмотр (ProfilePage). */
+  function preview() {
+    saveName()
+    saveUser()
+    settingsPanel.close()
+    router.go('profile')
   }
 </script>
 
@@ -65,6 +76,18 @@
   <span class="text"><b>{t('Имя пользователя')}</b><small>{userOk ? t('Латиница, цифры и «_», 3–32 знака') : t('Только латиница, цифры и «_», от 3 до 32 знаков')}</small></span>
   <span class="at"><i>@</i><input maxlength="33" placeholder="username" bind:value={username} onblur={saveUser} onkeydown={(e) => e.key === 'Enter' && saveUser()} /></span>
 </label>
+
+<div class="share">
+  <span class="text">
+    <b>{t('Публичный профиль')}</b>
+    <small class="url">{profileUrl(settings.get('profile.username')) ?? t('Задай @username — тогда появится ссылка')}</small>
+  </span>
+  <span class="buttons">
+    <CopyProfileLink username={settings.get('profile.username')} />
+    <button class="look" onclick={preview}><Icon name="eye" size={16} />{t('Как видят мой профиль')}</button>
+  </span>
+  <small class="hint">{t('Страница по ссылке заработает, когда у Sonar появится сервер.')}</small>
+</div>
 
 <p class="note">{t('Сейчас профиль хранится на этом компьютере и в синхронизации настроек. С сервером Sonar он станет общим для всех устройств и друзей.')}</p>
 
@@ -186,6 +209,52 @@
   }
   .at input {
     padding-left: 26px;
+  }
+  .share {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    margin-top: 8px;
+    padding: 14px 0 0;
+    border-top: 1px solid var(--border);
+  }
+  .url {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .look {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: calc(13px * var(--fs, 1));
+    font-weight: 600;
+    transition:
+      filter var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .look:hover {
+    filter: brightness(1.08);
+  }
+  .look:active {
+    transform: scale(0.97);
+  }
+  .hint {
+    flex-basis: 100%;
+    font-size: calc(12px * var(--fs, 1));
+    color: var(--text-3);
   }
   .note {
     margin: 14px 0 0;
