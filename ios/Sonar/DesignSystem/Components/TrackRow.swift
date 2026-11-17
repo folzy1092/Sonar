@@ -66,7 +66,7 @@ struct TrackRow: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(PressableStyle(scale: 0.98))
+            .buttonStyle(PressableStyle(scale: 0.98, haptic: false))
             .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in open() })
 
             DurationPill(ms: track.durationMs, playing: playing, isPlaying: engine.isPlaying)

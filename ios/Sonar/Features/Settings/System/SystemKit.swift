@@ -63,7 +63,6 @@ struct SystemSection<Content: View>: View {
                 content
             }
             .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-            .simultaneousGesture(TapGesture().onEnded { Haptics.tap() })
             .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).strokeBorder(Theme.line))
             if let footer {
                 Text(footer)
@@ -151,7 +150,7 @@ struct SystemToggle: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        Toggle(isOn: $isOn.animation(Motion.spring)) {
+        Toggle(isOn: Binding(get: { isOn }, set: { isOn = $0; Haptics.tap() }).animation(Motion.spring)) {
             HStack(spacing: 14) {
                 if let icon {
                     SonarIcon(icon, filled: isOn, size: 22)

@@ -40,7 +40,7 @@ struct GeneralSettingsView: View {
             .cascade(2)
 
             SystemSection(title: t("Отклик")) {
-                SystemToggle(icon: .wave, title: t("Тактильный отклик"), subtitle: t("Лёгкий тык при нажатиях в настройках, вкладках и «Моей волне»"),
+                SystemToggle(icon: .wave, title: t("Тактильный отклик"), subtitle: t("Лёгкий тык на кнопки, переключатели и смену трека свайпом"),
                              isOn: Binding(get: { settings.bool(Haptics.key) }, set: { settings.set(Haptics.key, $0); if $0 { Haptics.tap() } }))
             }
             .cascade(2)

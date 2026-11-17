@@ -10,6 +10,8 @@ enum GestureRunner {
     static func perform(_ action: GestureAction, track: Track?, remove: (@MainActor () -> Void)? = nil) {
         let engine = PlaybackEngine.shared
         let library = LibraryStore.shared
+        // свайп сработал (смена трека, лайк, в очередь…) — лёгкий тык
+        if action != .off { Haptics.tap() }
         switch action {
         case .off:
             return
