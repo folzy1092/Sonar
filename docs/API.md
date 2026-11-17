@@ -28,8 +28,10 @@
 | PUT | `/me/password` | `{old_password?, new_password}` → `204` (`old` не нужен, если пароля не было) |
 | GET | `/me` | → `User` (Windows до сервера держит профиль в настройках `profile.name / username / avatar` — `SETTINGS.md`; с сервером берёт отсюда и шлёт правки `PATCH /me`) |
 | PATCH | `/me` | `{username?, display_name?, avatar?}` → `User` |
-| GET | `/me/devices` | → `[Device]` |
-| DELETE | `/me/devices/{id}` | завершить сессию → `204` |
+| GET | `/me/devices` | → `[Device]` (это устройство — `current: true`) |
+| PUT | `/me/device` | при **каждом запуске** клиента: `{device}` → `Device` — сервер обновляет имя, ОС, `app_version`, `build`, `last_seen_at` этого устройства |
+| PATCH | `/me/devices/{id}` | переименовать: `{name}` (≤ 48 символов) → `Device` |
+| DELETE | `/me/devices/{id}` | завершить сессию устройства → `204`. Своя сессия моложе **24 ч** → `403 session_too_new` «Вход был недавно — завершать другие сессии можно через 24 часа» (свою можно всегда — это `POST /auth/logout`) |
 | PUT | `/me/avatar` | multipart `file` (JPEG/PNG ≤ 5 МБ, сервер режет до 512×512) → `{avatar_url}` |
 | DELETE | `/me/avatar` | → `204` |
 | PUT | `/me/background` | multipart `file` (картинка ≤ 5 МБ или видео ≤ 10 с, ≤ 15 МБ) → `{id, kind: "image"\|"video", url}` |
@@ -38,7 +40,33 @@
 | GET | `/notifications?since=` | → `[{id, title, text, created_at, read}]` |
 | POST | `/notifications/read` | `{ids: [id]}` → `204` |
 
-`device` = `{name: "iPhone 15 Pro", platform: "ios", app_version: "1.0.0", build: 12}`.
+`device` = `{id, name, platform, os, app_version, build}`, например
+`{"id": "6f1c…-uuid", "name": "iPhone 15 Pro", "platform": "ios", "os": "iOS 18.1", "app_version": "0.1.0", "build": 239}`:
+
+- `id` (`device_id`) — **постоянный id устройства**, его придумывает клиент: iPhone — UUID, созданный один раз и
+  сохранённый в Keychain (переживает переустановку, как в Shadow); ПК — HWID. Повторный вход с того же
+  устройства заменяет его прежнюю сессию, а не добавляет строку в «Устройства». Тот же id — в `op_id` синка.
+- `name` — человекочитаемо: iPhone — модель по `utsname.machine` («iPhone 15 Pro», таблица — `ios/Sonar/Core/Account/DeviceInfo.swift`);
+  ПК — «Windows 10 (Folzy)» / «Windows 11 (Folzy)» (имя ПК в скобках). Пользователь может переименовать.
+- `platform` — `ios` | `windows` | `android`. `os` — «iOS 18.1», «Windows 10 22H2».
+- `app_version` + `build` — версия Sonar; приходят при входе и при каждом запуске (`PUT /me/device`), поэтому
+  сервер знает последнюю версию каждого устройства.
+
+```json
+// Device
+{"id": "6f1c…", "name": "iPhone 15 Pro", "platform": "ios", "os": "iOS 18.1", "app_version": "0.1.0",
+ "build": 239, "created_at": 1794340534779, "last_seen_at": 1794340600000, "current": true}
+```
+
+`created_at` — когда на устройстве вошли (начало сессии; по нему правило 24 ч), `last_seen_at` — последний запрос.
+
+Быстрая ссылка (`POST /auth/link`) отвечает `{code, url, bot_url, expires_at}`: `url` = `https://sonar.folzy.ru/auth/<code>`
+(открыть там, где уже вошли; QR на новом устройстве), `bot_url` = `https://t.me/SonarMusicApp?start=link_<code>` —
+«Войти через Telegram» на новом iPhone/ПК. `GET /auth/link/{code}` → `{for: {kind, name, platform?}, created_at, expires_at}`.
+
+Клиенты держат аккаунт за флагом, пока сервера нет: iOS — `AccountStore.serverEnabled` (адрес из Info.plist
+`SonarAPIBaseURL` или настройки `server.url` **и** `server.enabled = true`, по умолчанию false); Windows — `sync.server`
+и сессия в keyring. Сессия — только в Keychain / keyring.
 
 ```json
 // User
@@ -211,9 +239,21 @@
 
 `op_id` = `<device_id>:<type>:<key>:<локальный rev>` — повтор после сбоя сети сервер узнаёт по нему и
 не применяет дважды, но в `applied` возвращает. Настройки — «побеждает позднее» по `client_ts`,
-остальное — последняя запись. `wave_event`: строка с исходом (`reward`) важнее строки без него.
-Образец логики сервера — `MemoryServer` в `windows/src-tauri/src/sync.rs` (тесты двух устройств).
+остальное — последняя запись. Проигравшую по `client_ts` настройку сервер тоже подтверждает в `applied`, но
+поднимает `rev` строки-победителя — она придёт отправившему в следующем `pull` (иначе у него осталось бы своё).
+Изменения типа, который клиент не хранит (у iPhone пока нет плейлистов; настройки-объекты ПК), клиент не
+применяет, держит в журнале и **не** шлёт обратно удалением. `wave_event`: строка с исходом (`reward`) важнее строки без него.
+Образец логики сервера — `MemoryServer` в `windows/src-tauri/src/sync.rs` и `MemorySyncServer` в
+`ios/Sonar/Core/Sync/SyncEngine.swift` (тесты двух устройств).
 `player_state` клиент пока не шлёт (продолжение на другом устройстве — отдельной задачей).
+
+**iOS** (`ios/Sonar/Core/Sync/`, готово 2026-11-17, за флагом `AccountStore.serverEnabled`): тот же протокол.
+Данные телефона лежат в JSON хранилищ, поэтому рядом журнал `sync.json` — последнее значение и `rev` каждой
+строки; правка в хранилище → сверка снимка → новый `rev`. Едут: `like` (Любимые; порядок перетаскиванием —
+через `added_at` перенесённого трека, как сортирует ПК), `dislike`, `track_pref` (скорость «Запомнить» и
+сдвиг текста), `setting` (по SETTINGS.md, плюс `server.*` / `account.*` — только устройство), `POST /plays`
+из журнала «Статистики». Офлайн-файлы (`DownloadStore`) не синхронизируются. Плейлисты и `wave_event` —
+когда они появятся на iPhone.
 
 ## 7. Интеграции
 
