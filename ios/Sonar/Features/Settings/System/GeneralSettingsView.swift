@@ -3,11 +3,13 @@ import UIKit
 
 /// Система → «Общее» (SETTINGS.md «Основные — general.*», как Windows `General.svelte`): язык
 /// (`general.language`, сразу), платформа главной (`general.platform`), медиатека (куда добавлять треки —
-/// `general.add_position`; облако — с сервером), синхронизация (с сервером), внизу — «О приложении».
+/// `general.add_position`; облако — с сервером), «Виджет и Siri» (быстрый плейлист — `widget.quick_playlist`),
+/// синхронизация (с сервером), внизу — «О приложении».
 /// «Авто похожие» — в Очереди.
 struct GeneralSettingsView: View {
     @Environment(SettingsStore.self) private var settings
     @State private var languageSheet = false
+    @State private var quickSheet = false
 
     private var lang: Lang { currentLang() }
 
@@ -45,6 +47,14 @@ struct GeneralSettingsView: View {
             }
             .cascade(2)
 
+            SystemSection(title: t("Виджет и Siri"), footer: t("Его играют кнопка «Быстрый плейлист» в виджете и команда «Быстрый плейлист» в Siri и «Командах»")) {
+                Button { quickSheet = true } label: {
+                    SystemRow(icon: .bolt, title: t("Быстрый плейлист"), value: QuickPlaylistSheet.title(of: settings), chevron: true)
+                }
+                .buttonStyle(PressableStyle(scale: 0.99))
+            }
+            .cascade(2)
+
             SystemSection(title: t("Синхронизация"), footer: t("Лайки, плейлисты и настройки будут общими на iPhone и компьютере, когда появится сервер Sonar. Пока всё хранится на этом телефоне.")) {
                 SystemRow(icon: .cloudSync, title: t("Сохранить в облако"), subtitle: t("Лайки и плейлисты с этого устройства"), value: t("С сервером"))
                     .opacity(0.55)
@@ -60,6 +70,13 @@ struct GeneralSettingsView: View {
         .sheet(isPresented: $languageSheet) {
             LanguageSheet()
                 .presentationDetents([.height(330)])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(30)
+                .presentationBackground(Theme.background)
+        }
+        .sheet(isPresented: $quickSheet) {
+            QuickPlaylistSheet()
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(30)
                 .presentationBackground(Theme.background)
