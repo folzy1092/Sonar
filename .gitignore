@@ -42,3 +42,4 @@ Thumbs.db
 
 windows/src-tauri/target-check/
 windows/src-tauri/src-tauri/
+ios/scripts/node_modules/

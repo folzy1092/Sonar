@@ -43,6 +43,8 @@ targets:
         PRODUCT_NAME: Sonar
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Sonar/Resources/Info.plist
+        # иконка — Resources/Assets.xcassets/AppIcon (ios/scripts/gen-appicon.mjs из brand/), как у exe
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     info:
       path: Sonar/Resources/Info.plist
       properties:

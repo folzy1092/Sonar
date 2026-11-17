@@ -11,6 +11,7 @@ struct SonarApp: App {
     @State private var signing = SigningModel()
     @State private var engine = PlaybackEngine.shared
     @State private var library = LibraryStore.shared
+    @State private var router = Router()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -23,6 +24,7 @@ struct SonarApp: App {
                 .environment(signing)
                 .environment(engine)
                 .environment(library)
+                .environment(router)
                 .preferredColorScheme(.dark)
                 .tint(Theme.accent)
                 .task {
