@@ -1,24 +1,18 @@
 import SwiftUI
 import UIKit
 
-/// Настройки вида текста — SETTINGS.md `lyrics.*`, пусто — умолчания (по словам, L, Кино, Размытие —
-/// как на скринах владельца `IMG_6787..6790`).
+/// Вид текста — из `LyricsStore` (ключи `lyrics.mode` / `size` / `style` / `animation`, SETTINGS.md,
+/// общие с ПК-клиентом).
 struct LyricsLook: Equatable {
     var words: Bool
     var size: LyricsSize
     var style: LyricsTextStyle
     var animation: LyricsAnimation
 
-    static let keys = (sync: "lyrics.sync", size: "lyrics.size", style: "lyrics.style", animation: "lyrics.animation")
-
     @MainActor
-    static func current(_ settings: SettingsStore) -> LyricsLook {
-        LyricsLook(
-            words: settings.string(keys.sync) != "lines",
-            size: LyricsSize(rawValue: settings.string(keys.size)) ?? .l,
-            style: LyricsTextStyle(rawValue: settings.string(keys.style)) ?? .cinema,
-            animation: LyricsAnimation(rawValue: settings.string(keys.animation)) ?? .blur
-        )
+    static func current() -> LyricsLook {
+        let store = LyricsStore.shared
+        return LyricsLook(words: store.mode == .words, size: store.size, style: store.style, animation: store.animation)
     }
 }
 
@@ -77,7 +71,8 @@ struct LyricsView: View {
                     LazyVStack(alignment: .leading, spacing: 26) {
                         ForEach(lyrics.lines) { line in
                             let index = line.id
-                            if gap, index == (current ?? -1) + 1 {
+                            // вступление: «• • •» над первой строкой, пока она не началась
+                            if gap, current == nil, index == 0 {
                                 GapDots(progress: gapProgress)
                                     .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .leading)))
                             }
@@ -100,11 +95,11 @@ struct LyricsView: View {
                     onLineChange(line)
                     guard let line, Date() > manualUntil else { return }
                     withAnimation(reduceMotion ? .easeInOut(duration: 0.3) : .spring(response: 0.75, dampingFraction: 0.92)) {
-                        proxy.scrollTo(line, anchor: UnitPoint(x: 0, y: 0.38))
+                        proxy.scrollTo(line, anchor: UnitPoint(x: 0, y: LyricsMotion.anchor))
                     }
                 }
                 .onAppear {
-                    if let current { proxy.scrollTo(current, anchor: UnitPoint(x: 0, y: 0.38)) }
+                    if let current { proxy.scrollTo(current, anchor: UnitPoint(x: 0, y: LyricsMotion.anchor)) }
                 }
             }
         }
@@ -125,7 +120,10 @@ struct LyricsView: View {
         let isCurrent = delta == 0 && lyrics.synced
         VStack(alignment: .leading, spacing: 6) {
             Group {
-                if isCurrent, look.words, lyrics.wordSynced || !line.words.isEmpty {
+                if line.isPause, lyrics.synced {
+                    // проигрыш: три точки наливаются, пока он идёт
+                    GapDots(progress: isCurrent ? LyricsClock.gapProgress(lyrics.lines, at: t) : 0)
+                } else if isCurrent, look.words {
                     karaoke(line, t: t)
                 } else {
                     Text(line.text.isEmpty ? "♪" : line.text)
@@ -163,12 +161,13 @@ struct LyricsView: View {
 
     /// Текущая строка по словам: спетые — белые, ещё нет — приглушённые, текущее слово — между.
     private func karaoke(_ line: LyricLine, t: Double) -> Text {
+        let words = LyricsClock.words(of: line)
         let progress = LyricsClock.wordProgress(line, at: t)
-        let words = line.words.isEmpty ? [LyricWord(start: line.start, end: line.end, text: line.text)] : line.words
         var out = Text("")
         for (i, word) in words.enumerated() {
             let p = i < progress.count ? progress[i] : 0
-            out = out + Text(word.text).foregroundStyle(Color.white.opacity(0.38 + 0.62 * p))
+            let text = word.spaceAfter && i < words.count - 1 ? word.text + " " : word.text
+            out = out + Text(text).foregroundStyle(Color.white.opacity(0.38 + 0.62 * p))
         }
         return out
     }
