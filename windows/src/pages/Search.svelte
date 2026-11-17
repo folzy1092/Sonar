@@ -18,10 +18,11 @@
   import { settings } from '../lib/settings.svelte'
   import { searchHistory } from '../lib/search-history.svelte'
   import { t } from '../lib/i18n.svelte'
+  import { byId } from '../lib/services'
 
   const tabs = ['Все', 'Треки', 'Артисты', 'Альбомы', 'Плейлисты'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
-  const sourceName = $derived(search.source === 'sc' ? 'SoundCloud' : t('Яндекс Музыке'))
+  const sourceName = $derived(t(byId(search.source)?.nameIn ?? 'Яндекс Музыке'))
 
   let results = $state<Track[]>([])
   let more = $state<SearchMore>({ artists: [], albums: [], playlists: [] })

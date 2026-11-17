@@ -2,6 +2,7 @@
 // меняются сразу в интерфейсе и пишутся в локальную базу. Значения по умолчанию — из каталога.
 import { api } from './api'
 import type { Surface } from '../theme/palette'
+import type { ServiceKey } from './services'
 import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook, ProgressLook, TitleStyle } from '../theme/style'
 
 export type MiniStyle = 'off' | 'full' | 'rounded' | 'hybrid' | 'deck'
@@ -15,7 +16,7 @@ export const MINI_PRESETS: Record<Exclude<MiniStyle, 'off'>, { bg: 'theme' | 'co
 }
 
 export const DEFAULTS = {
-  'general.platform': 'soundcloud' as 'soundcloud' | 'yandex',
+  'general.platform': 'soundcloud' as ServiceKey,
   /** Язык интерфейса (lib/i18n.svelte.ts), меняется на лету. */
   'general.language': 'ru' as 'ru' | 'en' | 'uk',
   'general.restore': 'queue' as 'none' | 'track' | 'queue',

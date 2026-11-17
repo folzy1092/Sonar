@@ -13,6 +13,7 @@
   import { api, errorText, type Album, type Artist, type ArtistTrack, type Track } from '../lib/api'
   import { compact } from '../lib/format'
   import { t, tn } from '../lib/i18n.svelte'
+  import { byId, serviceOf } from '../lib/services'
   import { library } from '../lib/library.svelte'
   import { openRef, router } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
@@ -20,6 +21,8 @@
   import { css, themeFrom } from '../theme/palette'
 
   const ref = router.param ?? ''
+  /** Сервис исполнителя по ref (lib/services); не распознан — Яндекс, как раньше. */
+  const svc = byId(serviceOf(ref)) ?? byId('ym')!
   let artist = $state<Artist | null>(null)
   let top = $state<Track[]>([])
   /** Все треки (решение владельца 2026-11-16: вместо «Популярных» — все, сортировка на выбор). */
@@ -133,7 +136,7 @@
     onshuffle={() => player.playShuffled(sorted, context, a.name)}
     onqueue={() => player.addToQueue(sorted, false)}
   >
-    {#snippet subtitle()}<span class="svc">{ref.startsWith('sca') ? 'SoundCloud' : t('Яндекс Музыка')}<SourceIcon kind={ref.startsWith('sca') ? 'sc' : 'ym'} size={15} plain /></span>{/snippet}
+    {#snippet subtitle()}<span class="svc">{t(svc.name)}<SourceIcon service={svc.id} size={15} plain /></span>{/snippet}
     {#snippet actions()}
       <button class="tool" class:on={followed} onclick={() => library.toggleLike(a)}>
         <Icon name="heart" size={15} filled={followed} /> {followed ? t('Вы подписаны') : t('Подписаться')}

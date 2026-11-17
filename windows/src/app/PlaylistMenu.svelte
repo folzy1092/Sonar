@@ -17,6 +17,7 @@
   import { openRef, router } from './router.svelte'
   import { pop } from '../lib/motion'
   import { t } from '../lib/i18n.svelte'
+  import { byId, isTrackRef, playlistWebUrl, serviceOf } from '../lib/services'
   import { confirm } from '../lib/confirm.svelte'
   import NavIcon from '../components/NavIcon.svelte'
 
@@ -26,7 +27,8 @@
   const p = $derived(playlistMenu.target)
   const own = $derived(playlistMenu.own)
   const fav = $derived(playlistMenu.fav)
-  const sc = $derived(!!p?.ref.startsWith('sc'))
+  /** Сервис плейлиста (lib/services); не распознан — Яндекс, как раньше. */
+  const svc = $derived(byId(serviceOf(p?.ref)) ?? byId('ym')!)
 
   const cache = new Map<string, Promise<Track[]>>()
   function tracksOf(pl: ServicePlaylist): Promise<Track[]> {
@@ -194,13 +196,7 @@
   }
 
   /** Адрес на сайте сервиса: у Яндекса он собирается из ref, у SoundCloud без адреса — пункта нет. */
-  const webUrl = $derived.by(() => {
-    if (!p) return null
-    const m = /^ympl:([^:]+):(.+)$/.exec(p.ref)
-    if (m) return `https://music.yandex.ru/users/${m[1]}/playlists/${m[2]}`
-    if (p.ref === 'scpl:likes') return 'https://soundcloud.com/you/likes'
-    return null
-  })
+  const webUrl = $derived(p ? playlistWebUrl(p.ref) : null)
 </script>
 
 <svelte:window onpointerdown={onPointerDown} onkeydown={(e) => e.key === 'Escape' && playlistMenu.close()} onblur={() => playlistMenu.close()} />
@@ -230,7 +226,7 @@
       <div class="meta">
         <b>{t('Любимые')}</b>
         <span>{t('Лайкнутые треки')}</span>
-        {#if library.liked.size}<small>{tracksText([...library.liked].filter((r) => /^(sc|ym):/.test(r)).length)}</small>{/if}
+        {#if library.liked.size}<small>{tracksText([...library.liked].filter(isTrackRef).length)}</small>{/if}
       </div>
     </div>
 
@@ -314,7 +310,7 @@
       <Cover url={p.cover_url} size={44} source={p.ref} />
       <div class="meta">
         <b>{p.title}</b>
-        <span><SourceIcon kind={sc ? 'sc' : 'ym'} size={12} plain /> {p.owner || (sc ? 'SoundCloud' : t('Яндекс Музыка'))}</span>
+        <span><SourceIcon service={svc.id} size={12} plain /> {p.owner || t(svc.name)}</span>
         {#if p.track_count}<small>{tracksText(p.track_count)}</small>{/if}
       </div>
     </div>
@@ -333,7 +329,7 @@
     {@render item('copy', t('Копировать название'), copyTitle)}
     {#if webUrl}
       {@const url = webUrl}
-      {@render item('link', sc ? t('Открыть в SoundCloud') : t('Открыть в Яндекс Музыке'), () => {
+      {@render item('link', t(svc.openIn ?? 'Открыть в Яндекс Музыке'), () => {
         playlistMenu.close()
         void api.openUrl(url).catch(() => {})
       })}

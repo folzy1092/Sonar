@@ -73,28 +73,124 @@
 {"id": "u_01J...", "login": "folzy", "username": "folzy", "display_name": "Folzy",
  "number": 104633, "avatar_url": null, "created_at": 1791590400000,
  "telegram": {"id": 123, "username": "cocainemodel"}, "has_password": true,
- "services": {"soundcloud": {"connected": true, "name": "Folzy"},
+ "services": {"soundcloud": {"connected": true, "name": "Folzy", "premium": null},
               "yandex": {"connected": false}},
  "lastfm": {"connected": true, "name": "wxnna_cry"}}
 ```
 
 ## 2. Сервисы
 
+### Префиксы ref
+
+Реестр сервисов — одна таблица на всех клиентах: Windows `windows/src-tauri/src/providers/registry.rs` и
+`windows/src/lib/services.ts`, iOS `ios/Sonar/Core/Models/ServiceRegistry.swift`. Порядок строк — порядок показа
+везде. У сервиса два имени: короткий **id** (корень префиксов ref, `src` поиска) и длинный **key** (Keychain/keyring,
+`service_accounts.service`, `general.platform`, поля `services` у `GET /me`). Где сервис приходит параметром
+(`{svc}` в путях ниже), принимаются оба: `sc` и `soundcloud` — одно и то же.
+
+| id | key | Название | трек | альбом | артист | плейлист | работает |
+|---|---|---|---|---|---|---|---|
+| `sc` | `soundcloud` | SoundCloud | `sc:<id>` | `scalb:<id>` | `sca:<id>` | `scpl:<id>` | да |
+| `ym` | `yandex` | Яндекс Музыка | `ym:<id>` | `ymalb:<id>` | `yma:<id>` | `ympl:<uid>:<kind>` | да |
+| `yt` | `youtube` | YouTube Music | `yt:<videoId>` | `ytalb:<browseId>` | `yta:<channelId>` | `ytpl:<playlistId>` | нет |
+| `vk` | `vk` | VK Музыка | `vk:<owner>_<id>` | `vkalb:<owner>_<id>` | `vka:<id>` | `vkpl:<owner>_<id>` | нет |
+| `sp` | `spotify` | Spotify | `sp:<id>` | `spalb:<id>` | `spa:<id>` | `sppl:<id>` | нет |
+| `local` | `local` | Локальные файлы | `local:<sha1 пути>` | — | — | — | нет |
+
+Сервисы с «нет» пока только описаны: интерфейс их не показывает, сервер и клиенты отвечают
+«`<Название>`: пока не поддерживается». Что каждый сервис умеет (`caps`) — в `GET /services`.
+
+Особые ref: `scpl:likes` и `ympl:likes` — лайки аккаунта сервиса как плейлист; `ympl:<uid>:<kind>` — плейлист
+пользователя Яндекса; `scpl:<id>` — плейлист SoundCloud. Формат ref не меняется.
+
+Разбор ref (одинаково в Rust, TS и Swift):
+
+```
+prefix = текст до ПЕРВОГО ':'   (нет ':' или пустой префикс → не сервис)
+сервис, вид = единственная пара (сервис, вид), у которой префикс == prefix   (точное равенство, не «начинается с»)
+иначе → не сервис
+```
+
+| ref | сервис | вид |
+|---|---|---|
+| `sc:123` | sc | трек |
+| `scalb:9` | sc | альбом |
+| `sca:7` | sc | артист |
+| `scpl:likes` | sc | плейлист |
+| `ympl:42:1003` | ym | плейлист |
+| `ymalb:5` | ym | альбом |
+| `yma:1` | ym | артист |
+| `yt:abc` | yt | трек |
+| `local:abc` | local | трек |
+| `pl_x` | — | — |
+| `similar:sc:1` | — | — |
+| `sc` | — | — |
+| (пустая строка) | — | — |
+| `:1` | — | — |
+
+Все префиксы в таблице разные (это проверяют тесты на каждом клиенте).
+
+Не сервисы: `pl_…`, `similar:<ref>`.
+
+### Пути
+
+`{svc}` — короткий id или key сервиса (`sc` / `soundcloud`). Ответ подключения — `{connected, name, avatar_url, premium}`:
+`premium` — `true`/`false`, если сервис сообщает о подписке (Яндекс: Плюс, `plus.hasPlus`), иначе `null` (SoundCloud — всегда `null`).
+
 | Метод | Путь | Тело → ответ |
 |---|---|---|
-| PUT | `/services/soundcloud` | `{client_id, oauth_token}` → `{connected, name, avatar_url}` |
-| PUT | `/services/yandex` | `{token}` → `{connected, name, avatar_url}` |
+| GET | `/services` | все сервисы реестра с состоянием → `[ServiceEntry]` (ПК: команда `services_list`) |
+| PUT | `/services/{svc}/key` | `{fields: {…}}` → `{connected, name, avatar_url, premium}` — «Вставить ключ» (ПК: `connect_service_key {service, fields}`) |
+| PUT | `/services/soundcloud` | `{client_id, oauth_token}` → `{connected, name, avatar_url, premium}` (по-прежнему работает) |
+| PUT | `/services/yandex` | `{token}` → `{connected, name, avatar_url, premium}` (по-прежнему работает) |
 | GET | `/services/yandex/oauth-url` | → `{url}` (для входа в один клик) |
 | DELETE | `/services/{svc}` | → `204` |
 | GET | `/services/{svc}/playlists` | фантомные плейлисты → `[ServicePlaylist]` |
 | GET | `/services/{svc}/playlists/{id}/tracks` | → `[Track]` |
 | POST | `/services/{svc}/playlists/{id}/import` | `{name?}` → `Playlist` (новый плейлист Sonar) |
 
+Поля `PUT /services/{svc}/key` (незнакомые имена полей пропускаются):
+
+| Сервис | Поля |
+|---|---|
+| `sc` / `soundcloud` | `client_id` — обязательно (32 символа); `oauth_token` — необязательно, `OAuth ` в начале срезается |
+| `ym` / `yandex` | `token` — обязательно |
+
+Ключ проверяется запросом аккаунта к сервису и сохраняется только в Keychain / keyring. Неизвестный сервис —
+«Неизвестный сервис: `<svc>`», ещё не работающий — «`<Название>`: пока не поддерживается». Значения полей не
+попадают ни в текст ошибки, ни в лог.
+
+`ServiceEntry` — строка реестра плюс состояние; ключи именно такие (snake_case), все шесть сервисов в порядке реестра:
+
+```json
+[
+  {"id": "sc", "key": "soundcloud", "name": "SoundCloud", "color": "#FF5500", "icon": "SoundCloud.svg", "icon_mono": "soundcloud-mono.svg",
+   "prefixes": {"track": "sc", "album": "scalb", "artist": "sca", "playlist": "scpl"},
+   "caps": {"search": true, "stream": true, "library": true, "playlists": true, "similar": true, "login": true, "key": true},
+   "implemented": true, "connected": true, "account_name": "dj-anna", "avatar_url": "https://i1.sndcdn.com/…", "premium": null},
+  {"id": "ym", "key": "yandex", "name": "Яндекс Музыка", "color": "#FFBC0D", "icon": "Yandex-Music.svg", "icon_mono": "yandex-music-mono.svg",
+   "prefixes": {"track": "ym", "album": "ymalb", "artist": "yma", "playlist": "ympl"},
+   "caps": {"search": true, "stream": true, "library": true, "playlists": true, "similar": true, "login": true, "key": true},
+   "implemented": true, "connected": true, "account_name": "Анна", "avatar_url": null, "premium": true},
+  {"id": "yt", "key": "youtube", "name": "YouTube Music", "color": "#FF0033", "icon": "youtube-music.svg", "icon_mono": "youtube-music-mono.svg",
+   "prefixes": {"track": "yt", "album": "ytalb", "artist": "yta", "playlist": "ytpl"},
+   "caps": {"search": true, "stream": true, "library": true, "playlists": true, "similar": true, "login": true, "key": false},
+   "implemented": false, "connected": false, "account_name": null, "avatar_url": null, "premium": null},
+  {"id": "vk", "…": "…"}, {"id": "sp", "…": "…"},
+  {"id": "local", "key": "local", "name": "Локальные файлы", "color": "#8E8E93", "icon": null, "icon_mono": null,
+   "prefixes": {"track": "local", "album": null, "artist": null, "playlist": null},
+   "caps": {"search": false, "stream": true, "library": true, "playlists": false, "similar": false, "login": false, "key": false},
+   "implemented": false, "connected": false, "account_name": null, "avatar_url": null, "premium": null}
+]
+```
+
+`icon` / `icon_mono` — файлы знаков в `brand/icon/`; у неработающих сервисов `connected: false`, остальное `null`.
+
 ## 3. Каталог и поток
 
 | Метод | Путь | Ответ |
 |---|---|---|
-| GET | `/search?q=&src=all\|sc\|ym&kind=track\|album\|artist\|playlist&limit=30` | `{tracks:[], albums:[], artists:[], playlists:[]}` |
+| GET | `/search?q=&src=all\|sc\|ym&kind=track\|album\|artist\|playlist&limit=30` | `{tracks:[], albums:[], artists:[], playlists:[]}`; `src` — короткий id работающего сервиса (§2 «Префиксы ref») |
 | GET | `/tracks/{ref}` | `Track` |
 | GET | `/tracks/{ref}/stream?quality=low\|medium\|high\|max` | `StreamInfo` |
 | GET | `/tracks/{ref}/related` | `[Track]` |
@@ -117,16 +213,16 @@
 {"url": "https://cf-hls-media.sndcdn.com/...", "protocol": "hls", "codec": "aac",
  "bitrate": 160, "expires_at": 1794340594779, "gain_db": null}
 
-// Album — scalb:<id плейлиста-альбома SC> | ymalb:<id>
+// Album — префикс альбома сервиса (§2 «Префиксы ref»): scalb:<id плейлиста-альбома SC> | ymalb:<id>
 {"ref": "ymalb:9", "title": "Come Over When You're Sober", "artist": "Lil Peep",
  "artists": [{"ref": "yma:7", "name": "Lil Peep", "avatar_url": null}],
  "cover_url": "https://avatars.yandex.net/.../400x400", "year": 2017, "track_count": 7,
  "url": "https://music.yandex.ru/album/9"}
 
-// Artist — sca:<id пользователя SC> | yma:<id>
+// Artist — префикс артиста сервиса (§2 «Префиксы ref»): sca:<id пользователя SC> | yma:<id>
 {"ref": "sca:5", "name": "extra", "avatar_url": "...", "followers": 9400, "url": "https://soundcloud.com/extra"}
 
-// ServicePlaylist — scpl:<id> | ympl:<uid>:<kind>; лайки сервиса — scpl:likes, ympl:likes
+// ServicePlaylist — префикс плейлиста сервиса (§2 «Префиксы ref»): scpl:<id> | ympl:<uid>:<kind>; лайки сервиса — scpl:likes, ympl:likes
 {"ref": "ympl:42:1003", "title": "2016", "owner": "Folzy", "cover_url": "...", "track_count": 121}
 ```
 
@@ -139,7 +235,7 @@
 | Метод | Путь | Тело → ответ |
 |---|---|---|
 | GET | `/library/likes?kind=track\|album\|artist` | `{rev, items: [{item: Track\|Album\|Artist, added_at}]}` |
-| PUT | `/library/likes/{ref}` | → `{rev}` (вид по префиксу: `sc:`/`ym:` трек, `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист) |
+| PUT | `/library/likes/{ref}` | → `{rev}` (вид — по разбору ref из §2 «Префиксы ref»: трек, альбом или артист работающего сервиса, например `sc:`/`ym:` трек, `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист; плейлист сервиса — не лайк) |
 | DELETE | `/library/likes/{ref}` | → `{rev}` |
 | PUT | `/library/track-prefs/{ref}` | `{speed?: 0.5…2.0, lyrics_offset_ms?, eq?: number[12]}` → `{rev}` («Запомнить») |
 | DELETE | `/library/track-prefs` | сбросить все → `{rev}` |
@@ -301,7 +397,7 @@ selfbot переключился сменой адреса:
 ```
 
 - `state`: `playing` / `paused` / `stopped` (`track: null`, если ничего ещё не играло).
-- `source`: `soundcloud` / `yandex`. `id` и `track_id` — id без префикса `sc:`/`ym:`.
+- `source`: key сервиса из §2 «Префиксы ref» (`soundcloud` / `yandex`; позже `youtube` / `vk` / `spotify`). `id` и `track_id` — id без префикса трека (`sc:`/`ym:`).
 - `duration` — секунды (целое), `duration_ms` — миллисекунды.
 
 ## 9. Статус (SPEC §3.11)

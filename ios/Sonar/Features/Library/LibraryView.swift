@@ -31,8 +31,8 @@ struct LibraryView: View {
         func keeps(_ ref: String) -> Bool {
             switch self {
             case .all: true
-            case .soundcloud: ref.hasPrefix("sc")
-            case .yandex: ref.hasPrefix("ym")
+            case .soundcloud: ServiceRegistry.service(of: ref) == .sc
+            case .yandex: ServiceRegistry.service(of: ref) == .ym
             }
         }
     }
