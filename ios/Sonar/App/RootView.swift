@@ -14,7 +14,6 @@ struct RootView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
     @State private var showUpdate = false
-    @State private var showPlayer = false
     /// Нижний системный отступ (полоска «домой»): панели во всю ширину заходят под него.
     @State private var bottomInset: CGFloat = 0
 
@@ -55,7 +54,7 @@ struct RootView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.96, anchor: .bottom)))
             }
 
-            BottomChrome(bottomInset: bottomInset) { showPlayer = true }
+            BottomChrome(bottomInset: bottomInset) { router.playerOpen = true }
                 .padding(.bottom, BottomChrome.edgePadding)
                 .offset(y: chrome.barHidden ? 190 : 0)
                 .opacity(chrome.barHidden ? 0 : 1)
@@ -98,7 +97,7 @@ struct RootView: View {
         }
         .onChange(of: engine.message) { _, message in
             // в полном плеере сообщение показывает он сам
-            if let message, !showPlayer {
+            if let message, !router.playerOpen {
                 router.say(message)
                 engine.message = nil
             }
@@ -109,7 +108,7 @@ struct RootView: View {
                 DownloadStore.shared.message = nil
             }
         }
-        .fullScreenCover(isPresented: $showPlayer) {
+        .fullScreenCover(isPresented: $router.playerOpen) {
             FullPlayerView()
         }
         .crashReportSheet()

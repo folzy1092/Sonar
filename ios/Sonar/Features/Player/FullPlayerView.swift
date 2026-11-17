@@ -13,7 +13,8 @@ struct FullPlayerView: View {
     @Environment(PlaybackEngine.self) private var engine
     @Environment(LibraryStore.self) private var library
     @Environment(SettingsStore.self) private var settings
-    @Environment(\.dismiss) private var dismiss
+    /// Плеер закрывает флаг в Router, а не `dismiss` окружения — тот в этом месте не срабатывал (плеер не закрывался).
+    @Environment(Router.self) private var router
     /// Свайп по обложке вбок — она чуть едет за пальцем.
     @State private var coverShift: CGFloat = 0
     /// Где обложка — свайп вбок считается, только если начат на ней.
@@ -110,7 +111,7 @@ struct FullPlayerView: View {
                        let action = Gestures.resolve(settings, .player, dx: dx, dy: dy) {
                         GestureRunner.perform(action, track: engine.current)
                     } else if dy > 140, abs(dy) > abs(dx) {
-                        dismiss()
+                        close()
                     }
                     withAnimation(Motion.spring) {
                         dragDown = 0
@@ -399,7 +400,7 @@ struct FullPlayerView: View {
     /// Шапка в тексте: ⌄ · капсула с треком (тап — обратно к обложке) · ⋮ (меню текста).
     private var lyricsTopBar: some View {
         HStack(spacing: 10) {
-            Button { dismiss() } label: {
+            Button { close() } label: {
                 SonarIcon(.chevronDown, size: 28)
                     .foregroundStyle(Theme.text)
                     .frame(width: 44, height: 44)
@@ -470,7 +471,7 @@ struct FullPlayerView: View {
 
     private var topBar: some View {
         HStack {
-            Button { dismiss() } label: {
+            Button { close() } label: {
                 SonarIcon(.chevronDown, size: 28)
                     .foregroundStyle(Theme.text)
                     .frame(width: 44, height: 44)
@@ -559,6 +560,10 @@ struct FullPlayerView: View {
             .animation(Motion.spring, value: SliderStyle.current(settings))
     }
 
+    private func close() {
+        router.playerOpen = false
+    }
+
     private var timeRow: some View {
         HStack {
             Text(Self.time(scrubbing ?? engine.position))
@@ -567,7 +572,8 @@ struct FullPlayerView: View {
                 // последние 10 с (`queue.preview`) — «Дальше через N с» и подсветка
                 let left = engine.duration - (scrubbing ?? engine.position)
                 let soon = settings.bool("queue.preview") && engine.duration > 0 && left <= 10 && left > 0
-                Button { engine.next() } label: {
+                // тап по «Далее» — очередь (переключить трек — свайпом по обложке или кнопкой ⏭)
+                Button { showQueue = true } label: {
                     HStack(spacing: 6) {
                         CoverImage(url: next.coverURL, cornerRadius: 4).frame(width: 20, height: 20)
                         Text(next.title).lineLimit(1).frame(maxWidth: 110)
