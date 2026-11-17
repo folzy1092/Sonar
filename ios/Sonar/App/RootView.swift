@@ -19,6 +19,17 @@ struct RootView: View {
     @State private var bottomInset: CGFloat = 0
 
     var body: some View {
+        // с сервером вход обязателен: без аккаунта — экран входа (сейчас сервер выключен — сразу приложение)
+        if AccountStore.shared.needsSignIn {
+            AuthGateView()
+                .transition(.opacity)
+        } else {
+            app
+        }
+    }
+
+    @ViewBuilder
+    private var app: some View {
         @Bindable var router = router
         let animationsOn = settings.bool(LookKey.animations)
         ZStack(alignment: .bottom) {
@@ -102,6 +113,7 @@ struct RootView: View {
             FullPlayerView()
         }
         .crashReportSheet()
+        .approveLoginOverlay()
         .onChange(of: chrome.tab) { _, tab in CrashLog.note("экран: \(tab.rawValue)") }
         .onChange(of: engine.current?.ref) { _, ref in if let ref { CrashLog.note("трек: \(ref)") } }
         .sheet(item: $router.trackMenu) { item in
