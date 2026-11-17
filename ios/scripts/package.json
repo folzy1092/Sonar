@@ -1,0 +1,12 @@
+{
+  "name": "sonar-ios-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Генераторы для iOS: иконки MingCute → SwiftUI Path, иконка приложения из brand/",
+  "devDependencies": {
+    "@iconify-json/mingcute": "^1.2.10",
+    "@iconify-json/simple-icons": "^1.2.0",
+    "svgpath": "^2.6.0",
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}

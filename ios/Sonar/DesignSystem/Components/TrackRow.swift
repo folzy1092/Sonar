@@ -12,8 +12,8 @@ struct CoverImage: View {
                 image.resizable().scaledToFill().transition(.opacity)
             default:
                 ZStack {
-                    Theme.card
-                    Image(systemName: "music.note").foregroundStyle(Theme.textTertiary)
+                    Theme.raised
+                    SonarIcon(.music, size: 20).foregroundStyle(Theme.textTertiary)
                 }
             }
         }
@@ -21,72 +21,135 @@ struct CoverImage: View {
     }
 }
 
-/// Строка трека: обложка, название, исполнитель, длительность; играющий — цветом темы. Долгое нажатие —
-/// меню трека (Следующим, В очередь, Любимые).
+/// Столбики «сейчас играет» (в плашке длительности, `IMG_6770`): играет — прыгают, пауза — замирают.
+struct EqualizerBars: View {
+    var playing: Bool
+    var color: Color
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: !playing)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            HStack(alignment: .center, spacing: 2.5) {
+                ForEach(0 ..< 4, id: \.self) { i in
+                    let phase = Double(i) * 1.7
+                    let level = playing ? 0.35 + 0.65 * abs(sin(t * (3.1 + Double(i) * 0.6) + phase)) : [0.6, 1, 0.75, 0.5][i]
+                    Capsule()
+                        .fill(color)
+                        .frame(width: 3, height: 4 + 10 * level)
+                }
+            }
+            .frame(height: 14)
+        }
+    }
+}
+
+/// Строка трека (`IMG_6764`, `IMG_6770`): обложка, название и исполнитель, длительность в плашке, ⋮.
+/// Играющий — название цветом темы, в плашке столбики. ⋮ и долгое нажатие — лист трека.
 struct TrackRow: View {
     let track: Track
     var playing = false
+    /// Убрать из списка, где показан (Любимые, плейлист) — пункт «Удалить из плейлиста» в листе.
+    var remove: (@MainActor () -> Void)?
     let action: @MainActor () -> Void
     @Environment(PlaybackEngine.self) private var engine
-    @Environment(LibraryStore.self) private var library
+    @Environment(Router.self) private var router
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                CoverImage(url: track.coverURL, cornerRadius: 8)
-                    .frame(width: 48, height: 48)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(track.title)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(playing ? Theme.accent : Theme.text)
-                        .lineLimit(1)
-                    HStack(spacing: 5) {
-                        if track.explicit {
-                            Text("E")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(Theme.accentInk)
-                                .frame(width: 13, height: 13)
-                                .background(Theme.textSecondary, in: RoundedRectangle(cornerRadius: 3))
-                        }
-                        Text(track.artist)
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.textSecondary)
-                            .lineLimit(1)
-                    }
+        HStack(spacing: 14) {
+            Button(action: action) {
+                HStack(spacing: 14) {
+                    CoverImage(url: track.coverURL, cornerRadius: 10)
+                        .frame(width: 50, height: 50)
+                    TrackTitle(track: track, playing: playing)
+                    Spacer(minLength: 6)
                 }
-                Spacer(minLength: 8)
-                if library.isLiked(track) {
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.accent)
-                        .transition(.scale.combined(with: .opacity))
-                }
-                Text(Self.time(track.durationMs))
-                    .font(.system(size: 13).monospacedDigit())
-                    .foregroundStyle(Theme.textTertiary)
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
-            .opacity(track.available ? 1 : 0.4)
+            .buttonStyle(PressableStyle(scale: 0.98))
+            .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in open() })
+
+            DurationPill(ms: track.durationMs, playing: playing, isPlaying: engine.isPlaying)
+
+            Button(action: open) {
+                SonarIcon(.more, size: 22)
+                    .foregroundStyle(Theme.textSecondary)
+                    .frame(width: 28, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PressableStyle(scale: 0.85))
+            .accessibilityLabel("Меню трека")
         }
-        .buttonStyle(PressableStyle(scale: 0.98))
-        .contextMenu {
-            Button { engine.enqueue(track, next: true) } label: { Label("Следующим", systemImage: "text.line.first.and.arrowtriangle.forward") }
-            Button { engine.enqueue(track, next: false) } label: { Label("В очередь", systemImage: "text.append") }
-            Button { withAnimation(Motion.spring) { library.toggleLike(track) } } label: {
-                library.isLiked(track)
-                    ? Label("Убрать из Любимых", systemImage: "heart.slash")
-                    : Label("В Любимые", systemImage: "heart")
-            }
-            if let url = track.url.flatMap(URL.init(string:)) {
-                ShareLink(item: url) { Label("Поделиться", systemImage: "square.and.arrow.up") }
-            }
-        }
-        .animation(Motion.spring, value: library.isLiked(track))
+        .padding(.vertical, 5)
+        .opacity(track.available ? 1 : 0.4)
+    }
+
+    private func open() {
+        router.showMenu(track, remove: remove)
     }
 
     static func time(_ ms: Int) -> String {
         let seconds = max(0, ms / 1000)
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+/// Название (цветом темы, если играет; значок «скачан») и исполнитель.
+struct TrackTitle: View {
+    let track: Track
+    var playing = false
+    private var downloads: DownloadStore { DownloadStore.shared }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                if downloads.isDownloaded(track.ref) {
+                    SonarIcon(.download, size: 16)
+                        .foregroundStyle(Theme.textTertiary)
+                        .transition(.scale.combined(with: .opacity))
+                }
+                Text(track.title)
+                    .font(.system(size: 17))
+                    .foregroundStyle(playing ? Theme.accent : Theme.text)
+                    .lineLimit(1)
+            }
+            HStack(spacing: 5) {
+                if track.explicit {
+                    Text("E")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Theme.background)
+                        .frame(width: 13, height: 13)
+                        .background(Theme.textSecondary, in: RoundedRectangle(cornerRadius: 3))
+                }
+                Text(track.artist)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .animation(Motion.spring, value: downloads.isDownloaded(track.ref))
+    }
+}
+
+/// Длительность в обводке; у играющего — столбики.
+struct DurationPill: View {
+    let ms: Int
+    var playing = false
+    var isPlaying = false
+
+    var body: some View {
+        ZStack {
+            if playing {
+                EqualizerBars(playing: isPlaying, color: Theme.accent)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+            } else {
+                Text(TrackRow.time(ms))
+                    .font(.system(size: 15).monospacedDigit())
+                    .foregroundStyle(Theme.textSecondary)
+                    .transition(.opacity)
+            }
+        }
+        .frame(width: 52, height: 28)
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Theme.line, lineWidth: 1.2))
+        .animation(Motion.spring, value: playing)
     }
 }

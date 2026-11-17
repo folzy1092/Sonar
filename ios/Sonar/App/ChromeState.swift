@@ -11,6 +11,8 @@ final class ChromeState {
 
     private(set) var collapsed = false
     var tab: Tab = .home
+    /// Панель спрятана целиком (режим выбора треков: внизу своя капсула действий).
+    var barHidden = false
 
     /// Откуда считаем путь пальца с последнего переключения.
     private var anchor: CGFloat = 0
@@ -68,18 +70,14 @@ enum Tab: String, CaseIterable, Identifiable {
         }
     }
 
-    /// SF Symbols — временно; по решению владельца иконки — MingCute (как в Windows-клиенте).
-    var symbol: String {
+    /// Значок MingCute, как в Windows-клиенте; выбранная вкладка — его заливка. Профиль — шестигранник
+    /// настроек, как на скринах.
+    var icon: IconName {
         switch self {
-        case .home: "house"
-        case .library: "folder"
-        case .search: "magnifyingglass"
-        case .profile: "person.crop.circle"
+        case .home: .home
+        case .library: .library
+        case .search: .search
+        case .profile: .settings
         }
-    }
-
-    /// Выбранная вкладка — залитая иконка (у лупы залитого варианта нет — она жирнее).
-    var selectedSymbol: String {
-        self == .search ? symbol : symbol + ".fill"
     }
 }
