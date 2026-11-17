@@ -101,6 +101,9 @@ struct RootView: View {
         .fullScreenCover(isPresented: $showPlayer) {
             FullPlayerView()
         }
+        .crashReportSheet()
+        .onChange(of: chrome.tab) { _, tab in CrashLog.note("экран: \(tab.rawValue)") }
+        .onChange(of: engine.current?.ref) { _, ref in if let ref { CrashLog.note("трек: \(ref)") } }
         .sheet(item: $router.trackMenu) { item in
             TrackSheet(item: item)
                 .presentationDetents([.fraction(0.86), .large])

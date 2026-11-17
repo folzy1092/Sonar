@@ -132,17 +132,23 @@ struct ProfileEditView: View {
         .animation(Motion.spring, value: hasAvatar)
     }
 
+    /// Аватар с кружком камеры — собран заранее: замыкание метки PhotosPicker не на главном акторе.
+    private var avatarLabel: some View {
+        ProfileAvatar(size: 104)
+            .overlay(alignment: .bottomTrailing) {
+                SonarIcon(.camera, size: 17)
+                    .foregroundStyle(Theme.accentInk)
+                    .frame(width: 34, height: 34)
+                    .background(Theme.accent, in: Circle())
+                    .overlay(Circle().strokeBorder(Theme.background, lineWidth: 3))
+            }
+    }
+
     private var head: some View {
-        VStack(spacing: 12) {
+        let label = avatarLabel
+        return VStack(spacing: 12) {
             PhotosPicker(selection: $photo, matching: .images) {
-                ProfileAvatar(size: 104)
-                    .overlay(alignment: .bottomTrailing) {
-                        SonarIcon(.camera, size: 17)
-                            .foregroundStyle(Theme.accentInk)
-                            .frame(width: 34, height: 34)
-                            .background(Theme.accent, in: Circle())
-                            .overlay(Circle().strokeBorder(Theme.background, lineWidth: 3))
-                    }
+                label
             }
             .buttonStyle(PressableStyle(scale: 0.95))
             .accessibilityLabel("Выбрать аватар")
