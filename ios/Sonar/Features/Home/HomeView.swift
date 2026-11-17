@@ -12,6 +12,7 @@ struct HomeView: View {
     @Environment(UpdateChecker.self) private var checker
     @Environment(LibraryStore.self) private var library
     @State private var showUpdate = false
+    @State private var showModes = false
     private var feed: HomeFeed { HomeFeed.shared }
     private var history: PlayHistory { PlayHistory.shared }
 
@@ -19,7 +20,9 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                DotField(active: active, playing: engine.isPlaying && engine.isWave, color: Theme.accent)
+                DotField(active: active && !showModes, playing: engine.isPlaying && engine.isWave, color: Theme.accent) {
+                    showModes = true
+                }
                     .frame(height: 290)
                     .padding(.horizontal, -Theme.gutter)
                     .padding(.top, 4)
@@ -40,9 +43,17 @@ struct HomeView: View {
             if active { chrome.scrolled(to: offset) }
         }
         .refreshable { await feed.refresh(force: true) }
+        .animation(Motion.spring, value: engine.waveMode)
         .background(Theme.background.ignoresSafeArea())
         .task { await feed.refresh() }
         .onChange(of: library.liked.count) { Task { await feed.refresh() } }
+        .sheet(isPresented: $showModes) {
+            WaveModeSheet()
+                .presentationDetents([.height(440)])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(30)
+                .presentationBackground(Theme.background)
+        }
         .sheet(isPresented: $showUpdate) {
             NavigationStack { UpdateView() }
                 .presentationBackground(Theme.background)
@@ -90,6 +101,22 @@ struct HomeView: View {
                     .font(.system(size: 17))
                     .foregroundStyle(Theme.textSecondary)
                     .lineSpacing(2)
+                if engine.waveMode != .own {
+                    Button { showModes = true } label: {
+                        HStack(spacing: 6) {
+                            SonarIcon(WaveModeSheet.icon(engine.waveMode), filled: true, size: 15)
+                            Text(engine.waveMode.title)
+                                .font(.system(size: 14, weight: .semibold))
+                        }
+                        .foregroundStyle(Theme.accent)
+                        .padding(.horizontal, 12)
+                        .frame(height: 30)
+                        .background(Theme.accentSoft, in: Capsule())
+                    }
+                    .buttonStyle(PressableStyle())
+                    .padding(.top, 4)
+                    .transition(.scale(scale: 0.8, anchor: .leading).combined(with: .opacity))
+                }
             }
             Spacer(minLength: 8)
             Button {

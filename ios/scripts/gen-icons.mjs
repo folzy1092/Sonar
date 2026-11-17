@@ -23,6 +23,7 @@ const MAP = {
   minusCircle: 'minus-circle', transfer: 'transfer-horizontal', bell: 'notification', history: 'history',
   link: 'link', trash: 'delete-2', drag: 'menu', music: 'music-2', lyrics: 'quote-left', time: 'time',
   refresh: 'refresh-2', info: 'information', lock: 'lock', album: 'album', mic: 'mic',
+  bolt: 'flash', moon: 'moon', sun: 'sun', disc: 'disc', compass: 'compass', sparkles: 'sparkles', rain: 'drizzle',
 }
 
 /** Знаки сервисов — одна заливка (Simple Icons, 24×24). */
