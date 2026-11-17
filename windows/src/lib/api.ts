@@ -318,6 +318,10 @@ export const api = {
   prefetchTracks: (refs: string[]) => call<void>('prefetch_tracks', { refs }),
   /** Горячие клавиши (hotkeys.rs): действие → сочетание. Вернёт действия, чьё сочетание не встало. */
   setHotkeys: (keys: Record<string, string>) => call<string[]>('set_hotkeys', { keys }),
+  /** Экспорт плейлиста (export.rs): окно «Сохранить как» и запись готового текста; `null` — окно
+   *  закрыли, иначе имя сохранённого файла. */
+  exportPlaylist: (name: string, format: 'm3u8' | 'csv' | 'json', title: string, contents: string) =>
+    call<string | null>('export_playlist', { name, format, title, contents }),
   savePlayerState: (state: PlayerState) => call<void>('save_player_state', { state }),
   loadPlayerState: () => call<{ state: PlayerState; tracks: Track[] } | null>('load_player_state'),
   recordPlay: (play: { ref: string; artist: string; context: string | null; played_at: number; listened_ms: number }) =>
