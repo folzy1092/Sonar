@@ -15,7 +15,7 @@
 
   type Quality = 'low' | 'medium' | 'high' | 'max'
   let quality = $state<Quality>('max')
-  let scViaYandex = $state(true)
+  let scViaYandex = $state(false)
   let devices = $state<{ id: string; label: string; sub: string; n?: number }[]>([{ id: '', label: 'По умолчанию', sub: 'Системное устройство' }])
 
   /** Устройства вывода. WebView2 отдаёт их id и названия только с разрешением на звук: флаг

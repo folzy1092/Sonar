@@ -49,7 +49,7 @@ actor MusicCore {
     /// Потолок битрейта Яндекса (`audio.quality`): 192 / 256 / 320 / 1411 (FLAC).
     private var maxKbps = Yandex.losslessKbps
     /// Трек SoundCloud играть с Яндекса, если там есть тот же (`audio.sc_via_yandex`).
-    private var soundCloudViaYandex = true
+    private var soundCloudViaYandex = false
 
     init() {
         soundCloud = ServiceVault.load("soundcloud")

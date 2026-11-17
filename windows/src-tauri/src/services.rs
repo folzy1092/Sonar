@@ -92,7 +92,8 @@ impl Core {
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
       max_kbps: AtomicU32::new(crate::providers::yandex::LOSSLESS_KBPS),
-      sc_via_yandex: AtomicBool::new(true),
+      // по умолчанию выключено (решение владельца 2026-11-17): на Яндексе треки бывают заблюрены
+      sc_via_yandex: AtomicBool::new(false),
       ym_twins: Mutex::new(HashMap::new()),
     }
   }
