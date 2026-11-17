@@ -128,16 +128,17 @@ struct Yandex: Sendable {
     // MARK: - Поток
 
     /// Без потерь: `get-file-info` с `quality=lossless` → FLAC без шифрования (`transports=raw`).
-    /// Нет FLAC (нет Плюса, трек не в lossless) — nil, дальше обычный mp3.
+    /// На iPhone — только FLAC в MP4 (`flac-mp4`): голый `flac` по сети AVPlayer не открывает («Не удается
+    /// открыть»). Нет FLAC в MP4 (нет Плюса, трек не в lossless) — nil, дальше обычный mp3.
     func losslessURL(_ id: String) async throws -> URL? {
         let ts = String(Int(Date().timeIntervalSince1970))
-        let codecs = "flac,flac-mp4,aac,he-aac,mp3"
+        let codecs = "flac-mp4,aac,he-aac,mp3"
         let transports = "raw"
         let sign = Self.fileInfoSign(ts: ts, id: id, quality: "lossless", codecs: codecs, transports: transports)
         let info = try await get("/get-file-info", [("ts", ts), ("trackId", id), ("quality", "lossless"), ("codecs", codecs),
                                                     ("transports", transports), ("sign", sign)])["downloadInfo"]
         let codec = info["codec"].string ?? ""
-        guard codec.hasPrefix("flac"), info["transport"].string != "encraw",
+        guard codec == "flac-mp4", info["transport"].string != "encraw",
               let url = (info["url"].string ?? info["urls"][0].string).flatMap(URL.init(string:)) else { return nil }
         return url
     }

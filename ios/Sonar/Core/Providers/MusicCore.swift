@@ -403,7 +403,17 @@ actor MusicCore {
     // MARK: - Поток
 
     /// Ссылка на поток для `sc:123` / `ym:456`. fresh — не брать из кэша (ссылка протухла).
-    func stream(_ ref: String, fresh: Bool = false) async throws -> StreamSource {
+    /// safe — запасной путь, если поток не открылся: без FLAC (Яндекс — mp3 до 320), SoundCloud — сам, без двойника.
+    func stream(_ ref: String, fresh: Bool = false, safe: Bool = false) async throws -> StreamSource {
+        if safe {
+            let parts = ref.split(separator: ":", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { throw ServiceError(message: "Неверный трек \(ref)") }
+            let source = parts[0] == "ym"
+                ? try await yandexClient().stream(parts[1], maxKbps: min(maxKbps, 320))
+                : try await soundCloudStream(ref, id: parts[1], fresh: true)
+            streams[ref] = (source, Date())
+            return source
+        }
         if !fresh, let cached = streams[ref], Date().timeIntervalSince(cached.at) < Self.streamTTL {
             return cached.source
         }

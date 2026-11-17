@@ -80,6 +80,9 @@ final class PlaybackEngine {
     @ObservationIgnored private var preloading = false
     @ObservationIgnored private var loadToken = 0
     @ObservationIgnored private var retried = false
+    /// Третья попытка: поток не открылся и со свежей ссылкой — берём попроще (mp3 вместо FLAC, SC без двойника).
+    @ObservationIgnored private var safeRetried = false
+    @ObservationIgnored private var safeNext = false
     @ObservationIgnored private var itemStatus: AnyCancellable?
     @ObservationIgnored private var timeControl: AnyCancellable?
     @ObservationIgnored private var timeObserver: Any?
@@ -315,11 +318,11 @@ final class PlaybackEngine {
     }
 
     /// Скачанный — из файла (без сети); fresh (файл не открылся или ссылка протухла) — из сети.
-    private static func source(for track: Track, fresh: Bool) async throws -> StreamSource {
-        if !fresh, let local = DownloadStore.shared.localURL(track.ref) {
+    private static func source(for track: Track, fresh: Bool, safe: Bool = false) async throws -> StreamSource {
+        if !fresh, !safe, let local = DownloadStore.shared.localURL(track.ref) {
             return .file(url: local, quality: DownloadStore.shared.quality(track.ref) ?? "Скачан")
         }
-        return try await MusicCore.shared.stream(track.ref, fresh: fresh)
+        return try await MusicCore.shared.stream(track.ref, fresh: fresh, safe: safe)
     }
 
     private static func streamsHLS(_ source: StreamSource) -> Bool {
@@ -340,8 +343,11 @@ final class PlaybackEngine {
         let token = loadToken
         if !fresh {
             retried = false
+            safeRetried = false
             resetListening()
         }
+        let safe = safeNext
+        safeNext = false
         // откуда начать: свежая ссылка — с того же места, восстановленный трек — с запомненной секунды
         let start = fresh ? position : (pendingStart?.ref == track.ref ? pendingStart?.seconds ?? 0 : 0)
         pendingStart = nil
@@ -359,7 +365,7 @@ final class PlaybackEngine {
         nowPlaying.update()
         Task {
             do {
-                let source = try await Self.source(for: track, fresh: fresh)
+                let source = try await Self.source(for: track, fresh: fresh, safe: safe)
                 guard token == self.loadToken else { return }
                 let item = self.makeItem(source)
                 self.quality = Self.label(source)
@@ -406,6 +412,10 @@ final class PlaybackEngine {
                         guard let track = self.current else { return }
                         if !self.retried {
                             self.retried = true
+                            self.load(autoplay: true, fresh: true)
+                        } else if !self.safeRetried {
+                            self.safeRetried = true
+                            self.safeNext = true
                             self.load(autoplay: true, fresh: true)
                         } else {
                             self.failed(track, item.error ?? ServiceError(message: "поток не открылся"))
@@ -492,6 +502,7 @@ final class PlaybackEngine {
             fadeInCurrent = true
             loadToken += 1
             retried = false
+            safeRetried = false
             resetListening()
             position = 0
             if let track = current {
