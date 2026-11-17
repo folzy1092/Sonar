@@ -1,10 +1,10 @@
 {
   "enabled": true,
-  "build": 277,
+  "build": 281,
   "version": "0.1.0",
   "minimum_build": 0,
-  "title": "Все настройки, текст песни, вход SoundCloud",
-  "notes": "Все разделы настроек как на ПК, текст песни, вход в SoundCloud в один клик, отклик на нажатия, окно после сбоя; треки с Яндекса больше не пропускаются, полный плеер закрывается.",
-  "ipa_url": "https://github.com/folzy1092/Sonar/releases/download/ios-build-277/Sonar.ipa",
-  "url": "https://github.com/folzy1092/Sonar/releases/tag/ios-build-277"
+  "title": "Обновление Sonar для iPhone",
+  "notes": "Повторный тап по вкладке возвращает к началу, включая Профиль. SoundCloud и Яндекс получили отдельные экраны. Эквалайзер отображается строками сверху вниз. Улучшены анимация точек, вход SoundCloud через Google и Apple, а также отображение текста. После подписи IPA появилась подсказка выйти на рабочий стол.",
+  "ipa_url": "https://github.com/folzy1092/Sonar/releases/download/ios-build-281/Sonar.ipa",
+  "url": "https://github.com/folzy1092/Sonar/releases/tag/ios-build-281"
 }
