@@ -79,6 +79,7 @@ struct ProfileEditView: View {
     @State private var photo: PhotosPickerItem?
     @State private var failed = false
     @State private var loaded = false
+    @State private var copied = false
     @FocusState private var focus: Field?
 
     private enum Field { case name, username }
@@ -101,11 +102,13 @@ struct ProfileEditView: View {
             }
             .cascade(1)
 
+            share.cascade(2)
+
             Text("Сейчас профиль хранится на этом телефоне. С сервером Sonar он станет общим для всех устройств и друзей.")
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.textTertiary)
                 .padding(.horizontal, 6)
-                .cascade(2)
+                .cascade(3)
         }
         .onAppear {
             guard !loaded else { return }
@@ -174,6 +177,51 @@ struct ProfileEditView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
+    }
+
+    /// «Копировать ссылку на профиль» (ПК `CopyProfileLink.svelte`): `https://sonar.folzy.ru/@username`
+    /// в буфер, значок ссылки → галочка на пару секунд. Без @username — кнопка неактивна.
+    private var share: some View {
+        let url = LocalProfile.profileURL(username)
+        return VStack(spacing: 8) {
+            Button {
+                guard let url else { return }
+                UIPasteboard.general.string = url
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                withAnimation(Motion.quick) { copied = true }
+                Task {
+                    try? await Task.sleep(for: .seconds(1.8))
+                    withAnimation(Motion.quick) { copied = false }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    SonarIcon(copied ? .check : .link, size: 17)
+                    Text(copied ? t("Ссылка скопирована") : t("Копировать ссылку на профиль"))
+                        .contentTransition(.opacity)
+                }
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(copied ? Theme.accent : Theme.text)
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .background(Theme.card, in: Capsule())
+                .overlay(Capsule().strokeBorder(copied ? Theme.accent.opacity(0.5) : Theme.line))
+            }
+            .buttonStyle(PressableStyle())
+            .disabled(url == nil)
+            .opacity(url == nil ? 0.45 : 1)
+
+            Text(url ?? t("Задай @username — тогда появится ссылка"))
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .contentTransition(.opacity)
+            Text(t("Страница по ссылке заработает, когда у Sonar появится сервер."))
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.textTertiary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .animation(Motion.quick, value: url)
     }
 
     private func field(title: String, hint: String, placeholder: String, text: Binding<String>, field: Field,
