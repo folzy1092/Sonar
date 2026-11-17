@@ -1,10 +1,10 @@
 {
-  "enabled": false,
-  "build": 0,
+  "enabled": true,
+  "build": 277,
   "version": "0.1.0",
   "minimum_build": 0,
-  "title": "",
-  "notes": "",
-  "ipa_url": "",
-  "url": ""
+  "title": "Все настройки, текст песни, вход SoundCloud",
+  "notes": "Все разделы настроек как на ПК, текст песни, вход в SoundCloud в один клик, отклик на нажатия, окно после сбоя; треки с Яндекса больше не пропускаются, полный плеер закрывается.",
+  "ipa_url": "https://github.com/folzy1092/Sonar/releases/download/ios-build-277/Sonar.ipa",
+  "url": "https://github.com/folzy1092/Sonar/releases/tag/ios-build-277"
 }
