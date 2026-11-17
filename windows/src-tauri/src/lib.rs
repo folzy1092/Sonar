@@ -7,6 +7,7 @@ mod lyrics;
 mod media;
 mod calls;
 mod glass;
+mod hotkeys;
 mod track_cache;
 mod mini;
 mod obs;
@@ -38,6 +39,8 @@ pub fn run() {
     // автообновление из GitHub Releases (ROADMAP W6): проверка и установка — из интерфейса
     .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(tauri_plugin_process::init())
+    // горячие клавиши по всей системе (hotkeys.rs); сочетания ставит интерфейс через `set_hotkeys`
+    .plugin(hotkeys::plugin())
     .setup(|app| {
       // журнал ошибок сессии и отчёт после сбоя (в отладке логгер ставит tauri-plugin-log)
       if let Ok(dir) = app.path().app_log_dir() {
@@ -148,6 +151,8 @@ pub fn run() {
     })
     .invoke_handler(tauri::generate_handler![
       glass::set_glass,
+      hotkeys::set_hotkeys,
+      commands::prefetch_tracks,
       commands::set_track_cache,
       commands::add_search_history,
       commands::search_history,

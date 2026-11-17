@@ -17,6 +17,8 @@
   import Cover from '../components/Cover.svelte'
   import WindowControls from '../app/WindowControls.svelte'
   import SeekBar from './SeekBar.svelte'
+  import Wave from './Wave.svelte'
+  import WhyLine from './WhyLine.svelte'
   import ArtBackdrop from './ArtBackdrop.svelte'
   import LyricsView from '../lyrics/LyricsView.svelte'
   import LyricsMenu from '../lyrics/LyricsMenu.svelte'
@@ -87,6 +89,10 @@
 
 <div class="fs" class:away onmousemove={() => (away = false)} transition:zoom role="dialog" aria-label={t('Полноэкранный плеер')} tabindex="-1" oncontextmenu={openMenu}>
   <ArtBackdrop />
+  {#if settings.get('player.visualizer_full')}
+    <!-- спектр звука тихо лежит на дне, за управлением и текстом (Плеер → Вид) -->
+    <div class="viz" transition:fade={{ duration: 400 }}><Wave height={140} color="rgba(255, 255, 255, 0.09)" fps={30} /></div>
+  {/if}
 
   <header data-tauri-drag-region>
     <!-- «чёлки» по углам, как у главного окна: слева — свернуть, справа — кнопки окна -->
@@ -150,6 +156,7 @@
             >{:else}{track.artist}{/each}
         {/if}
       </p>
+      <WhyLine {track} />
 
       <div class="seek"><SeekBar /></div>
 
@@ -240,6 +247,14 @@
   .body,
   footer {
     position: relative;
+  }
+  .viz {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    mask-image: linear-gradient(to top, #000 40%, transparent);
   }
   header {
     display: grid;

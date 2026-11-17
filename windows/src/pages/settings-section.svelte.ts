@@ -17,8 +17,8 @@ export const TABS: { id: SettingsTab; title: string }[] = [
 ]
 
 /** Подразделы — капсулы под вкладками, по reference/pc. `soon` — с сервером / ещё не сделано,
- *  `lock` — «В разработке» (приватность). Не делаем: подписку, Кастом/Мастерскую, оверлей, прокси,
- *  горячие клавиши (CLAUDE.md). */
+ *  `lock` — «В разработке» (приватность). Не делаем: подписку, Кастом/Мастерскую, оверлей, прокси
+ *  (CLAUDE.md). Горячие клавиши — делаем (решение владельца 2026-11-17). */
 export interface SettingsSub {
   id: string
   title: string
@@ -49,6 +49,7 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
   integrations: [{ id: 'apps', title: 'Приложения', icon: 'stack' }],
   system: [
     { id: 'general', title: 'Общее', icon: 'adjustments' },
+    { id: 'hotkeys', title: 'Горячие клавиши', icon: 'keyboard' },
     { id: 'update', title: 'Обновления', icon: 'download' },
     { id: 'storage', title: 'Хранилище', icon: 'database' },
   ],
