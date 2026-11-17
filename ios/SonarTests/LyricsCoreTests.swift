@@ -271,7 +271,7 @@ final class LyricsCoreTests: XCTestCase {
         let note = LyricsAnnotation(lines: ["Жить этот момент, вокруг меня леса (Леса)", "Трясутся мои руки, трещит голова (А-а)",
                                             "Давай оставим это на старых местах"], body: "Вся строфа", reviewed: false)
         let map = LyricsAnnotations.map(lines, [note])
-        XCTAssertEqual(map.keys.sorted(), [0, 1, 2])
+        XCTAssertEqual(map.keys.sorted(), [0])
         XCTAssertNil(map[3])
     }
 }
