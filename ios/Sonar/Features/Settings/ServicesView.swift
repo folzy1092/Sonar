@@ -1,3 +1,4 @@
+import UserNotifications
 import SwiftUI
 import UIKit
 import WebKit
@@ -137,8 +138,10 @@ struct ServicesView: View {
             do {
                 let code = try await YandexLogin.start(deviceId: Self.deviceId)
                 deviceCode = code
+                await LoginCodeNotice.post(code.userCode)
                 openURL(code.url)
                 let token = try await YandexLogin.waitToken(code)
+                LoginCodeNotice.clear()
                 _ = try await MusicCore.shared.connectYandex(token: token)
                 status = await MusicCore.shared.status()
             } catch is CancellationError {
@@ -366,5 +369,29 @@ private struct SoundCloudWebView: UIViewRepresentable {
                 }
             }
         }
+    }
+}
+
+/// Пуш с кодом входа Яндекса: пользователь уходит в Safari и видит код сверху, не ищет «СМС».
+enum LoginCodeNotice {
+    static let id = "sonar.yandex.code"
+
+    static func post(_ code: String) async {
+        let center = UNUserNotificationCenter.current()
+        _ = try? await center.requestAuthorization(options: [.alert, .sound])
+        let content = UNMutableNotificationContent()
+        content.title = "Код для входа в Яндекс"
+        content.body = "Ваш код: \(code). Введите его на сайте. Код также можно скопировать в Sonar."
+        content.sound = .default
+        content.interruptionLevel = .timeSensitive
+        let request = UNNotificationRequest(identifier: id, content: content,
+                                            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false))
+        try? await center.add(request)
+    }
+
+    static func clear() {
+        let center = UNUserNotificationCenter.current()
+        center.removeDeliveredNotifications(withIdentifiers: [id])
+        center.removePendingNotificationRequests(withIdentifiers: [id])
     }
 }

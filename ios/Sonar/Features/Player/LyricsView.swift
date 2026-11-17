@@ -66,6 +66,8 @@ struct LyricsView: View {
             let current = lyrics.synced ? LyricsClock.activeLine(lyrics.lines, at: t) : nil
             let gap = lyrics.synced && LyricsClock.isGap(lyrics.lines, at: t)
             let gapProgress = gap ? LyricsClock.gapProgress(lyrics.lines, at: t) : 0
+            GeometryReader { geo in
+            let width = geo.size.width
             ScrollViewReader { proxy in
                 ScrollView(.vertical) {
                     LazyVStack(alignment: .leading, spacing: 26) {
@@ -73,7 +75,7 @@ struct LyricsView: View {
                             let index = line.id
                             // вступление: «• • •» над первой строкой, пока она не началась
                             if gap, current == nil, index == 0 {
-                                GapDots(progress: gapProgress)
+                                GapDots(progress: gapProgress, time: t)
                                     .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .leading)))
                             }
                             lineView(line, index: index, current: current, t: t)
@@ -81,6 +83,7 @@ struct LyricsView: View {
                         }
                     }
                     .padding(.horizontal, 22)
+                    .frame(width: width, alignment: .leading)
                     .padding(.top, topInset)
                     .padding(.bottom, bottomInset)
                 }
@@ -102,6 +105,7 @@ struct LyricsView: View {
                     if let current { proxy.scrollTo(current, anchor: UnitPoint(x: 0.5, y: LyricsMotion.anchor)) }
                 }
             }
+            }
         }
         .onAppear { clock.sync(position: engine.position, playing: engine.isPlaying, rate: engine.rate) }
         .onChange(of: engine.position) { _, position in
@@ -122,7 +126,7 @@ struct LyricsView: View {
             Group {
                 if line.isPause, lyrics.synced {
                     // проигрыш: три точки наливаются, пока он идёт
-                    GapDots(progress: isCurrent ? LyricsClock.gapProgress(lyrics.lines, at: t) : 0)
+                    GapDots(progress: isCurrent ? LyricsClock.gapProgress(lyrics.lines, at: t) : 0, time: isCurrent ? t : 0)
                 } else if isCurrent, look.words {
                     karaoke(line, t: t)
                 } else {
@@ -176,15 +180,19 @@ struct LyricsView: View {
 /// Пауза между строками: три точки наливаются по очереди и чуть дышат.
 struct GapDots: View {
     let progress: Double
+    /// Время трека — точки дышат волной, пока ждут строку (0 — стоят).
+    var time: Double = 0
 
     var body: some View {
         HStack(spacing: 14) {
             ForEach(0 ..< 3, id: \.self) { i in
                 let local = min(1, max(0, progress * 3 - Double(i)))
+                let breath = time > 0 ? sin(time * 3.2 - Double(i) * 0.9) : 0
                 Circle()
                     .fill(Color.white.opacity(0.3 + 0.7 * local))
                     .frame(width: 15, height: 15)
-                    .scaleEffect(0.85 + 0.25 * local)
+                    .scaleEffect(0.85 + 0.25 * local + 0.12 * breath)
+                    .offset(y: -3 * breath)
             }
         }
         .padding(.leading, 4)
