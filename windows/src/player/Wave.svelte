@@ -1,30 +1,47 @@
 <script lang="ts">
   // Волна под ползунком (как в Dotify): спектр звука из AnalyserNode, плавная заливка,
   // басы слева. На паузе плавно опадает. Рисуется только пока страница открыта.
+  // Бережёт процессор: не чаще `fps` кадров в секунду, окно в фоне — ни одного. «Меньше движения»
+  // (системное или выключенные анимации) — спектр не рисуется вовсе: он весь из движения.
   import { onMount } from 'svelte'
   import { player } from './player.svelte'
   import { settings } from '../lib/settings.svelte'
   import { fx } from '../lib/track-fx.svelte'
+  import { reducedMotion } from '../lib/motion'
 
   interface Props {
     height?: number
+    /** Цвет заливки; по умолчанию — приглушённый серый страницы плеера. */
+    color?: string
+    /** Потолок кадров в секунду. */
+    fps?: number
   }
-  let { height = 56 }: Props = $props()
+  let { height = 56, color: tint, fps = 60 }: Props = $props()
 
   const POINTS = 72
   let canvas: HTMLCanvasElement
 
   onMount(() => {
     const g = canvas.getContext('2d')!
-    const color = getComputedStyle(canvas).color
+    const color = tint ?? getComputedStyle(canvas).color
     const levels = new Float32Array(POINTS)
     let data: Uint8Array<ArrayBuffer> | null = null
     let frame = 0
+    let last = 0
+    let still = false
 
-    const draw = () => {
+    const draw = (now = performance.now()) => {
       frame = requestAnimationFrame(draw)
       // экономия ресурсов: окно в фоне — не рисуем
       if (document.documentElement.classList.contains('idle')) return
+      if (now - last < 1000 / fps - 2) return
+      last = now
+      if (reducedMotion()) {
+        if (!still) g.clearRect(0, 0, canvas.width, canvas.height)
+        still = true
+        return
+      }
+      still = false
       const dpr = window.devicePixelRatio || 1
       const w = canvas.clientWidth
       const h = canvas.clientHeight

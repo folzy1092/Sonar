@@ -47,6 +47,17 @@ export interface Track {
   available: boolean
   /** Прослушивания на сервисе (SoundCloud), у Яндекса нет. */
   plays?: number
+  /** «Почему этот трек» — только у треков «Моей волны» (wave.rs `why`). */
+  why?: WaveWhy
+}
+
+/** Откуда трек пришёл в волну: `liked` — свой забытый лайк, `artist` — популярное у любимого
+ *  артиста, `explore` — разведка, `session` — похож на зашедшее сейчас, `seed` — волна по треку,
+ *  `similar` — похож на твой лайк или дослушанный. `title` / `artist` — сид (у `artist` — имя). */
+export interface WaveWhy {
+  kind: 'liked' | 'artist' | 'explore' | 'session' | 'seed' | 'similar'
+  title?: string
+  artist?: string
 }
 
 export interface Album {
@@ -276,6 +287,10 @@ export const api = {
   streamUrl: (trackRef: string) => call<StreamUrl>('stream_url', { trackRef }),
 
   cacheTracks: (tracks: Track[]) => call<void>('cache_tracks', { tracks }),
+  /** «Волна офлайн»: следующие треки — в кэш треков заранее (фоном; кэш выключен — ничего). */
+  prefetchTracks: (refs: string[]) => call<void>('prefetch_tracks', { refs }),
+  /** Горячие клавиши (hotkeys.rs): действие → сочетание. Вернёт действия, чьё сочетание не встало. */
+  setHotkeys: (keys: Record<string, string>) => call<string[]>('set_hotkeys', { keys }),
   savePlayerState: (state: PlayerState) => call<void>('save_player_state', { state }),
   loadPlayerState: () => call<{ state: PlayerState; tracks: Track[] } | null>('load_player_state'),
   recordPlay: (play: { ref: string; artist: string; context: string | null; played_at: number; listened_ms: number }) =>
@@ -378,6 +393,13 @@ export const api = {
   setTrayMode: (on: boolean) => call<void>('set_tray_mode', { on }),
 
   mediaUpdate: (info: MediaInfo) => (isTauri ? invoke<void>('media_update', { info }) : Promise.resolve()),
+}
+
+/** Горячие клавиши (hotkeys.rs): toggle, next, prev, like, volume_up, volume_down. */
+export function onHotkey(cb: (action: string) => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen<string>('hotkey', (e) => cb(e.payload))
+  return () => void off.then((fn) => fn())
 }
 
 /** Медиа-клавиши и плашка Windows: play, pause, toggle, next, previous, stop, seek:<мс>. */

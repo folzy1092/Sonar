@@ -114,6 +114,17 @@ pub async fn stream_url(core: State<'_, Arc<Core>>, port: State<'_, StreamPort>,
   Ok(StreamUrl { kind, url: format!("http://127.0.0.1:{}/{path}?ref={}", port.0, urlencoding::encode(&track_ref)), quality })
 }
 
+/// «Волна офлайн»: следующие треки волны — в кэш треков заранее (фоном, по одному; новый вызов
+/// отменяет старый). Кэш выключен — ничего не делает.
+#[tauri::command]
+pub fn prefetch_tracks(core: State<'_, Arc<Core>>, refs: Vec<String>) {
+  if !crate::track_cache::enabled() {
+    return;
+  }
+  let refs: Vec<String> = refs.into_iter().take(20).collect();
+  tauri::async_runtime::spawn(crate::stream::prefetch(core.inner().clone(), refs));
+}
+
 #[tauri::command]
 pub fn cache_tracks(db: State<'_, Db>, tracks: Vec<Track>) -> Res<()> {
   db.0.lock().unwrap().upsert_tracks(&tracks).map_err(err)
@@ -677,7 +688,7 @@ async fn similar_cached(core: &Core, db: &Db, r: &str, limit: u32) -> anyhow::Re
 }
 
 #[tauri::command]
-pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: WaveRequest) -> Res<Vec<Track>> {
+pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: WaveRequest) -> Res<Vec<serde_json::Value>> {
   use crate::store::ServedEvent;
   use crate::wave::{artist_key, pick_with, tag_set, Filter, Origin, Rng, Session, PORTION};
   let mut rng = Rng::new(crate::store::now_ms() as u64);
@@ -914,7 +925,38 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
       log::warn!("журнал волны: {e}");
     }
   }
-  Ok(tracks)
+  // «Почему этот трек»: к каждому — `why` { kind, title?, artist? } (сид — название и артист, у `artist` — имя)
+  let by_seed = req.seed.as_ref().map(|s| s.ref_.clone());
+  let reasons: Vec<(&str, Option<String>)> = out.iter().map(|p| crate::wave::why(p, &origin, by_seed.as_deref())).collect();
+  let seed_refs: Vec<String> = reasons.iter().filter(|r| r.0 != "artist").filter_map(|r| r.1.clone()).collect();
+  let seeds: std::collections::HashMap<String, Track> =
+    store.tracks(&seed_refs).unwrap_or_default().into_iter().map(|t| (t.ref_.clone(), t)).collect();
+  drop(store);
+  Ok(
+    tracks
+      .into_iter()
+      .zip(reasons)
+      .map(|(t, (kind, seed))| {
+        let mut why = serde_json::json!({ "kind": kind });
+        match (kind, seed) {
+          ("artist", Some(a)) => {
+            let name = t.artists.iter().find(|x| x.ref_ == a).map(|x| x.name.clone()).unwrap_or_else(|| t.artist.clone());
+            why["artist"] = name.into();
+          }
+          (_, Some(r)) => {
+            if let Some(s) = seeds.get(&r) {
+              why["title"] = s.title.clone().into();
+              why["artist"] = s.artist.clone().into();
+            }
+          }
+          _ => {}
+        }
+        let mut v = serde_json::to_value(&t).unwrap_or_default();
+        v["why"] = why;
+        v
+      })
+      .collect(),
+  )
 }
 
 /// Сигнал волне: `dislike` / `undislike` (👎 и отмена), `skip` (ручной пропуск с оценкой < 0),

@@ -35,6 +35,7 @@
   import { initTrackFx } from './lib/track-fx.svelte'
   import { theme } from './theme/theme.svelte'
   import { settings } from './lib/settings.svelte'
+  import { hotkeys } from './lib/hotkeys.svelte'
   import { slide } from 'svelte/transition'
   import { notch } from './lib/notch'
   import { floating } from './lib/floating'
@@ -72,6 +73,7 @@
     lyrics.init()
     void library.load()
     updater.init()
+    hotkeys.init()
     mini.start()
     // «Тише во время звонков» (calls.rs): микрофон занят другим приложением — музыка стихает
     if (isTauri) void listen<boolean>('call:active', (e) => player.setCall(e.payload))

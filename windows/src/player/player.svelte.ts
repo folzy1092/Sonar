@@ -429,7 +429,15 @@ class Player {
 
   private applyVolume() {
     // квадрат — громкость на слух ровнее, чем линейная; duckK — приглушение на время звонка
-    for (const d of this.decks) d.volume = this.volume * this.volume * this.duckK
+    for (const d of this.decks) d.volume = this.volume * this.volume * this.duckK * this.sleepK
+  }
+
+  /** Множитель громкости таймера сна (`sleep.svelte.ts`): плавно гасит звук перед паузой. */
+  private sleepK = 1
+
+  setSleepFade(k: number) {
+    this.sleepK = Math.max(0, Math.min(1, k))
+    this.applyVolume()
   }
 
   /** Множитель громкости на время звонка: плавно 1 ↔ 0.2 за ~0.8 с. */
