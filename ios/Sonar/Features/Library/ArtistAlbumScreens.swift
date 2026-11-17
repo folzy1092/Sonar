@@ -131,7 +131,7 @@ struct ArtistScreen: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, offset in
             chrome.scrolled(to: offset)
         }
-        .background(Theme.background.ignoresSafeArea())
+        .pageBackground()
         .animation(Motion.spring, value: page?.tracks.count)
         .task(id: ref) {
             do {
@@ -191,7 +191,7 @@ struct AlbumScreen: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, offset in
             chrome.scrolled(to: offset)
         }
-        .background(Theme.background.ignoresSafeArea())
+        .pageBackground()
         .task(id: ref) {
             do {
                 page = try await MusicCore.shared.album(ref)
