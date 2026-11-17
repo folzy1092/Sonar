@@ -95,6 +95,12 @@ final class SettingsStore {
         }
     }
 
+    /// «Сбросить настройки»: все значения — к умолчаниям (ключи без умолчания — тоже стираются).
+    func reset() {
+        values = [:]
+        storage.removeObject(forKey: Self.storageKey)
+    }
+
     func set(_ key: String, _ value: Bool) {
         set(key, .bool(value))
     }

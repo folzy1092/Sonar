@@ -29,10 +29,17 @@ const MAP = {
   // Интерфейс → Вид / Вкладки / Профиль
   contrast: 'contrast', tabStandard: 'layout-bottom-close', tabRounded: 'layout-bottom-open', drop: 'drop', dropOff: 'droplet-off',
   background: 'background', imagePlus: 'image-plus', magic: 'magic-2', paintBrush: 'paint-brush', camera: 'camera', userEdit: 'user-edit', rectangle: 'rectangle',
+  // Система: Статистика, Общее, Хранилище, Last.fm, экраны «с сервером»
+  chart: 'chart-bar', pie: 'chart-pie', storage: 'storage', cloud: 'cloud', cloudSync: 'cloud-sync', shield: 'safe-shield', key: 'key-2',
+  globe: 'globe', telegram: 'telegram', document: 'document', fire: 'fire', trophy: 'trophy', headphone: 'headphone', calendar: 'calendar',
+  broom: 'broom', externalLink: 'external-link', server: 'server', exit: 'exit', clock: 'clock', fingerprint: 'fingerprint', userHeart: 'user-heart',
+  arrowUp: 'arrow-up', arrowDown: 'arrow-down',
 }
 
 /** Знаки сервисов — одна заливка (Simple Icons, 24×24). */
 const BRANDS = { soundcloud: 'soundcloud' }
+// Система: знак Last.fm
+BRANDS.lastfm = 'lastdotfm'
 
 const paths = (body) => [...body.matchAll(/<path[^>]*\sd="([^"]+)"/g)].map((m) => m[1])
 

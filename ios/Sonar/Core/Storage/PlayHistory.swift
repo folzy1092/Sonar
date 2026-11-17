@@ -84,7 +84,13 @@ struct Taste: Sendable, Equatable {
 @MainActor
 @Observable
 final class PlayHistory {
-    static let shared = PlayHistory()
+    static let shared: PlayHistory = {
+        let history = PlayHistory()
+        // журнал «Статистики»: один раз переносит старую историю
+        history.log = .shared
+        PlayLog.shared.backfill(signals: history.signals, recent: history.recent)
+        return history
+    }()
 
     static let recentLimit = 100
     static let signalLimit = 5000
@@ -100,6 +106,8 @@ final class PlayHistory {
 
     @ObservationIgnored private let file: URL
     @ObservationIgnored private let now: () -> Date
+    /// Журнал для «Статистики» (`PlayLog`): у `shared` — общий, в тестах — свой или нет.
+    @ObservationIgnored var log: PlayLog?
 
     init(file: URL? = nil, now: @escaping () -> Date = Date.init) {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -120,6 +128,7 @@ final class PlayHistory {
         recent.insert(track, at: 0)
         if recent.count > Self.recentLimit { recent.removeLast(recent.count - Self.recentLimit) }
         append(PlaySignal(ref: track.ref, artists: track.artistKeys, kind: .play, weight: 1, at: now()))
+        log?.started(track, at: now(), listenedMs: min(30_000, track.durationMs > 0 ? track.durationMs / 2 : 30_000))
     }
 
     /// Дослушан (f ≥ 0.8).
@@ -137,6 +146,7 @@ final class PlayHistory {
     /// и 👎) — её берёт волна. Само прослушивание пишет `record`, не это.
     @discardableResult
     func ended(_ track: Track, listenedMs: Int, manualSkip: Bool, liked: Bool = false, disliked: Bool = false) -> Double {
+        log?.ended(track, listenedMs: listenedMs, now: now())
         let plain = Outcome.reward(listenedMs: listenedMs, durationMs: track.durationMs, manualSkip: manualSkip)
         if plain >= 1 {
             finished(track)
@@ -156,6 +166,7 @@ final class PlayHistory {
     func clear() {
         recent = []
         signals = []
+        log?.clear()
         save()
     }
 

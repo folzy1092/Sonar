@@ -31,6 +31,8 @@ struct SonarApp: App {
                     checker.startAutomatic(settings: settings)
                     // кэш текстов чистится при создании хранилища (неделя / две у Любимых)
                     _ = LyricsStore.shared
+                    StorageUsage.applyCoverLimit(settings)
+                    LastfmScrobbler.shared.flush()
                     await MusicCore.shared.configure(maxKbps: MusicCore.qualityKbps(settings.string("audio.quality")),
                                                      soundCloudViaYandex: settings.bool("audio.sc_via_yandex"))
                 }
