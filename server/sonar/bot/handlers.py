@@ -20,12 +20,13 @@ from ..accounts import AccountError, Accounts, User, looks_like_token
 from ..config import Settings
 from ..db import now_ms
 from ..logs import LogGroup
+from ..posts import Draft
 from ..releases import PLATFORMS, ReleaseError, Releases, check_url, parse_targets, version_from_url
 from ..status import Status
 from . import screens as S
 from .emoji import e
 from .support import Support
-from .ui import Screen, Shower
+from .ui import Btn, Screen, Shower
 
 router = Router()
 LINK_TTL_S = 5 * 60
@@ -44,6 +45,13 @@ class Reg(StatesGroup):
 
 class Report(StatesGroup):
     first = State()
+
+
+class Post(StatesGroup):
+    """Пост в канал с кнопками (BOT.md §2.6д)."""
+    message = State()
+    button_text = State()
+    button_url = State()
 
 
 class RelAdd(StatesGroup):
@@ -178,6 +186,8 @@ async def on_button(q: CallbackQuery, state: FSMContext, ctx: Ctx):
         return await edit(versions_screen(ctx, user, q.from_user.id))
     if head == "rel":
         return await rel_button(q, rest, state, ctx)
+    if head == "post":
+        return await post_button(q, rest, state, ctx)
     if head == "logout":
         if rest != "yes":
             return await edit(S.logout_ask())
@@ -231,7 +241,7 @@ async def report_button(q: CallbackQuery, rest: str, state: FSMContext, ctx: Ctx
 def versions_screen(ctx: Ctx, user: User, tg_id: int):
     r = ctx.releases
     return S.versions(ctx.settings, r.current("windows", user) if r else None, r.current("ios", user) if r else None,
-                      owner=ctx.is_owner(tg_id))
+                      owner=ctx.is_owner(tg_id), public={p: r.current(p, None) for p in PLATFORMS} if r else None)
 
 
 # ---- проверенные версии: только владелец (BOT.md §2.12) ----
@@ -291,6 +301,109 @@ async def rel_button(q: CallbackQuery, rest: str, state: FSMContext, ctx: Ctx):
         await send_alert(ctx, q, rel)
         return await edit(S.rel_item(rels.get(rel.id), len(rels.recipients(rel))))
     return None
+
+
+# ---- пост в канал: только владелец ----
+
+def preset_url(ctx: Ctx, platform: str) -> str:
+    rel = ctx.releases.current(platform, None) if ctx.releases else None
+    if rel:
+        return rel.url
+    return ctx.settings.download_url if platform == "windows" else ctx.settings.download_url_ios
+
+
+def post_markup(d: Draft):
+    return Screen(html="", kb=[[Btn(t, url=u) for t, u in row] for row in d.rows()]).markup()
+
+
+async def post_button(q: CallbackQuery, rest: str, state: FSMContext, ctx: Ctx):
+    if not ctx.is_owner(q.from_user.id):
+        return None
+    edit = lambda s: ctx.shower.edit(q.message, s)  # noqa: E731
+    action, _, arg = rest.partition(":")
+    channel = ctx.settings.channel
+    if action == "new":
+        await state.clear()
+        await state.set_state(Post.message)
+        return await edit(S.post_ask(channel))
+    d = Draft.of((await state.get_data()).get("post"))
+    if not d.ready:
+        await q.answer("Начни заново: пришли пост", show_alert=True)
+        await state.set_state(Post.message)
+        return await edit(S.post_ask(channel))
+
+    async def save_and_show():
+        await state.update_data(post=d.dump())
+        await state.set_state(None)
+        return await edit(S.post_builder(d, channel))
+
+    if action == "add":
+        await state.set_state(Post.button_text)
+        return await edit(S.post_ask_button_text())
+    if action == "preset" and arg in PLATFORMS:
+        try:
+            d.add(PLATFORMS[arg], preset_url(ctx, arg))
+        except ReleaseError as err:
+            await q.answer(err.text, show_alert=True)
+        return await save_and_show()
+    if action == "row":
+        d.cycle_row()
+        return await save_and_show()
+    if action == "pop":
+        d.pop()
+        return await save_and_show()
+    if action == "back":
+        return await save_and_show()
+    if action == "preview":
+        await ctx.bot.copy_message(q.message.chat.id, d.chat_id, d.message_id, reply_markup=post_markup(d))
+        return await ctx.shower.send(q.message.chat.id, S.post_builder(d, channel))
+    if action == "ask":
+        return await edit(S.post_confirm(channel, len(d.buttons)))
+    if action == "publish":
+        try:
+            sent = await ctx.bot.copy_message(channel, d.chat_id, d.message_id, reply_markup=post_markup(d))
+        except Exception as err:  # noqa: BLE001 — бот не админ канала, канал не найден
+            await q.answer(f"Не вышло: {err}"[:190], show_alert=True)
+            return await edit(S.post_builder(d, channel))
+        await state.clear()
+        await ctx.logs.event("📢", f"Пост в {channel}", q.from_user, [f"Кнопок: {len(d.buttons)} · id {sent.message_id}"])
+        await q.answer("Опубликовано")
+        return await edit(S.rel_admin({p: ctx.releases.current(p, None) for p in PLATFORMS}, ctx.settings))
+    return None
+
+
+@router.message(Post.message)
+async def post_message(msg: Message, state: FSMContext, ctx: Ctx):
+    if not ctx.is_owner(msg.from_user.id):
+        return
+    d = Draft(chat_id=msg.chat.id, message_id=msg.message_id)
+    await state.update_data(post=d.dump())
+    await state.set_state(None)
+    await ctx.shower.send(msg.chat.id, S.post_builder(d, ctx.settings.channel))
+
+
+@router.message(Post.button_text, F.text)
+async def post_button_text(msg: Message, state: FSMContext, ctx: Ctx):
+    if not ctx.is_owner(msg.from_user.id):
+        return
+    await state.update_data(button_text=msg.text.strip()[:40])
+    await state.set_state(Post.button_url)
+    await ctx.shower.send(msg.chat.id, S.post_ask_button_url(msg.text.strip()[:40]))
+
+
+@router.message(Post.button_url, F.text)
+async def post_button_url(msg: Message, state: FSMContext, ctx: Ctx):
+    if not ctx.is_owner(msg.from_user.id):
+        return
+    data = await state.get_data()
+    d = Draft.of(data.get("post"))
+    try:
+        d.add(data.get("button_text", "Ссылка"), msg.text)
+    except ReleaseError as err:
+        return await say(ctx, msg.chat.id, f"{e('cancel')} {err.text}")
+    await state.update_data(post=d.dump())
+    await state.set_state(None)
+    await ctx.shower.send(msg.chat.id, S.post_builder(d, ctx.settings.channel))
 
 
 async def send_alert(ctx: Ctx, q: CallbackQuery, rel) -> None:

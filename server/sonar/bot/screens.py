@@ -5,6 +5,7 @@ import json
 from datetime import datetime, timezone
 
 from ..accounts import User
+from ..posts import Draft
 from ..releases import AUDIENCES, PLATFORMS, Release, target_label
 from ..config import REPO_DIR, Settings
 from ..status import DOWN, OK, PARTIAL, Item
@@ -190,9 +191,15 @@ def download_links(s: Settings, win: Release | None, ios: Release | None) -> lis
              Btn("iPhone", "logo_apple", url=ios.url if ios else s.download_url_ios)]]
 
 
-def versions(s: Settings, win: Release | None = None, ios: Release | None = None, owner: bool = False) -> Screen:
+def versions(s: Settings, win: Release | None = None, ios: Release | None = None, owner: bool = False,
+             public: dict[str, Release | None] | None = None) -> Screen:
     rel = _latest_release()
     html = f"{e('versions')} <b>Версии</b>\n" + quote("Скачивай свежие сборки. Выбери платформу:")
+    if public is not None:
+        # последние актуальные релизы для всех (версии «только списку» — бета, не считаются)
+        names = {"windows": "Windows", "ios": "iOS", "android": "Android"}
+        html += quote("\n".join(f"{n}: <b>{h(public[k].version) if public.get(k) else '—'}</b>" for k, n in names.items()),
+                      "Актуальные версии")
     lines = []
     for r in (win, ios):
         if r:
@@ -235,6 +242,7 @@ def rel_admin(current: dict[str, Release | None], s: Settings) -> Screen:
                 "списку аккаунтов (тестерам) или скрыть от кого-то; алерт — сообщение всем, кому версия видна."),
         kb=[[Btn("+ Windows", "logo_windows", "rel:new:windows"), Btn("+ iPhone", "logo_apple", "rel:new:ios")],
             [Btn("История Windows", "logo_windows", "rel:list:windows"), Btn("История iPhone", "logo_apple", "rel:list:ios")],
+            [Btn("Пост в канал", "sent", "post:new")],
             [back("versions")]],
     )
 
@@ -307,6 +315,46 @@ def rel_item(r: Release, recipients: int) -> Screen:
             [Btn("Снять" if r.active else "Вернуть", "revoke" if r.active else "refresh", f"rel:toggle:{r.id}")],
             [back(f"rel:list:{r.platform}")]],
     )
+
+
+# ---- пост в канал (только владелец, BOT.md §2.6д) ----
+
+def post_ask(channel: str) -> Screen:
+    return Screen(html=f"{e('sent')} <b>Пост в {h(channel)}</b>\n"
+                  + quote("Пришли пост — текст, фото или видео с подписью, как его увидит канал. "
+                          "Форматирование сохранится. Кнопки добавим дальше."),
+                  kb=[[Btn("Отмена", "cancel", "rel:admin")]])
+
+
+def post_builder(d: Draft, channel: str) -> Screen:
+    if d.buttons:
+        lines = "\n".join(f"{i}. <b>{h(t)}</b> → {h(u)}" for i, (t, u) in enumerate(d.buttons, 1))
+    else:
+        lines = "Кнопок пока нет — пост уйдёт без них."
+    return Screen(
+        html=f"{e('sent')} <b>Кнопки поста</b>\n" + quote(lines, f"В ряд по {d.per_row}")
+        + quote(f"Канал: {h(channel)}. «Предпросмотр» пришлёт пост сюда — так он будет выглядеть."),
+        kb=[[Btn("+ Своя кнопка", "success", "post:add")],
+            [Btn("+ Windows", "logo_windows", "post:preset:windows"), Btn("+ iPhone", "logo_apple", "post:preset:ios")],
+            [Btn(f"В ряд: {d.per_row}", "refresh", "post:row"), Btn("Убрать последнюю", "revoke", "post:pop")],
+            [Btn("Предпросмотр", "versions", "post:preview"), Btn("Опубликовать", "confirm", "post:ask")],
+            [Btn("Отмена", "cancel", "rel:admin")]],
+    )
+
+
+def post_ask_button_text() -> Screen:
+    return Screen(html=f"{e('success')} <b>Текст кнопки</b>\n" + quote("Например: <code>Windows</code>, <code>как запустить…</code>"),
+                  kb=[[Btn("Назад", "back", "post:back")]])
+
+
+def post_ask_button_url(text: str) -> Screen:
+    return Screen(html=f"{e('integration')} <b>Ссылка для «{h(text)}»</b>\n" + quote("Пришли ссылку https://…"),
+                  kb=[[Btn("Назад", "back", "post:back")]])
+
+
+def post_confirm(channel: str, buttons: int) -> Screen:
+    return Screen(html=f"{e('warning')} <b>Опубликовать?</b>\n" + quote(f"Пост с {buttons} кнопк. уйдёт в {h(channel)} от имени бота."),
+                  kb=[[Btn("Опубликовать", "confirm", "post:publish"), Btn("Назад", "back", "post:back")]])
 
 
 def rel_alert(r: Release) -> Screen:

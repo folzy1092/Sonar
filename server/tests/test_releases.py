@@ -77,3 +77,22 @@ def test_screens_render(rels, users):
         assert screen.html and all(len(b.cb or "") <= 64 for row in screen.kb for b in row)
     kb = S.versions(s, None, r).kb[0]
     assert kb[1].url == IPA and kb[0].url == s.download_url
+
+
+def test_post_draft_rows_and_presets():
+    from sonar.posts import Draft
+    d = Draft(chat_id=1, message_id=5)
+    d.add("Windows", WIN)
+    d.add("iPhone", IPA)
+    d.add("как запустить…", "https://t.me/SonarUpdates/1")
+    assert [len(r) for r in d.rows()] == [2, 1]
+    d.cycle_row()
+    assert [len(r) for r in d.rows()] == [3]
+    with pytest.raises(ReleaseError):
+        d.add("x", "ftp://bad")
+    d.pop()
+    assert Draft.of(d.dump()) == d
+    s = Settings()
+    for screen in [S.post_ask(s.channel), S.post_builder(d, s.channel), S.post_builder(Draft(), s.channel),
+                   S.post_ask_button_text(), S.post_ask_button_url("Windows"), S.post_confirm(s.channel, 2)]:
+        assert screen.html and all(len(b.cb or "") <= 64 for row in screen.kb for b in row)
