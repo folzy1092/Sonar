@@ -1,6 +1,6 @@
 <script lang="ts">
   // Плеер → Аудио по pc/Screenshot_4, 5: устройство вывода, качество (ряд карточек листается),
-  // «Громкость и переходы»; плюс своё — «SoundCloud в качестве Яндекса».
+  // «Громкость и переходы»; плюс своё — «SoundCloud в качестве Яндекса» и качество YouTube Music.
   import { onMount } from 'svelte'
   import { settingsPanel } from '../settings-section.svelte'
   import Cards from '../../components/settings/Cards.svelte'
@@ -105,6 +105,17 @@
     { id: 'max', label: t('Максимальное'), sub: t('от {n} кбит/с', { n: 1411 }), icon: 'disc' },
   ]}
   onchange={setQuality}
+/>
+
+<Cards
+  title="YouTube Music"
+  hint={t('Качество треков YouTube Music: обычное бережёт трафик, высокое звучит лучше')}
+  value={settings.get('audio.yt_quality')}
+  options={[
+    { id: 'normal', label: t('YouTube::Обычное'), sub: t('AAC · {n} кбит/с', { n: 128 }), icon: 'headphones' },
+    { id: 'high', label: t('Высокое'), sub: t('Opus · {n} кбит/с', { n: 160 }), icon: 'equalizer' },
+  ]}
+  onchange={(v) => settings.set('audio.yt_quality', v as 'normal' | 'high')}
 />
 
 <Group title={t('Громкость и переходы')}>

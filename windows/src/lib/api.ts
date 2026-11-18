@@ -144,6 +144,8 @@ export interface ServiceStatus {
 export interface ServicesStatus {
   soundcloud: ServiceStatus
   yandex: ServiceStatus
+  /** YouTube Music: подключён — есть cookie аккаунта (каталог работает и без него). */
+  youtube: ServiceStatus
 }
 
 /** Строка `services_list`: реестр + состояние подключения (ключи — snake_case, как в Rust). */
@@ -285,7 +287,7 @@ export const api = {
   servicesStatus: () => call<ServicesStatus>('services_status'),
   /** Все сервисы реестра в порядке показа, с состоянием подключения. */
   servicesList: () => call<ServiceState[]>('services_list'),
-  /** «Вставить ключ»: поля по сервису (sc: client_id, oauth_token; ym: token). Значения в ошибках не возвращаются. */
+  /** «Вставить ключ»: поля по сервису (sc: client_id, oauth_token; ym: token; yt: cookie). Значения в ошибках не возвращаются. */
   connectServiceKey: (service: ServiceId | ServiceKey, fields: Record<string, string>) =>
     call<ServiceStatus>('connect_service_key', { service, fields }),
   resolveLink: (url: string) => call<LinkItem>('resolve_link', { url }),

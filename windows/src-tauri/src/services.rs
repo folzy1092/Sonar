@@ -747,7 +747,7 @@ mod tests {
   async fn yt_library_without_account() {
     let core = Core::new_empty();
     assert!(core.service_playlists("youtube").await.unwrap().is_empty());
-    assert_eq!(err_text(core.service_playlist("ytpl:likes").await), "YouTube Music не подключена — открой Настройки → Сервисы");
+    assert_eq!(err_text(core.service_playlist("ytpl:likes").await), "YouTube Music не подключён — открой Настройки → Сервисы");
     assert!(!core.status().await.youtube.connected);
   }
 

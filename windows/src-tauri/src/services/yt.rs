@@ -124,7 +124,7 @@ impl Provider for YtProvider<'_> {
   async fn playlist(&self, id: &str) -> Result<PlaylistPage> {
     let c = self.creds().await;
     if id == "likes" {
-      let c = c.ok_or_else(|| anyhow!("YouTube Music не подключена — открой Настройки → Сервисы"))?;
+      let c = c.ok_or_else(|| anyhow!("YouTube Music не подключён — открой Настройки → Сервисы"))?;
       let (mut playlist, tracks) = YouTube { http: &self.core.http, creds: Some(&c) }.playlist(id, MAX_LIKES).await?;
       playlist.owner = self.owner().await;
       if playlist.cover_url.is_none() {
