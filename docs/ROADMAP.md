@@ -474,7 +474,8 @@ SoundCloud — `/resolve`, короткие on.soundcloud.com тоже), ком�
    polling). Осталось: подтверждение быстрой ссылки в приложении (`/auth/link`), FastAPI, деплой.
    ✅ 2026-11-18 статус: мс «Основного» всем, «Слушателей за 24 часа», проверка YouTube Music / VK / Spotify /
    Apple Music (бот, `GET /status` в API.md, сайт). Следующее — FastAPI `GET /status` с теми же полями.
-   Языки es / de / pl и выбор языка списком при >5 — SPEC §7 (решение 2026-11-18), ещё не сделаны.
+   Языки es / de / pl, выбор языка списком, подпись мест в Sonar Deep и карточка без прокрутки —
+   задание `docs/LANGS_DEEP_PROMPT.md` (2026-11-18), ещё не сделано.
 4. Тесты на всё это. CI `server.yml`. ✅ pytest бота и аккаунтов + `server.yml` (2026-11-15).
 5. Деплой на Velt + туннель. **Проверка:** `curl <API>/health`.
 6. `site/` на GitHub Pages: главная + страница профиля. ✅ сайт готов 2026-11-18 (профиль и статус оживут с `GET /public/users/…` и `GET /status`).
