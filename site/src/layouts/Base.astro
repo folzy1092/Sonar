@@ -1,0 +1,40 @@
+---
+// Обычная страница сайта: <head>, шапка, содержимое, подвал, появление при прокрутке.
+import Footer from '../components/Footer.astro'
+import Header from '../components/Header.astro'
+import { useT, type Lang } from '../i18n'
+import Head from './Head.astro'
+
+interface Props {
+  lang: Lang
+  /** Путь без языка (`/pay`) — для canonical, hreflang и переключателя языка. */
+  path: string
+  title: string
+  description: string
+  /** Не индексировать (404 и профиль-заглушка). */
+  noindex?: boolean
+}
+
+const { lang, path, title, description, noindex = false } = Astro.props
+const { t } = useT(lang)
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <Head lang={lang} path={path} title={title} description={description} noindex={noindex} />
+    <slot name="head" />
+  </head>
+  <body>
+    <a class="skip" href="#main">{t('К содержимому')}</a>
+    <Header lang={lang} path={path} />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer lang={lang} />
+    <script>
+      import { initReveal } from '../scripts/reveal'
+      initReveal()
+    </script>
+  </body>
+</html>

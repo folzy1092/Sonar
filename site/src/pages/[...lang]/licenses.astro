@@ -1,0 +1,119 @@
+---
+// /licenses — сторонние компоненты и их лицензии (SITE.md §5). Сам Sonar — проприетарный (LICENSE).
+import RichText from '../../components/RichText.astro'
+import DocHeader from '../../components/legal/DocHeader.astro'
+import DocNav from '../../components/legal/DocNav.astro'
+import { LINKS } from '../../config'
+import { LEGAL_UPDATED } from '../../content/legal'
+import { LICENSE_GROUPS } from '../../content/licenses'
+import { langParam, langPaths, useT } from '../../i18n'
+import Base from '../../layouts/Base.astro'
+import Icon from '../../components/Icon.astro'
+
+export const getStaticPaths = langPaths
+
+const lang = langParam(Astro.params.lang)
+const { t } = useT(lang)
+---
+
+<Base
+  lang={lang}
+  path="/licenses"
+  title={t('Лицензии')}
+  description={t('Открытые библиотеки, шрифты и значки, на которых построен Sonar, и их лицензии.')}
+>
+  <div class="wrap lic">
+    <DocHeader
+      lang={lang}
+      title={t('Лицензии')}
+      lead={t('Sonar построен на открытых библиотеках, шрифтах и значках. Спасибо их авторам.')}
+      updated={LEGAL_UPDATED}
+    />
+
+    <section class="lic__own card" data-reveal>
+      <Icon name="mc:copyright-line" size={22} />
+      <div>
+        <h2 class="lic__own-title">{t('Сам Sonar')}</h2>
+        <RichText
+          lang={lang}
+          text={t('Код Sonar открыт для чтения, но лицензия закрытая: копировать, изменять и распространять его нельзя. Текст — в [LICENSE]({url}).', { url: `${LINKS.repo}/blob/main/LICENSE` })}
+        />
+      </div>
+    </section>
+
+    <div class="lic__groups">
+      {
+        LICENSE_GROUPS.map((g) => (
+          <section class="lic__group" id={g.id} data-reveal>
+            <h2 class="lic__h">{t(g.title)}</h2>
+            <ul class="lic__list">
+              {g.items.map((item) => (
+                <li>
+                  <a class="lic__item" href={item.url} target="_blank" rel="noopener">
+                    <span class="lic__name">
+                      {item.name}
+                      {item.note && <span class="lic__note">{t(item.note)}</span>}
+                    </span>
+                    <span class="lic__badge">{item.license}</span>
+                    <Icon name="mc:arrow-right-up-line" size={16} class="lic__go" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))
+      }
+    </div>
+
+    <p class="lic__more muted" data-reveal>
+      {t('Здесь — главное. Полный список зависимостей — в файлах Cargo.lock и package-lock.json репозитория.')}
+    </p>
+
+    <DocNav lang={lang} current="licenses" />
+  </div>
+</Base>
+
+<style>
+  .lic { padding-block: clamp(32px, 6vw, 72px) clamp(56px, 9vw, 112px); }
+  .lic__own { display: flex; gap: 14px; align-items: flex-start; max-width: 760px; margin-bottom: clamp(32px, 5vw, 56px); }
+  .lic__own > :global(svg) { flex: none; margin-top: 2px; color: var(--text-2); }
+  .lic__own-title { font-size: 18px; margin-bottom: 6px; }
+  .lic__own :global(p) { color: var(--text-2); line-height: 1.6; }
+  .lic__groups { display: grid; gap: clamp(28px, 4vw, 44px); }
+  @media (min-width: 960px) { .lic__groups { grid-template-columns: 1fr 1fr; align-items: start; } }
+  .lic__h { font-size: 18px; margin-bottom: 12px; }
+  .lic__list { list-style: none; border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; background: var(--surface-0); }
+  .lic__list li + li { border-top: 1px solid var(--border); }
+  .lic__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 52px;
+    padding: 10px 16px;
+    color: var(--text);
+    transition: background var(--t-fast) var(--ease);
+  }
+  .lic__item:hover { background: var(--hover); }
+  .lic__name { flex: 1; min-width: 0; display: grid; gap: 2px; }
+  .lic__note { font-size: 13px; color: var(--text-3); }
+  .lic__badge {
+    flex: none;
+    font-size: 12.5px;
+    padding: 4px 9px;
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+  .lic__item :global(.lic__go) { flex: none; color: var(--text-3); transition: transform var(--t) var(--ease), color var(--t) var(--ease); }
+  .lic__item:hover :global(.lic__go) { transform: translate(2px, -2px); color: var(--text); }
+  .lic__more { margin-top: 24px; font-size: 14px; }
+  @media (max-width: 480px) {
+    .lic__item { flex-wrap: wrap; }
+    .lic__badge { order: 3; margin-left: 0; }
+    .lic__item :global(.lic__go) { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lic__item :global(.lic__go) { transform: none !important; }
+  }
+</style>

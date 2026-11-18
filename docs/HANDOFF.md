@@ -1,3 +1,31 @@
+# Передача 2026-11-18 (поздний вечер, сессия на Mac) → сайт `sonar.folzy.ru`
+
+**Начни отсюда.** Сайт по `docs/SITE.md` сделан и лежит в `site/` (Astro 5, свой CSS, ru / en / uk, 33 страницы).
+Деплой — `.github/workflows/site.yml` (тесты → сборка → GitHub Pages). Lighthouse на главной (телефон):
+Accessibility 100, SEO 100, Best Practices 96 (403 от GitHub API при лимите запросов), LCP 1,9 с на Slow 4G с 4×
+замедлением, CLS 0,02.
+
+**Чтобы сайт открылся (делает владелец):**
+1. GitHub → Settings → Pages → Source: **GitHub Actions**; Custom domain `sonar.folzy.ru`, Enforce HTTPS.
+2. DNS folzy.ru: `CNAME sonar → folzy1092.github.io` (без прокси Cloudflare, пока не выпущен сертификат).
+3. Перезапустить `site.yml` (Actions → site → Run workflow), если первый прогон был до включения Pages.
+
+**Что важно знать:**
+- Строки — `t('русский текст')`; переводы — `site/src/i18n/en.ts` и `uk.ts`. Тест `src/i18n/coverage.test.ts`
+  собирает ключи из исходников и данных (`src/content/*`, `data/*.json`, `lib/status.ts`, `lib/services.ts`)
+  и падает на непереведённой или лишней строке — новую строку сразу переводить.
+- Цены — `site/data/plans.json`, тест сверяет с `windows/src/lib/subscription.ts` (и iPhone `SonarDeep.swift`
+  — руками). `/pay?plan=&period=&u=` читается сразу; кнопка неактивна «Оплата скоро», платёжек нет.
+- `/status` и `/@username` — честные заглушки до сервера: как только появятся `GET /status` и
+  `GET /public/users/{username}` (адрес API — `site/src/config.ts`), страницы оживут сами.
+- Сайт делает один сторонний запрос — к GitHub API за последней версией Windows (сказано в `/privacy`).
+- Скриншоты — только ПК (`public/shots/`, без личных данных). Скриншотов iPhone и плеера с текстом нет — ждём от
+  владельца; список и альты — `site/data/shots.json`.
+- Список лицензий `/licenses` собран вручную по `Cargo.toml` / `package.json` (`cargo about` на Mac без кэша
+  крейтов не запустился) — сверить при случае.
+
+---
+
 # Передача 2026-11-18 (ночь, сессия на Mac) → следующая сессия на ПК владельца
 
 **Начни отсюда.** Настройки ПК переделаны по `docs/SETTINGS_NEXT.md`, оверлей сделан, на iPhone — Приватность

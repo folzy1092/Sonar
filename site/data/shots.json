@@ -1,0 +1,7 @@
+{
+  "$comment": "Скриншоты для карусели на главной (public/shots/). Только без личных данных. alt — ключ перевода (русская строка).",
+  "shots": [
+    { "src": "/shots/pc-home.webp", "width": 1920, "height": 1200, "platform": "windows", "alt": "Главная Sonar на ПК: приветствие, Sonar Mix и подборки" },
+    { "src": "/shots/pc-style.webp", "width": 1920, "height": 1200, "platform": "windows", "alt": "Настройки Sonar на ПК: готовые стили и шрифты интерфейса" }
+  ]
+}

@@ -1,0 +1,43 @@
+---
+// <head> всех страниц: заголовок, описание, canonical, hreflang, Open Graph, значок. Трекеров нет.
+import '../styles/global.css'
+import { SITE_URL } from '../config'
+import { LANGS, LOCALES, href, type Lang } from '../i18n'
+import favicon from '../../../brand/icon/sonar_icon_dark.svg?url'
+
+interface Props {
+  lang: Lang
+  path: string
+  title: string
+  description: string
+  noindex?: boolean
+}
+
+const { lang, path, title, description, noindex = false } = Astro.props
+const OG_IMAGE = '/shots/pc-home.webp'
+const fullTitle = title === 'Sonar' ? title : `${title} — Sonar`
+const canonical = new URL(href(lang, path), SITE_URL).href
+---
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>{fullTitle}</title>
+<meta name="description" content={description} />
+<meta name="theme-color" content="#050506" />
+<meta name="color-scheme" content="dark" />
+{noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={canonical} />}
+{!noindex && LANGS.map((l) => <link rel="alternate" hreflang={l} href={new URL(href(l, path), SITE_URL).href} />)}
+{!noindex && <link rel="alternate" hreflang="x-default" href={new URL(href('ru', path), SITE_URL).href} />}
+<link rel="icon" type="image/svg+xml" href={favicon} />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Sonar" />
+<meta property="og:title" content={fullTitle} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:locale" content={LOCALES[lang]} />
+<meta property="og:image" content={new URL(OG_IMAGE, SITE_URL).href} />
+<meta name="twitter:card" content="summary_large_image" />
+
+<script is:inline>document.documentElement.classList.add('js')</script>

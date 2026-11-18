@@ -1,0 +1,506 @@
+---
+// Возможности `#features` (SITE.md §3.3): сетка карточек, у каждой своя мини-иллюстрация из разметки и CSS
+// (оживает, когда карточка появилась на экране, и при наведении). Sonar Mix и статистика — широкие.
+import { useT, type Lang } from '../../i18n'
+import Icon from '../Icon.astro'
+import ServiceIcon from '../ServiceIcon.astro'
+
+interface Props {
+  lang: Lang
+}
+
+const { lang } = Astro.props
+const { t } = useT(lang)
+
+type Art = 'mix' | 'lists' | 'lyrics' | 'sound' | 'style' | 'fallback' | 'import' | 'offline' | 'remote' | 'stats'
+
+interface Feature {
+  readonly art: Art
+  readonly title: string
+  readonly text: string
+  readonly wide?: boolean
+  readonly deep?: boolean
+}
+
+const FEATURES: readonly Feature[] = [
+  {
+    art: 'mix',
+    wide: true,
+    title: 'Sonar Mix',
+    text: t('Бесконечный поток под настроение: похожие треки из твоих сервисов. Учится на лайках, пропусках и том, что ты дослушал.'),
+  },
+  {
+    art: 'lists',
+    title: t('Свои лайки и смешанные плейлисты'),
+    text: t('Треки из разных сервисов — в одном списке. Плейлисты сервисов переносятся в Sonar по твоему выбору.'),
+  },
+  {
+    art: 'lyrics',
+    title: t('Тексты песен с караоке'),
+    text: t('Строки подсвечиваются по словам, размер и стиль — на твой вкус. Тексты ищутся в lrclib и Genius.'),
+  },
+  {
+    art: 'sound',
+    deep: true,
+    title: t('Твой звук'),
+    text: t('Эквалайзер и скорость Slowed / Sped up — бесплатно. Объёмный звук 3D · 8D · 12D · 16D и реверб — в Sonar Deep.'),
+  },
+  {
+    art: 'style',
+    title: t('Свой стиль'),
+    text: t('Тема подстраивается под обложку, есть готовые стили и шрифты интерфейса.'),
+  },
+  {
+    art: 'fallback',
+    title: t('Резерв из другого сервиса'),
+    text: t('Трек недоступен в одном сервисе — Sonar найдёт его в другом и сыграет оттуда.'),
+  },
+  {
+    art: 'import',
+    title: t('Импорт по ссылке'),
+    text: t('Ссылка на плейлист Spotify, YouTube Music, VK, Яндекса, SoundCloud или Apple Music — и он уже в Sonar.'),
+  },
+  {
+    art: 'offline',
+    title: t('Без интернета'),
+    text: t('Кэш и скачанные треки, а ещё файлы с компьютера — MP3 и FLAC, бесплатно.'),
+  },
+  {
+    art: 'remote',
+    title: t('Пульт с iPhone'),
+    text: t('Управляй Sonar на компьютере с телефона по Wi-Fi: пауза, треки, громкость.'),
+  },
+  {
+    art: 'stats',
+    wide: true,
+    title: t('Статистика и итоги'),
+    text: t('Что, сколько и когда ты слушаешь, любимые исполнители и итоги месяца и года.'),
+  },
+]
+
+const MOODS = [t('Обычное'), t('Весёлое'), t('Спокойное'), t('Ночное'), t('Концентрация'), t('Сон')]
+const LIST_ROWS = [
+  { id: 'sc', w: 62 },
+  { id: 'ym', w: 48 },
+  { id: 'yt', w: 70 },
+] as const
+const LYRIC_WORDS = [t('караоке::и'), t('караоке::каждое'), t('караоке::слово'), t('караоке::вовремя')]
+const EQ_BANDS = 10
+const SWATCHES = ['#e8b4a0', '#9fb7e8', '#b9e3c6', '#e8d39f']
+const STAT_BARS = [34, 52, 41, 68, 59, 86, 72, 48, 64, 92, 77, 58]
+---
+
+<section id="features" class="section features" aria-labelledby="features-title">
+  <div class="wrap">
+    <div class="features__head" data-reveal>
+      <p class="eyebrow">{t('Возможности')}</p>
+      <h2 id="features-title" class="h2">{t('Один плеер вместо пяти')}</h2>
+      <p class="lead">{t('Поиск, очередь и медиатека общие для всех сервисов. Остальное — то, чего нам не хватало в их приложениях.')}</p>
+    </div>
+
+    <ul class="features__grid" role="list" data-reveal-group>
+      {
+        FEATURES.map((f) => (
+          <li class:list={['feat', 'card', { 'feat--wide': f.wide }]} data-reveal>
+            <div class={`feat__art art-${f.art}`} aria-hidden="true">
+              {f.art === 'mix' && (
+                <>
+                  <div class="mix__bars">
+                    {Array.from({ length: 28 }, (_, i) => (
+                      <span style={`--k: ${i}`} />
+                    ))}
+                  </div>
+                  <div class="mix__moods">
+                    {MOODS.map((m, i) => (
+                      <span class:list={['chip', { 'is-on': i === 0 }]}>{m}</span>
+                    ))}
+                  </div>
+                </>
+              )}
+              {f.art === 'lists' && (
+                <div class="rows">
+                  {LIST_ROWS.map((r, i) => (
+                    <div class="row" style={`--k: ${i}`}>
+                      <ServiceIcon id={r.id} size={22} />
+                      <span class="bar" style={`--w: ${r.w}%`} />
+                      <Icon name="mc:heart-fill" size={16} class="heart" />
+                    </div>
+                  ))}
+                </div>
+              )}
+              {f.art === 'lyrics' && (
+                <div class="lyrics">
+                  <span class="line dim">· · ·</span>
+                  <span class="line now">
+                    {LYRIC_WORDS.map((w, i) => (
+                      <span class="word" style={`--k: ${i}`}>{w}</span>
+                    ))}
+                  </span>
+                  <span class="line dim next">{t('следующая строка')}</span>
+                </div>
+              )}
+              {f.art === 'sound' && (
+                <div class="eq">
+                  {Array.from({ length: EQ_BANDS }, (_, i) => (
+                    <span style={`--k: ${i}`} />
+                  ))}
+                  <span class="pill pill--deep eq__deep">3D · 8D · 16D</span>
+                </div>
+              )}
+              {f.art === 'style' && (
+                <div class="style">
+                  <div class="style__cover" />
+                  <div class="style__swatches">
+                    {SWATCHES.map((c, i) => (
+                      <span style={`--c: ${c}; --k: ${i}`} />
+                    ))}
+                  </div>
+                  <span class="style__aa">Aa</span>
+                </div>
+              )}
+              {f.art === 'fallback' && (
+                <div class="fb">
+                  <span class="fb__src">
+                    <ServiceIcon id="sc" size={30} />
+                    <Icon name="mc:close-line" size={14} class="fb__x" />
+                  </span>
+                  <span class="fb__path" />
+                  <span class="fb__dst">
+                    <ServiceIcon id="ym" size={30} />
+                  </span>
+                </div>
+              )}
+              {f.art === 'import' && (
+                <div class="imp">
+                  <div class="imp__field">
+                    <Icon name="mc:link-line" size={16} />
+                    <span class="imp__url">open.spotify.com/playlist/…</span>
+                  </div>
+                  <div class="imp__icons">
+                    {(['sp', 'yt', 'vk', 'ym', 'sc', 'am'] as const).map((id, i) => (
+                      <span style={`--k: ${i}`}>
+                        <ServiceIcon id={id} size={20} />
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {f.art === 'offline' && (
+                <div class="off">
+                  <Icon name="mc:wifi-off-line" size={34} class="off__icon" />
+                  <div class="off__files">
+                    <span class="chip">MP3</span>
+                    <span class="chip">FLAC</span>
+                    <span class="chip">{t('Кэш')}</span>
+                  </div>
+                </div>
+              )}
+              {f.art === 'remote' && (
+                <div class="rc">
+                  <Icon name="mc:cellphone-line" size={34} />
+                  <span class="rc__waves">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <Icon name="mc:tv-1-line" size={40} />
+                </div>
+              )}
+              {f.art === 'stats' && (
+                <div class="stats">
+                  {STAT_BARS.map((h, i) => (
+                    <span style={`--h: ${h}%; --k: ${i}`} />
+                  ))}
+                </div>
+              )}
+            </div>
+            <div class="feat__body">
+              <h3 class="feat__title">
+                {f.title}
+                {f.deep && <span class="pill pill--deep">Sonar Deep</span>}
+              </h3>
+              <p class="feat__text">{f.text}</p>
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<style>
+  .features__head { display: grid; gap: 12px; margin-bottom: clamp(28px, 4vw, 48px); }
+
+  .features__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(12px, 1.6vw, 18px);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .feat {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    overflow: hidden;
+    transition: border-color var(--t) var(--ease), transform var(--t) var(--ease), background-color var(--t) var(--ease);
+  }
+  .feat:hover { border-color: var(--border-strong); background: var(--surface-1); }
+  .feat--wide { grid-column: span 2; }
+  .feat__art {
+    position: relative;
+    height: 170px;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(120% 90% at 50% 0%, var(--surface-2), transparent 70%);
+    overflow: hidden;
+  }
+  .feat__body { display: grid; align-content: start; gap: 8px; padding: 20px 22px 24px; }
+  .feat__title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    font-size: 18px;
+    line-height: 1.25;
+  }
+  .feat__text { color: var(--text-2); font-size: 15px; }
+
+  /* Иллюстрации оживают, когда карточка появилась (`is-in`) — и ещё раз при наведении. */
+  .chip {
+    padding: 4px 10px;
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+  .chip.is-on { background: var(--text); color: var(--accent-ink); border-color: transparent; }
+
+  /* Sonar Mix */
+  .art-mix { gap: 16px; align-content: center; }
+  .mix__bars { display: flex; align-items: center; gap: 4px; height: 64px; }
+  .mix__bars span {
+    width: 5px;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--text);
+    opacity: 0.85;
+    transform: scaleY(0.2);
+    animation: wave 2.4s var(--ease) infinite alternate;
+    animation-delay: calc(var(--k) * -110ms);
+    animation-play-state: paused;
+  }
+  .is-in .mix__bars span { animation-play-state: running; }
+  .mix__moods { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+  @keyframes wave {
+    0% { transform: scaleY(0.15); }
+    50% { transform: scaleY(0.9); }
+    100% { transform: scaleY(0.35); }
+  }
+
+  /* смешанные плейлисты */
+  .rows { width: 100%; max-width: 280px; display: grid; gap: 10px; }
+  .row {
+    display: grid;
+    grid-template-columns: 22px 1fr 16px;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: var(--r-md);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    opacity: 0;
+    transform: translateX(-10px);
+    transition: opacity 500ms var(--ease), transform 500ms var(--ease);
+    transition-delay: calc(200ms + var(--k) * 120ms);
+  }
+  .is-in .row { opacity: 1; transform: none; }
+  .row .bar { height: 6px; width: var(--w); border-radius: 3px; background: var(--surface-3); }
+  .row :global(.heart) { color: var(--text-3); transition: color var(--t) var(--ease), transform var(--t) var(--ease); }
+  .feat:hover .row :global(.heart) { color: #ff5d7a; transform: scale(1.15); }
+
+  /* тексты */
+  .lyrics { display: grid; gap: 8px; text-align: center; font-family: var(--font-display); font-weight: 600; }
+  .lyrics .line { font-size: 15px; }
+  .lyrics .dim { color: var(--text-3); font-size: 13px; }
+  .lyrics .now { font-size: 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 0 0.35em; }
+  .word { color: var(--text-3); transition: color 300ms var(--ease); }
+  .is-in .word { animation: sing 4s steps(1) infinite; animation-delay: calc(var(--k) * 500ms); }
+  @keyframes sing {
+    0% { color: var(--text-3); }
+    12% { color: var(--text); }
+    90% { color: var(--text); }
+    100% { color: var(--text-3); }
+  }
+
+  /* звук */
+  .eq { position: relative; display: flex; align-items: end; gap: 8px; height: 96px; padding-bottom: 4px; }
+  .eq span:not(.eq__deep) {
+    width: 10px;
+    height: 100%;
+    border-radius: 5px;
+    background: linear-gradient(to top, var(--text) 0 50%, var(--surface-3) 50% 100%);
+    background-size: 100% 200%;
+    background-position: 0 calc(100% - (var(--k) * 7%));
+    transition: background-position 900ms var(--ease);
+  }
+  .is-in .eq span:not(.eq__deep) { animation: eq 3.2s var(--ease) infinite alternate; animation-delay: calc(var(--k) * -260ms); }
+  @keyframes eq {
+    0% { background-position: 0 85%; }
+    50% { background-position: 0 30%; }
+    100% { background-position: 0 60%; }
+  }
+  .eq__deep { position: absolute; top: -14px; right: -18px; background: var(--bg); }
+
+  /* стиль */
+  .style { display: grid; grid-template-columns: auto auto; align-items: center; gap: 14px 20px; }
+  .style__cover {
+    grid-row: span 2;
+    width: 84px;
+    height: 84px;
+    border-radius: var(--r-md);
+    background: linear-gradient(135deg, var(--c1, #e8b4a0), var(--c2, #6b4cff));
+    box-shadow: 0 16px 40px -14px var(--c1, #e8b4a0);
+    transition: background 700ms var(--ease), box-shadow 700ms var(--ease);
+  }
+  .feat:hover .style__cover { --c1: #9fb7e8; --c2: #18324f; }
+  .style__swatches { display: flex; gap: 8px; }
+  .style__swatches span {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--c);
+    transform: scale(0);
+    transition: transform 450ms var(--ease);
+    transition-delay: calc(250ms + var(--k) * 90ms);
+  }
+  .is-in .style__swatches span { transform: none; }
+  .style__aa { font-family: var(--font-display); font-size: 30px; font-weight: 700; color: var(--text-2); }
+
+  /* резерв */
+  .fb { display: flex; align-items: center; gap: 14px; }
+  .fb__src, .fb__dst {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--r-lg);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+  }
+  .fb__src :global(img) { opacity: 0.4; filter: grayscale(1); }
+  .fb__src :global(.fb__x) {
+    position: absolute;
+    right: -6px;
+    top: -6px;
+    padding: 2px;
+    border-radius: 50%;
+    background: var(--down);
+    color: #fff;
+  }
+  .fb__path {
+    width: 64px;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, var(--text-2) 0 6px, transparent 6px 12px);
+    background-size: 24px 2px;
+  }
+  .is-in .fb__path { animation: flow 900ms linear infinite; }
+  @keyframes flow { to { background-position: 24px 0; } }
+  .fb__dst { border-color: color-mix(in srgb, var(--ok) 55%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 12%, transparent); }
+
+  /* импорт */
+  .imp { width: 100%; max-width: 300px; display: grid; gap: 14px; justify-items: center; }
+  .imp__field {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: var(--r-pill);
+    background: var(--surface-1);
+    border: 1px solid var(--border-strong);
+    color: var(--text-2);
+    font-size: 13px;
+    overflow: hidden;
+  }
+  .imp__url {
+    white-space: nowrap;
+    overflow: hidden;
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 1.2s steps(26);
+    transition-delay: 300ms;
+  }
+  .is-in .imp__url { clip-path: inset(0 0 0 0); }
+  .imp__icons { display: flex; gap: 8px; }
+  .imp__icons span {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: var(--r-sm);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    transition: transform var(--t) var(--ease);
+    transition-delay: calc(var(--k) * 40ms);
+  }
+  .feat:hover .imp__icons span { transform: translateY(-4px); }
+
+  /* без интернета */
+  .off { display: grid; justify-items: center; gap: 14px; }
+  .off :global(.off__icon) { color: var(--text-2); }
+  .off__files { display: flex; gap: 8px; }
+
+  /* пульт */
+  .rc { display: flex; align-items: center; gap: 18px; color: var(--text-2); }
+  .rc__waves { display: flex; gap: 6px; }
+  .rc__waves i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text);
+    opacity: 0.2;
+  }
+  .is-in .rc__waves i { animation: ping 1.4s var(--ease) infinite; }
+  .rc__waves i:nth-child(2) { animation-delay: 180ms; }
+  .rc__waves i:nth-child(3) { animation-delay: 360ms; }
+  @keyframes ping {
+    0%, 100% { opacity: 0.2; }
+    40% { opacity: 1; }
+  }
+
+  /* статистика */
+  .stats { display: flex; align-items: end; gap: 8px; height: 110px; width: 100%; max-width: 520px; }
+  .stats span {
+    flex: 1;
+    height: var(--h);
+    border-radius: 6px 6px 3px 3px;
+    background: linear-gradient(to top, var(--surface-3), var(--text));
+    transform: scaleY(0);
+    transform-origin: bottom;
+    transition: transform 700ms var(--ease);
+    transition-delay: calc(200ms + var(--k) * 50ms);
+  }
+  .is-in .stats span { transform: none; }
+
+  @media (max-width: 980px) {
+    .features__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 620px) {
+    .features__grid { grid-template-columns: 1fr; }
+    .feat--wide { grid-column: auto; }
+    .feat__art { height: 150px; }
+  }
+
+  /* «Меньше движения»: иллюстрации сразу в готовом виде, без шевелений */
+  @media (prefers-reduced-motion: reduce) {
+    .row, .style__swatches span, .stats span { transform: none; transition: opacity 300ms linear; }
+    .imp__url { clip-path: none; }
+    .mix__bars span { transform: scaleY(0.5); }
+    .feat:hover .imp__icons span, .feat:hover .row :global(.heart) { transform: none; }
+  }
+</style>

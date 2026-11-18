@@ -1,0 +1,16 @@
+---
+// Знак Sonar из brand/logo.svg (один путь, цвет — currentColor).
+import raw from './logo.svg?raw'
+
+interface Props {
+  size?: number
+  class?: string
+}
+
+const { size = 28, class: cls } = Astro.props
+const svg = raw
+  .replace(' role="img" aria-label="Sonar"', '')
+  .replace('<svg', `<svg width="${Math.round((size * 632) / 820)}" height="${size}" aria-hidden="true" focusable="false"${cls ? ` class="${cls}"` : ''}`)
+---
+
+<Fragment set:html={svg} />

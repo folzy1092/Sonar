@@ -1,0 +1,69 @@
+---
+// «Другие документы» внизу юр-страниц и лицензий.
+import { LEGAL_DOCS, type LegalDocId } from '../../content/legal'
+import { href, useT, type Lang } from '../../i18n'
+import Icon from '../Icon.astro'
+
+interface Props {
+  lang: Lang
+  current: LegalDocId | 'licenses'
+}
+
+const { lang, current } = Astro.props
+const { t } = useT(lang)
+const ICONS: Record<LegalDocId | 'licenses', string> = {
+  privacy: 'mc:shield-line',
+  terms: 'mc:document-line',
+  subscription: 'mc:vip-1-line',
+  delete: 'mc:delete-2-line',
+  licenses: 'mc:copyright-line',
+}
+const docs = [
+  ...Object.values(LEGAL_DOCS).map((d) => ({ id: d.id, path: d.path, title: t(d.title) })),
+  { id: 'licenses' as const, path: '/licenses', title: t('Лицензии') },
+].filter((d) => d.id !== current)
+---
+
+<nav class="doc-nav" aria-label={t('Другие документы')}>
+  <h2 class="doc-nav__title" data-reveal>{t('Другие документы')}</h2>
+  <ul class="doc-nav__list" data-reveal-group>
+    {
+      docs.map((d) => (
+        <li data-reveal>
+          <a class="doc-nav__card" href={href(lang, d.path)}>
+            <Icon name={ICONS[d.id]} size={20} />
+            <span>{d.title}</span>
+            <Icon name="mc:arrow-right-line" size={18} class="doc-nav__arrow" />
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>
+
+<style>
+  .doc-nav { margin-top: clamp(48px, 7vw, 88px); padding-top: clamp(28px, 4vw, 40px); border-top: 1px solid var(--border); }
+  .doc-nav__title { font-size: 18px; margin-bottom: 16px; }
+  .doc-nav__list { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+  .doc-nav__card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 0 16px;
+    border-radius: var(--r-md);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    color: var(--text);
+    transition: background var(--t) var(--ease), border-color var(--t) var(--ease), transform var(--t-fast) var(--ease);
+  }
+  .doc-nav__card :global(svg:first-child) { color: var(--text-2); flex: none; }
+  .doc-nav__card span { flex: 1; }
+  .doc-nav__card :global(.doc-nav__arrow) { color: var(--text-3); transition: transform var(--t) var(--ease), color var(--t) var(--ease); }
+  .doc-nav__card:hover { background: var(--surface-2); border-color: var(--border-strong); }
+  .doc-nav__card:hover :global(.doc-nav__arrow) { transform: translateX(3px); color: var(--text); }
+  .doc-nav__card:active { transform: scale(0.985); }
+  @media (prefers-reduced-motion: reduce) {
+    .doc-nav__card, .doc-nav__card :global(.doc-nav__arrow) { transition: background var(--t), border-color var(--t), color var(--t); transform: none !important; }
+  }
+</style>
