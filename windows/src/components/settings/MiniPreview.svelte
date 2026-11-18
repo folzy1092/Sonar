@@ -2,6 +2,7 @@
   // Живой пример мини плеера (NEXT_PROMPT «Этап 0» п. 4): настоящий MiniPlayer, а не рисунок —
   // стиль, фон и прогресс меняются в нём сразу. Пока тянут ползунки формы и обложки, их значение
   // подставляется сюда до сохранения. Нажать в примере ничего нельзя — он только показывает.
+  // `data-fx-skip`: кольца и дуга смены трека от примера не рисуются (fx-layer.ts `visible`).
   import MiniPlayer from '../../app/MiniPlayer.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { t } from '../../lib/i18n.svelte'
@@ -14,8 +15,8 @@
   {#if off}
     <div class="off">{t('Мини плеер выключен')}</div>
   {:else}
-    <div class="live" inert style:--cap-k={shape / 100} style:--cover-k={cover / 100}>
-      <MiniPlayer />
+    <div class="live" inert data-fx-skip style:--cap-k={shape / 100} style:--cover-k={cover / 100}>
+      <MiniPlayer preview />
     </div>
   {/if}
   <figcaption>{t('Так выглядит мини плеер')}</figcaption>

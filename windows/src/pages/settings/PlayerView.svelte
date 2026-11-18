@@ -45,6 +45,12 @@
   ]}
   onchange={(v) => settings.set('player.title_align', v)}
 />
+<Switch
+  title={t('Аватарки артистов')}
+  hint={t('Отображать аватарки исполнителей перед их именами в плеере и мини плеере')}
+  on={settings.get('player.artist_avatars')}
+  onchange={(v) => settings.set('player.artist_avatars', v)}
+/>
 <Choice
   title={t('Визуализатор')}
   hint={t('Где показывать визуализацию звука')}
@@ -59,44 +65,18 @@
   ]}
   onchange={(v) => settings.set('player.visualizer', v)}
 />
-<div class="block">
-  <b>{t('Тип ползунка')}</b>
-  <small>{t('Выберите стиль ползунка прогресса')}</small>
-  <div class="sliders">
-    {#each sliders as s (s.id)}
-      <button class="sl" class:on={s.id === settings.get('player.slider')} disabled={s.soon} title={t(s.label)} onclick={() => settings.set('player.slider', s.id)}>
-        <span class="name">{t(s.label)}{#if s.soon}<Soon />{/if}</span>
-        <span class="preview {s.id}">
-          {#if s.id === 'wavy'}
-            <svg viewBox="0 0 200 12" preserveAspectRatio="none"><path d="M0 6 Q 6.25 0 12.5 6 T 25 6 T 37.5 6 T 50 6 T 62.5 6 T 75 6 T 87.5 6 T 100 6" /><line x1="100" y1="6" x2="200" y2="6" /></svg>
-          {:else if s.id === 'wave_bars'}
-            {#each bars as h, i (i)}<i style:height="{h}%" class:past={i < 32}></i>{/each}
-          {:else}
-            <i class="fill"></i><i class="knob"></i>
-          {/if}
-        </span>
-      </button>
-    {/each}
-  </div>
-</div>
+<Choice
+  title={t('Вид визуализатора')}
+  hint={t('Выберите стиль визуализации аудио')}
+  value={settings.get('player.visualizer_style')}
+  options={[
+    { id: 'wave', label: t('Волна'), icon: 'waveform' },
+    { id: 'bars', label: t('Столбцы'), icon: 'bars' },
+  ]}
+  onchange={(v) => settings.set('player.visualizer_style', v)}
+/>
 
 <More>
-  <Switch
-    title={t('Аватарки артистов')}
-    hint={t('Отображать аватарки исполнителей перед их именами в плеере и мини плеере')}
-    on={settings.get('player.artist_avatars')}
-    onchange={(v) => settings.set('player.artist_avatars', v)}
-  />
-  <Choice
-    title={t('Вид визуализатора')}
-    hint={t('Выберите стиль визуализации аудио')}
-    value={settings.get('player.visualizer_style')}
-    options={[
-      { id: 'wave', label: t('Волна'), icon: 'waveform' },
-      { id: 'bars', label: t('Столбцы'), icon: 'bars' },
-    ]}
-    onchange={(v) => settings.set('player.visualizer_style', v)}
-  />
   <Switch
     title={t('Спектр в полноэкранном плеере')}
     hint={t('Тихая волна звука на дне экрана, за текстом. С «Меньше движения» не рисуется')}
@@ -109,6 +89,27 @@
     on={settings.get('player.wave_why')}
     onchange={(v) => settings.set('player.wave_why', v)}
   />
+
+  <div class="block">
+    <b>{t('Тип ползунка')}</b>
+    <small>{t('Выберите стиль ползунка прогресса')}</small>
+    <div class="sliders">
+      {#each sliders as s (s.id)}
+        <button class="sl" class:on={s.id === settings.get('player.slider')} disabled={s.soon} title={t(s.label)} onclick={() => settings.set('player.slider', s.id)}>
+          <span class="name">{t(s.label)}{#if s.soon}<Soon />{/if}</span>
+          <span class="preview {s.id}">
+            {#if s.id === 'wavy'}
+              <svg viewBox="0 0 200 12" preserveAspectRatio="none"><path d="M0 6 Q 6.25 0 12.5 6 T 25 6 T 37.5 6 T 50 6 T 62.5 6 T 75 6 T 87.5 6 T 100 6" /><line x1="100" y1="6" x2="200" y2="6" /></svg>
+            {:else if s.id === 'wave_bars'}
+              {#each bars as h, i (i)}<i style:height="{h}%" class:past={i < 32}></i>{/each}
+            {:else}
+              <i class="fill"></i><i class="knob"></i>
+            {/if}
+          </span>
+        </button>
+      {/each}
+    </div>
+  </div>
 
   <Group title={t('Обложка')} hint={t('Обложка на странице плеера')}>
     <Choice

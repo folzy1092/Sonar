@@ -20,6 +20,9 @@
   import { lyrics } from '../lyrics/lyrics.svelte'
   import { t } from '../lib/i18n.svelte'
 
+  /** `preview` — живой пример в настройках (MiniPreview.svelte): без всплывашки «Дальше». */
+  let { preview = false }: { preview?: boolean } = $props()
+
   const track = $derived(player.current)
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
   const liked = $derived(library.isLiked(track?.ref))
@@ -164,7 +167,9 @@
   </div>
 
   <div class="right">
-    <NextUp float />
+    {#if !preview}
+      <NextUp float />
+    {/if}
     <!-- «Тактиль»: пять светодиодов, по ним бежит огонёк при смене трека (theme/fx.css) -->
     <span class="mini-leds" data-fx-leds aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     <div class="capsule">
