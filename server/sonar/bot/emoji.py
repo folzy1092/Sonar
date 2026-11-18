@@ -86,6 +86,9 @@ EMOJI: dict[str, tuple[str, str | None]] = {
     "badge_heart": ("❤️", "5463344532479322953"),
     "badge_bug": ("🐞", "5465573014915559882"),
     "badge_wave": ("🌊", "5462959982582477837"),
+    # значок сервера (brand/emoji/badges/server.png, 2026-11-18) — ещё НЕ в паке: добавить в
+    # sonar_icons_by_SonarMusicApp и вписать сюда id; до этого — обычный 🗄 вместо «desktop» у «Основной»
+    "server": ("🗄", None),
 }
 
 
