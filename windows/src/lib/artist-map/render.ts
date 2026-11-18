@@ -21,6 +21,8 @@ export interface DrawNode {
   y: number
   r: number
   discovered: boolean
+  /** Номер кучки: линии между разными кучками — только при подсветке. */
+  cluster: number
   avatar: string | null
   /** Появление 0..1 (новые круги проявляются). */
   shown: number
@@ -63,6 +65,8 @@ const LABEL_MIN_R = 22
 const CLUSTER_LABEL_ZOOM = 0.55
 /** Кучки меньше — без названия. */
 export const CLUSTER_LABEL_MIN = 3
+/** Кучка на экране меньше этого радиуса — без названия. */
+const CLUSTER_LABEL_MIN_PX = 22
 /** Бледность соседей снаружи медиатеки и всего, что вне подсветки. */
 const OUTSIDE_ALPHA = 0.42
 const DIMMED_ALPHA = 0.22
@@ -124,9 +128,16 @@ function drawEdges(f: Frame) {
     const a = f.byKey.get(e.a)
     const b = f.byKey.get(e.b)
     if (!a || !b || !segmentVisible(cam, vp, a, b)) continue
+    const touches = f.focusKey !== null && (e.a === f.focusKey || e.b === f.focusKey)
+    // в покое — без паутины (владелец 2026-11-18): линии между кучками и самые слабые —
+    // только у подсвеченного; круги-крошки на отдалении без линий
+    if (!touches) {
+      if (a.cluster !== b.cluster) continue
+      if (!f.focus && edgeTier(e.weight) === EDGE_TIERS.length - 1) continue
+      if (Math.min(a.r, b.r) * cam.zoom < 6) continue
+    }
     const sa = toScreen(cam, vp, a)
     const sb = toScreen(cam, vp, b)
-    const touches = f.focusKey !== null && (e.a === f.focusKey || e.b === f.focusKey)
     const path = touches ? lit : tiers[edgeTier(e.weight)]
     if (touches) anyLit = true
     path.moveTo(sa.x, sa.y)
@@ -262,9 +273,15 @@ function drawClusterLabels(f: Frame) {
   ctx.font = `700 13px ${f.palette.font}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'bottom'
-  for (const c of f.clusters) {
-    if (!onScreen(f.cam, f.vp, c, c.r)) continue
+  // крупные первыми; подпись, которая наехала бы на уже поставленную, не рисуем (владелец 2026-11-18)
+  const taken: { x0: number; y0: number; x1: number; y1: number }[] = []
+  for (const c of [...f.clusters].sort((a, b) => b.r - a.r)) {
+    if (c.r * f.cam.zoom < CLUSTER_LABEL_MIN_PX || !onScreen(f.cam, f.vp, c, c.r)) continue
     const s = toScreen(f.cam, f.vp, { x: c.x, y: c.y - c.r })
+    const w = ctx.measureText(c.title).width
+    const box = { x0: s.x - w / 2 - 8, y0: s.y - 6 - 18, x1: s.x + w / 2 + 8, y1: s.y - 6 + 4 }
+    if (taken.some((o) => box.x0 < o.x1 && box.x1 > o.x0 && box.y0 < o.y1 && box.y1 > o.y0)) continue
+    taken.push(box)
     ctx.globalAlpha = f.focus ? 0.35 : 0.8
     ctx.fillStyle = f.palette.muted
     ctx.fillText(c.title, s.x, s.y - 6)

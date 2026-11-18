@@ -69,3 +69,11 @@ describe('камера', () => {
     expect(onScreen(c, vp, { x: 420, y: 0 }, 10)).toBe(false)
   })
 })
+
+describe('fit на огромной карте', () => {
+  it('не отдаляет до пыли, а встаёт на главную кучку', () => {
+    const cam = fit({ minX: -20000, minY: -20000, maxX: 20000, maxY: 20000 }, { w: 1000, h: 800 }, { x: 300, y: -120 })
+    expect(cam.zoom).toBe(ZOOM_MIN)
+    expect(cam).toMatchObject({ x: 300, y: -120 })
+  })
+})

@@ -31,6 +31,7 @@ export function frameNodes(
         y: from ? from.y + (p.y - from.y) * k : p.y,
         r: from ? from.r + (p.r - from.r) * k : p.r,
         discovered: n.discovered,
+        cluster: p.cluster,
         avatar: n.avatar_url,
         shown: from ? 1 : fade,
       },

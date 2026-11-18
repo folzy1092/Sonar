@@ -9,7 +9,7 @@ export const R_MIN = 14
 export const R_MAX = 46
 /** Зазор между кругами и между кучками. */
 const GAP = 6
-const CLUSTER_GAP = 56
+const CLUSTER_GAP = 110
 const LABEL_ROUNDS = 25
 /** Касательные места вокруг соседа: 12 направлений — соты при равных кругах. */
 const ANGLES = 12
