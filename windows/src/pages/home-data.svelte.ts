@@ -4,6 +4,7 @@
 // сервера (API.md §5а), до него эти ряды показывают заготовку.
 import { api, type Album, type ArtistRef, type ServiceStatus, type Track } from '../lib/api'
 import { seedArtists, similarRow } from '../lib/home-mixes'
+import { relatedLookup } from '../lib/artist-map/api'
 import { t } from '../lib/i18n.svelte'
 import { ACCOUNT_SERVICES, isLocalRef, statusOf } from '../lib/services'
 
@@ -118,11 +119,17 @@ class Home {
     if (!seeds.length || this.similarLoading || (this.similarKey === key && this.similar.length)) return
     this.similarLoading = true
     try {
-      const results = await Promise.allSettled(seeds.map((s) => api.similarTracks(s.track.ref, SIMILAR_PER_SEED)))
+      const names = seeds.map((s) => s.artist.name)
+      const [results, related] = await Promise.all([
+        Promise.allSettled(seeds.map((s) => api.similarTracks(s.track.ref, SIMILAR_PER_SEED))),
+        relatedLookup(names),
+      ])
       const pools = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
       this.similar = similarRow(
         pools,
         this.recent.map((x) => x.ref),
+        undefined,
+        names.flatMap(related),
       )
       this.similarArtists = seeds.map((s) => s.artist)
       this.similarKey = key

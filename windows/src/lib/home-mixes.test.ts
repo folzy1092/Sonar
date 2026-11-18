@@ -148,6 +148,11 @@ describe('similarRow', () => {
     expect(similarRow(pools, ['4']).map((t) => t.ref)).toEqual(['1', '2'])
     expect(similarRow(pools, [], 2).map((t) => t.ref)).toEqual(['1', '4'])
   })
+
+  it('соседи по карте исполнителей — первыми, порядок внутри тот же', () => {
+    const pools = [[tr('1', 'A'), tr('2', 'C')], [tr('3', 'B'), tr('4', 'C')]]
+    expect(similarRow(pools, [], 10, ['c']).map((t) => t.ref)).toEqual(['2', '4', '1', '3'])
+  })
 })
 
 describe('matchTracks', () => {
