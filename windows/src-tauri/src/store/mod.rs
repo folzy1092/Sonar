@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 mod alias;
+mod artist_graph;
 mod dupes;
 mod local_files;
 mod recap;
@@ -157,6 +158,13 @@ CREATE TABLE smart_playlists (
   rev INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX smart_playlists_user ON smart_playlists(user_id, deleted);
+"#, r#"
+CREATE TABLE artist_follows (
+  artist_ref TEXT PRIMARY KEY, follows_json TEXT NOT NULL, fetched_at INTEGER NOT NULL
+);
+CREATE TABLE artist_phantom_tracks (
+  source_ref TEXT NOT NULL, ref TEXT NOT NULL, fetched_at INTEGER NOT NULL, PRIMARY KEY (source_ref, ref)
+);
 "#];
 
 pub fn now_ms() -> i64 {
@@ -1082,5 +1090,26 @@ mod tests {
     let plan = s.pending_ops(10).unwrap();
     assert!(plan.ops.iter().any(|o| o.kind == "wave_event" && o.key == id));
     assert!(plan.ops.iter().all(|o| o.value.as_ref().is_none_or(|v| v.get("features_json").is_none())));
+  }
+
+  #[test]
+  fn migration_13_adds_artist_map_tables() {
+    // база на схеме 12 (умные плейлисты): таблицы карты появляются пустыми, старые данные целы
+    let db = Connection::open_in_memory().unwrap();
+    for (i, sql) in MIGRATIONS.iter().take(12).enumerate() {
+      db.execute_batch(&format!("BEGIN; {sql} PRAGMA user_version = {}; COMMIT;", i + 1)).unwrap();
+    }
+    db.execute(
+      "INSERT INTO tracks (ref, title, artist, duration_ms, fetched_at) VALUES ('sc:1', 't', 'a', 1000, 0)",
+      [],
+    )
+    .unwrap();
+    let mut s = Store::init(db).unwrap();
+    let version: i64 = s.db.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+    assert_eq!(version as usize, MIGRATIONS.len());
+    assert_eq!(s.tracks(&["sc:1".into()]).unwrap().len(), 1);
+    assert!(s.follow_cache().unwrap().is_empty());
+    s.put_phantom("scpl:likes", &["sc:1".into()]).unwrap();
+    assert!(s.graph_tracks().unwrap().iter().any(|g| g.track.ref_ == "sc:1" && g.in_library));
   }
 }

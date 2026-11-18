@@ -320,6 +320,25 @@ CREATE INDEX smart_playlists_user ON smart_playlists(user_id, deleted);
 -- iPhone до сервера: Application Support/Sonar/smart.json — [{id, name, rules, created_at, updated_at}]
 -- (rules — тот же объект, не строка); дата лайка — likedAt в library.json.
 
+-- Карта исполнителей (Медиатека → Исполнители → Карта; Windows — миграция № 13). Граф считается на
+-- лету из likes, playlist_items, plays и tracks (artist_graph/); здесь — только то, что пришлось скачать.
+-- Подписки исполнителей SoundCloud: кто на кого подписан — связь «подписаны друг на друга» / «подписан».
+-- Качается фоном пачками с паузами, живёт 7 дней; 404 — пустой список, 429 — пауза на 30 мин.
+CREATE TABLE artist_follows (
+  artist_ref    TEXT PRIMARY KEY,               -- sca:<id> — чьи подписки
+  follows_json  TEXT NOT NULL,                  -- [Artist] (docs/API.md), до 200 штук
+  fetched_at    INTEGER NOT NULL                -- мс
+);
+-- Треки «фантомных» плейлистов сервисов (лайки SoundCloud, «Мне нравится» Яндекса…), которые ещё не
+-- перенесены в Sonar: только ref, метаданные — в tracks. Обновляются раз в сутки, целиком по source_ref.
+CREATE TABLE artist_phantom_tracks (
+  source_ref    TEXT NOT NULL,                  -- scpl:likes | ympl:likes | ytpl:likes | vkpl:likes | sppl:likes
+  ref           TEXT NOT NULL,                  -- sc:… / ym:… — трек
+  fetched_at    INTEGER NOT NULL,               -- мс
+  PRIMARY KEY (source_ref, ref)
+);
+-- iPhone — карты пока нет.
+
 -- Быстрые ссылки входа и репорты — схема в BOT.md §6 (auth_links, reports)
 
 -- Статус (SPEC §3.11), только на сервере
