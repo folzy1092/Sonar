@@ -295,7 +295,8 @@ struct ServicesView: View {
         let kbps = MusicCore.qualityKbps(settings.string("audio.quality"))
         let viaYandex = settings.bool("audio.sc_via_yandex")
         let youTubeHigh = MusicCore.youTubeHigh(settings.string(YouTubeQuality.key))
-        Task { await MusicCore.shared.configure(maxKbps: kbps, soundCloudViaYandex: viaYandex, youTubeHigh: youTubeHigh) }
+        let fallback = FallbackSettings(enabled: settings.bool(FallbackPlan.enabledKey), saved: settings.string(FallbackPlan.orderKey))
+        Task { await MusicCore.shared.configure(maxKbps: kbps, soundCloudViaYandex: viaYandex, youTubeHigh: youTubeHigh, fallback: fallback) }
     }
 
     private func field(_ title: String, text: Binding<String>, secure: Bool = false) -> some View {

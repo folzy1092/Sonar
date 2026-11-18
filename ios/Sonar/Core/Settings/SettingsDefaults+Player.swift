@@ -17,6 +17,9 @@ extension SettingsDefaults {
             "audio.eq_enabled": .bool(true),
             // YouTube Music: normal (AAC 128) · high (AAC до 256), ключ как на ПК
             "audio.yt_quality": .string(YouTubeQuality.fallback.rawValue),
+            // резервный сервис: включён; порядок — id через запятую, пусто — порядок реестра (FallbackPlan.order)
+            FallbackPlan.enabledKey: .bool(true),
+            FallbackPlan.orderKey: .string(""),
             // Вид плеера
             "player.style": .string(PlayerStyle.fallback.rawValue),
             "player.background": .string(PlayerBackground.fallback.rawValue),

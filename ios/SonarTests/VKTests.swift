@@ -71,7 +71,8 @@ final class VKTests: XCTestCase {
         }
         for bad in ["", "https://vk.com/mp3/audio_api_unavailable.mp3", "not a url"] {
             XCTAssertThrowsError(try VK.source(bad), bad) { error in
-                XCTAssertEqual((error as? ServiceError)?.message, VK.noStream)
+                XCTAssertEqual(error.localizedDescription, VK.noStream)
+                XCTAssertEqual(Unplayable.reason(of: error), .unavailable)
             }
         }
     }
