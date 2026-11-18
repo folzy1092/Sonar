@@ -197,7 +197,7 @@ impl YouTube<'_> {
   /// Аккаунт по cookie: имя, аватар, YouTube Premium.
   pub async fn account(&self) -> Result<Account> {
     if self.creds.is_none() {
-      return Err(anyhow!("YouTube Music не подключена"));
+      return Err(anyhow!("YouTube Music не подключён"));
     }
     parse::account(&self.post("account/account_menu", json!({})).await?)
   }

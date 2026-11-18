@@ -82,6 +82,8 @@ export const DEFAULTS = {
   /** Волна офлайн: следующие 15 треков «Моей волны» заранее скачиваются в кэш треков. */
   'storage.wave_offline': false,
   'audio.output_device': '' as string,
+  /** YouTube Music: обычное — AAC 128 кбит/с, высокое — Opus 160 кбит/с (services/yt.rs, тот же ключ на iPhone). */
+  'audio.yt_quality': 'high' as 'normal' | 'high',
   /** Нормализация громкости (player/leveler.ts) — выравнивание тихих и громких треков. */
   'audio.normalize': false,
   /** Кроссфейд, секунды (0 — выкл): следующий трек нарастает, пока текущий затухает. */
