@@ -6,7 +6,7 @@
 `GET /oauth/now` в формате Dotify). Селфбот читает оттуда же — его спека в репо `folzy1092/folzy-selfbot`,
 `docs/superpowers/specs/2026-11-18-lastfm-exit-design.md`.
 
-## 1. Сейчас, до 1 декабря — сохранить историю (владелец, один раз)
+## 1. Сейчас, до 1 декабря — сохранить историю (владелец, один раз) — скрипт ✅ 2026-11-18
 
 - **ListenBrainz** (аккаунт MusicBrainz `wxnna_cru` уже есть): listenbrainz.org → настройки → импорт из
   Last.fm, поле «Start Import From» пустое, недавние скробблы в профиле Last.fm не скрыты. Это резервная
@@ -16,7 +16,7 @@
   (`{ts, artist, title, album, mbid}` построчно; файл в `.gitignore`, в репо не класть). Его потом
   импортирует сервер (п. 4), чтобы итоги и статистика не начинались с нуля.
 
-## 2. Windows и iPhone — убрать Last.fm
+## 2. Windows и iPhone — убрать Last.fm ✅ сделано 2026-11-18
 
 - **Убрать** интеграцию: `windows/src-tauri/src/lastfm.rs`, вход в Last.fm (`login.rs`), команды, раздел в
   Интеграциях, ключи `integrations.lastfm.*` (`lib/settings.svelte.ts`, `docs/SETTINGS.md`), переводы;
@@ -28,7 +28,7 @@
   журнал); с сервером уходит `POST /plays` (синк уже готов на клиенте — `store/sync.rs`).
 - ListenBrainz в Sonar **не делаем**, пока владелец не попросит: с сервером он не нужен.
 
-## 3. Сервер (`server/`, когда будет Velt)
+## 3. Сервер (`server/`, когда будет Velt) — в ROADMAP
 
 - Убрать `LASTFM_API_KEY` из `config.py`, `status.py` (пункт Last.fm на странице статуса), экрана бота
   (`bot/screens.py`), `env.example`, тестов. Пункт «Last.fm» в `GET /status`, `/status` бота и на сайте
@@ -43,7 +43,7 @@
   исполнитель, для статистики). Повторный импорт не дублирует (ключ — время + исполнитель + название).
   Описать в `docs/API.md` и `docs/DB.md`.
 
-## 4. Документы
+## 4. Документы ✅ сделано 2026-11-18
 
 - CLAUDE.md: убрать Last.fm из списка «вход в браузере по умолчанию» и из статуса; записать решение.
 - SPEC, TZ, BOT, SITE, PLATFORMS, SETTINGS — вычистить упоминания Last.fm как рабочей интеграции.

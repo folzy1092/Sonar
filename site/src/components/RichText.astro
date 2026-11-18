@@ -1,0 +1,24 @@
+---
+// Абзац с ссылками (FAQ, юр-страницы): текст и ссылки из `[текст](адрес)`. Страницы сайта получают префикс языка.
+import { href, type Lang } from '../i18n'
+import { parseInline } from '../lib/faq'
+
+interface Props {
+  lang: Lang
+  text: string
+}
+
+const { lang, text } = Astro.props
+const parts = parseInline(text)
+const linkHref = (to: string) => (to.startsWith('/') ? href(lang, to) : to)
+---
+
+<p>
+  {
+    parts.map((part) => {
+      if (part.kind === 'text') return part.text
+      if (part.external) return <a class="link" href={part.href} target="_blank" rel="noopener">{part.text}</a>
+      return <a class="link" href={linkHref(part.href)}>{part.text}</a>
+    })
+  }
+</p>

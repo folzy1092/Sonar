@@ -1,0 +1,28 @@
+---
+// Цветные знаки сервисов из brand/icon (те же, что в приложении). Подключаются файлом, а не строкой:
+// у знака Apple Music свои id градиента, при нескольких копиях на странице они бы спорили.
+import soundcloud from '../../../brand/icon/SoundCloud.svg?url'
+import yandex from '../../../brand/icon/Yandex-Music.svg?url'
+import youtube from '../../../brand/icon/youtube-music.svg?url'
+import vk from '../../../brand/icon/vk.svg?url'
+import spotify from '../../../brand/icon/spotify.svg?url'
+import apple from '../../../brand/icon/apple-music.svg?url'
+
+import { SERVICE_NAMES, type ServiceId } from '../lib/services'
+
+export { SERVICE_NAMES, type ServiceId }
+
+const SRC: Record<ServiceId, string> = { sc: soundcloud, ym: yandex, yt: youtube, vk, sp: spotify, am: apple }
+
+interface Props {
+  id: ServiceId
+  size?: number
+  /** Подпись для экранного диктора; без неё знак декоративный. */
+  label?: string
+  class?: string
+}
+
+const { id, size = 28, label, class: cls } = Astro.props
+---
+
+<img src={SRC[id]} width={size} height={size} alt={label ?? ''} class={cls} loading="lazy" decoding="async" />

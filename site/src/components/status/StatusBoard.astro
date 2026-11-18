@@ -1,0 +1,187 @@
+---
+// Доска /status: общая плашка, легенда, блоки «Sonar» и «Сервисы», история сбоев (SITE.md §5).
+// Без сервера (`API_URL = null`) — честная заготовка «Нет данных», скрипт ничего не запрашивает.
+import { API_URL } from '../../config'
+import { useT, type Lang } from '../../i18n'
+import { SERVICE_GROUPS, SONAR_ROWS, lastDays } from '../../lib/status'
+import Icon from '../Icon.astro'
+import StatusRow from './StatusRow.astro'
+
+interface Props {
+  lang: Lang
+}
+
+const { lang } = Astro.props
+const { t } = useT(lang)
+const days = lastDays(Date.now())
+
+const strings = {
+  api: API_URL,
+  words: { ok: t('Работает'), degraded: t('Сбои'), down: t('Не работает'), none: t('Нет данных') },
+  banner: {
+    ok: t('Всё работает'),
+    degraded: t('Есть сбои'),
+    down: t('Не работает'),
+    error: t('Не удалось получить статус'),
+    errorText: t('Сервер статуса не ответил. Попробуем ещё раз через минуту.'),
+  },
+  ago: t('Обновлено {n} минуту назад|Обновлено {n} минуты назад|Обновлено {n} минут назад'),
+  justNow: t('Обновлено только что'),
+  uptime: t('Аптайм за 30 дней: {pct}'),
+  rowUptime: t('Аптайм {pct}'),
+  barsLabel: t('{name}: аптайм за 30 дней — {pct}'),
+  noIncidents: t('За 30 дней сбоев не было.'),
+}
+
+const legend = [
+  { state: 'ok', label: strings.words.ok },
+  { state: 'degraded', label: strings.words.degraded },
+  { state: 'down', label: strings.words.down },
+  { state: 'none', label: strings.words.none },
+] as const
+---
+
+<div class="board" data-status-board data-lang={lang}>
+  <section class="banner" data-banner data-state="none" data-reveal aria-live="polite">
+    <span class="banner__icon" aria-hidden="true">
+      <span class="banner__glyph banner__glyph--none"><Icon name="mc:time-line" size={26} /></span>
+      <span class="banner__glyph banner__glyph--ok"><Icon name="mc:check-circle-line" size={26} /></span>
+      <span class="banner__glyph banner__glyph--warn"><Icon name="mc:warning-line" size={26} /></span>
+      <span class="banner__glyph banner__glyph--down"><Icon name="mc:close-circle-line" size={26} /></span>
+    </span>
+    <div class="banner__body">
+      <h2 class="banner__title" data-banner-title>{t('Статус появится вместе с сервером')}</h2>
+      <p class="banner__text" data-banner-text>
+        {t('Когда сервер Sonar заработает, он будет проверять себя и сервисы каждые 5 минут. А пока здесь честное «Нет данных», без выдуманных цифр. Музыка при этом играет: приложение ходит в сервисы напрямую.')}
+      </p>
+      <p class="banner__meta" data-banner-meta hidden></p>
+    </div>
+  </section>
+
+  <ul class="legend" data-reveal aria-label={t('Цвета полосок')}>
+    {legend.map((l) => <li><i class={`swatch swatch--${l.state}`} aria-hidden="true"></i>{l.label}</li>)}
+  </ul>
+
+  <section class="block" data-reveal aria-labelledby="status-sonar">
+    <h2 class="eyebrow block__title" id="status-sonar">Sonar</h2>
+    <ul class="card list">
+      {SONAR_ROWS.map((row) => <StatusRow lang={lang} row={row} days={days} />)}
+    </ul>
+  </section>
+
+  <section class="block" data-reveal aria-labelledby="status-services">
+    <h2 class="eyebrow block__title" id="status-services">{t('Сервисы')}</h2>
+    <div class="card groups">
+      {
+        SERVICE_GROUPS.map((group) => (
+          <div class="group">
+            <h3 class="group__title">{t(group.title)}</h3>
+            <ul class="list">
+              {group.rows.map((row) => <StatusRow lang={lang} row={row} days={days} />)}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="block" data-reveal aria-labelledby="status-incidents">
+    <h2 class="eyebrow block__title" id="status-incidents">{t('История сбоев')}</h2>
+    <div class="card incidents">
+      <p class="incidents__empty" data-incidents-empty>
+        <Icon name="mc:history-line" size={20} />
+        <span data-incidents-text>{t('Журнал начнёт вестись вместе с сервером: каждый день со сбоем появится здесь с тем, что и насколько не работало.')}</span>
+      </p>
+      <ol class="incidents__list" data-incidents hidden></ol>
+    </div>
+  </section>
+
+  <script type="application/json" data-status-strings set:html={JSON.stringify(strings)} />
+</div>
+
+<style>
+  .board { display: grid; gap: clamp(22px, 3.4vw, 34px); }
+
+  .banner {
+    --state-color: var(--text-3);
+    display: flex; gap: 18px; align-items: flex-start;
+    padding: clamp(20px, 3vw, 28px); border-radius: var(--r-xl);
+    background:
+      radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--state-color) 16%, transparent), transparent 60%),
+      var(--surface-1);
+    border: 1px solid color-mix(in srgb, var(--state-color) 30%, var(--border));
+    transition: border-color var(--t) var(--ease), background var(--t) var(--ease);
+  }
+  .banner[data-state='ok'] { --state-color: var(--ok); }
+  .banner[data-state='degraded'] { --state-color: var(--warn); }
+  .banner[data-state='down'], .banner[data-state='error'] { --state-color: var(--down); }
+
+  .banner__icon {
+    flex: none; display: grid; width: 48px; height: 48px; border-radius: 50%;
+    background: color-mix(in srgb, var(--state-color) 18%, var(--surface-2)); color: var(--state-color);
+  }
+  .banner__glyph {
+    grid-area: 1 / 1; display: grid; place-items: center;
+    opacity: 0; transform: scale(0.6) rotate(-20deg);
+    transition: opacity var(--t) var(--ease), transform var(--t) var(--ease);
+  }
+  .banner[data-state='none'] .banner__glyph--none,
+  .banner[data-state='ok'] .banner__glyph--ok,
+  .banner[data-state='degraded'] .banner__glyph--warn,
+  .banner[data-state='down'] .banner__glyph--down,
+  .banner[data-state='error'] .banner__glyph--down { opacity: 1; transform: none; }
+
+  .banner__body { display: grid; gap: 6px; min-width: 0; }
+  .banner__title { font-size: clamp(20px, 2.6vw, 26px); }
+  .banner__text { margin: 0; color: var(--text-2); max-width: 62ch; }
+  .banner__meta { margin: 4px 0 0; font-size: 14px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; padding: 0; list-style: none;
+    font-size: 14px; color: var(--text-2);
+  }
+  .legend li { display: inline-flex; align-items: center; gap: 8px; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; background: var(--none); }
+  .swatch--ok { background: var(--ok); }
+  .swatch--degraded { background: var(--warn); }
+  .swatch--down { background: var(--down); }
+
+  .block { display: grid; gap: 12px; }
+  .block__title { margin: 0; }
+  .list { margin: 0; padding: 0; list-style: none; }
+  .card.list, .groups { padding: 0; overflow: hidden; }
+  .group + .group { border-top: 1px solid var(--border); }
+  .group__title {
+    margin: 0; padding: 16px clamp(14px, 2.4vw, 22px) 0;
+    font-family: var(--font); font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--text-3);
+  }
+
+  .incidents { padding: clamp(16px, 2.4vw, 22px); }
+  .incidents__empty { display: flex; gap: 12px; align-items: flex-start; margin: 0; color: var(--text-2); }
+  .incidents__empty :global(svg) { flex: none; margin-top: 2px; color: var(--text-3); }
+  .incidents__list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .incidents__list :global(li) {
+    display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: baseline;
+    animation: rise 360ms var(--ease) both; animation-delay: calc(var(--i, 0) * 40ms);
+  }
+  .incidents__list :global(time) { color: var(--text-3); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+
+  @media (max-width: 520px) {
+    .banner { flex-direction: column; gap: 14px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .banner__glyph { transform: none; }
+    .incidents__list :global(li) { animation-name: fade; }
+    @keyframes fade { from { opacity: 0; } }
+  }
+</style>
+
+<script>
+  import { initStatus } from '../../scripts/status'
+  const root = document.querySelector<HTMLElement>('[data-status-board]')
+  if (root) initStatus(root)
+</script>

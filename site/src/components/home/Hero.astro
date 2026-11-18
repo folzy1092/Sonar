@@ -1,0 +1,170 @@
+---
+// Герой главной (SITE.md §3.1): заголовок, сервисы, «Скачать» под систему, живое поле точек как на iPhone.
+import { LINKS } from '../../config'
+import { href, useT, type Lang } from '../../i18n'
+import Icon from '../Icon.astro'
+import ServiceIcon, { SERVICE_NAMES, type ServiceId } from '../ServiceIcon.astro'
+import logoRaw from '../logo.svg?raw'
+
+interface Props {
+  lang: Lang
+}
+
+const { lang } = Astro.props
+const { t } = useT(lang)
+
+const SERVICES: readonly ServiceId[] = ['sc', 'ym', 'yt', 'vk', 'sp']
+const LOGO_PATH = logoRaw.match(/\sd="([^"]+)"/)?.[1] ?? ''
+const LOGO_VIEWBOX = logoRaw.match(/viewBox="([^"]+)"/)?.[1] ?? '0 0 100 100'
+---
+
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero__inner wrap">
+    <div class="hero__text">
+      <p class="eyebrow hero__kicker" data-reveal>{t('Музыкальный плеер для Windows и iPhone')}</p>
+      <h1 id="hero-title" class="hero__title" data-reveal style="--i: 1">
+        {t('Вся твоя музыка — в одном плеере')}
+      </h1>
+      <p class="lead hero__lead" data-reveal style="--i: 2">
+        {t('SoundCloud, Яндекс Музыка, YouTube Music, VK Музыка и Spotify — в одном поиске, а лайки и плейлисты свои: треки из разных сервисов в одном списке.')}
+      </p>
+
+      <div class="hero__cta" data-reveal style="--i: 3">
+        <a
+          class="btn btn--primary"
+          href={LINKS.windowsExe}
+          data-download
+          data-ios-href={href(lang, '/download#ios')}
+          data-ios-label={t('Скачать для iPhone')}
+        >
+          <Icon name="mc:download-2-line" />
+          <span data-download-label>{t('Скачать для Windows')}</span>
+        </a>
+        <a class="btn btn--ghost" href={href(lang, '/#features')}>
+          {t('Что умеет')}
+          <Icon name="mc:arrow-right-line" />
+        </a>
+      </div>
+
+      <ul class="hero__services" role="list" aria-label={t('Сервисы')} data-reveal style="--i: 4">
+        {
+          SERVICES.map((id) => (
+            <li title={t(SERVICE_NAMES[id])}>
+              <ServiceIcon id={id} size={30} label={t(SERVICE_NAMES[id])} />
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <div class="hero__field" data-reveal style="--i: 2">
+      <canvas
+        class="hero__canvas"
+        data-field
+        data-logo={LOGO_PATH}
+        data-viewbox={LOGO_VIEWBOX}
+        aria-hidden="true"
+      ></canvas>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { mountField } from '../../scripts/sonar-field'
+
+  const IOS_RE = /iPhone|iPad|iPod/i
+
+  /** iPhone и iPad (у iPadOS «Macintosh» в строке, но есть касания) → страница iOS, остальное — exe. */
+  function isIos(): boolean {
+    const ua = navigator.userAgent
+    return IOS_RE.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1)
+  }
+
+  if (isIos()) {
+    for (const a of document.querySelectorAll<HTMLAnchorElement>('[data-download]')) {
+      a.href = a.dataset.iosHref ?? a.href
+      const label = a.querySelector('[data-download-label]')
+      if (label && a.dataset.iosLabel) label.textContent = a.dataset.iosLabel
+    }
+  }
+
+  document.querySelectorAll<HTMLCanvasElement>('canvas[data-field]').forEach(mountField)
+</script>
+
+<style>
+  .hero {
+    position: relative;
+    padding-block: clamp(40px, 7vw, 96px) clamp(48px, 7vw, 88px);
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: -20% -10% auto auto;
+    width: 70vw;
+    height: 70vw;
+    max-width: 900px;
+    max-height: 900px;
+    background: radial-gradient(closest-side, rgba(255, 255, 255, 0.06), transparent 70%);
+    pointer-events: none;
+  }
+  .hero__inner {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    align-items: center;
+    gap: clamp(24px, 4vw, 56px);
+  }
+  .hero__text { display: grid; gap: 22px; justify-items: start; }
+  .hero__title { font-size: clamp(36px, 6.2vw, 72px); letter-spacing: -0.02em; }
+  .hero__cta { display: flex; flex-wrap: wrap; gap: 12px; }
+  .hero__services {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .hero__services li {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--r-md);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    transition: transform var(--t) var(--ease), border-color var(--t) var(--ease);
+  }
+  .hero__services li:hover { transform: translateY(-3px); border-color: var(--border-strong); }
+  .hero__field {
+    position: relative;
+    aspect-ratio: 1;
+    width: 100%;
+    max-width: 560px;
+    justify-self: end;
+    border-radius: 32px;
+    background: radial-gradient(circle at 50% 45%, var(--surface-1), var(--bg) 72%);
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 58%, transparent 74%);
+    mask-image: radial-gradient(circle at 50% 50%, #000 58%, transparent 74%);
+  }
+  .hero__canvas {
+    width: 100%;
+    height: 100%;
+    color: var(--text);
+    touch-action: manipulation;
+    cursor: pointer;
+  }
+
+  @media (max-width: 880px) {
+    .hero__inner { grid-template-columns: 1fr; }
+    .hero__field { order: -1; max-width: 340px; justify-self: center; margin-bottom: -12px; }
+  }
+  @media (max-width: 420px) {
+    .hero__cta { width: 100%; }
+    .hero__cta .btn { flex: 1 1 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hero__services li:hover { transform: none; }
+  }
+</style>

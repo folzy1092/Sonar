@@ -1,0 +1,216 @@
+---
+// `/faq`: поиск по вопросам и аккордеон по группам (SITE.md §5). Без JS все ответы открыты.
+import { LINKS } from '../../config'
+import { FAQ } from '../../content/faq'
+import { useT, type Lang } from '../../i18n'
+import { normalize, plainText } from '../../lib/faq'
+import Icon from '../Icon.astro'
+import RichText from '../RichText.astro'
+
+interface Props {
+  lang: Lang
+}
+
+const { lang } = Astro.props
+const { t } = useT(lang)
+
+const groups = FAQ.map((g) => ({
+  ...g,
+  title: t(g.title),
+  items: g.items.map((item) => {
+    const q = t(item.q)
+    const a = item.a.map((p) => t(p))
+    return { id: item.id, q, a, search: normalize([q, ...a.map(plainText)].join(' ')) }
+  }),
+}))
+
+const strings = { copied: t('Ссылка скопирована'), copy: t('Скопировать ссылку на вопрос') }
+---
+
+<div class="faq" data-faq>
+  <div class="faq__search" data-reveal>
+    <Icon name="mc:search-line" />
+    <label class="sr-only" for="faq-q">{t('Поиск по вопросам')}</label>
+    <input
+      id="faq-q"
+      type="search"
+      placeholder={t('Поиск по вопросам')}
+      autocomplete="off"
+      spellcheck="false"
+      data-faq-input
+    />
+  </div>
+  <p class="sr-only" aria-live="polite" data-faq-live></p>
+
+  {
+    groups.map((group) => (
+      <section class="faq__group" aria-labelledby={`g-${group.id}`} data-faq-group>
+        <h2 id={`g-${group.id}`} class="faq__group-title eyebrow" data-reveal>
+          {group.title}
+        </h2>
+        <div class="faq__items" data-reveal-group>
+          {group.items.map((item) => (
+            <article class="qa" id={item.id} data-qa data-search={item.search} data-reveal>
+              <h3 class="qa__q">
+                <button type="button" aria-expanded="true" aria-controls={`${item.id}-a`} data-qa-toggle>
+                  <span>{item.q}</span>
+                  <span class="qa__chev" aria-hidden="true">
+                    <Icon name="mc:down-line" />
+                  </span>
+                </button>
+              </h3>
+              <div class="qa__body" id={`${item.id}-a`} data-qa-body>
+                <div class="qa__inner">
+                  {item.a.map((p) => (
+                    <RichText lang={lang} text={p} />
+                  ))}
+                  <button class="qa__copy" type="button" data-qa-copy aria-label={strings.copy}>
+                    <Icon name="mc:link-line" />
+                    <span data-qa-copy-label>#{item.id}</span>
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    ))
+  }
+
+  <div class="faq__empty card" hidden data-faq-empty>
+    <p class="faq__empty-title">{t('Ничего не нашлось')}</p>
+    <p class="muted">{t('Спроси нас напрямую — ответим в боте.')}</p>
+    <a class="btn" href={LINKS.botReport} target="_blank" rel="noopener">
+      <Icon name="si:telegram" />
+      {t('Написать в бота')}
+    </a>
+  </div>
+
+  <script type="application/json" data-faq-strings set:html={JSON.stringify(strings)} />
+</div>
+
+<style>
+  .faq { display: grid; gap: clamp(32px, 5vw, 48px); }
+
+  .faq__search {
+    position: sticky;
+    top: calc(var(--header-h) + 8px);
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 18px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-pill);
+    background: rgba(18, 18, 21, 0.86);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    color: var(--text-3);
+    transition: border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
+  }
+  .faq__search:focus-within { border-color: var(--text); box-shadow: 0 0 0 4px var(--hover); color: var(--text); }
+  .faq__search :global(svg) { width: 20px; height: 20px; flex: none; }
+  .faq__search input {
+    flex: 1;
+    min-width: 0;
+    height: 52px;
+    border: 0;
+    background: transparent;
+    outline: none;
+    font-size: 16px;
+  }
+  .faq__search input::placeholder { color: var(--text-3); }
+
+  .faq__group { display: grid; gap: 12px; }
+  .faq__group[hidden] { display: none; }
+  .faq__items { display: grid; gap: 8px; }
+
+  .qa {
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    background: var(--surface-0);
+    transition: border-color var(--t) var(--ease), background-color var(--t) var(--ease);
+  }
+  .qa:hover { border-color: var(--border-strong); }
+  .qa.is-open { background: var(--surface-1); }
+  .qa:target { border-color: var(--text-3); }
+  .qa[hidden] { display: none; }
+  .qa.is-shown { animation: qa-in 320ms var(--ease); }
+  @keyframes qa-in { from { opacity: 0; transform: translateY(6px); } }
+
+  .qa__q { font-family: var(--font); font-size: 16px; font-weight: 600; line-height: 1.4; }
+  .qa__q button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    padding: 18px 20px;
+    border: 0;
+    border-radius: var(--r-lg);
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+  .qa__chev {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
+    transition: transform var(--t) var(--ease), background-color var(--t) var(--ease);
+  }
+  .qa__chev :global(svg) { width: 18px; height: 18px; }
+  .qa__q button:hover .qa__chev { background: var(--surface-3); }
+  .qa.is-open .qa__chev { transform: rotate(180deg); }
+
+  .qa__body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 360ms var(--ease); }
+  .js .qa:not(.is-open) .qa__body { grid-template-rows: 0fr; }
+  .qa__inner {
+    min-height: 0;
+    overflow: hidden;
+    display: grid;
+    gap: 10px;
+    padding: 0 20px;
+    color: var(--text-2);
+    transition: opacity 280ms var(--ease), padding 360ms var(--ease);
+  }
+  .qa.is-open .qa__inner, html:not(.js) .qa__inner { padding-bottom: 18px; }
+  .js .qa:not(.is-open) .qa__inner { opacity: 0; }
+
+  .qa__copy {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    background: transparent;
+    color: var(--text-3);
+    font-size: 13px;
+    cursor: pointer;
+    transition: color var(--t) var(--ease), border-color var(--t) var(--ease), transform var(--t-fast) var(--ease);
+  }
+  .qa__copy:hover { color: var(--text); border-color: var(--border-strong); }
+  .qa__copy:active { transform: scale(0.96); }
+  .qa__copy :global(svg) { width: 14px; height: 14px; }
+
+  .faq__empty { display: grid; justify-items: start; gap: 10px; padding: 28px; animation: qa-in 320ms var(--ease); }
+  .faq__empty[hidden] { display: none; }
+  .faq__empty-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .qa__chev, .qa__copy:active { transform: none !important; }
+    .qa.is-shown, .faq__empty { animation: none; }
+    .qa__body { transition: none; }
+  }
+</style>
+
+<script>
+  import { initFaq } from '../../scripts/faq'
+  document.querySelectorAll<HTMLElement>('[data-faq]').forEach(initFaq)
+</script>

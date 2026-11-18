@@ -22,3 +22,19 @@ pub fn delete(name: &str) -> Result<()> {
     Err(e) => Err(e.into()),
   }
 }
+
+/// Записи интеграций, которых больше нет (Last.fm — docs/LASTFM_EXIT.md). Стираются при запуске, если
+/// остались: после первого раза записи уже нет, и это одно чтение keyring.
+const RETIRED: [&str; 1] = ["lastfm"];
+
+pub fn forget_retired() {
+  for name in RETIRED {
+    if load::<serde_json::Value>(name).is_none() {
+      continue;
+    }
+    match delete(name) {
+      Ok(()) => log::info!("keyring: стёрта старая запись {name}"),
+      Err(e) => log::warn!("keyring: не удалось стереть {name}: {e}"),
+    }
+  }
+}

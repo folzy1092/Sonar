@@ -1,0 +1,62 @@
+---
+// «Бесплатно без подписки» (SITE.md §4): честно, что остаётся без Deep. Пределы — из plans.json.
+import { useT, type Lang } from '../../i18n'
+import { FREE_LIMITS } from '../../lib/plans'
+import Icon from '../Icon.astro'
+
+interface Props {
+  lang: Lang
+}
+
+const { lang } = Astro.props
+const { t, tn } = useT(lang)
+
+const ITEMS = [
+  { icon: 'mc:music-2-line', title: t('Вся музыка'), text: t('Поиск и звук из всех подключённых сервисов, Sonar Mix, тексты песен, эквалайзер.') },
+  { icon: 'mc:heart-line', title: t('Лайки и плейлисты'), text: tn(FREE_LIMITS.playlists, 'Свои лайки и до {n} смешанного плейлиста.|Свои лайки и до {n} смешанных плейлистов.|Свои лайки и до {n} смешанных плейлистов.') },
+  { icon: 'mc:transfer-line', title: t('Перенос плейлистов'), text: tn(FREE_LIMITS.import_tracks, 'Из других сервисов — до {n} трека за раз.|Из других сервисов — до {n} треков за раз.|Из других сервисов — до {n} треков за раз.') },
+  { icon: 'mc:refresh-2-line', title: t('Синхронизация'), text: t('Лайки, плейлисты и история — одинаковые на ПК и iPhone.') },
+  { icon: 'mc:download-2-line', title: t('Скачивание треков'), text: t('Бесплатно и без ограничений.') },
+]
+---
+
+<section class="free" aria-labelledby="free-title">
+  <div class="free__head" data-reveal>
+    <h2 id="free-title" class="free__title">{t('Бесплатно без подписки')}</h2>
+    <p class="muted">{t('Пределы включатся только вместе с оплатой — до этого их нет ни у кого.')}</p>
+  </div>
+  <ul class="free__list" role="list" data-reveal-group>
+    {
+      ITEMS.map((item) => (
+        <li class="free__item card" data-reveal>
+          <span class="free__icon">
+            <Icon name={item.icon} />
+          </span>
+          <span>
+            <span class="free__name">{item.title}</span>
+            <span class="free__text muted">{item.text}</span>
+          </span>
+        </li>
+      ))
+    }
+  </ul>
+</section>
+
+<style>
+  .free { display: grid; gap: 24px; margin-top: clamp(56px, 8vw, 96px); }
+  .free__head { display: grid; gap: 8px; }
+  .free__title { font-size: clamp(24px, 3vw, 34px); }
+  .free__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+  .free__item { display: flex; gap: 14px; padding: 18px; }
+  .free__icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+  }
+  .free__name { display: block; font-weight: 600; }
+  .free__text { display: block; font-size: 14px; }
+</style>

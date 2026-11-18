@@ -20,7 +20,7 @@
 `version` в `tauri.conf.json` / `Cargo.toml` / `package.json` + запись в `updates/changelog.json`.
 **iOS начата автономно, до сервера** (решение владельца 2026-11-17): каркас `ios/` (XcodeGen, свой таб-бар,
 CI `ios.yml` → неподписанная `Sonar.ipa`, подписывает каждый пользователь сам), задание с этапами и
-автообновлением как в Shadow — `docs/IOS_PROMPT.md` (ROADMAP «Блок I»). **Следующая волна фич** (YouTube Music, VK Музыка, Spotify, резерв из другого сервиса, импорт по ссылке, умные плейлисты, дубли, экспорт, Ctrl+K, локальные файлы, итоги, пульт с iPhone по Wi-Fi) — задание `docs/NEXT_PROMPT.md` (2026-11-17), **сделана 2026-11-18 и влита в `main`** (по просьбе владельца); приватность профиля (`pages/settings/Privacy.svelte`) и единый поиск (`lib/unified-search.ts`, кнопка «Все», только ПК) и вкладка «Подписка» (`pages/settings/Subscription.svelte`) — 2026-11-18. Где что: реестр сервисов — `providers/registry.rs` / `lib/services.ts` / `Core/Models/ServiceRegistry.swift`; YouTube Music — свой InnerTube (`services/yt.rs`, не rustypipe — GPL); VK — `services/vk.rs` + `vk_keys.rs`; Spotify — `services/sp.rs`, поток за фичей `spotify-playback` (`spotify_play.rs`); резерв из другого сервиса — `services/fallback.rs` + таблица `track_alias` (миграция № 11); импорт по ссылке — `import_link.rs`, `providers/apple.rs`, `ImportPage`; умные плейлисты — `smart.rs`, таблица `smart_playlists` (миграция № 12), `app/smart/`; дубли — `dupes/`, `DupesPage`; экспорт — `export.rs`; Ctrl+K — `app/QuickOpen.svelte`; локальные файлы — `local/`; итоги — `app/RecapViewer.svelte`; пульт с iPhone — `remote/` (mDNS, привязка кодом, «Система → Пульт»), iPhone `Core/Remote/`, протокол — `docs/API.md`. Свои строки экранов iOS — отдельные словари `Core/I18n/Strings+<Экран>.swift`, сливаются в `I18n.dictionaries`. Сделано 2026-11-17: релизы `ios-build-<N>` +
+автообновлением как в Shadow — `docs/IOS_PROMPT.md` (ROADMAP «Блок I»). **Следующая волна фич** (YouTube Music, VK Музыка, Spotify, резерв из другого сервиса, импорт по ссылке, умные плейлисты, дубли, экспорт, Ctrl+K, локальные файлы, итоги, пульт с iPhone по Wi-Fi) — задание `docs/NEXT_PROMPT.md` (2026-11-17), **сделана 2026-11-18 и влита в `main`** (по просьбе владельца); приватность профиля (`pages/settings/Privacy.svelte`, на iPhone — `Core/Account/Privacy.swift`) и единый поиск (`lib/unified-search.ts`, кнопка «Все», только ПК) и вкладка «Подписка» (`pages/settings/Subscription.svelte`, на iPhone — `Core/Account/SonarDeep.swift`, цены — зеркало `lib/subscription.ts`) — 2026-11-18; настройки ПК по `docs/SETTINGS_NEXT.md` и оверлей (окно `overlay`, `commands.rs` `overlay_window`) — 2026-11-18. Где что: реестр сервисов — `providers/registry.rs` / `lib/services.ts` / `Core/Models/ServiceRegistry.swift`; YouTube Music — свой InnerTube (`services/yt.rs`, не rustypipe — GPL); VK — `services/vk.rs` + `vk_keys.rs`; Spotify — `services/sp.rs`, поток за фичей `spotify-playback` (`spotify_play.rs`); резерв из другого сервиса — `services/fallback.rs` + таблица `track_alias` (миграция № 11); импорт по ссылке — `import_link.rs`, `providers/apple.rs`, `ImportPage`; умные плейлисты — `smart.rs`, таблица `smart_playlists` (миграция № 12), `app/smart/`; дубли — `dupes/`, `DupesPage`; экспорт — `export.rs`; Ctrl+K — `app/QuickOpen.svelte`; локальные файлы — `local/`; итоги — `app/RecapViewer.svelte`; пульт с iPhone — `remote/` (mDNS, привязка кодом, «Система → Пульт»), iPhone `Core/Remote/`, протокол — `docs/API.md`. Свои строки экранов iOS — отдельные словари `Core/I18n/Strings+<Экран>.swift`, сливаются в `I18n.dictionaries`. Сделано 2026-11-17: релизы `ios-build-<N>` +
 постоянная `releases/download/ios-latest/Sonar.ipa` (`--latest=false`, Latest — за Windows), «рубильник»
 `updates/ios-update.json` (ручной запуск `ios.yml` с `announce`); автообновление `ios/Sonar/Update/` (пара .p12 +
 .mobileprovision в «Система → Обновления → Сертификат», zsign `ios/Packages/Zsign` на Security.framework —
@@ -67,7 +67,7 @@ Discord RPC: ID приложения Discord пользователь **не в�
   аудио-сервер Rust, WebGL-фон текста, шрифты fontsource).
 - Перед стартом **серверной** части спросить одним списком: сервер Velt куплен (порт, 2 ГБ
   диска)? DNS folzy.ru на Cloudflare, туннель `sonar-api.folzy.ru` и токен есть? Токен бота
-  `@SonarMusicApp` и ключи Last.fm есть (секреты — только в `.env` на сервере, в чат не
+  `@SonarMusicApp` есть (секреты — только в `.env` на сервере, в чат не
   присылать)? Запись `sonar` → `folzy1092.github.io` в DNS folzy.ru добавлена? Первый шаг сервера — проверка
   Яндекса с Velt (`server/tools/check_ym.py`).
 
@@ -109,7 +109,7 @@ Discord RPC: ID приложения Discord пользователь **не в�
 | `server/` | Python 3.13, FastAPI + aiogram-бот входа, SQLite. Хостинг — Velt, контейнер Python |
 | `ios/` | SwiftUI-приложение, проект генерирует XcodeGen (`ios/project.yml`) |
 | `windows/` | **первая платформа**: Tauri 2 (Rust + Svelte), автономно до появления сервера — SPEC §9 |
-| `site/` | публичный сайт на GitHub Pages (`sonar.folzy.ru`): скачать, оплата, профиль по ссылке — спека `docs/SITE.md` |
+| `site/` | публичный сайт `sonar.folzy.ru` (Astro, ru/en/uk) на GitHub Pages через `site.yml`: главная, `/pay`, FAQ, статус, `/@username`, юр-страницы — спека `docs/SITE.md` |
 | `brand/` | иконки и лого (тёмная и светлая), см. `brand/README.md` |
 | `updates/` | `update.json` + `changelog.json` — их читает автообновление клиентов |
 | `.github/workflows/` | сборка IPA (macOS-раннер) → GitHub Release, тесты сервера |
@@ -133,8 +133,10 @@ Discord RPC: ID приложения Discord пользователь **не в�
   Яндекс «в один клик» — **в браузере по умолчанию по коду** (OAuth device flow клиента Яндекс Музыки:
   Sonar показывает код, открывает `ya.ru/device`, забирает токен сам — `login.rs`, решение владельца
   2026-11-16); код недоступен — прежнее окно WebView с перехватом `#access_token=y0_...` (SPEC §4.3а).
-  Last.fm — **уходим** (с 1 декабря 2026 API только с Pro; решение владельца 2026-11-18, `docs/LASTFM_EXIT.md`:
-  прослушивания и «сейчас играет» — свои, через API Sonar); SoundCloud — окно входа внутри Sonar (своего OAuth-приложения
+  Last.fm — **убран** (с 1 декабря 2026 API только с Pro; решение владельца 2026-11-18, `docs/LASTFM_EXIT.md`):
+  из ПК и iPhone убран 2026-11-18 (сохранённый вход стирается при запуске — `secrets::forget_retired`,
+  `RetiredIntegrations.swift`), историю выгружает `server/tools/export_lastfm.py` (ключ и ник — скрытым вводом) в `server/data/lastfm-export.jsonl`;
+  прослушивания и «сейчас играет» — свои, через API Sonar. SoundCloud — окно входа внутри Sonar (своего OAuth-приложения
   SoundCloud с адресом возврата нет, cookie чужого браузера не прочитать).
 - Регистрация открыта для всех. **Друзья и личные сообщения — делаем с сервером** (решение 2026-11-18; ЛС —
   прежде всего «скинуть трек»); приватность уже учитывает друзей. Canvas, **Мастерская целиком**, уровни и
@@ -148,6 +150,11 @@ Discord RPC: ID приложения Discord пользователь **не в�
   **Горячие клавиши теперь делаем** (решение владельца 2026-11-17): на ПК — по всей системе,
   `hotkeys.rs` + Система → Горячие клавиши, по умолчанию выключены.
 - Канал новостей и обновлений — **`@SonarUpdates`** (`t.me/SonarUpdates`); кнопка «Телеграм» в «О приложении» ведёт туда. Сайт — **`sonar.folzy.ru`** (решение владельца 2026-11-15), кнопка «Сайт» берёт адрес из конфига.
+  Сайт сделан 2026-11-18 (`site/`, Astro + свой CSS, без трекеров и cookie): тексты — `src/content/` (FAQ, документы,
+  лицензии), строки — `t('русский текст')` с переводами в `src/i18n/en.ts` / `uk.ts` (тест `coverage.test.ts`
+  ловит непереведённое), цены — `data/plans.json` (зеркало `lib/subscription.ts`), скриншоты — `public/shots/` +
+  `data/shots.json` (только без личных данных), `/@username` — роутер в `404.html`, статус и профиль до сервера —
+  честные заглушки. Юр-тексты — черновики «не проверено юристом». Деплой — `.github/workflows/site.yml`.
 - Бот «Sonar» — **`@SonarMusicApp`**, спека — **`docs/BOT.md`** (2026-11-15): в меню только
   `/start` и `/status`, остальное кнопками (Профиль, Статистика, Сервисы, Ключ API, Баг / Идея).
   Экраны — баннер + текст + цитаты, навигация правит одно сообщение. Вход в боте — логин → пароль
@@ -158,11 +165,11 @@ Discord RPC: ID приложения Discord пользователь **не в�
 - Яндекс API с латвийского IP **работает** (проверено 2026-11-12, `server/tools/check_ym.py`);
   с сервера Velt (Германия) — проверить в субботу.
 - API «сейчас играет» `GET /oauth/now` отдаёт JSON **в формате Dotify**. В selfbot Sonar —
-  **дополнительный** источник (Dotify, SoundCloud, Яндекс, Last.fm остаются).
+  **дополнительный** источник (Dotify, SoundCloud, Яндекс остаются; Last.fm селфбот тоже бросает).
 - iOS и Windows — **одна структура** разделов и настроек (`docs/PLATFORMS.md`). Тексты песен ищет **приложение на устройстве** (не сервер): lrclib → Genius, логика и структура как в selfbot (SPEC §3.7б). Синхронизация текстов (часы, караоке, оффсет на трек) — `docs/LYRICS.md`.
 - **Порядок работы (решение 2026-11-14): сначала Windows-клиент (Rust), потом сервер/API,
-  потом iOS (Swift).** Windows — **Tauri 2** (Rust + Svelte 5), сначала автономно: токены в keyring, локальный SQLite по схеме DB.md, тексты с компьютера (SPEC §9, ROADMAP блок W). Цель — свой клиент вместо Dotify, а selfbot и другие сервисы владельца берут треки/now/статистику из **API Sonar**: формат данных с первого дня совместим с API.md. Тексты песен — **в первой версии**. **Оверлей — делаем** (решение владельца 2026-11-18, отменяет прежнее; спека — `docs/SETTINGS_NEXT.md`
-  «Оверлей», на базе `mini.rs`). Поиск по тексту — **не делаем**. Открытие настроек на ПК — окно уезжает вправо с 3D-наклоном ~15° (PLATFORMS.md).
+  потом iOS (Swift).** Windows — **Tauri 2** (Rust + Svelte 5), сначала автономно: токены в keyring, локальный SQLite по схеме DB.md, тексты с компьютера (SPEC §9, ROADMAP блок W). Цель — свой клиент вместо Dotify, а selfbot и другие сервисы владельца берут треки/now/статистику из **API Sonar**: формат данных с первого дня совместим с API.md. Тексты песен — **в первой версии**. **Оверлей — сделан** (решение владельца 2026-11-18, спека — `docs/SETTINGS_NEXT.md`
+  «Оверлей», окно `overlay` рядом с мини-окном). Поиск по тексту — **не делаем**. Открытие настроек на ПК — окно уезжает вправо с 3D-наклоном ~15° (PLATFORMS.md).
 - iOS **18+**. Таб-бар свой, сворачивается при прокрутке (SPEC §4.5). Скорость 0.5–2× с
   «Запомнить» для трека.
 - **Мини-окно поверх всех окон теперь делаем** (решение владельца 2026-11-16, отменяет «мини-окно не
@@ -175,7 +182,7 @@ Discord RPC: ID приложения Discord пользователь **не в�
   прозрачность, без сдвигов и размытия.
 - **Статус сервиса** (решение 2026-11-15): страница `sonar.folzy.ru/status`, бот `/status`,
   `GET /status` — только наши пункты (Основной, Бот, Хранилище, Сайт; SoundCloud, Яндекс, lrclib,
-  Genius, Last.fm, Telegram), аптайм за 30 дней — SPEC §3.11. Сервер владелец купит на неделе
+  Genius, Telegram), аптайм за 30 дней — SPEC §3.11. Сервер владелец купит на неделе
   после 2026-11-15.
 - **Монорепо** (сервер, iOS, Windows, сайт в одном репо) — решено. Владельцу важно, чтобы
   всё было спокойно, под контролем и **визуально красиво**: аккуратная структура, понятные
@@ -206,5 +213,7 @@ Discord RPC: ID приложения Discord пользователь **не в�
 
 - Сервер: `cd server && python -m pytest -q`.
 - Windows: `cd windows && npm run check && npm test`, `cd windows/src-tauri && cargo test`.
+- Сайт: `cd site && npm run check && npm test && npm run build` (тесты сверяют цены `data/plans.json` с
+  `windows/src/lib/subscription.ts` и что каждая строка переведена на en и uk).
 - iOS: собирается только на CI (Mac нет) — пуш в `main` запускает `ios.yml`; смотреть лог сборки.
 - Обновил API или схему — обнови `docs/API.md` / `docs/DB.md` в том же коммите.

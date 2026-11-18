@@ -10,7 +10,7 @@
   import PlayPause from '../components/PlayPause.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
   import EqButton from '../player/EqButton.svelte'
-  import { scale } from 'svelte/transition'
+  import { fade, scale } from 'svelte/transition'
   import Volume from '../player/Volume.svelte'
   import { player } from '../player/player.svelte'
   import { openRef, router } from './router.svelte'
@@ -70,11 +70,13 @@
     if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 5) seekAt(e.clientX)
   }
   const hasLyrics = $derived(lyrics.status === 'ready')
+  // прогресс — можно несколько сразу: полоса фоном, линия снизу, кольцо вокруг обложки
+  const progress = $derived(settings.get('mini.progress'))
 </script>
 
 <footer
   data-fx-frame
-  class="mini bg-{settings.get('mini.background')} progress-{settings.get('mini.progress')}"
+  class="mini bg-{settings.get('mini.background')}"
   class:round-cover={settings.get('mini.cover_round') >= 100}
   class:seekable={!!track}
   bind:this={bar}
@@ -94,8 +96,11 @@
       {/key}
       <span class="cover-shade"></span>
     {/if}
-    {#if settings.get('mini.progress') !== 'cover'}
-      <div class="fill"></div>
+    {#if progress.includes('background')}
+      <div class="fill" transition:fade={{ duration: 200 }}></div>
+    {/if}
+    {#if progress.includes('line')}
+      <div class="fill line" transition:fade={{ duration: 200 }}></div>
     {/if}
   </div>
 
@@ -111,7 +116,7 @@
       >
         <Cover url={track?.cover_url} size={46} radius="calc(50% * var(--cover-k, 1))" />
         <LoadFx url={track?.cover_url} />
-        {#if settings.get('mini.progress') === 'cover'}
+        {#if progress.includes('cover')}
           <!-- прогресс «Вокруг обложки»: кольцо -->
           <svg class="ring" viewBox="0 0 52 52" aria-hidden="true"><circle bind:this={ring} cx="26" cy="26" r="24.5" pathLength="100" stroke-dasharray="0 100" /></svg>
         {/if}
@@ -293,7 +298,7 @@
     }
   }
   /* прогресс «Линия» — тонкая полоска внизу */
-  .mini.progress-line .fill {
+  .fill.line {
     top: auto;
     height: 2px;
     background: var(--accent);
@@ -303,7 +308,7 @@
     background: rgba(255, 255, 255, 0.16);
     box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.35);
   }
-  .mini.bg-cover.progress-line .fill {
+  .mini.bg-cover .fill.line {
     height: 3px;
     background: #fff;
     box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
@@ -322,7 +327,7 @@
     stroke-width: 2.5;
     stroke-linecap: round;
   }
-  .mini.progress-cover .art {
+  .mini .art:has(.ring) {
     overflow: visible;
   }
   /* полоса на всю ширину, уезжает влево: transform не трогает раскладку и рисуется на GPU */

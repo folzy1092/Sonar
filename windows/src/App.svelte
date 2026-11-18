@@ -490,44 +490,31 @@
   .tabs-bottom.mini-top .card {
     grid-row: 2;
   }
-  /* снизу внутри и плавающий: карточка на всю высоту, плеер парит над её низом */
-  .shell.mini-bottom_inset,
+  /* плавающий: карточка на всю высоту, плеер парит над её низом */
   .shell.mini-floating {
     grid-template-rows: minmax(0, 1fr) 0;
     row-gap: 0;
   }
-  .shell.tabs-top.mini-bottom_inset,
   .shell.tabs-top.mini-floating {
     grid-template-rows: var(--rail-w) minmax(0, 1fr) 0;
   }
-  .shell.tabs-bottom.mini-bottom_inset,
   .shell.tabs-bottom.mini-floating {
     grid-template-rows: minmax(0, 1fr) 0 var(--rail-w);
   }
-  /* карточка держит свою ячейку — плеер ложится поверх её низа */
-  .mini-bottom_inset .card {
-    grid-row: 1;
-    grid-column: 2;
-  }
-  .mini-bottom_inset .player-slot {
-    grid-row: 1;
-    grid-column: 2;
-    align-self: end;
-    margin: 0 14px 14px;
-    filter: drop-shadow(0 14px 30px oklch(0 0 0 / 0.45));
-  }
-  .tabs-right.mini-bottom_inset .player-slot,
-  .tabs-bottom.mini-bottom_inset .player-slot {
-    grid-column: 1;
-  }
-  .tabs-top.mini-bottom_inset .player-slot {
-    grid-row: 2;
-    grid-column: 1;
-  }
   /* под парящим плеером страница не прячет низ */
-  .mini-bottom_inset .page,
   .mini-floating .page {
     padding-bottom: calc(var(--player-h) + 48px);
+  }
+  /* снизу во всю ширину: боковая панель кончается над плеером, плеер — от края до края окна */
+  .shell.mini-bottom_full:not(.tabs-top, .tabs-bottom) :global(.rail) {
+    grid-row: 1;
+  }
+  .shell.mini-bottom_full:not(.tabs-top, .tabs-bottom) .player-slot {
+    grid-column: 1 / -1;
+    margin-left: var(--gap);
+  }
+  .shell.tabs-right.mini-bottom_full .player-slot {
+    margin: 0 var(--gap) 0 0;
   }
   .mini-floating .player-slot {
     position: fixed;

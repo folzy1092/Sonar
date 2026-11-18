@@ -19,6 +19,7 @@
   import Style from './settings/Style.svelte'
   import Profile from './settings/Profile.svelte'
   import Privacy from './settings/Privacy.svelte'
+  import Notifications from './settings/Notifications.svelte'
   import Subscription from './settings/Subscription.svelte'
   import PlayerView from './settings/PlayerView.svelte'
   import Integrations from './settings/Integrations.svelte'
@@ -29,6 +30,7 @@
   import Update from './settings/Update.svelte'
   import About from './settings/About.svelte'
   import Mini from './settings/Mini.svelte'
+  import Overlay from './settings/Overlay.svelte'
   import { NAV, navSub, settingsPanel, type SettingsTab } from './settings-section.svelte'
   import { profileInitial } from '../lib/public-profile'
   import { cleanUsername } from '../lib/avatar'
@@ -195,6 +197,8 @@
               <Look />
             {:else if sub === 'mini'}
               <Mini />
+            {:else if sub === 'overlay'}
+              <Overlay />
             {:else if sub === 'audio'}
               <Audio />
             {:else if sub === 'view'}
@@ -213,6 +217,8 @@
               <Storage />
             {:else if sub === 'update'}
               <Update />
+            {:else if sub === 'notifications'}
+              <Notifications />
             {:else if sub === 'about'}
               <About />
             {/if}

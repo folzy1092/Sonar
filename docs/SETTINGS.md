@@ -25,7 +25,7 @@
 Интерфейс:   Вид (на ПК с 2026-11-18 — вместе с вкладками) · Вкладки (iOS)
 Плеер:       Аудио · Вид плеера · Очередь (на ПК с 2026-11-18 — внутри «Плеера») · Мини-плеер · Жесты
 Сервисы:     SoundCloud · Яндекс Музыка · VK Музыка   (PC: карточки — из реестра сервисов, только работающие; iOS — прежний ServicesView)
-Интеграции:  Last.fm · Ключ API
+Интеграции:  Ключ API
 Система:     Общее (язык, платформа, медиатека, синхронизация; внизу — о приложении) · Клавиши (PC) · Обновления · Хранилище
 О приложении (низ «Общего»): знак, название, версия (двойной клик по знаку — проверка обновлений) ·
              Сайт (`sonar.folzy.ru`) · Телеграм (t.me/SonarUpdates) · Соглашение · Конфиденциальность ·
@@ -141,7 +141,7 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 последние ≤ 12 с трека затихают, следующий загружается на паузе. Включён — луна на кнопке
 (`Playback/PlayerExtras.swift` `SleepTimer`, `Features/Player/SleepTimerSheet.swift`).
 
-## Профиль — `profile.*` (Аккаунт → Профиль, Windows 2026-11-16)
+## Профиль — `profile.*` (Аккаунт → Профиль, Windows 2026-11-16, оформление — 2026-11-18)
 
 До сервера профиль хранится в настройках (синхронизируется как остальные); с сервером — `GET /me`
 и `PATCH /me` (`API.md`). Пусто — имя и аватар из подключённого сервиса.
@@ -151,6 +151,20 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 | `profile.name` | отображаемое имя (приветствие на главной), до 40 знаков | `''` | да |
 | `profile.username` | `@username`: латиница, цифры, `_`, 3–32 | `''` | да |
 | `profile.avatar` | WebP data URL 256×256, обрезан в круг (iPhone — JPEG data URL 256×256 из галереи, `ProfileEditView`) | `''` | да |
+| `profile.banner` | баннер над аватаром: WebP data URL 900×300 (центр-кроп, `coverFromFile`) | `''` | да |
+| `profile.background` | фон всей карточки профиля: WebP data URL 960×540 | `''` | да |
+| `profile.color` | цвет профиля (ник, кольцо аватара, акценты): `''` без цвета · `red` `orange` `yellow` `lime` `green` `teal` `blue` `violet` `pink` `white` (`lib/profile-look.ts`) | `''` | да |
+| `profile.status` | строка под ником, до 80 знаков | `''` | да |
+| `profile.bio` | «О себе», до 190 знаков | `''` | да |
+| `profile.links` | до 5 ссылок `[{kind: telegram\|discord\|site, url}]`; `@ник` → `t.me/ник`, только http(s) | `[]` | да |
+| `profile.layout` | вид шапки: `avatar` · `big_name` · `banner` · `center` | `avatar` | да |
+| `profile.nick_font` | шрифт ника: `default` · `caveat` · `marck` · `pacifico` · `lobster` · `amatic` · `pixel` · `retro` · `russo` · `unbounded` · `tektur` · `dela` | `default` | да |
+| `profile.nick_effect` | эффект ника: `none` · `shimmer` · `neon` · `cartoon` · `highlight` · `3d` · `retro` | `none` | да |
+| `profile.showcase` | витрина, до 6 мест `[{kind: playlist\|album\|artist\|track, ref, title, subtitle, cover_url}]`; плейлисты из `privacy.hidden_playlists` не ставятся и не показываются | `[]` | да |
+
+Уровней, значков, Мастерской и Canvas нет (решение владельца 2026-11-18). На ПК всё это видно в превью
+«как увидят другие» сверху страницы; публичная страница по ссылке и `ProfileView` на iPhone покажут баннер,
+фон и эффекты, когда появится сервер.
 
 ## Приватность — `privacy.*` (Аккаунт → Приватность, решение владельца 2026-11-18)
 
@@ -384,24 +398,40 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 | Ключ | Значения | По умолч. |
 |---|---|---|
 | `mini.style` | `off` / `full` / `rounded` / `hybrid` / `deck` — пресет, выставляет фон/прогресс/обложку/форму (`PLATFORMS.md`) | `hybrid` |
-| `mini.position` | `top` / `bottom` / `bottom_inset` / `floating` (перетаскивается, `mini.float_x` / `mini.float_y` — доли окна) | `bottom` |
+| `mini.position` | `top` / `bottom` / `bottom_full` (снизу во всю ширину: левая панель кончается над плеером) / `floating` (перетаскивается, `mini.float_x` / `mini.float_y` — доли окна). Старое `bottom_inset` → `floating` | `bottom` |
 | `mini.background` | `theme` / `cover` / `cover_color` | `theme` (пресет «Гибрид») |
-| `mini.progress` | `line` / `background` (без `around_cover`) | `background` |
-| `mini.cover_shape` | `default` / `circle` | `circle` |
-| `mini.shape` | `default` / `capsule` | `capsule` |
+| `mini.progress` | список, можно несколько: `line` / `background` / `cover` (кольцо вокруг обложки); хотя бы один. Старое одно значение → список из него | `["background"]` |
+| `mini.cover_shape` | `default` / `circle` — кнопками; выставляет `mini.cover_round` (20 / 100) | `default` |
+| `mini.shape` | `default` / `capsule` — кнопками; выставляет `mini.shape_round` (0 / 100) | `default` |
+| `mini.cover_round`, `mini.shape_round` | 0–100 % — тонкая подстройка в «Ещё настройки», по ним и рисуется мини-плеер | `100`, `100` |
 
-## Оверлей PC — `overlay.*` (`pc/10, 11`) — **не делаем** (решение 2026-11-14)
+Экран (2026-11-18): живой пример сверху; «Стиль» и «Фон» — карточки-превью с обложкой играющего трека,
+«Позиция» — четыре значка окна, «Прогресс» — карточки с галочками (несколько сразу).
 
-`overlay.mode` (`off` / `fullscreen` / `island` / `card` / `sticky`), `overlay.shape`
-(`square` / `rounded`), `overlay.position`, `overlay.opacity` (90), `overlay.scale` (100),
-`overlay.width` (340), `overlay.height` (58).
+## Оверлей PC — `overlay.*` (`pc/10, 11`) — делаем (решение владельца 2026-11-18)
+
+Интерфейс → Оверлей: плашка с треком поверх игр и других программ — отдельное окно `overlay`
+(`mini.rs`), живёт рядом с мини-окном. Поверх игр в окне без рамки видна, поверх эксклюзивного
+полного экрана — нет. Открывается горячей клавишей `hotkeys.map.overlay` (Ctrl+Alt+O), кнопкой
+«Показать сейчас» или сама («Появляться само»).
+
+| Ключ | Значения | По умолч. | sync |
+|---|---|---|---|
+| `overlay.mode` | `off` (Отключен) / `fullscreen` (Полноэкранный: затемнение и большая карточка, Esc или клик мимо — закрыть) / `island` (Остров: чёрная капсула) / `card` (Карточка) — карточки-превью | `card` | нет |
+| `overlay.auto` | bool — Sonar свернули или спрятали в трей — оверлей открывается, окно вернули — закрывается (проверка раз в 1 с; если открыто мини-окно — не открывается) | `false` | нет |
+| `overlay.shape` | `square` / `rounded` | `rounded` | нет |
+| `overlay.position` | клетка сетки 3×3: `tl` `tc` `tr` · `ml` `mc` `mr` · `bl` `bc` `br` — плашку на макете экрана перетаскивают, она прилипает к ближайшей точке; отступ от края 20 px | `tc` | нет |
+| `overlay.opacity` | 30–100 % | `90` | нет |
+| `overlay.scale` | 50–200 % | `100` | нет |
+| `overlay.width` | 240–600 px | `340` | нет |
+| `overlay.height` | 44–120 px (Остров — 70 % высоты, не ниже 34) | `58` | нет |
+
+Логика места и размера — `windows/src/lib/overlay.ts` (тест `overlay.test.ts`), окно — `mini.rs` `overlay()`.
 
 ## Интеграции — `integrations.*` (`photo_3`, `pc/14, 15`)
 
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
-| `integrations.lastfm.scrobble` | bool | `true` | сервер |
-| `integrations.lastfm.now_playing` | bool | `true` | сервер |
 | `integrations.discord.enabled` (PC) | bool | `true` | да |
 | `integrations.discord.cover` (PC) | bool | `true` | да |
 | `integrations.discord.progress` (PC) | bool | `true` | да |
@@ -409,11 +439,8 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 ID приложения Discord — **не настройка**: пользователь ничего не вписывает. До сервера он вшит
 в сборку (`windows/src-tauri/src/discord.rs` `APP_ID`), потом приходит с сервера (`GET /config`).
 
-iOS Last.fm (2026-11-17, `LastfmSettingsView`, `Core/Integrations/`): вход в один клик — `auth.getToken` →
-страница «Разрешить доступ» в окне входа iOS (`ASWebAuthenticationSession`, возврат `sonar://lastfm` + опрос
-`auth.getSession`), ключ сессии — Keychain. Скроббл — трек > 30 с, прослушана половина или 4 мин; «Сейчас
-играет» — на старт трека; не ушло — очередь до 14 дней. Ключ приложения — Info.plist `SonarLastfmKey` /
-`SonarLastfmSecret` из секретов CI; нет — «Last.fm появится в сборке с ключом».
+Last.fm убран из ПК и iPhone 2026-11-18 (`docs/LASTFM_EXIT.md`): ключей `integrations.lastfm.*` больше нет,
+сохранённый вход стирается при запуске один раз.
 
 Ключ API (для selfbot и `GET /oauth/now`) — создать / перевыпустить / удалить, показывается
 один раз. iOS: Безопасность, Приватность и Ключ API до сервера — честная заглушка `ServerOnlyView`. OBS-плашка (`pc/15`) — после MVP, тем же ключом.

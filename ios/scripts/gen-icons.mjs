@@ -29,7 +29,7 @@ const MAP = {
   // Интерфейс → Вид / Вкладки / Профиль
   contrast: 'contrast', tabStandard: 'layout-bottom-close', tabRounded: 'layout-bottom-open', drop: 'drop', dropOff: 'droplet-off',
   background: 'background', imagePlus: 'image-plus', magic: 'magic-2', paintBrush: 'paint-brush', camera: 'camera', userEdit: 'user-edit', rectangle: 'rectangle',
-  // Система: Статистика, Общее, Хранилище, Last.fm, экраны «с сервером»
+  // Система: Статистика, Общее, Хранилище, экраны «с сервером»
   chart: 'chart-bar', pie: 'chart-pie', storage: 'storage', cloud: 'cloud', cloudSync: 'cloud-sync', shield: 'safe-shield', key: 'key-2',
   globe: 'globe', telegram: 'telegram', document: 'document', fire: 'fire', trophy: 'trophy', headphone: 'headphone', calendar: 'calendar',
   broom: 'broom', externalLink: 'external-link', server: 'server', exit: 'exit', clock: 'clock', fingerprint: 'fingerprint', userHeart: 'user-heart',
@@ -46,8 +46,6 @@ const MAP = {
 
 /** Знаки сервисов — одна заливка (Simple Icons, 24×24). */
 const BRANDS = { soundcloud: 'soundcloud' }
-// Система: знак Last.fm
-BRANDS.lastfm = 'lastdotfm'
 // Сервисы: знак YouTube Music
 BRANDS.youtubeMusic = 'youtubemusic'
 

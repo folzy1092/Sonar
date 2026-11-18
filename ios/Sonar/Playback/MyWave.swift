@@ -249,7 +249,7 @@ enum WaveMath {
     /// Похожих от каждого сида: «Обычное» — 25, остальным — 35 (есть из чего выбрать подходящее).
     static func similarLimit(_ mode: WaveMode) -> Int { mode == .own ? 25 : 35 }
 
-    /// Настроения — группы тегов Last.fm / MIREX плюс жанры, что обычно туда ложатся (`wave.rs` `MOODS` 1:1).
+    /// Настроения — группы тегов MIREX плюс жанры, что обычно туда ложатся (`wave.rs` `MOODS` 1:1).
     static let moods: [(mode: WaveMode, words: [String])] = [
         (.hard, [
             "phonk", "drift", "hardstyle", "hardcore", "drill", "trap", "rage", "metal", "rock", "punk", "dubstep", "dnb",

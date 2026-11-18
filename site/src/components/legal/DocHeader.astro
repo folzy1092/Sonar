@@ -1,0 +1,64 @@
+---
+// Шапка документа: заголовок, вводная, дата редакции и (для юр-текстов) пометка черновика.
+import { useT, type Lang } from '../../i18n'
+import Icon from '../Icon.astro'
+
+interface Props {
+  lang: Lang
+  title: string
+  lead: string
+  /** ISO-дата редакции. */
+  updated: string
+  draft?: boolean
+}
+
+const { lang, title, lead, updated, draft = false } = Astro.props
+const { t } = useT(lang)
+const date = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'long', year: 'numeric' }).format(
+  new Date(`${updated}T12:00:00Z`),
+)
+---
+
+<header class="doc-head" data-reveal-group>
+  <p class="eyebrow" data-reveal>{t('Документы')}</p>
+  <h1 class="doc-head__title" data-reveal>{title}</h1>
+  <p class="lead" data-reveal>{lead}</p>
+  <div class="doc-head__meta" data-reveal>
+    <span class="doc-head__date">
+      <Icon name="mc:calendar-line" size={16} />
+      {t('Редакция от {date}', { date })}
+    </span>
+    {
+      draft && (
+        <span class="doc-head__draft">
+          <Icon name="mc:alert-line" size={16} />
+          {t('Черновик — не проверено юристом')}
+        </span>
+      )
+    }
+  </div>
+</header>
+
+<style>
+  .doc-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-bottom: clamp(28px, 4vw, 48px); max-width: 760px; }
+  .doc-head__title { font-size: clamp(30px, 5vw, 56px); overflow-wrap: break-word; hyphens: auto; }
+  .doc-head__meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .doc-head__date,
+  .doc-head__draft {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: var(--r-pill);
+    font-size: 13.5px;
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    color: var(--text-2);
+  }
+  .doc-head__draft {
+    color: var(--warn);
+    border-color: color-mix(in srgb, var(--warn) 32%, transparent);
+    background: color-mix(in srgb, var(--warn) 9%, transparent);
+  }
+</style>

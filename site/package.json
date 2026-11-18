@@ -1,0 +1,25 @@
+{
+  "name": "sonar-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource-variable/golos-text": "5.3.0",
+    "@fontsource-variable/unbounded": "5.3.0",
+    "astro": "5.18.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.12",
+    "@iconify-json/mingcute": "1.2.10",
+    "@iconify-json/simple-icons": "1.2.102",
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3",
+    "vitest": "5.1.1"
+  }
+}
