@@ -22,6 +22,18 @@ export function reasonOf(item: ListTrack, keeper: ListTrack): DupeReason {
   return serviceOf(item.ref) !== serviceOf(keeper.ref) ? 'service' : 'similar'
 }
 
+/** Почему по умолчанию остаётся первый трек группы (порядок ключа Rust `keep_key`): другие не играют,
+ *  у него звук лучше (другой сервис) или он того же сервиса, но добавлен раньше. */
+export type KeepReason = 'available' | 'quality' | 'earlier'
+
+export function keeperReason(group: DupeGroup): KeepReason {
+  const [keeper, ...rest] = group.items
+  if (!keeper) return 'earlier'
+  if (keeper.available && rest.some((i) => !i.available)) return 'available'
+  const keeperService = serviceOf(keeper.ref)
+  return rest.every((i) => serviceOf(i.ref) === keeperService) ? 'earlier' : 'quality'
+}
+
 /** По умолчанию отмечены все, кроме того, кого Rust советует оставить. */
 export function initialMarks(groups: readonly DupeGroup[]): Marks {
   return new Set(groups.flatMap((g) => g.items.filter((i) => i.item_id !== g.keep).map((i) => i.item_id)))
