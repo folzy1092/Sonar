@@ -128,6 +128,11 @@ export const CATALOG: readonly CatalogEntry[] = [
     ['Горячие клавиши по всей системе', 'Управлять музыкой, даже когда Sonar свёрнут или спрятан в трей', 'hotkeys.enabled', 'клавиатура сочетания hotkeys'],
     ['Сочетания', undefined, 'hotkeys.map', 'клавиши'],
   ]),
+  ...rows('system', 'remote', [
+    ['Пульт с iPhone', 'Управлять музыкой на этом компьютере с телефона по Wi-Fi', 'remote.enabled', 'телефон iphone wi-fi wifi remote пульт'],
+    ['Привязка', 'В Sonar на iPhone: плеер → значок устройства → этот компьютер, затем код или QR', undefined, 'код qr привязать'],
+    ['Устройства', undefined, undefined, 'отвязать телефоны'],
+  ]),
   ...rows('system', 'update', [
     ['Проверять обновления', 'При запуске и раз в 6 часов', 'update.auto_check', 'версия update'],
     ['Скачивать в фоне', 'Обновление скачается само, установится только по кнопке «Установить»', 'update.auto_download'],
@@ -159,6 +164,7 @@ export const SUB_LEADS: Readonly<Record<string, string>> = {
   apps: 'Discord, Last.fm и OBS: где ещё видно, что ты слушаешь',
   general: 'Язык, источник волны и что делает Sonar при запуске',
   hotkeys: 'Управление музыкой с клавиатуры, даже когда окно спрятано',
+  remote: 'Телефон как пульт: музыка играет здесь, управление — с iPhone',
   update: 'Как Sonar находит и ставит новые версии',
   storage: 'Кеш треков и место на диске',
 }
