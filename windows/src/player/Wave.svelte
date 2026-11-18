@@ -4,7 +4,7 @@
   // Бережёт процессор: не чаще `fps` кадров в секунду, окно в фоне — ни одного. «Меньше движения»
   // (системное или выключенные анимации) — спектр не рисуется вовсе: он весь из движения.
   import { onMount } from 'svelte'
-  import { player } from './player.svelte'
+  import { readSpectrum } from './analyser'
   import { settings } from '../lib/settings.svelte'
   import { fx } from '../lib/track-fx.svelte'
   import { reducedMotion } from '../lib/motion'
@@ -25,7 +25,6 @@
     const g = canvas.getContext('2d')!
     const color = tint ?? getComputedStyle(canvas).color
     const levels = new Float32Array(POINTS)
-    let data: Uint8Array<ArrayBuffer> | null = null
     let frame = 0
     let last = 0
     let still = false
@@ -50,12 +49,11 @@
       g.setTransform(dpr, 0, 0, dpr, 0, 0)
       g.clearRect(0, 0, w, h)
 
-      const a = player.analyser
-      if (a && player.playing) {
-        if (!data || data.length !== a.frequencyBinCount) data = new Uint8Array(a.frequencyBinCount)
-        a.getByteFrequencyData(data)
+      // общий анализатор плеера (analyser.ts): null — музыка не играет или графа Web Audio нет
+      const spectrum = readSpectrum(now)
+      if (spectrum) {
+        const { data, binHz: hz } = spectrum
         // логарифмическая шкала частот: ~40 Гц … ~14 кГц
-        const hz = a.context.sampleRate / a.fftSize
         const lo = Math.max(1, Math.round(40 / hz))
         const hi = Math.min(data.length - 1, Math.round(14000 / hz))
         for (let i = 0; i < POINTS; i++) {
