@@ -52,7 +52,7 @@
   })
   let press: { x: number; y: number } | null = null
   const isControl = (target: EventTarget | null) =>
-    !!(target as HTMLElement | null)?.closest?.('button, a, input, [role="link"], .selectable, .capsule')
+    !!(target as HTMLElement | null)?.closest?.('button, a, input, [role="link"], .selectable, .capsule, [data-no-seek]')
 
   function seekAt(clientX: number) {
     if (!bar || !duration || !track) return
@@ -188,9 +188,6 @@
   </div>
 
   <div class="right">
-    {#if !preview}
-      <NextUp float />
-    {/if}
     <!-- «Тактиль»: пять светодиодов, по ним бежит огонёк при смене трека (theme/fx.css) -->
     <span class="mini-leds" data-fx-leds aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     <div class="capsule">
@@ -214,6 +211,12 @@
       {/if}
     </div>
   </div>
+
+  <!-- «Дальше» — от самой подложки плеера, не от правой колонки: вровень с капсулой кнопок
+       при любой раскладке (components/NextUp.svelte) -->
+  {#if !preview}
+    <NextUp float />
+  {/if}
 </footer>
 
 <style>
@@ -224,7 +227,9 @@
     align-items: center;
     gap: 16px;
     height: var(--player-h);
-    padding: 0 12px 0 8px;
+    /* правый отступ — общий с карточкой «Дальше» (NextUp.svelte): она встаёт вровень с капсулой */
+    --mini-pad-r: 12px;
+    padding: 0 var(--mini-pad-r) 0 8px;
     /* концы капсулы: --cap-k (0 — прямые углы, 1 — полукруг), середина — прямая */
     border-radius: max(var(--radius-l), calc(var(--player-h) / 2 * var(--cap-k, 1)));
     padding-left: calc(8px + 4px * var(--cap-k, 1));
