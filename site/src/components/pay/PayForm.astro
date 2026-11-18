@@ -1,0 +1,446 @@
+---
+// /pay (SITE.md §4): тариф, срок, аккаунт, способ оплаты и сводка. Приложение открывает
+// `/pay?plan=&period=&u=` — скрипт сразу ставит этот выбор. Платёжки пока нет: кнопка неактивна.
+import { href, useT, type Lang } from '../../i18n'
+import {
+  DEFAULT_PERIOD,
+  DEFAULT_PLAN,
+  PERIODS,
+  PERKS,
+  PLANS,
+  findPeriod,
+  findPlan,
+  price,
+  rub,
+  savedPercent,
+} from '../../lib/plans'
+import Icon from '../Icon.astro'
+
+interface Props {
+  lang: Lang
+}
+
+const { lang } = Astro.props
+const { t, tn } = useT(lang)
+
+const seatsLabel = (seats: number) => (seats === 1 ? t('Только ты') : t('Ты и ещё {n}', { n: seats - 1 }))
+const monthsLabel = (months: number) => tn(months, '{n} месяц|{n} месяца|{n} месяцев')
+
+const plan = findPlan(DEFAULT_PLAN)
+const period = findPeriod(DEFAULT_PERIOD)
+
+/** Подписи для скрипта: он меняет текст без перезагрузки и должен говорить на языке страницы. */
+const strings = {
+  plans: Object.fromEntries(PLANS.map((p) => [p.id, { name: `Sonar Deep ${p.name}`, seats: seatsLabel(p.seats) }])),
+  periods: Object.fromEntries(
+    PERIODS.map((p) => [p.id, { short: monthsLabel(p.months), title: t('Подписка на {months}', { months: monthsLabel(p.months) }) }]),
+  ),
+  payTo: t('Подписка придёт на аккаунт {u}'),
+  noUser: t('Укажи аккаунт — на него придёт подписка'),
+  perMonth: t('{price} в месяц'),
+}
+---
+
+<div class="pay" data-pay>
+  <div class="pay__form" data-reveal>
+    <header class="pay__head">
+      <span class="pill pill--deep"><Icon name="mc:diamond-line" size={14} />Sonar Deep</span>
+      <h1 class="pay__title">{t('Оформить Sonar Deep')}</h1>
+      <p class="muted">{t('Подписка открывает функции Sonar. Музыка играет одинаково — с ней и без неё.')}</p>
+    </header>
+
+    <fieldset class="pay__group">
+      <legend class="pay__legend">{t('Тариф')}</legend>
+      <div class="seg" style={`--count: ${PLANS.length}`} data-seg>
+        <span class="seg__thumb" aria-hidden="true"></span>
+        {
+          PLANS.map((p) => (
+            <label class="seg__opt">
+              <input class="sr-only" type="radio" name="plan" value={p.id} checked={p.id === plan.id} />
+              <span class="seg__name">{p.name}</span>
+              <span class="seg__seats">{seatsLabel(p.seats)}</span>
+            </label>
+          ))
+        }
+      </div>
+    </fieldset>
+
+    <fieldset class="pay__group">
+      <legend class="pay__legend">{t('Срок')}</legend>
+      <div class="periods">
+        {
+          PERIODS.map((p) => {
+            const total = price(plan, p)
+            const saved = savedPercent(plan, p)
+            return (
+              <label class="period">
+                <input class="sr-only" type="radio" name="period" value={p.id} checked={p.id === period.id} />
+                <span class="period__top">
+                  <span class="period__months">{monthsLabel(p.months)}</span>
+                  <span class="period__save" data-period-save={p.id} hidden={saved === 0}>
+                    −{saved} %
+                  </span>
+                </span>
+                <span class="period__price" data-period-price={p.id} data-value={total}>
+                  {rub(total)}
+                </span>
+                <span class="period__per muted" data-period-per={p.id}>
+                  {strings.perMonth.replace('{price}', rub(Math.round(total / p.months)))}
+                </span>
+                <span class="period__check" aria-hidden="true">
+                  <Icon name="mc:check-line" size={14} />
+                </span>
+              </label>
+            )
+          })
+        }
+      </div>
+    </fieldset>
+
+    <div class="pay__group">
+      <label class="pay__legend" for="pay-user">{t('Аккаунт')}</label>
+      <div class="user">
+        <span class="user__at" aria-hidden="true">@</span>
+        <input
+          id="pay-user"
+          class="user__input"
+          type="text"
+          inputmode="text"
+          autocomplete="off"
+          autocapitalize="none"
+          spellcheck="false"
+          maxlength="33"
+          placeholder="username"
+          aria-describedby="pay-user-hint"
+          data-user
+        />
+      </div>
+      <p id="pay-user-hint" class="user__hint" data-user-hint>
+        <span data-hint-ok>{t('@username из профиля Sonar. Приложение подставляет его само.')}</span>
+        <span data-hint-bad hidden>{t('Латиница, цифры и «_», от 3 до 32 знаков.')}</span>
+      </p>
+    </div>
+
+    <fieldset class="pay__group">
+      <legend class="pay__legend">{t('Способ оплаты')}</legend>
+      <div class="method">
+        <span class="method__icon"><Icon name="mc:bank-card-line" /></span>
+        <span>
+          <span class="method__name">{t('Скоро')}</span>
+          <span class="method__text muted">{t('Платёжка ещё не подключена — оформить Deep пока нельзя. О запуске напишем в @SonarUpdates.')}</span>
+        </span>
+      </div>
+    </fieldset>
+
+    <div class="pay__submit">
+      <button class="btn btn--primary pay__btn" type="button" disabled aria-describedby="pay-terms">
+        <Icon name="mc:lock-line" />
+        {t('Оплата скоро')}
+      </button>
+      <p id="pay-terms" class="pay__terms muted">
+        {t('Оплачивая, ты принимаешь')}
+        <a class="link" href={href(lang, '/subscription')}>{t('условия подписки')}</a>
+        {t('и')}
+        <a class="link" href={href(lang, '/terms')}>{t('соглашение')}</a>.
+      </p>
+    </div>
+  </div>
+
+  <div class="sum__backdrop" data-sum-backdrop aria-hidden="true"></div>
+  <aside class="sum card" data-sum aria-label={t('Твой выбор')}>
+    <button class="sum__toggle" type="button" aria-expanded="false" aria-controls="sum-body" data-sum-toggle>
+      <span class="sum__toggle-text">
+        <b data-sum-name>{strings.plans[plan.id].name}</b>
+        <span class="muted" data-sum-short>{strings.periods[period.id].short}</span>
+      </span>
+      <span class="sum__toggle-price" data-sum-total data-value={price(plan, period)}>{rub(price(plan, period))}</span>
+      <Icon name="mc:up-line" size={18} class="sum__chev" />
+    </button>
+    <div class="sum__body" id="sum-body">
+      <div class="sum__inner">
+        <p class="eyebrow" data-sum-title>{strings.periods[period.id].title}</p>
+        <p class="sum__name" data-sum-name>{strings.plans[plan.id].name}</p>
+        <p class="muted" data-sum-seats>{strings.plans[plan.id].seats}</p>
+
+        <p class="sum__label">{t('Что входит')}</p>
+        <ul class="sum__perks" role="list" tabindex="0" aria-label={t('Что входит')}>
+          {
+            PERKS.map((perk) => (
+              <li>
+                <Icon name="mc:check-line" size={16} />
+                {t(perk)}
+              </li>
+            ))
+          }
+        </ul>
+
+        <dl class="sum__rows">
+          <div>
+            <dt>{t('Способ оплаты')}</dt>
+            <dd>{t('Скоро')}</dd>
+          </div>
+          <div>
+            <dt>{t('Продление')}</dt>
+            <dd>{t('Вручную, без автосписания')}</dd>
+          </div>
+        </dl>
+        <p class="sum__user" data-sum-user>{strings.noUser}</p>
+        <div class="sum__total">
+          <span>{t('Итого')}</span>
+          <b data-sum-total data-value={price(plan, period)}>{rub(price(plan, period))}</b>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <script type="application/json" data-pay-strings set:html={JSON.stringify(strings)} />
+</div>
+
+<script>
+  import { initPay } from '../../scripts/pay'
+  document.querySelectorAll<HTMLElement>('[data-pay]').forEach(initPay)
+</script>
+
+<style>
+  .pay {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+    gap: clamp(24px, 4vw, 56px);
+    align-items: start;
+  }
+  .pay__form { display: grid; gap: 28px; min-width: 0; }
+  .pay__head { display: grid; gap: 12px; justify-items: start; }
+  .pay__title { font-size: clamp(32px, 4.6vw, 52px); }
+  .pay__group { margin: 0; padding: 0; border: 0; display: grid; gap: 12px; min-width: 0; }
+  .pay__legend { padding: 0; font-weight: 600; font-size: 15px; }
+
+  /* ——— тарифы: сегмент с бегущей подложкой ——— */
+  .seg {
+    --idx: 0;
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(var(--count), 1fr);
+    padding: 4px;
+    border-radius: var(--r-lg);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+  }
+  .seg__thumb {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc((100% - 8px) / var(--count));
+    border-radius: calc(var(--r-lg) - 4px);
+    background: var(--surface-3);
+    box-shadow: 0 0 0 1px var(--border-strong);
+    transform: translateX(calc(var(--idx) * 100%));
+    transition: transform 380ms var(--ease);
+  }
+  .seg__opt {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    padding: 10px 6px;
+    border-radius: calc(var(--r-lg) - 4px);
+    cursor: pointer;
+    text-align: center;
+  }
+  .seg__name { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--text-2); transition: color var(--t) var(--ease); }
+  .seg__seats { font-size: 12px; color: var(--text-3); line-height: 1.3; }
+  .seg__opt:has(input:checked) .seg__name { color: var(--text); }
+  .seg__opt:has(input:focus-visible) { outline: 2px solid var(--text); outline-offset: -2px; }
+
+  /* ——— сроки: карточки 2×2 ——— */
+  .periods { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .period {
+    position: relative;
+    display: grid;
+    gap: 4px;
+    padding: 16px;
+    border-radius: var(--r-lg);
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: border-color var(--t) var(--ease), background-color var(--t) var(--ease), transform var(--t-fast) var(--ease);
+  }
+  .period:hover { border-color: var(--border-strong); }
+  .period:active { transform: scale(0.98); }
+  .period:has(input:checked) { border-color: var(--text); background: var(--surface-1); }
+  .period:has(input:focus-visible) { outline: 2px solid var(--text); outline-offset: 2px; }
+  .period__top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-right: 26px; }
+  .period__months { font-weight: 600; white-space: nowrap; }
+  .period__save {
+    padding: 1px 8px;
+    border-radius: var(--r-pill);
+    background: color-mix(in srgb, var(--ok) 16%, transparent);
+    color: var(--ok);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .period__price { font-family: var(--font-display); font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .period__per { font-size: 13px; }
+  .period__check {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    color: var(--accent-ink);
+    transition: background-color var(--t) var(--ease), border-color var(--t) var(--ease);
+  }
+  .period__check :global(svg) { opacity: 0; transform: scale(0.4); transition: opacity var(--t) var(--ease), transform var(--t) var(--ease); }
+  .period:has(input:checked) .period__check { background: var(--text); border-color: var(--text); }
+  .period:has(input:checked) .period__check :global(svg) { opacity: 1; transform: none; }
+
+  /* ——— аккаунт ——— */
+  .user {
+    display: flex;
+    align-items: center;
+    min-height: 52px;
+    padding: 0 16px;
+    border-radius: var(--r-lg);
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+    transition: border-color var(--t) var(--ease);
+  }
+  .user:focus-within { border-color: var(--text); }
+  .user:has([aria-invalid='true']) { border-color: var(--down); }
+  .user__at { color: var(--text-3); font-weight: 600; }
+  .user__input { flex: 1; min-width: 0; height: 50px; padding: 0 2px; border: 0; background: none; outline: none; font-size: 16px; }
+  .user__hint { font-size: 13px; color: var(--text-3); }
+  .user__hint [data-hint-bad] { color: var(--down); }
+
+  /* ——— способ оплаты ——— */
+  .method {
+    display: flex;
+    gap: 14px;
+    padding: 16px;
+    border-radius: var(--r-lg);
+    border: 1px dashed var(--border-strong);
+  }
+  .method__icon {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+    color: var(--text-2);
+  }
+  .method__name { display: block; font-weight: 600; }
+  .method__text { display: block; font-size: 14px; }
+
+  .pay__submit { display: grid; gap: 10px; }
+  .pay__btn { width: 100%; min-height: 54px; font-size: 16px; }
+  .pay__terms { font-size: 13px; text-align: center; }
+
+  /* ——— сводка ——— */
+  .sum { position: sticky; top: calc(var(--header-h) + 20px); overflow: hidden; }
+  .sum__toggle { display: none; }
+  .sum__body { display: grid; grid-template-rows: 1fr; }
+  .sum__inner { min-height: 0; overflow: hidden; display: grid; gap: 6px; padding: 24px; }
+  .sum__name { font-family: var(--font-display); font-weight: 700; font-size: 24px; line-height: 1.15; }
+  .sum__label { margin-top: 14px; font-weight: 600; font-size: 14px; }
+  .sum__perks {
+    display: grid;
+    gap: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 2px 6px 2px 0;
+    list-style: none;
+    font-size: 14px;
+    color: var(--text-2);
+    scrollbar-width: thin;
+    mask-image: linear-gradient(to bottom, #000 85%, transparent);
+  }
+  .sum__perks li { display: grid; grid-template-columns: 16px 1fr; gap: 10px; align-items: start; }
+  .sum__perks :global(svg) { margin-top: 3px; color: var(--deep); }
+  .sum__rows { display: grid; gap: 8px; margin: 16px 0 0; padding-top: 16px; border-top: 1px solid var(--border); font-size: 14px; }
+  .sum__rows div { display: flex; justify-content: space-between; gap: 12px; }
+  .sum__rows dt { color: var(--text-2); }
+  .sum__rows dd { margin: 0; text-align: right; }
+  .sum__user { margin-top: 8px; font-size: 14px; color: var(--text-2); overflow-wrap: anywhere; }
+  .sum__user b { color: var(--text); }
+  .sum__total {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-weight: 600;
+  }
+  .sum__total b { font-family: var(--font-display); font-size: 28px; font-variant-numeric: tabular-nums; }
+  .sum__backdrop { display: none; }
+
+  /* Телефон: сводка — шторка снизу, раскрывается по нажатию. */
+  @media (max-width: 880px) {
+    .pay { grid-template-columns: 1fr; padding-bottom: 88px; }
+    .sum {
+      position: fixed;
+      z-index: 40;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: auto;
+      border-radius: var(--r-xl) var(--r-xl) 0 0;
+      border-bottom: 0;
+      background: var(--surface-1);
+      box-shadow: 0 -20px 60px -20px rgba(0, 0, 0, 0.8);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .sum__toggle {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      min-height: 68px;
+      padding: 12px var(--gutter);
+      border: 0;
+      background: none;
+      cursor: pointer;
+      text-align: left;
+    }
+    .sum__toggle-text { flex: 1; display: grid; font-size: 14px; line-height: 1.3; }
+    .sum__toggle-price { font-family: var(--font-display); font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums; }
+    .sum :global(.sum__chev) { transition: transform var(--t) var(--ease); }
+    .sum.is-open :global(.sum__chev) { transform: rotate(180deg); }
+    .sum__body { grid-template-rows: 0fr; transition: grid-template-rows 380ms var(--ease); }
+    .sum.is-open .sum__body { grid-template-rows: 1fr; }
+    .sum__inner { padding: 0 var(--gutter); max-height: 68dvh; overflow-y: auto; }
+    .sum.is-open .sum__inner { padding-bottom: 20px; }
+    .sum__inner > .sum__name { display: none; }
+    .sum__backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 39;
+      background: rgba(0, 0, 0, 0.55);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity var(--t) var(--ease), visibility 0s linear var(--t);
+    }
+    .sum__backdrop.is-open { opacity: 1; visibility: visible; transition: opacity var(--t) var(--ease); }
+  }
+  @media (max-width: 520px) {
+    .seg { grid-template-columns: repeat(2, 1fr); }
+    .seg__thumb { display: none; }
+    .seg__opt:has(input:checked) { background: var(--surface-3); box-shadow: 0 0 0 1px var(--border-strong); }
+    .period { padding: 14px 12px; }
+    .period__price { font-size: 19px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .seg__thumb, .sum__body { transition: none; }
+    .period:active { transform: none; }
+  }
+</style>

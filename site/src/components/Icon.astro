@@ -1,0 +1,42 @@
+---
+// Значок при сборке, без JS: `mc:имя` — MingCute (Apache-2.0, как в приложении), `si:имя` — Simple Icons (CC0).
+import mingcute from '@iconify-json/mingcute/icons.json'
+import simple from '@iconify-json/simple-icons/icons.json'
+
+interface IconSet {
+  readonly width?: number
+  readonly height?: number
+  readonly icons: Record<string, { body: string; width?: number; height?: number }>
+}
+
+interface Props {
+  name: string
+  size?: number
+  label?: string
+  class?: string
+}
+
+const SETS: Record<string, IconSet> = { mc: mingcute as IconSet, si: simple as IconSet }
+const DEFAULT_SIZE = 24
+
+const { name, size = 20, label, class: cls } = Astro.props
+const [prefix, id] = name.split(':')
+const set = SETS[prefix]
+const icon = set?.icons[id]
+if (!icon) throw new Error(`Icon: нет значка «${name}»`)
+const w = icon.width ?? set.width ?? DEFAULT_SIZE
+const h = icon.height ?? set.height ?? DEFAULT_SIZE
+---
+
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox={`0 0 ${w} ${h}`}
+  width={size}
+  height={size}
+  class={cls}
+  role={label ? 'img' : undefined}
+  aria-label={label}
+  aria-hidden={label ? undefined : 'true'}
+  fill="currentColor"
+  set:html={icon.body}
+/>

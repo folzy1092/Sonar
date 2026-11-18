@@ -1,0 +1,266 @@
+---
+// Шапка (SITE.md §2): знак + «Sonar», разделы, флаг языка. На телефоне разделы уходят в меню по кнопке.
+import { href, useT, type Lang } from '../i18n'
+import Icon from './Icon.astro'
+import LangSwitch from './LangSwitch.astro'
+import Logo from './Logo.astro'
+
+interface Props {
+  lang: Lang
+  path: string
+}
+
+const { lang, path } = Astro.props
+const { t } = useT(lang)
+
+const NAV = [
+  { label: t('Возможности'), path: '/#features' },
+  { label: t('Скриншоты'), path: '/#shots' },
+  { label: t('Вопросы'), path: '/faq' },
+  { label: t('Статус'), path: '/status' },
+  { label: 'Sonar Deep', path: '/pay' },
+]
+---
+
+<header class="hdr" data-header>
+  <div class="hdr__bar wrap">
+    <a class="hdr__brand" href={href(lang, '/')} aria-label={t('Sonar — на главную')}>
+      <Logo size={26} />
+      <span>Sonar</span>
+    </a>
+
+    <nav class="hdr__nav" aria-label={t('Разделы')}>
+      <ul role="list">
+        {
+          NAV.map((item) => (
+            <li>
+              <a href={href(lang, item.path)} aria-current={item.path === path ? 'page' : undefined}>
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="hdr__end">
+      <LangSwitch lang={lang} path={path} />
+      <button class="hdr__burger" type="button" aria-expanded="false" aria-label={t('Меню')} data-burger>
+        <span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<style>
+  .hdr {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    height: var(--header-h);
+    transition:
+      background-color var(--t) var(--ease),
+      border-color var(--t) var(--ease),
+      backdrop-filter var(--t) var(--ease);
+    border-bottom: 1px solid transparent;
+  }
+
+  .hdr.is-scrolled,
+  .hdr.is-open {
+    background: rgba(5, 5, 6, 0.78);
+    backdrop-filter: saturate(140%) blur(16px);
+    -webkit-backdrop-filter: saturate(140%) blur(16px);
+    border-bottom-color: var(--border);
+  }
+
+  .hdr__bar {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .hdr__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: -0.01em;
+    border-radius: var(--r-sm);
+  }
+
+  .hdr__brand :global(svg) {
+    transition: transform var(--t-slow, 520ms) var(--ease);
+  }
+
+  .hdr__brand:hover :global(svg) {
+    transform: rotate(-8deg) scale(1.06);
+  }
+
+  .hdr__nav {
+    flex: 1;
+  }
+
+  .hdr__nav ul {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hdr__nav a {
+    position: relative;
+    display: block;
+    padding: 8px 14px;
+    border-radius: var(--r-pill);
+    color: var(--text-2);
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 500;
+    transition:
+      color var(--t) var(--ease),
+      background-color var(--t) var(--ease);
+  }
+
+  .hdr__nav a:hover {
+    color: var(--text);
+    background: var(--hover);
+  }
+
+  .hdr__nav a[aria-current='page'] {
+    color: var(--text);
+    background: var(--surface-2);
+  }
+
+  .hdr__end {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .hdr__burger {
+    display: none;
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: var(--r-pill);
+    background: transparent;
+    cursor: pointer;
+    transition: background-color var(--t) var(--ease);
+  }
+
+  .hdr__burger:hover {
+    background: var(--hover);
+  }
+
+  .hdr__burger span {
+    position: absolute;
+    left: 11px;
+    right: 11px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--text);
+    transition: transform var(--t) var(--ease);
+  }
+
+  .hdr__burger span:first-child {
+    transform: translateY(-4px);
+  }
+
+  .hdr__burger span:last-child {
+    transform: translateY(4px);
+  }
+
+  .hdr.is-open .hdr__burger span:first-child {
+    transform: rotate(45deg);
+  }
+
+  .hdr.is-open .hdr__burger span:last-child {
+    transform: rotate(-45deg);
+  }
+
+  @media (max-width: 880px) {
+    .hdr__bar {
+      justify-content: space-between;
+    }
+
+    .hdr__burger {
+      display: block;
+    }
+
+    .hdr__nav {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      padding: 8px var(--gutter) 20px;
+      background: rgba(5, 5, 6, 0.94);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-8px);
+      transition:
+        opacity var(--t) var(--ease),
+        transform var(--t) var(--ease),
+        visibility 0s linear var(--t);
+    }
+
+    .hdr.is-open .hdr__nav {
+      opacity: 1;
+      visibility: visible;
+      transform: none;
+      transition:
+        opacity var(--t) var(--ease),
+        transform var(--t) var(--ease);
+    }
+
+    .hdr__nav ul {
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .hdr__nav a {
+      padding: 14px 16px;
+      border-radius: var(--r-md);
+      font-size: 17px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hdr__nav,
+    .hdr__brand:hover :global(svg) {
+      transform: none !important;
+    }
+  }
+</style>
+
+<script>
+  const SCROLL_EDGE = 8
+
+  for (const header of document.querySelectorAll<HTMLElement>('[data-header]')) {
+    const burger = header.querySelector<HTMLButtonElement>('[data-burger]')
+    const setOpen = (open: boolean) => {
+      header.classList.toggle('is-open', open)
+      burger?.setAttribute('aria-expanded', String(open))
+    }
+    burger?.addEventListener('click', () => setOpen(!header.classList.contains('is-open')))
+    header.querySelectorAll('.hdr__nav a').forEach((a) => a.addEventListener('click', () => setOpen(false)))
+    header.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && header.classList.contains('is-open')) {
+        setOpen(false)
+        burger?.focus()
+      }
+    })
+    const onScroll = () => header.classList.toggle('is-scrolled', window.scrollY > SCROLL_EDGE)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+  }
+</script>

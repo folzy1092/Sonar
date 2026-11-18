@@ -1,0 +1,340 @@
+---
+// Скачать `#download` (SITE.md §3.5): вкладки Windows и iOS с бегущим индикатором. macOS, Linux, Android —
+// не показываем: их нет. `#ios` / `#windows` в адресе выбирают вкладку, на iPhone сразу открыта iOS.
+import { LINKS } from '../../config'
+import { href, useT, type Lang } from '../../i18n'
+import { IOS, latestEntry } from '../../lib/releases'
+import Icon from '../Icon.astro'
+
+interface Props {
+  lang: Lang
+  /** На /download заголовок страницы — h1. */
+  headingLevel?: 1 | 2
+}
+
+const { lang, headingLevel = 2 } = Astro.props
+const { t } = useT(lang)
+const H = headingLevel === 1 ? 'h1' : 'h2'
+const win = latestEntry('windows')
+const EXE_NAME = 'Sonar-setup.exe'
+
+const IOS_STEPS = [
+  t('Скачай Sonar.ipa по кнопке выше.'),
+  t('Подпиши его своим сертификатом: файл .p12 и профиль .mobileprovision — в любом приложении для подписи IPA.'),
+  t('Установи и разреши запуск: Настройки → Основные → VPN и управление устройством → «Доверять».'),
+  t('Дальше Sonar обновляется сам: сертификат укажи один раз в «Система → Обновления».'),
+]
+---
+
+<section id="download" class="section dl" aria-labelledby="dl-title">
+  <div class="wrap dl__wrap">
+    <div class="dl__head" data-reveal>
+      <p class="eyebrow">{t('Скачать')}</p>
+      <H id="dl-title" class="h2">{t('Sonar для Windows и iPhone')}</H>
+    </div>
+
+    <div class="dl__box card" data-reveal style="--i: 1" data-dl>
+      <div class="dl__tabs" role="tablist" aria-label={t('Платформа')}>
+        <span class="dl__indicator" aria-hidden="true"></span>
+        <button type="button" role="tab" id="tab-windows" aria-controls="panel-windows" aria-selected="true" data-tab="windows">
+          <Icon name="mc:windows-fill" />
+          Windows
+        </button>
+        <button type="button" role="tab" id="tab-ios" aria-controls="panel-ios" aria-selected="false" tabindex="-1" data-tab="ios">
+          <Icon name="mc:apple-fill" />
+          iPhone
+        </button>
+      </div>
+
+      <div class="dl__panels">
+        <div class="dl__panel is-active" role="tabpanel" id="panel-windows" aria-labelledby="tab-windows" data-panel="windows">
+          <div class="dl__main">
+            <div>
+              <p class="dl__name">{t('Установщик для Windows')}</p>
+              <p class="muted">
+                {t('Windows 10 и 11, 64 бит')} · <span data-win-version data-template={t('версия {v}', { v: '{v}' })}>{win ? t('версия {v}', { v: win.version }) : ''}</span>
+                <span data-win-size data-unit={t('МБ')}></span>
+              </p>
+            </div>
+            <a class="btn btn--primary" href={LINKS.windowsExe} download>
+              <Icon name="mc:download-2-line" />
+              {t('Скачать EXE')}
+            </a>
+          </div>
+          <p class="dl__note">
+            <Icon name="mc:information-line" size={18} />
+            <span>
+              {t('Windows может предупредить о неизвестном издателе — у Sonar пока нет платной подписи.')}
+              <a class="link" href={href(lang, '/faq#smartscreen')}>{t('Почему так')}</a>
+            </span>
+          </p>
+          {
+            win && (
+              <details class="dl__news">
+                <summary>
+                  {t('Что нового')} · {win.title}
+                  <Icon name="mc:down-line" size={18} class="dl__chev" />
+                </summary>
+                <ul lang="ru">
+                  {win.changes.map((c) => (
+                    <li>{c}</li>
+                  ))}
+                </ul>
+              </details>
+            )
+          }
+        </div>
+
+        <div class="dl__panel" role="tabpanel" id="panel-ios" aria-labelledby="tab-ios" data-panel="ios" hidden>
+          <div class="dl__main">
+            <div>
+              <p class="dl__name">{t('IPA для iPhone')}</p>
+              <p class="muted">{t('iOS {v} и новее', { v: IOS.minOs })} · {t('версия {v}, сборка {b}', { v: IOS.version, b: IOS.build })}</p>
+            </div>
+            <a class="btn btn--primary" href={LINKS.iosIpa} download>
+              <Icon name="mc:download-2-line" />
+              {t('Скачать IPA')}
+            </a>
+          </div>
+          <ol class="dl__steps">
+            {IOS_STEPS.map((s) => (
+              <li>{s}</li>
+            ))}
+          </ol>
+          <p class="dl__note">
+            <Icon name="mc:question-line" size={18} />
+            <span>
+              {t('Подробно, с ответами на частые проблемы, —')} <a class="link" href={href(lang, '/faq#ios')}>{t('как установить на iPhone')}</a>
+            </span>
+          </p>
+          <details class="dl__news">
+            <summary>
+              {t('Что нового')} · {t('сборка {b}', { b: IOS.build })}
+              <Icon name="mc:down-line" size={18} class="dl__chev" />
+            </summary>
+            <p lang="ru">{IOS.notes}</p>
+          </details>
+        </div>
+      </div>
+
+      <div class="dl__links">
+        <a class="link" href={LINKS.releases} rel="noopener">
+          {t('Все версии')}
+        </a>
+        <a class="link" href={LINKS.channel} rel="noopener">
+          {t('Новости в Telegram')}
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { LINKS } from '../../config'
+  import { megabytes, parseLatestRelease } from '../../lib/releases'
+
+  type Tab = 'windows' | 'ios'
+  const IOS_RE = /iPhone|iPad|iPod/i
+  const EXE_NAME = 'Sonar-setup.exe'
+
+  function select(box: HTMLElement, tab: Tab, focus = false): void {
+    box.dataset.tab = tab
+    for (const btn of box.querySelectorAll<HTMLButtonElement>('[data-tab]')) {
+      const on = btn.dataset.tab === tab
+      btn.setAttribute('aria-selected', String(on))
+      btn.tabIndex = on ? 0 : -1
+      if (on && focus) btn.focus()
+    }
+    for (const panel of box.querySelectorAll<HTMLElement>('[data-panel]')) {
+      const on = panel.dataset.panel === tab
+      panel.hidden = !on
+      // класс — на следующий кадр, чтобы появление было анимировано
+      requestAnimationFrame(() => panel.classList.toggle('is-active', on))
+    }
+  }
+
+  function tabFromHash(): Tab | null {
+    if (location.hash === '#ios') return 'ios'
+    if (location.hash === '#windows') return 'windows'
+    return null
+  }
+
+  const ua = navigator.userAgent
+  const onIos = IOS_RE.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1)
+
+  for (const box of document.querySelectorAll<HTMLElement>('[data-dl]')) {
+    select(box, tabFromHash() ?? (onIos ? 'ios' : 'windows'))
+    const tabs = [...box.querySelectorAll<HTMLButtonElement>('[data-tab]')]
+    tabs.forEach((btn) => {
+      btn.addEventListener('click', () => select(box, btn.dataset.tab as Tab))
+      btn.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+        e.preventDefault()
+        const next = tabs[(tabs.indexOf(btn) + 1) % tabs.length]
+        select(box, next.dataset.tab as Tab, true)
+      })
+    })
+    window.addEventListener('hashchange', () => {
+      const tab = tabFromHash()
+      if (tab) select(box, tab)
+    })
+  }
+
+  // Версия Windows выходит на каждый пуш — уточняем у GitHub; не вышло — остаётся версия из сборки.
+  const versionEls = document.querySelectorAll<HTMLElement>('[data-win-version]')
+  if (versionEls.length > 0) {
+    fetch(LINKS.latestReleaseApi, { headers: { Accept: 'application/vnd.github+json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        const rel = parseLatestRelease(json, EXE_NAME)
+        if (!rel) return
+        versionEls.forEach((el) => {
+          el.textContent = (el.dataset.template ?? '{v}').replace('{v}', rel.version)
+        })
+        if (rel.sizeBytes) {
+          document.querySelectorAll<HTMLElement>('[data-win-size]').forEach((el) => {
+            el.textContent = ` · ${megabytes(rel.sizeBytes!)} ${el.dataset.unit ?? ''}`
+          })
+        }
+      })
+      .catch(() => {
+        /* нет сети или лимит GitHub — показываем версию из сборки */
+      })
+  }
+</script>
+
+<style>
+  .dl__wrap { display: grid; gap: clamp(24px, 4vw, 40px); justify-items: center; }
+  .dl__head { display: grid; gap: 10px; text-align: center; }
+  .dl__box {
+    width: 100%;
+    max-width: 760px;
+    padding: clamp(16px, 3vw, 28px);
+    display: grid;
+    gap: 22px;
+  }
+  .dl__tabs {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 4px;
+    border-radius: var(--r-pill);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+  }
+  .dl__tabs button {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    border: 0;
+    border-radius: var(--r-pill);
+    background: none;
+    font-weight: 600;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: color var(--t) var(--ease);
+  }
+  .dl__tabs button[aria-selected='true'] { color: var(--accent-ink); }
+  .dl__indicator {
+    position: absolute;
+    inset: 4px auto 4px 4px;
+    width: calc(50% - 4px);
+    border-radius: var(--r-pill);
+    background: var(--accent);
+    transition: transform 380ms var(--ease);
+  }
+  [data-tab='ios'] .dl__indicator { transform: translateX(100%); }
+
+  .dl__panel {
+    display: grid;
+    gap: 18px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 320ms var(--ease), transform 320ms var(--ease);
+  }
+  .dl__panel.is-active { opacity: 1; transform: none; }
+  .dl__panel[hidden] { display: none; }
+  .dl__main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .dl__name { font-weight: 700; font-size: 19px; }
+  .dl__note {
+    display: flex;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: var(--r-md);
+    background: var(--surface-1);
+    color: var(--text-2);
+    font-size: 14px;
+  }
+  .dl__note :global(svg) { flex: none; margin-top: 2px; }
+  .dl__steps {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+  }
+  .dl__steps li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 12px;
+    color: var(--text-2);
+    font-size: 15px;
+  }
+  .dl__steps li::before {
+    content: counter(step);
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .dl__news {
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+    color: var(--text-2);
+    font-size: 14px;
+  }
+  .dl__news summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    list-style: none;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .dl__news summary::-webkit-details-marker { display: none; }
+  .dl__news :global(.dl__chev) { margin-left: auto; transition: transform var(--t) var(--ease); }
+  .dl__news[open] :global(.dl__chev) { transform: rotate(180deg); }
+  .dl__news ul, .dl__news p { margin: 12px 0 0; padding-left: 18px; display: grid; gap: 6px; }
+  .dl__news p { padding-left: 0; }
+  .dl__news[open] > :not(summary) { animation: fade-in 320ms var(--ease); }
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(-4px); }
+  }
+  .dl__links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; font-size: 14px; }
+
+  @media (max-width: 520px) {
+    .dl__main .btn { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dl__panel { transform: none; }
+    .dl__indicator { transition: transform 1ms; }
+  }
+</style>

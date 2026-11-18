@@ -109,7 +109,7 @@ Discord RPC: ID приложения Discord пользователь **не в�
 | `server/` | Python 3.13, FastAPI + aiogram-бот входа, SQLite. Хостинг — Velt, контейнер Python |
 | `ios/` | SwiftUI-приложение, проект генерирует XcodeGen (`ios/project.yml`) |
 | `windows/` | **первая платформа**: Tauri 2 (Rust + Svelte), автономно до появления сервера — SPEC §9 |
-| `site/` | публичный сайт на GitHub Pages (`sonar.folzy.ru`): скачать, оплата, профиль по ссылке — спека `docs/SITE.md` |
+| `site/` | публичный сайт `sonar.folzy.ru` (Astro, ru/en/uk) на GitHub Pages через `site.yml`: главная, `/pay`, FAQ, статус, `/@username`, юр-страницы — спека `docs/SITE.md` |
 | `brand/` | иконки и лого (тёмная и светлая), см. `brand/README.md` |
 | `updates/` | `update.json` + `changelog.json` — их читает автообновление клиентов |
 | `.github/workflows/` | сборка IPA (macOS-раннер) → GitHub Release, тесты сервера |
@@ -150,6 +150,11 @@ Discord RPC: ID приложения Discord пользователь **не в�
   **Горячие клавиши теперь делаем** (решение владельца 2026-11-17): на ПК — по всей системе,
   `hotkeys.rs` + Система → Горячие клавиши, по умолчанию выключены.
 - Канал новостей и обновлений — **`@SonarUpdates`** (`t.me/SonarUpdates`); кнопка «Телеграм» в «О приложении» ведёт туда. Сайт — **`sonar.folzy.ru`** (решение владельца 2026-11-15), кнопка «Сайт» берёт адрес из конфига.
+  Сайт сделан 2026-11-18 (`site/`, Astro + свой CSS, без трекеров и cookie): тексты — `src/content/` (FAQ, документы,
+  лицензии), строки — `t('русский текст')` с переводами в `src/i18n/en.ts` / `uk.ts` (тест `coverage.test.ts`
+  ловит непереведённое), цены — `data/plans.json` (зеркало `lib/subscription.ts`), скриншоты — `public/shots/` +
+  `data/shots.json` (только без личных данных), `/@username` — роутер в `404.html`, статус и профиль до сервера —
+  честные заглушки. Юр-тексты — черновики «не проверено юристом». Деплой — `.github/workflows/site.yml`.
 - Бот «Sonar» — **`@SonarMusicApp`**, спека — **`docs/BOT.md`** (2026-11-15): в меню только
   `/start` и `/status`, остальное кнопками (Профиль, Статистика, Сервисы, Ключ API, Баг / Идея).
   Экраны — баннер + текст + цитаты, навигация правит одно сообщение. Вход в боте — логин → пароль
@@ -208,5 +213,7 @@ Discord RPC: ID приложения Discord пользователь **не в�
 
 - Сервер: `cd server && python -m pytest -q`.
 - Windows: `cd windows && npm run check && npm test`, `cd windows/src-tauri && cargo test`.
+- Сайт: `cd site && npm test && npm run build` (тесты сверяют цены `data/plans.json` с
+  `windows/src/lib/subscription.ts` и что каждая строка переведена на en и uk).
 - iOS: собирается только на CI (Mac нет) — пуш в `main` запускает `ios.yml`; смотреть лог сборки.
 - Обновил API или схему — обнови `docs/API.md` / `docs/DB.md` в том же коммите.

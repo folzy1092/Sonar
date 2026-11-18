@@ -1,0 +1,23 @@
+---
+// 404.html (и /en/404/, /uk/404/). На корневую 404 GitHub Pages попадают и `/en/…`, `/uk/…` — встроенный
+// скрипт переводит их на копию нужного языка, а `notfound.ts` возвращает исходный адрес в строку браузера.
+import NotFound from '../../components/notfound/NotFound.astro'
+import { langParam, langPaths, useT } from '../../i18n'
+import Base from '../../layouts/Base.astro'
+
+export const getStaticPaths = langPaths
+
+const lang = langParam(Astro.params.lang)
+const { t } = useT(lang)
+---
+
+<Base lang={lang} path="/" title={t('Страница не найдена')} description={t('Такой страницы на сайте Sonar нет.')} noindex>
+  <script is:inline slot="head" define:vars={{ pageLang: lang }}>
+    var m = location.pathname.match(/^\/(en|uk)(?=\/|$)/)
+    var want = m ? m[1] : 'ru'
+    if (want !== pageLang && !/^\/(en|uk)\/404\/?$/.test(location.pathname)) {
+      location.replace('/' + want + '/404/?from=' + encodeURIComponent(location.pathname + location.search + location.hash))
+    }
+  </script>
+  <NotFound lang={lang} />
+</Base>
