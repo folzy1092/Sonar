@@ -30,6 +30,7 @@
   import Update from './settings/Update.svelte'
   import About from './settings/About.svelte'
   import Mini from './settings/Mini.svelte'
+  import Overlay from './settings/Overlay.svelte'
   import { NAV, navSub, settingsPanel, type SettingsTab } from './settings-section.svelte'
   import { profileInitial } from '../lib/public-profile'
   import { cleanUsername } from '../lib/avatar'
@@ -196,6 +197,8 @@
               <Look />
             {:else if sub === 'mini'}
               <Mini />
+            {:else if sub === 'overlay'}
+              <Overlay />
             {:else if sub === 'audio'}
               <Audio />
             {:else if sub === 'view'}

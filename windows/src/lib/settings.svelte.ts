@@ -9,6 +9,11 @@ import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook
 
 export type MiniStyle = 'off' | 'full' | 'rounded' | 'hybrid' | 'deck'
 
+/** Оверлей (SETTINGS_NEXT «Оверлей», 2026-11-18): Отключен · Полноэкранный · Остров · Карточка. */
+export type OverlayMode = 'off' | 'fullscreen' | 'island' | 'card'
+/** Клетка сетки 3×3 на экране: строка (t — сверху, m — посередине, b — снизу) и столбец (l, c, r). */
+export type OverlayAnchor = `${'t' | 'm' | 'b'}${'l' | 'c' | 'r'}`
+
 /** Чем показан прогресс в мини-плеере — можно несколько сразу (SETTINGS_NEXT «Мини плеер», 2026-11-18). */
 export type MiniProgress = 'line' | 'background' | 'cover'
 
@@ -160,6 +165,19 @@ export const DEFAULTS = {
   'mini.shape_round': 100 as number,
   /** Скругление обложки в мини-плеере, %: 100 — круг. */
   'mini.cover_round': 100 as number,
+  /** Оверлей поверх других программ и игр (mini.rs): режим; `off` — горячая клавиша и «само» молчат. */
+  'overlay.mode': 'card' as OverlayMode,
+  /** Появляться само, когда окно Sonar свёрнуто или спрятано в трей. */
+  'overlay.auto': false,
+  'overlay.shape': 'rounded' as 'square' | 'rounded',
+  /** Клетка сетки 3×3 на экране: строка t/m/b + столбец l/c/r. */
+  'overlay.position': 'tc' as OverlayAnchor,
+  /** Непрозрачность, %. */
+  'overlay.opacity': 90 as number,
+  /** Масштаб, %: умножает ширину и высоту. */
+  'overlay.scale': 100 as number,
+  'overlay.width': 340 as number,
+  'overlay.height': 58 as number,
   'player.title_align': 'center' as 'left' | 'center' | 'right',
   'player.artist_avatars': true,
   'player.visualizer': 'bar' as 'off' | 'bar' | 'cover' | 'slider',
