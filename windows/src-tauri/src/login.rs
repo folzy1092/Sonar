@@ -167,7 +167,62 @@ pub fn vk_outcome(url: &Url) -> Option<Option<String>> {
   failed.then_some(None)
 }
 
-fn window<'a>(app: &'a AppHandle, label: &str, title: &str, url: &str) -> Result<WebviewWindowBuilder<'a, tauri::Wry, AppHandle>> {
+/// Служебный адрес, на который уходит своя полоса окна входа: `…/close` — закрыть, `…/drag` — тащить окно.
+const CHROME_HOST: &str = "sonar-login.invalid";
+
+/// Своя «рамка» окна входа (решение владельца 2026-11-18: без системного заголовка «Вход в … — Sonar» и без
+/// полосы прокрутки): тонкая полоса сверху — за неё окно тащится, справа крестик; Esc — закрыть.
+/// Страница сервиса чужая, IPC Tauri в ней нет — полоса сообщает о себе переходом на служебный адрес,
+/// а `on_navigation` его перехватывает и отменяет (страница остаётся как была).
+const CHROME_JS: &str = r#"(() => {
+  if (window.top !== window) return;
+  const go = (what) => { location.href = 'https://sonar-login.invalid/' + what; };
+  const css = 'html,body{scrollbar-width:none!important}::-webkit-scrollbar{display:none!important}' +
+    '#sonar-bar{position:fixed;z-index:2147483647;top:0;left:0;right:0;height:30px;cursor:default;user-select:none}' +
+    '#sonar-x{position:absolute;top:6px;right:8px;width:22px;height:22px;border:0;border-radius:50%;' +
+    'background:rgba(127,127,127,.18);color:#bbb;font:16px/22px system-ui;cursor:pointer;padding:0;transition:background .15s,color .15s}' +
+    '#sonar-x:hover{background:rgba(127,127,127,.35);color:#fff}';
+  const mount = () => {
+    if (document.getElementById('sonar-bar')) return;
+    const st = document.createElement('style');
+    st.textContent = css;
+    document.documentElement.appendChild(st);
+    const bar = document.createElement('div');
+    bar.id = 'sonar-bar';
+    const x = document.createElement('button');
+    x.id = 'sonar-x';
+    x.type = 'button';
+    x.textContent = '×';
+    x.title = 'Close';
+    x.addEventListener('click', (e) => { e.stopPropagation(); go('close'); });
+    bar.addEventListener('mousedown', (e) => { if (e.button === 0 && e.target === bar) go('drag'); });
+    bar.appendChild(x);
+    document.documentElement.appendChild(bar);
+  };
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') go('close'); }, true);
+  if (document.readyState === 'loading') addEventListener('DOMContentLoaded', mount); else mount();
+  new MutationObserver(mount).observe(document.documentElement, { childList: true });
+})();"#;
+
+/// Что сделать со служебным адресом своей полосы: `Some(true)` — закрыть, `Some(false)` — тащить.
+fn chrome_action(url: &Url) -> Option<bool> {
+  if url.host_str() != Some(CHROME_HOST) {
+    return None;
+  }
+  Some(url.path() != "/drag")
+}
+
+/// Решение по переходу в окне входа: `Some(итог)` — вход закончен (значение или отмена), `None` — идём дальше.
+type NavOutcome = Box<dyn Fn(&Url) -> Option<Option<String>> + Send + 'static>;
+
+fn window<'a>(
+  app: &'a AppHandle,
+  label: &str,
+  title: &str,
+  url: &str,
+  tx: mpsc::UnboundedSender<Option<String>>,
+  outcome: Option<NavOutcome>,
+) -> Result<WebviewWindowBuilder<'a, tauri::Wry, AppHandle>> {
   if let Some(old) = app.get_webview_window(label) {
     let _ = old.close();
   }
@@ -175,6 +230,8 @@ fn window<'a>(app: &'a AppHandle, label: &str, title: &str, url: &str) -> Result
   // Своя папка данных WebView2: у главного окна свои флаги браузера, а два окна с разными флагами
   // на одной папке WebView2 не создаёт (HRESULT 0x8007139F). Вход сохраняется в этой папке.
   let dir = app.path().app_local_data_dir()?.join("login-webview");
+  let drag_app = app.clone();
+  let drag_label = label.to_owned();
   let b = WebviewWindowBuilder::new(app, label, WebviewUrl::External(url))
     .data_directory(dir)
     .title(title)
@@ -182,6 +239,31 @@ fn window<'a>(app: &'a AppHandle, label: &str, title: &str, url: &str) -> Result
     .min_inner_size(400.0, 560.0)
     .center()
     .focused(true)
+    .decorations(false)
+    .shadow(true)
+    .initialization_script(CHROME_JS)
+    .on_navigation(move |u| {
+      match chrome_action(u) {
+        Some(true) => {
+          let _ = tx.send(None);
+          return false;
+        }
+        Some(false) => {
+          if let Some(w) = drag_app.get_webview_window(&drag_label) {
+            let _ = w.start_dragging();
+          }
+          return false;
+        }
+        None => {}
+      }
+      if let Some(f) = &outcome {
+        if let Some(result) = f(u) {
+          let _ = tx.send(result);
+          return false;
+        }
+      }
+      true
+    })
     // Вход через Apple / Google / Facebook открывается всплывающим окном (`window.open`) и
     // возвращает результат через `window.opener`. Без обработчика WebView2 такие окна режет —
     // SoundCloud пишет «Please enable popup windows». Разрешаем: окно открывается в том же
@@ -210,16 +292,9 @@ async fn wait(rx: &mut mpsc::UnboundedReceiver<Option<String>>) -> Result<String
 pub async fn yandex(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
   let (tx, mut rx) = mpsc::unbounded_channel::<Option<String>>();
   let url = format!("https://oauth.yandex.ru/authorize?response_type=token&client_id={YM_CLIENT_ID}");
-  let nav_tx = tx.clone();
-  let w = window(&app, "login-yandex", "Вход в Яндекс Музыку — Sonar", &url)?
-    .on_navigation(move |u| {
-      if let Some(t) = token_from_url(u) {
-        let _ = nav_tx.send(Some(t));
-        return false; // дальше на music.yandex.ru не идём
-      }
-      true
-    })
-    .build()?;
+  // токен в адресе — вход закончен, дальше на music.yandex.ru не идём
+  let outcome: NavOutcome = Box::new(|u| token_from_url(u).map(Some));
+  let w = window(&app, "login-yandex", "Вход в Яндекс Музыку", &url, tx.clone(), Some(outcome))?.build()?;
   on_close(&w, tx.clone());
   // на случай, если адрес с токеном пришёл без события навигации — проверяем текущий адрес
   let poll_tx = tx.clone();
@@ -248,7 +323,7 @@ pub async fn yandex(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
 /// Окно входа сервиса: ждём, пока на `cookie_url` появится cookie `name` (её значение и вернём).
 async fn wait_cookie(app: &AppHandle, label: &str, title: &str, url: &str, cookie_url: &str, name: &'static str) -> Result<String> {
   let (tx, mut rx) = mpsc::unbounded_channel::<Option<String>>();
-  let w = window(app, label, title, url)?.build()?;
+  let w = window(app, label, title, url, tx.clone(), None)?.build()?;
   on_close(&w, tx.clone());
   let poll_w = w.clone();
   let cookie_url = Url::parse(cookie_url)?;
@@ -273,7 +348,7 @@ async fn wait_cookie(app: &AppHandle, label: &str, title: &str, url: &str, cooki
 }
 
 pub async fn soundcloud(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
-  let token = wait_cookie(&app, "login-soundcloud", "Вход в SoundCloud — Sonar", "https://soundcloud.com/signin", "https://soundcloud.com/", "oauth_token").await?;
+  let token = wait_cookie(&app, "login-soundcloud", "Вход в SoundCloud", "https://soundcloud.com/signin", "https://soundcloud.com/", "oauth_token").await?;
   let client_id = soundcloud::public_client_id(&core.http)
     .await
     .map_err(|e| anyhow!("Вошёл, но не нашёл client_id SoundCloud: {e}"))?;
@@ -296,7 +371,7 @@ const YT_COOKIE_READ_FAILED: &str = "Не удалось прочитать cook
 
 pub async fn youtube(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
   let (tx, mut rx) = mpsc::unbounded_channel::<Option<String>>();
-  let w = window(&app, "login-youtube", "Вход в YouTube Music — Sonar", YT_LOGIN_URL)?.build()?;
+  let w = window(&app, "login-youtube", "Вход в YouTube Music", YT_LOGIN_URL, tx.clone(), None)?.build()?;
   on_close(&w, tx.clone());
   let poll_w = w.clone();
   let read_failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -343,16 +418,8 @@ pub async fn youtube(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
 
 pub async fn vk(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
   let (tx, mut rx) = mpsc::unbounded_channel::<Option<String>>();
-  let nav_tx = tx.clone();
-  let w = window(&app, "login-vk", "Вход в VK — Sonar", &vk_auth_url())?
-    .on_navigation(move |u| match vk_outcome(u) {
-      Some(outcome) => {
-        let _ = nav_tx.send(outcome);
-        false
-      }
-      None => true,
-    })
-    .build()?;
+  let outcome: NavOutcome = Box::new(vk_outcome);
+  let w = window(&app, "login-vk", "Вход в VK", &vk_auth_url(), tx.clone(), Some(outcome))?.build()?;
   on_close(&w, tx.clone());
   // адрес с токеном мог прийти без события навигации — проверяем текущий адрес
   let poll_tx = tx.clone();
@@ -375,7 +442,7 @@ pub async fn vk(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
 
 /// Spotify: вход на accounts.spotify.com, ключ — cookie `sp_dc` веб-плеера open.spotify.com.
 pub async fn spotify(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
-  let sp_dc = wait_cookie(&app, "login-spotify", "Вход в Spotify — Sonar", SPOTIFY_LOGIN, "https://open.spotify.com/", "sp_dc").await?;
+  let sp_dc = wait_cookie(&app, "login-spotify", "Вход в Spotify", SPOTIFY_LOGIN, "https://open.spotify.com/", "sp_dc").await?;
   core.connect_spotify(&sp_dc).await
 }
 
@@ -384,6 +451,14 @@ const SPOTIFY_LOGIN: &str = "https://accounts.spotify.com/login?continue=https%3
 
 #[cfg(test)]
 mod tests {
+  #[test]
+  fn chrome_bar_addresses() {
+    let u = |s: &str| super::Url::parse(s).unwrap();
+    assert_eq!(super::chrome_action(&u("https://sonar-login.invalid/close")), Some(true));
+    assert_eq!(super::chrome_action(&u("https://sonar-login.invalid/drag")), Some(false));
+    assert_eq!(super::chrome_action(&u("https://accounts.spotify.com/drag")), None);
+  }
+
   use super::*;
 
   #[test]
