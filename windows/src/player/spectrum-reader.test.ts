@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { MIN_READ_GAP_MS, createSpectrumReader, type AnalyserLike } from './spectrum-reader'
 
 function fakeAnalyser(bins = 8): AnalyserLike & { reads: number } {
-  const a = {
+  const a: AnalyserLike & { reads: number } = {
     reads: 0,
     frequencyBinCount: bins,
     fftSize: bins * 2,
@@ -46,6 +46,19 @@ describe('createSpectrumReader', () => {
     // Act
     read(1000)
     read(1000 + MIN_READ_GAP_MS - 1)
+
+    // Assert
+    expect(a.reads).toBe(1)
+  })
+
+  it('небольшой шаг назад (отметка кадра после performance.now) — тот же снимок', () => {
+    // Arrange
+    const a = fakeAnalyser()
+    const read = createSpectrumReader(() => a)
+
+    // Act
+    read(1005)
+    read(1000)
 
     // Assert
     expect(a.reads).toBe(1)

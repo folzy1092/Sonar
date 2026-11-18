@@ -1,12 +1,46 @@
 <script lang="ts">
-  // Поле точек героя Главной (lib/sonar-field.ts; порт iPhone SonarField). Canvas, 30 кадров/с; вне экрана,
-  // в свёрнутом окне и при «Меньше движения» — стоит (один кадр). Цвет — акцент темы (под обложку).
+  // Поле точек героя Главной (lib/sonar-field.ts; порт iPhone SonarField). Canvas, не больше 30 кадров/с;
+  // вне экрана, в свёрнутом окне и в фоне при экономии ресурсов (класс .idle) — не рисуем. Цвет — акцент
+  // темы (под обложку). Клик — волна-разлёт / вихрь / подскок по кругу, наведение — лёгкое притяжение,
+  // под музыку — спектр общего анализатора плеера (player/analyser.ts): низы — дыхание и размер капель,
+  // бит — встряска, верха — рябь. «Меньше движения» — 15 к/с, без сдвигов: клик — только смена
+  // прозрачности; экономия ресурсов в неактивном окне — 15 к/с и без встряски.
   import { onMount } from 'svelte'
   import raw from '../assets/logo-mark.svg?raw'
-  import { drift, fieldValue, makeGrid, type Grid } from '../lib/sonar-field'
+  import {
+    AUDIO_START,
+    SHAKE_LIFE,
+    SILENT,
+    addPoke,
+    approach,
+    bandLevels,
+    drift,
+    fadePulse,
+    fieldValue,
+    frameDue,
+    hoverPull,
+    isQuiet,
+    makeGrid,
+    prunePokes,
+    shakeOffset,
+    stackPokes,
+    stepAudio,
+    type AudioState,
+    type Grid,
+    type Poke,
+  } from '../lib/sonar-field'
   import { reducedMotion } from '../lib/motion'
+  import { settings } from '../lib/settings.svelte'
+  import { readSpectrum } from '../player/analyser'
 
   let { playing = false, step = 9 }: { playing?: boolean; step?: number } = $props()
+
+  /** Насколько быстро курсор «входит» в поле и уходит из него, с. */
+  const HOVER_TAU = 0.18
+  /** Самый длинный шаг времени между кадрами, с — после паузы физика не прыгает. */
+  const MAX_DT = 0.1
+  /** «Меньше движения»: насколько гаснет поле от клика. */
+  const CALM_FADE = 0.3
 
   const D = /\sd="([^"]+)"/.exec(raw)?.[1] ?? ''
   const [VX, VY, VW, VH] = (/viewBox="([^"]+)"/.exec(raw)?.[1] ?? '0 0 24 24').split(/\s+/).map(Number)
@@ -60,6 +94,7 @@
     if (!el) return
     const ctx = el.getContext('2d')
     if (!ctx) return
+    const root = document.documentElement
     let grid = makeGrid(0, 0, step)
     let logo: Float32Array | null = null
     let w = 0
@@ -68,7 +103,20 @@
     let colorAt = 0
     let raf = 0
     let last = 0
+    let lastT = Number.NaN
     let visible = true
+    // игра: клики, курсор, музыка (lib/sonar-field.ts — чистые функции, здесь только состояние кадров)
+    let pokes: Poke[] = []
+    let pokeCount = 0
+    let flashAt = -Infinity
+    let hovering = false
+    let hx = 0
+    let hy = 0
+    let hoverAmt = 0
+    let audio: AudioState = AUDIO_START
+
+    /** Экономия ресурсов в неактивном (но видимом) окне — режим «свёрнуто»: рисуем реже и без встряски. */
+    const saving = () => settings.get('system.power_saving') !== 'off' && !document.hasFocus()
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1
@@ -79,25 +127,68 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
       grid = makeGrid(w, h, step)
       logo = logoMask(grid, w, h)
-      draw(performance.now() / 1000)
+      draw(performance.now() / 1000, reducedMotion(), true)
     }
 
-    const draw = (t: number) => {
+    /** Кадр музыки: спектр общего анализатора (нет анализатора или пауза — тишина, уровни мягко гаснут). */
+    const listen = (t: number, dt: number) => {
+      // отметка кадра в мс — та же, что у волны под ползунком: в одном кадре снимок общий
+      const spectrum = readSpectrum(t * 1000)
+      audio = stepAudio(audio, spectrum ? bandLevels(spectrum.data, spectrum.binHz) : SILENT, t, dt)
+      return spectrum || !isQuiet(audio.levels) ? audio.levels : null
+    }
+
+    const draw = (t: number, calm: boolean, lite: boolean) => {
+      const dt = Number.isFinite(lastT) ? Math.min(MAX_DT, Math.max(0, t - lastT)) : 0
+      lastT = t
       if (t - colorAt > 1) {
         color = getComputedStyle(el).getPropertyValue('--accent').trim() || '#fff'
         colorAt = t
       }
+      const levels = listen(t, dt)
+      // «Меньше движения»: спектр — сплошь движение, его не показываем (как волна под ползунком)
+      const music = calm ? null : levels
+      const reach = Math.hypot(w, h)
+      pokes = prunePokes(pokes, t, reach)
+      hoverAmt = approach(hoverAmt, hovering && !calm ? 1 : 0, dt, HOVER_TAU)
+      const shakeAge = calm || lite ? Infinity : t - audio.beatAt
+      const moving = !calm
+
       ctx.clearRect(0, 0, w, h)
+      ctx.globalAlpha = calm ? 1 - CALM_FADE * fadePulse(t - flashAt) : 1
       ctx.fillStyle = color
       ctx.beginPath()
       const maxR = grid.step * 0.5
       for (let row = 0; row < grid.rows; row++)
         for (let col = 0; col < grid.cols; col++) {
           const d = drift(col, row, t)
-          const r = maxR * fieldValue(col, row, grid, logo, t, playing) * d.scale
+          let v = fieldValue(col, row, grid, logo, t, playing, music) * d.scale
+          let x = grid.ox + (col + 0.5) * grid.step
+          let y = grid.oy + (row + 0.5) * grid.step
+          if (moving) {
+            x += d.dx
+            y += d.dy
+            if (pokes.length) {
+              const o = stackPokes(pokes, x, y, t)
+              x += o.dx
+              y += o.dy
+              v = Math.min(1, v * o.scale)
+            }
+            if (hoverAmt > 0.001) {
+              const o = hoverPull(x, y, hx, hy, hoverAmt)
+              x += o.dx
+              y += o.dy
+              v = Math.min(1, v * o.scale)
+            }
+            if (shakeAge < SHAKE_LIFE) {
+              const o = shakeOffset(col, row, shakeAge)
+              x += o.dx
+              y += o.dy
+              v = Math.min(1, v * o.scale)
+            }
+          }
+          const r = maxR * v
           if (r < 0.45) continue
-          const x = grid.ox + (col + 0.5) * grid.step + d.dx
-          const y = grid.oy + (row + 0.5) * grid.step + d.dy
           ctx.moveTo(x + r, y)
           ctx.arc(x, y, r, 0, Math.PI * 2)
         }
@@ -106,21 +197,53 @@
 
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop)
-      if (!visible || document.hidden || reducedMotion()) return
-      if (now - last < 1000 / 30) return
+      // вне экрана, свёрнуто или в фоне при экономии ресурсов — ни одного кадра
+      if (!visible || document.hidden || root.classList.contains('idle')) {
+        lastT = Number.NaN
+        return
+      }
+      const calm = reducedMotion()
+      const lite = calm || saving()
+      if (!frameDue(now, last, lite)) return
       last = now
-      draw(now / 1000)
+      draw(now / 1000, calm, lite)
+    }
+
+    /** Точка события в координатах поля. */
+    const local = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect()
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+    }
+    const onMove = (e: PointerEvent) => {
+      const p = local(e)
+      hx = p.x
+      hy = p.y
+      hovering = true
+    }
+    const onLeave = () => (hovering = false)
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 0 || !e.isPrimary) return
+      const p = local(e)
+      const t = e.timeStamp / 1000
+      if (reducedMotion()) flashAt = t
+      else pokes = addPoke(pokes, p.x, p.y, t, pokeCount++, Math.hypot(w, h))
     }
 
     const ro = new ResizeObserver(resize)
     ro.observe(el)
     const io = new IntersectionObserver(([e]) => (visible = e.isIntersecting))
     io.observe(el)
+    el.addEventListener('pointermove', onMove)
+    el.addEventListener('pointerleave', onLeave)
+    el.addEventListener('pointerdown', onDown)
     raf = requestAnimationFrame(loop)
     return () => {
       cancelAnimationFrame(raf)
       ro.disconnect()
       io.disconnect()
+      el.removeEventListener('pointermove', onMove)
+      el.removeEventListener('pointerleave', onLeave)
+      el.removeEventListener('pointerdown', onDown)
     }
   })
 </script>
