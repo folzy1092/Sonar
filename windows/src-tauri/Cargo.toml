@@ -35,6 +35,8 @@ futures-util = "0.3"
 anyhow = "1"
 regex = "1"
 sha2 = "0.10"
+# SAPISIDHASH для входа в YouTube Music по cookie (providers/youtube/auth.rs)
+sha1 = "0.10"
 base64 = "0.22"
 tauri-plugin-single-instance = "2"
 discord-rich-presence = "1.1"
@@ -44,10 +46,9 @@ tauri-plugin-process = "2"
 # горячие клавиши по всей системе (hotkeys.rs, Система → Горячие клавиши)
 tauri-plugin-global-shortcut = "2"
 # Локальные файлы (local.rs, Система → Хранилище → Папки с музыкой): теги и обложки, слежение за папками,
-# ref `local:<sha1 пути>`
+# ref `local:<sha1 пути>` (sha1 — выше, общий с YouTube)
 lofty = "0.22"
 notify = "8"
-sha1 = "0.10"
 # окно «Сохранить как» для экспорта плейлистов (export.rs) и выбор папки с музыкой (local)
 tauri-plugin-dialog = "2"
 

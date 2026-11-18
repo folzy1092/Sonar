@@ -8,7 +8,8 @@ import Foundation
 // Одно слово с разным смыслом — ключ с контекстом `"навигация::Назад"`: по-русски видно «Назад»,
 // в словаре свой перевод («Back», а не «Previous» у плеера).
 // Словари: `Strings+Windows.swift` (сгенерирован из windows/src/i18n) и `Strings+iOS.swift` (только iOS,
-// главнее). Язык — `general.language`; не выбран — язык системы, если он ru / en / uk, иначе русский.
+// главнее), а также свои словари разделов (`Strings+Library.swift`, `Strings+YouTube.swift`).
+// Язык — `general.language`; не выбран — язык системы, если он ru / en / uk, иначе русский.
 // Смена — сразу: `t()` читает настройку из `SettingsStore` (@Observable), экраны перерисовываются.
 
 enum Lang: String, CaseIterable, Identifiable, Sendable {
@@ -50,9 +51,9 @@ enum I18n {
     /// Словарь языка: Windows + iOS (iOS главнее), затем медиатека и экспорт (`Strings+Library`, `Strings+Export`).
     static let dictionaries: [Lang: [String: String]] = [
         .en: windowsEN.merging(iosEN) { _, ios in ios }.merging(accountEN) { _, a in a }.merging(libraryEN) { _, l in l }
-            .merging(exportEN) { _, e in e },
+            .merging(exportEN) { _, e in e }.merging(youtubeEN) { _, y in y },
         .uk: windowsUK.merging(iosUK) { _, ios in ios }.merging(accountUK) { _, a in a }.merging(libraryUK) { _, l in l }
-            .merging(exportUK) { _, e in e },
+            .merging(exportUK) { _, e in e }.merging(youtubeUK) { _, y in y },
     ]
 
     /// Перевод строки (ключ — русский текст, можно с контекстом `контекст::Текст`).

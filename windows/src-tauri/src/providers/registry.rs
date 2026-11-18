@@ -133,8 +133,8 @@ pub const REGISTRY: &[ServiceInfo] = &[
     icon: Some("youtube-music.svg"),
     icon_mono: Some("youtube-music-mono.svg"),
     prefixes: Prefixes { track: "yt", album: Some("ytalb"), artist: Some("yta"), playlist: Some("ytpl") },
-    caps: Caps { key: false, ..ALL_CAPS },
-    implemented: false,
+    caps: ALL_CAPS,
+    implemented: true,
   },
   ServiceInfo {
     id: ServiceId::Vk,
@@ -206,15 +206,15 @@ pub fn is_kind(r: &str, id: ServiceId, kind: RefKind) -> bool {
   matches!(parse_ref(r), Some((s, k)) if s.id == id && k == kind)
 }
 
-/// Лайки аккаунта как плейлист: `scpl:likes` / `ympl:likes`. У остальных сервисов пока нет.
+/// Лайки аккаунта как плейлист: `scpl:likes` / `ympl:likes` / `ytpl:likes`. У остальных пока нет.
 pub fn likes_ref(id: ServiceId) -> Option<String> {
   match id {
-    ServiceId::Sc | ServiceId::Ym => info(id).prefixes.playlist.map(|p| format!("{p}:likes")),
+    ServiceId::Sc | ServiceId::Ym | ServiceId::Yt => info(id).prefixes.playlist.map(|p| format!("{p}:likes")),
     _ => None,
   }
 }
 
-/// Сервисы, которые уже работают в Sonar (SoundCloud, Яндекс Музыка, локальные файлы).
+/// Сервисы, которые уже работают в Sonar (SoundCloud, Яндекс Музыка, YouTube Music, локальные файлы).
 #[allow(dead_code)] // часть API реестра (как в services.ts); в Rust пока зовут только тесты
 pub fn implemented() -> impl Iterator<Item = &'static ServiceInfo> {
   REGISTRY.iter().filter(|s| s.implemented)
@@ -245,8 +245,8 @@ mod tests {
     (
       (ServiceId::Yt, "youtube", "YouTube Music", "#FF0033", Some("youtube-music.svg"), Some("youtube-music-mono.svg")),
       ("yt", Some("ytalb"), Some("yta"), Some("ytpl")),
-      [true, true, true, true, true, true, false],
-      false,
+      [true, true, true, true, true, true, true],
+      true,
     ),
     (
       (ServiceId::Vk, "vk", "VK Музыка", "#0077FF", Some("vk.svg"), Some("vk-mono.svg")),
@@ -380,14 +380,15 @@ mod tests {
   fn likes_ref_values() {
     assert_eq!(likes_ref(ServiceId::Sc).as_deref(), Some("scpl:likes"));
     assert_eq!(likes_ref(ServiceId::Ym).as_deref(), Some("ympl:likes"));
-    assert_eq!(likes_ref(ServiceId::Yt), None);
+    assert_eq!(likes_ref(ServiceId::Yt).as_deref(), Some("ytpl:likes"));
+    assert_eq!(likes_ref(ServiceId::Vk), None);
     assert_eq!(likes_ref(ServiceId::Local), None);
   }
 
   #[test]
-  fn implemented_is_sc_ym_and_local() {
+  fn implemented_is_sc_ym_yt_and_local() {
     let ids: Vec<ServiceId> = implemented().map(|s| s.id).collect();
-    assert_eq!(ids, [ServiceId::Sc, ServiceId::Ym, ServiceId::Local]);
+    assert_eq!(ids, [ServiceId::Sc, ServiceId::Ym, ServiceId::Yt, ServiceId::Local]);
   }
 
   #[test]

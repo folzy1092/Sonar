@@ -26,7 +26,7 @@ export interface ServicePrefixes {
 }
 
 export interface KeyField {
-  /** Имя поля для `connect_service_key`: 'client_id' | 'oauth_token' | 'token'. */
+  /** Имя поля для `connect_service_key`: 'client_id' | 'oauth_token' | 'token' | 'cookie'. */
   name: string
   /** Подпись (через t(); латиница вроде 'client_id' проходит t() как есть). */
   label: string
@@ -154,19 +154,35 @@ export const SERVICES: readonly ServiceInfo[] = Object.freeze([
     short: 'YT',
     color: '#FF0033',
     prefixes: prefixes('yt'),
-    caps: { ...ALL_CAPS, key: false },
-    implemented: false,
+    caps: ALL_CAPS,
+    implemented: true,
     gender: 'm',
     nameIn: 'YouTube Music',
-    openIn: null,
-    status: MALE_STATUS,
+    openIn: 'Открыть в YouTube Music',
+    // как у SoundCloud: поиск и треки работают гостем, вход нужен для лайков и плейлистов
+    status: {
+      connectedAs: 'Подключён как {name}',
+      connected: 'Подключён',
+      disconnected: 'Без входа: поиск и треки работают сами',
+    },
     loginLabel: 'Войти через YouTube Music',
-    loginBusyLabel: LOGIN_BUSY,
+    loginBusyLabel: 'Войди в открывшемся окне…',
     reloginLabel: RELOGIN,
     reloginWhen: 'connected',
-    keyFields: [],
-    keyHint: null,
-    keyReplaceLabel: null,
+    keyFields: [{ name: 'cookie', label: 'Cookie', secret: true, optional: false, placeholder: 'SAPISID=…; SID=…' }],
+    keyHint: [
+      { text: 'Cookie нужен для лайков и плейлистов аккаунта.' },
+      { raw: ' ' },
+      { text: 'music.youtube.com → F12 → Сеть → любой запрос к' },
+      { raw: ' ' },
+      { code: 'youtubei' },
+      { raw: ' — ' },
+      { text: 'значение заголовка' },
+      { raw: ' ' },
+      { code: 'Cookie' },
+      { raw: '.' },
+    ],
+    keyReplaceLabel: 'Заменить cookie',
   },
   {
     id: 'vk',
@@ -284,7 +300,7 @@ export function connected(list: readonly ServiceState[]): ServiceInfo[] {
   return ACCOUNT_SERVICES.filter((s) => list.some((row) => row.connected && (row.id === s.id || row.key === s.key)))
 }
 
-/** Статус сервиса из `services_status` по ключу (там только soundcloud/yandex). */
+/** Статус сервиса из `services_status` по ключу (soundcloud/yandex/youtube). */
 export function statusOf(status: ServicesStatus | null | undefined, service: ServiceInfo): ServiceStatus | null {
   const byKey: Partial<Record<ServiceKey, ServiceStatus>> | null | undefined = status
   return byKey?.[service.key] ?? null
@@ -295,5 +311,8 @@ export function playlistWebUrl(ref: string): string | null {
   const m = /^ympl:([^:]+):(.+)$/.exec(ref)
   if (m) return `https://music.yandex.ru/users/${m[1]}/playlists/${m[2]}`
   if (ref === 'scpl:likes') return 'https://soundcloud.com/you/likes'
+  if (ref === 'ytpl:likes') return 'https://music.youtube.com/playlist?list=LM'
+  const yt = /^ytpl:([\w-]+)$/.exec(ref)
+  if (yt) return `https://music.youtube.com/playlist?list=${yt[1]}`
   return null
 }

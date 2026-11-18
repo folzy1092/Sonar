@@ -65,7 +65,7 @@ iOS (2026-11-17, Система → **Общее**, `Features/Settings/System/Ge
 
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
-| `widget.quick_playlist` | `liked` (Любимые) / `downloaded` (Скачанные) / ref плейлиста сервиса из Медиатеки (`scpl:<id>`, `scpl:likes`, `ympl:<uid>:<kind>`, `ympl:likes`); пусто или непонятное — Любимые (`Core/Shortcuts/PlayTarget.swift` `QuickPlaylist`) | `liked` | нет |
+| `widget.quick_playlist` | `liked` (Любимые) / `downloaded` (Скачанные) / ref плейлиста сервиса из Медиатеки (`scpl:<id>`, `scpl:likes`, `ympl:<uid>:<kind>`, `ympl:likes`, `ytpl:<id>`, `ytpl:likes`); пусто или непонятное — Любимые (`Core/Shortcuts/PlayTarget.swift` `QuickPlaylist`) | `liked` | нет |
 | `widget.quick_playlist_title` | название выбранного плейлиста сервиса — показать строку без сети | `""` | нет |
 
 iOS: Система → **Общее** → «Виджет и Siri» → «Быстрый плейлист» (лист `QuickPlaylistSheet`: Любимые, Скачанные,
@@ -100,6 +100,7 @@ iOS (2026-11-17, `StatsView`): по журналу прослушиваний н
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
 | `audio.quality` | `low`(192) / `medium`(256) / `high`(320) / `max`(от 1411, FLAC Яндекса; нет FLAC — 320). SoundCloud отдаёт максимум сам (AAC 160, с Go+ — 256) | `max` | нет |
+| `audio.yt_quality` | `normal` / `high` — YouTube Music. ПК: Обычное — AAC 128, Высокое — Opus 160 (Opus 256 Premium не берём: поток идёт гостем, плееры с cookie требуют расшифровки подписи ссылок). iPhone — тот же ключ, только AAC (AVPlayer не играет Opus): Обычное — AAC 128, Высокое — AAC 256, если есть, иначе 128. Плеер → Аудио → «YouTube Music» | `high` | да |
 | `audio.sc_via_yandex` | bool — трек SoundCloud играть с Яндекса, если там есть тот же (исполнитель, название ±0.9, длительность ±3 с, одинаковые «версии»); нет — SoundCloud. По умолчанию выключено: на Яндексе треки бывают заблюрены (решение владельца 2026-11-17) | `false` | нет |
 | `audio.gapless` | bool | `true` | да |
 | `audio.normalize` | bool. iPhone: громкие треки Яндекса приглушаются громкостью плеера по их `r128.i` (цель −14 LUFS, до −12 дБ; работает и на HLS), остальное — выравниватель `AudioTap` на файлах | `false` (PC), `true` (iOS) | да |
