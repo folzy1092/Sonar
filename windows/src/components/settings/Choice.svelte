@@ -3,7 +3,10 @@
   // переезжает (lib/indicator). `wide` — сегменты под названием; `icons` — только значки (позиция,
   // выравнивание). Вариант с `soon` неактивен («скоро» во всплывающей подсказке). `preview` — живой пример
   // между названием и сегментами (с `wide`: скругление, кнопки окна).
+  // Узкое окно: сегменты не влезают рядом с названием — уходят под него на всю ширину и переносятся
+  // рядами (общая раскладка settings-row.css); капсула индикатора ездит и между рядами.
   import type { Snippet } from 'svelte'
+  import './settings-row.css'
   import { indicator } from '../../lib/indicator'
   import Icon from '../Icon.svelte'
   import type { IconName } from '../icons'
@@ -28,8 +31,8 @@
   let { title, hint, value, options, onchange, wide = false, icons = false, fill = false, soon = false, preview }: Props = $props()
 </script>
 
-<div class="row" class:wide class:fill>
-  <span class="text">
+<div class="set-row row" class:wide class:fill>
+  <span class="set-text">
     <b>{title}{#if soon}<Soon />{/if}</b>
     {#if hint}<small>{hint}</small>{/if}
   </span>
@@ -52,43 +55,29 @@
 </div>
 
 <style>
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 9px 0;
-  }
+  /* `wide` — всегда под названием: колонка, сегменты своей ширины (`fill` — во всю) */
   .row.wide {
     flex-direction: column;
+    flex-wrap: nowrap;
     align-items: stretch;
-    gap: 10px;
   }
-  .text {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 0;
-  }
-  b {
-    font-size: calc(14px * var(--fs, 1));
-    font-weight: 600;
-  }
-  small {
-    font-size: calc(12px * var(--fs, 1));
-    line-height: 1.45;
-    color: var(--text-3);
+  .wide .set-text {
+    flex: none;
   }
   .seg {
+    position: relative;
     display: flex;
-    flex-shrink: 0;
+    flex-wrap: wrap;
+    flex: 1 0 auto;
+    max-width: 100%;
+    min-width: 0;
     padding: 3px;
     border-radius: 10px;
     border: 1px solid var(--border);
   }
   .wide .seg {
+    flex: none;
     align-self: flex-start;
-    max-width: 100%;
   }
   .wide.fill .seg {
     align-self: stretch;
@@ -105,7 +94,8 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-    flex: 1;
+    flex: 1 0 auto;
+    min-width: 0;
     height: 30px;
     padding: 0 12px;
     border-radius: 7px;
@@ -114,7 +104,12 @@
     white-space: nowrap;
     transition: color var(--fast) var(--ease);
   }
+  /* только значки — компактный ряд своей ширины и под названием */
+  .seg.icons {
+    flex: 0 1 auto;
+  }
   .icons button {
+    flex: 0 0 34px;
     width: 34px;
     padding: 0;
   }

@@ -1,7 +1,9 @@
 <script lang="ts" generics="T extends string">
   // Выпадающий список настройки (как «Формат статуса» у Discord): название и подсказка слева,
-  // справа кнопка с выбранным; список открывается и закрывается только кликом.
+  // справа кнопка с выбранным; список открывается и закрывается только кликом. Узкое окно — кнопка
+  // уходит под название во всю ширину (общая раскладка settings-row.css).
   import { onMount } from 'svelte'
+  import './settings-row.css'
   import Icon from '../Icon.svelte'
   import { pop } from '../../lib/motion'
   import Flag from '../Flag.svelte'
@@ -30,8 +32,8 @@
   })
 </script>
 
-<div class="row" class:open>
-  <span class="text">
+<div class="set-row row" class:open>
+  <span class="set-text">
     <b>{title}</b>
     {#if hint}<small>{hint}</small>{/if}
   </span>
@@ -66,39 +68,25 @@
 <style>
   .row {
     position: relative;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 9px 0;
   }
   /* открытый список — поверх следующих строк настроек */
   .row.open {
     z-index: 50;
   }
-  .text {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-  b {
-    font-size: calc(14px * var(--fs, 1));
-    font-weight: 600;
-  }
-  small {
-    font-size: calc(12px * var(--fs, 1));
-    color: var(--text-3);
-  }
   .wrap {
     position: relative;
-    flex: none;
+    flex: 1 0 auto;
+    display: flex;
+    max-width: 100%;
+    min-width: 0;
   }
   .btn {
+    flex: 1 1 auto;
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    max-width: 190px;
+    min-width: 0;
+    max-width: 100%;
     height: 34px;
     padding: 0 10px 0 12px;
     border-radius: 11px;
@@ -119,6 +107,7 @@
   }
   .chev {
     display: grid;
+    margin-left: auto;
     color: var(--text-3);
     transition: transform var(--normal) var(--ease);
   }
@@ -132,7 +121,7 @@
     z-index: 30;
     display: flex;
     flex-direction: column;
-    min-width: 210px;
+    min-width: max(100%, 210px);
     padding: 5px;
     border-radius: 14px;
     background: var(--surface-2);

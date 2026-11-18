@@ -14,10 +14,12 @@
     onchange: (v: T) => void
     /** Рисунок варианта: id и выбран ли он. */
     tile: Snippet<[T, boolean]>
-    /** Сколько карточек в ряд. */
+    /** Сколько карточек в ряд — не больше; в узком окне меньше, чтобы карточка была не уже `min`. */
     cols?: number
+    /** Минимальная ширина карточки, px. */
+    min?: number
   }
-  let { title, hint, value, options, onchange, tile, cols = 4 }: Props = $props()
+  let { title, hint, value, options, onchange, tile, cols = 4, min = 104 }: Props = $props()
 
   const multi = $derived(Array.isArray(value))
   const isOn = (id: T) => (Array.isArray(value) ? value.includes(id) : value === id)
@@ -26,7 +28,7 @@
 <div class="block">
   {#if title}<b class="title">{title}</b>{/if}
   {#if hint}<small>{hint}</small>{/if}
-  <div class="grid" role={multi ? 'group' : 'radiogroup'} aria-label={title} style:--cols={cols} use:indicator={{ key: multi ? null : value, kind: 'pill' }}>
+  <div class="grid" role={multi ? 'group' : 'radiogroup'} aria-label={title} style:--cols={cols} style:--min="{min}px" use:indicator={{ key: multi ? null : value, kind: 'pill' }}>
     {#each options as o (o.id)}
       {@const on = isOn(o.id)}
       <button
@@ -67,11 +69,13 @@
     line-height: 1.45;
     color: var(--text-3);
   }
+  /* не больше `--cols` в ряд и не уже `--min`: узкое окно — карточки переносятся, без прокрутки вбок */
   .grid {
+    --gap: 8px;
     position: relative;
     display: grid;
-    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, max(var(--min), (100% - (var(--cols) - 1) * var(--gap)) / var(--cols))), 1fr));
+    gap: var(--gap);
     margin-top: 10px;
     padding: 3px;
   }

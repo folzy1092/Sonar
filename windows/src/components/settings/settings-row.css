@@ -1,0 +1,85 @@
+/* Общая раскладка строк настроек ПК — одна на все страницы (Choice, Select, свои строки страниц).
+   Правило (узкое окно): элемент управления не влезает рядом с подписью — уходит ПОД подпись на всю
+   ширину; пилюли переносятся рядами; превью — сетка auto-fill с минимальной шириной плитки;
+   горизонтальной прокрутки нет.
+
+   Как устроено: строка — flex с переносом. Подпись растёт с весом 999 от базы `--set-label-min`,
+   элемент — с весом 1 от своей ширины. Пока помещаются на одной линии, элемент почти не растёт
+   (свободное место забирает подпись); перенёсся — остаётся один на линии и тянется на всю ширину.
+
+   Разметка:
+     <div class="set-row">
+       <span class="set-text"><b>Название</b><small>Подсказка</small></span>
+       <div class="set-ctl">…кнопки, поле, переключатель…</div>
+     </div>
+   Переменные: `--set-label-min` (по умолчанию 13rem) — сколько подписи держать рядом с элементом;
+   `--set-ctl-min` — минимальная ширина элемента на одной линии (например, у поля ввода 14rem);
+   `--set-tile-min` / `--set-cols` — у `.set-grid`. */
+
+.set-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 10px;
+  min-width: 0;
+  padding: 9px 0;
+}
+
+.set-text {
+  flex: 999 1 var(--set-label-min, 13rem);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.set-text > b {
+  font-size: calc(14px * var(--fs, 1));
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.set-text > small {
+  font-size: calc(12px * var(--fs, 1));
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+.set-ctl {
+  flex: 1 0 var(--set-ctl-min, auto);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+/* поле ввода в `.set-ctl` занимает всю ширину элемента: рядом с подписью — `--set-ctl-min`,
+   под подписью — всю строку */
+.set-ctl > input:not([type='checkbox']):not([type='radio']):not([type='range']),
+.set-ctl > textarea {
+  flex: 1 1 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+/* ряд чипов / мелких кнопок, переносится строками */
+.set-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Сетка превью: столько колонок, сколько влезает плиток не уже `--set-tile-min`, но не больше
+   `--set-cols`; в совсем узком месте — одна колонка во всю ширину. */
+.set-grid {
+  --set-gap: 10px;
+  display: grid;
+  gap: var(--set-gap);
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(100%, max(var(--set-tile-min, 120px), (100% - (var(--set-cols, 6) - 1) * var(--set-gap)) / var(--set-cols, 6))), 1fr)
+  );
+  min-width: 0;
+}

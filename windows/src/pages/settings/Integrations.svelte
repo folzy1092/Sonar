@@ -239,6 +239,7 @@
   }
   .tools {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     margin: 6px 0 4px;
   }

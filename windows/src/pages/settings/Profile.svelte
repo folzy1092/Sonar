@@ -335,14 +335,16 @@
     background: none;
     color: var(--text-2);
   }
+  /* узкое окно: кнопки уходят под подпись (правило строк настроек, settings-row.css) */
   .pic-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
+    gap: 8px 12px;
     padding: 8px 0;
   }
   .pic-row .text {
-    flex: 1;
+    flex: 999 1 10rem;
   }
   .thumb {
     flex-shrink: 0;
@@ -367,17 +369,20 @@
   }
   .acts {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
+    margin-left: auto;
   }
   .colors {
-    display: grid;
-    grid-template-columns: repeat(11, minmax(0, 1fr));
-    gap: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
     padding: 10px 0;
   }
   .dot {
+    flex: none;
+    width: 32px;
     aspect-ratio: 1;
-    max-width: 34px;
     border-radius: 50%;
     background: var(--c);
     box-shadow: 0 0 0 0 var(--c);
@@ -399,14 +404,29 @@
     background: var(--surface-3);
     color: var(--text-3);
   }
+  /* поле рядом с подписью, пока влезает; иначе — под подписью во всю ширину */
   .field {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    gap: 8px 16px;
     padding: 9px 0;
   }
+  .field:not(.col) > .text {
+    flex: 999 1 13rem;
+  }
+  .field:not(.col) > input,
+  .field > .at {
+    flex: 1 0 14rem;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .field:not(.col) > input,
+  .at input {
+    width: 100%;
+  }
   .field.col {
+    flex-wrap: nowrap;
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
@@ -493,12 +513,14 @@
   }
   .add-link {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 10px 0;
   }
   .add-link input {
-    flex: 1;
+    flex: 1 1 12rem;
     width: auto;
+    min-width: 0;
   }
   .sample {
     width: 100%;
@@ -583,9 +605,10 @@
     align-items: center;
     width: 100%;
   }
+  /* до трёх в ряд, не уже 170px */
   .slots {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, max(170px, (100% - 16px) / 3)), 1fr));
     gap: 8px;
     padding: 10px 0;
   }

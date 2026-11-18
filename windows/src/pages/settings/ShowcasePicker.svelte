@@ -157,7 +157,8 @@
   }
   .list {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    /* две колонки, в узкой панели — одна */
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, max(200px, (100% - 1 * 4px) / 2)), 1fr));
     gap: 4px;
   }
   .row {

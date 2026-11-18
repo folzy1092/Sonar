@@ -401,7 +401,8 @@
     font-size: calc(13px * var(--fs, 1));
     color: var(--text-3);
   }
-  @media (max-width: 560px) {
+  /* ширина панели настроек, не окна (окно не уже 960) */
+  @container (max-width: 460px) {
     .pair {
       flex-direction: column;
     }
