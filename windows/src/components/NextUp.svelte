@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { sidePane } from '../app/side-pane.svelte'
   // «Дальше» (Плеер → Очередь → Предпросмотр следующего трека, queue.preview): за 10 с до конца
   // трека выезжает карточка со следующим треком — над мини-плеером (`float`) или на странице плеера.
+  // Открыта правая панель (очередь / текст) — над мини-плеером не показывается: следующий трек и так виден.
   import Cover from './Cover.svelte'
   import { player } from '../player/player.svelte'
   import { settings } from '../lib/settings.svelte'
@@ -12,7 +14,7 @@
 
   const next = $derived(player.upNext[0] ?? null)
   const left = $derived((player.durationMs || player.current?.duration_ms || 0) - player.positionMs)
-  const shown = $derived(settings.get('queue.preview') && !!next && player.playing && left > 0 && left <= 10_000)
+  const shown = $derived(settings.get('queue.preview') && !(float && sidePane.open) && !!next && player.playing && left > 0 && left <= 10_000)
 </script>
 
 {#if shown && next}
@@ -40,8 +42,9 @@
   }
   .next.float {
     position: absolute;
-    right: 12px;
-    bottom: calc(100% + 8px);
+    /* в самый угол над мини-плеером, с зазором — не налезает на капсулу кнопок */
+    right: -4px;
+    bottom: calc(100% + 18px);
     z-index: 5;
     box-shadow:
       0 12px 30px oklch(0 0 0 / 0.4),
