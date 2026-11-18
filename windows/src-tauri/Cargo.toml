@@ -73,4 +73,4 @@ spotify-playback = ["dep:librespot-core", "dep:librespot-audio", "dep:librespot-
 # Кнопки «назад / пауза / вперёд» в превью окна на панели задач (thumbbar.rs) — та же версия, что у Tauri
 [target.'cfg(windows)'.dependencies]
 windows-version = "0.1"
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_Com", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_Com_StructuredStorage", "Win32_System_Variant"] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Devices_Display", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_Com", "Win32_Graphics_Gdi", "Win32_Media_Audio", "Win32_System_Com_StructuredStorage", "Win32_System_Variant"] }
