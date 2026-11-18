@@ -1,6 +1,7 @@
 <script lang="ts">
   // Плеер → Аудио по pc/Screenshot_4, 5: устройство вывода, качество (ряд карточек листается),
-  // «Громкость и переходы»; плюс своё — «SoundCloud в качестве Яндекса» и качество YouTube Music.
+  // «Громкость и переходы»; плюс своё — «Резервный сервис» (порядок перетаскиванием), «SoundCloud
+  // в качестве Яндекса» (тот же механизм резерва, services/fallback.rs) и качество YouTube Music.
   import { onMount } from 'svelte'
   import { settingsPanel } from '../settings-section.svelte'
   import Cards from '../../components/settings/Cards.svelte'
@@ -9,6 +10,7 @@
   import { slide } from 'svelte/transition'
   import Group from '../../components/settings/Group.svelte'
   import More from '../../components/settings/More.svelte'
+  import FallbackOrder from '../../components/settings/FallbackOrder.svelte'
   import { api } from '../../lib/api'
   import { settings } from '../../lib/settings.svelte'
   import { player } from '../../player/player.svelte'
@@ -144,6 +146,8 @@
     </div>
   {/if}
 </Group>
+
+<FallbackOrder />
 
 <More>
   <Switch

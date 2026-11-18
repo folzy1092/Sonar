@@ -583,7 +583,7 @@ pub fn player_formats(v: &Value) -> Result<Vec<Format>> {
   let status = st["status"].as_str().unwrap_or("UNKNOWN");
   if status != "OK" {
     let reason = st["reason"].as_str().unwrap_or(status);
-    return Err(anyhow!("YouTube Music: трек не играется ({reason})"));
+    return Err(crate::providers::unplayable::unavailable(format!("YouTube Music: трек не играется ({reason})")));
   }
   let formats: Vec<Format> = v["streamingData"]["adaptiveFormats"]
     .as_array()

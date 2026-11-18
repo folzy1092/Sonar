@@ -306,7 +306,7 @@ extension VK {
     /// HLS у VK шифрован AES-128 — AVPlayer расшифровывает его сам.
     static func source(_ link: String) throws -> StreamSource {
         guard let url = URL(string: link), url.scheme?.hasPrefix("http") == true, url.host != nil,
-              !url.path.contains("audio_api_unavailable") else { throw ServiceError(message: noStream) }
+              !url.path.contains("audio_api_unavailable") else { throw Unplayable(reason: .unavailable, message: noStream) }
         let quality = "MP3 320"
         return url.path.hasSuffix(".m3u8") ? .hls(url: url, quality: quality) : .file(url: url, quality: quality)
     }
