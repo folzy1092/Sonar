@@ -85,7 +85,11 @@
     // открыт свиток аннотации — текст не уезжает из-под курсора
     if (noteOpen !== null) return
     const el = i >= 0 ? els[i] : null
-    const top = Math.max(0, el ? el.offsetTop - scroller.clientHeight * 0.32 : 0)
+    // конец песни (владелец 2026-11-18): прокрутка упирается, последняя строка встаёт на 80 % высоты,
+    // а подсветка спускается по строкам вниз — под текстом не остаётся пустой полэкрана
+    const last = els.findLast((x) => x)
+    const floor = last ? last.offsetTop + last.offsetHeight - scroller.clientHeight * 0.8 : Infinity
+    const top = Math.max(0, Math.min(el ? el.offsetTop - scroller.clientHeight * 0.32 : 0, floor))
     if (!reduced && lyrics.animation === 'ladder' && prev >= 0 && i > prev && i - prev <= 3) magnet(top, prev)
     else glide(top)
   })
