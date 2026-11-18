@@ -161,6 +161,40 @@ final class RecapTests: XCTestCase {
         XCTAssertNil(invite(at(2026, 10, 3), nil)) // за сентябрь ничего нет
     }
 
+    func testInviteRemembersSeveralSeenRecaps() {
+        let big = RecapEngine.minInviteMs
+        let periods = RecapPeriods(
+            months: [RecapPeriod(ref: .month(2026, 11), totalMs: big), RecapPeriod(ref: .month(2026, 10), totalMs: big),
+                     RecapPeriod(ref: .month(2025, 12), totalMs: big)],
+            years: [RecapPeriod(ref: .year(2026), totalMs: big * 10), RecapPeriod(ref: .year(2025), totalMs: big)]
+        )
+        let invite = { (now: Date, seen: String?) in RecapEngine.invite(now: now, periods: periods, seen: seen, calendar: self.utc) }
+        // открыл старые итоги из Статистики — приглашение на текущие не возвращается
+        let seen = RecapEngine.markSeen(RecapEngine.markSeen("", "month-2026-10"), "month-2025-12")
+        XCTAssertNil(invite(at(2026, 11, 2), seen))
+        // начало декабря: сначала год, потом ноябрь
+        XCTAssertEqual(invite(at(2026, 12, 2), nil), .year(2026))
+        XCTAssertEqual(invite(at(2026, 12, 2), "year-2026"), .month(2026, 11))
+        XCTAssertNil(invite(at(2026, 12, 2), "year-2026,month-2026-11"))
+        XCTAssertNil(invite(at(2026, 12, 20), "year-2026"))
+        // начало января: прошлый год, потом декабрь
+        XCTAssertEqual(invite(at(2026, 1, 3), "year-2025"), .month(2025, 12))
+    }
+
+    func testSeenListIsBoundedWithoutDuplicates() {
+        XCTAssertEqual(RecapEngine.seenIDs("month-2026-10"), ["month-2026-10"])
+        XCTAssertEqual(RecapEngine.seenIDs(""), [])
+        XCTAssertEqual(RecapEngine.seenIDs(nil), [])
+        XCTAssertEqual(RecapEngine.seenIDs(" a , ,b "), ["a", "b"])
+        XCTAssertEqual(RecapEngine.markSeen("a,b", "a"), "b,a")
+        var raw = ""
+        for i in 0..<(RecapEngine.maxSeen + 5) { raw = RecapEngine.markSeen(raw, "id-\(i)") }
+        let ids = RecapEngine.seenIDs(raw)
+        XCTAssertEqual(ids.count, RecapEngine.maxSeen)
+        XCTAssertEqual(ids.first, "id-5")
+        XCTAssertEqual(ids.last, "id-\(RecapEngine.maxSeen + 4)")
+    }
+
     func testInviteNeedsEnoughListening() {
         let periods = RecapPeriods(months: [RecapPeriod(ref: .month(2026, 10), totalMs: RecapEngine.minInviteMs - 1)], years: [])
         XCTAssertNil(RecapEngine.invite(now: at(2026, 11, 2), periods: periods, seen: nil, calendar: utc))

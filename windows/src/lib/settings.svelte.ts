@@ -163,7 +163,7 @@ export const DEFAULTS = {
   'system.tray': true,
   'system.power_saving': 'background' as 'off' | 'minimized' | 'background',
   'wave.mode': 'own' as 'own' | 'hard' | 'calm' | 'sad' | 'fun' | 'new',
-  /** Итоги, которые уже открывали или закрыли на Главной (`month-2026-11`, `year-2026`); пусто — никакие. */
+  /** Итоги, которые уже открывали или закрыли на Главной: id через запятую (`month-2026-11,year-2026`), до 24 последних; пусто — никакие. */
   'stats.recap_seen': '' as string,
   'obs.size': 'standard' as 'standard' | 'compact',
   'obs.hide_paused': true,

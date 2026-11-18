@@ -305,23 +305,43 @@ enum RecapEngine {
         )
     }
 
-    /// Какие итоги звать на Главной: весь декабрь — итоги года; первые `inviteDays` дней месяца —
-    /// прошлый месяц (в начале января — прошлый год). Мало слушал или уже открывал — nil.
+    /// Сколько последних итогов помнит `stats.recap_seen`.
+    static let maxSeen = 24
+    private static let seenSeparator: Character = ","
+
+    /// Открытые или скрытые итоги из `stats.recap_seen`: id через запятую, старые первыми (как ПК `seenIds`).
+    static func seenIDs(_ raw: String?) -> [String] {
+        (raw ?? "").split(separator: seenSeparator)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// Новое значение `stats.recap_seen` с `id` в конце: без повторов, не больше `maxSeen` последних.
+    static func markSeen(_ raw: String?, _ id: String) -> String {
+        let ids = seenIDs(raw).filter { $0 != id } + [id]
+        return ids.suffix(maxSeen).joined(separator: String(seenSeparator))
+    }
+
+    /// Кандидаты на Главной по порядку: весь декабрь — итоги года (в первые дни — ещё и ноябрь); первые
+    /// `inviteDays` дней месяца — прошлый месяц, в начале января — сначала прошлый год.
+    static func inviteCandidates(year y: Int, month m: Int, day d: Int) -> [RecapRef] {
+        let early = d <= inviteDays
+        if m == december { return early ? [.year(y), .month(y, m - 1)] : [.year(y)] }
+        guard early else { return [] }
+        return m == 1 ? [.year(y - 1), .month(y - 1, 12)] : [.month(y, m - 1)]
+    }
+
+    /// Какие итоги звать на Главной: первый кандидат, которого ещё не открывали и не скрывали и за который
+    /// наслушано хотя бы `minInviteMs`; иначе nil. `seen` — значение `stats.recap_seen`.
     static func invite(now: Date, periods: RecapPeriods, seen: String?, calendar: Calendar = .current) -> RecapRef? {
         let c = calendar.dateComponents([.year, .month, .day], from: now)
         guard let y = c.year, let m = c.month, let d = c.day else { return nil }
-        let ref: RecapRef
-        if m == december {
-            ref = .year(y)
-        } else if d <= inviteDays {
-            ref = m == 1 ? .year(y - 1) : .month(y, m - 1)
-        } else {
-            return nil
+        let done = Set(seenIDs(seen))
+        return inviteCandidates(year: y, month: m, day: d).first { ref in
+            guard !done.contains(ref.id) else { return false }
+            let list = ref.kind == .year ? periods.years : periods.months
+            return list.first(where: { $0.ref == ref }).map { $0.totalMs >= minInviteMs } ?? false
         }
-        guard ref.id != seen else { return nil }
-        let list = ref.kind == .year ? periods.years : periods.months
-        guard let found = list.first(where: { $0.ref == ref }), found.totalMs >= minInviteMs else { return nil }
-        return ref
     }
 
     // MARK: - Карточки

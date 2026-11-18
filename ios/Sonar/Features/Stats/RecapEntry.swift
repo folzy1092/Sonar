@@ -62,7 +62,7 @@ struct RecapInvite: View {
                 .background(Theme.accent, in: Capsule())
                 .buttonStyle(PressableStyle())
             Button {
-                settings.set("stats.recap_seen", .string(ref.id))
+                settings.set("stats.recap_seen", .string(RecapEngine.markSeen(settings.string("stats.recap_seen"), ref.id)))
             } label: {
                 SonarIcon(.close, size: 16)
                     .foregroundStyle(Theme.textTertiary)

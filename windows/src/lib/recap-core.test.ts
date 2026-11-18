@@ -6,6 +6,9 @@ import {
   ellipsize,
   imageName,
   inviteFor,
+  markSeen,
+  MAX_SEEN,
+  seenIds,
   keyMove,
   MIN_INVITE_MS,
   partOfDay,
@@ -92,7 +95,43 @@ describe('inviteFor', () => {
     expect(inviteFor(new Date(2026, 10, 2), periods(), 'month-2026-10')).toBeNull()
     expect(inviteFor(new Date(2026, 3, 2), periods(), null)).toBeNull()
     expect(inviteFor(new Date(2026, 5, 2), periods(), null)).toBeNull()
-    expect(inviteFor(new Date(2026, 11, 2), periods({ years: [] }), null)).toBeNull()
+    expect(inviteFor(new Date(2026, 11, 20), periods({ years: [] }), null)).toBeNull()
+  })
+
+  it('remembers several seen recaps, so opening an old one does not bring the invite back', () => {
+    const seen = markSeen(markSeen('', 'month-2026-10'), 'month-2025-12')
+    expect(inviteFor(new Date(2026, 10, 2), periods(), seen)).toBeNull()
+  })
+
+  it('offers the previous month in early December and January once the year is seen', () => {
+    const base = periods()
+    const withNov = periods({ months: [{ kind: 'month', year: 2026, month: 11, total_ms: MIN_INVITE_MS }, ...base.months] })
+    expect(inviteFor(new Date(2026, 11, 2), withNov, null)).toEqual({ kind: 'year', year: 2026, month: null })
+    expect(inviteFor(new Date(2026, 11, 2), withNov, 'year-2026')).toEqual({ kind: 'month', year: 2026, month: 11 })
+    expect(inviteFor(new Date(2026, 11, 2), withNov, 'year-2026,month-2026-11')).toBeNull()
+    expect(inviteFor(new Date(2026, 11, 2), base, 'year-2026')).toBeNull()
+    expect(inviteFor(new Date(2026, 0, 3), periods(), 'year-2025')).toEqual({ kind: 'month', year: 2025, month: 12 })
+    expect(inviteFor(new Date(2026, 11, 20), withNov, 'year-2026')).toBeNull()
+  })
+})
+
+describe('seenIds / markSeen', () => {
+  it('reads the old single-id value and empty input', () => {
+    expect(seenIds('month-2026-10')).toEqual(['month-2026-10'])
+    expect(seenIds('')).toEqual([])
+    expect(seenIds(null)).toEqual([])
+    expect(seenIds(' a , ,b ')).toEqual(['a', 'b'])
+  })
+
+  it('appends without duplicates and keeps only the latest ids', () => {
+    expect(markSeen('a,b', 'a')).toBe('b,a')
+    expect(markSeen('', 'year-2026')).toBe('year-2026')
+    let raw = ''
+    for (let i = 0; i < MAX_SEEN + 5; i++) raw = markSeen(raw, `id-${i}`)
+    const ids = seenIds(raw)
+    expect(ids).toHaveLength(MAX_SEEN)
+    expect(ids[0]).toBe('id-5')
+    expect(ids.at(-1)).toBe(`id-${MAX_SEEN + 4}`)
   })
 })
 
