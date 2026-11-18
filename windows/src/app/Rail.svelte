@@ -23,7 +23,7 @@
 </script>
 
 {#snippet item(page: Page, icon: NavIconName, label: string)}
-  {@const on = router.page === page || (page === 'library' && ['playlist', 'artist', 'album'].includes(router.page))}
+  {@const on = router.page === page || (page === 'library' && ['playlist', 'artist', 'album', 'import'].includes(router.page))}
   <button
     class="item"
     class:active={on}

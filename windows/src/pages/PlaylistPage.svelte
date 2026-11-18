@@ -12,6 +12,7 @@
   import { api, errorText, onLocalFilesChanged, type ListTrack, type Track } from '../lib/api'
   import { durationText, tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
+  import { openImport } from '../lib/import.svelte'
   import { toast } from '../lib/toast.svelte'
   import { router } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
@@ -200,6 +201,12 @@
       <button class="tool" disabled={importing || !items.length} onclick={importToSonar}>
         <Icon name="download" size={16} /> {importing ? t('Переношу…') : t('Перенести в Sonar')}
       </button>
+      <!-- сервис без своего потока (Spotify): можно сразу подобрать пары в играющих сервисах (этап 5) -->
+      {#if !byId(serviceOf(id))?.caps.stream}
+        <button class="tool" disabled={!items.length} onclick={() => openImport(id)}>
+          <Icon name="link" size={16} /> {t('Перенести с подбором')}
+        </button>
+      {/if}
     {:else if kind === 'local'}
       <button class="tool" onclick={() => settingsPanel.show('system', 'storage')}>
         <Icon name="library" size={16} /> {t('Папки')}

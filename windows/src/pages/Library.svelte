@@ -11,9 +11,10 @@
   import NavIcon from '../components/NavIcon.svelte'
   import { playlistMenu } from '../lib/playlist-menu.svelte'
   import Tile from '../components/Tile.svelte'
-  import { api, onLocalFilesChanged, type Album, type Artist, type ServicePlaylist, type ServiceStatus, type ServicesStatus } from '../lib/api'
+  import { api, looksLikeLink, onLocalFilesChanged, type Album, type Artist, type ServicePlaylist, type ServiceStatus, type ServicesStatus } from '../lib/api'
   import { tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
+  import { openImport } from '../lib/import.svelte'
   import { openRef, router } from '../app/router.svelte'
   import { settingsPanel } from './settings-section.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
@@ -36,6 +37,10 @@
   /** Статус сервисов уже запрошен (успешно или нет) — дальше не скелет, а ответ. */
   let servicesTried = $state(false)
   let creating = $state(false)
+  /** Всплывашка «Перенести по ссылке» (этап 5): любая ссылка на плейлист или альбом → экран импорта. */
+  let linking = $state(false)
+  let linkText = $state('')
+  const linkOk = $derived(looksLikeLink(linkText))
   /** Файлы из «Папок с музыкой» (Система → Хранилище): сколько и первые обложки для плитки. */
   let localCount = $state(0)
   let localCovers = $state<string[]>([])
@@ -149,6 +154,14 @@
     creating = false
     newName = ''
     if (p) router.go('playlist', p.id)
+  }
+
+  function openLink() {
+    if (!linkOk) return
+    const link = linkText.trim()
+    linking = false
+    linkText = ''
+    openImport(link)
   }
 
   function openServices() {
@@ -329,8 +342,21 @@
       </div>
     </form>
   {/if}
+  {#if linking}
+    <form class="create link-form" onsubmit={(e) => (e.preventDefault(), openLink())} in:pop={{ y: 8 }} out:pop={{ y: 8 }}>
+      <b>{t('Перенести по ссылке')}</b>
+      <small>{t('Плейлист или альбом Spotify, YouTube Music, VK, Яндекса, SoundCloud или Apple Music — Sonar найдёт треки в твоих сервисах.')}</small>
+      <!-- svelte-ignore a11y_autofocus -->
+      <input placeholder="https://…" bind:value={linkText} autofocus spellcheck="false" onkeydown={(e) => e.key === 'Escape' && (linking = false)} />
+      <div class="btns">
+        <button type="button" class="ghost" onclick={() => (linking = false)}>{t('Отмена')}</button>
+        <button type="submit" class="primary" disabled={!linkOk}>{t('Перенести')}</button>
+      </div>
+    </form>
+  {/if}
   <div class="actions">
-    <button class:on={creating} aria-label={t('Создать плейлист')} title={t('Создать плейлист')} onclick={() => (creating = !creating)}><NavIcon name="add" size={18} /></button>
+    <button class:on={creating} aria-label={t('Создать плейлист')} title={t('Создать плейлист')} onclick={() => ((creating = !creating), (linking = false))}><NavIcon name="add" size={18} /></button>
+    <button class:on={linking} aria-label={t('Перенести по ссылке')} title={t('Перенести по ссылке')} onclick={() => ((linking = !linking), (creating = false))}><Icon name="link" size={18} /></button>
     <button aria-label={t('Перенос плейлистов сервисов')} title={t('Перенос плейлистов сервисов')} onclick={() => (tab = 'Плейлисты')}><NavIcon name="transfer" size={18} /></button>
     <button aria-label={t('список::Обновить')} title={t('список::Обновить')} onclick={refresh}><NavIcon name="refresh" size={18} /></button>
   </div>
@@ -514,6 +540,15 @@
   }
   .create b {
     font-size: calc(14px * var(--fs, 1));
+  }
+  .link-form {
+    width: 320px;
+  }
+  .create small {
+    margin-top: -4px;
+    color: var(--text-3);
+    font-size: calc(12px * var(--fs, 1));
+    line-height: 1.35;
   }
   .create input {
     height: 36px;

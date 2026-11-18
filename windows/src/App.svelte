@@ -15,6 +15,7 @@
   import ArtistPage from './pages/ArtistPage.svelte'
   import AlbumPage from './pages/AlbumPage.svelte'
   import ProfilePage from './pages/ProfilePage.svelte'
+  import ImportPage from './pages/ImportPage.svelte'
   import TrackMenu from './app/TrackMenu.svelte'
   import PlaylistMenu from './app/PlaylistMenu.svelte'
   import ConfirmDialog from './app/ConfirmDialog.svelte'
@@ -53,6 +54,7 @@
     artist: ArtistPage,
     album: AlbumPage,
     profile: ProfilePage,
+    import: ImportPage,
   }
   /** Строка поиска — только на странице поиска (на главной её нет, решение владельца). */
   const withSearch: Page[] = ['search']

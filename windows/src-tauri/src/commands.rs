@@ -428,22 +428,9 @@ pub async fn service_playlist(core: State<'_, Arc<Core>>, db: State<'_, Db>, pl_
 #[tauri::command]
 pub async fn import_playlist(core: State<'_, Arc<Core>>, db: State<'_, Db>, pl_ref: String, name: Option<String>) -> Res<Playlist> {
   let page = core.service_playlist(&pl_ref).await.map_err(err)?;
-  let refs: Vec<String> = page.tracks.iter().map(|t| t.ref_.clone()).collect();
+  let title = name.filter(|n| !n.trim().is_empty()).unwrap_or(page.playlist.title);
   let mut store = db.0.lock().unwrap();
-  store.upsert_tracks(&page.tracks).map_err(err)?;
-  let id = match store.playlist_by_source(&pl_ref).map_err(err)? {
-    Some(id) => {
-      let old = store.playlist(&id).map_err(err)?.and_then(|p| p.tracks).unwrap_or_default();
-      let have: std::collections::HashSet<&str> = old.iter().map(|t| t.track.ref_.as_str()).collect();
-      let new: Vec<String> = refs.iter().filter(|r| !have.contains(r.as_str())).cloned().collect();
-      store.add_to_playlist(&id, &new, false).map_err(err)?;
-      id
-    }
-    None => {
-      let title = name.filter(|n| !n.trim().is_empty()).unwrap_or(page.playlist.title);
-      store.create_playlist(&title, &refs, Some(&pl_ref)).map_err(err)?
-    }
-  };
+  let id = crate::import_link::save_import(&mut store, &pl_ref, &title, &page.tracks).map_err(err)?;
   store.playlist(&id).map_err(err)?.ok_or_else(|| "плейлист пропал".into())
 }
 
