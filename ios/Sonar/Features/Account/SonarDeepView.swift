@@ -146,7 +146,7 @@ struct SonarDeepView: View {
     }
 
     private func pay() {
-        let username = settings.string(LocalProfile.profileUsername)
+        let username = settings.string(LookKey.profileUsername)
         guard let url = SonarDeep.payURL(plan: plan.id, period: period.id, username: username) else { return }
         openURL(url)
     }
