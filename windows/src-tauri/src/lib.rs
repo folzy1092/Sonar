@@ -1,6 +1,7 @@
 mod commands;
 mod crashlog;
 mod discord;
+mod export;
 mod lastfm;
 mod login;
 mod lyrics;
@@ -41,6 +42,8 @@ pub fn run() {
     .plugin(tauri_plugin_process::init())
     // горячие клавиши по всей системе (hotkeys.rs); сочетания ставит интерфейс через `set_hotkeys`
     .plugin(hotkeys::plugin())
+    // окно «Сохранить как» для экспорта плейлистов (export.rs); из интерфейса его не открыть
+    .plugin(tauri_plugin_dialog::init())
     .setup(|app| {
       // журнал ошибок сессии и отчёт после сбоя (в отладке логгер ставит tauri-plugin-log)
       if let Ok(dir) = app.path().app_log_dir() {
@@ -152,6 +155,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       glass::set_glass,
       hotkeys::set_hotkeys,
+      export::export_playlist,
       commands::prefetch_tracks,
       commands::set_track_cache,
       commands::add_search_history,
