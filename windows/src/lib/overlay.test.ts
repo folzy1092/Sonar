@@ -3,8 +3,13 @@ import { OVERLAY_ANCHORS, anchorAlign, autoStep, nearestAnchor, overlayLayout, t
 
 describe('оверлей: размер окна', () => {
   it('карточка — ширина и высота с масштабом', () => {
-    expect(overlayLayout('card', 340, 58, 100, 'tc')).toEqual({ width: 340, height: 58, anchor: 'tc', fullscreen: false })
-    expect(overlayLayout('card', 340, 58, 150, 'br')).toEqual({ width: 510, height: 87, anchor: 'br', fullscreen: false })
+    expect(overlayLayout('card', 340, 58, 100, 'tc')).toEqual({ width: 340, height: 58, anchor: 'tc', fullscreen: false, monitor: 'primary' })
+    expect(overlayLayout('card', 340, 58, 150, 'br')).toEqual({ width: 510, height: 87, anchor: 'br', fullscreen: false, monitor: 'primary' })
+  })
+
+  it('монитор уходит в Rust как есть', () => {
+    expect(overlayLayout('card', 340, 58, 100, 'tc', 'path-b').monitor).toBe('path-b')
+    expect(overlayLayout('island', 340, 58, 100, 'tc', 'path-b').monitor).toBe('path-b')
   })
 
   it('остров меньше карточки, но не ниже 34 px', () => {

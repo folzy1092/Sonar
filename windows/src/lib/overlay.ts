@@ -9,6 +9,8 @@ export interface OverlayLayout {
   height: number
   anchor: OverlayAnchor
   fullscreen: boolean
+  /** `overlay.monitor`: `primary` или `monitorDevicePath` (lib/monitor-layout.ts, monitors.rs). */
+  monitor: string
 }
 
 /** Как рисовать оверлей — шлёт главное окно событием `overlay:look`. */
@@ -37,13 +39,13 @@ const ISLAND = { width: 0.72, height: 0.7, minHeight: 34 }
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
 
 /** Размер окна оверлея для режима; у полноэкранного размер ставит Rust по монитору. */
-export function overlayLayout(mode: OverlayMode, width: number, height: number, scale: number, anchor: OverlayAnchor): OverlayLayout {
+export function overlayLayout(mode: OverlayMode, width: number, height: number, scale: number, anchor: OverlayAnchor, monitor = 'primary'): OverlayLayout {
   const k = clamp(scale, OVERLAY_LIMITS.scale.min, OVERLAY_LIMITS.scale.max) / 100
   if (mode === 'island') {
     const h = Math.max(ISLAND.minHeight, height * ISLAND.height)
-    return { width: Math.round(width * ISLAND.width * k), height: Math.round(h * k), anchor, fullscreen: false }
+    return { width: Math.round(width * ISLAND.width * k), height: Math.round(h * k), anchor, fullscreen: false, monitor }
   }
-  return { width: Math.round(width * k), height: Math.round(height * k), anchor, fullscreen: mode === 'fullscreen' }
+  return { width: Math.round(width * k), height: Math.round(height * k), anchor, fullscreen: mode === 'fullscreen', monitor }
 }
 
 /** Выравнивание клетки в долях: 0 — к левому / верхнему краю, 0.5 — по центру, 1 — к правому / нижнему. */
