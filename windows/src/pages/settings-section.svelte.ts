@@ -2,13 +2,14 @@
 // плеера уезжает вправо и поворачивается вглубь на ~15°. Другие экраны могут открыть нужный раздел.
 import type { IconName } from '../components/icons'
 
-export type SettingsTab = 'account' | 'interface' | 'player' | 'services' | 'integrations' | 'system'
+export type SettingsTab = 'account' | 'subscription' | 'interface' | 'player' | 'services' | 'integrations' | 'system'
 
 // Названия вкладок и подразделов — по-русски: это ключи перевода, `t()` при показе (SettingsPanel),
 // чтобы смена языка подхватывалась сразу.
 
 export const TABS: { id: SettingsTab; title: string }[] = [
   { id: 'account', title: 'Аккаунт' },
+  { id: 'subscription', title: 'Подписка' },
   { id: 'interface', title: 'Интерфейс' },
   { id: 'player', title: 'Плеер' },
   { id: 'services', title: 'Сервисы' },
@@ -34,6 +35,7 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
     { id: 'privacy', title: 'Приватность', icon: 'lock' },
     { id: 'stats', title: 'Статистика', icon: 'bars' },
   ],
+  subscription: [{ id: 'plans', title: 'Sonar+', icon: 'sparkles' }],
   interface: [
     { id: 'style', title: 'Стиль', icon: 'sparkles' },
     { id: 'look', title: 'Вид', icon: 'palette' },

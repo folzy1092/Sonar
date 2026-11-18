@@ -30,10 +30,13 @@ export const DEFAULTS = {
   'profile.username': '' as string,
   'profile.avatar': '' as string,
   /** Приватность профиля (Аккаунт → Приватность, lib/public-profile.ts): что видит гость по ссылке. */
-  'privacy.now_playing': true,
-  'privacy.stats': true,
-  'privacy.likes': true,
-  'privacy.playlists': 'visible' as 'all' | 'visible' | 'none',
+  'privacy.friend_requests': 'everyone' as 'everyone' | 'fof' | 'nobody',
+  'privacy.now_playing': 'everyone' as 'everyone' | 'friends' | 'nobody',
+  'privacy.stats': 'everyone' as 'everyone' | 'friends' | 'nobody',
+  'privacy.likes': 'everyone' as 'everyone' | 'friends' | 'nobody',
+  'privacy.playlists': 'everyone' as 'everyone' | 'friends' | 'nobody',
+  /** Плейлисты, скрытые ото всех (меню плейлиста → «Скрыть от других»). */
+  'privacy.hidden_playlists': [] as string[],
   'appearance.cover_theme': true,
   /** Насколько тема идёт за обложкой: поверхности темнее / светлее (palette.ts COVER_STRENGTH). */
   'appearance.cover_strength': 'medium' as CoverStrength,
