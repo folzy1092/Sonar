@@ -4,6 +4,10 @@
 //!   после входа страница уходит на адрес с `#access_token=y0_…`, его и перехватываем.
 //! - SoundCloud: обычная страница входа; после входа сайт ставит cookie `oauth_token`, её читаем
 //!   раз в секунду. client_id — публичный, с сайта (как в selfbot).
+//! - YouTube Music: вход Google с возвратом на music.youtube.com; после входа у music.youtube.com
+//!   появляется cookie `SAPISID` — весь набор cookie сайта уходит в keyring (подпись запросов —
+//!   `providers/youtube/auth.rs`). Google может не пустить во встроенное окно — тогда cookie вставляют
+//!   вручную в «Сервисах».
 //! Окно закрыли, не войдя, — ошибка «Вход отменён». Ждём не больше 10 минут.
 //!
 //! Браузер по умолчанию (просьба владельца 2026-11-16): Яндекс — вход по коду (OAuth device flow того
@@ -13,7 +17,7 @@
 //! cookie чужого браузера не прочитать) — у него остаётся окно входа SoundCloud внутри Sonar.
 //! «Отмена» (`cancel`) обрывает ожидание любого входа через браузер.
 
-use crate::providers::{soundcloud, yandex};
+use crate::providers::{soundcloud, yandex, youtube};
 use crate::services::{Core, ServiceStatus};
 use anyhow::{anyhow, bail, Result};
 use std::sync::Arc;
@@ -244,9 +248,56 @@ pub async fn soundcloud(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus
   core.connect_soundcloud(soundcloud::Creds { client_id, oauth_token: Some(token) }).await
 }
 
+/// Страница входа Google, после неё — music.youtube.com.
+const YT_LOGIN_URL: &str = "https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fmusic.youtube.com%2F";
+
+/// Cookie music.youtube.com одной строкой — только когда вход уже есть (`SAPISID` на месте).
+fn yt_cookie_header<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>) -> Option<String> {
+  let joined = pairs.into_iter().filter(|(k, v)| !k.is_empty() && !v.is_empty()).map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("; ");
+  youtube::auth::sapisid(&joined).map(|_| joined.clone())
+}
+
+pub async fn youtube(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
+  let (tx, mut rx) = mpsc::unbounded_channel::<Option<String>>();
+  let w = window(&app, "login-youtube", "Вход в YouTube Music — Sonar", YT_LOGIN_URL)?.build()?;
+  on_close(&w, tx.clone());
+  let poll_w = w.clone();
+  let poll = tokio::spawn(async move {
+    let site = Url::parse(youtube::auth::ORIGIN).expect("url");
+    loop {
+      tokio::time::sleep(Duration::from_secs(1)).await;
+      // ждём, пока окно вернётся на music.youtube.com: cookie там уже полные
+      let on_site = poll_w.url().is_ok_and(|u| u.host_str() == site.host_str());
+      if !on_site {
+        continue;
+      }
+      match poll_w.cookies_for_url(site.clone()) {
+        Ok(cookies) => {
+          if let Some(c) = yt_cookie_header(cookies.iter().map(|c| (c.name(), c.value()))) {
+            let _ = tx.send(Some(c));
+            break;
+          }
+        }
+        Err(_) => break,
+      }
+    }
+  });
+  let cookie = wait(&mut rx).await;
+  poll.abort();
+  let _ = w.close();
+  core.connect_youtube(&cookie?).await
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn yt_cookie_needs_sapisid() {
+    assert_eq!(yt_cookie_header([("SID", "1"), ("SAPISID", "a"), ("", "x"), ("HSID", "")]).as_deref(), Some("SID=1; SAPISID=a"));
+    assert_eq!(yt_cookie_header([("__Secure-3PAPISID", "b")]).as_deref(), Some("__Secure-3PAPISID=b"));
+    assert_eq!(yt_cookie_header([("SID", "1"), ("VISITOR_INFO1_LIVE", "v")]), None);
+  }
 
   #[test]
   fn token_in_fragment() {

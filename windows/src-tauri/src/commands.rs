@@ -57,6 +57,8 @@ fn ym_creds(token: &str) -> yandex::Creds {
 enum KeyCreds {
   Sc(soundcloud::Creds),
   Ym(yandex::Creds),
+  /// Cookie music.youtube.com как вставили; разбирает и проверяет `Core::connect_youtube`.
+  Yt(String),
 }
 
 /// Поля формы → ключи сервиса. Нет обязательного поля — пустая строка, её отклонит проверка
@@ -66,6 +68,7 @@ fn key_creds(info: &ServiceInfo, fields: &HashMap<String, String>) -> Res<KeyCre
   match info.id {
     ServiceId::Sc => Ok(KeyCreds::Sc(sc_creds(field("client_id").unwrap_or(""), field("oauth_token")))),
     ServiceId::Ym => Ok(KeyCreds::Ym(ym_creds(field("token").unwrap_or("")))),
+    ServiceId::Yt => Ok(KeyCreds::Yt(field("cookie").unwrap_or("").to_owned())),
     _ => Err(format!("{}: пока не поддерживается", info.name)),
   }
 }
@@ -83,6 +86,7 @@ pub async fn connect_service_key(core: State<'_, Arc<Core>>, service: String, fi
   match key_creds(info, &fields)? {
     KeyCreds::Sc(creds) => core.connect_soundcloud(creds).await,
     KeyCreds::Ym(creds) => core.connect_yandex(creds).await,
+    KeyCreds::Yt(cookie) => core.connect_youtube(&cookie).await,
   }
   .map_err(err)
 }
@@ -102,6 +106,7 @@ pub async fn login_service(app: tauri::AppHandle, core: State<'_, Arc<Core>>, db
       }
     }
     "soundcloud" => crate::login::soundcloud(app, core).await,
+    "youtube" => crate::login::youtube(app, core).await,
     _ => Err(anyhow::anyhow!("Неизвестный сервис: {service}")),
   }
   .map_err(err)
@@ -148,6 +153,7 @@ pub async fn stream_url(core: State<'_, Arc<Core>>, port: State<'_, StreamPort>,
     let quality = match mime.as_str() {
       "audio/flac" | "audio/x-flac" => "FLAC · кэш",
       "audio/mp4" | "audio/aac" => "AAC · кэш",
+      "audio/webm" => "Opus · кэш",
       _ => "MP3 · кэш",
     };
     return Ok(StreamUrl { kind: "file", url: format!("http://127.0.0.1:{}/file?ref={}", port.0, urlencoding::encode(&track_ref)), quality: quality.into() });
@@ -302,6 +308,10 @@ pub fn set_setting(
   }
   if key == "audio.quality" {
     core.max_kbps.store(crate::services::quality_kbps(value.as_str()), Ordering::Relaxed);
+  }
+  if key == "audio.yt_quality" {
+    core.yt_high.store(crate::services::yt_high(value.as_str()), Ordering::Relaxed);
+    core.forget_streams();
   }
   db.0.lock().unwrap().set_setting(&key, &value).map_err(err)
 }
@@ -1141,6 +1151,7 @@ pub fn reset_settings(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<()> 
   db.0.lock().unwrap().reset_settings().map_err(err)?;
   core.sc_via_yandex.store(false, Ordering::Relaxed);
   core.max_kbps.store(crate::services::quality_kbps(None), Ordering::Relaxed);
+  core.yt_high.store(crate::services::yt_high(None), Ordering::Relaxed);
   Ok(())
 }
 
@@ -1376,8 +1387,18 @@ mod tests {
 
   #[test]
   fn key_creds_unimplemented_service() {
-    let e = key_creds(info(ServiceId::Yt), &fields(&[("token", "SECRET123")])).unwrap_err();
-    assert_eq!(e, "YouTube Music: пока не поддерживается");
+    let e = key_creds(info(ServiceId::Vk), &fields(&[("token", "SECRET123")])).unwrap_err();
+    assert_eq!(e, "VK Музыка: пока не поддерживается");
+  }
+
+  #[test]
+  fn key_creds_youtube_takes_cookie_field() {
+    let KeyCreds::Yt(c) = key_creds(info(ServiceId::Yt), &fields(&[("cookie", "SAPISID=a"), ("token", "x")])).unwrap() else {
+      panic!("ожидался YouTube")
+    };
+    assert_eq!(c, "SAPISID=a");
+    let KeyCreds::Yt(c) = key_creds(info(ServiceId::Yt), &fields(&[])).unwrap() else { panic!("ожидался YouTube") };
+    assert_eq!(c, "");
   }
 
   /// Ключ в текст ошибки не попадает: ни из формы, ни из проверки Core.
@@ -1393,6 +1414,9 @@ mod tests {
     assert_eq!(e, "client_id SoundCloud — строка из 32 символов");
     let KeyCreds::Ym(creds) = key_creds(info(ServiceId::Ym), &fields(&[("token", "   ")])).unwrap() else { panic!("ожидался Яндекс") };
     assert_eq!(core.connect_yandex(creds).await.map_err(err).unwrap_err(), "Вставь токен Яндекс Музыки");
+    let e = core.connect_youtube("SID=SECRET123; HSID=x").await.map_err(err).unwrap_err();
+    assert!(!e.contains(secret), "{e}");
+    assert_eq!(e, "В cookie нет SAPISID — войди на music.youtube.com и скопируй cookie заново");
     let e = key_creds(info(ServiceId::Vk), &fields(&[("token", secret)])).unwrap_err();
     assert!(!e.contains(secret), "{e}");
   }
