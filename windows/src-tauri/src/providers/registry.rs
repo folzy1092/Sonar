@@ -198,7 +198,6 @@ pub fn parse_ref(r: &str) -> Option<(&'static ServiceInfo, RefKind)> {
 }
 
 /// Сервис по ref (любого вида).
-#[allow(dead_code)] // часть API реестра (как в services.ts); в Rust пока зовут только тесты
 pub fn service_of(r: &str) -> Option<ServiceId> {
   parse_ref(r).map(|(s, _)| s.id)
 }

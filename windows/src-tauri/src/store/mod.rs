@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 mod local_files;
+mod recap;
 mod search;
 mod stats;
 mod sync;
@@ -16,6 +17,7 @@ mod system;
 mod wave;
 mod wave_events;
 pub use local_files::LocalFile;
+pub use recap::{Recap, RecapPeriods, RecapSpan};
 pub use stats::Stats;
 pub use sync::{Change, Op, PlayUpload};
 pub use search::SearchEntry;
