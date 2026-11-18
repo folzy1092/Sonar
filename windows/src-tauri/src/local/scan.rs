@@ -1,6 +1,10 @@
 //! Скан папок с музыкой. Без базы и без окна — только файлы: на входе папки и то, что уже лежит в
 //! `local_files`, на выходе — что добавить/обновить и что удалить. Повторный скан читает теги
 //! только у новых и изменённых файлов (время изменения или размер).
+//!
+//! Пропавший файл (удалили, вынули флешку) строку не теряет — она серая «Файл не найден» с «Найти в
+//! сервисах», пока папка в списке. Уходит строка, только если папку убрали из списка или файл явно
+//! переехал: в тех же папках нашёлся файл того же размера с теми же названием и исполнителем.
 
 use super::{is_audio, is_cover_file, local_ref, sha1_hex, tags};
 use crate::store::LocalFile;
@@ -14,11 +18,15 @@ const MAX_FILES: usize = 50_000;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Summary {
-  /// Файлов в индексе после скана.
+  /// Файлов в индексе после скана (вместе с пропавшими).
   pub total: usize,
   pub added: usize,
   pub updated: usize,
   pub removed: usize,
+  /// Строк, чьих файлов сейчас нет на диске (серые «Файл не найден»).
+  pub missing: usize,
+  /// Файлов больше `MAX_FILES` — обход остановлен, непросмотренные строки не тронуты.
+  pub truncated: bool,
 }
 
 #[derive(Debug, Default)]
@@ -33,13 +41,14 @@ fn hidden(path: &Path) -> bool {
 }
 
 /// Аудиофайлы папки и подпапок. По ссылкам на папки не ходим (петли), скрытое пропускаем.
-fn collect(root: &Path, out: &mut Vec<PathBuf>) {
+/// `false` — упёрлись в `limit` и обошли не всё.
+fn collect(root: &Path, out: &mut Vec<PathBuf>, limit: usize) -> bool {
   let mut stack = vec![root.to_path_buf()];
   while let Some(dir) = stack.pop() {
     let Ok(rd) = std::fs::read_dir(&dir) else { continue };
     for entry in rd.flatten() {
-      if out.len() >= MAX_FILES {
-        return;
+      if out.len() >= limit {
+        return false;
       }
       let path = entry.path();
       if hidden(&path) {
@@ -53,6 +62,7 @@ fn collect(root: &Path, out: &mut Vec<PathBuf>) {
       }
     }
   }
+  true
 }
 
 fn stat(path: &Path) -> Option<(i64, i64)> {
@@ -96,45 +106,67 @@ fn unchanged(known: &LocalFile, mtime: i64, size: i64) -> bool {
   known.mtime == mtime && known.size == size && known.cover_path.as_deref().is_none_or(|c| Path::new(c).is_file())
 }
 
-/// Скан папок. Папки, которой сейчас нет (флешка, сетевой диск), — её строки остаются и
-/// показываются серыми «Файл не найден»; убранная из списка папка — строки удаляются.
+/// Тот же трек по содержимому: размер, название и исполнитель (переименовали или переложили).
+type Twin = (i64, String, String);
+
+fn twin(f: &LocalFile) -> Twin {
+  (f.size, f.title.clone(), f.artist.clone())
+}
+
+/// Скан папок. Пропавший файл в папке из списка (и вся папка, которой сейчас нет: флешка, сетевой
+/// диск) — строка остаётся серой «Файл не найден»; убранная из списка папка — строки удаляются.
 pub fn scan(folders: &[PathBuf], known: &[LocalFile], cover_dir: Option<&Path>) -> ScanResult {
+  scan_with_limit(folders, known, cover_dir, MAX_FILES)
+}
+
+fn scan_with_limit(folders: &[PathBuf], known: &[LocalFile], cover_dir: Option<&Path>, limit: usize) -> ScanResult {
   let by_path: HashMap<&str, &LocalFile> = known.iter().map(|f| (f.path.as_str(), f)).collect();
-  let mut keep: HashSet<String> = HashSet::new();
+  // ref → лежит ли файл на диске (по итогам этого скана)
+  let mut seen: HashMap<String, bool> = HashMap::new();
+  let mut present: HashSet<Twin> = HashSet::new();
   let mut result = ScanResult::default();
   let mut files = Vec::new();
-  for folder in folders {
-    if folder.is_dir() {
-      collect(folder, &mut files);
-    } else {
-      keep.extend(known.iter().filter(|f| Path::new(&f.path).starts_with(folder)).map(|f| f.ref_.clone()));
-    }
+  let mut complete = true;
+  for folder in folders.iter().filter(|f| f.is_dir()) {
+    complete &= collect(folder, &mut files, limit);
   }
   files.sort();
   files.dedup();
   for path in files {
     let Some((mtime, size)) = stat(&path) else { continue };
     let key = path.to_string_lossy();
-    match by_path.get(key.as_ref()) {
-      Some(k) if unchanged(k, mtime, size) => {
-        keep.insert(k.ref_.clone());
-      }
-      Some(k) => {
-        keep.insert(k.ref_.clone());
-        result.upserts.push(read_file(&path, mtime, size, cover_dir));
+    let f = match by_path.get(key.as_ref()) {
+      Some(k) if unchanged(k, mtime, size) => (*k).clone(),
+      Some(_) => {
         result.summary.updated += 1;
+        read_file(&path, mtime, size, cover_dir)
       }
       None => {
-        let f = read_file(&path, mtime, size, cover_dir);
-        keep.insert(f.ref_.clone());
-        result.upserts.push(f);
         result.summary.added += 1;
+        read_file(&path, mtime, size, cover_dir)
       }
+    };
+    present.insert(twin(&f));
+    seen.insert(f.ref_.clone(), true);
+    if by_path.get(key.as_ref()).is_none_or(|k| **k != f) {
+      result.upserts.push(f);
     }
   }
-  result.removed = known.iter().filter(|f| !keep.contains(&f.ref_)).map(|f| f.ref_.clone()).collect();
+  let unseen: Vec<&LocalFile> = known.iter().filter(|f| !seen.contains_key(&f.ref_)).collect();
+  for f in unseen {
+    let in_list = folders.iter().any(|d| Path::new(&f.path).starts_with(d));
+    // обход не полный — непросмотренное не трогаем: файл, скорее всего, на месте
+    let moved = complete && present.contains(&twin(f)) && !Path::new(&f.path).is_file();
+    if in_list && !moved {
+      seen.insert(f.ref_.clone(), !complete && Path::new(&f.path).is_file());
+    } else {
+      result.removed.push(f.ref_.clone());
+    }
+  }
   result.summary.removed = result.removed.len();
-  result.summary.total = keep.len();
+  result.summary.total = seen.len();
+  result.summary.missing = seen.values().filter(|on_disk| !**on_disk).count();
+  result.summary.truncated = !complete;
   result
 }
 
@@ -178,7 +210,7 @@ mod tests {
     write_wav(&music.join("._junk.wav"), 200);
 
     let r = scan(std::slice::from_ref(&music), &[], Some(&covers));
-    assert_eq!(r.summary, Summary { total: 2, added: 2, updated: 0, removed: 0 });
+    assert_eq!(r.summary, Summary { total: 2, added: 2, ..Summary::default() });
     let mut titles: Vec<&str> = r.upserts.iter().map(|f| f.title.as_str()).collect();
     titles.sort_unstable();
     assert_eq!(titles, ["One", "Два"]);
@@ -209,13 +241,56 @@ mod tests {
     assert!(r.upserts.is_empty() && r.removed.is_empty());
     assert_eq!(r.summary, Summary { total: 2, ..Summary::default() });
 
-    // изменился размер одного (новые теги) и удалён другой
+    // изменился размер одного (новые теги) и удалён другой — его строка остаётся серой
     tag_wav(&a, "Новое", "Кто-то", None, None);
     std::fs::remove_file(&b).unwrap();
     let r = scan(std::slice::from_ref(&music), &known, None);
-    assert_eq!(r.summary, Summary { total: 1, added: 0, updated: 1, removed: 1 });
+    assert_eq!(r.summary, Summary { total: 2, updated: 1, missing: 1, ..Summary::default() });
+    assert_eq!(r.upserts.len(), 1);
     assert_eq!(r.upserts[0].title, "Новое");
-    assert_eq!(r.removed, [local_ref(&b)]);
+    assert!(r.removed.is_empty());
+    let _ = std::fs::remove_dir_all(music);
+  }
+
+  #[test]
+  fn moved_file_replaces_its_old_row() {
+    let music = temp_dir("scan-moved");
+    let old = music.join("old.wav");
+    write_wav(&old, 200);
+    tag_wav(&old, "Песня", "Кто", None, None);
+    let other = music.join("other.wav");
+    write_wav(&other, 300);
+    let mut known = vec![];
+    let r = scan(std::slice::from_ref(&music), &known, None);
+    apply(&mut known, &r);
+
+    let new = music.join("sub/new.wav");
+    std::fs::create_dir_all(new.parent().unwrap()).unwrap();
+    std::fs::rename(&old, &new).unwrap();
+    std::fs::remove_file(&other).unwrap();
+    let r = scan(std::slice::from_ref(&music), &known, None);
+    // переложенный — старая строка уходит, новая появляется; просто удалённый — серый
+    assert_eq!(r.removed, [local_ref(&old)]);
+    assert_eq!(r.upserts.len(), 1);
+    assert_eq!(r.upserts[0].ref_, local_ref(&new));
+    assert_eq!(r.summary, Summary { total: 2, added: 1, removed: 1, missing: 1, ..Summary::default() });
+    let _ = std::fs::remove_dir_all(music);
+  }
+
+  #[test]
+  fn truncated_walk_keeps_unvisited_rows() {
+    let music = temp_dir("scan-limit");
+    for name in ["a.wav", "b.wav", "c.wav"] {
+      write_wav(&music.join(name), 200);
+    }
+    let mut known = vec![];
+    let r = scan(std::slice::from_ref(&music), &known, None);
+    apply(&mut known, &r);
+    let r = scan_with_limit(std::slice::from_ref(&music), &known, None, 2);
+    assert!(r.summary.truncated);
+    assert!(r.removed.is_empty() && r.upserts.is_empty());
+    // непросмотренный файл на месте — не пропавший
+    assert_eq!(r.summary, Summary { total: 3, truncated: true, ..Summary::default() });
     let _ = std::fs::remove_dir_all(music);
   }
 
@@ -231,6 +306,7 @@ mod tests {
     let r = scan(std::slice::from_ref(&music), &known, None);
     assert!(r.removed.is_empty() && r.upserts.is_empty());
     assert_eq!(r.summary.total, 1);
+    assert_eq!(r.summary.missing, 1);
     // папку убрали из списка — строки уходят
     let r = scan(&[], &known, None);
     assert_eq!(r.removed, [known[0].ref_.clone()]);

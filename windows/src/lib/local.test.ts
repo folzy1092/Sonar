@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addFolder, hasArtist, isMissingLocal, removeFolder, servicesQuery } from './local'
+import { addFolder, hasArtist, isMissingLocal, playableQueue, removeFolder, servicesQuery } from './local'
 
 const track = (over: Partial<{ ref: string; title: string; artist: string; available: boolean }> = {}) => ({
   ref: 'local:' + 'a'.repeat(40),
@@ -18,6 +18,33 @@ describe('isMissingLocal', () => {
   it('ignores unavailable tracks of streaming services', () => {
     expect(isMissingLocal(track({ ref: 'sc:1', available: false }))).toBe(false)
     expect(isMissingLocal(track({ ref: 'ym:1', available: false }))).toBe(false)
+  })
+})
+
+describe('playableQueue', () => {
+  const list = [
+    track({ ref: 'sc:1' }),
+    track({ ref: 'local:' + 'b'.repeat(40), available: false }),
+    track({ ref: 'sc:3' }),
+    track({ ref: 'ym:4', available: false }),
+    track({ ref: 'local:' + 'e'.repeat(40), available: false }),
+  ]
+  const refs = (q: { tracks: { ref: string }[] }) => q.tracks.map((x) => x.ref)
+
+  it('drops missing local files and keeps the started track in place', () => {
+    const q = playableQueue(list, 2)
+    expect(refs(q)).toEqual(['sc:1', 'sc:3', 'ym:4'])
+    expect(q.index).toBe(1)
+    expect(list).toHaveLength(5)
+  })
+
+  it('starts from the next playable track when the chosen one is missing', () => {
+    expect(playableQueue(list, 1).index).toBe(1)
+    expect(playableQueue(list, 4).index).toBe(2)
+  })
+
+  it('returns an empty queue when nothing can play', () => {
+    expect(playableQueue([list[1], list[4]], 0)).toEqual({ tracks: [], index: 0 })
   })
 })
 

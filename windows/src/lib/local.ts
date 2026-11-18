@@ -14,6 +14,17 @@ export function isMissingLocal(track: TrackLike): boolean {
   return !track.available && isLocalRef(track.ref)
 }
 
+/**
+ * Очередь без пропавших файлов (флешка вынута, файл удалён): иначе плеер встал бы на таком треке
+ * с ошибкой вместо перехода дальше. `index` сдвигается на тот же трек, а если пропал он сам — на
+ * следующий живой. Пустой список — играть нечего.
+ */
+export function playableQueue<T extends TrackLike>(tracks: readonly T[], index: number): { tracks: T[]; index: number } {
+  const kept = tracks.filter((t) => !isMissingLocal(t))
+  const before = tracks.slice(0, Math.max(0, index)).filter((t) => !isMissingLocal(t)).length
+  return { tracks: kept, index: Math.min(before, Math.max(0, kept.length - 1)) }
+}
+
 /** Запрос для «Найти в сервисах»: «исполнитель название» без лишних пробелов. */
 export function servicesQuery(track: Pick<TrackLike, 'title' | 'artist'>): string {
   return `${track.artist} ${track.title}`.replace(/\s+/g, ' ').trim()

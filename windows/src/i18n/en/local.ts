@@ -24,6 +24,9 @@ export default {
   'новых {n}': '{n} new',
   'обновлено {n}': '{n} updated',
   'убрано {n}': '{n} removed',
+  'не найдено {n}': '{n} not found',
+  'Файлов больше 50 000 — просканированы не все. Убери лишние папки из списка.':
+    'More than 50,000 files — not all were scanned. Remove extra folders from the list.',
   'Локальные файлы: нет такой страницы': 'Local files: no such page',
   'MP3 · файл': 'MP3 · file',
   'FLAC · файл': 'FLAC · file',

@@ -437,6 +437,10 @@ export interface LocalSummary {
   added: number
   updated: number
   removed: number
+  /** Строк, чьих файлов сейчас нет на диске («Файл не найден»). */
+  missing: number
+  /** Файлов больше 50 000 — просканированы не все. */
+  truncated: boolean
 }
 
 /** Папки с музыкой изменились (скан после правки на диске или в настройках). */
