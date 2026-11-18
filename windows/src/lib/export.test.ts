@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  FALLBACK_NAME,
-  MAX_NAME_CHARS,
   csvCell,
   exportText,
-  safeFileName,
   serviceName,
   toCsv,
   toJson,
@@ -28,43 +25,6 @@ function track(over: Partial<ExportTrack> = {}): ExportTrack {
     ...over,
   }
 }
-
-describe('safeFileName', () => {
-  it('keeps ordinary and unicode names as is', () => {
-    expect(safeFileName('Мой плейлист')).toBe('Мой плейлист')
-    expect(safeFileName('Café ☕ 2024')).toBe('Café ☕ 2024')
-    expect(safeFileName('日本の歌')).toBe('日本の歌')
-  })
-
-  it('replaces forbidden and control characters with a single space', () => {
-    expect(safeFileName('AC/DC: Best?')).toBe('AC DC Best')
-    expect(safeFileName('a<b>c"d\\e|f*g')).toBe('a b c d e f g')
-    expect(safeFileName('line\nbreak\ttab\u0000nul')).toBe('line break tab nul')
-  })
-
-  it('trims dots and spaces at the edges', () => {
-    expect(safeFileName('  ..hidden.. ')).toBe('hidden')
-    expect(safeFileName('end.')).toBe('end')
-  })
-
-  it('falls back to Sonar when nothing is left', () => {
-    expect(safeFileName('')).toBe(FALLBACK_NAME)
-    expect(safeFileName('???')).toBe(FALLBACK_NAME)
-    expect(safeFileName(' . . ')).toBe(FALLBACK_NAME)
-  })
-
-  it('guards Windows device names', () => {
-    expect(safeFileName('CON')).toBe('_CON')
-    expect(safeFileName('nul')).toBe('_nul')
-    expect(safeFileName('com1.backup')).toBe('_com1.backup')
-    expect(safeFileName('Console')).toBe('Console')
-  })
-
-  it('limits length by characters, not UTF-16 units', () => {
-    expect(Array.from(safeFileName('я'.repeat(300)))).toHaveLength(MAX_NAME_CHARS)
-    expect(Array.from(safeFileName('🎵'.repeat(300)))).toHaveLength(MAX_NAME_CHARS)
-  })
-})
 
 describe('trackWebUrl', () => {
   it('prefers the track own http link', () => {
@@ -143,6 +103,11 @@ describe('csvCell', () => {
     expect(csvCell('+1', true)).toBe("'+1")
     expect(csvCell('@me', true)).toBe("'@me")
     expect(csvCell('-x', false)).toBe('-x')
+  })
+
+  it('checks the first code unit, so CRLF and combining marks are caught (same as iPhone)', () => {
+    expect(csvCell('\r\n=1', true)).toBe(`"'\r\n=1"`)
+    expect(csvCell('=\u0301x', true)).toBe("'=\u0301x")
   })
 })
 

@@ -3,7 +3,8 @@
 //! Окно открывает Rust, а не JS: у интерфейса нет права писать файлы куда угодно, он
 //! передаёт готовый текст, а путь выбирает сам пользователь в системном окне.
 
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use tauri_plugin_dialog::DialogExt;
 
 /// Имя файла длиннее — обрезаем (Windows держит 255 символов на имя, оставляем запас на расширение).
@@ -58,8 +59,8 @@ impl Format {
   }
 }
 
-/// Название плейлиста → безопасное имя файла без расширения (то же правило, что
-/// `safeFileName` в `src/lib/export.ts`): запрещённые знаки и управляющие символы — пробел,
+/// Название плейлиста → безопасное имя файла без расширения (на ПК — только здесь; на iPhone то же
+/// правило — `PlaylistExport.safeFileName`): запрещённые знаки и управляющие символы — пробел,
 /// пробелы схлопываются, точки и пробелы по краям убираются, длина — до `MAX_NAME_CHARS`,
 /// имя устройства Windows получает `_` в начале, пустое — `Sonar`.
 pub fn sanitize_file_name(name: &str) -> String {
@@ -80,19 +81,35 @@ pub fn sanitize_file_name(name: &str) -> String {
   trimmed.to_string()
 }
 
-/// Окно сохранения на некоторых системах отдаёт путь без расширения — дописываем.
-fn with_extension(path: PathBuf, format: Format) -> PathBuf {
+/// Окно сохранения на некоторых системах отдаёт путь без нужного расширения — дописываем.
+/// Второе значение — `true`, если расширение дописано: такого пути пользователь в окне не подтверждал.
+fn with_extension(path: PathBuf, format: Format) -> (PathBuf, bool) {
   let has_ext = path
     .extension()
     .and_then(|e| e.to_str())
     .is_some_and(|e| e.eq_ignore_ascii_case(format.ext()));
   if has_ext {
-    return path;
+    return (path, false);
   }
   let mut name = path.file_name().map(|n| n.to_os_string()).unwrap_or_default();
   name.push(".");
   name.push(format.ext());
-  path.with_file_name(name)
+  (path.with_file_name(name), true)
+}
+
+/// Записать файл. `replace` — путь подтверждён в окне сохранения (оно само спросило про замену);
+/// иначе (расширение дописали мы) чужой файл с тем же именем не трогаем: ошибка `AlreadyExists`.
+fn write_export(path: &Path, contents: &[u8], replace: bool) -> std::io::Result<()> {
+  let mut options = std::fs::OpenOptions::new();
+  options.write(true);
+  if replace {
+    options.create(true).truncate(true);
+  } else {
+    options.create_new(true);
+  }
+  let mut file = options.open(path)?;
+  file.write_all(contents)?;
+  file.flush()
 }
 
 /// Спросить, куда сохранить, и записать готовый текст. `None` — пользователь закрыл окно,
@@ -127,13 +144,20 @@ pub async fn export_playlist(
     return Ok(None);
   };
   let path = picked.into_path().map_err(|_| "Не удалось сохранить файл")?;
-  let path = with_extension(path, format);
-  if let Err(e) = tokio::fs::write(&path, contents.as_bytes()).await {
-    // путь в журнал не пишем: в нём имя пользователя системы
-    log::warn!("экспорт плейлиста: запись не удалась ({:?})", e.kind());
-    return Err("Не удалось сохранить файл".into());
+  let (path, ext_added) = with_extension(path, format);
+  let target = path.clone();
+  let written = tokio::task::spawn_blocking(move || write_export(&target, contents.as_bytes(), !ext_added))
+    .await
+    .map_err(|_| "Не удалось сохранить файл")?;
+  match written {
+    Ok(()) => Ok(path.file_name().map(|n| n.to_string_lossy().into_owned())),
+    Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Err("Файл с таким именем уже есть".into()),
+    Err(e) => {
+      // путь в журнал не пишем: в нём имя пользователя системы
+      log::warn!("экспорт плейлиста: запись не удалась ({:?})", e.kind());
+      Err("Не удалось сохранить файл".into())
+    }
   }
-  Ok(path.file_name().map(|n| n.to_string_lossy().into_owned()))
 }
 
 #[cfg(test)]
@@ -195,10 +219,42 @@ mod tests {
   #[test]
   fn extension_is_added_only_when_missing() {
     let base = PathBuf::from("dir").join("list");
-    assert_eq!(with_extension(base.clone(), Format::Csv), PathBuf::from("dir").join("list.csv"));
+    assert_eq!(with_extension(base.clone(), Format::Csv), (PathBuf::from("dir").join("list.csv"), true));
     let done = PathBuf::from("dir").join("list.CSV");
-    assert_eq!(with_extension(done.clone(), Format::Csv), done);
+    assert_eq!(with_extension(done.clone(), Format::Csv), (done, false));
     let other = PathBuf::from("dir").join("list.txt");
-    assert_eq!(with_extension(other, Format::Json), PathBuf::from("dir").join("list.txt.json"));
+    assert_eq!(with_extension(other, Format::Json), (PathBuf::from("dir").join("list.txt.json"), true));
+  }
+
+  /// Своя пустая папка во временной — тесты не мешают друг другу.
+  fn temp_dir(tag: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("sonar-export-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+  }
+
+  #[test]
+  fn write_replaces_only_a_confirmed_path() {
+    let dir = temp_dir("replace");
+    let path = dir.join("list.csv");
+    std::fs::write(&path, "old old old").unwrap();
+    write_export(&path, b"new", true).unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), b"new");
+    std::fs::remove_dir_all(&dir).unwrap();
+  }
+
+  #[test]
+  fn write_keeps_existing_file_when_extension_was_added() {
+    let dir = temp_dir("keep");
+    let path = dir.join("notes.txt.csv");
+    std::fs::write(&path, "someone else").unwrap();
+    let err = write_export(&path, b"new", false).unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+    assert_eq!(std::fs::read(&path).unwrap(), b"someone else");
+    let fresh = dir.join("fresh.csv");
+    write_export(&fresh, b"new", false).unwrap();
+    assert_eq!(std::fs::read(&fresh).unwrap(), b"new");
+    std::fs::remove_dir_all(&dir).unwrap();
   }
 }

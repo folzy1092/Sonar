@@ -1,38 +1,18 @@
 /** Экспорт плейлиста в файл (NEXT_PROMPT, этап 8): M3U8, CSV и JSON. Здесь — только чистые
- *  функции: текст файла по списку треков и безопасное имя файла. Сохраняет файл Rust
- *  (`src-tauri/src/export.rs`, окно «Сохранить как»); та же логика на iPhone —
+ *  функции: текст файла по списку треков. Имя файла и запись — Rust (`src-tauri/src/export.rs`,
+ *  `sanitize_file_name` и окно «Сохранить как»); та же логика на iPhone —
  *  `ios/Sonar/Core/Export/PlaylistExport.swift`. */
 import type { Track } from './api'
 import { parseRef } from './services'
 
 export type ExportFormat = 'm3u8' | 'csv' | 'json'
 
-export const EXPORT_FORMATS: readonly ExportFormat[] = Object.freeze(['m3u8', 'csv', 'json'])
-
 /** Трек для экспорта: поля `Track` из API.md + когда добавлен (мс, у плейлистов сервисов — нет). */
 export type ExportTrack = Track & { added_at?: number | null }
 
-/** Длинное имя файла обрезаем (то же число — `MAX_NAME_CHARS` в export.rs). */
-export const MAX_NAME_CHARS = 100
-/** Имя, если от названия плейлиста ничего не осталось. */
-export const FALLBACK_NAME = 'Sonar'
-const FORBIDDEN = /[<>:"/\\|?*\p{Cc}]/gu
-const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
 /** Начало ячейки, которое Excel и Таблицы считают формулой. */
 const FORMULA_START = /^[=+\-@\t\r]/
 const CSV_COLUMNS = ['title', 'artist', 'album', 'duration', 'service', 'link', 'added'] as const
-
-/** Название плейлиста → имя файла без расширения: запрещённые знаки и управляющие символы —
- *  пробел, пробелы схлопываются, точки и пробелы по краям убираются, до `MAX_NAME_CHARS`
- *  символов, имя устройства Windows (CON, NUL…) — с `_` в начале, пустое — `Sonar`. */
-export function safeFileName(name: string): string {
-  const collapsed = name.replace(FORBIDDEN, ' ').split(/\s+/u).filter(Boolean).join(' ')
-  const cut = Array.from(collapsed).slice(0, MAX_NAME_CHARS).join('')
-  const trimmed = cut.replace(/^[.\s]+|[.\s]+$/gu, '')
-  if (!trimmed) return FALLBACK_NAME
-  const stem = trimmed.split('.')[0].trim()
-  return RESERVED.test(stem) ? `_${trimmed}` : trimmed
-}
 
 /** Ссылка на трек на сайте сервиса: своя ссылка трека (если http/https), иначе — по ref из
  *  реестра (§2 «Префиксы ref»). У SoundCloud без ссылки и у локальных файлов — `null`. */

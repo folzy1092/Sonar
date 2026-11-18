@@ -16,7 +16,7 @@
   import { tracksText } from '../lib/format'
   import { player } from '../player/player.svelte'
   import { openRef, router } from './router.svelte'
-  import { pop } from '../lib/motion'
+  import { pop, rise } from '../lib/motion'
   import { t } from '../lib/i18n.svelte'
   import { byId, isTrackRef, playlistWebUrl, serviceOf } from '../lib/services'
   import { confirm } from '../lib/confirm.svelte'
@@ -57,6 +57,7 @@
   // не вылезать за окно
   $effect(() => {
     if ((!p && !own && !fav) || !el) return
+    view // подменю «Экспорт» короче — после смены пересчитать
     const h = el.offsetHeight
     const left = Math.min(Math.max(8, playlistMenu.x), innerWidth - W - 8)
     const top = Math.min(playlistMenu.y, innerHeight - h - 8)
@@ -267,22 +268,25 @@
     {#if view === 'export'}
       <ExportItems onback={() => (view = 'main')} onpick={exportAs} />
     {:else}
-      {@render item('chevronRight', t('Открыть'), () => {
-        playlistMenu.close()
-        router.go('playlist', 'favorites')
-      })}
-      {@render item('play', t('Слушать'), () => withFav((list) => player.playList(list, 0, 'favorites', t('Любимые'))))}
-      {@render item('shuffle', t('Слушать вперемешку'), () => withFav((list) => player.playShuffled(list, 'favorites', t('Любимые'))))}
-      <hr />
-      {@render item('playNext', t('Следующими'), () => withFav((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
-      {@render item('queue', t('В очередь'), () => withFav((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}
-      <hr />
-      {@render exportEntry()}
-      <hr />
-      <button class="item danger" role="menuitem" onclick={clearFav}>
-        <Icon name="trash" size={17} />
-        <span>{t('Очистить Любимые')}</span>
-      </button>
+      <!-- переход локальный: при открытии меню строки не «въезжают», только при возврате из «Экспорт» -->
+      <div in:rise={{ y: 6, duration: 220 }}>
+        {@render item('chevronRight', t('Открыть'), () => {
+          playlistMenu.close()
+          router.go('playlist', 'favorites')
+        })}
+        {@render item('play', t('Слушать'), () => withFav((list) => player.playList(list, 0, 'favorites', t('Любимые'))))}
+        {@render item('shuffle', t('Слушать вперемешку'), () => withFav((list) => player.playShuffled(list, 'favorites', t('Любимые'))))}
+        <hr />
+        {@render item('playNext', t('Следующими'), () => withFav((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
+        {@render item('queue', t('В очередь'), () => withFav((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}
+        <hr />
+        {@render exportEntry()}
+        <hr />
+        <button class="item danger" role="menuitem" onclick={clearFav}>
+          <Icon name="trash" size={17} />
+          <span>{t('Очистить Любимые')}</span>
+        </button>
+      </div>
     {/if}
   </div>
 {:else if own}
@@ -311,30 +315,32 @@
     {#if view === 'export'}
       <ExportItems onback={() => (view = 'main')} onpick={exportAs} />
     {:else}
-      {@render item('chevronRight', t('Открыть'), () => {
-        playlistMenu.close()
-        router.go('playlist', own.id)
-      })}
-      {@render item('play', t('Слушать'), () => withOwn((list, pl) => player.playList(list, 0, ctx, pl.name)))}
-      {@render item('shuffle', t('Слушать вперемешку'), () => withOwn((list, pl) => player.playShuffled(list, ctx, pl.name)))}
-      <hr />
-      {@render item('playNext', t('Следующими'), () => withOwn((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
-      {@render item('queue', t('В очередь'), () => withOwn((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}
-      <hr />
-      {@render item('heart', t('Лайкнуть все треки'), () =>
-        withOwn(async (list) => {
-          const n = await library.likeAll(list)
-          return n ? t('{tracks} — в Любимых', { tracks: tracksText(n) }) : t('Все треки уже в Любимых')
-        }),
-      )}
-      {@render item('copy', t('Копировать название'), copyOwnTitle)}
-      {@render exportEntry()}
-      <hr />
-      {@render item(own.hidden ? 'eye' : 'eyeOff', own.hidden ? t('Показать плейлист') : t('Скрыть плейлист'), toggleHidden)}
-      <button class="item danger" class:sure={confirmDelete} role="menuitem" onclick={removeOwn}>
-        <Icon name="trash" size={17} />
-        <span>{confirmDelete ? t('Точно удалить?') : t('Удалить плейлист')}</span>
-      </button>
+      <div in:rise={{ y: 6, duration: 220 }}>
+        {@render item('chevronRight', t('Открыть'), () => {
+          playlistMenu.close()
+          router.go('playlist', own.id)
+        })}
+        {@render item('play', t('Слушать'), () => withOwn((list, pl) => player.playList(list, 0, ctx, pl.name)))}
+        {@render item('shuffle', t('Слушать вперемешку'), () => withOwn((list, pl) => player.playShuffled(list, ctx, pl.name)))}
+        <hr />
+        {@render item('playNext', t('Следующими'), () => withOwn((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
+        {@render item('queue', t('В очередь'), () => withOwn((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}
+        <hr />
+        {@render item('heart', t('Лайкнуть все треки'), () =>
+          withOwn(async (list) => {
+            const n = await library.likeAll(list)
+            return n ? t('{tracks} — в Любимых', { tracks: tracksText(n) }) : t('Все треки уже в Любимых')
+          }),
+        )}
+        {@render item('copy', t('Копировать название'), copyOwnTitle)}
+        {@render exportEntry()}
+        <hr />
+        {@render item(own.hidden ? 'eye' : 'eyeOff', own.hidden ? t('Показать плейлист') : t('Скрыть плейлист'), toggleHidden)}
+        <button class="item danger" class:sure={confirmDelete} role="menuitem" onclick={removeOwn}>
+          <Icon name="trash" size={17} />
+          <span>{confirmDelete ? t('Точно удалить?') : t('Удалить плейлист')}</span>
+        </button>
+      </div>
     {/if}
   </div>
 {:else if p}
@@ -363,26 +369,28 @@
     {#if view === 'export'}
       <ExportItems onback={() => (view = 'main')} onpick={exportAs} />
     {:else}
-      {@render item('chevronRight', t('Открыть'), () => {
-        playlistMenu.close()
-        openRef(p.ref)
-      })}
-      {@render item('play', t('Слушать'), () => withTracks((list, pl) => player.playList(list, 0, ctx, pl.title)))}
-      {@render item('shuffle', t('Слушать вперемешку'), () => withTracks((list, pl) => player.playShuffled(list, ctx, pl.title)))}
-      <hr />
-      {@render item('playNext', t('Следующими'), () => withTracks((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
-      {@render item('queue', t('В очередь'), () => withTracks((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}
-      <hr />
-      {@render item('playlistAdd', t('Перенести в Sonar'), importIt)}
-      {@render item('copy', t('Копировать название'), copyTitle)}
-      {@render exportEntry()}
-      {#if webUrl}
-        {@const url = webUrl}
-        {@render item('link', t(svc.openIn ?? 'Открыть в Яндекс Музыке'), () => {
+      <div in:rise={{ y: 6, duration: 220 }}>
+        {@render item('chevronRight', t('Открыть'), () => {
           playlistMenu.close()
-          void api.openUrl(url).catch(() => {})
+          openRef(p.ref)
         })}
-      {/if}
+        {@render item('play', t('Слушать'), () => withTracks((list, pl) => player.playList(list, 0, ctx, pl.title)))}
+        {@render item('shuffle', t('Слушать вперемешку'), () => withTracks((list, pl) => player.playShuffled(list, ctx, pl.title)))}
+        <hr />
+        {@render item('playNext', t('Следующими'), () => withTracks((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
+        {@render item('queue', t('В очередь'), () => withTracks((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}
+        <hr />
+        {@render item('playlistAdd', t('Перенести в Sonar'), importIt)}
+        {@render item('copy', t('Копировать название'), copyTitle)}
+        {@render exportEntry()}
+        {#if webUrl}
+          {@const url = webUrl}
+          {@render item('link', t(svc.openIn ?? 'Открыть в Яндекс Музыке'), () => {
+            playlistMenu.close()
+            void api.openUrl(url).catch(() => {})
+          })}
+        {/if}
+      </div>
     {/if}
   </div>
 {/if}
