@@ -425,7 +425,33 @@ export const api = {
   autostartEnabled: () => call<boolean>('autostart_enabled'),
   setTrayMode: (on: boolean) => call<void>('set_tray_mode', { on }),
 
+  /** Локальные файлы (local/commands.rs): выбрать папку (null — отмена), пересканировать папки
+   *  `storage.music_folders`, все найденные треки и поиск по ним. */
+  localPickFolder: (title: string) => call<string | null>('local_pick_folder', { title }),
+  localRescan: () => call<LocalSummary>('local_rescan'),
+  localTracks: () => call<Track[]>('local_tracks'),
+  localSearch: (query: string, limit?: number) => call<Track[]>('local_search', { query, limit }),
+
   mediaUpdate: (info: MediaInfo) => (isTauri ? invoke<void>('media_update', { info }) : Promise.resolve()),
+}
+
+/** Итог скана папок с музыкой: сколько файлов в индексе и что изменилось. */
+export interface LocalSummary {
+  total: number
+  added: number
+  updated: number
+  removed: number
+  /** Строк, чьих файлов сейчас нет на диске («Файл не найден»). */
+  missing: number
+  /** Файлов больше 50 000 — просканированы не все. */
+  truncated: boolean
+}
+
+/** Папки с музыкой изменились (скан после правки на диске или в настройках). */
+export function onLocalFilesChanged(cb: () => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen('local-files-changed', () => cb())
+  return () => void off.then((fn) => fn())
 }
 
 /** Горячие клавиши (hotkeys.rs): toggle, next, prev, like, volume_up, volume_down. */

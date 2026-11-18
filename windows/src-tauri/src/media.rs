@@ -63,6 +63,14 @@ pub struct MediaInfo {
   pub artist_avatar: Option<String>,
 }
 
+/// Обложка для SMTC: система не откроет адрес `sonarcover` из WebView — локальному файлу отдаём
+/// путь к обложке в кэше (`file://…`, souvlaki читает его с диска); нет файла — без обложки.
+fn smtc_cover(url: &str, cover_dir: Option<&std::path::Path>) -> Option<String> {
+  let Some(name) = crate::local::cover_name_from_url(url) else { return Some(url.to_owned()) };
+  let path = cover_dir?.join(name);
+  path.is_file().then(|| format!("file://{}", path.display()))
+}
+
 pub fn update(media: &Media, info: &MediaInfo) {
   let mut guard = media.0.lock().unwrap();
   let Some(c) = guard.as_mut() else { return };
@@ -70,13 +78,35 @@ pub fn update(media: &Media, info: &MediaInfo) {
     let _ = c.set_playback(MediaPlayback::Stopped);
     return;
   }
+  let cover = info.cover_url.as_deref().and_then(|u| smtc_cover(u, crate::stream::cover_dir().map(|d| d.as_path())));
   let _ = c.set_metadata(MediaMetadata {
     title: info.title.as_deref(),
     artist: info.artist.as_deref(),
     album: info.album.as_deref(),
-    cover_url: info.cover_url.as_deref(),
+    cover_url: cover.as_deref(),
     duration: info.duration_ms.map(Duration::from_millis),
   });
   let progress = info.position_ms.map(|p| MediaPosition(Duration::from_millis(p)));
   let _ = c.set_playback(if info.playing { MediaPlayback::Playing { progress } } else { MediaPlayback::Paused { progress } });
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn local_cover_goes_to_smtc_as_file_path() {
+    let dir = crate::local::fixtures::temp_dir("smtc-cover");
+    let name = format!("local-{}.png", "a".repeat(40));
+    let url = crate::local::cover_url(&name);
+    // обложки нет на диске — без обложки, а не битый адрес
+    assert_eq!(smtc_cover(&url, Some(&dir)), None);
+    std::fs::write(dir.join(&name), crate::local::fixtures::PNG).unwrap();
+    assert_eq!(smtc_cover(&url, Some(&dir)), Some(format!("file://{}", dir.join(&name).display())));
+    assert_eq!(smtc_cover(&url, None), None);
+    // обложки сервисов — как были
+    let web = "https://i1.sndcdn.com/artworks-1-t500x500.jpg";
+    assert_eq!(smtc_cover(web, Some(&dir)).as_deref(), Some(web));
+    let _ = std::fs::remove_dir_all(dir);
+  }
 }

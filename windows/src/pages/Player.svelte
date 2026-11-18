@@ -140,7 +140,7 @@
       <!-- что реально играет — своё место под артистом, а не под полосой -->
       {#if player.quality}
         {#key player.quality}
-          <span class="quality" title={t('Что реально играет')}>{player.quality}</span>
+          <span class="quality" title={t('Что реально играет')}>{t(player.quality)}</span>
         {/key}
       {/if}
     </div>

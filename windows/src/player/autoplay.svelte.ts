@@ -11,6 +11,7 @@ import { settings } from '../lib/settings.svelte'
 import { player } from './player.svelte'
 import { WAVE_CONTEXT, wave } from './my-wave.svelte'
 import { t } from '../lib/i18n.svelte'
+import { isLocalRef } from '../lib/services'
 
 /** Догружать, когда до конца очереди осталось меньше стольких треков. */
 const LEFT = 3
@@ -39,11 +40,13 @@ export function freshSimilar(lists: Track[][], inQueue: Set<string>, disliked: (
   return out
 }
 
-/** Сиды: последний трек очереди и случайный трек из твоей (не автоплейной) части. */
+/** Сиды: последний трек очереди и случайный трек из твоей (не автоплейной) части. Файлы с
+ *  компьютера (`local:…`) не годятся — похожих у них нет, берётся последний трек сервиса. */
 export function autoplaySeeds(queue: Track[], auto: Set<string>, rand = Math.random): Track[] {
-  const last = queue.at(-1)
+  const usable = queue.filter((t) => !isLocalRef(t.ref))
+  const last = usable.at(-1)
   if (!last) return []
-  const own = queue.filter((t) => !auto.has(t.ref) && t.ref !== last.ref)
+  const own = usable.filter((t) => !auto.has(t.ref) && t.ref !== last.ref)
   const extra = own.length ? own[Math.floor(rand() * own.length)] : null
   return extra ? [last, extra] : [last]
 }
