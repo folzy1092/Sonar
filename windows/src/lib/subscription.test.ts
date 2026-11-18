@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PERIODS, PLANS, payUrl, price, savedPercent } from './subscription'
+import { canCreatePlaylist, FREE_LIMITS, importCap, PERIODS, PLANS, payUrl, price, savedPercent } from './subscription'
 
 describe('подписка', () => {
   it('месяц — ровно цена тарифа, дольше — дешевле в пересчёте на месяц', () => {
@@ -26,7 +26,17 @@ describe('подписка', () => {
   })
 
   it('ссылка на оплату', () => {
-    expect(payUrl('duo', '3m', 'folzy')).toBe('https://sonar.folzy.ru/pay?plan=duo&period=3m&u=folzy')
-    expect(payUrl('solo', '1m')).toBe('https://sonar.folzy.ru/pay?plan=solo&period=1m')
+    expect(payUrl('echo', '3m', 'folzy')).toBe('https://sonar.folzy.ru/pay?plan=echo&period=3m&u=folzy')
+    expect(payUrl('ping', '1m')).toBe('https://sonar.folzy.ru/pay?plan=ping&period=1m')
+  })
+
+  it('пределы бесплатного: перенос до 500, плейлистов до 5 — только когда включены', () => {
+    expect(importCap(650, false, true)).toBe(FREE_LIMITS.import_tracks)
+    expect(importCap(650, true, true)).toBe(650)
+    expect(importCap(650, false, false)).toBe(650)
+    expect(canCreatePlaylist(5, false, true)).toBe(false)
+    expect(canCreatePlaylist(4, false, true)).toBe(true)
+    expect(canCreatePlaylist(50, true, true)).toBe(true)
+    expect(canCreatePlaylist(50, false)).toBe(true)
   })
 })
