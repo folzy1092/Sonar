@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { sidePane } from './side-pane.svelte'
+  import { knownLyrics, lyricsAvail, sidePane } from './side-pane.svelte'
+  import { untrack } from 'svelte'
   // Мини-плеер в стиле «Гибрид» (reference/pc/гибрид.png, mini.style = hybrid): прогресс — фоном,
   // по центру простые значки без кругов, справа капсула скорость · громкость · очередь · текст.
   import Icon from '../components/Icon.svelte'
@@ -69,7 +70,14 @@
     press = null
     if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 5) seekAt(e.clientX)
   }
-  const hasLyrics = $derived(lyrics.status === 'ready')
+  // кнопка правой панели: текст есть (любой — синхронный, обычный, Genius) — «Т», нет — значок очереди;
+  // пока текст нового трека ищется — прежний значок, чтобы не мигал на каждой смене трека
+  const avail = $derived(lyricsAvail(lyrics.status, lyrics.ref, track?.ref ?? null))
+  let hasLyrics = $state(false)
+  $effect.pre(() => {
+    const a = avail
+    hasLyrics = untrack(() => knownLyrics(a, hasLyrics))
+  })
   // прогресс — можно несколько сразу: полоса фоном, линия снизу, кольцо вокруг обложки
   const progress = $derived(settings.get('mini.progress'))
 </script>
@@ -189,8 +197,8 @@
       <EqButton />
       <SpeedButton />
       <Volume />
-      <!-- правая панель: текста нет — очередь, текст найден — «Т» (app/side-pane.svelte.ts);
-           полноэкранный плеер — клик по обложке -->
+      <!-- правая панель: текста нет — очередь, текст найден — «Т» (app/side-pane.svelte.ts); открывает вид
+           по тексту — не «руками», так что догрузившийся текст панель покажет сама. Полноэкранный плеер — клик по обложке -->
       {#if track}
         {#key hasLyrics}
           <span class="t-btn" in:scale={{ duration: 200, start: 0.6 }}>
@@ -199,7 +207,7 @@
               label={hasLyrics ? t('Текст песни') : t('Очередь')}
               size={17}
               active={sidePane.open}
-              onclick={() => sidePane.toggle(hasLyrics ? 'lyrics' : 'queue', hasLyrics)}
+              onclick={() => sidePane.toggle(hasLyrics ? 'lyrics' : 'queue', hasLyrics, false)}
             />
           </span>
         {/key}
