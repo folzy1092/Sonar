@@ -206,12 +206,17 @@ async fn playable_url(core: &Core, db: &Db, port: u16, track_ref: &str, track: O
   };
   core.fallback.remember(&known);
   // YouTube Music не открылся — ещё раз с новой visitorData, причина — в журнал ошибок
-  let played = core.resolve_playable(track_ref, meta.as_ref(), broken).await.map_err(err)?;
-  {
-    let mut db = db.0.lock().unwrap();
-    if let Err(e) = db.put_track_aliases(&played.searched) {
+  let played = core.resolve_playable(track_ref, meta.as_ref(), broken).await;
+  // найденные пары, «не нашлось» и переставшие играть — на диск, даже когда замены нет
+  let writes = core.fallback.take_writes();
+  if !writes.is_empty() {
+    if let Err(e) = db.0.lock().unwrap().apply_track_alias_writes(&writes) {
       log::warn!("[fallback] track_alias {track_ref}: {e}");
     }
+  }
+  let played = played.map_err(err)?;
+  {
+    let mut db = db.0.lock().unwrap();
     if let Some(t) = &played.found {
       if let Err(e) = db.upsert_tracks(std::slice::from_ref(t)) {
         log::warn!("[fallback] трек замены {}: {e}", t.ref_);

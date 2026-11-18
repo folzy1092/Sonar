@@ -4,7 +4,8 @@
 //! «SoundCloud через Яндекс» (`audio.sc_via_yandex`) — тот же механизм, только Яндекс пробуется
 //! первым, даже когда SoundCloud играет.
 //!
-//! Найденные пары живут в памяти ядра; на диск (`track_alias`) их пишет команда `stream_url`.
+//! Найденные пары живут в памяти ядра; изменения копятся в `Fallback::take_writes`, на диск
+//! (`track_alias`) их пишет команда `stream_url` — и когда замена нашлась, и когда нет.
 
 use super::{Core, Provider};
 use crate::providers::matching::Wanted;
@@ -31,13 +32,21 @@ pub struct Via {
   pub reason: Reason,
 }
 
-/// Что играть. `found` — трек замены из поиска (в кэш `tracks`), `searched` — новые строки `track_alias`.
+/// Что играть. `found` — трек замены из поиска (в кэш `tracks`).
 #[derive(Debug)]
 pub struct Played {
   pub source: Source,
   pub via: Option<Via>,
   pub found: Option<Track>,
-  pub searched: Vec<TrackAlias>,
+}
+
+/// Изменение `track_alias` для записи на диск.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AliasWrite {
+  /// Искали: нашли (`alias_ref`) или нет (None).
+  Put(TrackAlias),
+  /// Найденное перестало играть — забыть, в следующий раз искать заново.
+  Drop { source_ref: String, service: String },
 }
 
 /// Настройки и память резервного сервиса.
@@ -49,6 +58,8 @@ pub struct Fallback {
   aliases: Mutex<HashMap<(String, ServiceId), Option<String>>>,
   /// Что сейчас играет вместо исходного трека — `/file` и `/hls` берут поток замены.
   routed: Mutex<HashMap<String, Via>>,
+  /// Изменения пар, ещё не записанные в `track_alias`.
+  writes: Mutex<Vec<AliasWrite>>,
 }
 
 impl Default for Fallback {
@@ -58,6 +69,7 @@ impl Default for Fallback {
       order: Mutex::new(default_order()),
       aliases: Mutex::new(HashMap::new()),
       routed: Mutex::new(HashMap::new()),
+      writes: Mutex::new(Vec::new()),
     }
   }
 }
@@ -86,7 +98,30 @@ impl Fallback {
   }
 
   fn put(&self, track_ref: &str, service: ServiceId, alias: Option<String>) {
-    self.aliases.lock().unwrap().insert((track_ref.to_owned(), service), alias);
+    self.aliases.lock().unwrap().insert((track_ref.to_owned(), service), alias.clone());
+    let row = TrackAlias { source_ref: track_ref.to_owned(), service: service.as_str().to_owned(), alias_ref: alias, found_at: now_ms() };
+    self.writes.lock().unwrap().push(AliasWrite::Put(row));
+  }
+
+  /// Найденная пара не играет — забыть (в памяти и на диске), чтобы в следующий раз искать заново.
+  fn forget(&self, track_ref: &str, service: ServiceId) {
+    if self.aliases.lock().unwrap().remove(&(track_ref.to_owned(), service)).is_some() {
+      let row = AliasWrite::Drop { source_ref: track_ref.to_owned(), service: service.as_str().to_owned() };
+      self.writes.lock().unwrap().push(row);
+    }
+  }
+
+  /// Изменения пар для `track_alias` (по порядку); забирает их.
+  pub fn take_writes(&self) -> Vec<AliasWrite> {
+    std::mem::take(&mut *self.writes.lock().unwrap())
+  }
+
+  /// Замена ещё разрешена настройками: «SoundCloud через Яндекс» — своим ключом, остальное — `audio.fallback`.
+  fn allows(&self, via: &Via, sc_via_yandex: bool) -> bool {
+    match via.reason {
+      Reason::Preferred => sc_via_yandex,
+      _ => self.enabled.load(Ordering::Relaxed),
+    }
   }
 
   /// ref замены, если трек сейчас играет с другого сервиса.
@@ -128,67 +163,63 @@ pub fn candidates(order: &[ServiceId], from: ServiceId, skip: &[ServiceId]) -> V
   order.iter().copied().filter(|s| *s != from && !skip.contains(s)).collect()
 }
 
-/// Плашка качества: «MP3 320 · Яндекс Музыка».
-fn labeled(src: Source, service: ServiceId) -> Source {
-  let name = info(service).name;
-  match src {
-    Source::File { url, quality } => Source::File { url, quality: format!("{quality} · {name}") },
-    Source::Hls { url, quality } => Source::Hls { url, quality: format!("{quality} · {name}") },
-  }
-}
-
 impl Played {
-  fn own(source: Source, searched: Vec<TrackAlias>) -> Self {
-    Self { source, via: None, found: None, searched }
+  fn own(source: Source) -> Self {
+    Self { source, via: None, found: None }
   }
 }
 
 impl Core {
   /// Поток трека с резервом: свой сервис, а не играет (нет трека, превью, нужна подписка, не открылся
   /// после повтора) — тот же трек в другом сервисе. `meta` — трек из интерфейса или кэша (по нему ищем);
-  /// `broken` — свой поток открылся, но не играет (ошибка `<audio>`), сразу к замене.
+  /// `broken` — то, что играло, открылось, но не играет (ошибка `<audio>`): своё — сразу к замене,
+  /// замена — свой сервис ещё раз, потом другие.
   pub async fn resolve_playable(&self, track_ref: &str, meta: Option<&Track>, broken: bool) -> Result<Played> {
     let from = parse_ref(track_ref).filter(|(_, k)| *k == RefKind::Track).map(|(s, _)| s.id);
     let Some(from) = from.filter(|id| *id != ServiceId::Local) else {
-      return Ok(Played::own(self.resolve(track_ref, false).await?, vec![]));
+      return Ok(Played::own(self.resolve(track_ref, false).await?));
     };
     let mut skip = Vec::new();
+    let mut own_broken = broken;
     let routed = self.fallback.routed.lock().unwrap().remove(track_ref);
-    if let Some(via) = routed {
-      if !broken {
-        if let Ok(src) = self.resolve_own_retrying(&via.ref_).await {
-          self.fallback.routed.lock().unwrap().insert(track_ref.to_owned(), via.clone());
-          return Ok(Played { source: labeled(src, via.service), via: Some(via), found: None, searched: vec![] });
-        }
+    // настройку выключили — замена больше не играет, трек снова со своего сервиса
+    if let Some(via) = routed.filter(|v| self.fallback.allows(v, self.sc_via_yandex.load(Ordering::Relaxed))) {
+      if broken {
+        // сломалась замена, а не свой поток
+        own_broken = false;
+        self.forget_stream(&via.ref_);
+      } else if let Ok(src) = self.resolve_own_retrying(&via.ref_).await {
+        self.fallback.routed.lock().unwrap().insert(track_ref.to_owned(), via.clone());
+        return Ok(Played { source: src, via: Some(via), found: None });
       }
+      self.fallback.forget(track_ref, via.service);
       skip.push(via.service);
     }
-    if broken {
+    if own_broken {
       self.forget_stream(track_ref);
     }
-    let mut searched = Vec::new();
     let mut wanted: Option<Option<Wanted>> = None;
     // «SoundCloud через Яндекс»: Яндекс первым, даже когда SoundCloud играет
     let preferred = from == ServiceId::Sc && self.sc_via_yandex.load(Ordering::Relaxed) && !skip.contains(&ServiceId::Ym);
-    if !broken && preferred && self.can_search(ServiceId::Ym).await {
+    if !own_broken && preferred && self.can_search(ServiceId::Ym).await {
       let w = wanted.get_or_insert(self.wanted(track_ref, meta).await);
       if let Some(w) = w.as_ref() {
-        if let Some(p) = self.try_alias(track_ref, w, ServiceId::Ym, from, Reason::Preferred, &mut searched).await {
-          return Ok(Played { searched, ..p });
+        if let Some(p) = self.try_alias(track_ref, w, ServiceId::Ym, from, Reason::Preferred).await {
+          return Ok(p);
         }
       }
       skip.push(ServiceId::Ym);
     }
-    let err = if broken {
+    let err = if own_broken {
       anyhow!("поток {} не открылся", info(from).name)
     } else {
       match self.resolve_own_retrying(track_ref).await {
-        Ok(src) => return Ok(Played::own(src, searched)),
+        Ok(src) => return Ok(Played::own(src)),
         Err(e) => e,
       }
     };
     if self.fallback.enabled.load(Ordering::Relaxed) {
-      let reason = if broken { Reason::Failed } else { reason_of(&err) };
+      let reason = if own_broken { Reason::Failed } else { reason_of(&err) };
       if wanted.is_none() {
         wanted = Some(self.wanted(track_ref, meta).await);
       }
@@ -197,16 +228,16 @@ impl Core {
           if !self.can_search(svc).await {
             continue;
           }
-          if let Some(p) = self.try_alias(track_ref, &w, svc, from, reason, &mut searched).await {
+          if let Some(p) = self.try_alias(track_ref, &w, svc, from, reason).await {
             log::info!("[fallback] {track_ref}: {} → {} ({reason:?})", info(from).name, info(svc).name);
-            return Ok(Played { searched, ..p });
+            return Ok(p);
           }
         }
       }
     }
     // замены нет: отрывок — лучше, чем ничего (как раньше), иначе — исходная ошибка
     match preview_of(&err) {
-      Some(src) => Ok(Played::own(src, searched)),
+      Some(src) => Ok(Played::own(src)),
       None => Err(err),
     }
   }
@@ -256,7 +287,6 @@ impl Core {
     svc: ServiceId,
     from: ServiceId,
     reason: Reason,
-    searched: &mut Vec<TrackAlias>,
   ) -> Option<Played> {
     let (alias, found) = match self.fallback.known(track_ref, svc) {
       Some(alias) => (alias, None),
@@ -271,12 +301,6 @@ impl Core {
         };
         let alias = t.as_ref().map(|t| t.ref_.clone());
         self.fallback.put(track_ref, svc, alias.clone());
-        searched.push(TrackAlias {
-          source_ref: track_ref.to_owned(),
-          service: svc.as_str().to_owned(),
-          alias_ref: alias.clone(),
-          found_at: now_ms(),
-        });
         (alias, t)
       }
     };
@@ -285,10 +309,11 @@ impl Core {
       Ok(src) => {
         let via = Via { ref_: alias, service: svc, from, reason };
         self.fallback.routed.lock().unwrap().insert(track_ref.to_owned(), via.clone());
-        Some(Played { source: labeled(src, svc), via: Some(via), found, searched: vec![] })
+        Some(Played { source: src, via: Some(via), found })
       }
       Err(e) => {
         log::warn!("[fallback] поток {alias}: {e}");
+        self.fallback.forget(track_ref, svc);
         None
       }
     }
@@ -334,9 +359,44 @@ mod tests {
   }
 
   #[test]
-  fn label_names_the_service() {
-    let src = labeled(Source::Hls { url: "u".into(), quality: "Opus 160".into() }, ServiceId::Yt);
-    assert_eq!(src, Source::Hls { url: "u".into(), quality: "Opus 160 · YouTube Music".into() });
+  fn put_and_forget_queue_writes_in_order() {
+    let f = Fallback::default();
+    f.put("sc:1", ServiceId::Ym, Some("ym:2".into()));
+    f.put("sc:1", ServiceId::Yt, None);
+    f.forget("sc:1", ServiceId::Ym);
+    // чего не знали — забывать нечего
+    f.forget("sc:1", ServiceId::Vk);
+    let w = f.take_writes();
+    assert_eq!(w.len(), 3);
+    assert!(matches!(&w[0], AliasWrite::Put(r) if r.service == "ym" && r.alias_ref.as_deref() == Some("ym:2")));
+    assert!(matches!(&w[1], AliasWrite::Put(r) if r.service == "yt" && r.alias_ref.is_none()));
+    assert_eq!(w[2], AliasWrite::Drop { source_ref: "sc:1".into(), service: "ym".into() });
+    assert!(f.take_writes().is_empty());
+    assert_eq!(f.known("sc:1", ServiceId::Ym), None);
+  }
+
+  #[test]
+  fn routed_follows_settings() {
+    let f = Fallback::default();
+    let via = |reason| Via { ref_: "ym:2".into(), service: ServiceId::Ym, from: ServiceId::Sc, reason };
+    assert!(f.allows(&via(Reason::Unavailable), false));
+    assert!(!f.allows(&via(Reason::Preferred), false));
+    assert!(f.allows(&via(Reason::Preferred), true));
+    f.enabled.store(false, Ordering::Relaxed);
+    assert!(!f.allows(&via(Reason::Unavailable), true));
+    assert!(f.allows(&via(Reason::Preferred), true));
+  }
+
+  #[tokio::test]
+  async fn routed_is_dropped_when_fallback_turned_off() {
+    let core = Core::new_empty();
+    core.fallback.set_order(vec![]);
+    let via = Via { ref_: "local:x".into(), service: ServiceId::Ym, from: ServiceId::Sp, reason: Reason::Premium };
+    core.fallback.routed.lock().unwrap().insert("sp:1".into(), via);
+    core.fallback.enabled.store(false, Ordering::Relaxed);
+    let e = core.resolve_playable("sp:1", None, false).await.unwrap_err();
+    assert_eq!(e.to_string(), crate::providers::spotify::NEEDS_FALLBACK);
+    assert_eq!(core.fallback.routed_ref("sp:1"), None);
   }
 
   #[test]

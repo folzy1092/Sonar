@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 let lang = 'ru'
 vi.mock('./settings.svelte', () => ({ settings: { get: () => lang } }))
 
-const { canBackUp, defaultFallbackOrder, fallbackOrder, fallbackToast, moveItem } = await import('./fallback')
+const { canBackUp, defaultFallbackOrder, fallbackOrder, fallbackToast, moveItem, qualityLabel } = await import('./fallback')
 const { SERVICES, byId } = await import('./services')
 
 describe('порядок резервных сервисов', () => {
@@ -80,5 +80,19 @@ describe('всплывашка резервного сервиса', () => {
     expect(fallbackToast({ ref: 'ym:1', service: 'ym', from: 'sc', reason: 'preferred' })).toBeNull()
     expect(fallbackToast(null)).toBeNull()
     expect(fallbackToast({ ref: 'x:1', service: 'xx' as 'sc', from: 'sc', reason: 'failed' })).toBeNull()
+  })
+})
+
+describe('плашка качества', () => {
+  it('свой сервис — только качество', () => {
+    expect(qualityLabel('MP3 320', null)).toBe('MP3 320')
+  })
+
+  it('замена — качество и сервис, откуда играет', () => {
+    expect(qualityLabel('MP3 320', { ref: 'ym:1', service: 'ym', from: 'sc', reason: 'preferred' })).toBe('MP3 320 · Яндекс Музыка')
+  })
+
+  it('неизвестный сервис замены — без названия', () => {
+    expect(qualityLabel('AAC 160', { ref: 'x:1', service: 'xx' as 'sc', from: 'sc', reason: 'failed' })).toBe('AAC 160')
   })
 })

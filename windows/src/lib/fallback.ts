@@ -53,3 +53,10 @@ export function fallbackToast(via: Via | null | undefined): string | null {
   if (via.reason === 'premium') return t('Играет из {to} — в {from} нужна подписка', params)
   return t('Играет из {to} — в {from} недоступен', params)
 }
+
+/** Плашка качества: что реально играет, а при замене — ещё и откуда («MP3 320 · Яндекс Музыка»). */
+export function qualityLabel(quality: string, via: Via | null | undefined): string {
+  const label = t(quality)
+  const to = via ? byId(via.service) : null
+  return to ? `${label} · ${t(to.name)}` : label
+}
