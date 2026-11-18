@@ -5,7 +5,7 @@ import UIKit
 /// прослушиваний на телефоне (`PlayLog`) — время, прослушивания, треки, артисты, «к прошлому периоду»,
 /// столбики по дням / месяцам, кольцо по часам суток, дни недели, серия дней, топ артистов и треков.
 /// Периоды — неделя / месяц / год / всё время (`stats.period`). Тап по треку — играть топ с него,
-/// по артисту — его страница.
+/// по артисту — его страница. Внизу — «Итоги» месяцев и лет (`RecapSection`).
 struct StatsView: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(PlaybackEngine.self) private var engine
@@ -41,6 +41,7 @@ struct StatsView: View {
                     .frame(height: 260)
                     .redacted(reason: .placeholder)
             }
+            RecapSection()
         }
         .animation(Motion.spring, value: stats)
         .task(id: "\(period.rawValue)-\(log.revision)") {

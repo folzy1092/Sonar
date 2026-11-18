@@ -53,10 +53,10 @@ enum I18n {
     static let dictionaries: [Lang: [String: String]] = [
         .en: windowsEN.merging(iosEN) { _, ios in ios }.merging(accountEN) { _, a in a }.merging(libraryEN) { _, l in l }
             .merging(exportEN) { _, e in e }.merging(youtubeEN) { _, y in y }.merging(spotifyEN) { _, s in s }.merging(fallbackEN) { _, f in f }
-            .merging(smartEN) { _, s in s },
+            .merging(smartEN) { _, s in s }.merging(recapEN) { _, r in r },
         .uk: windowsUK.merging(iosUK) { _, ios in ios }.merging(accountUK) { _, a in a }.merging(libraryUK) { _, l in l }
             .merging(exportUK) { _, e in e }.merging(youtubeUK) { _, y in y }.merging(spotifyUK) { _, s in s }.merging(fallbackUK) { _, f in f }
-            .merging(smartUK) { _, s in s },
+            .merging(smartUK) { _, s in s }.merging(recapUK) { _, r in r },
     ]
 
     /// Перевод строки (ключ — русский текст, можно с контекстом `контекст::Текст`).

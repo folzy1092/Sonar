@@ -2,7 +2,9 @@
 //! (`src/lib/export.ts` — M3U8, CSV или JSON), а здесь — только окно «Сохранить как» и запись.
 //! Окно открывает Rust, а не JS: у интерфейса нет права писать файлы куда угодно, он
 //! передаёт готовый текст, а путь выбирает сам пользователь в системном окне.
+//! Так же сохраняются карточки итогов (этап 11): PNG рисует canvas, сюда приходит base64.
 
+use base64::Engine;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tauri_plugin_dialog::DialogExt;
@@ -13,6 +15,10 @@ const MAX_NAME_CHARS: usize = 100;
 const MAX_TITLE_CHARS: usize = 200;
 /// Больше этого текста плейлист не бывает (десятки тысяч треков в JSON — единицы МБ).
 const MAX_CONTENTS_BYTES: usize = 64 * 1024 * 1024;
+/// Карточка итогов 1080×1350 в PNG — сотни КБ; больше — точно не наша картинка.
+const MAX_IMAGE_BYTES: usize = 16 * 1024 * 1024;
+/// Первые байты любого PNG.
+const PNG_MAGIC: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 /// Имя, если от названия плейлиста ничего не осталось.
 const FALLBACK_NAME: &str = "Sonar";
 /// Знаки, которых не бывает в именах файлов Windows (и `/` на macOS).
@@ -29,9 +35,12 @@ pub enum Format {
   M3u8,
   Csv,
   Json,
+  /// Картинка карточки итогов — только через `save_image`, в `parse` её нет.
+  Png,
 }
 
 impl Format {
+  /// Формат экспорта плейлиста по имени из интерфейса.
   pub fn parse(s: &str) -> Option<Self> {
     match s {
       "m3u8" => Some(Self::M3u8),
@@ -46,6 +55,7 @@ impl Format {
       Self::M3u8 => "m3u8",
       Self::Csv => "csv",
       Self::Json => "json",
+      Self::Png => "png",
     }
   }
 
@@ -55,6 +65,7 @@ impl Format {
       Self::M3u8 => "M3U8",
       Self::Csv => "CSV",
       Self::Json => "JSON",
+      Self::Png => "PNG",
     }
   }
 }
@@ -126,8 +137,45 @@ pub async fn export_playlist(
   if contents.len() > MAX_CONTENTS_BYTES {
     return Err("Плейлист слишком большой для экспорта".into());
   }
+  save_with_dialog(window, &name, format, &title, contents.into_bytes()).await
+}
+
+/// Карточка итогов картинкой: интерфейс рисует PNG на canvas и шлёт base64, здесь — проверка,
+/// окно «Сохранить как» и запись. Ответ — как у `export_playlist`.
+#[tauri::command]
+pub async fn save_image(
+  window: tauri::WebviewWindow,
+  name: String,
+  title: String,
+  png_base64: String,
+) -> Result<Option<String>, String> {
+  let bytes = decode_png(&png_base64)?;
+  save_with_dialog(window, &name, Format::Png, &title, bytes).await
+}
+
+/// base64 → байты PNG: не больше `MAX_IMAGE_BYTES` и с подписью PNG в начале.
+fn decode_png(b64: &str) -> Result<Vec<u8>, String> {
+  // base64 длиннее данных на треть — режем до декодирования
+  if b64.len() > MAX_IMAGE_BYTES / 3 * 4 + 4 {
+    return Err("Картинка слишком большая".into());
+  }
+  let bytes = base64::engine::general_purpose::STANDARD.decode(b64.trim()).map_err(|_| "Картинка повреждена")?;
+  if !bytes.starts_with(&PNG_MAGIC) {
+    return Err("Картинка повреждена".into());
+  }
+  Ok(bytes)
+}
+
+/// Окно сохранения с именем `name.<ext>` и запись `bytes` по выбранному пути.
+async fn save_with_dialog(
+  window: tauri::WebviewWindow,
+  name: &str,
+  format: Format,
+  title: &str,
+  bytes: Vec<u8>,
+) -> Result<Option<String>, String> {
   let title: String = title.chars().take(MAX_TITLE_CHARS).collect();
-  let file_name = format!("{}.{}", sanitize_file_name(&name), format.ext());
+  let file_name = format!("{}.{}", sanitize_file_name(name), format.ext());
 
   let (tx, rx) = tokio::sync::oneshot::channel();
   window
@@ -146,7 +194,7 @@ pub async fn export_playlist(
   let path = picked.into_path().map_err(|_| "Не удалось сохранить файл")?;
   let (path, ext_added) = with_extension(path, format);
   let target = path.clone();
-  let written = tokio::task::spawn_blocking(move || write_export(&target, contents.as_bytes(), !ext_added))
+  let written = tokio::task::spawn_blocking(move || write_export(&target, &bytes, !ext_added))
     .await
     .map_err(|_| "Не удалось сохранить файл")?;
   match written {
@@ -154,7 +202,7 @@ pub async fn export_playlist(
     Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Err("Файл с таким именем уже есть".into()),
     Err(e) => {
       // путь в журнал не пишем: в нём имя пользователя системы
-      log::warn!("экспорт плейлиста: запись не удалась ({:?})", e.kind());
+      log::warn!("сохранение файла: запись не удалась ({:?})", e.kind());
       Err("Не удалось сохранить файл".into())
     }
   }
@@ -171,6 +219,7 @@ mod tests {
     assert_eq!(Format::parse("json"), Some(Format::Json));
     assert_eq!(Format::parse("exe"), None);
     assert_eq!(Format::parse("CSV"), None);
+    assert_eq!(Format::parse("png"), None); // картинка — только через save_image
     assert_eq!(Format::parse(""), None);
   }
 
@@ -256,5 +305,17 @@ mod tests {
     write_export(&fresh, b"new", false).unwrap();
     assert_eq!(std::fs::read(&fresh).unwrap(), b"new");
     std::fs::remove_dir_all(&dir).unwrap();
+  }
+
+  #[test]
+  fn png_is_checked_before_saving() {
+    let png = [PNG_MAGIC.as_slice(), b"rest"].concat();
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&png);
+    assert_eq!(decode_png(&b64).unwrap(), png);
+    assert_eq!(with_extension(PathBuf::from("card"), Format::Png), (PathBuf::from("card.png"), true));
+    let text = base64::engine::general_purpose::STANDARD.encode(b"not a picture");
+    assert!(decode_png(&text).is_err());
+    assert!(decode_png("@@@").is_err());
+    assert_eq!(decode_png(&"A".repeat(MAX_IMAGE_BYTES * 2)), Err("Картинка слишком большая".into()));
   }
 }

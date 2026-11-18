@@ -120,8 +120,9 @@ final class ThemeStore {
         withAnimation(.easeInOut(duration: 0.6)) { tokens = next }
     }
 
-    /// Пиксели уменьшенной обложки → акцент и светлота. Сеть и разбор — вне главного потока.
-    nonisolated private static func sample(of url: URL) async -> CoverSample? {
+    /// Пиксели уменьшенной обложки → акцент и светлота. Сеть и разбор — вне главного потока. Ещё — цвета
+    /// итогов (`RecapModel`).
+    nonisolated static func sample(of url: URL) async -> CoverSample? {
         guard let (data, _) = try? await URLSession.shared.data(from: url),
               let image = UIImage(data: data)?.cgImage else { return nil }
         let side = 48
