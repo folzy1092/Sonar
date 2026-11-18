@@ -190,6 +190,7 @@
     const line = lines[i]
     if (!line.text) {
       el.style.setProperty('--p', String(progress(line.time, line.duration, t)))
+      countdown(el, line.time + line.duration - t)
       return
     }
     const list = words[i]
@@ -220,7 +221,26 @@
 
   function introProgress(t: number) {
     const el = scroller?.querySelector<HTMLElement>('.intro')
-    if (el && lines.length) el.style.setProperty('--p', String(progress(0, lines[0].time, t)))
+    if (el && lines.length) {
+      el.style.setProperty('--p', String(progress(0, lines[0].time, t)))
+      countdown(el, lines[0].time - t)
+    }
+  }
+
+  /** Отсчёт до строки (идея владельца 2026-11-18): за 3 с до неё точки сменяются цифрами 3 → 2 → 1.
+   *  Прямо в DOM, как и подсветка: цифра меняется раз в секунду, Svelte на каждый кадр не трогаем. */
+  const COUNT_FROM = 3
+  function countdown(el: HTMLElement, left: number) {
+    const n = left > 0 && left <= COUNT_FROM ? String(Math.ceil(left)) : ''
+    if (el.dataset.count === n) return
+    el.dataset.count = n
+    el.classList.toggle('counting', n !== '')
+    const box = el.querySelector<HTMLElement>('.count')
+    if (!box) return
+    box.textContent = n
+    box.classList.remove('tick')
+    void box.offsetWidth // перезапуск анимации появления цифры
+    if (n) box.classList.add('tick')
   }
 
   // часы текста — от активного <audio>; после кроссфейда играет другой дек — переподписываемся
@@ -282,7 +302,7 @@
     {#if synced}
       {#if intro}
         <div class="line pause intro" class:active={active === -1} style:opacity={active === -1 ? 1 : 0.42}>
-          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="count" aria-hidden="true"></span>
         </div>
       {/if}
       {#each lines as line, i (i)}
@@ -304,7 +324,7 @@
           onmouseleave={noteLeave}
         >
           {#if !line.text}
-            <span class="dots" aria-label={t('Проигрыш')}><i></i><i></i><i></i></span>
+            <span class="dots" aria-label={t('Проигрыш')}><i></i><i></i><i></i></span><span class="count" aria-hidden="true"></span>
           {:else if words[i]?.length}
             {#each words[i] ?? [] as w, j (j)}<span class="w" class:bg={w.isBackground}><span class="h">{w.text}</span></span
               >{#if w.hasSpaceAfter}{' '}{/if}{/each}
@@ -423,7 +443,7 @@
     transition: color 90ms linear;
   }
 
-  /* проигрыш «•••» — точки загораются по очереди */
+  /* проигрыш «•••» — точки плавно качаются волной; за 3 с до строки — отсчёт 3 · 2 · 1 */
   .line.pause {
     --p: 0;
     cursor: default;
@@ -443,14 +463,68 @@
     opacity: 0.25;
     transition: opacity 0.2s linear;
   }
-  .line.pause.active .dots i:nth-child(1) {
-    opacity: clamp(0.25, calc(var(--p) * 3), 1);
+  .line.pause {
+    position: relative;
+  }
+  .line.pause.active .dots i {
+    opacity: 0.85;
+    animation: dot-wave 1.2s ease-in-out infinite;
   }
   .line.pause.active .dots i:nth-child(2) {
-    opacity: clamp(0.25, calc(var(--p) * 3 - 1), 1);
+    animation-delay: 0.15s;
   }
   .line.pause.active .dots i:nth-child(3) {
-    opacity: clamp(0.25, calc(var(--p) * 3 - 2), 1);
+    animation-delay: 0.3s;
+  }
+  @keyframes dot-wave {
+    0%,
+    60%,
+    100% {
+      transform: translateY(0.12em);
+    }
+    30% {
+      transform: translateY(-0.12em);
+    }
+  }
+  .dots {
+    transition: opacity 0.25s var(--ease);
+  }
+  .line.pause.active:global(.counting) .dots {
+    opacity: 0;
+  }
+  .count {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    translate: 0 -50%;
+    font-weight: 800;
+    font-size: 0.9em;
+    line-height: 1;
+    color: rgb(var(--ink));
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+  .line.pause:not(.active) .count {
+    display: none;
+  }
+  .count.tick {
+    animation: count-in 0.45s var(--ease);
+  }
+  @keyframes count-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.3em) scale(0.85);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .line.pause.active .dots i {
+      animation: none;
+    }
+    @keyframes count-in {
+      from {
+        opacity: 0;
+      }
+    }
   }
 
   /* обычный текст */
