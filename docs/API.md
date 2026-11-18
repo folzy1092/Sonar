@@ -366,6 +366,42 @@ missing, truncated}`.
 треками, которых в нём ещё нет. Windows-клиент сейчас делает всё это локально (команды
 `src-tauri/src/commands.rs`, те же формы).
 
+### Импорт плейлиста по ссылке (пока только клиент)
+
+Ссылка на плейлист или альбом любого сервиса → смешанный плейлист Sonar (NEXT_PROMPT этап 5). Источники:
+SoundCloud, Яндекс Музыка, Spotify (`open.spotify.com/playlist|album/…`, `spotify:playlist:…`), YouTube /
+YouTube Music (`list=…`, `browse/MPREb_…`), VK (`vk.com/music/playlist|album/<owner>_<id>[_<key>]`,
+`z=audio_playlist…`) и Apple Music (`music.apple.com/<страна>/playlist|album/…`). Apple в Sonar — не сервис,
+а только источник: публичная страница отдаёт JSON в `<script id="serialized-server-data">` (не больше ~100
+треков; сколько всего — `trackCount`), треки получают псевдо-ref `am:<id>` — в реестр он не входит и в
+плейлист не попадает. Ссылка на отдельный трек Spotify / YouTube / VK пока не открывается.
+
+Каждому треку ищется пара той же сверкой, что у резервного сервиса (§3, `search_twin`, `audio.fallback_order`):
+трек сервиса, который сам играет, остаётся как есть (`kept`), Spotify и Apple Music — ищутся (`found` / `missing`).
+По 4 трека сразу. Сервер для этого не нужен; когда появится, форма та же.
+
+ПК (Tauri, `src-tauri/src/import_link.rs`, логика — `services/import.rs`, Apple — `providers/apple.rs`):
+
+| Команда | Аргументы → ответ |
+|---|---|
+| `import_link` | `{link, job}` (ссылка или ref плейлиста/альбома сервиса; `job` — id задачи) → `{head, tracks, steps}` |
+| `import_cancel` | `{job}` — остальные треки не ищутся (ушли на другой импорт) |
+| `import_create` | `{name, source: head.source, tracks: [Track]}` → `Playlist` (`source_ref = source`: повторный импорт дописывает недостающее, как «Перенести в Sonar») |
+
+Событие `import:progress` (по мере готовности, шаги — в любом порядке):
+
+```json
+{"kind": "head", "job": "imp-…", "head": {"service": "sp"|"yt"|"vk"|"ym"|"sc"|"am", "album": false,
+ "title": "Hits", "owner": "Spotify", "cover_url": "https://…", "total": 52, "source": "sppl:37i9…"},
+ "tracks": [Track]}
+{"kind": "step", "job": "imp-…", "step": {"index": 3, "status": "kept"|"found"|"missing", "track": Track|null}}
+```
+
+Разбор ссылки в поиске (`resolve_link`) для плейлиста или альбома Apple Music отвечает `{kind: "import", head}` —
+экран предлагает «Перенести с подбором». Ошибки: «Это не ссылка на плейлист или альбом», «Перенести можно только
+плейлист или альбом», «Сервис не ответил за минуту — попробуй ещё раз», «Назови плейлист», «Переносить нечего: ни
+один трек не нашёлся», «Apple Music: на странице нет данных плейлиста» и др.
+
 ### Экспорт плейлиста в файл (только клиент)
 
 Сервер не участвует: файл собирает клиент из уже загруженных треков. Меню плейлиста и Любимых →

@@ -200,6 +200,12 @@
       <button class="tool" disabled={importing || !items.length} onclick={importToSonar}>
         <Icon name="download" size={16} /> {importing ? t('Переношу…') : t('Перенести в Sonar')}
       </button>
+      <!-- сервис без своего потока (Spotify): можно сразу подобрать пары в играющих сервисах (этап 5) -->
+      {#if !byId(serviceOf(id))?.caps.stream}
+        <button class="tool" disabled={!items.length} onclick={() => router.go('import', id)}>
+          <Icon name="link" size={16} /> {t('Перенести с подбором')}
+        </button>
+      {/if}
     {:else if kind === 'local'}
       <button class="tool" onclick={() => settingsPanel.show('system', 'storage')}>
         <Icon name="library" size={16} /> {t('Папки')}

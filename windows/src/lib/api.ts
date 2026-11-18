@@ -6,6 +6,7 @@ import { t } from './i18n.svelte'
 import type { Lyrics } from '../lyrics/core/types'
 import type { ServiceId, ServiceKey, ServiceCaps, ServicePrefixes } from './services'
 import type { Via } from './fallback'
+import type { ImportHead, ImportProgress, ImportResult } from './import'
 
 /** Короткий id сервиса (lib/services): параметр `src` поиска, корень префикса ref. */
 export type Source = ServiceId
@@ -273,11 +274,17 @@ export type LinkItem =
   | { kind: 'album'; album: Album }
   | { kind: 'artist'; artist: Artist }
   | { kind: 'playlist'; playlist: ServicePlaylist }
+  /** Плейлист или альбом Apple Music: своего сервиса нет — только перенос с подбором пар. */
+  | { kind: 'import'; head: ImportHead }
 
-/** Похоже на ссылку SoundCloud / Яндекс Музыки, а не на поисковый запрос (как links.rs). */
+/** Адреса сервисов, которые узнаёт links.rs, и без `https://` (вставили «open.spotify.com/…»). */
+const LINK_HOSTS = ['soundcloud.com/', 'music.yandex.', 'open.spotify.com/', 'youtube.com/', 'youtu.be/', 'vk.com/', 'music.apple.com/']
+
+/** Похоже на ссылку музыкального сервиса, а не на поисковый запрос (как links.rs `looks_like_link`). */
 export function looksLikeLink(s: string): boolean {
   const t = s.trim()
-  return !/\s/.test(t) && (/^https?:\/\//.test(t) || t.includes('soundcloud.com/') || t.includes('music.yandex.'))
+  if (!t || /\s/.test(t)) return false
+  return /^https?:\/\//.test(t) || t.startsWith('spotify:') || LINK_HOSTS.some((h) => t.includes(h))
 }
 
 /** Отчёт прошлого запуска (crashlog.rs): было падение или ошибки. */
@@ -345,6 +352,11 @@ export const api = {
   servicePlaylists: (service: Service) => call<ServicePlaylist[]>('service_playlists', { service }),
   servicePlaylist: (plRef: string) => call<{ playlist: ServicePlaylist; tracks: Track[] }>('service_playlist', { plRef }),
   importPlaylist: (plRef: string, name?: string) => call<Playlist>('import_playlist', { plRef, name }),
+  /** Импорт по ссылке (этап 5): прочитать источник и подобрать пары; шаги — `onImportProgress`. */
+  importLink: (link: string, job: string) => call<ImportResult>('import_link', { link, job }),
+  importCancel: (job: string) => call<void>('import_cancel', { job }),
+  /** Сохранить найденное смешанным плейлистом; тот же `source` второй раз дописывает прежний. */
+  importCreate: (name: string, source: string, tracks: Track[]) => call<Playlist>('import_create', { name, source, tracks }),
 
   setLike: (itemRef: string, on: boolean, item?: Track | Album | Artist) => call<void>('set_like', { itemRef, on, item }),
   likedRefs: () => call<string[]>('liked_refs'),
@@ -462,6 +474,14 @@ export function onLocalFilesChanged(cb: () => void): () => void {
   if (!isTauri) return () => {}
   const off = listen('local-files-changed', () => cb())
   return () => void off.then((fn) => fn())
+}
+
+/** Прогресс импорта по ссылке (import_link.rs, событие `import:progress`). Промис `ready` — подписка
+ *  уже действует (иначе первые шаги можно пропустить); `off` — отписаться. */
+export function onImportProgress(cb: (ev: ImportProgress) => void): { ready: Promise<void>; off: () => void } {
+  if (!isTauri) return { ready: Promise.resolve(), off: () => {} }
+  const un = listen<ImportProgress>('import:progress', (e) => cb(e.payload))
+  return { ready: un.then(() => undefined), off: () => void un.then((fn) => fn()) }
 }
 
 /** Горячие клавиши (hotkeys.rs): toggle, next, prev, like, volume_up, volume_down. */
