@@ -25,7 +25,10 @@ struct SonarPlaylist: Codable, Hashable, Sendable, Identifiable {
     var durationMs: Int { tracks.reduce(0) { $0 + $1.durationMs } }
 
     /// До четырёх разных обложек — коллаж, как на ПК (`cover_path` NULL → коллаж из 4 обложек).
-    var covers: [String] {
+    var covers: [String] { Self.covers(of: tracks) }
+
+    /// Коллаж из списка треков — и для умного плейлиста.
+    static func covers(of tracks: [Track]) -> [String] {
         var seen = Set<String>()
         var out: [String] = []
         for track in tracks {
