@@ -1,8 +1,6 @@
 <script lang="ts">
-  import { hscroll } from '../lib/hscroll'
-  import { edges } from '../lib/edges'
-  // Панель настроек (reference/pc/Screenshot_30..32): сверху поиск по настройкам, вкладки разделов,
-  // под ними капсулы подразделов (docs/PLATFORMS.md «Настройки — одинаковые разделы»). Вкладки окна
+  // Панель настроек: слева боковое меню (решение владельца 2026-11-18 — вместо вкладок и капсул): карточка
+  // профиля, группы Аккаунт · Приложение · Интерфейс (NAV), поиск внизу; справа заголовок и раздел. Вкладки окна
   // сбоку — панель выезжает с той же стороны, а окно уходит вглубь (App.svelte), как в Dotify; сверху
   // или снизу — панель шторкой опускается (поднимается), окно стоит под вуалью (NEXT_PROMPT «Этап 0» п. 7).
   // Ширина — во всё окно с полями, содержимое в 1–2 колонки по ширине (п. 6).
@@ -32,35 +30,25 @@
   import TabsView from './settings/TabsView.svelte'
   import Queue from './settings/Queue.svelte'
   import Mini from './settings/Mini.svelte'
-  import { settingsPanel, SUBS, TABS } from './settings-section.svelte'
-  import { indicator } from '../lib/indicator'
+  import { NAV, navSub, settingsPanel, type SettingsTab } from './settings-section.svelte'
+  import { profileInitial } from '../lib/public-profile'
+  import { cleanUsername } from '../lib/avatar'
   import { t } from '../lib/i18n.svelte'
 
   let scroller: HTMLDivElement | undefined = $state()
-  let tabsEl: HTMLElement | undefined = $state()
-  /** Есть ли вкладки за краем строки — тогда край затухает и появляется стрелка (как у подразделов). */
-  let more = $state({ l: false, r: false })
-  /** Стрелка: плавно до другого конца строки вкладок (свой кадровый переезд — без smooth-скролла). */
-  let slideRaf = 0
-  function nudge(dir: 1 | -1) {
-    const el = tabsEl
-    if (!el) return
-    cancelAnimationFrame(slideRaf)
-    const from = el.scrollLeft
-    const to = dir > 0 ? el.scrollWidth - el.clientWidth : 0
-    const t0 = performance.now()
-    const step = (now: number) => {
-      const t = Math.min(1, (now - t0) / 420)
-      const e = 1 - Math.pow(1 - t, 3)
-      el.scrollLeft = from + (to - from) * e
-      if (t < 1) slideRaf = requestAnimationFrame(step)
-    }
-    slideRaf = requestAnimationFrame(step)
-  }
-  const subs = $derived(SUBS[settingsPanel.tab])
   const sub = $derived(settingsPanel.sub)
   /** Страницы из строк настроек — в широкой панели раскладываются в две колонки. */
   const COLUMN_SUBS = ['look', 'tabs', 'audio', 'view', 'queue', 'mini', 'general']
+
+  const name = $derived(settings.get('profile.name').trim())
+  const username = $derived(cleanUsername(settings.get('profile.username')))
+  const avatar = $derived(settings.get('profile.avatar'))
+  const initial = $derived(profileInitial({ display_name: name, username: username || null }))
+
+  function go(tab: SettingsTab, s: string) {
+    query = ''
+    settingsPanel.show(tab, s)
+  }
 
   let query = $state('')
   const searching = $derived(query.trim().length > 0)
@@ -136,66 +124,62 @@
   data-fx-skip={settingsPanel.open ? undefined : ''}
   aria-label={t('Настройки')}
 >
-  <div class="find-row" data-tauri-drag-region>
-    <SettingsSearch bind:query />
-  </div>
-  <div class="tabs-wrap">
-  <nav
-    class="tabs"
-    data-tauri-drag-region
-    bind:this={tabsEl}
-    use:indicator={{ key: settingsPanel.tab }}
-    use:hscroll={{ wheel: true }}
-    use:edges={(l, r) => (more = { l, r })}
-  >
-    {#each TABS as tb (tb.id)}
-      <button
-        class:on={settingsPanel.tab === tb.id}
-        onclick={(e) => {
-          query = ''
-          settingsPanel.show(tb.id)
-          e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
-        }}>{t(tb.title)}</button
-      >
-    {/each}
+  <div class="layout">
+  <nav class="side" aria-label={t('Разделы настроек')} data-tauri-drag-region>
+    <button
+      class="me press"
+      class:on={!searching && settingsPanel.tab === 'account' && sub === 'profile'}
+      onclick={() => go('account', 'profile')}
+      title={t('Профиль')}
+    >
+      <span class="ava">
+        {#if avatar}<img src={avatar} alt="" />{:else}{initial}{/if}
+      </span>
+      <span class="who">
+        <b>{name || t('Без имени')}</b>
+        <small>{username ? `@${username}` : t('Задать @username')}</small>
+      </span>
+    </button>
+
+    <div class="groups">
+      {#each NAV as g (g.title)}
+        <div class="group">
+          <b class="gtitle">{t(g.title)}</b>
+          <div class="items">
+            {#each g.items as it (it.tab + it.sub)}
+              {@const info = navSub(it.tab, it.sub)}
+              {#if info}
+                <button
+                  class="item"
+                  class:on={!searching && settingsPanel.tab === it.tab && sub === it.sub}
+                  class:off={info.soon || info.lock}
+                  disabled={info.soon || info.lock}
+                  title={info.soon ? t('{title} — скоро, вместе с сервером', { title: t(info.title) }) : t(info.title)}
+                  onclick={() => go(it.tab, it.sub)}
+                >
+                  <Icon name={info.icon} size={17} />
+                  <span>{t(info.title)}</span>
+                </button>
+              {/if}
+            {/each}
+          </div>
+        </div>
+      {/each}
+    </div>
+
+    <div class="find-row">
+      <SettingsSearch bind:query />
+    </div>
   </nav>
-    <button class="more l" class:show={more.l} tabindex="-1" aria-label={t('Вкладки левее')} onclick={() => nudge(-1)}>
-      <Icon name="chevronLeft" size={16} />
-    </button>
-    <button class="more r" class:show={more.r} tabindex="-1" aria-label={t('Ещё вкладки')} onclick={() => nudge(1)}>
-      <Icon name="chevronRight" size={16} />
-    </button>
-  </div>
 
-  {#if subs.length > 1 && !searching}
-    {#key settingsPanel.tab}
-      <div class="subs tab-in" use:indicator={{ key: sub, kind: 'pill' }} use:hscroll={{ wheel: true }} use:edges>
-        {#each subs as s (s.id)}
-          <button
-            class="sub"
-            class:on={sub === s.id}
-            class:off={s.soon || s.lock}
-            disabled={s.soon || s.lock}
-            title={s.lock ? t('{title} — в разработке', { title: t(s.title) }) : s.soon ? t('{title} — скоро, вместе с сервером', { title: t(s.title) }) : t(s.title)}
-            onclick={(e) => {
-              query = ''
-              settingsPanel.sub = s.id
-              e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
-            }}
-          >
-            <Icon name={s.lock ? 'lock' : s.icon} size={15} /> {t(s.title)}
-          </button>
-        {/each}
-      </div>
-    {/key}
-  {/if}
-
+  <div class="main">
   <div class="scroll" bind:this={scroller}>
     {#if searching}
       <SearchResults query={query.trim()} onpick={pick} />
     {:else}
       {#key `${settingsPanel.tab}:${sub}`}
         <div class="tab-in page">
+          <h1 class="title">{t(navSub(settingsPanel.tab, sub)?.title ?? '')}</h1>
           {#if SUB_LEADS[sub]}<p class="lead">{t(SUB_LEADS[sub])}</p>{/if}
           <div class="body" class:cols={COLUMN_SUBS.includes(sub)}>
             {#if sub === 'stats'}
@@ -240,6 +224,8 @@
       {/key}
     {/if}
   </div>
+  </div>
+  </div>
 </aside>
 
 <style>
@@ -250,6 +236,7 @@
     display: flex;
     flex-direction: column;
     width: var(--settings-w);
+    container-type: inline-size;
     background: var(--surface-0);
     border-right: 1px solid var(--border);
     /* как в Dotify: панель выезжает слева одновременно с уходом окна вглубь и так же уезжает */
@@ -333,114 +320,160 @@
   :global(:root.side-right) .panel.open {
     transform: none;
   }
-  .find-row {
+  .layout {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 236px minmax(0, 1fr);
+  }
+  .side {
     display: flex;
-    justify-content: center;
-    padding: 14px 16px 2px;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    padding: 14px 10px 12px 14px;
+    border-right: 1px solid var(--border);
   }
-  .tabs-wrap {
-    position: relative;
-    border-bottom: 1px solid var(--border);
-  }
-  .tabs {
-    --fade: 64px;
+  .me {
     display: flex;
-    gap: 18px;
-    padding: 14px 16px 0;
-    overflow-x: auto;
-    scrollbar-width: none;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 14px;
+    background: var(--plate);
+    border: 1px solid var(--card-line);
+    text-align: left;
+    transition:
+      background var(--fast) var(--ease),
+      border-color var(--fast) var(--ease);
   }
-  .tabs :global(.tab-ind.line) {
-    bottom: 0;
+  .me:hover {
+    background: var(--hover);
   }
-  /* стрелка у края, за которым ещё вкладки: появляется вместе с затуханием */
-  /* просто стрелка — видна, но не спорит с вкладками: без кружка и заливки */
-  .more {
-    position: absolute;
-    top: 14px;
-    z-index: 2;
+  .me.on {
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+  .ava {
     display: grid;
     place-items: center;
-    width: 22px;
-    height: 24px;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 800;
+  }
+  .ava img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .who {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .who b,
+  .who small {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .who small {
     color: var(--text-3);
-    opacity: 0;
-    scale: 0.7;
-    pointer-events: none;
+  }
+  .groups {
+    --fade: 24px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .gtitle {
+    display: block;
+    margin: 0 4px 6px;
+    font-size: calc(14px * var(--fs, 1));
+  }
+  .items {
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    border-radius: 14px;
+    background: var(--plate);
+    border: 1px solid var(--card-line);
+  }
+  .item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 10px;
+    color: var(--text-2);
+    font-size: calc(13.5px * var(--fs, 1));
+    text-align: left;
     transition:
-      opacity var(--normal) var(--ease),
-      scale var(--normal) var(--ease),
+      background var(--fast) var(--ease),
       color var(--fast) var(--ease);
   }
-  .more.l {
-    left: 8px;
+  .item span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
-  .more.r {
-    right: 8px;
-  }
-  .more.show {
-    opacity: 0.8;
-    scale: 1;
-    pointer-events: auto;
-  }
-  .more:hover {
-    opacity: 1;
+  .item:hover:not(:disabled) {
+    background: var(--hover);
     color: var(--text);
   }
-  .tabs button {
-    padding: 4px 0 12px;
-    font-size: calc(15px * var(--fs, 1));
-    color: var(--text-3);
-    white-space: nowrap;
-    transition: color var(--fast) var(--ease);
-  }
-  .tabs button:hover {
-    color: var(--text-2);
-  }
-  .tabs button.on {
+  .item.on {
+    background: var(--hover);
     color: var(--text);
     font-weight: 700;
   }
-  .subs {
-    display: flex;
-    gap: 4px;
-    margin: 14px 16px 0;
-    padding: 4px;
-    border-radius: 999px;
-    background: var(--plate);
-    border: 1px solid var(--card-line);
-    box-shadow: var(--sheen);
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .sub {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    flex: 1 0 auto;
-    height: 34px;
-    padding: 0 12px;
-    border-radius: 999px;
-    color: var(--text-2);
-    font-size: calc(13px * var(--fs, 1));
-    white-space: nowrap;
-    transition: color var(--fast) var(--ease);
-  }
-  /* выбранный — тёмный текст на светлой капсуле, наведение его не перекрашивает */
-  .sub:hover:not(:disabled):not(.on) {
-    color: var(--text);
-  }
-  .sub.off {
+  .item.off {
     opacity: 0.45;
     cursor: default;
   }
-  .sub.on {
-    color: var(--on-text);
-    font-weight: 600;
+  .find-row {
+    display: flex;
   }
-  .subs :global(.tab-ind.pill) {
-    background: var(--text);
+  .find-row :global(.find) {
+    flex: 1;
+    max-width: none;
+  }
+  .main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+  .title {
+    margin: 0 0 12px;
+    font-size: calc(26px * var(--fs, 1));
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  /* узкая панель — меню одними значками */
+  @container (max-width: 640px) {
+    .layout {
+      grid-template-columns: 64px minmax(0, 1fr);
+    }
+    .who,
+    .item span,
+    .gtitle,
+    .find-row {
+      display: none;
+    }
+    .me,
+    .item {
+      justify-content: center;
+      padding: 8px 0;
+    }
   }
   .scroll {
     flex: 1;
