@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Аккаунт → Подписка Sonar Deep (как ПК `pages/settings/Subscription.svelte`): тариф, срок, что даёт,
 /// итог и «Перейти к оплате» — оплата на сайте `sonar.folzy.ru/pay`. Цены и правила — `Core/Account/SonarDeep.swift`.
+/// У разработчика Sonar сверху — карточка «Sonar Deep · Dev · без срока» (`SonarDeep.subscriptionOf`).
 struct SonarDeepView: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(\.openURL) private var openURL
@@ -10,9 +11,17 @@ struct SonarDeepView: View {
 
     private var plan: SonarDeep.Plan { SonarDeep.plans.first { $0.id == planID } ?? SonarDeep.plans[0] }
     private var period: SonarDeep.Period { SonarDeep.periods.first { $0.id == periodID } ?? SonarDeep.periods[0] }
+    /// Статус аккаунта — только через `subscriptionOf` (до сервера — по нику, потом — `GET /me`).
+    private var subscription: SonarDeep.Subscription {
+        SonarDeep.subscriptionOf(username: settings.string(LookKey.profileUsername))
+    }
 
     var body: some View {
         SystemScreen(title: t("Подписка")) {
+            if subscription.tier == .dev {
+                devCard
+                    .cascade(0)
+            }
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel(t("Тариф"))
                 SystemSegments(options: SonarDeep.plans.map { .init(id: $0.id, title: $0.name) }, selection: $planID)
@@ -32,6 +41,42 @@ struct SonarDeepView: View {
         }
         .animation(Motion.spring, value: planID)
         .animation(Motion.spring, value: periodID)
+    }
+
+    /// «Sonar Deep · Dev · без срока»: всё открыто, тарифы ниже — для остальных.
+    private var devCard: some View {
+        HStack(alignment: .top, spacing: 12) {
+            SystemBadgeIcon(icon: .sparkles, size: 40)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text(verbatim: SonarDeep.name)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Theme.text)
+                    DevBadge(size: 11)
+                    Text(verbatim: "· \(untilLabel)")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                Text(t("Ты разработчик Sonar: всё Sonar Deep открыто, лимитов нет. Тарифы ниже — для остальных."))
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .background(
+            LinearGradient(colors: [Theme.accent.opacity(0.16), Theme.card], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
+        )
+        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).strokeBorder(Theme.accent.opacity(0.4)))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Срок подписки: дата конца или «без срока».
+    private var untilLabel: String {
+        guard let until = subscription.until else { return t("без срока") }
+        return until.formatted(date: .long, time: .omitted)
     }
 
     private func sectionLabel(_ text: String) -> some View {
