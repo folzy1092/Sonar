@@ -10,14 +10,15 @@ import { library } from './library.svelte'
 import { toast } from './toast.svelte'
 import { t } from './i18n.svelte'
 import { tracksText } from './format'
-import { altLayouts, interleave, normalize, rank, uniqueByRef } from './quick-core'
+import { interleave, normalize, rank, searchLayouts, uniqueByRef } from './quick-core'
 import { QUICK_ACTIONS, QUICK_GROUPS, QUICK_SETTINGS, WAVE_MOOD_TITLE, type QuickActionId, type QuickGroupId, type QuickHint } from './quick-catalog'
 import { player } from '../player/player.svelte'
 import { wave, WAVE_MODES, type WaveMode } from '../player/my-wave.svelte'
 import { sleep } from '../player/sleep.svelte'
 import { playStation } from '../player/autoplay.svelte'
 import { router, openRef, type Page } from '../app/router.svelte'
-import { settingsPanel } from '../pages/settings-section.svelte'
+import { settingsPanel, type SettingsTab } from '../pages/settings-section.svelte'
+import { lyrics } from '../lyrics/lyrics.svelte'
 
 export type { QuickHint } from './quick-catalog'
 
@@ -66,10 +67,21 @@ const PAGES: Partial<Record<QuickActionId, Page>> = {
   go_player: 'player',
 }
 
-/** Перейти на страницу — панель настроек при этом закрывается, иначе страницу не видно. */
+/** Перед переходом — закрыть то, что лежит поверх страниц: полноэкранный плеер (он выше панели
+ *  настроек) и, если идём на страницу, саму панель. Иначе переход случится под ними и его не видно. */
+function leaveOverlays(keepSettings = false) {
+  lyrics.close()
+  if (!keepSettings) settingsPanel.close()
+}
+
 function go(page: Page, param: string | null = null) {
-  settingsPanel.close()
+  leaveOverlays()
   router.go(page, param)
+}
+
+function openSettings(tab?: SettingsTab, sub?: string) {
+  leaveOverlays(true)
+  settingsPanel.show(tab, sub)
 }
 
 function runAction(id: QuickActionId, title: string) {
@@ -99,7 +111,7 @@ function runAction(id: QuickActionId, title: string) {
   } else if (id === 'sleep_off') {
     sleep.cancel()
     toast.show(t('Таймер сна выключен'))
-  } else if (id === 'settings') settingsPanel.show()
+  } else if (id === 'settings') openSettings()
 }
 
 function actionItems(): { item: QuickItem; texts: string[] }[] {
@@ -150,7 +162,7 @@ function settingItems(): { item: QuickItem; texts: string[] }[] {
         cover: null,
         service: null,
         hint: 'open' as const,
-        run: () => settingsPanel.show(s.tab, s.sub),
+        run: () => openSettings(s.tab, s.sub),
       },
       texts: [[t(s.title), ...path].join(' '), [s.title, ...s.path].join(' ')],
     }
@@ -161,10 +173,12 @@ async function playOwn(id: string, title: string) {
   if (id === 'favorites') {
     const tracks = await api.favorites()
     if (tracks.length) await player.playList(tracks, 0, 'favorites', t('Любимые'))
+    else toast.show(t('В Любимых пока пусто'))
     return
   }
   const pl = await api.playlist(id)
   if (pl.tracks?.length) await player.playList(pl.tracks, 0, `playlist:${id}`, title)
+  else toast.show(t('В плейлисте нет треков'))
 }
 
 function libraryItems(): { item: QuickItem; texts: string[] }[] {
@@ -190,10 +204,12 @@ function libraryItems(): { item: QuickItem; texts: string[] }[] {
   ]
 }
 
-/** Трек из поиска или истории — как на странице поиска: с «Авто похожими» следом похожие. */
-function playTrack(list: Track[], i: number, context: string) {
+/** Трек из поиска — как на странице поиска (с «Авто похожими» следом похожие), из истории — как
+ *  в списке истории (контекст `recent`, очередь «История»). */
+function playTrack(group: 'history' | 'tracks', list: Track[], i: number) {
+  const context = group === 'history' ? 'recent' : 'search'
   if (settings.get('general.similar_autoplay')) return playStation(list[i], context)
-  return player.playList(list, i, context)
+  return player.playList(list, i, context, group === 'history' ? t('История') : null)
 }
 
 function trackItem(group: 'history' | 'tracks', list: Track[], i: number): QuickItem {
@@ -208,7 +224,7 @@ function trackItem(group: 'history' | 'tracks', list: Track[], i: number): Quick
     service: serviceOf(tr.ref),
     hint: 'play',
     run: async (shift) => {
-      if (!shift) return playTrack(list, i, 'search')
+      if (!shift) return playTrack(group, list, i)
       await player.addToQueue([tr], false)
       toast.show(t('В очереди: {title}', { title: tr.title }))
     },
@@ -226,7 +242,7 @@ function artistItem(a: Artist): QuickItem {
     service: serviceOf(a.ref),
     hint: 'open',
     run: () => {
-      settingsPanel.close()
+      leaveOverlays()
       openRef(a.ref)
     },
   }
@@ -314,12 +330,14 @@ class Quick {
     try {
       const services = connected(await api.servicesList()).filter((s) => s.caps.search)
       if (my !== this.seq) return
-      let found = await this.fetchFrom(services.map((s) => s.id), q)
-      // ничего — возможно, набрано не в той раскладке
-      const alt = altLayouts(q)[0]
-      if (my === this.seq && alt && !found.failed && !found.tracks.length && !found.artists.length) {
-        found = await this.fetchFrom(services.map((s) => s.id), alt)
-      }
+      // ничего — возможно, набрано не в той раскладке: пробуем каждую (en → ru, en → uk, кириллица → en)
+      const ids = services.map((s) => s.id)
+      const found = await searchLayouts(
+        q,
+        (variant) => this.fetchFrom(ids, variant),
+        (r) => !r.failed && !r.tracks.length && !r.artists.length,
+        () => my === this.seq,
+      )
       if (my !== this.seq) return
       this.tracks = found.tracks
       this.artists = found.artists

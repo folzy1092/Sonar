@@ -164,3 +164,20 @@ export function uniqueByRef<T extends { ref: string }>(list: readonly T[]): T[] 
   const seen = new Set<string>()
   return list.filter((x) => !seen.has(x.ref) && !!seen.add(x.ref))
 }
+
+/** Поиск в сервисах с запасом на раскладку: сначала запрос как есть, потом каждая другая раскладка
+ *  (ghbdsn → «привыт», «привіт») — до первого ответа, где `more` уже не просит искать дальше.
+ *  `alive` — запрос ещё актуален (не набрали новый); нет — дальше не идём. */
+export async function searchLayouts<R>(
+  query: string,
+  fetch: (q: string) => Promise<R>,
+  more: (r: R) => boolean,
+  alive: () => boolean = () => true,
+): Promise<R> {
+  let found = await fetch(query)
+  for (const alt of altLayouts(query)) {
+    if (!alive() || !more(found)) break
+    found = await fetch(alt)
+  }
+  return found
+}

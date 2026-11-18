@@ -45,10 +45,6 @@
     else hotkeys.set(target, combo)
     listening = null
   }
-
-  function reset() {
-    settings.set('hotkeys.map', { ...DEFAULTS['hotkeys.map'] })
-  }
 </script>
 
 <svelte:window onkeydown={capture} onblur={() => (listening = null)} />
@@ -98,7 +94,7 @@
   <div transition:slide={{ duration: 240 }}>
     <Group title={t('Сочетания')}>
       {#snippet action()}
-        <button class="reset" onclick={reset}>{t('Вернуть по умолчанию')}</button>
+        <button class="reset" onclick={() => hotkeys.resetMap()}>{t('Вернуть по умолчанию')}</button>
       {/snippet}
       <div class="list" use:cascade={'hotkeys'}>
         {#each HOTKEY_ACTIONS as a (a.id)}

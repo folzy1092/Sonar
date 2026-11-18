@@ -61,7 +61,8 @@
     if (combo && !hotkeys.suspended && comboFrom(e) === combo) {
       e.preventDefault()
       e.stopPropagation()
-      quick.toggle()
+      // зажатое сочетание повторяется — окно не должно мигать
+      if (!e.repeat) quick.toggle()
       return
     }
     if (quick.open && e.key === 'Escape') {
@@ -126,13 +127,12 @@
   </button>
 {/snippet}
 
+<!-- заголовок и строки — прямые потомки .part, чтобы каскад шёл по строкам, а не группами -->
 {#snippet group(section: (typeof sections)[number])}
-  <section class="group" aria-label={section.title}>
-    <h3>{section.title}</h3>
-    {#each section.items as item (item.key)}
-      {@render row(item)}
-    {/each}
-  </section>
+  <h3 role="presentation">{section.title}</h3>
+  {#each section.items as item (item.key)}
+    {@render row(item)}
+  {/each}
 {/snippet}
 
 {#if quick.open}
@@ -246,7 +246,7 @@
     padding: 6px;
     overscroll-behavior: contain;
   }
-  .group + .group,
+  h3:not(:first-child),
   .part:not(:empty) + .part:not(:empty) {
     margin-top: 4px;
   }
