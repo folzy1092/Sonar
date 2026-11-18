@@ -76,8 +76,9 @@ enum ServiceRegistry {
             id: .yt, key: "youtube", name: "YouTube Music", color: "#FF0033",
             icon: "youtube-music.svg", iconMono: "youtube-music-mono.svg",
             prefixes: ServicePrefixes(track: "yt", album: "ytalb", artist: "yta", playlist: "ytpl"),
-            caps: ServiceCaps(search: true, stream: true, library: true, playlists: true, similar: true, login: true, key: false),
-            implemented: false
+            // key — cookie music.youtube.com вручную, если окно входа не пустило
+            caps: ServiceCaps(search: true, stream: true, library: true, playlists: true, similar: true, login: true, key: true),
+            implemented: true
         ),
         ServiceInfo(
             id: .vk, key: "vk", name: "VK Музыка", color: "#0077FF",
@@ -130,7 +131,7 @@ enum ServiceRegistry {
         parse(ref: ref)?.info.id
     }
 
-    /// Работающие сервисы в порядке показа: SoundCloud, Яндекс.
+    /// Работающие сервисы в порядке показа: SoundCloud, Яндекс, YouTube Music.
     static var implemented: [ServiceInfo] {
         all.filter(\.implemented)
     }

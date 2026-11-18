@@ -93,6 +93,36 @@ enum AudioQuality: String, PlayerChoice {
     }
 }
 
+/// Качество YouTube Music (`audio.yt_quality`, ключ как на ПК). На iPhone — только AAC (AVPlayer не играет
+/// Opus в WebM): обычное — 128 кбит/с, высокое — 256, если YouTube его отдаёт, иначе 128.
+enum YouTubeQuality: String, PlayerChoice {
+    case normal, high
+
+    static let key = "audio.yt_quality"
+    static let fallback = YouTubeQuality.high
+
+    var title: String {
+        switch self {
+        case .normal: "YouTube::Обычное"
+        case .high: "Высокое"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .normal: "AAC · 128 кбит/с"
+        case .high: "AAC · до 256 кбит/с"
+        }
+    }
+
+    var icon: IconName {
+        switch self {
+        case .normal: .music
+        case .high: .headphone
+        }
+    }
+}
+
 /// Звонок, Siri, будильник (`audio.on_interruption`). На iPhone их всегда ставит на паузу сама система —
 /// выбор в том, что после: `duck` — вернуть музыку плавно (с 20 % громкости), `pause` — оставить на
 /// паузе, `none` — вернуть сразу как было.

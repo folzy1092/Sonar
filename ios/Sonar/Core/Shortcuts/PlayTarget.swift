@@ -27,13 +27,16 @@ enum PlayTarget: String, CaseIterable, Sendable {
 }
 
 /// Значение настройки `widget.quick_playlist`: `liked`, `downloaded` или ref плейлиста сервиса
-/// (`scpl:<id>`, `scpl:likes`, `ympl:<uid>:<kind>`, `ympl:likes`). Пусто или непонятное — Любимые.
+/// (`scpl:<id>`, `scpl:likes`, `ympl:<uid>:<kind>`, `ympl:likes`, `ytpl:<id>`, `ytpl:likes`). Пусто или
+/// непонятное — Любимые.
 enum QuickPlaylist: Equatable, Sendable {
     case liked
     case downloaded
     case service(String)
 
     static let key = "widget.quick_playlist"
+    /// Плейлисты сервисов, которые можно поставить на виджет.
+    static let prefixes = ["scpl:", "ympl:", "ytpl:"]
     /// Название выбранного плейлиста сервиса — чтобы показать его в настройках без сети.
     static let titleKey = "widget.quick_playlist_title"
 
@@ -41,7 +44,7 @@ enum QuickPlaylist: Equatable, Sendable {
         let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         switch value {
         case "downloaded": self = .downloaded
-        case _ where value.hasPrefix("scpl:") || value.hasPrefix("ympl:"):
+        case _ where Self.prefixes.contains(where: value.hasPrefix):
             self = value.count > 5 ? .service(value) : .liked
         default: self = .liked
         }

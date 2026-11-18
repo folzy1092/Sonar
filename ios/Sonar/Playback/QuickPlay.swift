@@ -25,7 +25,8 @@ enum QuickPlay {
         let settings = SettingsStore.shared
         // запуск из Siri мог обойти `.task` приложения — качество из настроек на всякий случай
         await MusicCore.shared.configure(maxKbps: MusicCore.qualityKbps(settings.string("audio.quality")),
-                                         soundCloudViaYandex: settings.bool("audio.sc_via_yandex"))
+                                         soundCloudViaYandex: settings.bool("audio.sc_via_yandex"),
+                                         youTubeHigh: MusicCore.youTubeHigh(settings.string(YouTubeQuality.key)))
         switch target {
         case .liked:
             try playList(LibraryStore.shared.liked, context: "Любимые", empty: t("В Любимых пока пусто"))

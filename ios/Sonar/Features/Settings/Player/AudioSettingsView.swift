@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// Профиль → Аудио (по ПК `pages/settings/Audio.svelte`, SETTINGS.md «Аудио»): качество, SoundCloud через
-/// Яндекс, нормализация, бесшовность, кроссфейд, эквалайзер, что делать после звонка. Всё применяется
+/// Яндекс, качество YouTube Music, нормализация, бесшовность, кроссфейд, эквалайзер, что делать после звонка. Всё применяется
 /// сразу — `PlaybackEngine` следит за настройками сам.
 struct AudioSettingsView: View {
     private enum Pick: String, Identifiable {
@@ -51,6 +51,17 @@ struct AudioSettingsView: View {
             }
             .cascade(1)
 
+            PlayerCard(title: "YouTube Music", footer: t("Качество треков YouTube Music: обычное бережёт трафик, высокое звучит лучше")
+                + " " + t("На iPhone — AAC: высокое — 256 кбит/с, если YouTube его отдаёт, иначе 128.")) {
+                let items = YouTubeQuality.allCases.map { ChoiceItem(id: $0.rawValue, icon: $0.icon, title: t($0.title), subtitle: t($0.subtitle)) }
+                ChoiceTiles(items: items, selected: YouTubeQuality.current(settings).rawValue, height: 96) {
+                    YouTubeQuality.from($0).save(settings)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+            }
+            .cascade(2)
+
             PlayerCard(title: "Громкость и переходы", footer: transitionsFooter) {
                 PlayerToggleRow(icon: .volume, title: "Нормализация громкости",
                                 subtitle: "Тихие и громкие треки звучат ровно — громкие Яндекса приглушаются по их громкости R128",
@@ -69,7 +80,7 @@ struct AudioSettingsView: View {
                 }
             }
             .animation(Motion.spring, value: crossfade > 0)
-            .cascade(2)
+            .cascade(3)
 
             PlayerCard(title: "Звук") {
                 PlayerPickRow(title: "Эквалайзер", value: equalizerSummary, icon: .sliders) { showEqualizer = true }
@@ -77,13 +88,13 @@ struct AudioSettingsView: View {
                 PlayerPickRow(title: "После звонка и Siri", value: InterruptionMode.current(settings).title,
                               icon: InterruptionMode.current(settings).icon) { picker = .interruption }
             }
-            .cascade(3)
+            .cascade(4)
 
             Text("Звонок, Siri и будильник ставят музыку на паузу сами — так устроен iPhone. Здесь — что делать, когда они закончатся.")
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.textTertiary)
                 .padding(.horizontal, 6)
-                .cascade(4)
+                .cascade(5)
         }
         .choiceSheet(item: $picker, height: { _ in ChoiceSheet.height(InterruptionMode.allCases.count, subtitles: true) }) { _ in
             ChoiceSheet(title: "После звонка и Siri",

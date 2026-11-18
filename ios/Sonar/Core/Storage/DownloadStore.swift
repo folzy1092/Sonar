@@ -7,7 +7,7 @@ import FoundationNetworking // тесты логики на Linux
 /// Откуда качать трек целиком: прямой файл (mp3 / FLAC), не HLS.
 struct DownloadSource: Sendable, Equatable {
     var url: URL
-    /// `mp3` / `flac`.
+    /// `mp3` / `flac` / `m4a` (AAC YouTube Music).
     var fileExtension: String
     /// Что скачано — для плашки качества: «MP3 320», «FLAC · Яндекс».
     var quality: String
@@ -15,7 +15,15 @@ struct DownloadSource: Sendable, Equatable {
     /// Ссылка на поток → источник для скачивания; HLS скачать файлом нельзя — nil.
     static func from(_ stream: StreamSource) -> DownloadSource? {
         guard case let .file(url, quality) = stream else { return nil }
-        return DownloadSource(url: url, fileExtension: quality.uppercased().hasPrefix("FLAC") ? "flac" : "mp3", quality: quality)
+        return DownloadSource(url: url, fileExtension: fileExtension(quality), quality: quality)
+    }
+
+    /// По плашке качества: «FLAC …» — flac, «AAC …» — m4a, остальное — mp3.
+    static func fileExtension(_ quality: String) -> String {
+        let quality = quality.uppercased()
+        if quality.hasPrefix("FLAC") { return "flac" }
+        if quality.hasPrefix("AAC") { return "m4a" }
+        return "mp3"
     }
 }
 

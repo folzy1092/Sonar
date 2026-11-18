@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Поиск (`IMG_6767`): поле-капсула, справа круг сервиса (SoundCloud ⇄ Яндекс) и круг «ссылка из буфера»;
+/// Поиск (`IMG_6767`): поле-капсула, справа круг сервиса (SoundCloud → Яндекс → YouTube Music) и круг «ссылка из буфера»;
 /// чипы Всё · Треки · Альбомы · Артисты · Плейлисты. Пустой запрос — «Недавнее» (история поиска, по
 /// одному убирается ✕, «Очистить» — всё). Ссылка SoundCloud / Яндекса — сразу карточка «что за ней».
 struct SearchView: View {
@@ -31,6 +31,15 @@ struct SearchView: View {
 
     private var source: Service { Service(rawValue: sourceRaw) ?? .soundcloud }
 
+    /// Значок круга сервиса: у Яндекса своего нет — поверх рисуется «Я».
+    private var sourceIcon: IconName {
+        switch source {
+        case .soundcloud: .soundcloud
+        case .yandex: .music
+        case .youtube: .youtubeMusic
+        }
+    }
+
     private var history: [String] {
         historyRaw.split(separator: "\n").map(String.init)
     }
@@ -39,8 +48,8 @@ struct SearchView: View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 field
-                CircleButton(icon: source == .soundcloud ? .soundcloud : .music, label: "Искать в: \(source.title)") {
-                    sourceRaw = (source == .soundcloud ? Service.yandex : Service.soundcloud).rawValue
+                CircleButton(icon: sourceIcon, label: "Искать в: \(source.title)") {
+                    sourceRaw = source.next.rawValue
                     router.say("Ищу в \(source.title)")
                 }
                 .overlay {
