@@ -518,7 +518,8 @@ struct Genius: Sendable {
 /// Перевод текста песни (меню текста → «Перевести»). Без сервера и ключей: открытая точка Google Translate
 /// расширения Chrome (`clients5`, `dict-chrome-ex`) — каждая строка отдельным `q` одним запросом. Запасной
 /// путь — `translate.googleapis.com` (`gtx`, строки через перевод строки). Пустые строки не отправляем.
-/// Порт `translate.rs`.
+/// Строки, которые уже на языке интерфейса, не переводим (2026-11-19): язык смотрим у каждой строки, а
+/// перевод, совпавший с оригиналом, тоже убираем. Порт `translate.rs`.
 struct LyricsTranslator: Sendable {
     static let url = "https://clients5.google.com/translate_a/t"
     static let gtx = "https://translate.googleapis.com/translate_a/single"
@@ -529,15 +530,54 @@ struct LyricsTranslator: Sendable {
         let indices = lines.indices.filter { !lines[$0].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         if indices.isEmpty { return (Array(repeating: "", count: lines.count), "") }
         let source = indices.map { lines[$0].trimmingCharacters(in: .whitespacesAndNewlines) }
-        let got: (lines: [String], source: String)
+        let got: (lines: [String], sources: [String])
         if let byLines = try? await byLines(source, to: language), byLines.lines.count == source.count {
             got = byLines
         } else {
-            got = try await byText(source, to: language)
+            let byText = try await byText(source, to: language)
+            got = (byText.lines, [byText.source])
         }
+        let kept = Self.dropSameLanguage(source, translated: got.lines, sources: got.sources, to: language)
         var out = Array(repeating: "", count: lines.count)
-        for (k, i) in indices.enumerated() where k < got.lines.count { out[i] = got.lines[k] }
-        return (out, got.source)
+        for (k, i) in indices.enumerated() where k < kept.lines.count { out[i] = kept.lines[k] }
+        return (out, kept.source)
+    }
+
+    /// Убирает перевод у строк, которые уже на языке `to`: Google определил у строки этот язык или перевод
+    /// совпал с оригиналом (без регистра и знаков). `sources` — язык каждой строки (gtx знает один на весь
+    /// текст — тогда он один в списке). Язык оригинала — самый частый среди переведённых строк, а если
+    /// переводить нечего — `to` (тогда «Текст уже на этом языке»).
+    static func dropSameLanguage(_ original: [String], translated: [String], sources: [String],
+                                 to language: String) -> (lines: [String], source: String) {
+        let target = baseLanguage(language)
+        func lineSource(_ k: Int) -> String {
+            if sources.count == 1 { return sources[0] }
+            return k < sources.count ? sources[k] : ""
+        }
+        let lines = translated.enumerated().map { k, text -> String in
+            let same = baseLanguage(lineSource(k)) == target || (k < original.count && sameText(original[k], text))
+            return same ? "" : text
+        }
+        let counts = Dictionary(grouping: lines.indices.filter { !lines[$0].isEmpty }.map { baseLanguage(lineSource($0)) }
+            .filter { !$0.isEmpty }, by: { $0 }).mapValues(\.count)
+        if lines.allSatisfy(\.isEmpty) { return (lines, target) }
+        let source = counts.max { $0.value < $1.value || ($0.value == $1.value && $0.key > $1.key) }?.key ?? ""
+        return (lines, source)
+    }
+
+    /// `pt-BR` → `pt`, `RU` → `ru`.
+    static func baseLanguage(_ code: String) -> String {
+        String(code.split(whereSeparator: { $0 == "-" || $0 == "_" }).first ?? "")
+            .trimmingCharacters(in: .whitespaces).lowercased()
+    }
+
+    /// Совпадают ли строки без регистра, пробелов и знаков: «Привет, мир!» = «привет мир».
+    static func sameText(_ a: String, _ b: String) -> Bool {
+        func norm(_ s: String) -> String {
+            String(s.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }.map(Character.init))
+        }
+        let (x, y) = (norm(a), norm(b))
+        return !x.isEmpty && x == y
     }
 
     private func post(_ base: String, query: [(String, String)], form: [(String, String)]) async throws -> String {
@@ -552,7 +592,7 @@ struct LyricsTranslator: Sendable {
         return response.text
     }
 
-    private func byLines(_ source: [String], to language: String) async throws -> (lines: [String], source: String) {
+    private func byLines(_ source: [String], to language: String) async throws -> (lines: [String], sources: [String]) {
         let body = try await post(Self.url, query: [("client", "dict-chrome-ex"), ("sl", "auto"), ("tl", language)],
                                   form: source.map { ("q", $0) })
         return try Self.parseLines(body)
@@ -566,22 +606,21 @@ struct LyricsTranslator: Sendable {
 
     static let unexpected = LyricsSourceError(status: 0, message: "неожиданный ответ переводчика")
 
-    /// Ответ clients5: `[["перевод","en"],…]` (или просто `["перевод",…]`, если язык оригинала задан).
-    static func parseLines(_ body: String) throws -> (lines: [String], source: String) {
+    /// Ответ clients5: `[["перевод","en"],…]` (или просто `["перевод",…]`, если язык оригинала задан) —
+    /// перевод и язык каждой строки (без языка — пустая строка).
+    static func parseLines(_ body: String) throws -> (lines: [String], sources: [String]) {
         guard let items = try JSONValue(data: Data(body.utf8)).array else { throw unexpected }
-        var source = ""
-        var out: [String] = []
-        for item in items {
+        return try items.reduce(into: (lines: [String](), sources: [String]())) { acc, item in
             if let s = item.string {
-                out.append(s.trimmingCharacters(in: .whitespacesAndNewlines))
+                acc.lines.append(s.trimmingCharacters(in: .whitespacesAndNewlines))
+                acc.sources.append("")
             } else if let pair = item.array {
-                out.append((pair.first?.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
-                if source.isEmpty { source = item[1].string ?? "" }
+                acc.lines.append((pair.first?.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
+                acc.sources.append(item[1].string ?? "")
             } else {
                 throw unexpected
             }
         }
-        return (out, source)
     }
 
     /// Ответ gtx: `[[["перевод\n","original\n",…],…],null,"en",…]` — склеиваем куски и режем по строкам.
