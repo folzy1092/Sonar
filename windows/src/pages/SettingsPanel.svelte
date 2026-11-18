@@ -19,6 +19,7 @@
   import Style from './settings/Style.svelte'
   import Profile from './settings/Profile.svelte'
   import Privacy from './settings/Privacy.svelte'
+  import Notifications from './settings/Notifications.svelte'
   import Subscription from './settings/Subscription.svelte'
   import PlayerView from './settings/PlayerView.svelte'
   import Integrations from './settings/Integrations.svelte'
@@ -213,6 +214,8 @@
               <Storage />
             {:else if sub === 'update'}
               <Update />
+            {:else if sub === 'notifications'}
+              <Notifications />
             {:else if sub === 'about'}
               <About />
             {/if}
