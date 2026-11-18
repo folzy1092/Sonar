@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { ICONS, uniquifyIds } from './service-icons'
+import { APPLE_MUSIC_ICON, ICONS, uniquifyIds } from './service-icons'
 import { SERVICES } from './services'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -20,6 +20,9 @@ const SOURCES: Record<string, string> = {
   'vk-mono.svg': 'vk-mono.svg',
   'sp.svg': 'spotify.svg',
   'sp-mono.svg': 'spotify-mono.svg',
+  // Apple Music — не сервис Sonar, только источник импорта по ссылке (этап 5)
+  'am.svg': 'apple-music.svg',
+  'am-mono.svg': 'apple-music-mono.svg',
 }
 
 const assets = readdirSync(ASSETS).filter((f) => f.endsWith('.svg'))
@@ -62,6 +65,16 @@ describe('uniquifyIds', () => {
 
   it('без id — как есть', () => {
     expect(uniquifyIds('<svg><path d="M0 0"/></svg>', '1')).toBe('<svg><path d="M0 0"/></svg>')
+  })
+})
+
+describe('APPLE_MUSIC_ICON', () => {
+  it('цветной и одноцветный знак, корень без размеров', () => {
+    for (const svg of [APPLE_MUSIC_ICON.badge, APPLE_MUSIC_ICON.mono]) {
+      const root = /^<svg\b[^>]*>/.exec(svg)?.[0] ?? ''
+      expect(root).not.toMatch(/\s(?:width|height)=/)
+      expect(root).toContain('aria-hidden="true"')
+    }
   })
 })
 

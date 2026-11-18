@@ -2,8 +2,9 @@
 // playlist: 'favorites' | 'pl_…' (свой) | 'scpl:…' / 'ympl:…' (плейлист сервиса);
 // artist: 'sca:…' / 'yma:…'; album: 'scalb:…' / 'ymalb:…' (префиксы — lib/services).
 import { refKind } from '../lib/services'
-// profile — предпросмотр своего публичного профиля («Как видят мой профиль»).
-export type Page = 'home' | 'player' | 'search' | 'library' | 'playlist' | 'artist' | 'album' | 'profile'
+// profile — предпросмотр своего публичного профиля («Как видят мой профиль»);
+// import — перенос плейлиста по ссылке с подбором пар (параметр — ссылка или ref, lib/import.svelte).
+export type Page = 'home' | 'player' | 'search' | 'library' | 'playlist' | 'artist' | 'album' | 'profile' | 'import'
 
 interface Route {
   page: Page

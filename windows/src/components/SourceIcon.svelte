@@ -10,15 +10,17 @@
   /** `mono` — знак одним цветом (currentColor), без круга: плитки «Лайки SoundCloud» / «Мне нравится» в цвете темы. */
   import { t } from '../lib/i18n.svelte'
   import { byId, type ServiceId } from '../lib/services'
-  import { ICONS, uniquifyIds } from '../lib/service-icons'
+  import { APPLE_MUSIC_ICON, ICONS, uniquifyIds } from '../lib/service-icons'
+  import { APPLE_MUSIC, type ImportService } from '../lib/import'
 
-  let { service, size = 16, plain = false, mono = false }: { service: ServiceId; size?: number; plain?: boolean; mono?: boolean } = $props()
+  /** `am` — Apple Music: не сервис Sonar, только источник импорта по ссылке (lib/import). */
+  let { service, size = 16, plain = false, mono = false }: { service: ImportService; size?: number; plain?: boolean; mono?: boolean } = $props()
 
   const uid = String(++instances)
-  const info = $derived(byId(service))
-  const title = $derived(info ? t(info.name) : '')
+  const info = $derived(service === APPLE_MUSIC ? null : byId(service as ServiceId))
+  const title = $derived(service === APPLE_MUSIC ? 'Apple Music' : info ? t(info.name) : '')
   const svg = $derived.by(() => {
-    const icon = ICONS[service]
+    const icon = service === APPLE_MUSIC ? APPLE_MUSIC_ICON : ICONS[service as ServiceId]
     if (!icon) return null
     return uniquifyIds(mono ? icon.mono : plain ? icon.plain : icon.badge, uid)
   })
