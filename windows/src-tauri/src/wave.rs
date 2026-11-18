@@ -558,6 +558,9 @@ pub struct Features {
   pub skip_rate: f64,
   /// `popularity` трека, 0 … 1 (весит только в «Популярном»).
   pub popularity: f64,
+  /// Сосед твоих любимых по карте исполнителей (фиты, подписки, общие соавторы), 0 … 1 —
+  /// лучший из артистов трека (`artist_graph::scene_for`); карты нет — 0.
+  pub scene: f64,
 }
 
 /// Веса признаков режима. Стартовые значения — ровно те числа, что были в `score` до разбиения на
@@ -581,6 +584,7 @@ pub struct Weights {
   pub mood: f64,
   pub skip_rate: f64,
   pub popularity: f64,
+  pub scene: f64,
 }
 
 impl Weights {
@@ -602,8 +606,12 @@ impl Weights {
       + self.mood * f.mood
       + self.skip_rate * f.skip_rate
       + self.popularity * f.popularity
+      + self.scene * f.scene
   }
 }
+
+/// Вес соседства по карте исполнителей: заметно меньше лайка, чтобы не вытеснять вкус.
+pub const SCENE_WEIGHT: f64 = 0.4;
 
 /// Веса режима: настроения — `mood_fit` плюс вкус (Ночное — сильнее время суток, Сон и Концентрация —
 /// словарь важнее вкуса, Популярное — число прослушиваний), остальное («Обычное») — лайки, вкус и время
@@ -616,6 +624,8 @@ pub fn weights(mode: &str) -> Weights {
     session_skipped: -0.9,
     session_tags: 1.0,
     track_skips: -1.2,
+    // соседи по карте исполнителей — небольшой плюс во всех режимах: «свои» по сцене, а не случайные похожие
+    scene: SCENE_WEIGHT,
     ..Default::default()
   };
   match mode {
@@ -716,7 +726,16 @@ fn features(t: &Track, taste: &Taste, origin: &Origin, session: &Session, prefer
     mood: if is_mood(mode) { mood_fit(mode, t) } else { 0.0 },
     skip_rate: skips / (plays + skips + 1.0),
     popularity: popularity(t),
+    scene: scene_fit(&taste.scene, &keys),
   }
+}
+
+/// Близость трека к твоей сцене: лучший из его артистов по карте (ключи карты — `parse::key`).
+fn scene_fit(scene: &HashMap<String, f64>, keys: &[String]) -> f64 {
+  if scene.is_empty() {
+    return 0.0;
+  }
+  keys.iter().filter_map(|k| scene.get(&crate::artist_graph::parse::key(k)).copied()).fold(0.0, f64::max).clamp(0.0, 1.0)
 }
 
 /// Насколько теги трека нравятся по профилю (`tag → оценка −1…1`): среднее по известным тегам × 2,
@@ -1422,6 +1441,40 @@ mod tests {
     // и признаки целиком попадают в журнал
     let json = serde_json::to_string(&f).unwrap();
     assert!(json.contains("\"profile_fit\"") && json.contains("\"mode_profile\""));
+  }
+
+  #[test]
+  fn scene_bonus_for_map_neighbours() {
+    let o = Origin::default();
+    let s = Session::default();
+    let mut taste = Taste::default();
+    let near = t("sc:1", "Lil Peep");
+    let far = t("sc:2", "Stranger");
+    // карты нет — признак нулевой, оценка как раньше
+    assert_eq!(features(&near, &taste, &o, &s, None, "own", &mut Rng::new(1)).scene, 0.0);
+    // ключ карты — только буквы и цифры: «Lil Peep» → «lilpeep»
+    taste.scene.insert("lilpeep".into(), 0.8);
+    let (fa, fb) = (
+      features(&near, &taste, &o, &s, None, "own", &mut Rng::new(1)),
+      features(&far, &taste, &o, &s, None, "own", &mut Rng::new(1)),
+    );
+    assert!((fa.scene - 0.8).abs() < 1e-9);
+    assert_eq!(fb.scene, 0.0);
+    // при прочих равных сосед по карте выше — на вес × близость
+    for mode in ["own", "sad", "night", "popular", "sleep"] {
+      let w = weights(mode);
+      let gap = w.dot(&fa) - w.dot(&Features { scene: 0.0, ..fa.clone() });
+      assert!((gap - SCENE_WEIGHT * 0.8).abs() < 1e-9, "{mode}");
+    }
+    // у совместного трека — лучший из артистов
+    let mut joint = t("sc:3", "Stranger");
+    joint.artists = vec![
+      ArtistRef { ref_: "sc:a".into(), name: "Stranger".into(), avatar_url: None },
+      ArtistRef { ref_: "sc:b".into(), name: "LIL PEEP".into(), avatar_url: None },
+    ];
+    assert!((features(&joint, &taste, &o, &s, None, "own", &mut Rng::new(1)).scene - 0.8).abs() < 1e-9);
+    let json = serde_json::to_string(&fa).unwrap();
+    assert!(json.contains("\"scene\""));
   }
 
   #[test]

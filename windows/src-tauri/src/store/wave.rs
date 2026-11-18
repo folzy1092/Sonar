@@ -79,6 +79,9 @@ pub struct Taste {
   pub tag_profile: HashMap<String, f64>,
   /// Профиль тегов режима волны («Грустная», «Жёсткая» …): чем кончались треки с тегом именно в нём.
   pub mode_tag_profile: HashMap<String, f64>,
+  /// Сцена по карте исполнителей: ключ `artist_graph::parse::key` → 0…1, насколько исполнитель
+  /// близок к твоим любимым (`artist_graph::scene_for`); заполняет `wave_portion`.
+  pub scene: HashMap<String, f64>,
 }
 
 impl Store {

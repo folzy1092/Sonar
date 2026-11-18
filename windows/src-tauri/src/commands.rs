@@ -879,6 +879,8 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
     if crate::wave::is_mood(&mode) {
       taste.mode_tag_profile = store.tag_profile(Some(&mode)).unwrap_or_default();
     }
+    // соседи по карте исполнителей (граф кэшируется на минуту); сбой не ломает волну
+    taste.scene = crate::artist_graph::scene_for(&store).unwrap_or_default();
     (seeds, taste, filter, platform, fav_artists)
   };
 
