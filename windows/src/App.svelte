@@ -166,7 +166,9 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && settingsPanel.open && !lyrics.fullscreen) settingsPanel.close()
+    if (e.key === 'Escape' && settingsPanel.open && !lyrics.fullscreen) return settingsPanel.close()
+    // сочетания из Приложение → Клавиши внутри окна (по всей системе их ставит Rust)
+    hotkeys.handleKey(e)
   }
 
   $effect(() => {

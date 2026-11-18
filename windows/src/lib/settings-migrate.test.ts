@@ -17,4 +17,15 @@ describe('старые значения настроек', () => {
     const same = { other: 'new' }
     expect(migrateSettings(same)).toBe(same)
   })
+
+  it('включённые горячие клавиши по всей системе становятся областью «Везде»', () => {
+    expect(migrateSettings({ 'hotkeys.enabled': true })['hotkeys.scope']).toBe('global')
+    expect(migrateSettings({ 'hotkeys.enabled': false })['hotkeys.scope']).toBe('app')
+  })
+
+  it('уже выбранную область старый переключатель не перетирает', () => {
+    const stored = { 'hotkeys.enabled': true, 'hotkeys.scope': 'top' }
+    expect(migrateSettings(stored)['hotkeys.scope']).toBe('top')
+    expect(migrateSettings({})).toEqual({})
+  })
 })
