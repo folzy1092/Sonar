@@ -8,7 +8,10 @@
   import { library } from '../lib/library.svelte'
   import { toast } from '../lib/toast.svelte'
   import { player } from '../player/player.svelte'
-  import { openRef } from './router.svelte'
+  import { openRef, router } from './router.svelte'
+  import { search } from './search.svelte'
+  import { byId, serviceOf } from '../lib/services'
+  import { isMissingLocal, servicesQuery } from '../lib/local'
   import { pop } from '../lib/motion'
   import { wave } from '../player/my-wave.svelte'
   import { t, lang } from '../lib/i18n.svelte'
@@ -25,6 +28,8 @@
   const added = $derived(
     target?.addedAt ? new Date(target.addedAt).toLocaleDateString(LOCALES[lang()], { day: 'numeric', month: 'long', year: 'numeric' }) : null,
   )
+  /** «Волна по треку» — только у сервисов с похожими (у файла с компьютера похожих нет). */
+  const canWave = $derived(target ? !!byId(serviceOf(target.track.ref))?.caps.similar : false)
   const playlists = $derived(library.playlists.filter((p) => p.id !== target?.playlistId))
 
   $effect(() => {
@@ -119,7 +124,13 @@
       {:else}
         {@render item('queue', t('В очередь'), () => player.addToQueue([target.track], false))}
       {/if}
-      {@render item('bolt', t('Волна по треку'), () => wave.start(target.track))}
+      {#if canWave}
+        {@render item('bolt', t('Волна по треку'), () => wave.start(target.track))}
+      {/if}
+      {#if isMissingLocal(target.track)}
+        {@const query = servicesQuery(target.track)}
+        {@render item('search', t('Найти в сервисах'), () => ((search.query = query), router.go('search')))}
+      {/if}
       <hr />
       {@render item('heart', liked ? t('Удалить из Любимых') : t('В Любимые'), () => library.toggleLike(target.track), liked)}
       {@render item('dislike', wave.isDisliked(target.track.ref) ? t('Убрать из «Не нравится»') : t('Не нравится'), () => wave.dislike(target.track), wave.isDisliked(target.track.ref))}
@@ -137,7 +148,8 @@
       {#each target.track.artists.slice(0, 3) as a (a.ref)}
         {@render item('user', target.track.artists.length > 1 ? a.name : t('Перейти к исполнителю'), () => openRef(a.ref))}
       {/each}
-      {#if target.track.album}
+      {#if target.track.album?.ref}
+        <!-- у файла с компьютера альбом без ref — страницы нет -->
         {@const album = target.track.album}
         {@render item('disc', t('Перейти к альбому'), () => openRef(album.ref))}
       {/if}

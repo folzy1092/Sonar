@@ -6,6 +6,7 @@ import Foundation
 enum LookKey {
     static let mode = "appearance.mode"
     static let coverTheme = "appearance.cover_theme"
+    static let coverStrength = "appearance.cover_strength"
     static let preset = "appearance.preset"
     static let style = "appearance.style"
     static let surface = "appearance.surface"
@@ -195,6 +196,8 @@ struct LookInputs: Equatable, Sendable {
     var coverTheme = true
     var preset = "neutral"
     var surface: Surface = .monolith
+    /// Насколько тема идёт за обложкой (`appearance.cover_strength`).
+    var coverStrength: CoverStrength = .medium
 
     @MainActor
     init(_ settings: SettingsStore) {
@@ -202,24 +205,29 @@ struct LookInputs: Equatable, Sendable {
         coverTheme = settings.bool(LookKey.coverTheme)
         preset = settings.string(LookKey.preset)
         surface = Surface(rawValue: settings.string(LookKey.surface)) ?? .monolith
+        coverStrength = CoverStrength(setting: settings.string(LookKey.coverStrength))
     }
 
-    init(mode: AppearanceMode = .dark, coverTheme: Bool = true, preset: String = "neutral", surface: Surface = .monolith) {
+    init(mode: AppearanceMode = .dark, coverTheme: Bool = true, preset: String = "neutral", surface: Surface = .monolith,
+         coverStrength: CoverStrength = .medium) {
         self.mode = mode
         self.coverTheme = coverTheme
         self.preset = preset
         self.surface = surface
+        self.coverStrength = coverStrength
     }
 }
 
 enum LookTheme {
     /// Токены темы, как ПК `Theme.apply`: под обложку — её цвет (серая или нет обложки — монохром),
     /// иначе готовая тема; формулы — выбранной поверхности, светлые или тёмные. AMOLED — только в тёмной.
-    static func tokens(_ inputs: LookInputs, coverAccent: RGB?, systemDark: Bool) -> ThemeTokens {
+    /// `coverLightness` — средняя светлота обложки: поверхности уходят за ней с силой `coverStrength`.
+    static func tokens(_ inputs: LookInputs, coverAccent: RGB?, coverLightness: Double? = nil, systemDark: Bool) -> ThemeTokens {
         let light = inputs.mode.isLight(systemDark: systemDark)
         let preset = ThemePreset.named(inputs.preset)
         let source = inputs.coverTheme ? coverAccent : preset.accent
-        let tokens = Palette.theme(from: source, surface: inputs.surface, light: light)
+        let cover = inputs.coverTheme ? coverLightness.map { CoverShift(strength: inputs.coverStrength, lightness: $0) } : nil
+        let tokens = Palette.theme(from: source, surface: inputs.surface, light: light, cover: cover)
         return !inputs.coverTheme && preset.black && !light ? Palette.amoled(tokens) : tokens
     }
 
@@ -274,6 +282,17 @@ enum LocalProfile {
         guard (3 ... 32).contains(s.count) else { return false }
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
         return s.unicodeScalars.allSatisfy { allowed.contains($0) }
+    }
+
+    /// Публичный сайт (как ПК `lib/site.ts` `SITE_URL`) — один адрес на всё приложение: «Сайт» в
+    /// «О приложении» (`AboutSection.site`) и профиль по ссылке `https://sonar.folzy.ru/@username`.
+    static let siteURL = "https://sonar.folzy.ru"
+
+    /// Ссылка на профиль (ПК `profileUrl`): @username без «@», строчными. Пусто или с ошибкой — nil.
+    static func profileURL(_ raw: String) -> String? {
+        let name = cleanUsername(raw).lowercased()
+        guard !name.isEmpty, usernameValid(name) else { return nil }
+        return "\(siteURL)/@\(name)"
     }
 
     /// Первая буква для заглушки аватара.

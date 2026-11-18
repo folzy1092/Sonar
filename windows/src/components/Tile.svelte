@@ -5,6 +5,7 @@
   import Icon from './Icon.svelte'
   import type { IconName } from './icons'
   import type { Snippet } from 'svelte'
+  import { byId, serviceOf } from '../lib/services'
 
   interface Props {
     title: string
@@ -41,7 +42,8 @@
     art,
   }: Props = $props()
   let failed = $state(false)
-  const src = $derived(source?.startsWith('sc') ? 'sc' : source?.startsWith('ym') ? 'ym' : null)
+  const svc = $derived(byId(serviceOf(source)))
+  const src = $derived(svc?.implemented ? svc.id : null)
 </script>
 
 <button class="tile" class:ghost class:dim {onclick} {oncontextmenu} title={title}>
@@ -61,7 +63,7 @@
       <span class="ph"><Icon name={icon} size={40} filled /></span>
     {/if}
     {#if src}
-      <span class="src"><SourceIcon kind={src} size={18} /></span>
+      <span class="src"><SourceIcon service={src} size={18} /></span>
     {/if}
     {#if badge}<span class="badge">{@render badge()}</span>{/if}
   </span>

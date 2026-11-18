@@ -2,12 +2,15 @@
   // Шапка плейлиста / Любимых / альбома / исполнителя (pc/Screenshot_28, 19): крупная обложка
   // слева, справа название и подписи; ниже — Слушать · перемешать · В очередь и свои кнопки.
   import Icon from './Icon.svelte'
+  import ListenButton from './ListenButton.svelte'
   import type { IconName } from './icons'
   import type { Snippet } from 'svelte'
   import { t } from '../lib/i18n.svelte'
 
   interface Props {
     title: string
+    /** Значок перед названием (искры у умного плейлиста). */
+    titleIcon?: IconName
     subtitle?: Snippet
     meta?: string
     image?: string | null
@@ -15,6 +18,8 @@
     icon?: IconName
     round?: boolean
     disabled?: boolean
+    /** Контекст очереди этой подборки: играет она — «Слушать» становится «Пауза» (ListenButton). */
+    context?: string | null
     onplay: () => void
     onshuffle: () => void
     onqueue: () => void
@@ -24,7 +29,7 @@
     tools?: Snippet
   }
 
-  let { title, subtitle, meta, image = null, covers = [], icon = 'music', round = false, disabled = false, onplay, onshuffle, onqueue, actions, tools }: Props = $props()
+  let { title, titleIcon, subtitle, meta, image = null, covers = [], icon = 'music', round = false, disabled = false, context = null, onplay, onshuffle, onqueue, actions, tools }: Props = $props()
   let failed = $state(false)
 </script>
 
@@ -41,14 +46,14 @@
     {/if}
   </div>
   <div class="text">
-    <h1 class="selectable" {title}>{title}</h1>
+    <h1 class="selectable" {title}>{#if titleIcon}<span class="mark" aria-hidden="true"><Icon name={titleIcon} size={30} /></span>{/if}{title}</h1>
     {#if subtitle}<p class="sub">{@render subtitle()}</p>{/if}
     {#if meta}<p class="meta">{meta}</p>{/if}
   </div>
 </header>
 
 <div class="bar">
-  <button class="listen" {disabled} onclick={onplay}><Icon name="play" size={16} filled /> {t('Слушать')}</button>
+  <ListenButton {context} {disabled} {onplay} />
   <button class="round-btn" aria-label={t('Перемешать')} title={t('Перемешать')} {disabled} onclick={onshuffle}><Icon name="shuffle" size={17} /></button>
   <button class="pill" {disabled} onclick={onqueue}><Icon name="queue" size={16} /> {t('В очередь')}</button>
   {#if actions}{@render actions()}{/if}
@@ -105,6 +110,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .mark {
+    display: inline-flex;
+    vertical-align: -0.08em;
+    margin-right: 10px;
+    color: var(--accent);
+  }
   .sub {
     margin: 8px 0 0;
     color: var(--text-2);
@@ -123,7 +134,6 @@
   .spacer {
     flex: 1;
   }
-  .listen,
   .pill,
   .round-btn {
     display: inline-flex;
@@ -136,13 +146,6 @@
     transition:
       transform var(--fast) var(--ease),
       background var(--fast) var(--ease);
-  }
-  /* «Слушать» — белая, как у Dotify (не в цвет темы) */
-  .listen {
-    padding: 0 20px;
-    border-radius: 10px;
-    background: var(--text);
-    color: var(--on-text);
   }
   .pill {
     padding: 0 16px;

@@ -8,15 +8,27 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+mod alias;
+mod dupes;
+mod local_files;
+mod recap;
 mod search;
+mod smart;
+mod smart_rules;
 mod stats;
 mod sync;
 mod system;
 mod wave;
 mod wave_events;
+pub use alias::TrackAlias;
+pub use dupes::{DupeList, Removed};
+pub use local_files::LocalFile;
+pub use recap::{Recap, RecapPeriods, RecapSpan};
 pub use stats::Stats;
 pub use sync::{Change, Op, PlayUpload};
 pub use search::SearchEntry;
+pub use smart::{SmartPlaylist, SmartPreview};
+pub use smart_rules::Rules as SmartRules;
 pub use wave::Taste;
 pub use wave_events::{ServedEvent, WaveStats};
 
@@ -128,6 +140,23 @@ CREATE TABLE search_history (
   ref TEXT, title TEXT, subtitle TEXT, cover_url TEXT, at INTEGER NOT NULL
 );
 CREATE INDEX search_history_time ON search_history(user_id, at);
+"#, r#"
+CREATE TABLE local_files (
+  ref TEXT PRIMARY KEY, path TEXT UNIQUE NOT NULL, mtime INTEGER NOT NULL, size INTEGER NOT NULL,
+  title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT, duration_ms INTEGER NOT NULL, cover_path TEXT
+);
+"#, r#"
+CREATE TABLE track_alias (
+  source_ref TEXT NOT NULL, service TEXT NOT NULL, alias_ref TEXT, found_at INTEGER NOT NULL,
+  PRIMARY KEY (source_ref, service)
+);
+"#, r#"
+CREATE TABLE smart_playlists (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, rules_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0,
+  rev INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX smart_playlists_user ON smart_playlists(user_id, deleted);
 "#];
 
 pub fn now_ms() -> i64 {
@@ -187,13 +216,15 @@ pub struct Playlist {
   pub tracks: Option<Vec<ListTrack>>,
 }
 
-/// Вид лайка по префиксу ref: `sc:`/`ym:` трек, `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист.
+/// Вид лайка по префиксу ref (реестр сервисов, только работающие): `sc:`/`ym:` трек,
+/// `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист. Плейлисты и прочее — None.
 pub fn like_kind(r: &str) -> Option<&'static str> {
-  match r.split_once(':')?.0 {
-    "sc" | "ym" => Some("track"),
-    "scalb" | "ymalb" => Some("album"),
-    "sca" | "yma" => Some("artist"),
-    _ => None,
+  use crate::providers::registry::{parse_ref, RefKind};
+  match parse_ref(r).filter(|(s, _)| s.implemented)?.1 {
+    RefKind::Track => Some("track"),
+    RefKind::Album => Some("album"),
+    RefKind::Artist => Some("artist"),
+    RefKind::Playlist => None,
   }
 }
 
@@ -246,6 +277,7 @@ impl Store {
     // журнал волны хранится полгода
     store.prune_wave_events()?;
     store.prune_similar()?;
+    store.prune_track_aliases()?;
     Ok(store)
   }
 
@@ -307,6 +339,8 @@ impl Store {
         })
         .optional()?;
       if let Some((ref_, title, artist, artists, album, dur, cover_url, url, tags)) = row {
+        // локальный файл: серый, если его нет в индексе или на диске («Файл не найден»)
+        let available = !crate::local::is_local_ref(&ref_) || self.local_file(&ref_)?.is_some_and(|f| f.exists());
         out.push(Track {
           ref_,
           title,
@@ -317,7 +351,7 @@ impl Store {
           cover_url,
           url,
           explicit: false,
-          available: true,
+          available,
           plays: None,
           tags,
         });
@@ -767,6 +801,33 @@ impl Store {
 mod tests {
   use super::*;
   use crate::providers::ArtistRef;
+
+  #[test]
+  fn like_kind_unchanged() {
+    for (r, want) in [
+      ("sc:1", Some("track")),
+      ("ym:1", Some("track")),
+      ("scalb:1", Some("album")),
+      ("ymalb:1", Some("album")),
+      ("sca:1", Some("artist")),
+      ("yma:1", Some("artist")),
+      ("scpl:likes", None),
+      ("ympl:42:3", None),
+      ("yt:1", Some("track")),
+      ("yta:1", Some("artist")),
+      ("ytalb:1", Some("album")),
+      ("ytpl:likes", None),
+      ("vk:1", Some("track")),
+      ("sp:1", Some("track")),
+      ("local:1", Some("track")),
+      ("pl_x", None),
+      ("similar:sc:1", None),
+      ("sc", None),
+      ("", None),
+    ] {
+      assert_eq!(like_kind(r), want, "{r}");
+    }
+  }
 
   fn track(r: &str) -> Track {
     Track {

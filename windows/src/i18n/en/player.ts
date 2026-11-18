@@ -51,7 +51,7 @@ export default {
   'Яндекс Музыка не подключена — открой Настройки → Сервисы': 'Yandex Music isn’t connected — open Settings → Services',
   'Яндекс Музыка не подключена': 'Yandex Music isn’t connected',
   'Нужен OAuth-токен SoundCloud': 'A SoundCloud OAuth token is required',
-  'Это не ссылка на трек, альбом, артиста или плейлист SoundCloud и Яндекс Музыки': 'This isn’t a link to a SoundCloud or Yandex Music track, album, artist or playlist',
+  'Это не ссылка на трек, альбом, артиста или плейлист музыкального сервиса': 'This isn’t a link to a music service track, album, artist or playlist',
   'плохая ссылка': 'Invalid link',
   'SoundCloud: исполнитель не найден': 'SoundCloud: artist not found',
   'SoundCloud: альбом не найден': 'SoundCloud: album not found',

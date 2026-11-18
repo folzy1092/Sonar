@@ -13,12 +13,16 @@
   import Volume from '../player/Volume.svelte'
   import { player } from '../player/player.svelte'
   import { openRef, router } from './router.svelte'
+  import { settingsPanel } from '../pages/settings-section.svelte'
   import { library } from '../lib/library.svelte'
   import { hasSelection } from '../lib/selection'
   import { replay } from '../lib/replay'
   import { settings } from '../lib/settings.svelte'
   import { lyrics } from '../lyrics/lyrics.svelte'
   import { t } from '../lib/i18n.svelte'
+
+  /** `preview` — живой пример в настройках (MiniPreview.svelte): без всплывашки «Дальше». */
+  let { preview = false }: { preview?: boolean } = $props()
 
   const track = $derived(player.current)
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
@@ -79,6 +83,8 @@
   <!-- фон и полоса прогресса обрезаются по скруглению отдельным слоем: сам плеер не обрезает
        содержимое, иначе всплывашки эквалайзера и скорости прятались бы под страницей -->
   <div class="clip" aria-hidden="true">
+    <!-- мягкое свечение цвета обложки слева (тема под обложку): появляется и гаснет прозрачностью -->
+    <span class="cover-glow" class:on={!!track && settings.get('appearance.cover_theme') && settings.get('mini.background') !== 'cover'}></span>
     {#if settings.get('mini.background') === 'cover' && track?.cover_url}
       <!-- фон «Обложка» как у Dotify: сама обложка, чёткая, на всю ширину, затемнена для читаемости -->
       {#key track.cover_url}
@@ -111,7 +117,10 @@
       </button>
       <span class="meta selectable" use:replay={track?.ref}>
         <span class="title" role="link" tabindex="-1" onclick={openPlayer} onkeydown={() => {}}>{track?.title ?? t('Ничего не играет')}</span>
-        {#if player.error}
+        {#if player.fallbackNeeded}
+          <!-- свой сервис не играет, резерв выключен или не нашёл трек: по клику — Плеер → Аудио → «Резервный сервис» -->
+          <button class="artist fallback" title={t('Настройки → Аудио')} onclick={() => settingsPanel.show('player', 'audio')}>{t('Нужен резервный сервис')}</button>
+        {:else if player.error}
           <span class="artist err" title={player.error}>{player.error}</span>
         {:else if track}
           <span class="artist">
@@ -164,7 +173,9 @@
   </div>
 
   <div class="right">
-    <NextUp float />
+    {#if !preview}
+      <NextUp float />
+    {/if}
     <!-- «Тактиль»: пять светодиодов, по ним бежит огонёк при смене трека (theme/fx.css) -->
     <span class="mini-leds" data-fx-leds aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     <div class="capsule">
@@ -217,6 +228,20 @@
     /* второстепенный текст и значки поверх обложки — светлее, чтобы читались на любой картинке */
     --text-2: rgba(255, 255, 255, 0.88);
     --text-3: rgba(255, 255, 255, 0.74);
+  }
+  /* свечение обложки: --glow меняется плавно (tokens.css @property), сам слой — только прозрачностью.
+     Ореол только вокруг обложки: центр — середина обложки (отступ плеера 8 + 4·cap-k, .now 4, полобложки 23),
+     радиус 34px гасит его до нуля раньше колонки названия и артиста (обложка 46 + зазор 12) — свечение
+     не ложится под текст, и --text-3 держит контраст AA на --mini-bg */
+  .cover-glow {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(34px 75% at calc(35px + 4px * var(--cap-k, 1)) 50%, var(--glow) 45%, transparent);
+    opacity: 0;
+    transition: opacity 0.6s var(--ease);
+  }
+  .cover-glow.on {
+    opacity: 0.75;
   }
   .cover-bg {
     position: absolute;
@@ -398,6 +423,21 @@
   }
   .artist.err {
     color: var(--danger);
+  }
+  .artist.fallback {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    text-align: left;
+    color: var(--text-2);
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    transition: color var(--fast) var(--ease);
+  }
+  .artist.fallback:hover {
+    color: var(--text);
   }
   .center {
     display: flex;

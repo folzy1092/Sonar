@@ -3,6 +3,7 @@
 // `appearance.animations` — только прозрачность.
 import { cubicOut, cubicIn } from 'svelte/easing'
 import type { TransitionConfig } from 'svelte/transition'
+import { flip, type AnimationConfig } from 'svelte/animate'
 
 let animationsOn = true
 
@@ -56,6 +57,13 @@ export function rise(node: Element, { duration = 320, y = 10, delay = 0 }: { dur
     easing: easeOutQuint,
     css: (t, u) => `opacity:${t};transform:translateY(${u * y}px)`,
   }
+}
+
+/** Перестановка строк списка (`animate:glide` в keyed `{#each}`): строка переезжает на новое место
+ *  (FLIP). «Меньше движения» — без сдвига, строка сразу на месте. */
+export function glide(node: Element, rects: { from: DOMRect; to: DOMRect }, { duration = 300 }: { duration?: number } = {}): AnimationConfig {
+  if (reducedMotion()) return { duration: 0 }
+  return flip(node, rects, { duration, easing: easeOutQuint })
 }
 
 /** Кроссфейд: просто прозрачность (обложка и название при смене трека). */

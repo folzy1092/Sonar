@@ -59,13 +59,15 @@ final class ThemeStore {
     var isMono: Bool { tokens.mono }
     /// Цвет текущей обложки (образец «Под трек» в настройках); nil — нет или серая.
     private(set) var coverAccent: RGB?
+    /// Средняя светлота текущей обложки (тема уходит за ней, `appearance.cover_strength`); nil — нет обложки.
+    @ObservationIgnored private var coverLightness: Double?
     /// Схема для `preferredColorScheme`: nil — как в системе.
     private(set) var colorScheme: ColorScheme? = .dark
 
     @ObservationIgnored private var inputs = LookInputs()
     @ObservationIgnored private var systemDark = true
     @ObservationIgnored private var coverURL: String?
-    @ObservationIgnored private var cache: [String: RGB?] = [:]
+    @ObservationIgnored private var cache: [String: CoverSample?] = [:]
     @ObservationIgnored private var task: Task<Void, Never>?
 
     /// Новая обложка (или nil — ничего не играет).
@@ -82,11 +84,11 @@ final class ThemeStore {
             return
         }
         task = Task { [weak self] in
-            let accent = await Self.accent(of: link)
+            let sample = await Self.sample(of: link)
             guard !Task.isCancelled, let self else { return }
-            self.cache[url] = accent
-            if self.cache.count > 300 { self.cache.removeAll() }
-            if self.coverURL == url { self.setCover(accent) }
+            self.cache[url] = sample
+            if self.cache.count > Self.cacheLimit { self.cache.removeAll() }
+            if self.coverURL == url { self.setCover(sample) }
         }
     }
 
@@ -104,19 +106,23 @@ final class ThemeStore {
         recompute()
     }
 
-    private func setCover(_ accent: RGB?) {
-        coverAccent = accent
+    private static let cacheLimit = 300
+
+    private func setCover(_ sample: CoverSample?) {
+        coverAccent = sample?.accent
+        coverLightness = sample?.lightness
         if inputs.coverTheme { recompute() }
     }
 
     private func recompute() {
-        let next = LookTheme.tokens(inputs, coverAccent: coverAccent, systemDark: systemDark)
+        let next = LookTheme.tokens(inputs, coverAccent: coverAccent, coverLightness: coverLightness, systemDark: systemDark)
         guard next != tokens else { return }
         withAnimation(.easeInOut(duration: 0.6)) { tokens = next }
     }
 
-    /// Пиксели уменьшенной обложки → акцент. Сеть и разбор — вне главного потока.
-    nonisolated private static func accent(of url: URL) async -> RGB? {
+    /// Пиксели уменьшенной обложки → акцент и светлота. Сеть и разбор — вне главного потока. Ещё — цвета
+    /// итогов (`RecapModel`).
+    nonisolated static func sample(of url: URL) async -> CoverSample? {
         guard let (data, _) = try? await URLSession.shared.data(from: url),
               let image = UIImage(data: data)?.cgImage else { return nil }
         let side = 48
@@ -129,6 +135,6 @@ final class ThemeStore {
             context.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
             return true
         }
-        return drawn ? Palette.pickAccent(px) : nil
+        return drawn ? Palette.sample(px) : nil
     }
 }

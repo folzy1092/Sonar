@@ -36,9 +36,32 @@
 | DELETE | `/me/avatar` | → `204` |
 | PUT | `/me/background` | multipart `file` (картинка ≤ 5 МБ или видео ≤ 10 с, ≤ 15 МБ) → `{id, kind: "image"\|"video", url}` |
 | DELETE | `/me/background` | → `204` |
-| GET | `/public/users/{username}` (без авт., CORS для сайта) | → `{username, display_name, number, avatar_url, created_at}` |
+| GET | `/public/users/{username}` (без авт., CORS для сайта) | → `{username, display_name, number, avatar_url, created_at}`; расширенный `PublicProfile` (ниже) — черновик, ждёт ответа по приватности |
 | GET | `/notifications?since=` | → `[{id, title, text, created_at, read}]` |
 | POST | `/notifications/read` | `{ids: [id]}` → `204` |
+
+`PublicProfile` — **черновик** страницы профиля по ссылке `https://sonar.folzy.ru/@username` (SPEC §4.5а).
+Пока по нему работает только предпросмотр «Как видят мой профиль» на ПК (`windows/src/lib/public-profile.ts`
+`buildPublicProfile`, раскладка — `pages/profile/ProfileView.svelte`, её же повторит сайт). Сервер **не отдаёт**
+поля ниже шапки, пока владелец не ответит про приватность (NEXT_PROMPT этап 0 п. 9): до ответа
+`/public/users/{username}` — только шапка `{username, display_name, number, avatar_url, created_at}`.
+
+```
+{username, display_name, number, avatar_url, created_at,
+ now_playing: PublicTrack | null,
+ stats: {plays, total_ms, tracks, artists, streak_days} | null,   // null — ещё ничего не прослушано
+ top_artists: [{name, avatar_url, ref, plays}],                    // до 6
+ likes: {count, tracks: [PublicTrack]},                            // треков до 8, count — все
+ playlists: [{id, name, track_count, duration_ms, covers}],        // свои плейлисты Sonar, до 12, обложек до 4
+ playlist_count}
+PublicTrack = {ref, title, artist, cover_url, duration_ms}
+```
+
+Только публичные поля: ни `item_id`, ни токенов, ни устройств; имя и аватар — только профиля Sonar
+(`PATCH /me`), не аккаунта SoundCloud / Яндекса. `now_playing` — только пока трек играет (пауза — `null`).
+Плейлисты, скрытые из «Все», сервер в `playlists` не кладёт. Какие разделы гость видит (Любимые,
+статистика, «сейчас играет», отдельные плейлисты) — решит ответ владельца по приватности; предпросмотр
+на ПК до него показывает всё как открытое.
 
 `device` = `{id, name, platform, os, app_version, build}`, например
 `{"id": "6f1c…-uuid", "name": "iPhone 15 Pro", "platform": "ios", "os": "iOS 18.1", "app_version": "0.1.0", "build": 239}`:
@@ -73,28 +96,176 @@
 {"id": "u_01J...", "login": "folzy", "username": "folzy", "display_name": "Folzy",
  "number": 104633, "avatar_url": null, "created_at": 1791590400000,
  "telegram": {"id": 123, "username": "cocainemodel"}, "has_password": true,
- "services": {"soundcloud": {"connected": true, "name": "Folzy"},
+ "services": {"soundcloud": {"connected": true, "name": "Folzy", "premium": null},
               "yandex": {"connected": false}},
  "lastfm": {"connected": true, "name": "wxnna_cry"}}
 ```
 
 ## 2. Сервисы
 
+### Префиксы ref
+
+Реестр сервисов — одна таблица на всех клиентах: Windows `windows/src-tauri/src/providers/registry.rs` и
+`windows/src/lib/services.ts`, iOS `ios/Sonar/Core/Models/ServiceRegistry.swift`. Порядок строк — порядок показа
+везде. У сервиса два имени: короткий **id** (корень префиксов ref, `src` поиска) и длинный **key** (Keychain/keyring,
+`service_accounts.service`, `general.platform`, поля `services` у `GET /me`). Где сервис приходит параметром
+(`{svc}` в путях ниже), принимаются оба: `sc` и `soundcloud` — одно и то же.
+
+| id | key | Название | трек | альбом | артист | плейлист | работает |
+|---|---|---|---|---|---|---|---|
+| `sc` | `soundcloud` | SoundCloud | `sc:<id>` | `scalb:<id>` | `sca:<id>` | `scpl:<id>` | да |
+| `ym` | `yandex` | Яндекс Музыка | `ym:<id>` | `ymalb:<id>` | `yma:<id>` | `ympl:<uid>:<kind>` | да |
+| `yt` | `youtube` | YouTube Music | `yt:<videoId>` | `ytalb:<browseId>` | `yta:<channelId>` | `ytpl:<playlistId>` | да |
+| `vk` | `vk` | VK Музыка | `vk:<owner>_<id>` | `vkalb:<owner>_<id>[_<key>]` | `vka:<id>` | `vkpl:<owner>_<id>[_<key>]` | да |
+| `sp` | `spotify` | Spotify | `sp:<id>` | `spalb:<id>` | `spa:<id>` | `sppl:<id>` | да (медиатека; поток — ПК с Premium) |
+| `local` | `local` | Локальные файлы | `local:<sha1 пути>` | — | — | — | да (только ПК, §3а) |
+
+Сервисы с «нет» пока только описаны: интерфейс их не показывает, сервер и клиенты отвечают
+«`<Название>`: пока не поддерживается». Что каждый сервис умеет (`caps`) — в `GET /services`.
+
+Особые ref: `scpl:likes`, `ympl:likes`, `ytpl:likes`, `vkpl:likes` и `sppl:likes` — лайки аккаунта сервиса как плейлист (YouTube
+Music — «Понравившаяся музыка», до 2000 треков, обычный плейлист YouTube — до 1000; VK — «Моя музыка»; Spotify — «Любимые треки», `me/tracks`);
+`ympl:<uid>:<kind>` — плейлист пользователя Яндекса; `scpl:<id>` — плейлист SoundCloud. Формат ref не меняется.
+
+VK (2026-11-18): `<owner>` бывает отрицательным (`vk:-2001234567_456239017`), `<key>` — `access_key` VK (буквы и
+цифры), без него чужой альбом или плейлист не открыть. У трека `access_key` в ref не входит: клиент запоминает
+его **на диске** — `vk-keys.json` (Windows — папка данных рядом с `sonar.db`, iOS — `Application Support/Sonar/`;
+`[[ref, key], …]` от давних к свежим, до 20 000, лишние — самые давние), и трек из Любимых, плейлиста, очереди или
+волны после перезапуска спрашивает `audio.getById` с ключом. Ссылка на поток из ответа VK живёт в памяти 4 минуты
+(Windows `Core::vk_seen`, iOS `MusicCore.vkSeen`), потом — снова `audio.getById`. Добавленный к себе чужой
+плейлист ведёт на оригинал (`original`).
+
+Разбор ref (одинаково в Rust, TS и Swift):
+
+```
+prefix = текст до ПЕРВОГО ':'   (нет ':' или пустой префикс → не сервис)
+сервис, вид = единственная пара (сервис, вид), у которой префикс == prefix   (точное равенство, не «начинается с»)
+иначе → не сервис
+```
+
+| ref | сервис | вид |
+|---|---|---|
+| `sc:123` | sc | трек |
+| `scalb:9` | sc | альбом |
+| `sca:7` | sc | артист |
+| `scpl:likes` | sc | плейлист |
+| `ympl:42:1003` | ym | плейлист |
+| `ymalb:5` | ym | альбом |
+| `yma:1` | ym | артист |
+| `yt:abc` | yt | трек |
+| `ytpl:likes` | yt | плейлист |
+| `ytalb:MPREb_x` | yt | альбом |
+| `local:abc` | local | трек |
+| `pl_x` | — | — |
+| `similar:sc:1` | — | — |
+| `sc` | — | — |
+| (пустая строка) | — | — |
+| `:1` | — | — |
+
+Все префиксы в таблице разные (это проверяют тесты на каждом клиенте).
+
+Не сервисы: `pl_…`, `similar:<ref>`.
+
+### Пути
+
+`{svc}` — короткий id или key сервиса (`sc` / `soundcloud`). Ответ подключения — `{connected, name, avatar_url, premium}`:
+`premium` — `true`/`false`, если сервис сообщает о подписке (Яндекс: Плюс, `plus.hasPlus`), иначе `null` (SoundCloud — всегда `null`).
+
 | Метод | Путь | Тело → ответ |
 |---|---|---|
-| PUT | `/services/soundcloud` | `{client_id, oauth_token}` → `{connected, name, avatar_url}` |
-| PUT | `/services/yandex` | `{token}` → `{connected, name, avatar_url}` |
+| GET | `/services` | все сервисы реестра с состоянием → `[ServiceEntry]` (ПК: команда `services_list`) |
+| PUT | `/services/{svc}/key` | `{fields: {…}}` → `{connected, name, avatar_url, premium}` — «Вставить ключ» (ПК: `connect_service_key {service, fields}`) |
+| PUT | `/services/soundcloud` | `{client_id, oauth_token}` → `{connected, name, avatar_url, premium}` (по-прежнему работает) |
+| PUT | `/services/yandex` | `{token}` → `{connected, name, avatar_url, premium}` (по-прежнему работает) |
 | GET | `/services/yandex/oauth-url` | → `{url}` (для входа в один клик) |
+| PUT | `/services/vk/key` | `{fields: {token: "vk1.a.…"}}` → как выше; ключ — токен Kate Mobile (ПК: `connect_service_key {service: "vk", fields}`) |
 | DELETE | `/services/{svc}` | → `204` |
 | GET | `/services/{svc}/playlists` | фантомные плейлисты → `[ServicePlaylist]` |
 | GET | `/services/{svc}/playlists/{id}/tracks` | → `[Track]` |
 | POST | `/services/{svc}/playlists/{id}/import` | `{name?}` → `Playlist` (новый плейлист Sonar) |
 
+Поля `PUT /services/{svc}/key` (незнакомые имена полей пропускаются):
+
+| Сервис | Поля |
+|---|---|
+| `sc` / `soundcloud` | `client_id` — обязательно (32 символа); `oauth_token` — необязательно, `OAuth ` в начале срезается |
+| `ym` / `yandex` | `token` — обязательно |
+| `yt` / `youtube` | `cookie` — заголовок Cookie с `music.youtube.com` целиком (`SID=…; SAPISID=…; …`); нужен `SAPISID` (или `__Secure-3PAPISID`), иначе «В cookie нет SAPISID — войди на music.youtube.com и скопируй cookie заново» |
+| `sp` / `spotify` | `sp_dc` — обязательно: значение cookie `sp_dc` с open.spotify.com; `sp_dc=`, кавычки и соседние cookie (`a=1; sp_dc=…; b=2`) срезаются |
+
+Ключ проверяется запросом аккаунта к сервису и сохраняется только в Keychain / keyring. Неизвестный сервис —
+«Неизвестный сервис: `<svc>`», ещё не работающий — «`<Название>`: пока не поддерживается». Значения полей не
+попадают ни в текст ошибки, ни в лог.
+
+**YouTube Music** (клиенты сами, до сервера; своя реализация InnerTube — rustypipe не берём, GPL-3.0):
+каталог, поиск, лайки и плейлисты — клиент `WEB_REMIX` (с cookie запросы подписываются `SAPISIDHASH`), поток —
+гостевой клиент `VISIONOS` с `visitorData` (cookie не нужен, прямые ссылки без `signatureCipher`). `premium` —
+YouTube Premium по `has_unlimited_entitlement` из ответа аккаунта (не сказано — `null`). Вход: ПК — `login_service {service: "youtube"}` (окно Google внутри
+Sonar, после возврата на `music.youtube.com` забираются cookie `youtube.com`, нужен `SAPISID`), iPhone —
+`YouTubeLoginSheet` так же; не пустил Google — вставка cookie (`cookie` выше). Ссылки `googlevideo.com` без
+диапазона отдаются медленно (~35 КБ/с), поэтому ПК качает их кусками по 8 МБ с `Range: bytes=a-b` и склеивает
+в один ответ локального аудио-сервера (`gvideo.rs`); iPhone играет ссылку AVPlayer'ом напрямую (он сам
+запрашивает диапазоны), при ошибке — ещё раз с новым `visitorData`. Проверка с текущего IP —
+`server/tools/check_yt.py`.
+
+`ServiceEntry` — строка реестра плюс состояние; ключи именно такие (snake_case), все шесть сервисов в порядке реестра:
+
+```json
+[
+  {"id": "sc", "key": "soundcloud", "name": "SoundCloud", "color": "#FF5500", "icon": "SoundCloud.svg", "icon_mono": "soundcloud-mono.svg",
+   "prefixes": {"track": "sc", "album": "scalb", "artist": "sca", "playlist": "scpl"},
+   "caps": {"search": true, "stream": true, "library": true, "playlists": true, "similar": true, "login": true, "key": true},
+   "implemented": true, "connected": true, "account_name": "dj-anna", "avatar_url": "https://i1.sndcdn.com/…", "premium": null},
+  {"id": "ym", "key": "yandex", "name": "Яндекс Музыка", "color": "#FFBC0D", "icon": "Yandex-Music.svg", "icon_mono": "yandex-music-mono.svg",
+   "prefixes": {"track": "ym", "album": "ymalb", "artist": "yma", "playlist": "ympl"},
+   "caps": {"search": true, "stream": true, "library": true, "playlists": true, "similar": true, "login": true, "key": true},
+   "implemented": true, "connected": true, "account_name": "Анна", "avatar_url": null, "premium": true},
+  {"id": "yt", "key": "youtube", "name": "YouTube Music", "color": "#FF0033", "icon": "youtube-music.svg", "icon_mono": "youtube-music-mono.svg",
+   "prefixes": {"track": "yt", "album": "ytalb", "artist": "yta", "playlist": "ytpl"},
+   "caps": {"search": true, "stream": true, "library": true, "playlists": true, "similar": true, "login": true, "key": true},
+   "implemented": true, "connected": false, "account_name": null, "avatar_url": null, "premium": null},
+  {"id": "vk", "…": "…"}, {"id": "sp", "…": "…"},
+  {"id": "local", "key": "local", "name": "Локальные файлы", "color": "#8E8E93", "icon": null, "icon_mono": null,
+   "prefixes": {"track": "local", "album": null, "artist": null, "playlist": null},
+   "caps": {"search": false, "stream": true, "library": true, "playlists": false, "similar": false, "login": false, "key": false},
+   "implemented": false, "connected": false, "account_name": null, "avatar_url": null, "premium": null}
+]
+```
+
+`icon` / `icon_mono` — файлы знаков в `brand/icon/`; у неработающих сервисов `connected: false`, остальное `null`.
+
+### Spotify
+
+Строка реестра: `caps` — `search`, `library`, `playlists`, `login`, `key` — `true`; `stream: false`, `similar: false`
+(рекомендаций Spotify не берём, «Моя волна» и «Похожие» его не трогают). `premium` — `product == "premium"` из `/me`.
+
+- **Ключ** — cookie `sp_dc` веб-плеера. ПК: «Войти» (`login_service {service: "spotify"}` — окно accounts.spotify.com,
+  cookie забирается сама) или «Вставить ключ» (`connect_service_key {service: "spotify", fields: {sp_dc}}`). iPhone —
+  то же в «Сервисах» (окно WKWebView или поле). Хранится в keyring / Keychain под key `spotify` как `{"sp_dc": "…"}`;
+  в ошибки, лог, журнал сбоев и всплывашки не попадает.
+- **Токен** — `GET https://open.spotify.com/api/token?reason=init&productType=web-player&totp=<код>&totpServer=<код>&totpVer=<v>`
+  с cookie `sp_dc`. Код — TOTP (RFC 6238: HMAC-SHA1, 6 цифр, шаг 30 с) от ключа = десятичная запись байтов
+  `cipher[i] ^ ((i % 33) + 9)` подряд. Шифр и версия до сервера вшиты в клиент (ПК `providers/spotify.rs`
+  `default_totp`, iPhone `Spotify.TotpSecret.default`), потом — с сервера: `GET /config` → `spotify_totp: {ver, cipher}`.
+  Ответ `400` или тело с `totp` → «Spotify: ключ веб-плеера устарел — нужно обновление Sonar»; `isAnonymous: true`
+  или без `accessToken` → «Spotify: ключ sp_dc не подошёл — войди заново». Токен общий на все запросы, живёт до
+  `accessTokenExpirationTimestampMs` минус минута; `401` Web API — один повтор со свежим токеном.
+- **Метаданные** — только Web API `https://api.spotify.com/v1` с `Bearer`: `search` (track/artist/album/playlist),
+  `me`, `me/tracks`, `me/playlists`, `playlists/{id}` (+ `/tracks`, строки `track` или `item`), `artists/{id}`
+  (+ `/top-tracks`, `/albums`), `albums/{id}` (+ `/tracks`). Локальные файлы и эпизоды подкастов пропускаются.
+- **Поток.** ПК с Premium — librespot за cargo-фичей `spotify-playback` (по умолчанию выключена: librespot-core 0.8
+  тянет зависимости, которые надо проверить на windows-latest): провайдер отдаёт `Source::File` с меткой
+  `librespot:<id>`, локальный аудио-сервер её не проксирует, а скачивает трек librespot'ом (Ogg Vorbis) и отдаёт
+  из памяти как `audio/ogg` с Range (`spotify_play.rs`, `stream.rs`). Без фичи, без Premium и
+  всегда на iPhone `stream` отвечает «Spotify: нужен резервный сервис» — Spotify остаётся источником медиатеки и
+  ссылок, трек сыграет резервный сервис (резерв — NEXT_PROMPT, этап 4). Сервер, когда появится, Spotify тоже не
+  проксирует.
+
 ## 3. Каталог и поток
 
 | Метод | Путь | Ответ |
 |---|---|---|
-| GET | `/search?q=&src=all\|sc\|ym&kind=track\|album\|artist\|playlist&limit=30` | `{tracks:[], albums:[], artists:[], playlists:[]}` |
+| GET | `/search?q=&src=all\|sc\|ym\|vk&kind=track\|album\|artist\|playlist&limit=30` | `{tracks:[], albums:[], artists:[], playlists:[]}`; `src` — короткий id работающего сервиса (§2 «Префиксы ref») |
 | GET | `/tracks/{ref}` | `Track` |
 | GET | `/tracks/{ref}/stream?quality=low\|medium\|high\|max` | `StreamInfo` |
 | GET | `/tracks/{ref}/related` | `[Track]` |
@@ -117,16 +288,16 @@
 {"url": "https://cf-hls-media.sndcdn.com/...", "protocol": "hls", "codec": "aac",
  "bitrate": 160, "expires_at": 1794340594779, "gain_db": null}
 
-// Album — scalb:<id плейлиста-альбома SC> | ymalb:<id>
+// Album — префикс альбома сервиса (§2 «Префиксы ref»): scalb:<id плейлиста-альбома SC> | ymalb:<id>
 {"ref": "ymalb:9", "title": "Come Over When You're Sober", "artist": "Lil Peep",
  "artists": [{"ref": "yma:7", "name": "Lil Peep", "avatar_url": null}],
  "cover_url": "https://avatars.yandex.net/.../400x400", "year": 2017, "track_count": 7,
  "url": "https://music.yandex.ru/album/9"}
 
-// Artist — sca:<id пользователя SC> | yma:<id>
+// Artist — префикс артиста сервиса (§2 «Префиксы ref»): sca:<id пользователя SC> | yma:<id>
 {"ref": "sca:5", "name": "extra", "avatar_url": "...", "followers": 9400, "url": "https://soundcloud.com/extra"}
 
-// ServicePlaylist — scpl:<id> | ympl:<uid>:<kind>; лайки сервиса — scpl:likes, ympl:likes
+// ServicePlaylist — префикс плейлиста сервиса (§2 «Префиксы ref»): scpl:<id> | ympl:<uid>:<kind>; лайки сервиса — scpl:likes, ympl:likes
 {"ref": "ympl:42:1003", "title": "2016", "owner": "Folzy", "cover_url": "...", "track_count": 121}
 ```
 
@@ -134,12 +305,44 @@
 `/albums/{ref}` → `{album: Album, tracks: [Track]}`,
 `/services/{svc}/playlists/{id}/tracks` → `{playlist: ServicePlaylist, tracks: [Track]}`.
 
+## 3а. Локальные файлы (только ПК, без сервера)
+
+Папки из настройки `storage.music_folders` (Система → Хранилище → «Папки с музыкой», в синк не идёт)
+сканирует клиент: lofty читает теги и обложку (mp3, flac, m4a, ogg, opus, wav), `notify` следит за
+папками (пауза 2 с). Трек — обычный `Track` с ref `local:<sha1 пути>`, `album.ref` пустой (страницы
+альбома нет), `available: false` — файла сейчас нет на диске. Сервер такие ref только хранит в лайках
+и плейлистах (как любой ref), поток и метаданные — на устройстве. У сервиса нет входа и ключа; `caps`:
+`stream`, `library`; нет `search` сервиса (свой локальный поиск ниже), `similar`, `playlists`.
+
+Команды Tauri (`src-tauri/src/local/commands.rs`):
+
+| Команда | Аргументы | Ответ |
+|---|---|---|
+| `local_pick_folder` | `{title}` | путь выбранной папки или `null` (системный диалог, tauri-plugin-dialog) |
+| `local_rescan` | — | `{total, added, updated, removed, missing, truncated}` — скан всех папок сейчас; `missing` — строк, чьих файлов нет на диске, `truncated` — файлов больше 50 000, обход остановлен |
+| `local_tracks` | — | `[Track]` — все файлы, по исполнителю и названию |
+| `local_search` | `{query, limit?}` | `[Track]` — все слова запроса в названии/исполнителе/альбоме, без учёта регистра; `limit` ≤ 100 |
+
+Событие `local-files-changed` — после каждого скана (ручного, по слежению, после того как папка из
+списка появилась или пропала — опрос раз в 30 с); данные — тот же итог `{total, added, updated, removed,
+missing, truncated}`.
+
+Локальный аудио-сервер (`stream.rs`, `127.0.0.1`): `GET /file?ref=local:<sha1>&k=<ключ>` отдаёт файл с
+поддержкой `Range` (206) — **только** ref из индекса `local_files`, путь в запросе не принимается. `k` —
+случайный ключ сессии (новый при каждом запуске), его кладёт в адрес `stream_url`; без него — 403. CORS у
+файлов и обложек `local-*` — не `*`, а только окну Sonar (`http(s)://tauri.localhost`, `tauri://localhost`,
+в отладке `http://localhost:5173`): чужая страница в браузере не прочитает музыку с диска. В SMTC обложка
+локального файла уходит путём `file://…` из кэша обложек.
+Обложки — своя схема окна `sonarcover`: `http://sonarcover.localhost/local-<sha1>.<ext>` на Windows,
+`sonarcover://localhost/…` на macOS; отдаются только имена `local-<40 hex>.<jpg|png|gif|bmp|tiff>` из кэша
+обложек (тот же файл отдаёт и `/cover?u=<адрес sonarcover>` — для фона и темы под обложку). Плашка качества в плеере — `FLAC · файл`, `MP3 · файл` и т. п.
+
 ## 4. Медиатека
 
 | Метод | Путь | Тело → ответ |
 |---|---|---|
 | GET | `/library/likes?kind=track\|album\|artist` | `{rev, items: [{item: Track\|Album\|Artist, added_at}]}` |
-| PUT | `/library/likes/{ref}` | → `{rev}` (вид по префиксу: `sc:`/`ym:` трек, `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист) |
+| PUT | `/library/likes/{ref}` | → `{rev}` (вид — по разбору ref из §2 «Префиксы ref»: трек, альбом или артист работающего сервиса, например `sc:`/`ym:` трек, `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист; плейлист сервиса — не лайк) |
 | DELETE | `/library/likes/{ref}` | → `{rev}` |
 | PUT | `/library/track-prefs/{ref}` | `{speed?: 0.5…2.0, lyrics_offset_ms?, eq?: number[12]}` → `{rev}` («Запомнить») |
 | DELETE | `/library/track-prefs` | сбросить все → `{rev}` |
@@ -163,6 +366,94 @@
 треками, которых в нём ещё нет. Windows-клиент сейчас делает всё это локально (команды
 `src-tauri/src/commands.rs`, те же формы).
 
+### Импорт плейлиста по ссылке (пока только клиент)
+
+Ссылка на плейлист или альбом любого сервиса → смешанный плейлист Sonar (NEXT_PROMPT этап 5). Источники:
+SoundCloud, Яндекс Музыка, Spotify (`open.spotify.com/playlist|album/…`, `spotify:playlist:…`), YouTube /
+YouTube Music (`list=…`, в том числе `watch?v=…&list=…` — кроме миксов `RD…`, `browse/MPREb_…`), VK (`vk.com/music/playlist|album/<owner>_<id>[_<key>]`,
+`z=audio_playlist…`) и Apple Music (`music.apple.com/<страна>/playlist|album/…`). Apple в Sonar — не сервис,
+а только источник: публичная страница отдаёт JSON в `<script id="serialized-server-data">` (не больше ~100
+треков; сколько всего — `trackCount`), треки получают псевдо-ref `am:<id>` — в реестр он не входит и в
+плейлист не попадает. Ссылка на отдельный трек Spotify / YouTube / VK пока не открывается.
+
+Каждому треку ищется пара той же сверкой, что у резервного сервиса (§3, `search_twin`, `audio.fallback_order`):
+трек сервиса, который сам играет, остаётся как есть (`kept`), Spotify и Apple Music — ищутся (`found` / `missing`).
+По 4 трека сразу. Сервер для этого не нужен; когда появится, форма та же.
+
+ПК (Tauri, `src-tauri/src/import_link.rs`, логика — `services/import.rs`, Apple — `providers/apple.rs`):
+
+| Команда | Аргументы → ответ |
+|---|---|
+| `import_link` | `{link, job}` (ссылка или ref плейлиста/альбома сервиса; `job` — id задачи) → `{head, tracks, steps}` |
+| `import_cancel` | `{job}` — остальные треки не ищутся (ушли на другой импорт) |
+| `import_create` | `{name, source: head.source, tracks: [Track]}` → `Playlist` (`source_ref = source`: повторный импорт дописывает недостающее, как «Перенести в Sonar») |
+
+Событие `import:progress` (по мере готовности, шаги — в любом порядке):
+
+```json
+{"kind": "head", "job": "imp-…", "head": {"service": "sp"|"yt"|"vk"|"ym"|"sc"|"am", "album": false,
+ "title": "Hits", "owner": "Spotify", "cover_url": "https://…", "total": 52, "source": "sppl:37i9…"},
+ "tracks": [Track]}
+{"kind": "step", "job": "imp-…", "step": {"index": 3, "status": "kept"|"found"|"missing", "track": Track|null}}
+```
+
+Разбор ссылки в поиске (`resolve_link`) для плейлиста или альбома Apple Music отвечает `{kind: "import", head}` —
+экран предлагает «Перенести с подбором». Ошибки: «Это не ссылка на плейлист или альбом», «Перенести можно только
+плейлист или альбом», «Сервис не ответил за минуту — попробуй ещё раз», «Назови плейлист», «Переносить нечего: ни
+один трек не нашёлся», «Apple Music: на странице нет данных плейлиста» и др.
+
+### Экспорт плейлиста в файл (только клиент)
+
+Сервер не участвует: файл собирает клиент из уже загруженных треков. Меню плейлиста и Любимых →
+«Экспорт» → M3U8, CSV или JSON. Имя файла — название списка: запрещённые в Windows знаки
+(`<>:"/\|?*`) и управляющие символы → пробел, пробелы схлопнуты, точки и пробелы по краям убраны,
+до 100 символов, имена устройств (`CON`, `NUL`, `COM1`…) — с `_` в начале, пусто — `Sonar`.
+Ссылка на трек — его `url` (только http/https), иначе по ref из реестра (§2 «Префиксы ref»):
+`ym:` → `music.yandex.ru/track/<id>`, `yt:` → `music.youtube.com/watch?v=<id>`, `sp:` →
+`open.spotify.com/track/<id>`, `vk:` → `vk.com/audio<id>`; у `sc:` без `url` и `local:` ссылки нет.
+
+| Формат | Содержимое |
+|---|---|
+| M3U8 | UTF-8, `\n`: `#EXTM3U`, `#PLAYLIST:<имя>`, на трек — `#EXTINF:<сек>,<артист> - <название>` (длительность неизвестна — `-1`, без артиста — только название) и строка со ссылкой (нет — ref) |
+| CSV | UTF-8 с BOM, CRLF, RFC 4180 (кавычки, если есть `,` `"` или перенос; `"` удваивается). Колонки `title,artist,album,duration,service,link,added`: `duration` — секунды, `service` — название сервиса на языке интерфейса, `added` — ISO 8601 UTC или пусто. Текст, начинающийся с `= + - @`, табуляции или `\r`, — с `'` в начале (не формула в Excel) |
+| JSON | массив `Track` (§3, ровно поля API — без `plays`, `tags`, `loudness`) + `added_at` (мс или `null`), отступ 2 пробела |
+
+ПК (Tauri): текст файла — `windows/src/lib/export.ts`, имя файла (`sanitize_file_name`) и запись — команда
+`export_playlist {name, format: "m3u8"|"csv"|"json", title, contents}` → имя сохранённого файла или
+`null` (окно «Сохранить как» закрыто без выбора). Окно сохранения (tauri-plugin-dialog) открывает и файл
+пишет Rust (`src-tauri/src/export.rs`), поэтому у страницы нет прав `dialog:*` / `fs:*` в
+`capabilities`. Ошибки: «Неизвестный формат экспорта», «Плейлист слишком большой для экспорта»
+(больше 64 МБ), «Окно сохранения закрылось», «Не удалось сохранить файл» (путь в журнал не пишется),
+«Файл с таким именем уже есть» (окно отдало путь без нужного расширения — Rust дописывает его и чужой
+файл с получившимся именем не заменяет, ведь такого имени пользователь в окне не подтверждал).
+iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи JSON по алфавиту) → три файла во
+временной папке → лист «Поделиться» (`Features/Library/ExportSheet.swift`); `added_at` там пока `null`.
+
+### Поиск дублей (только клиент)
+
+Сервер не участвует: сверка идёт без сети по сохранённым метаданным. Меню Любимых и своего плейлиста
+(и кнопка в шапке списка) → «Найти дубли». Дубли: тот же `ref` ещё раз; тот же трек из другого сервиса
+или почти то же название того же исполнителя — правила `providers/matching.rs` (название без пометок
+вроде «Remastered», «prod.», общий исполнитель, длительность ±3 с; одна длительность неизвестна —
+нужно то же название). Разные числа в названии («Intro» / «Intro 2», «Part 1» / «Part 2») — не дубли.
+Кого оставить по умолчанию — лучший звук по реестру `registry::QUALITY_ORDER`
+(Яндекс > локальный файл > Spotify > VK > YouTube > SoundCloud), недоступный трек — в последнюю
+очередь, при равенстве — добавленный раньше.
+
+ПК (Tauri), `src-tauri/src/dupes/`:
+
+| Команда | Аргументы | Ответ |
+|---|---|---|
+| `find_duplicates` | `list`: `"favorites"` или id своего плейлиста `pl_…` | `[{keep: item_id, items: [ListTrack]}]` — группы по порядку списка, в `items` первым тот, кого оставить |
+| `remove_duplicates` | `list`, `item_ids: [string]` (в Любимых `item_id` — это ref) | `Removed {list, items: [{item_id, added_at}]}` — что реально убрано (уже убранное и чужие id пропускаются) |
+| `restore_duplicates` | `removed: Removed` | сколько строк вернулось («Отменить» во всплывашке, 8 с) |
+
+Убирание — одна правка: одна транзакция и один `rev` синка (§6), строки только помечаются
+`deleted = 1`. «Отменить» снимает пометку: в Любимых с прежним `added_at`, в плейлисте — на прежнем
+месте; снова добавленное за это время не трогается. Ошибки: «Дубли ищутся только в Любимых и своих
+плейлистах», «Плейлист не найден». Отметки на экране (последний трек группы не отмечается,
+«Только этот») — `windows/src/lib/dupes.ts`, экран — `pages/DupesPage.svelte`.
+
 ## 5. Плеер, прослушивания, статистика
 
 | Метод | Путь | Тело → ответ |
@@ -171,6 +462,8 @@
 | GET | `/player/state` | `PlayerState` (для восстановления на другом устройстве) |
 | POST | `/plays` | `{plays: [{ref, played_at, listened_ms, context}]}` → `{accepted: n}` |
 | GET | `/stats?period=day\|week\|month\|half_year\|year\|all&metric=time\|tracks` | `Stats` |
+| GET | `/stats/recap?kind=month\|year&year=2026&month=11` | `Recap` — итоги месяца (`month` 1–12) или года (без `month`) |
+| GET | `/stats/recap/periods` | `RecapPeriods` — месяцы и годы, за которые есть прослушивания |
 
 ```json
 // PlayerState
@@ -189,6 +482,27 @@
  "fav_weekday": 5}
 // buckets: day — 24 часа, week — 7 дней, month — 30 дней, half_year/year — месяцы, all — до 24 месяцев.
 // peak_hour и fav_weekday (0 = пн) — в часовом поясе клиента.
+
+// RecapPeriods (новые сверху; Windows — store/recap.rs, iOS — Core/Stats/Recap.swift)
+{"months": [{"kind": "month", "year": 2026, "month": 11, "total_ms": 52320000}],
+ "years": [{"kind": "year", "year": 2026, "month": null, "total_ms": 412800000}]}
+
+// Recap — карточки «Итогов»
+{"kind": "month", "year": 2026, "month": 11, "total_ms": 52320000, "plays": 812, "tracks": 233,
+ "artists": 61, "active_days": 27, "delta_pct": 14,
+ "top_tracks": [{"ref": "sc:1", "title": "zombie", "artist": "cowboyclicker", "cover_url": "...", "plays": 41, "ms": 7380000}],
+ "top_artists": [{"name": "ONDA ANDAR", "avatar_url": "...", "ref": "sca:1", "ms": 9360000, "plays": 52}],
+ "new_artist": {"artist": {"name": "kyle", "avatar_url": null, "ref": null, "ms": 1200000, "plays": 9},
+                "first_played": "2026-11-04"},
+ "hours": [0, 0, 120000, "… 24 значения, мс"], "peak_hour": 22,
+ "longest_day": {"date": "2026-11-15", "ms": 14400000, "plays": 71},
+ "repeat": {"track": {"ref": "sc:1", "title": "zombie", "artist": "cowboyclicker", "cover_url": "...", "plays": 41, "ms": 7380000},
+            "count": 12, "date": "2026-11-15"},
+ "services": [{"service": "sc", "ms": 40320000, "pct": 77}, {"service": "ym", "ms": 12000000, "pct": 23}]}
+// Топы — по 5; в топ треков и «на повторе» идут только треки с метаданными. new_artist — артист, которого
+// до периода не слушали (нужна история раньше периода), с наибольшим временем. delta_pct — к прошлому
+// месяцу / году (null — тогда не слушал). pct — целые, в сумме ровно 100. Даты и часы — по местному
+// времени клиента.
 ```
 
 ## 5а. Главная: тренды, плейлисты пользователей, чарты (SPEC §4.7)
@@ -301,7 +615,7 @@ selfbot переключился сменой адреса:
 ```
 
 - `state`: `playing` / `paused` / `stopped` (`track: null`, если ничего ещё не играло).
-- `source`: `soundcloud` / `yandex`. `id` и `track_id` — id без префикса `sc:`/`ym:`.
+- `source`: key сервиса из §2 «Префиксы ref» (`soundcloud` / `yandex` / `vk` / `spotify`; позже `youtube`). `id` и `track_id` — id без префикса трека (`sc:`/`ym:`/`vk:`/`sp:`).
 - `duration` — секунды (целое), `duration_ms` — миллисекунды.
 
 ## 9. Статус (SPEC §3.11)
@@ -352,3 +666,99 @@ selfbot переключился сменой адреса:
  "api_url": null,  // если не null — приложение переключается на новый адрес API
  "url": "https://github.com/folzy1092/Sonar/releases/download/build-42/Sonar.ipa"}
 ```
+
+## 10. Пульт: iPhone управляет Sonar на ПК (локальная сеть, этап 13 NEXT_PROMPT)
+
+Телефон — только пульт: звук играет на ПК и **не передаётся**. Сейчас — напрямую по Wi-Fi, без сервера.
+ПК: `windows/src-tauri/src/remote/` (`protocol.rs` — разбор и сборка, `server.rs` — WebSocket, `mdns.rs`,
+`pairing.rs`, `devices.rs`), интерфейс — `lib/remote.svelte.ts` + `lib/remote-core.ts`, «Система → Пульт»
+(`remote.enabled`, по умолч. выключен). iPhone: `ios/Sonar/Core/Remote/` (`RemoteProtocol.swift`,
+`RemoteBrowser.swift`, `RemoteConnection.swift`), `Playback/RemoteControl.swift`, лист «Где играть»
+(`Features/Player/DevicePickerSheet.swift`).
+
+**Где найти ПК.** WebSocket (`ws://`, текстовые кадры, до 64 КБ) на `0.0.0.0:53120`; порт занят — любой
+свободный (его объявляет mDNS и пишет QR). Bonjour/mDNS: служба `_sonar._tcp`, TXT — `id` (id ПК, постоянный),
+`v` (версия протокола), `name` (имя ПК). Другая `v` или нет `id` — телефон ПК не показывает. iPhone: в
+Info.plist `NSLocalNetworkUsageDescription` и `NSBonjourServices: [_sonar._tcp]`.
+
+**Привязка.** На ПК «Привязать iPhone» — 6-значный код (живёт 5 мин, 5 попыток) и QR со ссылкой
+`sonar://remote/pair?pc=<id ПК>&name=<имя>&host=<IP ПК>&port=<порт>&code=<код>` (системная камера открывает
+Sonar). Телефон шлёт `pair` с кодом → ПК отвечает `paired` с ключом устройства (base64url, 43 символа,
+показывается **один раз**): телефон кладёт его в Связку ключей (`sonar.remote` / `key.<id ПК>`), ПК — только
+хэш в keyring. Дальше вход — `hello` с ключом. Устройств — до 16; «Отвязать» на ПК шлёт телефону `bye`
+`unpaired` и закрывает связь. Ключи и коды не пишутся в журнал.
+
+**Конверт** — каждое сообщение в обе стороны:
+
+```json
+{"v": 1, "type": "seek", "id": "i7", "re": "pc12", "body": {"ms": 61000}}
+```
+
+`v` — версия протокола (несовместимая правка → новая), `type` — что это, `id` — номер у отправителя (до 64
+символов), `re` — на какое сообщение ответ (необязательно), `body` — объект (пустое тело можно не слать).
+Неизвестные поля пропускаются — новые поля можно добавлять без новой `v`.
+
+**Телефон → ПК**
+
+| `type` | `body` | Ответ ПК |
+|---|---|---|
+| `hello` | `{device: {id, name}, key}` — `id` 1–64 `[A-Za-z0-9-_.]` (UUID телефона), `name` до 64 знаков | `welcome {pc: {id, name}}`, следом последний `state` |
+| `pair` | `{device: {id, name}, code: "123456"}` | `paired {pc: {id, name}, key}`, следом `state` |
+| `ping` | — | `pong` (связь без сообщений 60 с ПК закрывает; телефон пингует раз в 20 с) |
+| `toggle` / `next` / `prev` | — | — (новый `state`) |
+| `seek` | `{ms}` — от начала трека, ≥ 0 | — |
+| `volume` | `{value}` — 0…1 | — |
+| `like` | `{ref?, value?}` — нет `ref` — текущий трек ПК; нет `value` — переключить | — |
+| `play` | `{wave: true}` — «Моя волна» ПК, или `{wave: false, ref, track?}` — сыграть трек | — |
+| `queue_add` | `{ref, track?, next}` — `next: true` — следующим, иначе в конец | — |
+| `queue_play_index` | `{index}` — номер в `queue` последнего `state` (0 — ближайший, < 50) | — |
+
+`ref` — только трек (`sc:` / `ym:` / … из реестра «Префиксы ref»). `track` (Track из §3) телефон прикладывает,
+чтобы ПК сыграл трек, которого нет в его кэше; `track.ref` должен совпадать с `ref`. Список треков (альбом,
+плейлист) телефон отправляет как `play` первого и до 49 `queue_add` следом — ПК выполняет команды строго
+по очереди. До входа (`hello` / `pair`) ПК принимает только `hello`, `pair`, `ping`; на остальное —
+`error not_paired`. Без входа за 90 с связь закрывается.
+
+**ПК → телефон**
+
+| `type` | `body` |
+|---|---|
+| `welcome` | `{pc: {id, name}}` — ключ подошёл |
+| `paired` | `{pc: {id, name}, key}` |
+| `state` | что играет (ниже); приходит при каждом изменении и раз в 5 с, пока играет |
+| `error` | `{code}` — в `re` id сообщения, которое не принято |
+| `pong` | — |
+| `bye` | `{reason}` — `unpaired` (телефон отвязали, ключ больше не подходит) или `disabled` (пульт на ПК выключили); связь закрывается |
+
+`state.body`:
+
+```json
+{"track": {"ref": "sc:1", "title": "…", "artist": "…", "artists": [], "duration_ms": 180000, "cover_url": "…"},
+ "position_ms": 30000, "position_at": 1763400000000, "duration_ms": 180000, "playing": true,
+ "volume": 0.8, "repeat": "off", "shuffle": false, "liked": true,
+ "queue": [/* до 50 Track — «Далее» */], "context_title": "Любимые",
+ "device": {"id": "pc_…", "name": "Folzy-PC", "kind": "pc"}}
+```
+
+`track: null` — на ПК ничего не играет. `repeat`: `off` / `all` / `one`. `position_at` — часы ПК (мс),
+телефон их не использует: двигает позицию сам от момента получения, пока `playing`. Чего нет или что не
+разобралось — по умолчанию (битый трек в `queue` пропускается, громкость зажимается в 0…1).
+
+**Коды `error`**
+
+| `code` | Когда |
+|---|---|
+| `bad_json` | не JSON, нет `v` / `type` |
+| `bad_version` | другая `v` |
+| `unknown_type` | неизвестный `type` |
+| `bad_body` | тело не подходит к типу (нет `ms`, чужой `ref`, `track.ref` ≠ `ref`, `index` ≥ 50…) |
+| `not_paired` | ключ не подошёл (телефон стирает его и просит код) или команда до входа |
+| `no_code` | на ПК сейчас не открыт код привязки |
+| `code_expired` | код старше 5 минут |
+| `bad_code` | код не тот (попытки ещё есть) |
+| `code_burned` | 5 неверных попыток — код сгорел, нужен новый |
+| `already_paired` | `hello` / `pair` в уже вошедшей связи |
+
+**Потом — через сервер.** Конверт не зависит от транспорта: сервер Sonar будет пересылать те же сообщения
+между устройствами одного аккаунта (добавит в конверт `from` / `to` — id устройств), поэтому телефон сможет
+управлять ПК и не из той же сети. Привязка тогда не нужна — устройства уже знают друг друга по аккаунту.

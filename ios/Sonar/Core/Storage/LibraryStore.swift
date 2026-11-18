@@ -16,15 +16,21 @@ final class LibraryStore {
     private(set) var speeds: [String: Float] = [:]
     /// 👎 — ref треков «Не интересно».
     private(set) var disliked: Set<String> = []
+    /// ref → когда лайкнут (мс с 1970) — для умных плейлистов («Новое в Любимых»). Перетаскивание его не
+    /// меняет; лайкнутые до появления поля даты не имеют (условие «добавлен за N дней» их не берёт).
+    private(set) var likedAt: [String: Int] = [:]
 
     private struct Snapshot: Codable {
         var liked: [Track]
         var speeds: [String: Float]
         /// Нет в старом файле — пусто.
         var disliked: [String]?
+        var likedAt: [String: Int]?
     }
 
     @ObservationIgnored private let file: URL
+    /// Часы — тесты подставляют свои.
+    @ObservationIgnored var now: () -> Int = { Int(Date().timeIntervalSince1970 * 1000) }
 
     init(file: URL? = nil) {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -35,6 +41,7 @@ final class LibraryStore {
             likedRefs = Set(snapshot.liked.map(\.ref))
             speeds = snapshot.speeds
             disliked = Set(snapshot.disliked ?? [])
+            likedAt = (snapshot.likedAt ?? [:]).filter { likedRefs.contains($0.key) }
         }
     }
 
@@ -46,9 +53,11 @@ final class LibraryStore {
         if likedRefs.contains(track.ref) {
             liked.removeAll { $0.ref == track.ref }
             likedRefs.remove(track.ref)
+            likedAt[track.ref] = nil
         } else {
             liked.insert(track, at: 0)
             likedRefs.insert(track.ref)
+            likedAt[track.ref] = now()
         }
         save()
     }
@@ -58,6 +67,7 @@ final class LibraryStore {
         guard !refs.isEmpty else { return }
         liked.removeAll { refs.contains($0.ref) }
         likedRefs.subtract(refs)
+        likedAt = likedAt.filter { !refs.contains($0.key) }
         save()
     }
 
@@ -94,7 +104,7 @@ final class LibraryStore {
     }
 
     private func save() {
-        let snapshot = Snapshot(liked: liked, speeds: speeds, disliked: disliked.sorted())
+        let snapshot = Snapshot(liked: liked, speeds: speeds, disliked: disliked.sorted(), likedAt: likedAt)
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: file, options: .atomic)
@@ -106,12 +116,15 @@ final class LibraryStore {
     /// Любое изменение медиатеки — журнал синка сверяет снимок (`SyncService.noteLocalChange`).
     @ObservationIgnored var onChange: (@MainActor () -> Void)?
 
-    /// Пришло с другого устройства: заменить списки целиком (nil — не трогать).
-    func applySynced(liked: [Track]? = nil, disliked: Set<String>? = nil, speeds: [String: Float]? = nil) {
+    /// Пришло с другого устройства: заменить списки целиком (nil — не трогать). `likedAt` — даты новых лайков;
+    /// у оставшихся в Любимых даты сохраняются.
+    func applySynced(liked: [Track]? = nil, disliked: Set<String>? = nil, speeds: [String: Float]? = nil,
+                     likedAt: [String: Int] = [:]) {
         if let liked {
             self.liked = liked
             likedRefs = Set(liked.map(\.ref))
         }
+        self.likedAt = self.likedAt.merging(likedAt) { _, new in new }.filter { likedRefs.contains($0.key) }
         if let disliked { self.disliked = disliked }
         if let speeds { self.speeds = speeds }
         save()

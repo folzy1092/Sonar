@@ -2,10 +2,12 @@
 
 use crate::lyrics::{self, Lyrics};
 use crate::media::{self, Media, MediaInfo};
-use crate::providers::{soundcloud, yandex, AlbumPage, ArtistPage, SearchResults, ServicePlaylist, Source, Track};
-use crate::services::{Core, PlaylistPage, ServiceStatus, ServicesStatus};
+use crate::providers::registry::{by_key, is_kind, likes_ref, RefKind, ServiceId, ServiceInfo};
+use crate::providers::{soundcloud, vk, yandex, AlbumPage, ArtistPage, SearchResults, ServicePlaylist, Source, Track};
+use crate::services::{Core, PlaylistPage, ServiceEntry, ServiceStatus, ServicesStatus};
 use crate::store::{like_kind, ListTrack, Play, PlayerState, Playlist, Store};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -30,23 +32,77 @@ pub async fn connect_soundcloud(
   client_id: String,
   oauth_token: Option<String>,
 ) -> Res<ServiceStatus> {
-  let creds = soundcloud::Creds {
-    client_id: client_id.trim().to_owned(),
-    oauth_token: oauth_token.map(|t| t.trim().trim_start_matches("OAuth ").to_owned()).filter(|t| !t.is_empty()),
-  };
-  core.connect_soundcloud(creds).await.map_err(err)
+  core.connect_soundcloud(sc_creds(&client_id, oauth_token.as_deref())).await.map_err(err)
 }
 
 #[tauri::command]
 pub async fn connect_yandex(core: State<'_, Arc<Core>>, token: String) -> Res<ServiceStatus> {
-  core.connect_yandex(yandex::Creds { token: token.trim().to_owned() }).await.map_err(err)
+  core.connect_yandex(ym_creds(&token)).await.map_err(err)
+}
+
+/// Ключи SoundCloud как их вставили: без пробелов по краям и без `OAuth ` перед токеном.
+fn sc_creds(client_id: &str, oauth_token: Option<&str>) -> soundcloud::Creds {
+  soundcloud::Creds {
+    client_id: client_id.trim().to_owned(),
+    oauth_token: oauth_token.map(|t| t.trim().trim_start_matches("OAuth ").to_owned()).filter(|t| !t.is_empty()),
+  }
+}
+
+fn ym_creds(token: &str) -> yandex::Creds {
+  yandex::Creds { token: token.trim().to_owned() }
+}
+
+/// Ключи из формы «Вставить ключ» для своего сервиса.
+#[derive(Debug)]
+enum KeyCreds {
+  Sc(soundcloud::Creds),
+  Ym(yandex::Creds),
+  /// Cookie music.youtube.com как вставили; разбирает и проверяет `Core::connect_youtube`.
+  Yt(String),
+  Vk(vk::Creds),
+  /// Cookie `sp_dc` как есть: разбор и проверка — в Core::connect_spotify.
+  Sp(String),
+}
+
+/// Поля формы → ключи сервиса. Нет обязательного поля — пустая строка, её отклонит проверка
+/// в Core прежним текстом. Чужие поля не смотрим. Значения полей в ошибки не попадают.
+fn key_creds(info: &ServiceInfo, fields: &HashMap<String, String>) -> Res<KeyCreds> {
+  let field = |name: &str| fields.get(name).map(String::as_str);
+  match info.id {
+    ServiceId::Sc => Ok(KeyCreds::Sc(sc_creds(field("client_id").unwrap_or(""), field("oauth_token")))),
+    ServiceId::Ym => Ok(KeyCreds::Ym(ym_creds(field("token").unwrap_or("")))),
+    ServiceId::Yt => Ok(KeyCreds::Yt(field("cookie").unwrap_or("").to_owned())),
+    ServiceId::Vk => Ok(KeyCreds::Vk(vk::Creds { token: field("token").unwrap_or("").trim().to_owned() })),
+    ServiceId::Sp => Ok(KeyCreds::Sp(field("sp_dc").unwrap_or("").to_owned())),
+    _ => Err(format!("{}: пока не поддерживается", info.name)),
+  }
+}
+
+/// Все сервисы реестра с состоянием подключения.
+#[tauri::command]
+pub async fn services_list(core: State<'_, Arc<Core>>) -> Res<Vec<ServiceEntry>> {
+  Ok(core.list().await)
+}
+
+/// Подключить сервис по вставленному ключу (`service` — `sc` или `soundcloud` и т. д.).
+#[tauri::command]
+pub async fn connect_service_key(core: State<'_, Arc<Core>>, service: String, fields: HashMap<String, String>) -> Res<ServiceStatus> {
+  let info = by_key(&service).ok_or_else(|| format!("Неизвестный сервис: {service}"))?;
+  match key_creds(info, &fields)? {
+    KeyCreds::Sc(creds) => core.connect_soundcloud(creds).await,
+    KeyCreds::Ym(creds) => core.connect_yandex(creds).await,
+    KeyCreds::Yt(cookie) => core.connect_youtube(&cookie).await,
+    KeyCreds::Vk(creds) => core.connect_vk(creds).await,
+    KeyCreds::Sp(sp_dc) => core.connect_spotify(&sp_dc).await,
+  }
+  .map_err(err)
 }
 
 /// Подключить сервис в один клик: окно входа самого сервиса, ключи Sonar забирает сам (login.rs).
 #[tauri::command]
 pub async fn login_service(app: tauri::AppHandle, core: State<'_, Arc<Core>>, db: State<'_, Db>, service: String) -> Res<ServiceStatus> {
   let core = core.inner().clone();
-  match service.as_str() {
+  match by_key(&service).map(|s| s.key).unwrap_or(service.as_str()) {
     // Яндекс — в браузере по умолчанию по коду; вход по коду недоступен — прежнее окно
     "yandex" => {
       let device = db.0.lock().unwrap().device_id().unwrap_or_else(|_| "sonar-windows".into());
@@ -57,6 +113,9 @@ pub async fn login_service(app: tauri::AppHandle, core: State<'_, Arc<Core>>, db
       }
     }
     "soundcloud" => crate::login::soundcloud(app, core).await,
+    "youtube" => crate::login::youtube(app, core).await,
+    "vk" => crate::login::vk(app, core).await,
+    "spotify" => crate::login::spotify(app, core).await,
     _ => Err(anyhow::anyhow!("Неизвестный сервис: {service}")),
   }
   .map_err(err)
@@ -70,6 +129,7 @@ pub fn cancel_login() {
 
 #[tauri::command]
 pub async fn disconnect_service(core: State<'_, Arc<Core>>, service: String) -> Res<()> {
+  // Core сам понимает и `sc`, и `soundcloud`; неизвестное — прежний текст с тем, что прислали
   core.disconnect(&service).await.map_err(err)
 }
 
@@ -90,28 +150,84 @@ pub async fn search(
 pub struct StreamUrl {
   kind: &'static str,
   url: String,
-  /// Что реально играет: «AAC 160», «MP3 320», «FLAC».
+  /// Что реально играет: «AAC 160», «MP3 320», «FLAC», «Opus 160 · YouTube Music».
   quality: String,
+  /// Играет не со своего сервиса: откуда и почему (для всплывашки «Играет из …»).
+  via: Option<crate::services::fallback::Via>,
 }
 
-/// Адрес на локальном аудио-сервере для `<audio>` (file) или hls.js (hls).
+/// Адрес на локальном аудио-сервере для `<audio>` (file) или hls.js (hls). Свой сервис трек не
+/// отдаёт — тот же трек из резервного (`audio.fallback`). `track` — трек из интерфейса: по нему
+/// ищется замена, если в кэше треков его нет.
 #[tauri::command]
-pub async fn stream_url(core: State<'_, Arc<Core>>, port: State<'_, StreamPort>, track_ref: String) -> Res<StreamUrl> {
+pub async fn stream_url(
+  core: State<'_, Arc<Core>>,
+  db: State<'_, Db>,
+  port: State<'_, StreamPort>,
+  track_ref: String,
+  track: Option<Track>,
+) -> Res<StreamUrl> {
   // трек в кэше на диске — играет файлом оттуда (и HLS, уже склеенный)
   if let Some((_, mime, _)) = crate::track_cache::lookup(&track_ref) {
     let quality = match mime.as_str() {
       "audio/flac" | "audio/x-flac" => "FLAC · кэш",
       "audio/mp4" | "audio/aac" => "AAC · кэш",
+      "audio/webm" => "Opus · кэш",
       _ => "MP3 · кэш",
     };
-    return Ok(StreamUrl { kind: "file", url: format!("http://127.0.0.1:{}/file?ref={}", port.0, urlencoding::encode(&track_ref)), quality: quality.into() });
+    let url = crate::stream::track_url(port.0, "file", &track_ref);
+    return Ok(StreamUrl { kind: "file", url, quality: quality.into(), via: None });
   }
-  let src = core.resolve(&track_ref, false).await.map_err(err)?;
-  let (kind, path, quality) = match src {
+  playable_url(&core, &db, port.0, &track_ref, track, false).await
+}
+
+/// Свой поток открылся, но не играет (ошибка `<audio>` после повтора) — тот же трек из резервного
+/// сервиса. Замены нет — ошибка, и плеер идёт дальше по очереди.
+#[tauri::command]
+pub async fn stream_fallback(
+  core: State<'_, Arc<Core>>,
+  db: State<'_, Db>,
+  port: State<'_, StreamPort>,
+  track_ref: String,
+  track: Option<Track>,
+) -> Res<StreamUrl> {
+  playable_url(&core, &db, port.0, &track_ref, track, true).await
+}
+
+async fn playable_url(core: &Core, db: &Db, port: u16, track_ref: &str, track: Option<Track>, broken: bool) -> Res<StreamUrl> {
+  let (known, meta) = {
+    let db = db.0.lock().unwrap();
+    let known = db.track_aliases(track_ref).unwrap_or_else(|e| {
+      log::warn!("[fallback] track_alias {track_ref}: {e}");
+      Vec::new()
+    });
+    let meta = track.or_else(|| db.tracks(&[track_ref.to_owned()]).ok().and_then(|t| t.into_iter().next()));
+    (known, meta)
+  };
+  core.fallback.remember(&known);
+  // YouTube Music не открылся — ещё раз с новой visitorData, причина — в журнал ошибок
+  let played = core.resolve_playable(track_ref, meta.as_ref(), broken).await;
+  // найденные пары, «не нашлось» и переставшие играть — на диск, даже когда замены нет
+  let writes = core.fallback.take_writes();
+  if !writes.is_empty() {
+    if let Err(e) = db.0.lock().unwrap().apply_track_alias_writes(&writes) {
+      log::warn!("[fallback] track_alias {track_ref}: {e}");
+    }
+  }
+  let played = played.map_err(err)?;
+  {
+    let mut db = db.0.lock().unwrap();
+    if let Some(t) = &played.found {
+      if let Err(e) = db.upsert_tracks(std::slice::from_ref(t)) {
+        log::warn!("[fallback] трек замены {}: {e}", t.ref_);
+      }
+    }
+  }
+  let (kind, path, quality) = match played.source {
     Source::File { quality, .. } => ("file", "file", quality),
     Source::Hls { quality, .. } => ("hls", "hls", quality),
   };
-  Ok(StreamUrl { kind, url: format!("http://127.0.0.1:{}/{path}?ref={}", port.0, urlencoding::encode(&track_ref)), quality })
+  Ok(StreamUrl { kind, url: crate::stream::track_url(port, path, track_ref), quality, via: played.via })
 }
 
 /// «Волна офлайн»: следующие треки волны — в кэш треков заранее (фоном, по одному; новый вызов
@@ -254,8 +370,18 @@ pub fn set_setting(
   if key == "audio.sc_via_yandex" {
     core.sc_via_yandex.store(value.as_bool().unwrap_or(false), Ordering::Relaxed);
   }
+  if key == "audio.fallback" {
+    core.fallback.enabled.store(value.as_bool().unwrap_or(true), Ordering::Relaxed);
+  }
+  if key == "audio.fallback_order" {
+    core.fallback.set_order(crate::services::fallback::parse_order(Some(&value)));
+  }
   if key == "audio.quality" {
     core.max_kbps.store(crate::services::quality_kbps(value.as_str()), Ordering::Relaxed);
+  }
+  if key == "audio.yt_quality" {
+    core.yt_high.store(crate::services::yt_high(value.as_str()), Ordering::Relaxed);
+    core.forget_streams();
   }
   db.0.lock().unwrap().set_setting(&key, &value).map_err(err)
 }
@@ -302,22 +428,9 @@ pub async fn service_playlist(core: State<'_, Arc<Core>>, db: State<'_, Db>, pl_
 #[tauri::command]
 pub async fn import_playlist(core: State<'_, Arc<Core>>, db: State<'_, Db>, pl_ref: String, name: Option<String>) -> Res<Playlist> {
   let page = core.service_playlist(&pl_ref).await.map_err(err)?;
-  let refs: Vec<String> = page.tracks.iter().map(|t| t.ref_.clone()).collect();
+  let title = name.filter(|n| !n.trim().is_empty()).unwrap_or(page.playlist.title);
   let mut store = db.0.lock().unwrap();
-  store.upsert_tracks(&page.tracks).map_err(err)?;
-  let id = match store.playlist_by_source(&pl_ref).map_err(err)? {
-    Some(id) => {
-      let old = store.playlist(&id).map_err(err)?.and_then(|p| p.tracks).unwrap_or_default();
-      let have: std::collections::HashSet<&str> = old.iter().map(|t| t.track.ref_.as_str()).collect();
-      let new: Vec<String> = refs.iter().filter(|r| !have.contains(r.as_str())).cloned().collect();
-      store.add_to_playlist(&id, &new, false).map_err(err)?;
-      id
-    }
-    None => {
-      let title = name.filter(|n| !n.trim().is_empty()).unwrap_or(page.playlist.title);
-      store.create_playlist(&title, &refs, Some(&pl_ref)).map_err(err)?
-    }
-  };
+  let id = crate::import_link::save_import(&mut store, &pl_ref, &title, &page.tracks).map_err(err)?;
   store.playlist(&id).map_err(err)?.ok_or_else(|| "плейлист пропал".into())
 }
 
@@ -674,6 +787,12 @@ fn seed_weights(fresh: &[String], both: &[String], weak: &std::collections::Hash
     .collect()
 }
 
+/// Сиды волны и автоплея: у локальных файлов (`local:…`) похожих нет — такой сид только занял бы
+/// место, а «все сиды локальные» отключили бы запасной старт от лайков сервиса.
+fn seedable(refs: Vec<String>) -> Vec<String> {
+  refs.into_iter().filter(|r| !crate::local::is_local_ref(r)).collect()
+}
+
 /// «Похожие» через кэш на сутки (docs/WAVE.md 4.4): повторная порция от тех же сидов не ходит в сеть.
 /// Берём с запасом (40) и режем до `limit`; ошибки сети не кэшируются.
 async fn similar_cached(core: &Core, db: &Db, r: &str, limit: u32) -> anyhow::Result<Vec<Track>> {
@@ -693,13 +812,23 @@ async fn similar_cached(core: &Core, db: &Db, r: &str, limit: u32) -> anyhow::Re
   Ok(list)
 }
 
+/// Сервис, от которого стартует волна (`general.platform`): Яндекс или VK — если выбран и подключён,
+/// иначе SoundCloud.
+fn platform_service(platform: Option<&str>, has_ym: bool, has_vk: bool) -> ServiceId {
+  match platform {
+    Some(k) if has_ym && k == ServiceId::Ym.key() => ServiceId::Ym,
+    Some(k) if has_vk && k == ServiceId::Vk.key() => ServiceId::Vk,
+    _ => ServiceId::Sc,
+  }
+}
+
 #[tauri::command]
 pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: WaveRequest) -> Res<Vec<serde_json::Value>> {
   use crate::store::ServedEvent;
   use crate::wave::{artist_key, pick_with, tag_set, Filter, Origin, Rng, Session, PORTION};
   let mut rng = Rng::new(crate::store::now_ms() as u64);
   // что зашло в сессии — свежие в конце; берём до трёх последних
-  let live: Vec<String> = req.session.iter().rev().take(3).map(|t| t.ref_.clone()).collect();
+  let live: Vec<String> = seedable(req.session.iter().rev().map(|t| t.ref_.clone()).collect()).into_iter().take(3).collect();
   let mut session = Session {
     skipped_artists: req.skipped_artists.iter().map(|a| a.to_lowercase()).collect(),
     recent_artists: req.served_artists.iter().map(|a| a.to_lowercase()).collect(),
@@ -734,23 +863,23 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
       // стиль «по треку» держится всю сессию; зашедшее в ней понемногу его уточняет
       Some(s) => {
         store.upsert_tracks(std::slice::from_ref(s)).map_err(err)?;
-        let mut v = vec![s.ref_.clone()];
+        let mut v = seedable(vec![s.ref_.clone()]);
         v.extend(live.iter().filter(|r| **r != s.ref_).take(2).cloned());
         v
       }
       None if !live.is_empty() => {
         // волна учится на ходу: зашедшее в сессии + немного общего вкуса и разведки
         let mut v = live.clone();
-        let fresh = store.recent_like_refs(15).map_err(err)?;
+        let fresh = seedable(store.recent_like_refs(15).map_err(err)?);
         let fresh: Vec<String> = fresh.into_iter().filter(|r| !v.contains(r)).collect();
         v.extend(rng.weighted_sample(&seed_weights(&fresh, &[], &weak), 2));
-        let old = store.old_like_refs(15, 300).map_err(err)?;
+        let old = seedable(store.old_like_refs(15, 300).map_err(err)?);
         v.extend(rng.sample(&old, 1));
         v
       }
       None => {
-        let likes = store.recent_like_refs(15).map_err(err)?;
-        let finished = store.recent_finished_refs(10).map_err(err)?;
+        let likes = seedable(store.recent_like_refs(15).map_err(err)?);
+        let finished = seedable(store.recent_finished_refs(10).map_err(err)?);
         let mut fresh = likes.clone();
         for r in &finished {
           if !fresh.contains(r) {
@@ -758,7 +887,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
           }
         }
         if fresh.is_empty() {
-          fresh = store.recent_play_refs(10).map_err(err)?;
+          fresh = seedable(store.recent_play_refs(10).map_err(err)?);
         }
         // настроение — больше сидов, чтобы было из чего выбрать подходящее
         let wide = req.mode.as_deref().is_some_and(|m| m != "own");
@@ -766,7 +895,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
         let both: Vec<String> = likes.iter().filter(|r| finished.contains(r)).cloned().collect();
         let mut seeds = rng.weighted_sample(&seed_weights(&fresh, &both, &weak), if wide { 8 } else { 5 });
         // 10–20 % «разведки»: похожие от случайного старого лайка
-        let old = store.old_like_refs(15, 300).map_err(err)?;
+        let old = seedable(store.old_like_refs(15, 300).map_err(err)?);
         seeds.extend(rng.sample(&old, 1));
         seeds
       }
@@ -804,14 +933,20 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   };
 
   let has_ym = core.has_yandex().await;
-  let mut seeds: Vec<String> = seeds.into_iter().filter(|r| has_ym || !r.starts_with("ym:")).collect();
+  let has_vk = core.has_vk().await;
+  let mut seeds: Vec<String> = seedable(seeds)
+    .into_iter()
+    .filter(|r| (has_ym || !is_kind(r, ServiceId::Ym, RefKind::Track)) && (has_vk || !is_kind(r, ServiceId::Vk, RefKind::Track)))
+    .collect();
+  let platform = platform_service(platform.as_deref(), has_ym, has_vk);
   let mut taste = taste;
   // Новичок: в Sonar ни лайков, ни прослушиваний — волна стартует от лайков (а если их нет —
   // от плейлистов) в выбранном сервисе. Их артисты считаются любимыми.
   if seeds.is_empty() {
-    let svc = if has_ym && platform.as_deref() == Some("yandex") { "yandex" } else { "soundcloud" };
-    let pl = if svc == "yandex" { "ympl:likes" } else { "scpl:likes" };
-    let mut pool: Vec<Track> = core.service_playlist(pl).await.map(|p| p.tracks).unwrap_or_default();
+    let id = platform;
+    let svc = id.key();
+    let pl = likes_ref(id).expect("sc/ym/vk have likes");
+    let mut pool: Vec<Track> = core.service_playlist(&pl).await.map(|p| p.tracks).unwrap_or_default();
     if pool.is_empty() {
       if let Ok(lists) = core.service_playlists(svc).await {
         for l in lists.iter().filter(|l| !l.ref_.ends_with("likes")).take(3) {
@@ -832,7 +967,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
     return Err("Волне пока не от чего оттолкнуться — лайкни или послушай пару треков.".into());
   }
   let limit = if mode == "own" { 25 } else { 35 };
-  let fav_artists: Vec<String> = fav_artists.into_iter().filter(|r| has_ym || !r.starts_with("yma:")).collect();
+  let fav_artists: Vec<String> = fav_artists.into_iter().filter(|r| has_ym || !is_kind(r, ServiceId::Ym, RefKind::Artist)).collect();
   let (results, tops) = futures_util::join!(
     futures_util::future::join_all(seeds.iter().map(|r| similar_cached(&core, &db, r, limit))),
     futures_util::future::join_all(fav_artists.iter().map(|a| core.artist_top(a, 10))),
@@ -894,7 +1029,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
       }
     }
   }
-  let prefer = if has_ym && platform.as_deref() == Some("yandex") { "ym" } else { "sc" };
+  let prefer = platform.as_str();
   let n = req.n.unwrap_or(PORTION);
   let mut out = pick_with(cands.clone(), &taste, &origin, &session, &filter, Some(prefer), &mode, n, false, &mut rng);
   // знакомого не хватило — лучше незнакомые, чем пустая волна
@@ -1048,7 +1183,7 @@ pub fn daypart_mix(db: State<'_, Db>, tz_min: Option<i64>, limit: Option<usize>)
 pub async fn home_releases(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<Vec<crate::providers::Album>> {
   let artists = db.0.lock().unwrap().release_artist_refs(16).map_err(err)?;
   let has_ym = core.has_yandex().await;
-  let artists: Vec<String> = artists.into_iter().filter(|r| has_ym || r.starts_with("sca:")).collect();
+  let artists: Vec<String> = artists.into_iter().filter(|r| has_ym || is_kind(r, ServiceId::Sc, RefKind::Artist)).collect();
   let lists = futures_util::future::join_all(artists.iter().map(|r| core.artist_albums(r))).await;
   let mut seen = std::collections::HashSet::new();
   let mut albums: Vec<crate::providers::Album> =
@@ -1076,6 +1211,19 @@ pub fn stats(db: State<'_, Db>, period: String, tz_min: Option<i64>) -> Res<crat
   db.0.lock().unwrap().stats(&period, tz_min.unwrap_or(0)).map_err(err)
 }
 
+/// Итоги месяца (`kind` = `month`, `month` 1–12) или года (`year`) — карточки итогов (этап 11).
+#[tauri::command]
+pub fn recap(db: State<'_, Db>, kind: String, year: i64, month: Option<u32>, tz_min: Option<i64>) -> Res<crate::store::Recap> {
+  let span = crate::store::RecapSpan::parse(&kind, year, month).map_err(err)?;
+  db.0.lock().unwrap().recap(span, tz_min.unwrap_or(0)).map_err(err)
+}
+
+/// Месяцы и годы с прослушиваниями — список итогов и приглашение на Главной.
+#[tauri::command]
+pub fn recap_periods(db: State<'_, Db>, tz_min: Option<i64>) -> Res<crate::store::RecapPeriods> {
+  db.0.lock().unwrap().recap_periods(tz_min.unwrap_or(0)).map_err(err)
+}
+
 /// Порт локального сервера — для `/cover` (цвет темы из обложки).
 #[tauri::command]
 pub fn stream_port(port: State<'_, StreamPort>) -> u16 {
@@ -1093,7 +1241,10 @@ pub fn all_settings(db: State<'_, Db>) -> Res<std::collections::HashMap<String, 
 pub fn reset_settings(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<()> {
   db.0.lock().unwrap().reset_settings().map_err(err)?;
   core.sc_via_yandex.store(false, Ordering::Relaxed);
+  core.fallback.enabled.store(true, Ordering::Relaxed);
+  core.fallback.set_order(crate::services::fallback::default_order());
   core.max_kbps.store(crate::services::quality_kbps(None), Ordering::Relaxed);
+  core.yt_high.store(crate::services::yt_high(None), Ordering::Relaxed);
   Ok(())
 }
 
@@ -1149,7 +1300,8 @@ pub fn clear_storage(db: State<'_, Db>, kind: String) -> Res<()> {
   let clear_covers = || {
     if let Some(d) = crate::stream::cover_dir() {
       if let Ok(rd) = std::fs::read_dir(d) {
-        for e in rd.flatten() {
+        // обложки локальных файлов не кэш, а часть индекса папок с музыкой — их не трогаем
+        for e in rd.flatten().filter(|e| !crate::local::is_cover_file(&e.file_name().to_string_lossy())) {
           let _ = std::fs::remove_file(e.path());
         }
       }
@@ -1292,4 +1444,99 @@ pub fn autostart_enabled(app: tauri::AppHandle) -> Res<bool> {
 #[tauri::command]
 pub fn set_tray_mode(on: bool) {
   crate::tray::HIDE_ON_CLOSE.store(on, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::providers::registry::info;
+
+  fn fields(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+    pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+  }
+
+  #[test]
+  fn local_files_are_not_wave_seeds() {
+    let local = |c: char| format!("local:{}", c.to_string().repeat(40));
+    // всё лайкнутое — локальное: сидов нет, волна стартует запасным путём (лайки сервиса)
+    assert!(seedable(vec![local('a'), local('b')]).is_empty());
+    assert_eq!(seedable(vec![local('a'), "sc:1".into(), "ym:2".into(), local('b')]), ["sc:1", "ym:2"]);
+  }
+
+  #[test]
+  fn wave_platform_needs_connected_service() {
+    assert_eq!(platform_service(Some("vk"), false, true), ServiceId::Vk);
+    assert_eq!(platform_service(Some("vk"), true, false), ServiceId::Sc);
+    assert_eq!(platform_service(Some("yandex"), true, true), ServiceId::Ym);
+    assert_eq!(platform_service(Some("yandex"), false, true), ServiceId::Sc);
+    assert_eq!(platform_service(Some("soundcloud"), true, true), ServiceId::Sc);
+    assert_eq!(platform_service(None, true, true), ServiceId::Sc);
+  }
+
+  #[test]
+  fn sc_creds_normalises() {
+    let c = sc_creds("  abc  ", Some(" OAuth tok "));
+    assert_eq!(c.client_id, "abc");
+    assert_eq!(c.oauth_token.as_deref(), Some("tok"));
+    assert_eq!(sc_creds("abc", Some("  ")).oauth_token, None);
+    assert_eq!(sc_creds("abc", None).oauth_token, None);
+    assert_eq!(ym_creds("  y0_tok \n").token, "y0_tok");
+  }
+
+  #[test]
+  fn key_creds_fields_per_service() {
+    let sc = key_creds(info(ServiceId::Sc), &fields(&[("client_id", " id "), ("oauth_token", "OAuth t"), ("token", "x")])).unwrap();
+    let KeyCreds::Sc(c) = sc else { panic!("ожидался SoundCloud") };
+    assert_eq!((c.client_id.as_str(), c.oauth_token.as_deref()), ("id", Some("t")));
+    // нет обязательного поля — пустая строка, её отклонит Core прежним текстом
+    let KeyCreds::Sc(c) = key_creds(info(ServiceId::Sc), &fields(&[])).unwrap() else { panic!("ожидался SoundCloud") };
+    assert_eq!((c.client_id.as_str(), c.oauth_token), ("", None));
+    let KeyCreds::Ym(c) = key_creds(info(ServiceId::Ym), &fields(&[("token", " t ")])).unwrap() else { panic!("ожидался Яндекс") };
+    assert_eq!(c.token, "t");
+    let KeyCreds::Ym(c) = key_creds(info(ServiceId::Ym), &fields(&[("client_id", "x")])).unwrap() else { panic!("ожидался Яндекс") };
+    assert_eq!(c.token, "");
+    let KeyCreds::Vk(c) = key_creds(info(ServiceId::Vk), &fields(&[("token", " vk1.a.t \n")])).unwrap() else { panic!("ожидался VK") };
+    assert_eq!(c.token, "vk1.a.t");
+    let KeyCreds::Sp(v) = key_creds(info(ServiceId::Sp), &fields(&[("sp_dc", "sp_dc=AQ")])).unwrap() else { panic!("ожидался Spotify") };
+    assert_eq!(v, "sp_dc=AQ");
+  }
+
+  #[test]
+  fn key_creds_unimplemented_service() {
+    let e = key_creds(info(ServiceId::Local), &fields(&[("token", "SECRET123")])).unwrap_err();
+    assert_eq!(e, "Локальные файлы: пока не поддерживается");
+  }
+
+  #[test]
+  fn key_creds_youtube_takes_cookie_field() {
+    let KeyCreds::Yt(c) = key_creds(info(ServiceId::Yt), &fields(&[("cookie", "SAPISID=a"), ("token", "x")])).unwrap() else {
+      panic!("ожидался YouTube")
+    };
+    assert_eq!(c, "SAPISID=a");
+    let KeyCreds::Yt(c) = key_creds(info(ServiceId::Yt), &fields(&[])).unwrap() else { panic!("ожидался YouTube") };
+    assert_eq!(c, "");
+  }
+
+  /// Ключ в текст ошибки не попадает: ни из формы, ни из проверки Core.
+  #[tokio::test]
+  async fn connect_key_error_hides_secret() {
+    let secret = "SECRET123";
+    let core = Core::new_empty_for_tests();
+    let KeyCreds::Sc(creds) = key_creds(info(ServiceId::Sc), &fields(&[("client_id", secret)])).unwrap() else {
+      panic!("ожидался SoundCloud")
+    };
+    let e = core.connect_soundcloud(creds).await.map_err(err).unwrap_err();
+    assert!(!e.contains(secret), "{e}");
+    assert_eq!(e, "client_id SoundCloud — строка из 32 символов");
+    let KeyCreds::Ym(creds) = key_creds(info(ServiceId::Ym), &fields(&[("token", "   ")])).unwrap() else { panic!("ожидался Яндекс") };
+    assert_eq!(core.connect_yandex(creds).await.map_err(err).unwrap_err(), "Вставь токен Яндекс Музыки");
+    let e = core.connect_youtube("SID=SECRET123; HSID=x").await.map_err(err).unwrap_err();
+    assert!(!e.contains(secret), "{e}");
+    assert_eq!(e, "В cookie нет SAPISID — войди на music.youtube.com и скопируй cookie заново");
+    let KeyCreds::Sp(raw) = key_creds(info(ServiceId::Sp), &fields(&[("sp_dc", secret)])).unwrap() else { panic!("ожидался Spotify") };
+    let e = core.connect_spotify(&raw).await.map_err(err).unwrap_err();
+    assert!(!e.contains(secret), "{e}");
+    let KeyCreds::Vk(creds) = key_creds(info(ServiceId::Vk), &fields(&[("token", " ")])).unwrap() else { panic!("ожидался VK") };
+    assert_eq!(core.connect_vk(creds).await.map_err(err).unwrap_err(), "Вставь токен VK");
+  }
 }

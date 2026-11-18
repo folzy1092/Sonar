@@ -1,11 +1,14 @@
 // Медиатека в памяти интерфейса: что лайкнуто и список плейлистов Sonar. Источник правды —
 // локальная база (команды Rust); здесь — копия для сердечек и меню «Добавить в плейлист».
-import { api, errorText, type Album, type Artist, type Playlist, type Track } from './api'
+import { api, errorText, type Album, type Artist, type DupeListId, type Playlist, type RemovedDupes, type Track } from './api'
 import { toast } from './toast.svelte'
 import { t } from './i18n.svelte'
 import { tracksText } from './format'
 
 type Likeable = Track | Album | Artist
+
+/** Сколько висит тост «Убрано … · Отменить» после чистки дублей. */
+const UNDO_MS = 8000
 
 class Library {
   liked = $state(new Set<string>())
@@ -109,6 +112,38 @@ class Library {
     } catch (e) {
       toast.show(errorText(e))
     }
+  }
+
+  /** «Убрать отмеченные» на экране дублей — одна правка, в тосте «Отменить». */
+  async removeDuplicates(list: DupeListId, itemIds: string[]) {
+    try {
+      const removed = await api.removeDuplicates(list, itemIds)
+      await this.afterBulkEdit()
+      const n = removed.items.length
+      if (!n) return toast.show(t('Нечего убирать — список уже поменялся'))
+      toast.show(t('Убрано {tracks}', { tracks: tracksText(n) }), UNDO_MS, {
+        label: t('Отменить'),
+        run: () => this.restoreDuplicates(removed),
+      })
+    } catch (e) {
+      toast.show(errorText(e))
+    }
+  }
+
+  async restoreDuplicates(removed: RemovedDupes) {
+    try {
+      const n = await api.restoreDuplicates(removed)
+      await this.afterBulkEdit()
+      toast.show(n ? t('Вернул {tracks}', { tracks: tracksText(n) }) : t('Нечего возвращать'))
+    } catch (e) {
+      toast.show(errorText(e))
+    }
+  }
+
+  /** После правки сразу многих строк: сердечки, счётчики плейлистов и открытые страницы. */
+  private async afterBulkEdit() {
+    await this.load(true)
+    this.version++
   }
 
   async removeFromPlaylist(id: string, itemIds: string[]) {

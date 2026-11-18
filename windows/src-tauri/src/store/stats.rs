@@ -7,8 +7,8 @@ use rusqlite::params;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 
-const HOUR: i64 = 3600 * 1000;
-const DAY: i64 = 24 * HOUR;
+pub(super) const HOUR: i64 = 3600 * 1000;
+pub(super) const DAY: i64 = 24 * HOUR;
 const WEEKDAYS: [&str; 7] = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 const MONTHS: [&str; 12] = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
 
@@ -63,11 +63,11 @@ pub struct Stats {
   pub fav_weekday: Option<u32>,
 }
 
-struct Row {
-  ref_: String,
-  artist: String,
-  played_at: i64,
-  listened_ms: i64,
+pub(super) struct Row {
+  pub(super) ref_: String,
+  pub(super) artist: String,
+  pub(super) played_at: i64,
+  pub(super) listened_ms: i64,
 }
 
 /// Начало периода (мс) и шаг корзин графика.
@@ -83,7 +83,7 @@ fn period_start(period: &str, now: i64) -> Option<i64> {
 }
 
 /// Дни от эпохи в местном времени (смещение — минуты к UTC, как `-getTimezoneOffset()`).
-fn local_day(ts: i64, tz_min: i64) -> i64 {
+pub(super) fn local_day(ts: i64, tz_min: i64) -> i64 {
   (ts + tz_min * 60_000).div_euclid(DAY)
 }
 
@@ -93,7 +93,7 @@ fn weekday(day: i64) -> u32 {
 }
 
 /// Гражданская дата по дню от эпохи (алгоритм Howard Hinnant) — нужен только месяц и год.
-fn year_month(day: i64) -> (i64, u32) {
+pub(super) fn year_month(day: i64) -> (i64, u32) {
   let z = day + 719_468;
   let era = z.div_euclid(146_097);
   let doe = z - era * 146_097;
@@ -183,7 +183,7 @@ fn streak(days: &HashSet<i64>, today: i64) -> i64 {
 }
 
 impl Store {
-  fn play_rows(&self, from: Option<i64>, to: i64) -> Result<Vec<Row>> {
+  pub(super) fn play_rows(&self, from: Option<i64>, to: i64) -> Result<Vec<Row>> {
     let mut st = self.db.prepare(
       "SELECT ref, artist, played_at, listened_ms FROM plays
        WHERE user_id = ?1 AND played_at >= ?2 AND played_at < ?3 ORDER BY played_at",
@@ -282,7 +282,7 @@ impl Store {
   }
 
   /// ref и аватар артиста по имени — из кэша треков (artists_json).
-  fn artist_face(&self, name: &str) -> Result<(Option<String>, Option<String>)> {
+  pub(super) fn artist_face(&self, name: &str) -> Result<(Option<String>, Option<String>)> {
     let mut st = self.db.prepare("SELECT artists_json FROM tracks WHERE artist = ?1 COLLATE NOCASE AND artists_json IS NOT NULL LIMIT 20")?;
     let rows = st.query_map([name], |r| r.get::<_, String>(0))?;
     let mut found: (Option<String>, Option<String>) = (None, None);

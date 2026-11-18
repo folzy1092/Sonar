@@ -38,3 +38,13 @@ export function comboLabel(combo: string): string[] {
     .filter(Boolean)
     .map((p) => NAMES[p] ?? p.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'Num '))
 }
+
+/** Карта без `combo`: у кого оно было — остаётся без клавиши (новая карта, старая не меняется). */
+export function withoutCombo(map: Readonly<Record<string, string>>, combo: string): Record<string, string> {
+  return Object.fromEntries(Object.entries(map).map(([k, v]) => [k, combo && v === combo ? '' : v]))
+}
+
+/** Карта, где у `action` — `combo`, а у других действий то же сочетание снято. */
+export function withCombo(map: Readonly<Record<string, string>>, action: string, combo: string): Record<string, string> {
+  return { ...withoutCombo(map, combo), [action]: combo }
+}

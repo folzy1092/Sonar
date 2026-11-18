@@ -101,6 +101,11 @@ extension I18n {
         ("Придётся авторизоваться заново. Музыка и скачанное на телефоне останутся.",
          "You’ll have to sign in again. Music and downloads on this phone stay.",
          "Доведеться авторизуватися знову. Музика й завантажене на телефоні залишаться."),
+        // публичный профиль (Аккаунт → Профиль)
+        ("Копировать ссылку на профиль", "Copy profile link", "Копіювати посилання на профіль"),
+        ("Задай @username — тогда появится ссылка", "Set a @username to get a link", "Вкажи @username — тоді з’явиться посилання"),
+        ("Страница по ссылке заработает, когда у Sonar появится сервер.", "The page at this link will work once Sonar has a server.",
+         "Сторінка за посиланням запрацює, коли в Sonar з’явиться сервер."),
         // ошибки Core/Account
         ("Сервер Sonar ещё не подключён", "The Sonar server isn’t connected yet", "Сервер Sonar ще не підключено"),
         ("Нет связи с сервером Sonar", "Can’t reach the Sonar server", "Немає зв’язку із сервером Sonar"),

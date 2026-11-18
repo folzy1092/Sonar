@@ -4,8 +4,13 @@ import { listen } from '@tauri-apps/api/event'
 import { isTauri } from './tauri'
 import { t } from './i18n.svelte'
 import type { Lyrics } from '../lyrics/core/types'
+import type { SmartRules } from './smart'
+import type { ServiceId, ServiceKey, ServiceCaps, ServicePrefixes } from './services'
+import type { Via } from './fallback'
+import type { ImportHead, ImportProgress, ImportResult } from './import'
 
-export type Source = 'sc' | 'ym'
+/** Короткий id сервиса (lib/services): параметр `src` поиска, корень префикса ref. */
+export type Source = ServiceId
 export type Repeat = 'off' | 'all' | 'one'
 
 export interface ArtistRef {
@@ -109,13 +114,53 @@ export interface Playlist {
   tracks: ListTrack[] | null
 }
 
+/** Где ищутся дубли: Любимые или id своего плейлиста (`pl_…`). */
+export type DupeListId = 'favorites' | `pl_${string}`
+
+/** Группа дублей (dupes/mod.rs): `keep` — кого оставить по умолчанию, он же первый в `items`. */
+export interface DupeGroup {
+  keep: string
+  items: ListTrack[]
+}
+
+/** Что убрали одной правкой «Убрать отмеченные» — для «Отменить». */
+export interface RemovedDupes {
+  list: DupeListId
+  items: { item_id: string; added_at: number }[]
+}
+
+/** Умный плейлист (`sm_…`): правила из lib/smart.ts, треки пересчитываются при открытии. */
+export interface SmartPlaylist {
+  id: string
+  name: string
+  rules: unknown
+  created_at: number
+  updated_at: number
+  track_count: number
+  duration_ms: number
+  covers: string[]
+  tracks: ListTrack[] | null
+  /** Не посчитался: правила не читаются или исходного плейлиста больше нет. */
+  error: 'invalid' | 'source_missing' | null
+}
+
+/** Предпросмотр правил в конструкторе: счётчик и первые треки. */
+export interface SmartPreview {
+  track_count: number
+  duration_ms: number
+  covers: string[]
+  tracks: ListTrack[]
+  error: 'invalid' | 'source_missing' | null
+}
+
 export interface SearchMore {
   artists: Artist[]
   albums: Album[]
   playlists: ServicePlaylist[]
 }
 
-export type Service = 'soundcloud' | 'yandex'
+/** Длинный ключ сервиса (lib/services): имя в хранилище ключей, `general.platform`, поля ServicesStatus. */
+export type Service = ServiceKey
 
 export interface PlayerState {
   device_id: string | null
@@ -134,18 +179,43 @@ export interface ServiceStatus {
   connected: boolean
   name: string | null
   avatar_url: string | null
+  /** Подписка (Яндекс Плюс); у SoundCloud всегда null. */
+  premium?: boolean | null
 }
 
 export interface ServicesStatus {
   soundcloud: ServiceStatus
   yandex: ServiceStatus
+  /** YouTube Music: подключён — есть cookie аккаунта (каталог работает и без него). */
+  youtube: ServiceStatus
+  vk: ServiceStatus
+  spotify: ServiceStatus
+}
+
+/** Строка `services_list`: реестр + состояние подключения (ключи — snake_case, как в Rust). */
+export interface ServiceState {
+  id: ServiceId
+  key: ServiceKey
+  name: string
+  color: string
+  icon: string | null
+  icon_mono: string | null
+  prefixes: ServicePrefixes
+  caps: ServiceCaps
+  implemented: boolean
+  connected: boolean
+  account_name: string | null
+  avatar_url: string | null
+  premium: boolean | null
 }
 
 export interface StreamUrl {
   kind: 'file' | 'hls'
   url: string
-  /** Что реально играет: «AAC 160», «MP3 320», «FLAC». */
+  /** Что реально играет: «AAC 160», «MP3 320», «FLAC», «Opus 160 · YouTube Music». */
   quality: string
+  /** Играет не со своего сервиса (резервный сервис, lib/fallback.ts); null — со своего. */
+  via: Via | null
 }
 
 export type StatsPeriod = 'day' | 'week' | 'month' | 'half_year' | 'year' | 'all'
@@ -156,6 +226,34 @@ export interface ArtistStat {
   ref: string | null
   ms: number
   plays: number
+}
+
+/** Привязанный к пульту телефон (без ключа — он только на телефоне). */
+export interface RemoteDevice {
+  id: string
+  name: string
+  paired_at: number
+  last_seen: number
+  online: boolean
+}
+
+export interface RemoteStatus {
+  running: boolean
+  port: number
+  /** Адрес ПК в локальной сети. */
+  host: string | null
+  name: string
+  /** Объявить ПК в сети не вышло — телефон подключится только по QR. */
+  mdns_error: string | null
+  error: string | null
+  pairing: boolean
+  devices: RemoteDevice[]
+}
+
+export interface RemotePairStart {
+  code: string
+  expires_in_ms: number
+  qr_svg: string
 }
 
 export interface TrackStat {
@@ -183,6 +281,42 @@ export interface Stats {
   peak_hour: number | null
   per_day: number
   fav_weekday: number | null
+}
+
+/** Месяц (`month` 1–12) или год (`month` = null), за который есть прослушивания (store/recap.rs). */
+export interface RecapPeriod {
+  kind: 'month' | 'year'
+  year: number
+  month: number | null
+  total_ms: number
+}
+
+export interface RecapPeriods {
+  months: RecapPeriod[]
+  years: RecapPeriod[]
+}
+
+/** Итоги месяца или года — карточки «Итогов» (docs/API.md §5 `GET /stats/recap`). */
+export interface Recap {
+  kind: 'month' | 'year'
+  year: number
+  month: number | null
+  total_ms: number
+  plays: number
+  tracks: number
+  artists: number
+  active_days: number
+  delta_pct: number | null
+  top_tracks: TrackStat[]
+  top_artists: ArtistStat[]
+  new_artist: { artist: ArtistStat; first_played: string } | null
+  /** Время по часам суток, 24 значения в мс. */
+  hours: number[]
+  peak_hour: number | null
+  longest_day: { date: string; ms: number; plays: number } | null
+  repeat: { track: TrackStat; count: number; date: string } | null
+  /** Доли сервисов: id из реестра, проценты в сумме 100. */
+  services: { service: string; ms: number; pct: number }[]
 }
 
 export interface StorageUsage {
@@ -244,11 +378,17 @@ export type LinkItem =
   | { kind: 'album'; album: Album }
   | { kind: 'artist'; artist: Artist }
   | { kind: 'playlist'; playlist: ServicePlaylist }
+  /** Плейлист или альбом Apple Music: своего сервиса нет — только перенос с подбором пар. */
+  | { kind: 'import'; head: ImportHead }
 
-/** Похоже на ссылку SoundCloud / Яндекс Музыки, а не на поисковый запрос (как links.rs). */
+/** Адреса сервисов, которые узнаёт links.rs, и без `https://` (вставили «open.spotify.com/…»). */
+const LINK_HOSTS = ['soundcloud.com/', 'music.yandex.', 'open.spotify.com/', 'youtube.com/', 'youtu.be/', 'vk.com/', 'music.apple.com/']
+
+/** Похоже на ссылку музыкального сервиса, а не на поисковый запрос (как links.rs `looks_like_link`). */
 export function looksLikeLink(s: string): boolean {
   const t = s.trim()
-  return !/\s/.test(t) && (/^https?:\/\//.test(t) || t.includes('soundcloud.com/') || t.includes('music.yandex.'))
+  if (!t || /\s/.test(t)) return false
+  return /^https?:\/\//.test(t) || t.startsWith('spotify:') || LINK_HOSTS.some((h) => t.includes(h))
 }
 
 /** Отчёт прошлого запуска (crashlog.rs): было падение или ошибки. */
@@ -261,6 +401,11 @@ export type ReportSent = { kind: 'telegram' } | { kind: 'saved'; path: string }
 
 export const api = {
   servicesStatus: () => call<ServicesStatus>('services_status'),
+  /** Все сервисы реестра в порядке показа, с состоянием подключения. */
+  servicesList: () => call<ServiceState[]>('services_list'),
+  /** «Вставить ключ»: поля по сервису (sc: client_id, oauth_token; ym: token; yt: cookie). Значения в ошибках не возвращаются. */
+  connectServiceKey: (service: ServiceId | ServiceKey, fields: Record<string, string>) =>
+    call<ServiceStatus>('connect_service_key', { service, fields }),
   resolveLink: (url: string) => call<LinkItem>('resolve_link', { url }),
   reportPending: () => call<CrashReport | null>('report_pending'),
   reportSend: () => call<ReportSent>('report_send'),
@@ -278,19 +423,36 @@ export const api = {
   lastfmStatus: () => call<LastfmStatus>('lastfm_status'),
   lastfmLogin: () => call<LastfmStatus>('lastfm_login'),
   lastfmLogout: () => call<LastfmStatus>('lastfm_logout'),
-  loginService: (service: 'soundcloud' | 'yandex') => call<ServiceStatus>('login_service', { service }),
+  loginService: (service: Service) => call<ServiceStatus>('login_service', { service }),
   /** Отменить ожидание входа через браузер (Яндекс по коду, Last.fm). */
   cancelLogin: () => call<void>('cancel_login'),
-  disconnectService: (service: 'soundcloud' | 'yandex') => call<void>('disconnect_service', { service }),
+  disconnectService: (service: Service) => call<void>('disconnect_service', { service }),
 
   search: (q: string, src: Source, limit = 30) => call<Track[]>('search', { q, src, limit }),
-  streamUrl: (trackRef: string) => call<StreamUrl>('stream_url', { trackRef }),
+  /** `track` — трек из интерфейса: по нему ищется замена, если свой сервис его не отдаёт. */
+  streamUrl: (trackRef: string, track?: Track) => call<StreamUrl>('stream_url', { trackRef, track: track ?? null }),
+  /** Свой поток открылся, но не играет — тот же трек из резервного сервиса (или ошибка). */
+  streamFallback: (trackRef: string, track?: Track) => call<StreamUrl>('stream_fallback', { trackRef, track: track ?? null }),
 
   cacheTracks: (tracks: Track[]) => call<void>('cache_tracks', { tracks }),
   /** «Волна офлайн»: следующие треки — в кэш треков заранее (фоном; кэш выключен — ничего). */
   prefetchTracks: (refs: string[]) => call<void>('prefetch_tracks', { refs }),
   /** Горячие клавиши (hotkeys.rs): действие → сочетание. Вернёт действия, чьё сочетание не встало. */
   setHotkeys: (keys: Record<string, string>) => call<string[]>('set_hotkeys', { keys }),
+  // пульт с iPhone (remote/): сервер в локальной сети, привязка кодом, состояние плеера телефонам
+  remoteSetEnabled: (on: boolean) => call<void>('remote_set_enabled', { on }),
+  remoteStatus: () => call<RemoteStatus>('remote_status'),
+  remotePairStart: () => call<RemotePairStart>('remote_pair_start'),
+  remotePairCancel: () => call<void>('remote_pair_cancel'),
+  remoteUnpair: (id: string) => call<void>('remote_unpair', { id }),
+  remoteState: (state: unknown) => (isTauri ? invoke<void>('remote_state', { state }) : Promise.resolve()),
+  /** Экспорт плейлиста (export.rs): окно «Сохранить как» и запись готового текста; `null` — окно
+   *  закрыли, иначе имя сохранённого файла. */
+  exportPlaylist: (name: string, format: 'm3u8' | 'csv' | 'json', title: string, contents: string) =>
+    call<string | null>('export_playlist', { name, format, title, contents }),
+  /** Карточка итогов картинкой (export.rs `save_image`): PNG в base64 → окно «Сохранить как». */
+  saveImage: (name: string, title: string, pngBase64: string) =>
+    call<string | null>('save_image', { name, title, pngBase64 }),
   savePlayerState: (state: PlayerState) => call<void>('save_player_state', { state }),
   loadPlayerState: () => call<{ state: PlayerState; tracks: Track[] } | null>('load_player_state'),
   recordPlay: (play: { ref: string; artist: string; context: string | null; played_at: number; listened_ms: number }) =>
@@ -304,6 +466,11 @@ export const api = {
   servicePlaylists: (service: Service) => call<ServicePlaylist[]>('service_playlists', { service }),
   servicePlaylist: (plRef: string) => call<{ playlist: ServicePlaylist; tracks: Track[] }>('service_playlist', { plRef }),
   importPlaylist: (plRef: string, name?: string) => call<Playlist>('import_playlist', { plRef, name }),
+  /** Импорт по ссылке (этап 5): прочитать источник и подобрать пары; шаги — `onImportProgress`. */
+  importLink: (link: string, job: string) => call<ImportResult>('import_link', { link, job }),
+  importCancel: (job: string) => call<void>('import_cancel', { job }),
+  /** Сохранить найденное смешанным плейлистом; тот же `source` второй раз дописывает прежний. */
+  importCreate: (name: string, source: string, tracks: Track[]) => call<Playlist>('import_create', { name, source, tracks }),
 
   setLike: (itemRef: string, on: boolean, item?: Track | Album | Artist) => call<void>('set_like', { itemRef, on, item }),
   likedRefs: () => call<string[]>('liked_refs'),
@@ -320,6 +487,19 @@ export const api = {
     call<void>('add_to_playlist', { id, tracks, position }),
   removeFromPlaylist: (id: string, itemIds: string[]) => call<void>('remove_from_playlist', { id, itemIds }),
   reorderPlaylist: (id: string, itemIds: string[]) => call<void>('reorder_playlist', { id, itemIds }),
+  /** Дубли в Любимых или своём плейлисте — офлайн, по сохранённым метаданным. */
+  findDuplicates: (list: DupeListId) => call<DupeGroup[]>('find_duplicates', { list }),
+  /** Убрать строки одной правкой; ответ — для «Отменить». */
+  removeDuplicates: (list: DupeListId, itemIds: string[]) => call<RemovedDupes>('remove_duplicates', { list, itemIds }),
+  /** Вернуть убранное; вернёт, сколько строк вернулось. */
+  restoreDuplicates: (removed: RemovedDupes) => call<number>('restore_duplicates', { removed }),
+  smartPlaylists: () => call<SmartPlaylist[]>('smart_playlists'),
+  smartPlaylist: (id: string) => call<SmartPlaylist>('smart_playlist', { id }),
+  smartPreview: (rules: SmartRules) => call<SmartPreview>('smart_preview', { rules }),
+  createSmartPlaylist: (name: string, rules: SmartRules) => call<SmartPlaylist>('create_smart_playlist', { name, rules }),
+  updateSmartPlaylist: (id: string, patch: { name?: string; rules?: SmartRules }) =>
+    call<void>('update_smart_playlist', { id, ...patch }),
+  deleteSmartPlaylist: (id: string) => call<void>('delete_smart_playlist', { id }),
 
   getSetting: <T>(key: string) => call<T | null>('get_setting', { key }),
   setSetting: (key: string, value: unknown) => call<void>('set_setting', { key, value }),
@@ -370,6 +550,9 @@ export const api = {
   /** Подборка под время суток на главной: что слушаешь в эти часы + лайки. */
   daypartMix: (limit = 24) => call<Track[]>('daypart_mix', { tzMin: new Date().getTimezoneOffset(), limit }),
   stats: (period: StatsPeriod) => call<Stats>('stats', { period, tzMin: -new Date().getTimezoneOffset() }),
+  recap: (kind: 'month' | 'year', year: number, month: number | null) =>
+    call<Recap>('recap', { kind, year, month, tzMin: -new Date().getTimezoneOffset() }),
+  recapPeriods: () => call<RecapPeriods>('recap_periods', { tzMin: -new Date().getTimezoneOffset() }),
 
   streamPort: () => call<number>('stream_port'),
   allSettings: () => call<Record<string, unknown>>('all_settings'),
@@ -394,13 +577,68 @@ export const api = {
   autostartEnabled: () => call<boolean>('autostart_enabled'),
   setTrayMode: (on: boolean) => call<void>('set_tray_mode', { on }),
 
+  /** Локальные файлы (local/commands.rs): выбрать папку (null — отмена), пересканировать папки
+   *  `storage.music_folders`, все найденные треки и поиск по ним. */
+  localPickFolder: (title: string) => call<string | null>('local_pick_folder', { title }),
+  localRescan: () => call<LocalSummary>('local_rescan'),
+  localTracks: () => call<Track[]>('local_tracks'),
+  localSearch: (query: string, limit?: number) => call<Track[]>('local_search', { query, limit }),
+
   mediaUpdate: (info: MediaInfo) => (isTauri ? invoke<void>('media_update', { info }) : Promise.resolve()),
+}
+
+/** Итог скана папок с музыкой: сколько файлов в индексе и что изменилось. */
+export interface LocalSummary {
+  total: number
+  added: number
+  updated: number
+  removed: number
+  /** Строк, чьих файлов сейчас нет на диске («Файл не найден»). */
+  missing: number
+  /** Файлов больше 50 000 — просканированы не все. */
+  truncated: boolean
+}
+
+/** Папки с музыкой изменились (скан после правки на диске или в настройках). */
+export function onLocalFilesChanged(cb: () => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen('local-files-changed', () => cb())
+  return () => void off.then((fn) => fn())
+}
+
+/** Прогресс импорта по ссылке (import_link.rs, событие `import:progress`). Промис `ready` — подписка
+ *  уже действует (иначе первые шаги можно пропустить); `off` — отписаться. */
+export function onImportProgress(cb: (ev: ImportProgress) => void): { ready: Promise<void>; off: () => void } {
+  if (!isTauri) return { ready: Promise.resolve(), off: () => {} }
+  const un = listen<ImportProgress>('import:progress', (e) => cb(e.payload))
+  return { ready: un.then(() => undefined), off: () => void un.then((fn) => fn()) }
 }
 
 /** Горячие клавиши (hotkeys.rs): toggle, next, prev, like, volume_up, volume_down. */
 export function onHotkey(cb: (action: string) => void): () => void {
   if (!isTauri) return () => {}
   const off = listen<string>('hotkey', (e) => cb(e.payload))
+  return () => void off.then((fn) => fn())
+}
+
+/** Пульт: команда с телефона (remote-core.ts `parseCommand`). */
+export function onRemoteCommand(cb: (cmd: unknown) => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen<unknown>('remote-command', (e) => cb(e.payload))
+  return () => void off.then((fn) => fn())
+}
+
+/** Пульт: подключился / отключился телефон, сервер включён или выключен, код ввели неверно. */
+export function onRemoteChanged(cb: () => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen('remote-changed', () => cb())
+  return () => void off.then((fn) => fn())
+}
+
+/** Пульт: телефон привязан (имя телефона). */
+export function onRemotePaired(cb: (name: string) => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen<string>('remote-paired', (e) => cb(e.payload))
   return () => void off.then((fn) => fn())
 }
 

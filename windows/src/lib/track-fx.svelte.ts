@@ -33,7 +33,7 @@ export function trackChange(root: ParentNode = document) {
   if (kind === 'echo') {
     // три контурных кольца нового акцента от каждой видимой обложки
     for (const el of root.querySelectorAll('[data-fx-cover]')) {
-      const r = visible(el)
+      const r = visible(el, { steady: true })
       if (!r) continue
       const radius = getComputedStyle(el).borderRadius
       spawn(r, '<i></i><i></i><i></i>', 'fx-rings', 800, 0, { borderRadius: radius })
@@ -42,7 +42,7 @@ export function trackChange(root: ParentNode = document) {
   if (kind === 'edge') {
     // световая дуга по рамке мини-плеера и обложки на странице плеера
     for (const el of root.querySelectorAll('[data-fx-frame]')) {
-      const r = visible(el)
+      const r = visible(el, { steady: true })
       if (!r) continue
       spawn(r, '', 'fx-arc', 640, 0, { borderRadius: getComputedStyle(el).borderRadius })
     }

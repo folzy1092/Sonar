@@ -1,0 +1,81 @@
+{
+ "playabilityStatus": {
+  "status": "OK"
+ },
+ "streamingData": {
+  "expiresInSeconds": "21540",
+  "adaptiveFormats": [
+   {
+    "itag": 139,
+    "mimeType": "audio/mp4; codecs=\"mp4a.40.5\"",
+    "bitrate": 50273,
+    "averageBitrate": 48888,
+    "contentLength": "888159",
+    "audioQuality": "AUDIO_QUALITY_LOW",
+    "audioSampleRate": "22050",
+    "approxDurationMs": "145336",
+    "url": "https://rr1---sn-test.googlevideo.com/videoplayback?id=test&itag=139&clen=888159"
+   },
+   {
+    "itag": 140,
+    "mimeType": "audio/mp4; codecs=\"mp4a.40.2\"",
+    "bitrate": 130945,
+    "averageBitrate": 129604,
+    "contentLength": "2354526",
+    "audioQuality": "AUDIO_QUALITY_MEDIUM",
+    "audioSampleRate": "44100",
+    "approxDurationMs": "145336",
+    "url": "https://rr1---sn-test.googlevideo.com/videoplayback?id=test&itag=140&clen=2354526"
+   },
+   {
+    "itag": 249,
+    "mimeType": "audio/webm; codecs=\"opus\"",
+    "bitrate": 65986,
+    "averageBitrate": 61070,
+    "contentLength": "1109658",
+    "audioQuality": "AUDIO_QUALITY_LOW",
+    "audioSampleRate": "48000",
+    "approxDurationMs": "145361",
+    "url": "https://rr1---sn-test.googlevideo.com/videoplayback?id=test&itag=249&clen=1109658"
+   },
+   {
+    "itag": 250,
+    "mimeType": "audio/webm; codecs=\"opus\"",
+    "bitrate": 86013,
+    "averageBitrate": 80564,
+    "contentLength": "1463866",
+    "audioQuality": "AUDIO_QUALITY_LOW",
+    "audioSampleRate": "48000",
+    "approxDurationMs": "145361",
+    "url": "https://rr1---sn-test.googlevideo.com/videoplayback?id=test&itag=250&clen=1463866"
+   },
+   {
+    "itag": 251,
+    "mimeType": "audio/webm; codecs=\"opus\"",
+    "bitrate": 167412,
+    "averageBitrate": 157891,
+    "contentLength": "2868906",
+    "audioQuality": "AUDIO_QUALITY_MEDIUM",
+    "audioSampleRate": "48000",
+    "approxDurationMs": "145361",
+    "url": "https://rr1---sn-test.googlevideo.com/videoplayback?id=test&itag=251&clen=2868906"
+   },
+   {
+    "itag": 137,
+    "mimeType": "video/mp4; codecs=\"avc1.640020\"",
+    "bitrate": 535746,
+    "averageBitrate": 216342,
+    "contentLength": "3929853",
+    "approxDurationMs": "145320",
+    "url": "https://rr1---sn-test.googlevideo.com/videoplayback?id=test&itag=137&clen=3929853"
+   }
+  ]
+ },
+ "videoDetails": {
+  "videoId": "q7mwXbOw58g",
+  "title": "Star Shopping",
+  "lengthSeconds": "145",
+  "author": "Cut-Off - Topic",
+  "channelId": "UCIzdQrjdn8XVyWI4p7N55SA"
+ }
+}

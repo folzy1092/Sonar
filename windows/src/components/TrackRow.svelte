@@ -8,7 +8,9 @@
   import { library } from '../lib/library.svelte'
   import { trackMenu } from '../lib/menu.svelte'
   import { hasSelection } from '../lib/selection'
-  import { openRef } from '../app/router.svelte'
+  import { openRef, router } from '../app/router.svelte'
+  import { search } from '../app/search.svelte'
+  import { hasArtist, isMissingLocal, servicesQuery } from '../lib/local'
   import { formatTime, player } from '../player/player.svelte'
   import { settings } from '../lib/settings.svelte'
   import { compact } from '../lib/format'
@@ -34,10 +36,20 @@
   const isCurrent = $derived(player.current?.ref === track.ref)
   const liked = $derived(library.isLiked(track.ref))
   const target = $derived({ track, addedAt, playlistId, itemId, queueAt })
+  /** Файл с этого компьютера пропал — серая строка «Файл не найден» и «Найти в сервисах». */
+  const missing = $derived(isMissingLocal(track))
   const LOCALES = { ru: 'ru-RU', en: 'en-US', uk: 'uk-UA' } as const
+
+  /** Пропавший файл — тот же трек в сервисах: запрос «исполнитель название» в поиске. */
+  function findInServices(e?: Event) {
+    e?.stopPropagation()
+    search.query = servicesQuery(track)
+    router.go('search')
+  }
 
   function activate() {
     if (hasSelection()) return
+    if (missing) return findInServices()
     if (isCurrent) player.toggle()
     // «Добавлять следующие» выключено — играет только нажатый трек, без хвоста списка
     else if (!settings.get('queue.add_following') && variant !== 'queue') void player.playList([track], 0, null)
@@ -61,7 +73,8 @@
 <div
   class="row {variant}"
   class:current={isCurrent}
-  class:off={!track.available}
+  class:off={!track.available && !missing}
+  class:missing
   class:numbered={index !== undefined}
   role="button"
   tabindex="0"
@@ -96,13 +109,19 @@
           tabindex="-1"
           onclick={(e) => openArtist(e, a.ref)}
           onkeydown={() => {}}>{a.name}</span
-        >{:else}{track.artist}{/each}
+        >{:else}{hasArtist(track) ? track.artist : t('Неизвестный исполнитель')}{/each}
+      {#if missing && variant !== 'list'}<span class="gone"> · {t('Файл не найден')}</span>{/if}
     </span>
   </span>
   {#if variant === 'list'}
-    <span class="album">{track.album?.title ?? ''}</span>
+    <span class="album">{#if missing}<span class="gone">{t('Файл не найден')}</span>{:else}{track.album?.title ?? ''}{/if}</span>
   {/if}
   <span class="end">
+    {#if missing}
+      <button class="find-svc" title={t('Найти «{query}» в сервисах', { query: servicesQuery(track) })} onclick={findInServices}>
+        <Icon name="search" size={13} />{t('Найти в сервисах')}
+      </button>
+    {/if}
     {#if track.plays && variant !== 'queue'}
       <!-- число прослушиваний на сервисе (SoundCloud отдаёт, Яндекс — нет) -->
       <span class="plays" title="{track.plays.toLocaleString(LOCALES[lang()])} {tn(track.plays, ['прослушивание', 'прослушивания', 'прослушиваний'])}">
@@ -184,6 +203,39 @@
   }
   .row.off {
     opacity: 0.45;
+  }
+  /* пропавший файл: серое всё, кроме кнопки «Найти в сервисах» */
+  .row.missing > :not(.end),
+  .row.missing .end > :not(.find-svc) {
+    opacity: 0.45;
+  }
+  .gone {
+    color: var(--danger);
+  }
+  .find-svc {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: var(--plate);
+    border: 1px solid var(--card-line);
+    color: var(--text-2);
+    font-size: calc(12px * var(--fs, 1));
+    font-weight: 600;
+    white-space: nowrap;
+    transition:
+      color var(--fast) var(--ease),
+      background var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .find-svc:hover {
+    color: var(--text);
+    background: var(--hover);
+  }
+  .find-svc:active {
+    transform: scale(0.96);
   }
   .end {
     display: flex;

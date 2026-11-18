@@ -4,6 +4,20 @@
 Время — `INTEGER` миллисекунды Unix. `rev` — значение глобального счётчика `sync_rev`
 на момент изменения (для `/sync/pull`).
 
+Префиксы `ref` — из реестра сервисов (полная таблица и правило разбора — `API.md` §2 «Префиксы ref»):
+
+| id | key | трек | альбом | артист | плейлист |
+|---|---|---|---|---|---|
+| `sc` | `soundcloud` | `sc:` | `scalb:` | `sca:` | `scpl:` |
+| `ym` | `yandex` | `ym:` | `ymalb:` | `yma:` | `ympl:` |
+| `yt` | `youtube` | `yt:` | `ytalb:` | `yta:` | `ytpl:` |
+| `vk` | `vk` | `vk:` | `vkalb:` | `vka:` | `vkpl:` |
+| `sp` | `spotify` | `sp:` | `spalb:` | `spa:` | `sppl:` |
+| `local` | `local` | `local:` | — | — | — |
+
+Работают `sc`, `ym`, `yt`, `vk`, `sp` и `local` (Spotify — медиатека и ссылки; ключ `sp_dc` — только в keyring / Keychain под
+key `spotify`, в базу не попадает, API.md §2 «Spotify»). Префикс — текст до первого `:`, сравнивается целиком. Не сервисы: `pl_…`, `similar:<ref>`.
+
 ```sql
 CREATE TABLE users (
   id            TEXT PRIMARY KEY,
@@ -51,7 +65,7 @@ CREATE TABLE tg_requests (                      -- быстрый вход и п
 
 CREATE TABLE service_accounts (
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  service       TEXT NOT NULL,                  -- soundcloud | yandex
+  service       TEXT NOT NULL,                  -- key сервиса из таблицы префиксов: soundcloud | yandex | vk | spotify (позже youtube)
   credentials   BLOB NOT NULL,                  -- Fernet(JSON: client_id, oauth_token / token)
   ext_user_id   TEXT,
   ext_name      TEXT,
@@ -61,7 +75,7 @@ CREATE TABLE service_accounts (
 );
 
 CREATE TABLE tracks (                           -- кэш метаданных
-  ref           TEXT PRIMARY KEY,               -- sc:123 | ym:456
+  ref           TEXT PRIMARY KEY,               -- ref трека по таблице префиксов: sc:123 | ym:456
   title         TEXT NOT NULL,
   artist        TEXT NOT NULL,
   artists_json  TEXT,
@@ -76,8 +90,8 @@ CREATE TABLE tracks (                           -- кэш метаданных
 
 CREATE TABLE likes (                            -- треки, альбомы, исполнители
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  ref           TEXT NOT NULL,                  -- sc:/ym: трек, scalb:/ymalb: альбом, sca:/yma: артист
-  kind          TEXT NOT NULL,                  -- track | album | artist (дублирует префикс для индекса)
+  ref           TEXT NOT NULL,                  -- по таблице префиксов: sc:/ym: трек, scalb:/ymalb: альбом, sca:/yma: артист
+  kind          TEXT NOT NULL,                  -- track | album | artist (вид по префиксу из таблицы, дублируется для индекса)
   added_at      INTEGER NOT NULL,
   deleted       INTEGER NOT NULL DEFAULT 0,     -- tombstone для синка
   rev           INTEGER NOT NULL,
@@ -90,7 +104,7 @@ CREATE TABLE playlists (
   name          TEXT NOT NULL,
   cover_path    TEXT,                           -- NULL → коллаж из 4 обложек
   hidden        INTEGER NOT NULL DEFAULT 0,
-  source_ref    TEXT,                           -- scpl:… / ympl:… если перенесён
+  source_ref    TEXT,                           -- scpl:… / ympl:… / ytpl:… если перенесён
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL,
   deleted       INTEGER NOT NULL DEFAULT 0,
@@ -172,7 +186,7 @@ CREATE TABLE track_prefs (                      -- «Запомнить» ско
 );
 
 CREATE TABLE catalog (                          -- кэш альбомов и исполнителей (как tracks)
-  ref           TEXT PRIMARY KEY,               -- scalb:/ymalb: | sca:/yma: | similar:<ref трека>
+  ref           TEXT PRIMARY KEY,               -- scalb:/ymalb: | sca:/yma: (таблица префиксов) | similar:<ref трека>
   kind          TEXT NOT NULL,                  -- album | artist | similar (кэш «похожих» волны, 24 ч, только локально)
   json          TEXT NOT NULL,                  -- Album / Artist (API.md §3) | [Track] для similar
   fetched_at    INTEGER NOT NULL
@@ -262,6 +276,57 @@ CREATE TABLE sync_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 -- pulled_rev — до какого серверного rev получено; plays_uploaded_id — курсор POST /plays.
 -- Пришедшее с сервера пишется с rev = 0 (обратно не едет); своё неотправленное изменение строки
 -- пришедшее не перезаписывает.
+
+-- только клиент (Windows, миграция № 10): локальные файлы — «Папки с музыкой» (NEXT_PROMPT этап 10).
+-- Только на этом устройстве, в синк не идёт; лайки и плейлисты хранят обычный ref.
+CREATE TABLE local_files (
+  ref           TEXT PRIMARY KEY,               -- local:<sha1 пути> — стабилен, пока файл лежит на месте
+  path          TEXT UNIQUE NOT NULL,           -- полный путь файла
+  mtime         INTEGER NOT NULL,               -- время изменения, мс; вместе с size решает, читать ли теги заново
+  size          INTEGER NOT NULL,
+  title         TEXT NOT NULL,                  -- из тегов (lofty), иначе из имени «Исполнитель - Название»
+  artist        TEXT NOT NULL,                  -- пусто — «Неизвестный исполнитель»
+  album         TEXT,
+  duration_ms   INTEGER NOT NULL,
+  cover_path    TEXT                            -- кэш обложек: covers/local-<sha1 картинки>.<ext>
+);
+-- Скан пишет и метаданные в tracks (Любимые и плейлисты видят новые теги). Пропавший файл и папка,
+-- которой сейчас нет (флешка), строк не теряют — трек приходит с available = false («Файл не найден» с
+-- «Найти в сервисах»). Строка удаляется, только если её папку убрали из storage.music_folders или файл
+-- переехал (в тех же папках есть файл того же размера с теми же названием и исполнителем); обход
+-- остановлен на 50 000 файлах — непросмотренные строки не трогаются. Неиспользуемые обложки local-* чистятся.
+
+-- только клиент (Windows, миграция № 11): резервный сервис (NEXT_PROMPT этап 4, services/fallback.rs).
+-- Свой сервис трек не играет — ищем тот же в другом (порядок audio.fallback_order); найденное и
+-- «не нашлось» запоминаются, чтобы не искать заново. Только на этом устройстве, в синк не идёт.
+CREATE TABLE track_alias (
+  source_ref    TEXT NOT NULL,                  -- трек, который не играет: sc:… / ym:… / sp:…
+  service       TEXT NOT NULL,                  -- где искали: короткий id реестра (sc, ym, yt, vk)
+  alias_ref     TEXT,                           -- найденный тот же трек; NULL — там его нет
+  found_at      INTEGER NOT NULL,               -- мс
+  PRIMARY KEY (source_ref, service)
+);
+-- Сверка строгая (providers/matching.rs): длительность ±3 с, исполнитель, название, те же «версии»
+-- (remix, live, slowed…). Найденное живёт, пока не перестанет играть (тогда ищется заново); «не
+-- нашлось» — 7 дней, старше чистится при запуске. Метаданные найденного трека пишутся в tracks.
+-- iPhone до сервера — без таблицы: пары держатся в памяти на сеанс (Core/Providers/MusicCore+Fallback.swift).
+
+-- Умные плейлисты (NEXT_PROMPT этап 6; Windows — миграция № 12). Треков не хранят: при каждом открытии
+-- считаются заново по правилам из plays, likes и playlist_items. Формат rules_json — общий для ПК и iPhone,
+-- docs/PLATFORMS.md «Умные плейлисты». Синк — позже (поля deleted и rev уже под него).
+CREATE TABLE smart_playlists (
+  id            TEXT PRIMARY KEY,               -- sm_<16 hex>
+  user_id       TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  rules_json    TEXT NOT NULL,                  -- {"v":1,"source":…,"match":…,"conditions":[…],"sort":…,"limit":…}
+  created_at    INTEGER NOT NULL,               -- мс
+  updated_at    INTEGER NOT NULL,               -- мс
+  deleted       INTEGER NOT NULL DEFAULT 0,
+  rev           INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX smart_playlists_user ON smart_playlists(user_id, deleted);
+-- iPhone до сервера: Application Support/Sonar/smart.json — [{id, name, rules, created_at, updated_at}]
+-- (rules — тот же объект, не строка); дата лайка — likedAt в library.json.
 
 -- Быстрые ссылки входа и репорты — схема в BOT.md §6 (auth_links, reports)
 

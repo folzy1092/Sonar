@@ -3,6 +3,7 @@
   // график по периоду, любимые артисты и треки. Клик по артисту/треку — открыть / включить.
   import CountUp from '../../components/CountUp.svelte'
   import Icon from '../../components/Icon.svelte'
+  import StatsRecaps from './StatsRecaps.svelte'
   import { api, type Stats, type StatsPeriod } from '../../lib/api'
   import { t, tn } from '../../lib/i18n.svelte'
   import { cascade } from '../../lib/cascade'
@@ -88,6 +89,8 @@
       {/if}
     </div>
   </div>
+
+  <StatsRecaps />
 
   {#if artists.length}
     <h2>{t('Любимые артисты')}</h2>

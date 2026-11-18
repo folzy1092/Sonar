@@ -8,7 +8,7 @@ import UIKit
 /// галереи), прозрачность и тип стекла, скругление, мини-плеер, анимации. Всё применяется сразу.
 struct LookSettingsView: View {
     enum Sheet: String, Identifiable {
-        case style, background, glass, corners
+        case style, background, glass, corners, strength
         var id: String { rawValue }
     }
 
@@ -26,6 +26,7 @@ struct LookSettingsView: View {
     private var surface: Surface { Surface(rawValue: settings.string(LookKey.surface)) ?? .monolith }
     private var opacity: Int { Int(settings.number(LookKey.opacity, fallback: 80).rounded()) }
     private var corners: MiniStyle.Corners { MiniStyle.current(settings).corners }
+    private var strength: CoverStrength { CoverStrength(setting: settings.string(LookKey.coverStrength)) }
 
     /// Выбранный стиль: готовый, если его поверхность совпадает; иначе «Свой».
     private var styleTitle: String {
@@ -41,6 +42,14 @@ struct LookSettingsView: View {
 
             LookCaption(text: "Цвет").cascade(2)
             swatches.cascade(3)
+            if settings.bool(LookKey.coverTheme) {
+                // сила темы под обложку — только когда цвет берётся с обложки (ПК Look.svelte)
+                LookCard {
+                    LookRow(title: t("Сила темы под обложку"), value: t(strength.title), icon: .contrast) { sheet = .strength }
+                }
+                .cascade(4)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
 
             LookCard {
                 LookRow(title: "Стиль", value: styleTitle, icon: .paintBrush) { sheet = .style }
@@ -60,7 +69,7 @@ struct LookSettingsView: View {
                         .transition(.opacity)
                 }
             }
-            .cascade(4)
+            .cascade(5)
 
             LookCard {
                 LookToggle(title: "Прозрачность", value: settings.bool(LookKey.glass) ? "Включено (\(opacity)%)" : "Выключено",
@@ -72,7 +81,7 @@ struct LookSettingsView: View {
                         .transition(.opacity)
                 }
             }
-            .cascade(5)
+            .cascade(6)
 
             LookCard {
                 LookRow(title: "Скругление", value: corners.title, icon: corners.icon) { sheet = .corners }
@@ -81,17 +90,18 @@ struct LookSettingsView: View {
                 }
                 .buttonStyle(PressableStyle(scale: 0.99))
             }
-            .cascade(6)
+            .cascade(7)
 
             LookCard {
                 LookToggle(title: "Анимации",
                            value: settings.bool(LookKey.animations) ? "Переходы, листы, списки" : "Только короткие переходы",
                            isOn: binding(LookKey.animations))
             }
-            .cascade(7)
+            .cascade(8)
         }
         .animation(Motion.spring, value: backdrop)
         .animation(Motion.spring, value: settings.bool(LookKey.glass))
+        .animation(Motion.spring, value: settings.bool(LookKey.coverTheme))
         .sheet(item: $sheet, onDismiss: {
             if pickAfterSheet {
                 pickAfterSheet = false
@@ -208,6 +218,12 @@ struct LookSettingsView: View {
                 var style = MiniStyle.current(settings)
                 style.corners = next
                 style.save(settings)
+            }
+            .lookSheet(height: LookChoiceSheet.height(options.count))
+        case .strength:
+            let options = CoverStrength.allCases.map { LookChoice(id: $0.rawValue, title: t($0.title), icon: .contrast) }
+            LookChoiceSheet(options: options, selected: strength.rawValue) { id in
+                settings.set(LookKey.coverStrength, .string(id))
             }
             .lookSheet(height: LookChoiceSheet.height(options.count))
         }

@@ -27,12 +27,16 @@ struct LibraryView: View {
         case all = "Все сервисы"
         case soundcloud = "SoundCloud"
         case yandex = "Яндекс Музыка"
+        case youtube = "YouTube Music"
+        case vk = "VK Музыка"
 
         func keeps(_ ref: String) -> Bool {
             switch self {
             case .all: true
-            case .soundcloud: ref.hasPrefix("sc")
-            case .yandex: ref.hasPrefix("ym")
+            case .soundcloud: ServiceRegistry.service(of: ref) == .sc
+            case .yandex: ServiceRegistry.service(of: ref) == .ym
+            case .youtube: ServiceRegistry.service(of: ref) == .yt
+            case .vk: ServiceRegistry.service(of: ref) == .vk
             }
         }
     }
@@ -47,9 +51,11 @@ struct LibraryView: View {
     @State private var query = ""
     @State private var playlists: [ServicePlaylist] = []
     @State private var creating = false
+    @State private var smartEditor: SmartDraft?
     @FocusState private var searchFocused: Bool
     private var downloads: DownloadStore { DownloadStore.shared }
     private var store: PlaylistStore { PlaylistStore.shared }
+    private var smart: SmartPlaylistStore { SmartPlaylistStore.shared }
 
     private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
 
@@ -85,6 +91,15 @@ struct LibraryView: View {
         .animation(Motion.spring, value: searching)
         .newPlaylistAlert(isPresented: $creating) { id in
             router.push(.sonarPlaylist(id: id), on: .library, chrome: chrome)
+        }
+        .sheet(item: $smartEditor) { draft in
+            SmartEditorSheet(draft: draft) { id in
+                router.push(.smartPlaylist(id: id), on: .library, chrome: chrome)
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(30)
+            .presentationBackground(Theme.background)
         }
         .task { playlists = await MusicCore.shared.myPlaylists() }
         .refreshable { playlists = await MusicCore.shared.myPlaylists() }
@@ -124,9 +139,16 @@ struct LibraryView: View {
                 searching.toggle()
                 if searching { searchFocused = true } else { query = "" }
             }
-            CircleButton(icon: .plus, label: t("Новый плейлист")) {
-                creating = true
+            Menu {
+                Button(t("Новый плейлист")) { creating = true }
+                Button(t("Умный плейлист — по правилам")) { smartEditor = .blank }
+            } label: {
+                SonarIcon(.plus, size: 22)
+                    .foregroundStyle(Theme.text)
+                    .frame(width: 52, height: 52)
+                    .background(Theme.raised.opacity(0.92), in: Circle())
             }
+            .accessibilityLabel(t("Новый плейлист"))
         }
     }
 
@@ -187,6 +209,13 @@ struct LibraryView: View {
     /// трекам (смешанный показывается, если в нём есть треки сервиса).
     private var ownPlaylists: [SonarPlaylist] {
         let list = store.playlists.filter(keepsOwn)
+        return sort == .title ? list.sorted { $0.name.localizedCompare($1.name) == .orderedAscending } : list
+    }
+
+    /// Умные плейлисты: только без фильтра сервиса (треки в них считаются по правилам).
+    private var smartPlaylists: [SmartPlaylistDef] {
+        guard source == .all else { return [] }
+        let list = smart.lists.filter { matches($0.name) }
         return sort == .title ? list.sorted { $0.name.localizedCompare($1.name) == .orderedAscending } : list
     }
 
@@ -274,11 +303,20 @@ struct LibraryView: View {
                     }
                     .cascade(index + 2)
                 }
+                let smartLists = smartPlaylists
+                ForEach(Array(smartLists.enumerated()), id: \.element.id) { index, list in
+                    LibraryTile(title: list.name,
+                                subtitle: list.parsed == nil ? t("Правила не читаются") : t("Умный плейлист"),
+                                icon: .sparkles) {
+                        router.push(.smartPlaylist(id: list.id), on: .library, chrome: chrome)
+                    }
+                    .cascade(index + 2 + own.count)
+                }
                 ForEach(Array(shownPlaylists.enumerated()), id: \.element.ref) { index, playlist in
                     LibraryTile(title: playlist.title, subtitle: playlist.owner, cover: playlist.coverURL) {
                         router.push(.playlist(playlist), on: .library, chrome: chrome)
                     }
-                    .cascade(index + 2 + own.count)
+                    .cascade(index + 2 + own.count + smartLists.count)
                 }
             }
             if section == .all || section == .albums {

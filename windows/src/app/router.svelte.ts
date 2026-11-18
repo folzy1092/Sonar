@@ -1,7 +1,11 @@
 // Простой роутер страниц: текущая страница с параметром + история для кнопки «назад».
-// playlist: 'favorites' | 'pl_…' (свой) | 'scpl:…' / 'ympl:…' (плейлист сервиса);
-// artist: 'sca:…' / 'yma:…'; album: 'scalb:…' / 'ymalb:…'.
-export type Page = 'home' | 'player' | 'search' | 'library' | 'playlist' | 'artist' | 'album'
+// playlist: 'favorites' | 'pl_…' (свой) | 'sm_…' (умный, SmartPlaylistPage) | 'scpl:…' / 'ympl:…' (плейлист сервиса);
+// artist: 'sca:…' / 'yma:…'; album: 'scalb:…' / 'ymalb:…' (префиксы — lib/services).
+import { refKind } from '../lib/services'
+// profile — предпросмотр своего публичного профиля («Как видят мой профиль»);
+// import — перенос плейлиста по ссылке с подбором пар (параметр — ссылка или ref, lib/import.svelte).
+// dupes — «Найти дубли» в 'favorites' | 'pl_…' (pages/DupesPage.svelte).
+export type Page = 'home' | 'player' | 'search' | 'library' | 'playlist' | 'artist' | 'album' | 'profile' | 'import' | 'dupes'
 
 interface Route {
   page: Page
@@ -62,8 +66,8 @@ export const router = new Router()
 
 /** Куда ведёт ref: исполнитель, альбом или плейлист. */
 export function openRef(ref: string) {
-  const kind = ref.split(':')[0]
-  if (kind === 'sca' || kind === 'yma') router.go('artist', ref)
-  else if (kind === 'scalb' || kind === 'ymalb') router.go('album', ref)
+  const kind = refKind(ref)
+  if (kind === 'artist') router.go('artist', ref)
+  else if (kind === 'album') router.go('album', ref)
   else router.go('playlist', ref)
 }

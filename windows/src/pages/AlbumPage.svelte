@@ -6,7 +6,7 @@
   import { cascade } from '../lib/cascade'
   import EmptyState from '../components/EmptyState.svelte'
   import Icon from '../components/Icon.svelte'
-  import PlayPause from '../components/PlayPause.svelte'
+  import ListenButton from '../components/ListenButton.svelte'
   import TrackRow from '../components/TrackRow.svelte'
   import { pulse } from '../lib/pulse'
   import { replay } from '../lib/replay'
@@ -31,8 +31,6 @@
   const liked = $derived(library.isLiked(ref))
   const total = $derived(tracks.reduce((s, t) => s + t.duration_ms, 0))
   const context = `album:${ref}`
-  const ours = $derived(player.context === context)
-  const playing = $derived(ours && player.playing)
   const avatar = $derived(album?.artists[0]?.avatar_url ?? null)
   const date = $derived(album?.released ? dateLong(album.released) : album?.year ? String(album.year) : null)
 
@@ -46,11 +44,6 @@
     })
     .catch((e) => (error = errorText(e)))
   void library.load()
-
-  function listen() {
-    if (ours && player.current) player.toggle()
-    else void player.playList(tracks, 0, context, album?.title ?? null)
-  }
 
   async function share() {
     if (!album?.url) return
@@ -94,10 +87,7 @@
   </header>
 
   <div class="bar">
-    <button class="listen" disabled={!tracks.length} onclick={listen}>
-      <PlayPause {playing} size={16} />
-      {playing ? t('Пауза') : t('Слушать')}
-    </button>
+    <ListenButton {context} disabled={!tracks.length} onplay={() => player.playList(tracks, 0, context, album?.title ?? null)} />
     <button class="pill" disabled={!tracks.length} onclick={() => player.addToQueue(tracks, false)}><Icon name="queue" size={16} /> {t('В очередь')}</button>
     <span class="group">
       <button aria-label={t('Перемешать')} title={t('Перемешать')} disabled={!tracks.length} onclick={() => player.playShuffled(tracks, context, al.title)}><Icon name="shuffle" size={16} /></button>
@@ -220,7 +210,6 @@
     gap: 8px;
     margin-bottom: 16px;
   }
-  .listen,
   .pill,
   .round,
   .group {
@@ -231,13 +220,6 @@
     height: 34px;
     border-radius: 999px;
     font-weight: 600;
-  }
-  .listen {
-    min-width: 108px;
-    padding: 0 18px;
-    border-radius: 10px;
-    background: var(--text);
-    color: var(--on-text);
   }
   .pill {
     padding: 0 18px;
@@ -269,7 +251,6 @@
     border: 1px solid var(--border-strong);
     color: var(--text-2);
   }
-  .listen,
   .pill,
   .round {
     transition:

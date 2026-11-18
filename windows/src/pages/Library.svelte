@@ -11,15 +11,22 @@
   import NavIcon from '../components/NavIcon.svelte'
   import { playlistMenu } from '../lib/playlist-menu.svelte'
   import Tile from '../components/Tile.svelte'
-  import { api, type Album, type Artist, type ServicePlaylist, type ServicesStatus } from '../lib/api'
+  import { api, looksLikeLink, onLocalFilesChanged, type Album, type Artist, type ServicePlaylist, type ServiceStatus, type ServicesStatus } from '../lib/api'
   import { tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
+  import { openImport } from '../lib/import.svelte'
+  import { smartLists } from '../lib/smart-lists.svelte'
+  import { blankRules } from '../lib/smart'
   import { openRef, router } from '../app/router.svelte'
   import { settingsPanel } from './settings-section.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
+  import { ACCOUNT_SERVICES, byId, isTrackRef, serviceOf, statusOf, type ServiceId } from '../lib/services'
+  import { ICONS } from '../lib/service-icons'
   import { reducedMotion } from '../lib/motion'
   import { cubicOut } from 'svelte/easing'
   import { t } from '../lib/i18n.svelte'
+  import { settings } from '../lib/settings.svelte'
+  import { onDestroy } from 'svelte'
 
   const tabs = ['Все', 'Плейлисты', 'Альбомы', 'Исполнители'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
@@ -27,29 +34,35 @@
   let status = $state<ServicesStatus | null>(null)
   let albums = $state<Album[]>([])
   let artists = $state<Artist[]>([])
-  let phantom = $state<{ sc: ServicePlaylist[]; ym: ServicePlaylist[] }>({ sc: [], ym: [] })
+  let phantom = $state<Partial<Record<ServiceId, ServicePlaylist[]>>>({})
   let phantomError = $state<string | null>(null)
   /** Статус сервисов уже запрошен (успешно или нет) — дальше не скелет, а ответ. */
   let servicesTried = $state(false)
   let creating = $state(false)
+  /** Всплывашка «Перенести по ссылке» (этап 5): любая ссылка на плейлист или альбом → экран импорта. */
+  let linking = $state(false)
+  let linkText = $state('')
+  const linkOk = $derived(looksLikeLink(linkText))
+  /** Файлы из «Папок с музыкой» (Система → Хранилище): сколько и первые обложки для плитки. */
+  let localCount = $state(0)
+  let localCovers = $state<string[]>([])
+  const hasFolders = $derived(settings.get('storage.music_folders').length > 0)
   let newName = $state('')
 
-  const favCount = $derived([...library.liked].filter((r) => r.startsWith('sc:') || r.startsWith('ym:')).length)
+  const favCount = $derived([...library.liked].filter(isTrackRef).length)
   const own = $derived(tab === 'Все' ? library.playlists.filter((p) => !p.hidden) : library.playlists)
   const imported = $derived(new Set(library.playlists.map((p) => p.source_ref).filter(Boolean)))
   /** Сервисы блока «плейлисты сервисов» по кругу (решение владельца 2026-11-16): клик по названию —
-   *  следующий, ряд уезжает свайпом. Spotify и VK Музыка встанут сюда же, когда появятся. */
-  const SERVICES = [
-    { id: 'sc', name: 'SoundCloud' },
-    { id: 'ym', name: 'Яндекс Музыка' },
-  ] as const
-  let svc = $state<'sc' | 'ym'>('sc')
+   *  следующий, ряд уезжает свайпом. Сервисы — реализованные из реестра (lib/services): Spotify и
+   *  VK Музыка встанут сюда сами, когда их включат. */
+  let svc = $state<ServiceId>(ACCOUNT_SERVICES[0].id)
   /** Куда едет свайп: 1 — следующий справа налево. */
   let dir = $state(1)
-  const svcName = $derived(t(SERVICES.find((x) => x.id === svc)!.name))
-  const svcConnected = $derived(svc === 'sc' ? !!status?.soundcloud.connected : !!status?.yandex.connected)
+  const svcInfo = $derived(byId(svc) ?? ACCOUNT_SERVICES[0])
+  const svcName = $derived(t(svcInfo.name))
+  const svcConnected = $derived(!!statusOf(status, svcInfo)?.connected)
   /** Плейлисты выбранного сервиса, ещё не перенесённые в Sonar (перенесённые уже есть среди своих). */
-  const services = $derived(phantom[svc].filter((p) => !imported.has(p.ref)))
+  const services = $derived((phantom[svc] ?? []).filter((p) => !imported.has(p.ref)))
 
   // ширина текущего названия сервиса: последнее появившееся название задаёт ширину кнопки
   let faceW = $state(0)
@@ -64,9 +77,9 @@
   }
 
   function nextService() {
-    const i = SERVICES.findIndex((x) => x.id === svc)
+    const i = ACCOUNT_SERVICES.findIndex((x) => x.id === svc)
     dir = 1
-    svc = SERVICES[(i + 1) % SERVICES.length].id
+    svc = ACCOUNT_SERVICES[(i + 1) % ACCOUNT_SERVICES.length].id
   }
 
   /** Смена сервиса снизу вверх (решение владельца 2026-11-16): прежний уходит вверх, следующий
@@ -81,7 +94,7 @@
     }
   }
   const accounts = $derived(
-    status ? [status.soundcloud, status.yandex].filter((s) => s.connected) : [],
+    status ? ACCOUNT_SERVICES.map((s) => statusOf(status, s)).filter((s): s is ServiceStatus => !!s?.connected) : [],
   )
 
   async function loadSaved() {
@@ -95,12 +108,14 @@
   async function loadServices() {
     phantomError = null
     try {
-      status = await api.servicesStatus()
-      const [sc, ym] = await Promise.all([
-        status.soundcloud.connected ? api.servicePlaylists('soundcloud').catch((e) => ((phantomError = String(e)), [])) : [],
-        status.yandex.connected ? api.servicePlaylists('yandex').catch((e) => ((phantomError = String(e)), [])) : [],
-      ])
-      phantom = { sc, ym }
+      const st = await api.servicesStatus()
+      status = st
+      const lists = await Promise.all(
+        ACCOUNT_SERVICES.map((s): Promise<ServicePlaylist[]> | ServicePlaylist[] =>
+          statusOf(st, s)?.connected ? api.servicePlaylists(s.key).catch((e) => ((phantomError = String(e)), [])) : [],
+        ),
+      )
+      phantom = Object.fromEntries(ACCOUNT_SERVICES.map((s, i) => [s.id, lists[i]]))
     } catch {
       status = null
     } finally {
@@ -111,14 +126,28 @@
   $effect(() => {
     library.version
     void loadSaved()
+    void smartLists.load()
   })
   void library.load()
   void loadServices()
+
+  async function loadLocal() {
+    try {
+      const list = await api.localTracks()
+      localCount = list.length
+      localCovers = list.flatMap((x) => (x.cover_url ? [x.cover_url] : [])).filter((c, i, a) => a.indexOf(c) === i).slice(0, 4)
+    } catch {
+      // вне приложения
+    }
+  }
+  void loadLocal()
+  onDestroy(onLocalFilesChanged(() => void loadLocal()))
 
   function refresh() {
     void library.load(true)
     void loadSaved()
     void loadServices()
+    void loadLocal()
   }
 
   async function create() {
@@ -128,6 +157,21 @@
     creating = false
     newName = ''
     if (p) router.go('playlist', p.id)
+  }
+
+  function openLink() {
+    if (!linkOk) return
+    const link = linkText.trim()
+    linking = false
+    linkText = ''
+    openImport(link)
+  }
+
+  /** «Умный плейлист» из окна создания: конструктор правил с уже введённым названием. */
+  function createSmart() {
+    creating = false
+    smartLists.edit({ id: null, name: newName.trim(), rules: blankRules() })
+    newName = ''
   }
 
   function openServices() {
@@ -156,13 +200,15 @@
 {/if}
 
 {#snippet phantomTile(p: ServicePlaylist)}
+  {@const ps = byId(serviceOf(p.ref)) ?? byId('ym')!}
+  {#snippet likeArt()}<span class="svc-like"><SourceIcon service={ps.id} size={ICONS[ps.id]?.likeArtSize ?? 54} mono /></span>{/snippet}
   <Tile
     title={p.title}
-    subtitle={p.owner || (p.ref.startsWith('sc') ? 'SoundCloud' : t('Яндекс Музыка'))}
+    subtitle={p.owner || t(ps.name)}
     meta={p.track_count ? tracksText(p.track_count) : undefined}
     image={p.cover_url}
     icon={p.ref.endsWith('likes') ? 'heart' : 'music'}
-    art={p.ref.endsWith('likes') && !p.cover_url ? (p.ref.startsWith('sc') ? scLikeArt : ymLikeArt) : undefined}
+    art={p.ref.endsWith('likes') && !p.cover_url ? likeArt : undefined}
     onclick={() => openRef(p.ref)}
     oncontextmenu={(e) => {
       e.preventDefault()
@@ -171,8 +217,8 @@
   />
 {/snippet}
 
-{#snippet scLikeArt()}<span class="svc-like"><SourceIcon kind="sc" size={56} mono /></span>{/snippet}
-{#snippet ymLikeArt()}<span class="svc-like"><SourceIcon kind="ym" size={52} mono /></span>{/snippet}
+{#snippet smartBadge()}<Icon name="sparkles" size={15} />{/snippet}
+
 {#snippet favArt()}<NavIcon name="heart" active size={44} />{/snippet}
 
 {#if tab === 'Все' || tab === 'Плейлисты'}
@@ -206,8 +252,37 @@
           }}
         />
       {/each}
+      {#each smartLists.list as p (p.id)}
+        <Tile
+          title={p.name}
+          subtitle={t('Умный плейлист')}
+          meta={p.error ? t('Правила не читаются') : tracksText(p.track_count)}
+          covers={p.covers}
+          icon="sparkles"
+          badge={smartBadge}
+          onclick={() => router.go('playlist', p.id)}
+        />
+      {/each}
     </div>
   </section>
+
+  <!-- файлы из «Папок с музыкой» (NEXT_PROMPT этап 10): только если папки выбраны или что-то найдено -->
+  {#if hasFolders || localCount}
+    <section class="block">
+      <h2>{t('На этом компьютере')} <button class="more" aria-label={t('Все файлы')} onclick={() => router.go('playlist', 'local')}><Icon name="chevronRight" size={18} /></button></h2>
+      <div class="row" use:cascade={tab}>
+        <Tile
+          title={t('Файлы')}
+          subtitle={t('Папки с музыкой')}
+          meta={tracksText(localCount)}
+          icon="monitor"
+          covers={localCovers}
+          onclick={() => router.go('playlist', 'local')}
+        />
+        <Tile title={t('Папки')} subtitle={t('Настройки → Хранилище')} icon="library" ghost onclick={() => settingsPanel.show('system', 'storage')} />
+      </div>
+    </section>
+  {/if}
 
   <!-- плейлисты сервисов — свой ряд, сервис переключается по кругу кликом по названию -->
   <section class="block">
@@ -217,7 +292,7 @@
         <span class="svc-faces" style:width={faceW ? `${faceW}px` : undefined}>
           {#key svc}
             <span class="svc-face" in:swipe out:swipe={{ out: true }} use:measureFace>
-              <SourceIcon kind={svc} size={20} />
+              <SourceIcon service={svc} size={20} />
               {svcName}
             </span>
           {/key}
@@ -231,7 +306,7 @@
           {#if !status && !servicesTried}
             <div class="row"><div class="sk-tile skel"></div><div class="sk-tile skel"></div><div class="sk-tile skel"></div></div>
           {:else if !svcConnected}
-            <p class="hint">{svc === 'sc' ? t('{service} не подключён', { service: svcName }) : t('{service} не подключена', { service: svcName })} — <button class="link" onclick={openServices}>{t('Настройки → Сервисы')}</button></p>
+            <p class="hint">{svcInfo.gender === 'f' ? t('{service} не подключена', { service: svcName }) : t('{service} не подключён', { service: svcName })} — <button class="link" onclick={openServices}>{t('Настройки → Сервисы')}</button></p>
           {:else if services.length}
             <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={svc} use:hscroll use:edges>
               {#each services as p (p.ref)}{@render phantomTile(p)}{/each}
@@ -288,10 +363,24 @@
         <button type="button" class="ghost" onclick={() => (creating = false)}>{t('Отмена')}</button>
         <button type="submit" class="primary" disabled={!newName.trim()}>{t('Создать')}</button>
       </div>
+      <button type="button" class="smart" onclick={createSmart}><Icon name="sparkles" size={15} /> {t('Умный плейлист — по правилам')}</button>
+    </form>
+  {/if}
+  {#if linking}
+    <form class="create link-form" onsubmit={(e) => (e.preventDefault(), openLink())} in:pop={{ y: 8 }} out:pop={{ y: 8 }}>
+      <b>{t('Перенести по ссылке')}</b>
+      <small>{t('Плейлист или альбом Spotify, YouTube Music, VK, Яндекса, SoundCloud или Apple Music — Sonar найдёт треки в твоих сервисах.')}</small>
+      <!-- svelte-ignore a11y_autofocus -->
+      <input placeholder="https://…" bind:value={linkText} autofocus spellcheck="false" onkeydown={(e) => e.key === 'Escape' && (linking = false)} />
+      <div class="btns">
+        <button type="button" class="ghost" onclick={() => (linking = false)}>{t('Отмена')}</button>
+        <button type="submit" class="primary" disabled={!linkOk}>{t('Перенести')}</button>
+      </div>
     </form>
   {/if}
   <div class="actions">
-    <button class:on={creating} aria-label={t('Создать плейлист')} title={t('Создать плейлист')} onclick={() => (creating = !creating)}><NavIcon name="add" size={18} /></button>
+    <button class:on={creating} aria-label={t('Создать плейлист')} title={t('Создать плейлист')} onclick={() => ((creating = !creating), (linking = false))}><NavIcon name="add" size={18} /></button>
+    <button class:on={linking} aria-label={t('Перенести по ссылке')} title={t('Перенести по ссылке')} onclick={() => ((linking = !linking), (creating = false))}><Icon name="link" size={18} /></button>
     <button aria-label={t('Перенос плейлистов сервисов')} title={t('Перенос плейлистов сервисов')} onclick={() => (tab = 'Плейлисты')}><NavIcon name="transfer" size={18} /></button>
     <button aria-label={t('список::Обновить')} title={t('список::Обновить')} onclick={refresh}><NavIcon name="refresh" size={18} /></button>
   </div>
@@ -476,6 +565,15 @@
   .create b {
     font-size: calc(14px * var(--fs, 1));
   }
+  .link-form {
+    width: 320px;
+  }
+  .create small {
+    margin-top: -4px;
+    color: var(--text-3);
+    font-size: calc(12px * var(--fs, 1));
+    line-height: 1.35;
+  }
   .create input {
     height: 36px;
     padding: 0 12px;
@@ -522,6 +620,27 @@
   }
   .primary:disabled {
     opacity: 0.4;
+  }
+  .smart {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px dashed var(--border-strong);
+    color: var(--text-2);
+    font-weight: 600;
+    transition:
+      background var(--fast) var(--ease),
+      color var(--fast) var(--ease);
+  }
+  .smart:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
+  .smart :global(svg) {
+    color: var(--accent);
   }
   .hint {
     margin: -6px 0 12px;

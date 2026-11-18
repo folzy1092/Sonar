@@ -4,15 +4,20 @@
 // Два элемента для бесшовности и кроссфейда, GainNode нормализации — позже (W5).
 import Hls from 'hls.js'
 import { untrack } from 'svelte'
-import { api, errorText, onMediaControl, type PlayerState, type Repeat, type Track } from '../lib/api'
+import { api, errorText, onMediaControl, type PlayerState, type Repeat, type StreamUrl, type Track } from '../lib/api'
 import { eq } from './eq.svelte'
 import { Leveler } from './leveler'
 import { Effects } from './effects'
 import { pitchRatio, tempo } from './tempo.svelte'
 import { settings } from '../lib/settings.svelte'
+import { isFallbackError } from '../lib/services'
+import { fallbackToast, type Via } from '../lib/fallback'
 import { t } from '../lib/i18n.svelte'
+import { playableQueue } from '../lib/local'
+import { isLocalRef } from '../lib/services'
 import { Clock } from '../lyrics/core/clock'
-import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
+import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, fallbackSkipPos, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
+import { toast } from '../lib/toast.svelte'
 
 
 const HEARTBEAT_MS = 30_000
@@ -22,11 +27,18 @@ class Player {
   /** Порядок воспроизведения: индексы в `tracks` (перемешанный, если shuffle). */
   order = $state<number[]>([])
   pos = $state(0)
+  /** Стабильные id элементов очереди, параллельно `tracks` (ключи строк очереди на странице плеера:
+   *  при «вперёд / назад» строка переезжает, а не появляется заново — player/queue-view.ts). */
+  entryIds = $state<number[]>([])
+  private lastEntryId = 0
   context = $state<string | null>(null)
   /** Название контекста для очереди («Любимые», имя плейлиста, альбома, исполнителя). */
   contextTitle = $state<string | null>(null)
 
   playing = $state(false)
+  /** Очередь доиграла до конца (стоит на последнем треке, пауза): «Слушать» начинает подборку заново
+   *  (lib/listen.ts), а не продолжает последний трек. Снимается при загрузке трека и при игре. */
+  ended = $state(false)
   loading = $state(false)
   /** Прогресс загрузки трека для анимации загрузки (components/LoadFx.svelte): `null` — не грузится,
    *  0…1 — этапы (ссылка на поток → метаданные / манифест → первый фрагмент → можно играть),
@@ -47,6 +59,10 @@ class Player {
     if (p >= 1) this.loadDone = setTimeout(() => (this.loadProgress = null), 250)
   }
   error = $state<string | null>(null)
+  /** Сервис трека сам не играет (Spotify без Premium) — нужен резервный сервис, не сбой. */
+  fallbackNeeded = $state(false)
+  /** Трек играет не со своего сервиса (резервный сервис): откуда и почему; null — со своего. */
+  via = $state<Via | null>(null)
   positionMs = $state(0)
   durationMs = $state(0)
   /** Реальный формат потока для плашки: «AAC 160», «MP3 320», «FLAC». */
@@ -171,7 +187,11 @@ class Player {
     )
     addEventListener('ratechange', tick(() => this.clock.setRate(a.playbackRate, a.currentTime, now())))
     addEventListener('ended', () => this.onEnded())
-    addEventListener('error', () => this.onError(a.error?.message || t('не удалось воспроизвести')))
+    addEventListener('error', () => {
+      const message = a.error?.message || t('не удалось воспроизвести')
+      if (a === this.audio) void this.onMediaError(message)
+      else this.onError(message)
+    })
   }
 
   private initRest() {
@@ -258,10 +278,13 @@ class Player {
   // ——— очередь ———
 
   /** Играть список с трека `index`. `context` — откуда (search, favorites, playlist:<id>…). */
-  async playList(tracks: Track[], index: number, context: string | null, title: string | null = null) {
+  async playList(all: Track[], start: number, context: string | null, title: string | null = null) {
+    // пропавшие файлы с компьютера в очередь не идут — на них плеер встал бы с ошибкой
+    const { tracks, index } = playableQueue(all, start)
     if (!tracks.length) return
     this.finishPlay()
     this.tracks = tracks
+    this.entryIds = this.freshIds(tracks.length)
     this.context = context
     this.contextTitle = title
     this.autoRefs = new Set()
@@ -280,23 +303,27 @@ class Player {
 
   /** «Следующим» (`next`) или «В очередь» (в конец, но перед похожими автоплея). Пустая очередь —
    *  сразу играет. `auto` — дописывает автоплей: в самый конец, с отметкой. */
-  async addToQueue(tracks: Track[], next: boolean, auto = false) {
+  async addToQueue(all: Track[], next: boolean, auto = false) {
+    const { tracks } = playableQueue(all, 0)
     if (!tracks.length) return
     if (!this.current) return this.playList(tracks, 0, 'queue')
     void api.cacheTracks(tracks).catch(() => {})
     let order = this.order
     const pos = this.pos
     const list = this.tracks.slice()
+    const ids = this.syncedIds()
     // первое ещё не игравшее похожее автоплея — свои треки встают перед ним
     const firstAuto = next || auto ? -1 : order.findIndex((i, k) => k > pos && this.autoRefs.has(list[i]?.ref))
     let at = firstAuto
     for (const t of next ? [...tracks].reverse() : tracks) {
       list.push(t)
+      ids.push(++this.lastEntryId)
       if (at >= 0) order = enqueueAt(order, at++, list.length - 1)
       else order = enqueue(order, pos, list.length - 1, next)
     }
     if (auto) this.autoRefs = new Set([...this.autoRefs, ...tracks.map((t) => t.ref)])
     this.tracks = list
+    this.entryIds = ids
     this.order = order
     this.saveState()
   }
@@ -306,9 +333,7 @@ class Player {
     const at = this.pos + 1 + upNextIndex
     const idx = this.order[at]
     if (idx === undefined) return
-    const out = dropUpcoming(this.tracks.map((tr, i) => ({ tr, i })), this.order, this.pos, (x) => x.i === idx)
-    this.tracks = out.tracks.map((x) => x.tr)
-    this.order = out.order
+    this.dropEntries((_, i) => i === idx)
     this.saveState()
   }
 
@@ -316,9 +341,7 @@ class Player {
   dropAuto() {
     const auto = this.autoRefs
     if (!auto.size) return
-    const out = dropUpcoming(this.tracks, this.order, this.pos, (t) => auto.has(t.ref))
-    this.tracks = out.tracks
-    this.order = out.order
+    this.dropEntries((t) => auto.has(t.ref))
     this.autoRefs = new Set()
     this.saveState()
   }
@@ -326,18 +349,43 @@ class Player {
   /** Убрать из «Далее» ещё не игравшие треки, подходящие под `drop`, кроме `keep` ближайших
    *  (волна после серии пропусков: очередь подбиралась под вкус, которого сейчас нет). Вернёт убранные. */
   dropUpNext(keep: number, drop: (t: Track) => boolean): Track[] {
-    const out = dropUpcoming(this.tracks, this.order, this.pos, drop, keep)
+    const dropped = this.dropEntries(drop, keep)
+    if (dropped.length) this.saveState()
+    return dropped
+  }
+
+  /** Новые id для `n` элементов очереди. */
+  private freshIds(n: number): number[] {
+    return Array.from({ length: n }, () => ++this.lastEntryId)
+  }
+
+  /** id элементов очереди той же длины, что `tracks` (копия; не совпало — выдать новые). */
+  private syncedIds(): number[] {
+    return this.entryIds.length === this.tracks.length ? this.entryIds.slice() : this.freshIds(this.tracks.length)
+  }
+
+  /** Убрать из «Далее» не игравшие треки под `drop` (с номером в `tracks`), id уходят вместе с ними. */
+  private dropEntries(drop: (t: Track, index: number) => boolean, keep = 0): Track[] {
+    const ids = this.syncedIds()
+    const rows = this.tracks.map((tr, i) => ({ tr, i, id: ids[i] }))
+    const out = dropUpcoming(rows, this.order, this.pos, (x) => drop(x.tr, x.i), keep)
     if (!out.dropped.length) return []
-    this.tracks = out.tracks
+    this.tracks = out.tracks.map((x) => x.tr)
+    this.entryIds = out.tracks.map((x) => x.id)
     this.order = out.order
-    this.saveState()
-    return out.dropped
+    return out.dropped.map((x) => x.tr)
   }
 
   /** Перейти к треку из «Далее» (номер в upNext). */
   async jumpTo(upNextIndex: number) {
+    await this.playPos(this.pos + 1 + upNextIndex)
+  }
+
+  /** Сыграть трек с позиции `p` в порядке воспроизведения (строки «Ранее» и «Далее» в очереди). */
+  async playPos(p: number) {
+    if (!Number.isInteger(p) || p < 0 || p >= this.order.length) return
     this.finishPlay(true)
-    this.pos = this.pos + 1 + upNextIndex
+    this.pos = p
     await this.load(true)
   }
 
@@ -349,6 +397,7 @@ class Player {
     if (p === null) {
       this.pause()
       this.seek(0)
+      this.ended = true
       return
     }
     this.pos = p
@@ -474,8 +523,9 @@ class Player {
     this.effects?.setReverb(tempo.wet)
   }
 
-  /** `crossfade` — зовёт кроссфейд: старый дек ещё затухает, громкость нового выставит сам переход. */
-  private async load(autoplay: boolean, startMs = 0, crossfade = false) {
+  /** `crossfade` — зовёт кроссфейд: старый дек ещё затухает, громкость нового выставит сам переход.
+   *  `fallbackSkips` — сколько треков подряд уже пропущено из-за «нужен резервный сервис». */
+  private async load(autoplay: boolean, startMs = 0, crossfade = false, fallbackSkips = 0) {
     if (!crossfade) {
       this.endFade()
       this.gainTo(this.audio, 1, 0)
@@ -486,7 +536,10 @@ class Player {
     const track = this.current
     if (!a || !track) return
     const token = ++this.loadToken
+    this.ended = false
     this.error = null
+    this.fallbackNeeded = false
+    this.via = null
     this.loading = true
     this.stage(0)
     this.durationMs = track.duration_ms
@@ -498,37 +551,101 @@ class Player {
     this.updateMedia()
 
     try {
-      const s = await api.streamUrl(track.ref)
+      const s = await api.streamUrl(track.ref, track)
       if (token !== this.loadToken) return
       this.stage(0.35)
-      this.quality = s.quality
-      if (s.kind === 'hls' && Hls.isSupported()) {
-        const hls = new Hls({ startPosition: startMs / 1000 })
-        hls.on(Hls.Events.ERROR, (_e, data) => {
-          if (data.fatal && token === this.loadToken) this.onError(`HLS: ${data.details}`)
-        })
-        hls.on(Hls.Events.MANIFEST_PARSED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.6))
-        hls.on(Hls.Events.FRAG_LOADED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.9))
-        hls.loadSource(s.url)
-        hls.attachMedia(a)
-        this.hls = hls
-      } else {
-        a.src = s.url
-        if (startMs) a.currentTime = startMs / 1000
-      }
-      this.applySpeed()
-      this.listenedMs = 0
-      this.startedAt = Date.now()
-      this.lastTick = 0
-      if (autoplay) await a.play()
-      else {
-        this.loading = false
-        this.stage(1)
-      }
+      this.announce(s)
+      await this.attach(s, token, autoplay, startMs)
+      this.localMisses = 0
       this.saveState()
     } catch (e) {
-      if (token === this.loadToken) this.onError(errorText(e))
+      // play() отклонён из-за ошибки потока — её уже подхватил onMediaError и ищет резервный сервис
+      if (token !== this.loadToken || this.fallbackTried === token) return
+      if (isFallbackError(track.ref, e) && this.skipFallback(autoplay, fallbackSkips + 1)) return
+      this.fallbackNeeded = isFallbackError(track.ref, e)
+      this.onError(errorText(e))
+      // файл с компьютера пропал уже в очереди — дальше, а не стоп; круг без живых треков не крутим
+      if (autoplay && isLocalRef(track.ref) && ++this.localMisses < this.order.length) void this.next(false)
     }
+  }
+
+  /** Поток в дек: HLS — через hls.js, файл — в <audio>; потом скорость и старт (`autoplay`). */
+  private async attach(s: StreamUrl, token: number, autoplay: boolean, startMs: number) {
+    const a = this.audio
+    if (!a) return
+    if (s.kind === 'hls' && Hls.isSupported()) {
+      const hls = new Hls({ startPosition: startMs / 1000 })
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (data.fatal && token === this.loadToken) void this.onMediaError(`HLS: ${data.details}`)
+      })
+      hls.on(Hls.Events.MANIFEST_PARSED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.6))
+      hls.on(Hls.Events.FRAG_LOADED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.9))
+      hls.loadSource(s.url)
+      hls.attachMedia(a)
+      this.hls = hls
+    } else {
+      a.src = s.url
+      if (startMs) a.currentTime = startMs / 1000
+    }
+    this.applySpeed()
+    this.listenedMs = 0
+    this.startedAt = Date.now()
+    this.lastTick = 0
+    if (autoplay) await a.play()
+    else {
+      this.loading = false
+      this.stage(1)
+    }
+  }
+
+  /** Плашка качества и всплывашка «Играет из YouTube Music — в SoundCloud недоступен». */
+  private announce(s: StreamUrl) {
+    this.quality = s.quality
+    this.via = s.via
+    const note = fallbackToast(s.via)
+    if (note) toast.show(note)
+  }
+
+  /** Загрузка, для которой резервный сервис уже пробовали: второй раз не ищем, а показываем ошибку. */
+  private fallbackTried = -1
+
+  /** Свой поток открылся, но не играет (ошибка <audio> или hls.js) — тот же трек из резервного
+   *  сервиса (`stream_fallback`), с того же места. Не нашёлся или резерв выключен — ошибка как раньше. */
+  private async onMediaError(message: string) {
+    const track = this.current
+    const token = this.loadToken
+    const canRetry = track && !isLocalRef(track.ref) && this.fallbackTried !== token && settings.get('audio.fallback')
+    if (!track || !canRetry) return this.onError(message)
+    this.fallbackTried = token
+    const resume = this.playing || this.loading
+    const startMs = this.positionMs
+    this.loading = resume
+    try {
+      const s = await api.streamFallback(track.ref, track)
+      if (token !== this.loadToken) return
+      this.hls?.destroy()
+      this.hls = null
+      this.error = null
+      this.announce(s)
+      await this.attach(s, token, resume, startMs)
+    } catch {
+      if (token === this.loadToken) this.onError(message)
+    }
+  }
+
+  /** Сколько пропавших файлов с компьютера подряд пропущено — чтобы не ходить по кругу. */
+  private localMisses = 0
+
+  /** Трек сам не играет (нужен резервный сервис) — не стоп, а следующий по очереди. Вся очередь
+   *  такая — `false`: остаётся понятное состояние «нужен резервный сервис» в мини-плеере. */
+  private skipFallback(autoplay: boolean, skips: number): boolean {
+    if (!autoplay) return false
+    const p = fallbackSkipPos(this.pos, this.order.length, this.repeat, skips)
+    if (p === null) return false
+    toast.show(t('Нужен резервный сервис — трек пропущен'))
+    this.pos = p
+    void this.load(true, 0, false, skips)
+    return true
   }
 
   private onTime() {
@@ -569,7 +686,7 @@ class Player {
     const left = dur - ms
     if (left < span + 6000 && this.warmedFor !== next.ref) {
       this.warmedFor = next.ref
-      void api.streamUrl(next.ref).catch(() => {})
+      void api.streamUrl(next.ref, next).catch(() => {})
     }
     // timeupdate идёт ~4 раза в секунду — запас на один шаг
     if (left <= span + 260) void this.crossfade(p, span)
@@ -670,6 +787,7 @@ class Player {
 
   private setPlaying(on: boolean) {
     this.playing = on
+    if (on) this.ended = false
     if (on && this.ctx?.state === 'suspended') void this.ctx.resume()
     if (on) this.error = null
     if (this.heartbeat) clearInterval(this.heartbeat)
@@ -758,6 +876,7 @@ class Player {
       if (!tracks.length) return
       const index = Math.max(0, tracks.findIndex((t) => t.ref === state.ref))
       this.tracks = tracks
+      this.entryIds = this.freshIds(tracks.length)
       this.context = state.context
       this.repeat = state.repeat
       this.shuffle = state.shuffle
