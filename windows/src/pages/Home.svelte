@@ -7,12 +7,14 @@
   import Icon from '../components/Icon.svelte'
   import Tile from '../components/Tile.svelte'
   import Shelf from '../components/Shelf.svelte'
-  import Cover from '../components/Cover.svelte'
+  import MixCard from '../components/MixCard.svelte'
   import RecapInvite from '../components/RecapInvite.svelte'
   import PlayPause from '../components/PlayPause.svelte'
-  import { api, type Album, type Track } from '../lib/api'
-  import { tracksText } from '../lib/format'
-  import { openRef } from '../app/router.svelte'
+  import type { Album } from '../lib/api'
+  import { openRef, router } from '../app/router.svelte'
+  import type { IconName } from '../components/icons'
+  import type { MixId } from '../lib/home-mixes'
+  import { mixes } from './mixes.svelte'
   import { player } from '../player/player.svelte'
   import { settings } from '../lib/settings.svelte'
   import { WAVE_MODES } from '../player/my-wave.svelte'
@@ -63,27 +65,22 @@
   ] as const
   let chartPeriod = $state<(typeof CHART_PERIODS)[number]['id']>('week')
 
+  /** Значок пустой мозаики подборки. */
+  const MIX_ICON: Record<MixId, IconName> = { daypart: 'clock', recent: 'history', new: 'sparkles', fresh: 'trending', like: 'music' }
+  // какие подборки показывать: пустые сетевые — пока грузятся, «Похоже на трек» — всегда, когда есть история
+  const forYou = $derived(
+    (['daypart', 'recent', 'new', 'fresh', 'like'] as const).filter((id) =>
+      id === 'like' ? !!(mixes.seed || home.recent.length) : mixes.tracks(id).length > 0 || mixes.isLoading(id),
+    ),
+  )
+
   onMount(() => {
-    void home.load()
+    void home.load().then(() => mixes.load())
     wave.ensureCovers()
   })
 
   const playingWave = $derived(wave.active && player.playing)
 
-  const titles = (list: Track[]) =>
-    list
-      .slice(0, 2)
-      .map((t) => t.title)
-      .join(', ')
-  const recentTitle = $derived(titles(home.recent))
-
-
-  function playMix(i: number) {
-    void player.playList(home.mix, i, 'daypart', t(part.mix))
-  }
-  function playRecent(i: number) {
-    void player.playList(home.recent, i, 'recent', t('Недавнее'))
-  }
   function playSimilar(i: number) {
     void player.playList(home.similar, i, 'similar', t('Похожее'))
   }
@@ -146,20 +143,20 @@
 
 <RecapInvite />
 
+<!-- «Для тебя»: подборки-карточки; клик открывает страницу подборки (MixPage), а не очередь -->
 <section class="block">
   <h2>{t('Для тебя')}</h2>
-  {#if home.mix.length || home.recent.length}
-    <Shelf wheel>
-      <!-- первым — подборка под время суток (что слушаешь в эти часы + лайки), за ней «Недавнее»;
-           обе — веером из трёх обложек, как у Dotify -->
-      {#if home.mix.length}
-        {@render fan(home.mix, t(part.mix), t('подборка · {tracks}', { tracks: tracksText(home.mix.length) }), () => playMix(0), titles(home.mix))}
-      {/if}
-      {#if home.recent.length}
-        {@render fan(home.recent, t('Недавнее'), tracksText(home.recent.length), () => playRecent(0), recentTitle)}
-      {/if}
-      {#each home.mix.length ? home.mix : home.recent as t, i (t.ref)}
-        <Tile title={t.title} subtitle={t.artist} image={t.cover_url} source={t.ref} onclick={() => (home.mix.length ? playMix(i) : playRecent(i))} />
+  {#if forYou.length}
+    <Shelf wheel key={forYou.length}>
+      {#each forYou as id (id)}
+        <MixCard
+          title={mixes.title(id)}
+          tracks={mixes.tracks(id)}
+          loading={mixes.isLoading(id)}
+          hint={id === 'like' ? t('Выбери трек — соберу похожее') : t('Пока пусто — слушай и лайкай')}
+          icon={MIX_ICON[id]}
+          onclick={() => router.go('mix', id)}
+        />
       {/each}
     </Shelf>
   {:else if home.loading}
@@ -227,18 +224,6 @@
     <span class="soon-ic"><Icon name={icon} size={18} /></span>
     <p>{text}</p>
   </div>
-{/snippet}
-
-{#snippet fan(list: Track[], title: string, sub: string, onclick: () => void, hint: string)}
-  <button class="stack" title={hint} {onclick}>
-    <span class="fan">
-      {#each list.slice(0, 3).reverse() as t, i (t.ref)}
-        <span class="leaf l{list.slice(0, 3).length - 1 - i}"><Cover url={t.cover_url} size={160} radius="var(--radius-l)" /></span>
-      {/each}
-    </span>
-    <span class="st-title">{title}</span>
-    <span class="st-sub">{sub}</span>
-  </button>
 {/snippet}
 
 {#snippet skeleton()}
@@ -475,52 +460,6 @@
   .sk-line.short {
     width: 50%;
   }
-  .stack {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    width: 280px;
-    flex-shrink: 0;
-    text-align: left;
-  }
-  .fan {
-    position: relative;
-    height: 160px;
-    margin-bottom: 8px;
-  }
-  .leaf {
-    position: absolute;
-    top: 0;
-    left: 0;
-    border-radius: var(--radius-l);
-    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.45);
-    transition: transform var(--normal) var(--ease);
-  }
-  .leaf.l0 {
-    z-index: 3;
-  }
-  .leaf.l1 {
-    z-index: 2;
-    transform: translateX(62px) scale(0.86);
-    transform-origin: left center;
-  }
-  .leaf.l2 {
-    z-index: 1;
-    transform: translateX(112px) scale(0.74);
-    transform-origin: left center;
-  }
-  .stack:hover .leaf.l1 {
-    transform: translateX(74px) scale(0.86);
-  }
-  .stack:hover .leaf.l2 {
-    transform: translateX(136px) scale(0.74);
-  }
-  .st-title {
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .head {
     display: flex;
     align-items: center;
@@ -588,9 +527,5 @@
       opacity: 0;
       transform: translateY(6px);
     }
-  }
-  .st-sub {
-    font-size: calc(12px * var(--fs, 1));
-    color: var(--text-2);
   }
 </style>

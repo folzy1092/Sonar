@@ -7,6 +7,8 @@ import { t } from '../lib/i18n.svelte'
 import { ACCOUNT_SERVICES, statusOf } from '../lib/services'
 
 const TTL = 15 * 60_000
+/** Сколько недавнего держим: подборка «Недавнее» и затравки «Похоже на». */
+const RECENT = 50
 const WEEK = 7 * 24 * 3600_000
 
 /** Часть суток для приветствия и подборки. Подписи DAYPART_TEXT — ключи перевода, `t()` при показе. */
@@ -66,7 +68,7 @@ class Home {
   async load() {
     this.loading = !this.recent.length
     try {
-      ;[this.recent, this.mix] = await Promise.all([api.recentTracks(20), api.daypartMix(24).catch(() => [])])
+      ;[this.recent, this.mix] = await Promise.all([api.recentTracks(RECENT), api.daypartMix(24).catch(() => [])])
     } catch {
       // вне приложения — пусто
     } finally {

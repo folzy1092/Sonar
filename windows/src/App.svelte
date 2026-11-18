@@ -22,6 +22,7 @@
   import ProfilePage from './pages/ProfilePage.svelte'
   import ImportPage from './pages/ImportPage.svelte'
   import DupesPage from './pages/DupesPage.svelte'
+  import MixPage from './pages/MixPage.svelte'
   import TrackMenu from './app/TrackMenu.svelte'
   import PlaylistMenu from './app/PlaylistMenu.svelte'
   import ConfirmDialog from './app/ConfirmDialog.svelte'
@@ -64,6 +65,7 @@
     profile: ProfilePage,
     import: ImportPage,
     dupes: DupesPage,
+    mix: MixPage,
   }
   /** Строка поиска — только на странице поиска (на главной её нет, решение владельца). */
   const withSearch: Page[] = ['search']
@@ -71,7 +73,7 @@
    *  висят поверх справа, а страница начинается от самого верха. */
   const ownHeader: Page[] = ['library']
   /** Страницы, где шапка стоит на месте, а прокручивается только список треков (как у Dotify). */
-  const fixedPages: Page[] = ['playlist']
+  const fixedPages: Page[] = ['playlist', 'mix']
   /** Строки поиска нет — кнопки окна висят поверх в углу, страница начинается от самого верха. */
   const floatHeader = $derived(ownHeader.includes(router.page) || !withSearch.includes(router.page))
 

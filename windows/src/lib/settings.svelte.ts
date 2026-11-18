@@ -243,6 +243,8 @@ export const DEFAULTS = {
   'wave.mode': 'own' as 'own' | 'fun' | 'calm' | 'sad' | 'hard' | 'night' | 'sleep' | 'popular' | 'focus',
   /** Итоги, которые уже открывали или закрыли на Главной: id через запятую (`month-2026-11,year-2026`), до 24 последних; пусто — никакие. */
   'stats.recap_seen': '' as string,
+  /** Трек-затравка подборки «Похоже на трек» на Главной (`lib/home-mixes.ts` `SeedTrack`); пусто — последний прослушанный. */
+  'home.similar_seed': null as { ref: string; title: string; artist: string; cover_url: string | null } | null,
   'obs.size': 'standard' as 'standard' | 'compact',
   'obs.hide_paused': true,
   /** Токен ссылки плашки OBS; пусто — плашка выключена (первый создаёт Rust при запуске). */
