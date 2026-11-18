@@ -161,21 +161,36 @@ export const DEFAULTS = {
   'integrations.lastfm.scrobble': true,
   'integrations.lastfm.now_playing': true,
   'system.autostart': true,
-  /** Горячие клавиши по всей системе (hotkeys.rs) — выключены, пока не включишь. */
-  'hotkeys.enabled': false,
+  /** Где действуют сочетания (`HotkeyScope`): только в окне · ещё и пока открыто мини-окно / оверлей · везде,
+   *  даже из трея (hotkeys.rs). Старое `hotkeys.enabled = true` читается как `global` — `settings-migrate.ts`. */
+  'hotkeys.scope': 'app' as 'app' | 'top' | 'global',
   /** Пульт с iPhone по Wi-Fi (remote/): сервер в локальной сети и объявление `_sonar._tcp`. Только на этом устройстве. */
   'remote.enabled': false,
-  /** Действие → сочетание (коды KeyboardEvent.code); пустая строка — без клавиши. */
+  /** Действие (`HOTKEY_ACTIONS`) → сочетание (коды KeyboardEvent.code); пустая строка — без клавиши. Чего нет
+   *  в сохранённой карте (новые действия) — берётся отсюда. Всё, что может работать по всей системе, — с
+   *  Ctrl+Alt: голый Ctrl+O / Ctrl+T перехватил бы «Открыть» и «Новую вкладку» во всех программах. */
   'hotkeys.map': {
     toggle: 'Ctrl+Alt+Space',
     next: 'Ctrl+Alt+ArrowRight',
     prev: 'Ctrl+Alt+ArrowLeft',
-    like: 'Ctrl+Alt+KeyL',
+    seek_back: '',
+    seek_fwd: '',
     volume_up: 'Ctrl+Alt+ArrowUp',
     volume_down: 'Ctrl+Alt+ArrowDown',
+    mute: 'Ctrl+Alt+KeyM',
+    shuffle: '',
+    repeat: '',
+    like: 'Ctrl+Alt+KeyL',
+    search: 'Slash',
+    lyrics: 'Ctrl+KeyL',
+    queue: 'Ctrl+KeyQ',
+    settings: 'Ctrl+Comma',
+    wave: '',
+    overlay: 'Ctrl+Alt+KeyO',
+    mini: 'Ctrl+Alt+KeyT',
     window: 'Ctrl+Alt+KeyS',
   } as Record<string, string>,
-  /** Быстрое окно (Ctrl+K) — только внутри окна Sonar, от `hotkeys.enabled` не зависит; пусто — выключено. */
+  /** Быстрое окно (Ctrl+K) — только внутри окна Sonar, от `hotkeys.scope` не зависит; пусто — выключено. */
   'hotkeys.quick': 'Ctrl+KeyK',
   'system.tray': true,
   'system.power_saving': 'background' as 'off' | 'minimized' | 'background',
