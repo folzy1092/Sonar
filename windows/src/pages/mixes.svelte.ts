@@ -185,23 +185,24 @@ class Mixes {
   }
 
   /** «Похоже на трек»: тот же трек сегодня — не перезапрашиваем. */
-  async loadLike(force = false) {
+  async loadLike(force = false): Promise<void> {
     const seed = this.seed
     if (!seed || this.likeLoading) return
     if (!force && this.likeFor === seed.ref && this.like.length) return
     this.likeLoading = true
+    let list: Track[] | null = null
     try {
-      const list = await api.similarTracks(seed.ref, PER_SEED + 10)
-      if (this.seed?.ref !== seed.ref) return
-      this.like = limitPerArtist(dedupe(list.filter((x) => x.ref !== seed.ref)), MAX_PER_ARTIST_LOOSE)
-      this.likeFor = seed.ref
-      this.save()
+      list = await api.similarTracks(seed.ref, PER_SEED + 10)
     } catch {
-      this.like = []
-      this.likeFor = seed.ref
+      list = null
     } finally {
       this.likeLoading = false
     }
+    // пока грузили, выбрали другой трек — его запрос пропустили из-за флага, грузим заново
+    if (this.seed?.ref !== seed.ref) return this.loadLike(force)
+    this.like = list ? limitPerArtist(dedupe(list.filter((x) => x.ref !== seed.ref)), MAX_PER_ARTIST_LOOSE) : []
+    this.likeFor = seed.ref
+    if (list) this.save()
   }
 
   /** Выбор трека для «Похоже на трек» (запоминается в настройке) и пересборка. */

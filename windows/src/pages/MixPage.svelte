@@ -39,10 +39,12 @@
 
   onMount(() => {
     // прямой переход (Ctrl+K, история) — Главная могла ещё не грузиться
-    if (!home.recent.length && !home.mix.length) void home.load().then(() => mixes.load())
-    else void mixes.load()
-    // «Похоже на трек» без истории и без выбора — сразу предложить выбрать
-    if (id === 'like' && !mixes.seed) picking = true
+    const ready = !home.recent.length && !home.mix.length ? home.load() : Promise.resolve()
+    void ready.then(() => {
+      void mixes.load()
+      // «Похоже на трек» без истории и без выбора — сразу предложить выбрать (история уже пришла)
+      if (id === 'like' && !mixes.seed) picking = true
+    })
   })
 
   const play = (i: number) => player.playList(visible, i, context, title)
