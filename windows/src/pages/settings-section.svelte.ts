@@ -58,6 +58,58 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
   ],
 }
 
+/** Боковое меню настроек (решение владельца 2026-11-18, вместо вкладок и капсул): группы с пунктами.
+ *  Пункт — пара (вкладка, подраздел) из SUBS: адреса разделов те же, меню только раскладывает их иначе. */
+export interface NavGroup {
+  title: string
+  items: { tab: SettingsTab; sub: string }[]
+}
+
+export const NAV: NavGroup[] = [
+  {
+    title: 'Аккаунт',
+    items: [
+      { tab: 'account', sub: 'login' },
+      { tab: 'account', sub: 'privacy' },
+      { tab: 'subscription', sub: 'plans' },
+      { tab: 'account', sub: 'stats' },
+      { tab: 'services', sub: 'services' },
+    ],
+  },
+  {
+    title: 'Приложение',
+    items: [
+      { tab: 'system', sub: 'general' },
+      { tab: 'player', sub: 'audio' },
+      { tab: 'player', sub: 'queue' },
+      { tab: 'system', sub: 'storage' },
+      { tab: 'integrations', sub: 'apps' },
+      { tab: 'system', sub: 'hotkeys' },
+      { tab: 'system', sub: 'remote' },
+      { tab: 'system', sub: 'update' },
+    ],
+  },
+  {
+    title: 'Интерфейс',
+    items: [
+      { tab: 'interface', sub: 'style' },
+      { tab: 'interface', sub: 'look' },
+      { tab: 'interface', sub: 'tabs' },
+      { tab: 'player', sub: 'view' },
+      { tab: 'player', sub: 'mini' },
+    ],
+  },
+]
+
+/** Пункт меню → его описание из SUBS. Названия внутри «Плеера» уточнены, чтобы в общем списке не было двух «Вид». */
+export function navSub(tab: SettingsTab, sub: string): SettingsSub | undefined {
+  const found = SUBS[tab].find((s) => s.id === sub)
+  if (!found) return undefined
+  if (tab === 'player' && sub === 'view') return { ...found, title: 'Плеер' }
+  if (tab === 'integrations' && sub === 'apps') return { ...found, title: 'Интеграции' }
+  return found
+}
+
 /** Подраздел по умолчанию — первый рабочий. */
 export const firstSub = (tab: SettingsTab) => (SUBS[tab].find((s) => !s.soon && !s.lock) ?? SUBS[tab][0]).id
 

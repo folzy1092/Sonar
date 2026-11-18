@@ -6,7 +6,6 @@
   import { api } from '../../lib/api'
   import { cascade } from '../../lib/cascade'
   import { indicator } from '../../lib/indicator'
-  import { edges } from '../../lib/edges'
   import { t, tn } from '../../lib/i18n.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { cleanUsername } from '../../lib/avatar'
@@ -63,7 +62,7 @@
       <h3 class="name">{SUB_NAME} {plan.name}</h3>
     {/key}
     <small class="muted">{seatsLabel(plan.seats)}</small>
-    <ul class="perks" use:cascade={planId} use:edges>
+    <ul class="perks" use:cascade={planId}>
       {#each PERKS as perk (perk)}
         <li><Icon name="check" size={15} />{t(perk)}</li>
       {/each}
