@@ -9,7 +9,8 @@
   import { t, tn } from '../../lib/i18n.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { cleanUsername } from '../../lib/avatar'
-  import { PERIODS, PERKS, PLANS, SUB_NAME, payUrl, price, rub, savedPercent, type PeriodId, type PlanId } from '../../lib/subscription'
+  import { PERIODS, PERKS, PLANS, SUB_NAME, payUrl, price, rub, savedPercent, subscriptionOf, type PeriodId, type PlanId } from '../../lib/subscription'
+  import DevBadge from '../../components/profile/DevBadge.svelte'
   import { toast } from '../../lib/toast.svelte'
 
   let planId = $state<PlanId>('ping')
@@ -17,6 +18,8 @@
   const plan = $derived(PLANS.find((p) => p.id === planId) ?? PLANS[0])
   const period = $derived(PERIODS.find((p) => p.id === periodId) ?? PERIODS[0])
   const total = $derived(price(plan, period))
+  // статус аккаунта — одна функция `subscriptionOf` (до сервера — по нику, потом — `GET /me`)
+  const sub = $derived(subscriptionOf({ username: settings.get('profile.username') }))
 
   const periodLabel = (months: number) =>
     months === 12 ? t('1 год') : tn(months, ['{n} месяц', '{n} месяца', '{n} месяцев']).replace('{n}', String(months))
@@ -28,6 +31,20 @@
     api.openUrl(url).catch(() => toast.show(url))
   }
 </script>
+
+{#if sub.tier === 'dev'}
+  <section class="dev-card" aria-label={t('Твоя подписка')}>
+    <span class="dev-mark" aria-hidden="true"><Icon name="sparkles" size={20} /></span>
+    <div class="dev-text">
+      <span class="dev-title">
+        <b>{SUB_NAME}</b>
+        <DevBadge size={11} />
+        <small>· {sub.until ?? t('без срока')}</small>
+      </span>
+      <small>{t('Ты разработчик Sonar: всё Sonar Deep открыто, лимитов нет. Тарифы ниже — для остальных.')}</small>
+    </div>
+  </section>
+{/if}
 
 <div class="sub">
   <div class="left">
@@ -75,6 +92,54 @@
 </div>
 
 <style>
+  .dev-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+    padding: 16px 18px;
+    border-radius: 16px;
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--card-line));
+    background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 14%, var(--plate)), var(--plate) 70%);
+    box-shadow: var(--sheen);
+    animation: dev-card-in var(--normal, 0.26s) var(--ease) both;
+  }
+  .dev-mark {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    color: var(--accent);
+  }
+  .dev-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .dev-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .dev-title b {
+    font-size: calc(16px * var(--fs, 1));
+    font-weight: 800;
+  }
+  .dev-title small,
+  .dev-text > small {
+    color: var(--text-2);
+  }
+  @keyframes dev-card-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
   .sub {
     display: grid;
     grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
@@ -260,9 +325,17 @@
     .name {
       animation: none;
     }
+    .dev-card {
+      animation-name: dev-card-fade;
+    }
     .period:active,
     .pay:active {
       transform: none;
+    }
+  }
+  @keyframes dev-card-fade {
+    from {
+      opacity: 0;
     }
   }
 </style>
