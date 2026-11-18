@@ -12,18 +12,85 @@
   import { playStation } from '../player/autoplay.svelte'
   import { api, type Track } from '../lib/api'
   import { t } from '../lib/i18n.svelte'
+  import { tick } from 'svelte'
+  import { fade } from 'svelte/transition'
+  import { autocompleteSource } from './autocomplete-source.svelte'
+  import { canSuggest, decideKey, suggest, type FieldState } from '../lib/autocomplete'
+  import { reducedMotion } from '../lib/motion'
 
   // недавнее под пустым полем: открывается кликом по полю, закрывается кликом мимо (или выбором)
   let open = $state(false)
   let root: HTMLDivElement | undefined = $state()
   const showRecent = $derived(open && !search.query.trim() && searchHistory.items.length > 0)
 
+  // Серая подсказка-дописывание (lib/autocomplete.ts): слой под полем, Tab / → — принять.
+  let input: HTMLInputElement | undefined = $state()
+  let focused = $state(false)
+  let composing = $state(false)
+  let caret = $state({ start: 0, end: 0 })
+  /** Сдвиг прокрутки поля — слой подсказки едет вместе с текстом. */
+  let scrollX = $state(0)
+  /** Esc убрал подсказку к этому тексту; набрал дальше — подсказка вернётся. */
+  let dismissedFor = $state<string | null>(null)
+
+  autocompleteSource.watchLikes()
+
+  const fieldState = $derived<FieldState>({ value: search.query, selectionStart: caret.start, selectionEnd: caret.end, composing })
+  const hint = $derived(focused && dismissedFor !== search.query && canSuggest(fieldState) ? suggest(autocompleteSource.candidates, search.query) : null)
+  const fadeMs = $derived(reducedMotion() ? 0 : 120)
+
+  function syncCaret() {
+    if (!input) return
+    caret = { start: input.selectionStart ?? 0, end: input.selectionEnd ?? 0 }
+    scrollX = input.scrollLeft
+  }
+
+  async function accept(value: string) {
+    search.query = value
+    dismissedFor = null
+    open = false
+    if (router.page !== 'search') router.go('search')
+    await tick()
+    if (!input) return
+    input.setSelectionRange(value.length, value.length)
+    input.scrollLeft = input.scrollWidth
+    syncCaret()
+  }
+
+  /** Второй Esc (подсказки уже нет): закрыть недавнее, потом очистить, потом уйти из поля. */
+  function escape() {
+    if (open) open = false
+    else if (search.query) search.query = ''
+    else input?.blur()
+  }
+
+  function onKeydown(e: KeyboardEvent) {
+    if (e.isComposing) return
+    const d = decideKey(e.key, fieldState, hint, { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, alt: e.altKey })
+    if (d.kind === 'accept') {
+      e.preventDefault()
+      void accept(d.value)
+    } else if (d.kind === 'search') {
+      open = false
+      if (d.value.trim() && router.page !== 'search') router.go('search')
+    } else if (d.kind === 'dismiss') {
+      e.preventDefault()
+      dismissedFor = search.query
+    } else if (e.key === 'Escape') escape()
+  }
+
   onMount(() => {
     const outside = (e: MouseEvent) => {
       if (open && root && !root.contains(e.target as Node)) open = false
     }
+    // выделение мышью и перенос курсора — подсказка прячется, пока курсор не в конце
+    const selection = () => document.activeElement === input && syncCaret()
     window.addEventListener('mousedown', outside, true)
-    return () => window.removeEventListener('mousedown', outside, true)
+    document.addEventListener('selectionchange', selection)
+    return () => {
+      window.removeEventListener('mousedown', outside, true)
+      document.removeEventListener('selectionchange', selection)
+    }
   })
 
   async function pick(e: SearchEntry) {
@@ -50,6 +117,9 @@
   }))
 
   function onInput() {
+    syncCaret()
+    // Esc убрал подсказку только к тому тексту; любая правка (и Backspace) — снова считаем
+    dismissedFor = null
     if (search.query.trim() && router.page !== 'search') router.go('search')
   }
 </script>
@@ -57,18 +127,47 @@
 <div class="bar" bind:this={root}>
   <label class="field">
     <Icon name="search" size={18} />
-    <input
-      type="text"
-      placeholder={t('Что включить?')}
-      spellcheck="false"
-      bind:value={search.query}
-      oninput={onInput}
-      onclick={() => {
-        open = true
-        void searchHistory.load()
-      }}
-    />
+    <span class="inwrap">
+      {#if hint}
+        <span class="ghost" aria-hidden="true">
+          <span class="ghost-line" style:transform="translateX({-scrollX}px)">
+            <span class="typed">{search.query}</span>{#key hint.full}<span class="tail" in:fade|global={{ duration: fadeMs }}
+                >{#if hint.relayout}<span class="arrow">&nbsp;→&nbsp;</span>{hint.full}{:else}{hint.tail}{/if}<span class="tab">Tab</span></span
+              >{/key}
+          </span>
+        </span>
+      {/if}
+      <input
+        bind:this={input}
+        type="text"
+        placeholder={t('Что включить?')}
+        spellcheck="false"
+        autocomplete="off"
+        aria-autocomplete="inline"
+        bind:value={search.query}
+        oninput={onInput}
+        onkeydown={onKeydown}
+        onkeyup={syncCaret}
+        onscroll={syncCaret}
+        onfocus={() => {
+          focused = true
+          autocompleteSource.ensure()
+          syncCaret()
+        }}
+        onblur={() => (focused = false)}
+        oncompositionstart={() => (composing = true)}
+        oncompositionend={() => {
+          composing = false
+          syncCaret()
+        }}
+        onclick={() => {
+          open = true
+          void searchHistory.load()
+        }}
+      />
+    </span>
   </label>
+  <span class="sr" aria-live="polite">{hint ? t('Подсказка: {text}. Tab — дописать', { text: hint.full }) : ''}</span>
   {#if showRecent}
     <div class="recent" transition:fly={{ y: -6, duration: 200 }}>
       <div class="r-head">
@@ -211,14 +310,72 @@
     background: var(--surface-2);
     color: var(--text-2);
   }
-  input {
+  /* поле и слой подсказки — один шрифт, интервал и отступы: буквы совпадают пиксель в пиксель */
+  .inwrap {
+    position: relative;
     flex: 1;
     min-width: 0;
+    display: flex;
+    align-items: center;
+  }
+  input {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    padding: 0;
     background: none;
     border: 0;
     outline: none;
+    font: inherit;
+    letter-spacing: inherit;
     color: var(--text);
     user-select: text;
+  }
+  .ghost {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    pointer-events: none;
+    font: inherit;
+    letter-spacing: inherit;
+    white-space: pre;
+  }
+  .ghost-line {
+    display: flex;
+    align-items: center;
+  }
+  .typed {
+    color: transparent;
+  }
+  .tail {
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-3);
+  }
+  .arrow {
+    opacity: 0.7;
+  }
+  .tab {
+    margin-left: 8px;
+    padding: 1px 5px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    font-size: calc(10px * var(--fs, 1));
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0.02em;
+    color: var(--text-3);
+    opacity: 0.7;
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   input::placeholder {
     color: var(--text-3);

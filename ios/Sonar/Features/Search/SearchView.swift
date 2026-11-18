@@ -61,6 +61,21 @@ struct SearchView: View {
     @State private var loading = false
     @State private var task: Task<Void, Never>?
     @FocusState private var focused: Bool
+    /// Кандидаты подсказки (`Autocomplete`): собираются при смене Любимых, истории и недавнего, не на каждую букву.
+    @State private var candidates: [String] = []
+    /// Текст только что принят из подсказки — `onChange(of: query)` ищет его сразу, без задержки набора.
+    @State private var acceptedQuery: String?
+
+    /// Подсказка-дописывание под полем — пока поле в фокусе и есть подходящий кандидат.
+    private var suggestion: Autocomplete.Suggestion? {
+        focused ? Autocomplete.suggest(candidates, typed: query) : nil
+    }
+
+    /// Что меняет список кандидатов: число и порядок Любимых, история поиска, последний сыгранный трек.
+    private var candidatesKey: String {
+        let liked = LibraryStore.shared.liked
+        return "\(liked.count)|\(liked.first?.ref ?? "")|\(historyRaw)|\(PlayHistory.shared.recent.first?.ref ?? "")"
+    }
 
     private var source: Source { Source(rawValue: sourceRaw) ?? .soundcloud }
 
@@ -104,6 +119,8 @@ struct SearchView: View {
             .padding(.horizontal, Theme.gutter)
             .padding(.top, 8)
 
+            suggestionChip
+
             chips
                 .padding(.top, 14)
 
@@ -134,9 +151,17 @@ struct SearchView: View {
             }
         }
         .pageBackground()
-        .onChange(of: query) { search(immediately: false) }
+        .onChange(of: query) {
+            search(immediately: query == acceptedQuery)
+            acceptedQuery = nil
+        }
         .onChange(of: sourceRaw) { search(immediately: true) }
         .onChange(of: kind) { search(immediately: true) }
+        .task(id: candidatesKey) {
+            candidates = Autocomplete.candidates(liked: LibraryStore.shared.liked, history: history,
+                                                 recent: PlayHistory.shared.recent)
+        }
+        .animation(Motion.quick, value: suggestion?.full)
         .animation(Motion.spring, value: loading)
         .animation(Motion.spring, value: kind)
         .animation(Motion.spring, value: historyRaw)
@@ -175,6 +200,42 @@ struct SearchView: View {
         .frame(height: 52)
         .background(Theme.raised.opacity(0.92), in: Capsule())
         .animation(Motion.quick, value: query.isEmpty)
+    }
+
+    /// Чип «Onda Andar ↗» под полем: набранное — обычным, дописываемое — бледным; тап — принять и сразу искать.
+    /// Серого хвоста внутри TextField нет (на iPhone его не сделать ровно).
+    @ViewBuilder
+    private var suggestionChip: some View {
+        if let suggestion {
+            Button {
+                accept(suggestion)
+            } label: {
+                HStack(spacing: 8) {
+                    (suggestion.relayout
+                        ? Text(suggestion.full).foregroundStyle(Theme.text)
+                        : Text(query).foregroundStyle(Theme.text) + Text(suggestion.tail).foregroundStyle(Theme.textSecondary))
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                    Text("↗").foregroundStyle(Theme.textSecondary)
+                }
+                .font(.system(size: 16, weight: .medium))
+                .padding(.horizontal, 16)
+                .frame(height: 36)
+                .background(Theme.raised.opacity(0.7), in: Capsule())
+            }
+            .buttonStyle(PressableStyle(scale: 0.95))
+            .accessibilityLabel(t("Дописать: {text}", ["text": suggestion.full]))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, Theme.gutter)
+            .padding(.top, 10)
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    /// Принять подсказку: в поле — кандидат целиком (при другой раскладке — вместо набранного), искать сразу.
+    private func accept(_ suggestion: Autocomplete.Suggestion) {
+        acceptedQuery = suggestion.full
+        query = suggestion.full
     }
 
     private var chips: some View {

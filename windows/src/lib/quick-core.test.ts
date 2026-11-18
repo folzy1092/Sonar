@@ -20,6 +20,7 @@ describe('раскладка', () => {
     expect(cyrToEn('руддщ')).toBe('hello')
     expect(cyrToEn('ьфтшя')).toBe('maniz')
     expect(cyrToEn('іїє')).toBe("s]'")
+    expect(cyrToEn('ґ')).toBe('u')
   })
   it('цифры и пробелы не трогает', () => {
     expect(enToRu('lj 2077')).toBe('до 2077')

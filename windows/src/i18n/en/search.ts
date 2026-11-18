@@ -12,4 +12,6 @@ export default {
   'Трек, который звучит прямо сейчас': 'The track playing right now',
   'Прослушивания, часы и любимые артисты': 'Plays, hours and top artists',
   'Треки с лайком': 'Liked tracks',
+  // Строка поиска: серая подсказка-дописывание
+  'Подсказка: {text}. Tab — дописать': 'Suggestion: {text}. Tab to complete',
 }
