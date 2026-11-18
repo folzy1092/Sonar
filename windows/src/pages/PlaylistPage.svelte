@@ -224,6 +224,11 @@
         <Icon name="trash" size={16} />{#if confirmDelete} {t('Удалить?')}{/if}
       </button>
     {/if}
+    {#if kind === 'favorites' || kind === 'own'}
+      <button class="tool plain" aria-label={t('Найти дубли')} title={t('Найти дубли')} onclick={() => router.go('dupes', id)}>
+        <Icon name="stack" size={16} />
+      </button>
+    {/if}
     <button class="tool plain" class:on={sortIdx > 0} title={t('Сортировка: {sort}', { sort: t(sort.label) })} onclick={() => (sortIdx = (sortIdx + 1) % sorts.length)}>
       <Icon name="sort" size={16} />{#if sortIdx > 0} {t(sort.label)}{/if}
     </button>

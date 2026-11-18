@@ -8,7 +8,8 @@
 //! - `Wanted::from_track(&Track)` — то же по треку из любого сервиса или из кэша;
 //! - `Wanted::queries()` — запросы к поиску сервиса, `Wanted::best(&[Track])` — лучший доступный кандидат;
 //! - `Wanted::score(&Track)` — оценка одного кандидата (None — другой трек), без сети;
-//! - `same_track(&Track, &Track)` — один ли это трек (дубли по сохранённым метаданным).
+//! - `same_track(&Track, &Track)` — один ли это трек (дубли по сохранённым метаданным);
+//! - `artist_keys(&Track, &Wanted)` — имена исполнителей для отбора пар без сравнения всех со всеми.
 
 use super::Track;
 use crate::lyrics::{clean_title, first_artist, keyword_title, norm, reupload_variant, similarity};
@@ -16,7 +17,7 @@ use regex::Regex;
 use std::collections::HashSet;
 use std::sync::LazyLock;
 
-const MAX_DURATION_DIFF_MS: u64 = 3000;
+pub const MAX_DURATION_DIFF_MS: u64 = 3000;
 const MIN_TITLE: f64 = 0.9;
 
 /// Что ищем: исполнители-кандидаты (залившего, из метаданных, из «АРТИСТ - ТРЕК»), название, длительность.
@@ -133,6 +134,19 @@ impl Wanted {
 #[allow(dead_code)] // для импорта по ссылке (этап 5) и дублей (этап 7)
 pub fn same_track(a: &Track, b: &Track) -> bool {
   a.ref_ == b.ref_ || Wanted::from_track(a).score(b).is_some() || Wanted::from_track(b).score(a).is_some()
+}
+
+/// Имена исполнителей, по которым `Wanted::score` может свести трек с другим (свои, из строки
+/// исполнителя и из «АРТИСТ - ТРЕК»), нормализованные. Общее имя — необходимое условие совпадения:
+/// по нему поиск дублей отбирает пары, не сравнивая всё со всем.
+pub fn artist_keys(t: &Track, w: &Wanted) -> HashSet<String> {
+  w.artists
+    .iter()
+    .flat_map(|a| artist_names(a).collect::<Vec<_>>())
+    .chain(t.artists.iter().map(|a| norm(&a.name)))
+    .chain(artist_names(&t.artist))
+    .filter(|n| !n.is_empty())
+    .collect()
 }
 
 #[cfg(test)]

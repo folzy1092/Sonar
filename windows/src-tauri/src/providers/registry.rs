@@ -222,6 +222,17 @@ pub fn implemented() -> impl Iterator<Item = &'static ServiceInfo> {
   REGISTRY.iter().filter(|s| s.implemented)
 }
 
+/// Сервисы от лучшего звука к худшему — кого оставлять из дублей (этап 7 NEXT_PROMPT): Яндекс
+/// (до FLAC) > свой файл > Spotify (Ogg 320) > VK (MP3 320) > YouTube Music (AAC/Opus) > SoundCloud.
+/// Тот же порядок — `QUALITY_ORDER` в `ServiceRegistry.swift`.
+pub const QUALITY_ORDER: &[ServiceId] =
+  &[ServiceId::Ym, ServiceId::Local, ServiceId::Sp, ServiceId::Vk, ServiceId::Yt, ServiceId::Sc];
+
+/// Место трека по качеству звука: меньше — лучше; ref без сервиса — последним.
+pub fn quality_rank(r: &str) -> usize {
+  parse_ref(r).and_then(|(s, _)| QUALITY_ORDER.iter().position(|id| *id == s.id)).unwrap_or(QUALITY_ORDER.len())
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -386,6 +397,19 @@ mod tests {
     assert_eq!(likes_ref(ServiceId::Vk).as_deref(), Some("vkpl:likes"));
     assert_eq!(likes_ref(ServiceId::Sp).as_deref(), Some("sppl:likes"));
     assert_eq!(likes_ref(ServiceId::Local), None);
+  }
+
+  #[test]
+  fn quality_order_covers_every_service_once() {
+    let mut ids: Vec<ServiceId> = QUALITY_ORDER.to_vec();
+    assert_eq!(ids.len(), REGISTRY.len());
+    ids.sort_by_key(|id| *id as usize);
+    ids.dedup();
+    assert_eq!(ids.len(), REGISTRY.len());
+    assert!(quality_rank("ym:1") < quality_rank("sp:1"));
+    assert!(quality_rank("sp:1") < quality_rank("yt:1"));
+    assert!(quality_rank("yt:1") < quality_rank("sc:1"));
+    assert_eq!(quality_rank("pl_x"), QUALITY_ORDER.len());
   }
 
   #[test]
