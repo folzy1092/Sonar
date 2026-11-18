@@ -21,13 +21,22 @@ class Remote {
   private started = false
   private sent: RemoteState | null = null
   private timer: ReturnType<typeof setInterval> | null = null
+  /** Команды по очереди: «играть» и следом 49 «в очередь» с телефона не должны обгонять друг друга. */
+  private chain: Promise<void> = Promise.resolve()
 
   init() {
     if (this.started || !isTauri) return
     this.started = true
     onRemoteCommand((raw) => {
       const cmd = parseCommand(raw)
-      if (cmd) void this.run(cmd).catch((e) => toast.show(errorText(e)))
+      if (!cmd) return
+      this.chain = this.chain
+        .then(async () => {
+          await this.run(cmd)
+        })
+        .catch((e) => {
+          toast.show(errorText(e))
+        })
     })
     onRemoteChanged(() => void this.refresh())
     onRemotePaired((name) => {

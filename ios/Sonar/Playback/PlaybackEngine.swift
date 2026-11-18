@@ -207,6 +207,8 @@ final class PlaybackEngine {
             play([list[index]], at: 0, context: context)
             return
         }
+        // пульт: играет ПК — список уходит туда, этот iPhone молчит
+        if RemoteControl.shared.forward(list, from: index) { return }
         // новая очередь — прошлая волна (если была) закончилась, её сессии исход уже не нужен
         finishPlay(skipped: true, toWave: false)
         isWave = false
@@ -303,6 +305,7 @@ final class PlaybackEngine {
 
     /// «Следующим» / «В очередь».
     func enqueue(_ track: Track, next: Bool) {
+        if RemoteControl.shared.forwardEnqueue(track, next: next) { return }
         tracks.append(track)
         order = QueueMath.enqueue(order: order, pos: pos, newIndex: tracks.count - 1, next: next)
         if next { dropPreload() }
@@ -760,6 +763,7 @@ final class PlaybackEngine {
     /// «Моя волна»: сиды из Любимых и недавнего, похожие SoundCloud и Яндекса, учится на лайках и
     /// пропусках, без 👎, бесконечно догружается. Уже играет — пауза / продолжить.
     func playMyWave() {
+        if RemoteControl.shared.forwardWave() { return }
         if isWave, waveSeed == nil, current != nil {
             toggle()
             return
@@ -788,6 +792,8 @@ final class PlaybackEngine {
             defer { self.waveLoading = false }
             do {
                 let list = try await self.wave.start(seed: seed, mode: self.waveMode)
+                // волна по треку при пульте: список собран здесь, играет ПК
+                if RemoteControl.shared.forward(list, from: 0) { return }
                 if self.shuffle { self.shuffle = false }
                 self.play(list, at: 0, context: seed.map { "Волна по «\($0.title)»" } ?? "Моя волна")
                 self.isWave = true

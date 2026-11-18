@@ -98,6 +98,10 @@ targets:
         # автообновление: локальный сервер установки на 127.0.0.1 (как в Shadow, SPEC §4.6)
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        # пульт: поиск Sonar на ПК в той же сети Wi-Fi (Bonjour) и связь с ним (Core/Remote, docs/API.md «Пульт»)
+        NSLocalNetworkUsageDescription: Sonar ищет компьютеры с Sonar в твоей сети Wi-Fi, чтобы управлять музыкой на них с телефона.
+        NSBonjourServices:
+          - _sonar._tcp
 
   # Виджет «Домой» (WidgetKit): статичные кнопки «Любимые», «Моя волна», «Быстрый плейлист» — открывают Sonar
   # ссылкой sonar://play/… App Groups нет (сторонняя подпись их не даёт), поэтому данных приложения виджет
