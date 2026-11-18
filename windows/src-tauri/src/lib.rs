@@ -83,6 +83,12 @@ pub fn run() {
       if let Ok(Some(v)) = db.setting("audio.sc_via_yandex") {
         core.sc_via_yandex.store(v.as_bool().unwrap_or(false), std::sync::atomic::Ordering::Relaxed);
       }
+      if let Ok(Some(v)) = db.setting("audio.fallback") {
+        core.fallback.enabled.store(v.as_bool().unwrap_or(true), std::sync::atomic::Ordering::Relaxed);
+      }
+      if let Ok(order) = db.setting("audio.fallback_order") {
+        core.fallback.set_order(services::fallback::parse_order(order.as_ref()));
+      }
       if let Ok(Some(q)) = db.setting("audio.quality") {
         core.max_kbps.store(services::quality_kbps(q.as_str()), std::sync::atomic::Ordering::Relaxed);
       }
@@ -204,6 +210,7 @@ pub fn run() {
       commands::disconnect_service,
       commands::search,
       commands::stream_url,
+      commands::stream_fallback,
       commands::cache_tracks,
       commands::save_player_state,
       commands::load_player_state,

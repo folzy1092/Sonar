@@ -5,16 +5,18 @@ use crate::providers::registry::{by_key, parse_ref, split_ref, RefKind, ServiceI
 use crate::providers::{
   soundcloud, spotify, vk as vk_api, yandex, youtube, Account, Album, AlbumPage, Artist, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track,
 };
+use crate::providers::unplayable::{preview_of, Unplayable};
 use crate::secrets;
 use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
+pub mod fallback;
 mod local;
 mod provider;
 mod sc;
@@ -107,10 +109,10 @@ pub struct Core {
   streams: Mutex<HashMap<String, (Source, Instant)>>,
   /// Потолок битрейта Яндекса (`audio.quality`): 192 / 256 / 320 / 1411 (FLAC без потерь).
   pub max_kbps: AtomicU32,
-  /// Трек SoundCloud играть с Яндекса, если там есть тот же (`audio.sc_via_yandex`).
+  /// Трек SoundCloud играть с Яндекса, если там есть тот же (`audio.sc_via_yandex`) — через резерв.
   pub sc_via_yandex: AtomicBool,
-  /// Найденные пары `sc:…` → `ym:…` (None — на Яндексе нет), чтобы не искать каждый раз.
-  ym_twins: Mutex<HashMap<String, Option<String>>>,
+  /// Резервный сервис: порядок, найденные пары, что играет вместо чего (services/fallback.rs).
+  pub fallback: fallback::Fallback,
   /// Локальные файлы: ref → путь (Хранилище → «Папки с музыкой»).
   pub local: crate::local::Index,
 }
@@ -153,7 +155,7 @@ impl Core {
       max_kbps: AtomicU32::new(crate::providers::yandex::LOSSLESS_KBPS),
       // по умолчанию выключено (решение владельца 2026-11-17): на Яндексе треки бывают заблюрены
       sc_via_yandex: AtomicBool::new(false),
-      ym_twins: Mutex::new(HashMap::new()),
+      fallback: fallback::Fallback::default(),
       local: crate::local::Index::default(),
     }
   }
@@ -186,16 +188,21 @@ impl Core {
       Some(j) if !fresh => j,
       _ => sc.track_json(id).await?,
     };
-    match sc.stream(&json).await {
-      Ok(src) => Ok(src),
+    let (src, json) = match sc.stream(&json).await {
+      Ok(src) => (src, json),
       // в сохранённом JSON могла протухнуть track_authorization — берём трек заново
       Err(_) if !fresh => {
         let json = sc.track_json(id).await?;
         self.sc_raw.lock().unwrap().insert(track_ref.to_owned(), json.clone());
-        sc.stream(&json).await
+        (sc.stream(&json).await?, json)
       }
-      Err(e) => Err(e),
+      Err(e) => return Err(e),
+    };
+    // только отрывок (без Go+): сыграет, если тот же трек больше нигде не нашёлся
+    if soundcloud::is_snippet(&json) {
+      return Err(Unplayable::preview("SoundCloud: доступен только отрывок", src).into());
     }
+    Ok(src)
   }
 
   /// Для тестов: ядро с ключами SoundCloud, без Диспетчера учётных данных.
@@ -232,7 +239,7 @@ impl Core {
       streams: Mutex::new(HashMap::new()),
       max_kbps: AtomicU32::new(crate::providers::yandex::LOSSLESS_KBPS),
       sc_via_yandex: AtomicBool::new(false),
-      ym_twins: Mutex::new(HashMap::new()),
+      fallback: fallback::Fallback::default(),
       local: crate::local::Index::default(),
     }
   }
@@ -540,8 +547,21 @@ impl Core {
     }
   }
 
-  /// Ссылка на поток для `sc:123` / `ym:456`. `fresh` — не брать из кэша (ссылка протухла).
+  /// Ссылка на поток для `sc:123` / `ym:456` (`/file`, `/hls`, предзагрузка). `fresh` — не брать из
+  /// кэша (ссылка протухла). Трек сейчас играет с резервного сервиса (`resolve_playable`) — поток
+  /// замены; свой сервис отдаёт только отрывок — отрывок.
   pub async fn resolve(&self, track_ref: &str, fresh: bool) -> Result<Source> {
+    if let Some(alias) = self.fallback.routed_ref(track_ref) {
+      return self.resolve_own(&alias, fresh).await;
+    }
+    match self.resolve_own(track_ref, fresh).await {
+      Err(e) => preview_of(&e).ok_or(e),
+      ok => ok,
+    }
+  }
+
+  /// Поток со своего сервиса трека, без резерва.
+  async fn resolve_own(&self, track_ref: &str, fresh: bool) -> Result<Source> {
     if !fresh {
       if let Some((src, at)) = self.streams.lock().unwrap().get(track_ref) {
         if at.elapsed() < STREAM_TTL {
@@ -550,13 +570,7 @@ impl Core {
       }
     }
     let (p, id) = self.route(track_ref, RefKind::Track, "неизвестный источник в")?;
-    // трек SoundCloud — с Яндекса, если там есть тот же и так настроено
-    let twin_wanted = p.id() == ServiceId::Sc && self.sc_via_yandex.load(Ordering::Relaxed) && self.ym.read().await.is_some();
-    let twin = if twin_wanted { self.yandex_twin(track_ref, id).await } else { None };
-    let src = match twin {
-      Some(src) => src,
-      None => p.stream(id, fresh).await?,
-    };
+    let src = p.stream(id, fresh).await?;
     // путь к файлу не протухает, а файл могли переместить — локальные не кэшируем
     if p.id() != ServiceId::Local {
       self.streams.lock().unwrap().insert(track_ref.to_owned(), (src.clone(), Instant::now()));
@@ -564,14 +578,19 @@ impl Core {
     Ok(src)
   }
 
-  /// Как `resolve`, но YouTube Music, не открывшийся с первого раза, пробует ещё раз с новой
+  /// Свой поток не играет — ссылку из кэша больше не отдаём.
+  fn forget_stream(&self, track_ref: &str) {
+    self.streams.lock().unwrap().remove(track_ref);
+  }
+
+  /// Как `resolve_own`, но YouTube Music, не открывшийся с первого раза, пробует ещё раз с новой
   /// visitorData; не помогло — причина в журнал ошибок. У остальных сервисов ошибки не временные
   /// (нет входа, нет трека) — повтор ничего не даст. В тексте ошибок нет ни cookie, ни подписанных ссылок.
-  pub async fn resolve_retrying(&self, track_ref: &str) -> Result<Source> {
-    match self.resolve(track_ref, false).await {
+  async fn resolve_own_retrying(&self, track_ref: &str) -> Result<Source> {
+    match self.resolve_own(track_ref, false).await {
       Err(e) if retries_resolve(track_ref) => {
         log::warn!("поток {track_ref}: {e}; пробую ещё раз");
-        self.resolve(track_ref, true).await.inspect_err(|e| log::error!("поток {track_ref}: {e}"))
+        self.resolve_own(track_ref, true).await.inspect_err(|e| log::error!("поток {track_ref}: {e}"))
       }
       r => r,
     }
@@ -584,63 +603,6 @@ impl Core {
       Err(e) if public && is_auth_error(&e) => self.sc_stream(&self.sc_creds(true).await?.0, track_ref, id, true).await,
       r => r,
     }
-  }
-
-  /// Тот же трек на Яндексе (FLAC / 320 вместо AAC 160 SoundCloud). Любая ошибка — None,
-  /// и играет SoundCloud. Пара запоминается на сеанс.
-  async fn yandex_twin(&self, track_ref: &str, id: &str) -> Option<Source> {
-    let known = self.ym_twins.lock().unwrap().get(track_ref).cloned();
-    let ym_id = match known {
-      Some(None) => return None,
-      Some(Some(ym)) => ym,
-      None => {
-        let found = self.find_yandex_twin(track_ref, id).await;
-        if let Err(e) = &found {
-          log::warn!("[twin] {track_ref}: {e}");
-        }
-        let found = found.ok().flatten();
-        self.ym_twins.lock().unwrap().insert(track_ref.to_owned(), found.clone());
-        found?
-      }
-    };
-    let guard = self.ym.read().await;
-    let s = guard.as_ref()?;
-    match (yandex::Yandex { http: &self.http, creds: &s.creds }).stream(&ym_id, self.max_kbps.load(Ordering::Relaxed)).await {
-      Ok(Source::File { url, quality }) => Some(Source::File { url, quality: format!("{quality} · Яндекс") }),
-      Ok(other) => Some(other),
-      Err(e) => {
-        log::warn!("[twin] поток Яндекса {ym_id}: {e}");
-        None
-      }
-    }
-  }
-
-  async fn find_yandex_twin(&self, track_ref: &str, id: &str) -> Result<Option<String>> {
-    let cached = self.sc_raw.lock().unwrap().get(track_ref).cloned();
-    let json = match cached {
-      Some(j) => j,
-      None => {
-        let (creds, _) = self.sc_creds(false).await?;
-        soundcloud::SoundCloud { http: &self.http, creds: &creds }.track_json(id).await?
-      }
-    };
-    let wanted = crate::providers::matching::Wanted::soundcloud(
-      json["user"]["username"].as_str().unwrap_or(""),
-      json["publisher_metadata"]["artist"].as_str(),
-      json["title"].as_str().unwrap_or(""),
-      json["full_duration"].as_u64().or(json["duration"].as_u64()).unwrap_or(0),
-    );
-    let guard = self.ym.read().await;
-    let Some(s) = guard.as_ref() else { return Ok(None) };
-    let ym = yandex::Yandex { http: &self.http, creds: &s.creds };
-    for q in wanted.queries() {
-      let found = ym.search(&q, 8).await?;
-      if let Some(t) = wanted.best(&found) {
-        log::info!("[twin] {track_ref} → {} ({} — {})", t.ref_, t.artist, t.title);
-        return Ok(Some(t.ref_.trim_start_matches("ym:").to_owned()));
-      }
-    }
-    Ok(None)
   }
 }
 

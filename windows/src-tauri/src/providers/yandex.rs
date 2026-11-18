@@ -2,6 +2,7 @@
 //! server/tools/check_ym.py (проверено с ПК владельца 2026-11-12). Запросы — с IP компьютера
 //! (вариант 3 из SPEC §3.7а), не чаще, чем просит пользователь.
 
+use super::unplayable::Unplayable;
 use super::{http_error, Account, Album, AlbumRef, Artist, ArtistRef, ServicePlaylist, Source, Track};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -273,7 +274,7 @@ impl Yandex<'_> {
       }
     }
     let infos = self.get(&format!("{API}/tracks/{id}/download-info"), &[]).await?;
-    let info = pick_mp3(&infos, max_kbps).ok_or_else(|| anyhow!("Яндекс Музыка: нет mp3 для этого трека"))?;
+    let info = pick_mp3(&infos, max_kbps).ok_or_else(|| super::unplayable::unavailable("Яндекс Музыка: нет mp3 для этого трека"))?;
     let xml_url = info["downloadInfoUrl"].as_str().ok_or_else(|| anyhow!("Яндекс Музыка: нет downloadInfoUrl"))?;
     let r = self.req(xml_url).send().await?;
     if !r.status().is_success() {
@@ -282,12 +283,26 @@ impl Yandex<'_> {
     let xml = r.text().await?;
     let url = signed_link(&xml).ok_or_else(|| anyhow!("Яндекс Музыка: не разобрал ссылку на файл"))?;
     let quality = format!("MP3 {}", info["bitrateInKbps"].as_u64().unwrap_or(0));
-    Ok(Source::File { url, quality })
+    let src = Source::File { url, quality };
+    // заблюренный / недоступный целиком трек: Яндекс отдаёт только 30-секундное превью
+    if is_preview(info) {
+      return Err(Unplayable::preview("Яндекс Музыка: доступно только превью", src).into());
+    }
+    Ok(src)
   }
 }
 
+/// Вариант download-info — превью (отрывок), а не весь трек.
+pub fn is_preview(info: &Value) -> bool {
+  info["preview"].as_bool() == Some(true)
+}
+
+/// Лучший mp3 не выше `max_kbps` (нет такого — самый лёгкий). Полный трек важнее превью:
+/// превью берётся, только если ничего другого нет.
 pub fn pick_mp3(infos: &Value, max_kbps: u32) -> Option<&Value> {
-  let mp3: Vec<&Value> = infos.as_array()?.iter().filter(|i| i["codec"] == "mp3").collect();
+  let all: Vec<&Value> = infos.as_array()?.iter().filter(|i| i["codec"] == "mp3").collect();
+  let full: Vec<&Value> = all.iter().copied().filter(|i| !is_preview(i)).collect();
+  let mp3 = if full.is_empty() { all } else { full };
   let kbps = |i: &Value| i["bitrateInKbps"].as_u64().unwrap_or(0) as u32;
   mp3
     .iter()
@@ -418,6 +433,19 @@ pub fn track_from_json(j: &Value) -> Option<Track> {
 mod tests {
   use super::*;
   use serde_json::json;
+
+  #[test]
+  fn full_track_beats_preview() {
+    let infos = json!([
+      {"codec": "mp3", "bitrateInKbps": 320, "preview": true},
+      {"codec": "mp3", "bitrateInKbps": 192, "preview": false},
+    ]);
+    let got = pick_mp3(&infos, 320).unwrap();
+    assert!(!is_preview(got));
+    assert_eq!(got["bitrateInKbps"], 192);
+    let only = json!([{"codec": "mp3", "bitrateInKbps": 128, "preview": true}]);
+    assert!(is_preview(pick_mp3(&only, 320).unwrap()));
+  }
 
   #[test]
   fn account_from_status_premium() {

@@ -8,6 +8,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+mod alias;
 mod local_files;
 mod search;
 mod stats;
@@ -15,6 +16,7 @@ mod sync;
 mod system;
 mod wave;
 mod wave_events;
+pub use alias::TrackAlias;
 pub use local_files::LocalFile;
 pub use stats::Stats;
 pub use sync::{Change, Op, PlayUpload};
@@ -134,6 +136,11 @@ CREATE INDEX search_history_time ON search_history(user_id, at);
 CREATE TABLE local_files (
   ref TEXT PRIMARY KEY, path TEXT UNIQUE NOT NULL, mtime INTEGER NOT NULL, size INTEGER NOT NULL,
   title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT, duration_ms INTEGER NOT NULL, cover_path TEXT
+);
+"#, r#"
+CREATE TABLE track_alias (
+  source_ref TEXT NOT NULL, service TEXT NOT NULL, alias_ref TEXT, found_at INTEGER NOT NULL,
+  PRIMARY KEY (source_ref, service)
 );
 "#];
 
@@ -255,6 +262,7 @@ impl Store {
     // журнал волны хранится полгода
     store.prune_wave_events()?;
     store.prune_similar()?;
+    store.prune_track_aliases()?;
     Ok(store)
   }
 

@@ -5,6 +5,7 @@ use super::provider::Provider;
 use super::{status, Core, PlaylistPage, ServiceStatus, Stored};
 use crate::providers::registry::ServiceId;
 use crate::providers::spotify::{self, Spotify};
+use crate::providers::unplayable::{Reason, Unplayable};
 use crate::providers::{Album, AlbumPage, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track};
 use crate::secrets;
 use anyhow::{anyhow, Result};
@@ -135,7 +136,7 @@ impl Provider for SpProvider<'_> {
       return Ok(Source::File { url: format!("{}{id}", crate::spotify_play::SCHEME), quality: "Ogg Vorbis · Spotify".into() });
     }
     let _ = id;
-    Err(anyhow!(spotify::NEEDS_FALLBACK))
+    Err(Unplayable::new(Reason::Premium, spotify::NEEDS_FALLBACK).into())
   }
 
   async fn playlists(&self) -> Result<Vec<ServicePlaylist>> {
