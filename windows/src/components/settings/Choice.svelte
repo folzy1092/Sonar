@@ -13,7 +13,8 @@
     title: string
     hint?: string
     value: T
-    options: { id: T; label: string; icon?: IconName; flag?: string; soon?: boolean; sub?: string; font?: string }[]
+    /** `svg` — готовая разметка значка (знак сервиса из lib/service-icons). */
+    options: { id: T; label: string; icon?: IconName; flag?: string; svg?: string; soon?: boolean; sub?: string; font?: string }[]
     onchange?: (v: T) => void
     wide?: boolean
     icons?: boolean
@@ -39,7 +40,7 @@
         title={o.soon ? t('{label} — скоро', { label: o.label }) : o.label}
         aria-label={o.label}
       >
-        {#if o.flag}<Flag lang={o.flag} size={18} />{:else if o.icon}<Icon name={o.icon} size={15} />{/if}
+        {#if o.flag}<Flag lang={o.flag} size={18} />{:else if o.svg}<span class="svg" aria-hidden="true">{@html o.svg}</span>{:else if o.icon}<Icon name={o.icon} size={15} />{/if}
         {#if !icons}<span>{o.label}{#if o.sub}<i>{o.sub}</i>{/if}</span>{/if}
       </button>
     {/each}
@@ -132,5 +133,14 @@
     font-size: calc(10px * var(--fs, 1));
     font-weight: 500;
     color: var(--text-3);
+  }
+  .svg {
+    display: grid;
+    width: 16px;
+    height: 16px;
+  }
+  .svg :global(svg) {
+    width: 100%;
+    height: 100%;
   }
 </style>

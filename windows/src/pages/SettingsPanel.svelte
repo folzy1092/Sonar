@@ -27,6 +27,7 @@
   import Remote from './settings/Remote.svelte'
   import Storage from './settings/Storage.svelte'
   import Update from './settings/Update.svelte'
+  import About from './settings/About.svelte'
   import TabsView from './settings/TabsView.svelte'
   import Queue from './settings/Queue.svelte'
   import Mini from './settings/Mini.svelte'
@@ -38,7 +39,7 @@
   let scroller: HTMLDivElement | undefined = $state()
   const sub = $derived(settingsPanel.sub)
   /** Страницы из строк настроек — в широкой панели раскладываются в две колонки. */
-  const COLUMN_SUBS = ['look', 'tabs', 'audio', 'view', 'queue', 'mini', 'general']
+  const COLUMN_SUBS = ['look', 'tabs', 'audio', 'view', 'queue', 'mini']
 
   const name = $derived(settings.get('profile.name').trim())
   const username = $derived(cleanUsername(settings.get('profile.username')))
@@ -218,6 +219,8 @@
               <Storage />
             {:else if sub === 'update'}
               <Update />
+            {:else if sub === 'about'}
+              <About />
             {/if}
           </div>
         </div>
