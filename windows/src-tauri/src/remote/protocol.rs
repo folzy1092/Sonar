@@ -105,7 +105,7 @@ pub enum Command {
     #[serde(skip_serializing_if = "Option::is_none")]
     value: Option<bool>,
   },
-  /// Включить «Мою волну» (`wave: true`) или трек по `ref` (`track` — целиком, если у ПК его нет в кэше).
+  /// Включить Sonar Mix (`wave: true`) или трек по `ref` (`track` — целиком, если у ПК его нет в кэше).
   Play {
     wave: bool,
     #[serde(rename = "ref", skip_serializing_if = "Option::is_none")]

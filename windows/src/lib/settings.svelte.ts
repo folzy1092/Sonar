@@ -1,6 +1,7 @@
 // Настройки (docs/SETTINGS.md) одним хранилищем: читаются один раз при запуске (`all_settings`),
 // меняются сразу в интерфейсе и пишутся в локальную базу. Значения по умолчанию — из каталога.
 import { api } from './api'
+import { migrateSettings } from './settings-migrate'
 import type { CoverStrength, Surface } from '../theme/palette'
 import type { ServiceId, ServiceKey } from './services'
 import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook, ProgressLook, TitleStyle } from '../theme/style'
@@ -62,7 +63,7 @@ export const DEFAULTS = {
   'appearance.style': 'sonar' as string,
   /** Формулы фона, поверхностей, границ, теней и бликов (palette.ts SURFACES). */
   'appearance.surface': 'monolith' as Surface,
-  /** Шрифт заголовков («Моя волна», названия страниц и разделов). */
+  /** Шрифт заголовков (Sonar Mix, названия страниц и разделов). */
   'appearance.font_display': 'Unbounded Variable' as string,
   'appearance.title_style': 'plain' as TitleStyle,
   /** Толщина линий иконок левой панели и мини-плеера. */
@@ -89,7 +90,7 @@ export const DEFAULTS = {
   'storage.cache_tracks': false,
   /** Лимит кэша треков, МБ; сверх — вытесняются давно не игравшие. */
   'storage.cache_limit_mb': 2048 as number,
-  /** Волна офлайн: следующие 15 треков «Моей волны» заранее скачиваются в кэш треков. */
+  /** Sonar Mix офлайн: следующие 15 треков Sonar Mix заранее скачиваются в кэш треков. */
   'storage.wave_offline': false,
   /** Папки с музыкой на этом компьютере (local/, «На этом компьютере» в Медиатеке). */
   'storage.music_folders': [] as string[],
@@ -142,7 +143,7 @@ export const DEFAULTS = {
   'player.visualizer_style': 'wave' as 'wave' | 'bars',
   /** Спектр звука на дне полноэкранного плеера (тихо, за текстом). */
   'player.visualizer_full': false,
-  /** Строка «Почему этот трек» под артистом у треков «Моей волны». */
+  /** Строка «Почему этот трек» под артистом у треков Sonar Mix. */
   'player.wave_why': true,
   /** Тип ползунка прогресса (Плеер → Вид). */
   'player.slider': 'normal' as 'normal' | 'thin' | 'smooth' | 'wavy' | 'wave_bars',
@@ -178,7 +179,8 @@ export const DEFAULTS = {
   'hotkeys.quick': 'Ctrl+KeyK',
   'system.tray': true,
   'system.power_saving': 'background' as 'off' | 'minimized' | 'background',
-  'wave.mode': 'own' as 'own' | 'hard' | 'calm' | 'sad' | 'fun' | 'new',
+  /** Настроение Sonar Mix (`WAVE_MODES`); старое `new` («Незнакомое») читается как `own` — `settings-migrate.ts`. */
+  'wave.mode': 'own' as 'own' | 'fun' | 'calm' | 'sad' | 'hard' | 'night' | 'sleep' | 'popular' | 'focus',
   /** Итоги, которые уже открывали или закрыли на Главной: id через запятую (`month-2026-11,year-2026`), до 24 последних; пусто — никакие. */
   'stats.recap_seen': '' as string,
   'obs.size': 'standard' as 'standard' | 'compact',
@@ -203,7 +205,7 @@ class Settings {
     this.loading ??= api
       .allSettings()
       .then((all) => {
-        this.values = { ...all, ...this.early }
+        this.values = { ...migrateSettings(all), ...this.early }
         this.early = {}
       })
       .catch(() => {})

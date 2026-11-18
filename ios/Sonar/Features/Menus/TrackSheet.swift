@@ -29,7 +29,7 @@ struct TrackSheet: View {
                             engine.enqueue(track, next: true)
                             done("Сыграет следующим")
                         }
-                        SheetMenuRow(icon: .wave, title: "Волна по треку", subtitle: "Подборка похожего") {
+                        SheetMenuRow(icon: .wave, title: "Sonar Mix по треку", subtitle: "Подборка похожего") {
                             engine.playWave(from: track)
                             done(nil)
                         }

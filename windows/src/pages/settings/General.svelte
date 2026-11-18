@@ -61,7 +61,7 @@
 />
 <Choice
   title={t('Платформа')}
-  hint={t('Откуда главная берёт волну и рекомендации')}
+  hint={t('Откуда главная берёт Sonar Mix и рекомендации')}
   value={settings.get('general.platform')}
   options={ACCOUNT_SERVICES.filter((s) => s.caps.similar).map((s) => ({ id: s.key, label: s.id === 'ym' ? t('Яндекс') : t(s.name) }))}
   onchange={setPlatform}

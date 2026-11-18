@@ -125,7 +125,7 @@
         {@render item('queue', t('В очередь'), () => player.addToQueue([target.track], false))}
       {/if}
       {#if canWave}
-        {@render item('bolt', t('Волна по треку'), () => wave.start(target.track))}
+        {@render item('bolt', t('Sonar Mix по треку'), () => wave.start(target.track))}
       {/if}
       {#if isMissingLocal(target.track)}
         {@const query = servicesQuery(target.track)}

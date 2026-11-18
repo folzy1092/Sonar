@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Главная по reference/pc/Screenshot_20, 23: «Моя волна» (обложка, заголовок, источник, плавающие
+  // Главная по reference/pc/Screenshot_20, 23: Sonar Mix (обложка, заголовок, источник, плавающие
   // обложки следующих треков, большая кнопка); под ней приветствие с ником и подборкой под время
   // суток, «Релизы недели» тех, на кого стоят лайки, «Похожее»; ниже — тренды, плейлисты
   // пользователей и чарты Sonar (с сервера, до него — заготовка).
@@ -105,7 +105,7 @@
     </div>
     <h1 class="font-wave" data-fx-title>{t(phrase[0])} <em>{t(phrase[1])}</em></h1>
     <span class="kind">
-      {t('Моя волна')} · {t(mode.title)}{#if wave.loading} · {t('подбираю…')}{:else if wave.active && wave.seed} · {t('в стиле «{title}»', { title: wave.seed.title })}{/if}
+      {t('Sonar Mix')} · {t(mode.title)}{#if wave.loading} · {t('подбираю…')}{:else if wave.active && wave.seed} · {t('в стиле «{title}»', { title: wave.seed.title })}{/if}
     </span>
     <div class="actions">
       <button
@@ -120,15 +120,15 @@
       <button
         class="moods-btn press"
         class:on={moodsOpen}
-        aria-label={t('Настроение волны')}
-        title={t('Настроение волны')}
+        aria-label={t('Настроение Sonar Mix')}
+        title={t('Настроение Sonar Mix')}
         aria-expanded={moodsOpen}
         onclick={() => (moodsOpen = !moodsOpen)}
       >
         <Icon name="adjustments" size={18} />
       </button>
       {#if moodsOpen}
-        <div class="moods" role="dialog" aria-label={t('Настроение волны')} use:outside={() => (moodsOpen = false)} transition:pop>
+        <div class="moods" role="dialog" aria-label={t('Настроение Sonar Mix')} use:outside={() => (moodsOpen = false)} transition:pop>
           <b>{t('Какое настроение?')}</b>
           <div class="chips">
             {#each WAVE_MODES as m (m.id)}

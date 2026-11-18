@@ -4,6 +4,9 @@
 
 extension I18n {
     static let iosEN: [String: String] = [
+        // настроения Sonar Mix (лист на Главной)
+        "Настроения": "Moods",
+        "Готово": "Done",
         // журнал сбоев, отклик
         "Обращение к памяти, которой уже нет": "Accessed memory that no longer exists",
         "Sonar остановил сам себя после внутренней ошибки": "Sonar stopped itself after an internal error",
@@ -50,10 +53,10 @@ extension I18n {
         "Размер кэша обложек": "Cover cache size",
         "Сверх лимита iOS удаляет старые": "Above the limit iOS removes the oldest",
         "Тексты хранятся неделю с последнего показа, у Любимых — две.": "Lyrics are kept for a week after last view, two weeks for Favorites.",
-        "Недавнее, статистика и вкус волны": "Recent, stats and what My Wave learned",
+        "Недавнее, статистика и вкус волны": "Recent, stats and what Sonar Mix learned",
         "История очищена": "History cleared",
         "Очистить историю прослушиваний? Пропадут Недавнее, статистика и то, что волна узнала о твоём вкусе.":
-            "Clear listening history? Recent, stats and what My Wave learned about your taste will be gone.",
+            "Clear listening history? Recent, stats and what Sonar Mix learned about your taste will be gone.",
         // Last.fm
         "Last.fm появится в сборке с ключом": "Last.fm will arrive in a build with the key",
         "В этой сборке ключа Last.fm нет": "This build has no Last.fm key",
@@ -102,6 +105,9 @@ extension I18n {
     ]
 
     static let iosUK: [String: String] = [
+        // настроения Sonar Mix (лист на Главной)
+        "Настроения": "Настрої",
+        "Готово": "Готово",
         // журнал сбоев, отклик
         "Обращение к памяти, которой уже нет": "Звернення до пам'яті, якої вже немає",
         "Sonar остановил сам себя после внутренней ошибки": "Sonar зупинив сам себе після внутрішньої помилки",

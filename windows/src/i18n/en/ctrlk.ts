@@ -11,7 +11,7 @@ export default {
   'Светлая тема': 'Light theme',
   'Тема как в системе': 'System theme',
   'Открыть настройки…': 'Open settings…',
-  'Моя волна: {mode}': 'My Wave: {mode}',
+  'Sonar Mix: {mode}': 'Sonar Mix: {mode}',
   'Быстрое окно': 'Quick window',
   'Внутри Sonar': 'Inside Sonar',
   'Действия, настройки, плейлисты и поиск треков в одном поле': 'Actions, settings, playlists and track search in one field',

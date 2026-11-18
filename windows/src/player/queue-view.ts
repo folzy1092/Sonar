@@ -70,7 +70,7 @@ export type QueueItem =
   | { kind: 'empty'; key: string }
 
 export interface ItemsOptions {
-  /** Показывать тумблер «Авто похожие» и похожие (не в «Моей волне»). */
+  /** Показывать тумблер «Авто похожие» и похожие (не в Sonar Mix). */
   autoSection: boolean
   /** Автоплей включён (пустая очередь без похожих — без надписи «пусто»). */
   autoOn: boolean

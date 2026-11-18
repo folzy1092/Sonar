@@ -1,5 +1,5 @@
 <script lang="ts">
-  // «Почему этот трек» — тихая строка под артистом у треков «Моей волны» (wave.rs `why`):
+  // «Почему этот трек» — тихая строка под артистом у треков Sonar Mix (wave.rs `why`):
   // откуда трек пришёл в порцию. Выключается в Плеер → Вид. Смена трека — мягкая смена строки.
   import type { Track } from '../lib/api'
   import { settings } from '../lib/settings.svelte'
@@ -23,7 +23,7 @@
       case 'session':
         return seed ? t('Похоже на {seed} — он зашёл сейчас', { seed }) : t('Похоже на то, что зашло сейчас')
       case 'seed':
-        return seed ? t('Волна по {seed}', { seed }) : t('Похоже на трек, с которого началась волна')
+        return seed ? t('Sonar Mix по {seed}', { seed }) : t('Похоже на трек, с которого начался Sonar Mix')
       default:
         return seed ? t('Похоже на {seed}', { seed }) : t('Похоже на твои лайки')
     }

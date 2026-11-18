@@ -6,7 +6,7 @@ import WidgetKit
 // приложения — поэтому он статичный: знак Sonar и кнопки, которые открывают приложение ссылкой
 // `sonar://play/liked|wave|quick` (`App/DeepLink.swift`). Строго чёрно-белый, как знак (brand/README.md).
 // Значки — те же MingCute-пути, что в приложении (`IconShape.swift`, `IconPaths.swift` — общие файлы).
-// Пункт управления и экран блокировки (iOS 18): кнопка и значки «Моя волна» — внизу файла. Всё живёт в
+// Пункт управления и экран блокировки (iOS 18): кнопка и значки Sonar Mix — внизу файла. Всё живёт в
 // одном расширении SonarWidget.appex — его подписывает та же пара, что и приложение (ios.yml, BundlePreparer).
 
 @main
@@ -124,7 +124,7 @@ struct SonarButtonsWidget: Widget {
             ButtonsView()
         }
         .configurationDisplayName("Sonar")
-        .description("Любимые, «Моя волна» и быстрый плейлист — в одно касание.")
+        .description("Любимые, Sonar Mix и быстрый плейлист — в одно касание.")
         .supportedFamilies([.systemMedium])
     }
 }
@@ -141,7 +141,7 @@ enum WidgetTarget: String, AppEnum {
 
     static var caseDisplayRepresentations: [WidgetTarget: DisplayRepresentation] {
         [
-            .wave: "Моя волна",
+            .wave: "Sonar Mix",
             .liked: "Любимые",
             .quick: "Быстрый плейлист",
         ]
@@ -214,14 +214,14 @@ struct SonarQuickWidget: Widget {
             QuickView(target: entry.target)
         }
         .configurationDisplayName("Sonar — кнопка")
-        .description("Одно касание — и играет «Моя волна», Любимые или быстрый плейлист.")
+        .description("Одно касание — и играет Sonar Mix, Любимые или быстрый плейлист.")
         .supportedFamilies([.systemSmall])
     }
 }
 
-// MARK: - Экран блокировки: «Моя волна»
+// MARK: - Экран блокировки: Sonar Mix
 
-/// Значки экрана блокировки: круглый — знак Sonar, прямоугольный — знак и «Моя волна». Касание — та же
+/// Значки экрана блокировки: круглый — знак Sonar, прямоугольный — знак и Sonar Mix. Касание — та же
 /// ссылка, что у кнопки виджета «Домой» (`sonar://play/wave`). Цвет и прозрачность красит система.
 private struct LockView: View {
     @Environment(\.widgetFamily) private var family
@@ -268,13 +268,13 @@ struct SonarLockWidget: Widget {
         StaticConfiguration(kind: "com.folzy.sonar.widget.lock-wave", provider: StaticProvider()) { _ in
             LockView()
         }
-        .configurationDisplayName("Моя волна")
-        .description("Знак Sonar на экране блокировки: касание — и играет «Моя волна».")
+        .configurationDisplayName("Sonar Mix")
+        .description("Знак Sonar на экране блокировки: касание — и играет Sonar Mix.")
         .supportedFamilies([.accessoryCircular, .accessoryRectangular])
     }
 }
 
-// MARK: - Пункт управления: «Моя волна»
+// MARK: - Пункт управления: Sonar Mix
 
 /// Кнопка в Пункте управления, на экране блокировки (вместо фонарика и камеры) и на кнопке действия.
 /// Значок — знак Sonar своим символом `sonar.mark` (`Assets.xcassets`, `ios/scripts/gen-symbol.mjs`):
@@ -283,10 +283,10 @@ struct SonarWaveControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "com.folzy.sonar.widget.wave-control") {
             ControlWidgetButton(action: OpenWaveIntent()) {
-                Label("Моя волна", image: "sonar.mark")
+                Label("Sonar Mix", image: "sonar.mark")
             }
         }
-        .displayName("Моя волна")
-        .description("Открывает Sonar и включает «Мою волну».")
+        .displayName("Sonar Mix")
+        .description("Открывает Sonar и включает Sonar Mix.")
     }
 }

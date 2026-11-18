@@ -143,7 +143,7 @@ function actionItems(): { item: QuickItem; texts: string[] }[] {
         hint: 'run' as const,
         run: () => wave.setMode(m.id as WaveMode, true),
       },
-      texts: [title, `${m.title} волна`, `${t(m.title)} ${t('Моя волна')}`, t(m.sub), m.sub, 'mood wave настроение'],
+      texts: [title, `${m.title.split('::').pop()} микс`, `${t(m.title)} ${t('Sonar Mix')}`, t(m.sub), m.sub, 'mood wave настроение'],
     }
   })
   return [...actions, ...moods]

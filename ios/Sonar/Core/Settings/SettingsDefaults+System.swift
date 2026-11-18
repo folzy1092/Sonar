@@ -8,7 +8,7 @@ extension SettingsDefaults {
         // Общее: откуда главная берёт волну и рекомендации; куда добавлять треки в плейлистах
         "general.platform": .string("soundcloud"),
         "general.add_position": .string("start"),
-        // тактильный отклик на нажатия (настройки, вкладки, «Моя волна») — почти незаметный
+        // тактильный отклик на нажатия (настройки, вкладки, Sonar Mix) — почти незаметный
         "general.haptics": .bool(true),
         // Last.fm: скробблить прослушанное и показывать «сейчас играет»
         "integrations.lastfm.scrobble": .bool(true),

@@ -258,7 +258,7 @@ struct RemotePlayerView: View {
                 Button { remote.send(.playWave) } label: {
                     HStack(spacing: 10) {
                         SonarIcon(.wave, size: 22)
-                        Text(t("Моя волна на ПК"))
+                        Text(t("Sonar Mix на ПК"))
                             .font(.system(size: 16, weight: .semibold))
                     }
                     .foregroundStyle(Theme.text)

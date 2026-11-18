@@ -126,7 +126,7 @@ class Theme {
       $effect(() => {
         setAnimations(settings.get('appearance.animations'))
       })
-      // шрифты (Интерфейс → Стиль): интерфейса — `appearance.font`, заголовков («Моя волна»,
+      // шрифты (Интерфейс → Стиль): интерфейса — `appearance.font`, заголовков (Sonar Mix,
       // названия страниц и разделов) — `appearance.font_display` со своей шириной, жирностью и
       // трекингом (style.ts DISPLAY_TUNING). Заголовков нет — те же, что у интерфейса.
       $effect(() => {

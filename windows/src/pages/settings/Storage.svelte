@@ -77,8 +77,8 @@
       onchange={(v) => settings.set('storage.cache_limit_mb', v)}
     />
     <Switch
-      title={t('Волна офлайн')}
-      hint={t('Следующие 15 треков «Моей волны» заранее скачиваются в кэш — волна доиграет и без сети')}
+      title={t('Sonar Mix офлайн')}
+      hint={t('Следующие 15 треков Sonar Mix заранее скачиваются в кэш — микс доиграет и без сети')}
       on={settings.get('storage.wave_offline')}
       onchange={(v) => settings.set('storage.wave_offline', v)}
     />

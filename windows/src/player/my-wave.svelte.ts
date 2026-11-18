@@ -1,4 +1,4 @@
-// Своя «Моя волна» (SPEC §3.7): порции по 10 треков от Rust (`wave_portion`), сессия — здесь:
+// Своя волна Sonar Mix (SPEC §3.7): порции по 10 треков от Rust (`wave_portion`), сессия — здесь:
 // что уже выдано, какие артисты на паузе (два пропуска подряд), догрузка, когда очередь кончается.
 // Сигналы — оценка исхода трека (`reward.ts`, docs/WAVE.md 1.3): ручной пропуск с минусом пишется в
 // `skips`, два ранних пропуска артиста подряд — пауза, оценка ≥ +1 — «зашло»; 👎 — трек больше не
@@ -20,16 +20,20 @@ import { SkipSeries } from './skip-series'
 
 export const WAVE_CONTEXT = 'wave'
 
-/** Режимы волны — кнопка под «Моя волна» на главной (клик — следующий). Настроение Rust угадывает
- *  по жанру, тегам и названию (wave.rs `mood_fit`), «Незнакомое» — артисты, которых ты не слушал.
- *  Во всех режимах учитывается время суток: кого ты обычно слушаешь в эти часы. */
+/** Настроения Sonar Mix — чипы под «Sonar Mix» на главной (клик по кнопке — следующее). Настроение Rust
+ *  угадывает по жанру, тегам и названию (wave.rs `mood_fit`) и учится у тебя (профиль тегов режима);
+ *  «Популярное» ещё тянет треки с большим числом прослушиваний. Во всех настроениях учитывается время суток.
+ *  Старое «Незнакомое» (`new`) убрано — сохранённое значение читается как «Обычное» (`settings.svelte.ts`). */
 export const WAVE_MODES = [
-  { id: 'own', title: 'Своя', sub: 'по твоим лайкам', icon: 'heart' },
-  { id: 'hard', title: 'Жёсткая', sub: 'фонк, рэйдж, рок', icon: 'bolt' },
-  { id: 'calm', title: 'Спокойная', sub: 'чилл, лоу-фай, акустика', icon: 'moon' },
-  { id: 'sad', title: 'Грустная', sub: 'когда накрыло', icon: 'cloudDown' },
-  { id: 'fun', title: 'Весёлая', sub: 'поп, хаус, движ', icon: 'sun' },
-  { id: 'new', title: 'Незнакомое', sub: 'новые для тебя артисты', icon: 'disc' },
+  { id: 'own', title: 'настроение::Обычное', sub: 'по твоим лайкам', icon: 'heart' },
+  { id: 'fun', title: 'Весёлое', sub: 'поп, хаус, движ', icon: 'sun' },
+  { id: 'calm', title: 'Спокойное', sub: 'чилл, лоу-фай, акустика', icon: 'headphones' },
+  { id: 'sad', title: 'Грустное', sub: 'когда накрыло', icon: 'cloudDown' },
+  { id: 'hard', title: 'Жёсткое', sub: 'фонк, рэйдж, рок', icon: 'bolt' },
+  { id: 'night', title: 'Ночное', sub: 'синтвейв, трип-хоп, дип-хаус', icon: 'moon' },
+  { id: 'sleep', title: 'Сон', sub: 'эмбиент, тихо, без слов', icon: 'eyeClosed' },
+  { id: 'popular', title: 'Популярное', sub: 'хиты и тренды', icon: 'trending' },
+  { id: 'focus', title: 'Концентрация', sub: 'инструментал, лоу-фай, классика', icon: 'sparkles' },
 ] as const
 export type WaveMode = (typeof WAVE_MODES)[number]['id']
 
@@ -208,14 +212,14 @@ class Wave {
     const at = firstRef ? list.findIndex((t) => t.ref === firstRef) : -1
     if (at > 0) list = [list[at], ...list.slice(0, at), ...list.slice(at + 1)]
     if (!list.length) {
-      toast.show(t('Волне пока нечего предложить'))
+      toast.show(t('Sonar Mix пока нечего предложить'))
       return
     }
     for (const t of list) this.serve(t)
     // обложки — только если их ещё нет: клик по обложке выбирает стиль, сами обложки остаются
     if (!this.covers.length) this.covers = list.slice(0, 3)
     player.shuffle = false
-    await player.playList(list, 0, WAVE_CONTEXT, seed ? t('Волна по «{title}»', { title: seed.title }) : t('Моя волна'))
+    await player.playList(list, 0, WAVE_CONTEXT, seed ? t('Sonar Mix по «{title}»', { title: seed.title }) : t('Sonar Mix'))
   }
 
   get mode(): WaveMode {
@@ -319,7 +323,7 @@ class Wave {
       return
     }
     if (!on) {
-      toast.show(t('Трек снова может попасть в волну'))
+      toast.show(t('Трек снова может попасть в Sonar Mix'))
       return
     }
     toast.show(t('Больше не поставим этот трек'))
