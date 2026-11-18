@@ -23,7 +23,7 @@
 [Шапка профиля: аватар, имя, @username, #номер, дата регистрации] [Поделиться] [✎]
 Аккаунт:     Статистика · Безопасность · Приватность
 Интерфейс:   Вид (на ПК с 2026-11-18 — вместе с вкладками) · Вкладки (iOS)
-Плеер:       Аудио · Вид плеера · Очередь · Мини-плеер · Жесты
+Плеер:       Аудио · Вид плеера · Очередь (на ПК с 2026-11-18 — внутри «Плеера») · Мини-плеер · Жесты
 Сервисы:     SoundCloud · Яндекс Музыка · VK Музыка   (PC: карточки — из реестра сервисов, только работающие; iOS — прежний ServicesView)
 Интеграции:  Last.fm · Ключ API
 Система:     Общее (язык, платформа, медиатека, синхронизация; внизу — о приложении) · Клавиши (PC) · Обновления · Хранилище
@@ -264,6 +264,10 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 
 ## Плеер — `player.*` (`photo_16, 17`, `pc/6, 7`)
 
+**ПК (Интерфейс → Плеер, 2026-11-18, SETTINGS_NEXT «Плеер»)** — одна страница карточками: стиль плеера живым
+примером (настоящая обложка, винил крутится), Визуализатор · Ползунок (плитки-превью, выбранная двигается) ·
+Обложка · Очередь. Отдельного пункта «Очередь» больше нет, старые ссылки `queue` ведут сюда.
+
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
 | `player.style` | `standard` / `vinyl` (винил крутится, игла) / `large` (обложка на всю колонку; на iPhone — на весь фон, `player.jpg`) | `standard` (PC), `large` (iOS) | да |
@@ -271,7 +275,7 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 | `player.queue_view` | `normal` / `extended` | `extended` | да |
 | `player.background` | `none` / `cover_blur` / `cover_color` (iPhone: для `standard` и `vinyl`; у `large` фон — сама обложка) | `none` (PC), `cover_blur` (iOS) | да |
 | `player.title_align` | `left` / `center` / `right` | `center` | да |
-| `player.slider` | `normal` / `thin` / `smooth` / `wave_bars` / `wavy` | `normal` | да |
+| `player.slider` | `normal` / `thin` / `smooth` / `wave_bars` / `wavy` (на ПК подпись «Переливы» — бегущая волна) | `normal` | да |
 | `player.play_button` | `circle` / `square` / `clean` | `circle` | да |
 | `player.artist_avatars` | bool | `true` | да |
 
@@ -312,7 +316,7 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 Сдвиг тайминга — не настройка, а `track_prefs.lyrics_offset_ms` на трек (LYRICS.md §5).
 На iPhone те же ключи и значения (rawValue `LyricsMode` / `LyricsSize` / `LyricsTextStyle` / `LyricsAnimation` в `ios/Sonar/Core/Lyrics/LyricsModels.swift`, умолчания — `SettingsStore.defaults`); сдвиг — `lyrics-offsets.json` в Application Support, пока нет SQLite.
 
-## Очередь — `queue.*` (PC `pc/7`; на iOS — часть «Плеера»)
+## Очередь — `queue.*` (PC `pc/7`, с 2026-11-18 — карточка «Очередь» в «Плеере»; на iOS — часть «Плеера»)
 
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
