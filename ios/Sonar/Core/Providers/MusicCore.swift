@@ -466,10 +466,6 @@ actor MusicCore {
         case "ym":
             guard let source = DownloadSource.from(try await yandexClient().stream(id, maxKbps: maxKbps)) else { throw cannot }
             return source
-    /// Ссылка на поток для `sc:123` / `ym:456` / `yt:<videoId>` / `vk:<owner>_<id>`. fresh — не брать из кэша
-    /// (ссылка протухла). safe — запасной путь, если поток не открылся: без FLAC (Яндекс — mp3 до 320),
-    /// SoundCloud — сам, без двойника, YouTube — с новой visitorData.
-            return source
         case "sc":
             if soundCloudViaYandex, let source = await twinDownload(ref, id: id) { return source }
             var json = soundCloudRaw[ref]
@@ -501,11 +497,9 @@ actor MusicCore {
 
     // MARK: - Поток
 
-    /// Ссылка на поток для `sc:123` / `ym:456` / `yt:<videoId>`. fresh — не брать из кэша (ссылка протухла).
-    /// safe — запасной путь, если поток не открылся: без FLAC (Яндекс — mp3 до 320), SoundCloud — сам, без
-    /// двойника, YouTube — с новой visitorData.
-    /// Ссылка на поток для `sc:123` / `ym:456` / `vk:<owner>_<id>`. fresh — не брать из кэша (ссылка протухла).
-    /// safe — запасной путь, если поток не открылся: без FLAC (Яндекс — mp3 до 320), SoundCloud — сам, без двойника.
+    /// Ссылка на поток для `sc:123` / `ym:456` / `yt:<videoId>` / `vk:<owner>_<id>`. fresh — не брать из кэша
+    /// (ссылка протухла). safe — запасной путь, если поток не открылся: без FLAC (Яндекс — mp3 до 320),
+    /// SoundCloud — сам, без двойника, YouTube — с новой visitorData.
     func stream(_ ref: String, fresh: Bool = false, safe: Bool = false) async throws -> StreamSource {
         // Spotify на iPhone не играет — трек отметить для резервного сервиса (этап 4), не падать
         if ServiceRegistry.service(of: ref) == .sp { throw ServiceError(message: Spotify.needsFallback) }
