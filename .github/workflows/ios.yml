@@ -39,7 +39,7 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
-    # секреты Last.fm (SONAR_LASTFM_KEY, LASTFM_API_SECRET) — в окружении default, как у windows.yml
+    # секреты бота отчётов (SONAR_REPORT_*) — в окружении default, как у windows.yml
     environment: default
     timeout-minutes: 45
     env:
@@ -92,9 +92,6 @@ jobs:
 
       - name: Сборка IPA
         env:
-          # Last.fm — как в windows.yml (секрет называется LASTFM_API_SECRET); пусто — Last.fm в сборке нет
-          SONAR_LASTFM_KEY: ${{ secrets.SONAR_LASTFM_KEY }}
-          SONAR_LASTFM_SECRET: ${{ secrets.LASTFM_API_SECRET }}
           SONAR_REPORT_BOT_TOKEN: ${{ secrets.SONAR_REPORT_BOT_TOKEN }}
           SONAR_REPORT_CHAT: ${{ secrets.SONAR_REPORT_CHAT }}
           SONAR_REPORT_THREAD: ${{ secrets.SONAR_REPORT_THREAD }}
@@ -102,7 +99,6 @@ jobs:
           xcodebuild archive -project Sonar.xcodeproj -scheme Sonar -configuration Release \
             -destination 'generic/platform=iOS' -archivePath build/Sonar.xcarchive \
             CODE_SIGNING_ALLOWED=NO CURRENT_PROJECT_VERSION="$BUILD" \
-            SONAR_LASTFM_KEY="$SONAR_LASTFM_KEY" SONAR_LASTFM_SECRET="$SONAR_LASTFM_SECRET" \
             SONAR_REPORT_BOT_TOKEN="$SONAR_REPORT_BOT_TOKEN" SONAR_REPORT_CHAT="$SONAR_REPORT_CHAT" \
             SONAR_REPORT_THREAD="$SONAR_REPORT_THREAD" | xcbeautify
           mkdir -p build/Payload

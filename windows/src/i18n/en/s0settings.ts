@@ -47,7 +47,7 @@ export default {
   'Что играет дальше и где это видно': 'What plays next and where you see it',
   'Плеер внизу окна: вид, место и форма': 'The player at the bottom of the window: look, place and shape',
   'Подключи SoundCloud и Яндекс — отсюда берётся музыка': 'Connect SoundCloud and Yandex — this is where the music comes from',
-  'Discord, Last.fm и OBS: где ещё видно, что ты слушаешь': 'Discord, Last.fm and OBS: where else people see what you listen to',
+  'Discord и OBS: где ещё видно, что ты слушаешь': 'Discord and OBS: where else people see what you listen to',
   'Язык, источник Sonar Mix и что делает Sonar при запуске': 'Language, Sonar Mix source and what Sonar does on launch',
   'Управление музыкой с клавиатуры, даже когда окно спрятано': 'Control music from the keyboard, even when the window is hidden',
   'Как Sonar находит и ставит новые версии': 'How Sonar finds and installs new versions',

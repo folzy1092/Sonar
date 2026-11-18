@@ -51,7 +51,7 @@ class Hotkeys {
     $effect.root(() => {
       $effect(() => {
         if (!settings.loaded) return
-        const map = this.suspended ? {} : globalMap(effectiveMap(), settings.get('hotkeys.scope'), mini.open)
+        const map = this.suspended ? {} : globalMap(effectiveMap(), settings.get('hotkeys.scope'), mini.open || mini.overlayOpen)
         untrack(() => void this.apply(map))
       })
     })
@@ -116,6 +116,8 @@ class Hotkeys {
         return void wave.toggle()
       case 'mini':
         return void mini.toggle()
+      case 'overlay':
+        return void mini.overlay()
     }
   }
 

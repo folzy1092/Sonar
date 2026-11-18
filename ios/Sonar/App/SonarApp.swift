@@ -37,7 +37,8 @@ struct SonarApp: App {
                     // кэш текстов чистится при создании хранилища (неделя / две у Любимых)
                     _ = LyricsStore.shared
                     StorageUsage.applyCoverLimit(settings)
-                    LastfmScrobbler.shared.flush()
+                    // Last.fm убран (docs/LASTFM_EXIT.md): прежний вход и очередь стираются один раз
+                    RetiredIntegrations.forgetOnDevice()
                     // сервер: синхронизация и версия устройства — без включённого сервера ничего не делают
                     SyncService.shared.start()
                     await AccountStore.shared.reportLaunch()

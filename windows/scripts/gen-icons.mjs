@@ -8,7 +8,7 @@ import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const set = JSON.parse(readFileSync(require.resolve('@iconify-json/mingcute/icons.json'), 'utf8'))
 
-/** Наше имя → имя MingCute. Нет здесь (repeatOff, brandLastfm, obs) — остаются из Tabler (icons.ts). */
+/** Наше имя → имя MingCute. Нет здесь (repeatOff, obs) — остаются из Tabler (icons.ts). */
 const MAP = {
   home: 'home-4', search: 'search', library: 'folder', player: 'play', settings: 'settings-3',
   play: 'play', pause: 'pause', prev: 'skip-previous', next: 'skip-forward', repeatOnce: 'repeat-one',
@@ -29,12 +29,12 @@ const MAP = {
   photo: 'pic', vinyl: 'disc', maximize: 'fullscreen-2', line: 'minimize', bars: 'chart-bar',
   waveform: 'audio-waveform', cloudUp: 'upload-2', cloudDown: 'download-3', compress: 'fullscreen-exit',
   stack: 'layers', hash: 'hashtag', layout: 'layout', user2: 'user-2', login: 'entrance',
-  phone: 'cellphone', wifi: 'wifi', unlink: 'unlink',
+  phone: 'cellphone', wifi: 'wifi', unlink: 'unlink', bell: 'notification',
 }
 
 /** Знаки брендов — Simple Icons (CC0), одна заливка: и контур, и `filled` одинаковые. */
 const brands = JSON.parse(readFileSync(require.resolve('@iconify-json/simple-icons/icons.json'), 'utf8'))
-const BRANDS = { brandLastfm: 'lastdotfm', obs: 'obsstudio', discord: 'discord' }
+const BRANDS = { obs: 'obsstudio', discord: 'discord' }
 
 const body = (n) => {
   const icon = set.icons[n] ?? set.icons[set.aliases?.[n]?.parent]

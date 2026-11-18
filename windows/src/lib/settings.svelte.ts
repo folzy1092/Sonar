@@ -4,17 +4,30 @@ import { api } from './api'
 import { migrateSettings } from './settings-migrate'
 import type { CoverStrength, Surface } from '../theme/palette'
 import type { ServiceId, ServiceKey } from './services'
+import type { NickEffect, NickFont, ProfileColor, ProfileLayout, ProfileLink, ShowcaseItem } from './profile-look'
 import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook, ProgressLook, TitleStyle } from '../theme/style'
 
 export type MiniStyle = 'off' | 'full' | 'rounded' | 'hybrid' | 'deck'
 
+/** Оверлей (SETTINGS_NEXT «Оверлей», 2026-11-18): Отключен · Полноэкранный · Остров · Карточка. */
+export type OverlayMode = 'off' | 'fullscreen' | 'island' | 'card'
+/** Клетка сетки 3×3 на экране: строка (t — сверху, m — посередине, b — снизу) и столбец (l, c, r). */
+export type OverlayAnchor = `${'t' | 'm' | 'b'}${'l' | 'c' | 'r'}`
+
+/** Чем показан прогресс в мини-плеере — можно несколько сразу (SETTINGS_NEXT «Мини плеер», 2026-11-18). */
+export type MiniProgress = 'line' | 'background' | 'cover'
+
 /** Пресеты стиля мини-плеера (как у Dotify, заметка владельца в reference/pc/ПРОЧИТАЙ МЕНЯ.txt). */
-export const MINI_PRESETS: Record<Exclude<MiniStyle, 'off'>, { bg: 'theme' | 'cover' | 'cover_color'; progress: 'line' | 'background' | 'cover'; cover: 'default' | 'circle'; shape: 'default' | 'capsule' }> = {
-  full: { bg: 'theme', progress: 'line', cover: 'default', shape: 'default' },
-  rounded: { bg: 'theme', progress: 'cover', cover: 'circle', shape: 'capsule' },
-  hybrid: { bg: 'theme', progress: 'background', cover: 'default', shape: 'default' },
-  deck: { bg: 'cover', progress: 'background', cover: 'default', shape: 'default' },
+export const MINI_PRESETS: Record<Exclude<MiniStyle, 'off'>, { bg: 'theme' | 'cover' | 'cover_color'; progress: readonly MiniProgress[]; cover: 'default' | 'circle'; shape: 'default' | 'capsule' }> = {
+  full: { bg: 'theme', progress: ['line'], cover: 'default', shape: 'default' },
+  rounded: { bg: 'theme', progress: ['cover'], cover: 'circle', shape: 'capsule' },
+  hybrid: { bg: 'theme', progress: ['background'], cover: 'default', shape: 'default' },
+  deck: { bg: 'cover', progress: ['background'], cover: 'default', shape: 'default' },
 }
+
+/** Обложка и форма мини-плеера двумя кнопками → скругление, % (тонкая подстройка — ползунками в «Ещё»). */
+export const MINI_COVER_ROUND = { default: 20, circle: 100 } as const
+export const MINI_SHAPE_ROUND = { default: 0, capsule: 100 } as const
 
 export const DEFAULTS = {
   'general.platform': 'soundcloud' as ServiceKey,
@@ -30,6 +43,19 @@ export const DEFAULTS = {
   'profile.name': '' as string,
   'profile.username': '' as string,
   'profile.avatar': '' as string,
+  /** Вид профиля (SETTINGS_NEXT «Профиль», lib/profile-look.ts): баннер 900×300 и фон 960×540 — WebP
+   *  data URL; цвет ('' — цвет темы); статус и «о себе»; ссылки; раскладка шапки; шрифт и эффект ника;
+   *  витрина до 6 мест. Публикуется с сервером (PATCH /me). */
+  'profile.banner': '' as string,
+  'profile.background': '' as string,
+  'profile.color': '' as '' | ProfileColor,
+  'profile.status': '' as string,
+  'profile.bio': '' as string,
+  'profile.links': [] as ProfileLink[],
+  'profile.layout': 'avatar' as ProfileLayout,
+  'profile.nick_font': 'default' as NickFont,
+  'profile.nick_effect': 'none' as NickEffect,
+  'profile.showcase': [] as ShowcaseItem[],
   /** Приватность профиля (Аккаунт → Приватность, lib/public-profile.ts): что видит гость по ссылке. */
   'privacy.friend_requests': 'everyone' as 'everyone' | 'fof' | 'nobody',
   'privacy.now_playing': 'everyone' as 'everyone' | 'friends' | 'nobody',
@@ -126,19 +152,32 @@ export const DEFAULTS = {
   'queue.view': 'extended' as 'normal' | 'extended',
   'queue.add_following': true,
   'mini.style': 'hybrid' as MiniStyle,
-  /** Где мини-плеер: снизу (под карточкой) / сверху / снизу внутри карточки / плавающий. */
-  'mini.position': 'bottom' as 'top' | 'bottom' | 'bottom_inset' | 'floating',
+  /** Где мини-плеер: сверху / снизу (под карточкой) / снизу во всю ширину (и под левой панелью) / плавающий. */
+  'mini.position': 'bottom' as 'top' | 'bottom' | 'bottom_full' | 'floating',
   /** Плавающий мини-плеер: центр капсулы в долях окна. */
   'mini.float_x': 0.5 as number,
   'mini.float_y': 0.86 as number,
   'mini.background': 'theme' as 'theme' | 'cover' | 'cover_color',
-  'mini.progress': 'background' as 'line' | 'background' | 'cover',
+  'mini.progress': ['background'] as readonly MiniProgress[],
   'mini.cover_shape': 'default' as 'default' | 'circle',
   'mini.shape': 'default' as 'default' | 'capsule',
   /** Скругление концов капсул (мини-плеер и левая панель), % от половины высоты: 100 — капсула. */
   'mini.shape_round': 100 as number,
   /** Скругление обложки в мини-плеере, %: 100 — круг. */
   'mini.cover_round': 100 as number,
+  /** Оверлей поверх других программ и игр (mini.rs): режим; `off` — горячая клавиша и «само» молчат. */
+  'overlay.mode': 'card' as OverlayMode,
+  /** Появляться само, когда окно Sonar свёрнуто или спрятано в трей. */
+  'overlay.auto': false,
+  'overlay.shape': 'rounded' as 'square' | 'rounded',
+  /** Клетка сетки 3×3 на экране: строка t/m/b + столбец l/c/r. */
+  'overlay.position': 'tc' as OverlayAnchor,
+  /** Непрозрачность, %. */
+  'overlay.opacity': 90 as number,
+  /** Масштаб, %: умножает ширину и высоту. */
+  'overlay.scale': 100 as number,
+  'overlay.width': 340 as number,
+  'overlay.height': 58 as number,
   'player.title_align': 'center' as 'left' | 'center' | 'right',
   'player.artist_avatars': true,
   'player.visualizer': 'bar' as 'off' | 'bar' | 'cover' | 'slider',
@@ -163,8 +202,6 @@ export const DEFAULTS = {
   'integrations.discord.show_paused': false,
   'integrations.discord.button_listen': true,
   'integrations.discord.button_download': true,
-  'integrations.lastfm.scrobble': true,
-  'integrations.lastfm.now_playing': true,
   'system.autostart': true,
   /** Где действуют сочетания (`HotkeyScope`): только в окне · ещё и пока открыто мини-окно / оверлей · везде,
    *  даже из трея (hotkeys.rs). Старое `hotkeys.enabled = true` читается как `global` — `settings-migrate.ts`. */
@@ -251,8 +288,20 @@ class Settings {
     const p = MINI_PRESETS[style]
     this.set('mini.background', p.bg)
     this.set('mini.progress', p.progress)
-    this.set('mini.cover_shape', p.cover)
-    this.set('mini.shape', p.shape)
+    this.setMiniCover(p.cover)
+    this.setMiniShape(p.shape)
+  }
+
+  /** Обложка мини-плеера: по умолчанию (чуть скруглённая) или круглая. */
+  setMiniCover(cover: 'default' | 'circle') {
+    this.set('mini.cover_shape', cover)
+    this.set('mini.cover_round', MINI_COVER_ROUND[cover])
+  }
+
+  /** Форма мини-плеера (и левой панели): по умолчанию или капсула. */
+  setMiniShape(shape: 'default' | 'capsule') {
+    this.set('mini.shape', shape)
+    this.set('mini.shape_round', MINI_SHAPE_ROUND[shape])
   }
 
   /** После «Сбросить настройки». */

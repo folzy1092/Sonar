@@ -114,6 +114,9 @@ extension I18n {
         ("Сессия закончилась — войди заново", "Your session has ended — sign in again", "Сесія закінчилася — увійди знову"),
         ("Слишком много попыток, попробуй позже", "Too many attempts, try later", "Забагато спроб, спробуй пізніше"),
         ("Неверный адрес сервера", "Invalid server address", "Неправильна адреса сервера"),
+        // Приватность и Sonar Deep на iPhone (остальные строки — общие с ПК)
+        ("Все плейлисты разом", "All playlists at once", "Усі плейлисти разом"),
+        ("Итого", "Total", "Разом"),
     ]
 
     static let accountEN: [String: String] = Dictionary(accountStrings.map { ($0.0, $0.1) }, uniquingKeysWith: { a, _ in a })

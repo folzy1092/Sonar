@@ -1,0 +1,156 @@
+---
+// 404 и заглушка профиля `/@username` (SITE.md §5). GitHub Pages отдаёт 404.html на любой незнакомый путь,
+// скрипт решает, что показать. Профиль появится с сервером (`GET /public/users/{username}`).
+import { href, useT, type Lang } from '../../i18n'
+import Icon from '../Icon.astro'
+import Logo from '../Logo.astro'
+
+interface Props {
+  lang: Lang
+}
+
+const { lang } = Astro.props
+const { t } = useT(lang)
+const strings = {
+  profileTitle: t('@{name} — профиль'),
+}
+---
+
+<section class="nf wrap" data-nf data-state="missing">
+  <div class="nf__sonar" aria-hidden="true">
+    <span class="nf__ring"></span><span class="nf__ring"></span><span class="nf__ring"></span>
+    <div class="nf__core">
+      <span class="nf__code" data-nf-missing>404</span>
+      <span class="nf__avatar" data-nf-profile hidden><span data-nf-initial></span></span>
+    </div>
+  </div>
+
+  <div class="nf__text" data-nf-missing>
+    <p class="eyebrow" data-reveal>{t('Ошибка 404')}</p>
+    <h1 class="nf__title" data-reveal>{t('Здесь пусто')}</h1>
+    <p class="lead" data-reveal>{t('Такой страницы нет: возможно, ссылка устарела или в ней опечатка.')}</p>
+    <div class="nf__actions" data-reveal>
+      <a class="btn btn--primary" href={href(lang, '/')}>{t('На главную')}</a>
+      <a class="btn btn--ghost" href={href(lang, '/faq')}>{t('Частые вопросы')}</a>
+    </div>
+  </div>
+
+  <div class="nf__text" data-nf-profile hidden>
+    <p class="nf__handle" data-reveal><Logo size={16} /><span data-nf-handle></span></p>
+    <h1 class="nf__title" data-reveal>{t('Профили заработают вместе с сервером')}</h1>
+    <p class="lead" data-reveal>
+      {t('Здесь будет публичная страница: аватар, баннер, витрина и любимые треки — только то, что открыто в приватности профиля. Пока сервер Sonar не запущен, показать её нечем.')}
+    </p>
+    <div class="nf__actions" data-reveal>
+      <a class="btn btn--primary" href={href(lang, '/#download')}>
+        <Icon name="mc:download-2-line" size={20} />{t('Скачать Sonar')}
+      </a>
+      <a class="btn btn--ghost" href={href(lang, '/')}>{t('На главную')}</a>
+    </div>
+  </div>
+
+  <script type="application/json" data-nf-strings set:html={JSON.stringify(strings)} />
+</section>
+
+<script>
+  import { initNotFound } from '../../scripts/notfound'
+  const root = document.querySelector<HTMLElement>('[data-nf]')
+  if (root) initNotFound(root)
+</script>
+
+<style>
+  .nf {
+    min-height: calc(100svh - var(--header-h) - 120px);
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: clamp(28px, 5vw, 44px);
+    padding-block: clamp(48px, 8vw, 96px);
+    text-align: center;
+  }
+  .nf__text { display: grid; justify-items: center; gap: 14px; max-width: 620px; }
+  .nf__title { font-size: clamp(30px, 5vw, 52px); text-wrap: balance; }
+  .nf .lead { text-wrap: pretty; }
+  .nf__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 10px; }
+
+  .nf__handle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-pill);
+    background: var(--surface-1);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .nf__handle :global(svg) { flex: none; opacity: 0.7; }
+
+  /* Сонар: кольца расходятся от центра, как пинг */
+  .nf__sonar {
+    position: relative;
+    width: clamp(168px, 34vw, 220px);
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+  }
+  .nf__ring {
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    animation: nf-ping 3.6s var(--ease) infinite;
+    opacity: 0;
+  }
+  .nf__ring:nth-child(2) { animation-delay: 1.2s; }
+  .nf__ring:nth-child(3) { animation-delay: 2.4s; }
+  @keyframes nf-ping {
+    0% { transform: scale(0.45); opacity: 0; }
+    20% { opacity: 0.9; }
+    100% { transform: scale(1.1); opacity: 0; }
+  }
+
+  .nf__core {
+    position: relative;
+    width: 58%;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 25%, var(--surface-3), var(--surface-1));
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.9);
+    animation: nf-in 700ms var(--ease) both;
+  }
+  @keyframes nf-in {
+    from { transform: scale(0.8); opacity: 0; }
+  }
+  .nf__code {
+    font-family: var(--font-display);
+    font-size: clamp(30px, 6vw, 40px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .nf__avatar {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(140deg, var(--deep), #3b4a7a 60%, var(--surface-2));
+    font-family: var(--font-display);
+    font-size: clamp(38px, 7vw, 52px);
+    font-weight: 600;
+    color: #fff;
+    text-transform: uppercase;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .nf__ring { animation: nf-fade 3.6s linear infinite; transform: none; }
+    .nf__ring:nth-child(1) { inset: 22%; }
+    .nf__ring:nth-child(2) { inset: 10%; }
+    .nf__core { animation-name: nf-fade-in; }
+    @keyframes nf-fade { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.8; } }
+    @keyframes nf-fade-in { from { opacity: 0; } }
+  }
+</style>

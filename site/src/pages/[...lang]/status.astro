@@ -1,0 +1,32 @@
+---
+// /status — статус Sonar и музыкальных сервисов (SITE.md §5, SPEC §3.11).
+import StatusBoard from '../../components/status/StatusBoard.astro'
+import { langParam, langPaths, useT } from '../../i18n'
+import Base from '../../layouts/Base.astro'
+
+export const getStaticPaths = langPaths
+
+const lang = langParam(Astro.params.lang)
+const { t } = useT(lang)
+---
+
+<Base
+  lang={lang}
+  path="/status"
+  title={t('Статус сервисов')}
+  description={t('Состояние Sonar и музыкальных сервисов: работает ли сервер, бот, SoundCloud, Яндекс Музыка и остальные.')}
+>
+  <div class="wrap page">
+    <header class="page__head" data-reveal>
+      <h1 class="page__title">{t('Статус сервисов')}</h1>
+      <p class="lead">{t('Состояние Sonar и музыкальных сервисов')}</p>
+    </header>
+    <StatusBoard lang={lang} />
+  </div>
+</Base>
+
+<style>
+  .page { max-width: calc(880px + var(--gutter) * 2); padding-block: clamp(32px, 6vw, 72px) clamp(56px, 9vw, 112px); }
+  .page__head { display: grid; gap: 14px; margin-bottom: clamp(28px, 4vw, 40px); }
+  .page__title { font-size: clamp(34px, 5.4vw, 60px); }
+</style>

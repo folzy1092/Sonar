@@ -66,7 +66,7 @@ Sonar/
 │   │   │   ├── library.py    лайки, плейлисты
 │   │   │   ├── player.py     состояние, plays, stats
 │   │   │   ├── sync.py       pull, push, snapshot, replace
-│   │   │   ├── integrations.py  Last.fm, ключ API
+│   │   │   ├── integrations.py  ключ API
 │   │   │   ├── now.py        GET /oauth/now (формат Dotify)
 │   │   │   └── updates.py    manifest.plist
 │   │   ├── providers/        вся работа с внешними сервисами — только здесь
@@ -79,8 +79,6 @@ Sonar/
 │   │   │   ├── stats.py      агрегаты
 │   │   │   ├── sync.py       применение ops, конфликты
 │   │   │   ├── now.py        сборка Dotify-JSON из player_state
-│   │   ├── integrations/
-│   │   │   └── lastfm.py     auth, scrobble, updateNowPlaying
 │   │   ├── bot/              aiogram 3: вход, привязка, команды админа
 │   │   │   ├── handlers.py   /start (приветствие, login_…, link_…), подтверждение входа
 │   │   │   ├── user.py       /services, /profile, /stats (кратко по периодам), /apikey (сброс ключа),
@@ -205,7 +203,7 @@ Sonar/
 
 ## Правила раскладки
 
-- Внешние сервисы (SoundCloud, Яндекс, Last.fm) трогаются **только** в `server/sonar/providers`
+- Внешние сервисы (SoundCloud, Яндекс) трогаются **только** в `server/sonar/providers`
   и `server/sonar/integrations`. Роутеры и домен о деталях сервисов не знают.
 - В iOS экраны (`Features`) не ходят в сеть напрямую — только через `Core` и `Playback`.
 - Цвета и размеры в iOS — только из `DesignSystem` (`ThemeStore`), без хардкода в экранах:

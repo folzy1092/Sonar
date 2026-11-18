@@ -1,0 +1,102 @@
+---
+// Одна строка статуса: знак, название, состояние точкой и словом, полоски за 30 дней; под ними — аптайм
+// или, при наведении на день, его дата и процент.
+// До сервера все строки — «Нет данных»; скрипт `scripts/status.ts` перекрашивает их по ответу API.
+import { useT, type Lang } from '../../i18n'
+import { HISTORY_DAYS, type StatusRow } from '../../lib/status'
+import Icon from '../Icon.astro'
+import ServiceIcon, { type ServiceId } from '../ServiceIcon.astro'
+
+interface Props {
+  lang: Lang
+  row: StatusRow
+  /** Даты полосок на момент сборки; на странице скрипт пересчитывает их на сегодня. */
+  days: readonly string[]
+}
+
+const { lang, row, days } = Astro.props
+const { t } = useT(lang)
+const name = t(row.name)
+const [kind, id] = row.icon.split(':')
+---
+
+<li class="row" data-row={row.id} data-state="none" style={`--bars: ${HISTORY_DAYS}`}>
+  <div class="row__head">
+    <span class="row__icon">
+      {kind === 'svc' ? <ServiceIcon id={id as ServiceId} size={22} /> : <Icon name={row.icon} size={18} />}
+    </span>
+    <span class="row__name">{name}</span>
+    <span class="row__state">
+      <i class="dot" aria-hidden="true"></i>
+      <span data-row-word>{t('Нет данных')}</span>
+    </span>
+  </div>
+  <div class="bars" data-bars role="img" aria-label={t('{name}: аптайм за 30 дней — нет данных', { name })}>
+    {days.map((date, i) => <i class="bar" data-date={date} data-state="none" style={`--i: ${i}`}></i>)}
+  </div>
+  <div class="row__foot" aria-hidden="true">
+    <span>{t('30 дней назад')}</span>
+    <span class="row__hint" data-row-hint></span>
+    <span>{t('Сегодня')}</span>
+  </div>
+</li>
+
+<style>
+  .row { display: grid; gap: 10px; padding: 16px clamp(14px, 2.4vw, 22px); }
+  .row + .row { border-top: 1px solid var(--border); }
+  .row__head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .row__icon {
+    flex: none; display: grid; place-items: center; width: 32px; height: 32px;
+    border-radius: var(--r-sm); background: var(--surface-2); color: var(--text-2);
+  }
+  .row__name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row__state {
+    display: inline-flex; align-items: center; gap: 8px; flex: none;
+    font-size: 14px; color: var(--text-2); transition: color var(--t) var(--ease);
+  }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--state-color);
+    box-shadow: 0 0 0 0 var(--state-color); transition: background var(--t) var(--ease);
+  }
+  .row { --state-color: var(--text-3); }
+  .row[data-state='ok'] { --state-color: var(--ok); }
+  .row[data-state='degraded'] { --state-color: var(--warn); }
+  .row[data-state='down'] { --state-color: var(--down); }
+  .row[data-state='ok'] .dot { animation: ping 2.4s var(--ease) infinite; }
+  .row[data-state='degraded'] .row__state, .row[data-state='down'] .row__state { color: var(--text); }
+
+  .bars {
+    display: grid; grid-template-columns: repeat(var(--bars), minmax(0, 1fr));
+    gap: clamp(2px, 0.5vw, 4px); height: 34px; align-items: stretch;
+  }
+  .bar {
+    border-radius: 3px; background: var(--none);
+    transform-origin: bottom; transition: background var(--t) var(--ease), transform var(--t-fast) var(--ease), opacity var(--t-fast);
+  }
+  .bar[data-state='ok'] { background: var(--ok); }
+  .bar[data-state='degraded'] { background: var(--warn); }
+  .bar[data-state='down'] { background: var(--down); }
+  .bars:hover .bar { opacity: 0.55; }
+  .bars:hover .bar:hover { opacity: 1; transform: scaleY(1.12); }
+
+  :global(.js) .row .bar { transform: scaleY(0.2); opacity: 0; }
+  :global(.js) :global(.is-in) .row .bar {
+    transform: none; opacity: 1;
+    transition: transform 520ms var(--ease) calc(var(--i) * 14ms), opacity 320ms var(--ease) calc(var(--i) * 14ms),
+      background var(--t) var(--ease);
+  }
+
+  .row__foot { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--text-3); }
+  .row__hint { flex: 1; text-align: center; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+  @keyframes ping {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--state-color) 55%, transparent); }
+    70%, 100% { box-shadow: 0 0 0 7px transparent; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .row[data-state='ok'] .dot { animation: none; }
+    :global(.js) .row .bar, :global(.js) :global(.is-in) .row .bar { transform: none; }
+    .bars:hover .bar:hover { transform: none; }
+  }
+</style>

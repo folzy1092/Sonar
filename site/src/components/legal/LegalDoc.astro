@@ -1,0 +1,154 @@
+---
+// Юр-документ: шапка с пометкой черновика, оглавление с бегущим индикатором, разделы с якорями.
+import { LEGAL_UPDATED, type LegalDoc } from '../../content/legal'
+import { useT, type Lang } from '../../i18n'
+import RichText from '../RichText.astro'
+import DocHeader from './DocHeader.astro'
+import DocNav from './DocNav.astro'
+
+interface Props {
+  lang: Lang
+  doc: LegalDoc
+}
+
+const { lang, doc } = Astro.props
+const { t } = useT(lang)
+---
+
+<div class="wrap legal">
+  <DocHeader lang={lang} title={t(doc.title)} lead={t(doc.lead)} updated={LEGAL_UPDATED} draft />
+
+  <div class="legal__body">
+    <nav class="toc" aria-label={t('Содержание')} data-toc data-reveal>
+      <p class="toc__title">{t('Содержание')}</p>
+      <div class="toc__track">
+        <span class="toc__marker" aria-hidden="true" data-toc-marker></span>
+        <ol class="toc__list">
+        {
+          doc.sections.map((s) => (
+            <li>
+              <a class="toc__link" href={`#${s.id}`} data-toc-link={s.id}>
+                {t(s.title)}
+              </a>
+            </li>
+          ))
+        }
+        </ol>
+      </div>
+    </nav>
+
+    <article class="legal__text">
+      {
+        doc.sections.map((s) => (
+          <section class="legal__section" id={s.id} data-toc-section data-reveal>
+            <h2 class="legal__h">
+              <a class="legal__anchor" href={`#${s.id}`} aria-hidden="true" tabindex="-1">#</a>
+              {t(s.title)}
+            </h2>
+            {s.blocks.map((b) =>
+              typeof b === 'string' ? (
+                <RichText lang={lang} text={t(b)} />
+              ) : (
+                <ul class="legal__list">
+                  {b.list.map((item) => (
+                    <li>
+                      <RichText lang={lang} text={t(item)} />
+                    </li>
+                  ))}
+                </ul>
+              ),
+            )}
+          </section>
+        ))
+      }
+    </article>
+  </div>
+
+  <DocNav lang={lang} current={doc.id} />
+</div>
+
+<style>
+  .legal { padding-block: clamp(32px, 6vw, 72px) clamp(56px, 9vw, 112px); }
+  .legal__body { display: grid; gap: clamp(24px, 4vw, 56px); align-items: start; }
+  @media (min-width: 960px) {
+    .legal__body { grid-template-columns: 240px minmax(0, 720px); }
+    .toc { position: sticky; top: calc(var(--header-h) + 24px); }
+  }
+
+  .toc {
+    padding: 16px;
+    border-radius: var(--r-lg);
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+  }
+  .toc__title { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin: 0 0 10px 10px; }
+  .toc__track { position: relative; }
+  .toc__list { list-style: none; display: grid; gap: 2px; }
+  .toc__link {
+    position: relative;
+    z-index: 1;
+    display: block;
+    padding: 7px 10px;
+    border-radius: var(--r-sm);
+    font-size: 14px;
+    line-height: 1.35;
+    color: var(--text-2);
+    transition: color var(--t) var(--ease), background var(--t-fast) var(--ease);
+  }
+  .toc__link:hover { color: var(--text); background: var(--hover); }
+  .toc__link[aria-current='true'] { color: var(--text); }
+  .toc__marker {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: var(--h, 0px);
+    transform: translateY(var(--y, 0px));
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    box-shadow: inset 2px 0 0 var(--text);
+    opacity: 0;
+    transition: transform 420ms var(--ease), height 420ms var(--ease), opacity var(--t) var(--ease);
+    pointer-events: none;
+  }
+  .toc__marker.is-on { opacity: 1; }
+  @media (max-width: 959px) {
+    .toc__list { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .toc__marker { display: none; }
+  }
+
+  .legal__text { display: grid; gap: clamp(28px, 4vw, 40px); }
+  .legal__section { scroll-margin-top: calc(var(--header-h) + 20px); display: grid; gap: 12px; }
+  .legal__section :global(p) { color: var(--text-2); line-height: 1.7; font-size: 16px; }
+  .legal__h { position: relative; font-size: clamp(20px, 2.4vw, 24px); }
+  .legal__anchor {
+    position: absolute;
+    left: -1.1em;
+    color: var(--text-3);
+    opacity: 0;
+    transition: opacity var(--t) var(--ease);
+  }
+  .legal__h:hover .legal__anchor { opacity: 1; }
+  .legal__list { list-style: none; display: grid; gap: 10px; }
+  .legal__list li { position: relative; padding-left: 22px; }
+  .legal__list li::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 0.72em;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-3);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toc__marker { transition: opacity var(--t) linear; }
+  }
+</style>
+
+<script>
+  import { initToc } from '../../scripts/toc'
+  const nav = document.querySelector<HTMLElement>('[data-toc]')
+  if (nav) initToc(nav)
+</script>
