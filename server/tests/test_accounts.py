@@ -86,3 +86,14 @@ def test_token_detector():
     assert looks_like_token("2-292929-123456789-AbCdEfGhIjKl")
     assert not looks_like_token("folzy")
     assert not looks_like_token("привет как дела")
+
+
+def test_listeners_today_counts_accounts_once(acc, con):
+    a, b, c = (acc.register(n, "password1") for n in ("folzy", "second", "third"))
+    day = now_ms() - 3600_000
+    con.executemany("INSERT INTO plays (user_id, ref, artist, played_at, listened_ms) VALUES (?,?,?,?,?)",
+                    [(a.id, "sc:1", "A", day + 1, 1000), (a.id, "sc:2", "A", day + 2, 1000),
+                     (b.id, "sc:1", "A", day - 86400_000, 1000)])  # b слушал вчера
+    con.execute("INSERT INTO player_state (user_id, is_playing, heartbeat_at) VALUES (?, 1, ?)", (c.id, now_ms()))
+    con.execute("INSERT INTO player_state (user_id, is_playing, heartbeat_at) VALUES (?, 1, ?)", (a.id, now_ms()))
+    assert acc.listeners_today(day) == 2

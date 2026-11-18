@@ -10,9 +10,17 @@ export interface StatusItem {
   readonly ms: number | null
 }
 
+/** Люди: слушают сейчас, разных аккаунтов за сегодня, всего аккаунтов; чего сервер не прислал — null. */
+export interface StatusPeople {
+  readonly online: number | null
+  readonly today: number | null
+  readonly users: number | null
+}
+
 export interface StatusReport {
   readonly state: LiveState
   readonly uptime30d: number | null
+  readonly people: StatusPeople
   readonly checkedAt: number
   readonly items: ReadonlyMap<string, StatusItem>
 }
@@ -106,7 +114,12 @@ export function parseStatus(json: unknown): StatusReport | null {
       .filter((item): item is StatusItem => item !== null)
       .map((item) => [item.id, item] as const),
   )
-  return { state: json.state, uptime30d: finiteOrNull(json.uptime_30d), checkedAt, items }
+  const people = {
+    online: finiteOrNull(json.listening_now),
+    today: finiteOrNull(json.listeners_today),
+    users: finiteOrNull(json.users),
+  }
+  return { state: json.state, uptime30d: finiteOrNull(json.uptime_30d), people, checkedAt, items }
 }
 
 /** Ответ `GET /status/history` → дни с процентами; битые дни и значения отбрасываются. */

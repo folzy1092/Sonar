@@ -106,6 +106,18 @@ CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
 
+def day_start_ms(now: float | None = None) -> int:
+    """Начало сегодняшнего дня по Риге (владелец в Латвии); нет базы часовых поясов — по UTC."""
+    from datetime import datetime, timezone
+    try:
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo("Europe/Riga")
+    except Exception:  # noqa: BLE001 — на Windows без tzdata
+        tz = timezone.utc
+    d = datetime.fromtimestamp(time.time() if now is None else now, tz)
+    return int(d.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
+
+
 def now_ms() -> int:
     return int(time.time() * 1000)
 

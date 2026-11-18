@@ -18,6 +18,16 @@ UA = {"User-Agent": "Sonar/0.1 (+https://sonar.folzy.ru)"}
 MIN_FREE_BYTES = 100 * 1024 * 1024
 
 
+# Платформы, которые Sonar ещё не подключил (решение владельца 2026-11-18): в статусе — видит ли их сервер.
+# Лёгкий запрос без входа; в шапку статуса не идут (там только то, с чем Sonar работает сейчас).
+EXTRA_PLATFORMS: dict[str, tuple[str, dict]] = {
+    "youtube": ("https://music.youtube.com/", {}),
+    "vk": ("https://vk.com/", {}),
+    "spotify": ("https://open.spotify.com/", {}),
+    "apple": ("https://itunes.apple.com/search", {"term": "sonar", "entity": "song", "limit": 1}),
+}
+
+
 class Throttled(Exception):
     pass
 
@@ -90,6 +100,7 @@ class Status:
                 self._remote(s, "genius", "https://genius.com/api/search/multi", q="sonar"),
                 self._remote(s, "site", self.settings.site_url),
                 self._telegram(),
+                *(self._remote(s, k, url, **q) for k, (url, q) in EXTRA_PLATFORMS.items()),
             ]
             if self.settings.lastfm_api_key:
                 jobs.append(self._remote(s, "lastfm", "https://ws.audioscrobbler.com/2.0/", method="chart.gettoptracks",
@@ -97,6 +108,10 @@ class Status:
             if self.settings.public_url:
                 jobs.append(self._remote(s, "proxy", f"{self.settings.public_url}/health"))
             items += await asyncio.gather(*jobs)
+        # «Основной» в мс для всех: ответ сервера снаружи через туннель, если он жив; иначе — запрос к БД.
+        proxy = next((i for i in items if i.key == "proxy"), None)
+        if proxy and proxy.state == OK and proxy.ms is not None:
+            items[0] = Item("main", items[0].state, proxy.ms)
         # Медиа = выдаём ссылки на поток: живы ли оба сервиса.
         sc, ym = next(i for i in items if i.key == "soundcloud"), next(i for i in items if i.key == "yandex")
         media = OK if sc.state == ym.state == OK else (DOWN if sc.state == ym.state == DOWN else PARTIAL)

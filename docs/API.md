@@ -627,9 +627,12 @@ selfbot переключился сменой адреса:
   "state": "degraded",                 // ok | degraded | down
   "title": "Некоторые сервисы работают с перебоями",
   "uptime_30d": 99.99,
+  "listening_now": 3,                  // играют сейчас (heartbeat < 90 с)
+  "listeners_today": 7,                // разных аккаунтов с полуночи по Риге
+  "users": 12,                         // аккаунтов всего (без забаненных)
   "checked_at": 1794700000000,
   "infra": [
-    {"id": "api", "name": "Основной", "icon": "🖥️", "state": "ok", "ms": 12},
+    {"id": "api", "name": "Основной", "icon": "🗄", "state": "ok", "ms": 42},
     {"id": "bot", "name": "Бот", "icon": "🤖", "state": "ok", "ms": null},
     {"id": "storage", "name": "Хранилище", "icon": "📦", "state": "ok", "ms": 3},
     {"id": "site", "name": "Сайт", "icon": "🌐", "state": "ok", "ms": 210}
@@ -637,6 +640,10 @@ selfbot переключился сменой адреса:
   "platforms": [
     {"id": "soundcloud", "name": "SoundCloud", "icon": "🌐", "state": "ok", "ms": 340},
     {"id": "yandex", "name": "Яндекс Музыка", "icon": "🌐", "state": "degraded", "ms": 2900},
+    {"id": "youtube", "name": "YouTube Music", "icon": "🌐", "state": "ok", "ms": 760},
+    {"id": "vk", "name": "VK Музыка", "icon": "🌐", "state": "ok", "ms": 370},
+    {"id": "spotify", "name": "Spotify", "icon": "🌐", "state": "ok", "ms": 710},
+    {"id": "apple", "name": "Apple Music", "icon": "🌐", "state": "ok", "ms": 630},
     {"id": "lrclib", "name": "lrclib", "icon": "📝", "state": "ok", "ms": 410},
     {"id": "genius", "name": "Genius", "icon": "📝", "state": "ok", "ms": 520},
     {"id": "telegram", "name": "Telegram", "icon": "✈️", "state": "ok", "ms": 95}

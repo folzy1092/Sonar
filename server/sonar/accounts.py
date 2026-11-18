@@ -251,6 +251,13 @@ class Accounts:
     def users_count(self) -> int:
         return self.con.execute("SELECT COUNT(*) AS n FROM users WHERE banned = 0").fetchone()["n"]
 
+    def listeners_today(self, day_start_ms: int) -> int:
+        """Сколько разных аккаунтов слушали с начала дня: один аккаунт — один слушатель."""
+        return self.con.execute(
+            "SELECT COUNT(*) AS n FROM (SELECT user_id FROM plays WHERE played_at >= ?"
+            " UNION SELECT user_id FROM player_state WHERE is_playing = 1 AND heartbeat_at >= ?)",
+            (day_start_ms, day_start_ms)).fetchone()["n"]
+
     def listening_now(self) -> int:
         return self.con.execute("SELECT COUNT(*) AS n FROM player_state WHERE is_playing = 1 AND heartbeat_at > ?",
                                 (now_ms() - 90_000,)).fetchone()["n"]

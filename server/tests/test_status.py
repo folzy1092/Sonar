@@ -26,3 +26,8 @@ def test_never_ok_items(con, tmp_path):
     con.executemany("INSERT INTO status_checks (ts, item, state) VALUES (?, ?, ?)",
                     [(1, "site", "down"), (2, "site", "down"), (1, "main", "ok"), (1, "yandex", "down"), (2, "yandex", "ok")])
     assert st.never_ok() == {"site"}
+
+
+def test_extra_platforms_checked():
+    from sonar.status import EXTRA_PLATFORMS
+    assert set(EXTRA_PLATFORMS) == {"youtube", "vk", "spotify", "apple"}
