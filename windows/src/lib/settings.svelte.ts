@@ -8,13 +8,20 @@ import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook
 
 export type MiniStyle = 'off' | 'full' | 'rounded' | 'hybrid' | 'deck'
 
+/** Чем показан прогресс в мини-плеере — можно несколько сразу (SETTINGS_NEXT «Мини плеер», 2026-11-18). */
+export type MiniProgress = 'line' | 'background' | 'cover'
+
 /** Пресеты стиля мини-плеера (как у Dotify, заметка владельца в reference/pc/ПРОЧИТАЙ МЕНЯ.txt). */
-export const MINI_PRESETS: Record<Exclude<MiniStyle, 'off'>, { bg: 'theme' | 'cover' | 'cover_color'; progress: 'line' | 'background' | 'cover'; cover: 'default' | 'circle'; shape: 'default' | 'capsule' }> = {
-  full: { bg: 'theme', progress: 'line', cover: 'default', shape: 'default' },
-  rounded: { bg: 'theme', progress: 'cover', cover: 'circle', shape: 'capsule' },
-  hybrid: { bg: 'theme', progress: 'background', cover: 'default', shape: 'default' },
-  deck: { bg: 'cover', progress: 'background', cover: 'default', shape: 'default' },
+export const MINI_PRESETS: Record<Exclude<MiniStyle, 'off'>, { bg: 'theme' | 'cover' | 'cover_color'; progress: readonly MiniProgress[]; cover: 'default' | 'circle'; shape: 'default' | 'capsule' }> = {
+  full: { bg: 'theme', progress: ['line'], cover: 'default', shape: 'default' },
+  rounded: { bg: 'theme', progress: ['cover'], cover: 'circle', shape: 'capsule' },
+  hybrid: { bg: 'theme', progress: ['background'], cover: 'default', shape: 'default' },
+  deck: { bg: 'cover', progress: ['background'], cover: 'default', shape: 'default' },
 }
+
+/** Обложка и форма мини-плеера двумя кнопками → скругление, % (тонкая подстройка — ползунками в «Ещё»). */
+export const MINI_COVER_ROUND = { default: 20, circle: 100 } as const
+export const MINI_SHAPE_ROUND = { default: 0, capsule: 100 } as const
 
 export const DEFAULTS = {
   'general.platform': 'soundcloud' as ServiceKey,
@@ -126,13 +133,13 @@ export const DEFAULTS = {
   'queue.view': 'extended' as 'normal' | 'extended',
   'queue.add_following': true,
   'mini.style': 'hybrid' as MiniStyle,
-  /** Где мини-плеер: снизу (под карточкой) / сверху / снизу внутри карточки / плавающий. */
-  'mini.position': 'bottom' as 'top' | 'bottom' | 'bottom_inset' | 'floating',
+  /** Где мини-плеер: сверху / снизу (под карточкой) / снизу во всю ширину (и под левой панелью) / плавающий. */
+  'mini.position': 'bottom' as 'top' | 'bottom' | 'bottom_full' | 'floating',
   /** Плавающий мини-плеер: центр капсулы в долях окна. */
   'mini.float_x': 0.5 as number,
   'mini.float_y': 0.86 as number,
   'mini.background': 'theme' as 'theme' | 'cover' | 'cover_color',
-  'mini.progress': 'background' as 'line' | 'background' | 'cover',
+  'mini.progress': ['background'] as readonly MiniProgress[],
   'mini.cover_shape': 'default' as 'default' | 'circle',
   'mini.shape': 'default' as 'default' | 'capsule',
   /** Скругление концов капсул (мини-плеер и левая панель), % от половины высоты: 100 — капсула. */
@@ -251,8 +258,20 @@ class Settings {
     const p = MINI_PRESETS[style]
     this.set('mini.background', p.bg)
     this.set('mini.progress', p.progress)
-    this.set('mini.cover_shape', p.cover)
-    this.set('mini.shape', p.shape)
+    this.setMiniCover(p.cover)
+    this.setMiniShape(p.shape)
+  }
+
+  /** Обложка мини-плеера: по умолчанию (чуть скруглённая) или круглая. */
+  setMiniCover(cover: 'default' | 'circle') {
+    this.set('mini.cover_shape', cover)
+    this.set('mini.cover_round', MINI_COVER_ROUND[cover])
+  }
+
+  /** Форма мини-плеера (и левой панели): по умолчанию или капсула. */
+  setMiniShape(shape: 'default' | 'capsule') {
+    this.set('mini.shape', shape)
+    this.set('mini.shape_round', MINI_SHAPE_ROUND[shape])
   }
 
   /** После «Сбросить настройки». */

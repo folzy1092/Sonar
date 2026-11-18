@@ -384,11 +384,15 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 | Ключ | Значения | По умолч. |
 |---|---|---|
 | `mini.style` | `off` / `full` / `rounded` / `hybrid` / `deck` — пресет, выставляет фон/прогресс/обложку/форму (`PLATFORMS.md`) | `hybrid` |
-| `mini.position` | `top` / `bottom` / `bottom_inset` / `floating` (перетаскивается, `mini.float_x` / `mini.float_y` — доли окна) | `bottom` |
+| `mini.position` | `top` / `bottom` / `bottom_full` (снизу во всю ширину: левая панель кончается над плеером) / `floating` (перетаскивается, `mini.float_x` / `mini.float_y` — доли окна). Старое `bottom_inset` → `floating` | `bottom` |
 | `mini.background` | `theme` / `cover` / `cover_color` | `theme` (пресет «Гибрид») |
-| `mini.progress` | `line` / `background` (без `around_cover`) | `background` |
-| `mini.cover_shape` | `default` / `circle` | `circle` |
-| `mini.shape` | `default` / `capsule` | `capsule` |
+| `mini.progress` | список, можно несколько: `line` / `background` / `cover` (кольцо вокруг обложки); хотя бы один. Старое одно значение → список из него | `["background"]` |
+| `mini.cover_shape` | `default` / `circle` — кнопками; выставляет `mini.cover_round` (20 / 100) | `default` |
+| `mini.shape` | `default` / `capsule` — кнопками; выставляет `mini.shape_round` (0 / 100) | `default` |
+| `mini.cover_round`, `mini.shape_round` | 0–100 % — тонкая подстройка в «Ещё настройки», по ним и рисуется мини-плеер | `100`, `100` |
+
+Экран (2026-11-18): живой пример сверху; «Стиль» и «Фон» — карточки-превью с обложкой играющего трека,
+«Позиция» — четыре значка окна, «Прогресс» — карточки с галочками (несколько сразу).
 
 ## Оверлей PC — `overlay.*` (`pc/10, 11`) — **не делаем** (решение 2026-11-14)
 

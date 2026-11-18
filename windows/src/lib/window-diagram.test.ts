@@ -37,12 +37,15 @@ describe('схема окна', () => {
     expect(windowDiagram({ tabs: 'left', style: 'round' }).round).toBe(true)
   })
 
-  it('мини плеер сверху, снизу, внутри и плавающий', () => {
+  it('мини плеер сверху, снизу, во всю ширину и плавающий', () => {
     const top = windowDiagram({ tabs: 'left', mini: 'top' })
     expect(bottom(top.mini!)).toBeLessThanOrEqual(top.page.y)
-    const inset = windowDiagram({ tabs: 'left', mini: 'bottom_inset' })
-    expect(bottom(inset.mini!)).toBeLessThanOrEqual(bottom(inset.page))
-    expect(inset.mini!.x).toBeGreaterThan(inset.page.x)
+    const wide = windowDiagram({ tabs: 'left', mini: 'bottom_full' })
+    expect(bottom(wide.rail)).toBeLessThanOrEqual(wide.mini!.y)
+    expect(wide.mini!.x).toBeLessThanOrEqual(wide.rail.x)
+    expect(right(wide.mini!)).toBeGreaterThanOrEqual(right(wide.page))
+    const plain = windowDiagram({ tabs: 'left', mini: 'bottom' })
+    expect(plain.mini!.x).toBeGreaterThan(plain.rail.x)
     const fl = windowDiagram({ tabs: 'left', mini: 'floating' })
     expect(fl.mini!.w).toBeLessThan(fl.page.w)
     expect(windowDiagram({ tabs: 'left', mini: 'none' }).mini).toBeNull()
@@ -60,7 +63,7 @@ describe('схема окна', () => {
   it('всё помещается в окно', () => {
     for (const tabs of ['top', 'bottom', 'left', 'right'] as const)
       for (const style of ['default', 'compact', 'full', 'round', 'floating'] as const)
-        for (const mini of ['top', 'bottom', 'bottom_inset', 'floating'] as const) {
+        for (const mini of ['top', 'bottom', 'bottom_full', 'floating'] as const) {
           const d = windowDiagram({ tabs, style, mini, queue: 'right' })
           for (const r of [d.rail, d.page, d.mini!, d.queue!]) expect(inside(r), `${tabs} ${style} ${mini}`).toBe(true)
         }

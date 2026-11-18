@@ -3,7 +3,7 @@
 import type { TabsPosition } from './settings-open'
 
 export type TabsStyle = 'default' | 'compact' | 'full' | 'round' | 'floating'
-export type MiniPosition = 'top' | 'bottom' | 'bottom_inset' | 'floating' | 'none'
+export type MiniPosition = 'top' | 'bottom' | 'bottom_full' | 'floating' | 'none'
 export type QueuePosition = 'bottom' | 'left' | 'right'
 
 export interface Rect {
@@ -69,8 +69,6 @@ function placeMini(free: Rect, mini: MiniPosition): { page: Rect; mini: Rect | n
       return { mini: box(x, y, w, MINI_H), page: box(x, y + MINI_H + GY, w, h - MINI_H - GY) }
     case 'bottom':
       return { mini: box(x, y + h - MINI_H, w, MINI_H), page: box(x, y, w, h - MINI_H - GY) }
-    case 'bottom_inset':
-      return { mini: box(x + 4, y + h - MINI_H - 4, w - 8, MINI_H), page: free }
     case 'floating':
       return { mini: box(x + w * 0.45, y + h - MINI_H - 6, w * 0.5, MINI_H), page: free }
     default:
@@ -86,8 +84,25 @@ function placeQueue(page: Rect, queue: QueuePosition | null | undefined): Rect |
   return box(qx, y + 4, QUEUE_W, h - 8)
 }
 
+/** «Снизу во всю ширину» при боковых вкладках: панель кончается над плеером, плеер — от края до края. */
+function placeFullWidth(rail: Rect, free: Rect): { rail: Rect; page: Rect; mini: Rect } {
+  const full = box(GX, GY, 100 - 2 * GX, 100 - 2 * GY)
+  const top = full.h - MINI_H - GY
+  return {
+    rail: { ...rail, h: top },
+    page: { ...free, h: top },
+    mini: box(full.x, full.y + full.h - MINI_H, full.w, MINI_H),
+  }
+}
+
 export function windowDiagram({ tabs, style = 'default', mini = 'bottom', queue = null }: DiagramInput): Diagram {
-  const { rail, free } = placeRail(tabs, style)
-  const placed = placeMini(free, mini)
+  const placedRail = placeRail(tabs, style)
+  const vertical = (tabs === 'left' || tabs === 'right') && style !== 'floating'
+  if (mini === 'bottom_full' && vertical) {
+    const f = placeFullWidth(placedRail.rail, placedRail.free)
+    return { rail: f.rail, page: f.page, mini: f.mini, queue: placeQueue(f.page, queue), round: style === 'round' }
+  }
+  const { rail, free } = placedRail
+  const placed = placeMini(free, mini === 'bottom_full' ? 'bottom' : mini)
   return { rail, page: placed.page, mini: placed.mini, queue: placeQueue(placed.page, queue), round: style === 'round' }
 }
