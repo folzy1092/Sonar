@@ -10,7 +10,7 @@
   import SourceIcon from '../components/SourceIcon.svelte'
   import { api, errorText, type DupeGroup, type ListTrack } from '../lib/api'
   import { cascade } from '../lib/cascade'
-  import { dupeListOf, extraCount, initialMarks, keepOnly, keptIn, reasonOf, removalIds, toggleMark, type Marks } from '../lib/dupes'
+  import { dupeListOf, extraCount, initialMarks, keepOnly, keeperReason, keptIn, reasonOf, removalIds, toggleMark, type Marks } from '../lib/dupes'
   import { tracksText } from '../lib/format'
   import { t } from '../lib/i18n.svelte'
   import { library } from '../lib/library.svelte'
@@ -30,6 +30,8 @@
   let error = $state<string | null>(null)
 
   const toRemove = $derived(removalIds(groups, marks))
+  /** Номер последней сверки: ответ устаревшей (медиатека успела поменяться ещё раз) не применяется. */
+  let scanSeq = 0
 
   async function scan() {
     if (!list) {
@@ -37,15 +39,17 @@
       loading = false
       return
     }
-    error = null
+    const seq = ++scanSeq
     try {
       const found = await api.findDuplicates(list)
+      if (seq !== scanSeq) return
+      error = null
       groups = found
       marks = initialMarks(found)
     } catch (e) {
-      error = errorText(e)
+      if (seq === scanSeq) error = errorText(e)
     } finally {
-      loading = false
+      if (seq === scanSeq) loading = false
     }
   }
 
@@ -68,6 +72,13 @@
     if (reason === 'same') return t('Тот же трек ещё раз')
     if (reason === 'similar') return t('Почти то же название')
     return t('Из сервиса «{service}»', { service: t(byId(serviceOf(item.ref))?.name ?? '') })
+  }
+
+  /** Подпись у того, кто остаётся по умолчанию. */
+  function keeperText(group: DupeGroup): string {
+    const reason = keeperReason(group)
+    if (reason === 'available') return t('Доступен, остальные — нет')
+    return reason === 'quality' ? t('Лучший звук') : t('Добавлен раньше')
   }
 
   const serviceName = (ref: string) => t(byId(serviceOf(ref))?.name ?? '')
@@ -108,6 +119,7 @@
         {#each group.items as item (item.item_id)}
           {@const marked = marks.has(item.item_id)}
           {@const last = !marked && keptIn(group, marks) <= 1}
+          {@const service = serviceOf(item.ref)}
           <div class="row" class:marked>
             <button
               class="pick"
@@ -124,9 +136,9 @@
                 <small>{item.artist}</small>
               </span>
             </button>
-            <span class="src"><SourceIcon service={serviceOf(item.ref) ?? 'sc'} size={13} plain /> {serviceName(item.ref)}</span>
+            <span class="src">{#if service}<SourceIcon {service} size={13} plain /> {serviceName(item.ref)}{/if}</span>
             <span class="why">
-              {#if item === keeper}{t('Лучший звук')}{:else}{reasonText(item, keeper)}{/if}
+              {#if item === keeper}{keeperText(group)}{:else}{reasonText(item, keeper)}{/if}
               {#if !item.available} · {t('недоступен')}{/if}
             </span>
             <span class="dur">{item.duration_ms ? formatTime(item.duration_ms) : '—'}</span>

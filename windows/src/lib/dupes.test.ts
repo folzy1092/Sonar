@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { DupeGroup, ListTrack } from './api'
-import { dupeListOf, extraCount, initialMarks, keepOnly, keptIn, reasonOf, removalIds, toggleMark } from './dupes'
+import { dupeListOf, extraCount, initialMarks, keepOnly, keeperReason, keptIn, reasonOf, removalIds, toggleMark } from './dupes'
 
 function item(item_id: string, ref: string, title = 'Song'): ListTrack {
   return {
@@ -27,6 +27,18 @@ describe('список для поиска дублей', () => {
     expect(dupeListOf('favorites')).toBe('favorites')
     expect(dupeListOf('pl_abc')).toBe('pl_abc')
     for (const bad of [null, undefined, '', 'pl_', 'local', 'scpl:likes', 'ympl:1:3']) expect(dupeListOf(bad)).toBeNull()
+  })
+})
+
+describe('почему остаётся первый', () => {
+  it('другой сервис — лучший звук, тот же сервис — добавлен раньше', () => {
+    expect(keeperReason(g1)).toBe('quality')
+    expect(keeperReason(g2)).toBe('earlier')
+  })
+  it('остальные не играют — «доступен», даже если сервис тот же', () => {
+    const off = { ...item('a', 'ym:2'), available: false }
+    expect(keeperReason({ keep: 'b', items: [item('b', 'sc:1'), off] })).toBe('available')
+    expect(keeperReason({ keep: 'x', items: [] })).toBe('earlier')
   })
 })
 
