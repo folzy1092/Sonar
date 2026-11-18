@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SidePane from './app/SidePane.svelte'
+  import { sidePane } from './app/side-pane.svelte'
   import Rail from './app/Rail.svelte'
   import { t } from './lib/i18n.svelte'
   import WindowControls from './app/WindowControls.svelte'
@@ -171,6 +173,8 @@
     router.key
     scroller?.scrollTo({ top: 0 })
   })
+  /** Правая панель «Очередь / Текст» — только когда есть трек и не открыт большой плеер. */
+  const paneOn = $derived(sidePane.open && !!player.current && router.page !== 'player')
 </script>
 
 <SettingsPanel />
@@ -193,13 +197,16 @@
       <div class="spacer" data-tauri-drag-region></div>
     </header>
 
-    <div class="scroll" bind:this={scroller}>
+    <div class="scroll" class:with-pane={paneOn} bind:this={scroller}>
       {#key router.key}
         <div class="page">
           <Current />
         </div>
       {/key}
     </div>
+    {#if paneOn}
+      <div class="pane-slot"><SidePane /></div>
+    {/if}
   </main>
   <!-- «чёлка» как у Dotify: кнопки окна в своём островке, карточка под ним вырезана (lib/notch) -->
   <div class="island" bind:this={island} data-tauri-drag-region>
@@ -392,6 +399,27 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    transition: margin-right var(--normal) var(--ease);
+  }
+  /* правая панель «Очередь / Текст»: страница ужимается, панель лежит справа внутри карточки */
+  .scroll.with-pane {
+    margin-right: calc(var(--pane-w) + 8px);
+  }
+  .card {
+    --pane-w: min(400px, 44%);
+  }
+  .pane-slot {
+    position: absolute;
+    top: calc(var(--notch-h, 44px) + 8px);
+    right: 8px;
+    bottom: 8px;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    width: var(--pane-w);
+  }
+  .pane-slot > :global(.pane) {
+    flex: 1;
   }
   .page {
     position: relative;

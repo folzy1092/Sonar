@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { sidePane } from './side-pane.svelte'
   // Мини-плеер в стиле «Гибрид» (reference/pc/гибрид.png, mini.style = hybrid): прогресс — фоном,
   // по центру простые значки без кругов, справа капсула скорость · громкость · очередь · текст.
   import Icon from '../components/Icon.svelte'
@@ -68,6 +69,7 @@
     press = null
     if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 5) seekAt(e.clientX)
   }
+  const hasLyrics = $derived(lyrics.status === 'ready')
 </script>
 
 <footer
@@ -182,11 +184,20 @@
       <EqButton />
       <SpeedButton />
       <Volume />
-      <!-- текст и полноэкранный плеер — только когда у трека есть текст -->
-      {#if track && lyrics.status === 'ready'}
-        <span class="t-btn" transition:scale={{ duration: 200, start: 0.6 }}>
-          <IconButton icon="letterT" label={t('Текст и полноэкранный плеер')} size={17} active={lyrics.fullscreen} onclick={() => (lyrics.fullscreen ? lyrics.close() : lyrics.open())} />
-        </span>
+      <!-- правая панель: текста нет — очередь, текст найден — «Т» (app/side-pane.svelte.ts);
+           полноэкранный плеер — клик по обложке -->
+      {#if track}
+        {#key hasLyrics}
+          <span class="t-btn" in:scale={{ duration: 200, start: 0.6 }}>
+            <IconButton
+              icon={hasLyrics ? 'letterT' : 'queue'}
+              label={hasLyrics ? t('Текст песни') : t('Очередь')}
+              size={17}
+              active={sidePane.open}
+              onclick={() => sidePane.toggle(hasLyrics ? 'lyrics' : 'queue')}
+            />
+          </span>
+        {/key}
       {/if}
     </div>
   </div>
