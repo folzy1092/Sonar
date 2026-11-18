@@ -135,7 +135,7 @@ Discord RPC: ID приложения Discord пользователь **не в�
   2026-11-16); код недоступен — прежнее окно WebView с перехватом `#access_token=y0_...` (SPEC §4.3а).
   Last.fm — **убран** (с 1 декабря 2026 API только с Pro; решение владельца 2026-11-18, `docs/LASTFM_EXIT.md`):
   из ПК и iPhone убран 2026-11-18 (сохранённый вход стирается при запуске — `secrets::forget_retired`,
-  `RetiredIntegrations.swift`), историю выгружает `server/tools/export_lastfm.py` (ключ и ник — скрытым вводом) в `server/data/lastfm-export.jsonl`;
+  `RetiredIntegrations.swift`), историю без ключа — импорт на ListenBrainz + `server/tools/export_listenbrainz.py` (ник — скрытым вводом) в `server/data/listenbrainz-export.jsonl` (с ключом Last.fm — `export_lastfm.py`);
   прослушивания и «сейчас играет» — свои, через API Sonar. SoundCloud — окно входа внутри Sonar (своего OAuth-приложения
   SoundCloud с адресом возврата нет, cookie чужого браузера не прочитать).
 - Регистрация открыта для всех. **Друзья и личные сообщения — делаем с сервером** (решение 2026-11-18; ЛС —

@@ -332,12 +332,13 @@ SoundCloud — `/resolve`, короткие on.soundcloud.com тоже), ком�
   плеера (трек, позиция, очередь, пауза); открыл Sonar на ПК после телефона — «Продолжить с iPhone» с той же
   секунды и той же очередью. Пауза на одном устройстве (сняты наушники, сел телефон) — не играет на другом сам.
 - [x] **Уход с Last.fm** (решение 2026-11-18): `docs/LASTFM_EXIT.md`. Выгрузка истории
-  `server/tools/export_lastfm.py` → `server/data/lastfm-export.jsonl` (до 1 декабря); Last.fm убран из ПК и iPhone
+  без ключа — импорт на ListenBrainz (до 1 декабря) + `server/tools/export_listenbrainz.py` →
+  `server/data/listenbrainz-export.jsonl`, с ключом — `export_lastfm.py`; Last.fm убран из ПК и iPhone
   (код, настройки, вход, переводы, секреты CI; сохранённый вход стирается при запуске), документы вычищены. ✅ сделано 2026-11-18
   - [ ] С сервером (LASTFM_EXIT §3): убрать Last.fm из `config.py`, `status.py`, `db.py`, бота (`bot/screens.py`,
     `bot/emoji.py`), `env.example` (`LASTFM_*`), макета бота и тестов; пункт Last.fm в `GET /status`, `/status` бота.
   - [ ] С сервером: `GET /oauth/now` из последнего `player_state` (формат Dotify) — главный источник для селфбота.
-  - [ ] С сервером: `POST /plays/import` — `lastfm-export.jsonl` (или экспорт ListenBrainz) → `plays`, сопоставление
+  - [ ] С сервером: `POST /plays/import` — `listenbrainz-export.jsonl` / `lastfm-export.jsonl` → `plays`, сопоставление
     с `sc:` / `ym:` / `yt:` через `track_alias`, не нашлось — `ext:`; повтор не дублирует; описать в API.md и DB.md.
 - [ ] **Оттенки вкуса** (идея владельца 2026-11-18): Аккаунт → Вкус — исполнители из `plays` разложены на
   3–5 «оттенков» (группы похожих), у каждого Чаще · Средне · Реже · Нет; волна и рекомендации берут вес оттенка.

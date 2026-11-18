@@ -17,10 +17,7 @@
 Только стандартная библиотека — ничего ставить не нужно.
 """
 
-import getpass
-import hashlib
 import json
-import os
 import re
 import sys
 import time
@@ -28,6 +25,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from history_file import DATA, append_records, ask, read_state, start_state, write_state  # noqa: E402
 
 API = "https://ws.audioscrobbler.com/2.0/"
 PER_PAGE = 200  # больше Last.fm не отдаёт
@@ -43,7 +43,6 @@ FRIENDLY = {
     26: "ключ API заблокирован",
 }
 
-DATA = Path(__file__).resolve().parents[1] / "data"
 OUT = DATA / "lastfm-export.jsonl"
 STATE = DATA / "lastfm-export.state.json"
 
@@ -128,63 +127,11 @@ def fetch_with_retry(key, user, page, to, log=print):
     raise AssertionError("unreachable")
 
 
-def user_hash(user):
-    return hashlib.sha256(user.strip().lower().encode("utf-8")).hexdigest()
-
-
-def read_state(path):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return None
-
-
-def write_state(path, state):
-    """Атомарно: сначала во временный файл, потом подмена — обрыв не оставит половину JSON."""
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(state), encoding="utf-8")
-    os.replace(tmp, path)
-
-
-def keep_lines(path, count):
-    """Оставляет в файле первые count строк: всё, что дописалось после последнего сохранения, — долой."""
-    if not path.exists():
-        path.write_bytes(b"")
-        return
-    lines = path.read_bytes().split(b"\n")[:count]
-    path.write_bytes(b"".join(line + b"\n" for line in lines))
-
-
-def append_records(path, records):
-    with path.open("a", encoding="utf-8") as f:
-        for record in records:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        f.flush()
-        os.fsync(f.fileno())
-
-
-def start_state(path, user, out, now):
-    """Состояние выгрузки: новое или прежнее этого же ника (тогда файл обрезается до сохранённого)."""
-    state = read_state(path)
-    uid = user_hash(user)
-    if state and state["user"] != uid:
-        raise SystemExit(
-            f"В {path.name} — выгрузка другого ника. Убери {path.name} и {out.name}, чтобы начать заново."
-        )
-    if state:
-        keep_lines(out, state["lines"])
-        return state
-    out.write_bytes(b"")
-    fresh = {"user": uid, "to": int(now()), "page": 0, "lines": 0, "done": False}
-    write_state(path, fresh)
-    return fresh
-
-
 def export(key, user, out=OUT, state_path=STATE, fetch=None, log=print, now=time.time):
     """Выкачивает историю в out, страница за страницей. Возвращает, сколько скробблов в файле."""
     fetch = fetch or (lambda k, u, p, to: fetch_with_retry(k, u, p, to, log))
     out.parent.mkdir(parents=True, exist_ok=True)
-    state = start_state(state_path, user, out, now)
+    state = start_state(state_path, user, out, {"to": int(now()), "page": 0})
     if state["done"]:
         log(f"Уже выгружено целиком: {state['lines']} скробблов → {out}")
         return state["lines"]
@@ -206,13 +153,6 @@ def export(key, user, out=OUT, state_path=STATE, fetch=None, log=print, now=time
     state = {**state, "done": True, "total": total}
     write_state(state_path, state)
     return state["lines"]
-
-
-def ask(prompt):
-    value = getpass.getpass(prompt).strip()
-    if not value:
-        raise SystemExit("Пусто — выхожу.")
-    return value
 
 
 def main():
