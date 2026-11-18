@@ -93,15 +93,20 @@
 | `sc` | `soundcloud` | SoundCloud | `sc:<id>` | `scalb:<id>` | `sca:<id>` | `scpl:<id>` | да |
 | `ym` | `yandex` | Яндекс Музыка | `ym:<id>` | `ymalb:<id>` | `yma:<id>` | `ympl:<uid>:<kind>` | да |
 | `yt` | `youtube` | YouTube Music | `yt:<videoId>` | `ytalb:<browseId>` | `yta:<channelId>` | `ytpl:<playlistId>` | нет |
-| `vk` | `vk` | VK Музыка | `vk:<owner>_<id>` | `vkalb:<owner>_<id>` | `vka:<id>` | `vkpl:<owner>_<id>` | нет |
+| `vk` | `vk` | VK Музыка | `vk:<owner>_<id>` | `vkalb:<owner>_<id>[_<key>]` | `vka:<id>` | `vkpl:<owner>_<id>[_<key>]` | да |
 | `sp` | `spotify` | Spotify | `sp:<id>` | `spalb:<id>` | `spa:<id>` | `sppl:<id>` | нет |
 | `local` | `local` | Локальные файлы | `local:<sha1 пути>` | — | — | — | нет |
 
 Сервисы с «нет» пока только описаны: интерфейс их не показывает, сервер и клиенты отвечают
 «`<Название>`: пока не поддерживается». Что каждый сервис умеет (`caps`) — в `GET /services`.
 
-Особые ref: `scpl:likes` и `ympl:likes` — лайки аккаунта сервиса как плейлист; `ympl:<uid>:<kind>` — плейлист
-пользователя Яндекса; `scpl:<id>` — плейлист SoundCloud. Формат ref не меняется.
+Особые ref: `scpl:likes`, `ympl:likes` и `vkpl:likes` — лайки аккаунта сервиса как плейлист («Моя музыка» у VK);
+`ympl:<uid>:<kind>` — плейлист пользователя Яндекса; `scpl:<id>` — плейлист SoundCloud. Формат ref не меняется.
+
+VK (2026-11-18): `<owner>` бывает отрицательным (`vk:-2001234567_456239017`), `<key>` — `access_key` VK (буквы и
+цифры), без него чужой альбом или плейлист не открыть. У трека `access_key` в ref не входит: клиент держит его в
+памяти вместе со ссылкой на поток (Windows `Core::vk_seen`, iOS `MusicCore.vkSeen`) и, если не видел трек,
+спрашивает `audio.getById`. Добавленный к себе чужой плейлист ведёт на оригинал (`original`).
 
 Разбор ref (одинаково в Rust, TS и Swift):
 
@@ -144,6 +149,7 @@ prefix = текст до ПЕРВОГО ':'   (нет ':' или пустой п
 | PUT | `/services/soundcloud` | `{client_id, oauth_token}` → `{connected, name, avatar_url, premium}` (по-прежнему работает) |
 | PUT | `/services/yandex` | `{token}` → `{connected, name, avatar_url, premium}` (по-прежнему работает) |
 | GET | `/services/yandex/oauth-url` | → `{url}` (для входа в один клик) |
+| PUT | `/services/vk/key` | `{fields: {token: "vk1.a.…"}}` → как выше; ключ — токен Kate Mobile (ПК: `connect_service_key {service: "vk", fields}`) |
 | DELETE | `/services/{svc}` | → `204` |
 | GET | `/services/{svc}/playlists` | фантомные плейлисты → `[ServicePlaylist]` |
 | GET | `/services/{svc}/playlists/{id}/tracks` | → `[Track]` |
@@ -190,7 +196,7 @@ prefix = текст до ПЕРВОГО ':'   (нет ':' или пустой п
 
 | Метод | Путь | Ответ |
 |---|---|---|
-| GET | `/search?q=&src=all\|sc\|ym&kind=track\|album\|artist\|playlist&limit=30` | `{tracks:[], albums:[], artists:[], playlists:[]}`; `src` — короткий id работающего сервиса (§2 «Префиксы ref») |
+| GET | `/search?q=&src=all\|sc\|ym\|vk&kind=track\|album\|artist\|playlist&limit=30` | `{tracks:[], albums:[], artists:[], playlists:[]}`; `src` — короткий id работающего сервиса (§2 «Префиксы ref») |
 | GET | `/tracks/{ref}` | `Track` |
 | GET | `/tracks/{ref}/stream?quality=low\|medium\|high\|max` | `StreamInfo` |
 | GET | `/tracks/{ref}/related` | `[Track]` |
@@ -397,7 +403,7 @@ selfbot переключился сменой адреса:
 ```
 
 - `state`: `playing` / `paused` / `stopped` (`track: null`, если ничего ещё не играло).
-- `source`: key сервиса из §2 «Префиксы ref» (`soundcloud` / `yandex`; позже `youtube` / `vk` / `spotify`). `id` и `track_id` — id без префикса трека (`sc:`/`ym:`).
+- `source`: key сервиса из §2 «Префиксы ref» (`soundcloud` / `yandex` / `vk`; позже `youtube` / `spotify`). `id` и `track_id` — id без префикса трека (`sc:`/`ym:`/`vk:`).
 - `duration` — секунды (целое), `duration_ms` — миллисекунды.
 
 ## 9. Статус (SPEC §3.11)
