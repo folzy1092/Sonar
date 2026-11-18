@@ -5,7 +5,8 @@ import { refKind } from '../lib/services'
 // profile — предпросмотр своего публичного профиля («Как видят мой профиль»);
 // import — перенос плейлиста по ссылке с подбором пар (параметр — ссылка или ref, lib/import.svelte).
 // dupes — «Найти дубли» в 'favorites' | 'pl_…' (pages/DupesPage.svelte).
-export type Page = 'home' | 'player' | 'search' | 'library' | 'playlist' | 'artist' | 'album' | 'profile' | 'import' | 'dupes'
+// mix — подборка «Для тебя» с Главной: 'daypart' | 'recent' | 'new' | 'fresh' | 'like' (pages/MixPage.svelte).
+export type Page = 'home' | 'player' | 'search' | 'library' | 'playlist' | 'artist' | 'album' | 'profile' | 'import' | 'dupes' | 'mix'
 
 interface Route {
   page: Page
