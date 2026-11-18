@@ -160,7 +160,7 @@ impl Provider for VkProvider<'_> {
     let s = self.core.vk.read().await.clone().ok_or_else(|| anyhow!(NOT_CONNECTED_SHORT))?;
     let full = self.core.vk_full_id(id);
     let found = vk::Vk { http: &self.core.http, creds: &s.creds }.by_id(&[full]).await?;
-    let audio = found.into_iter().next().ok_or_else(|| anyhow!("VK Музыка: трек не найден"))?;
+    let audio = found.into_iter().next().ok_or_else(|| crate::providers::unplayable::unavailable("VK Музыка: трек не найден"))?;
     let url = audio.stream_url.clone().unwrap_or_default();
     self.core.vk_keep(vec![audio]);
     vk::source_from_url(&url)

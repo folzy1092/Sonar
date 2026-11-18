@@ -6,6 +6,7 @@ pub mod matching;
 pub mod registry;
 pub mod soundcloud;
 pub mod spotify;
+pub mod unplayable;
 pub mod vk;
 pub mod yandex;
 pub mod youtube;
