@@ -25,20 +25,26 @@ extension MusicCore {
             return Playable(source: try await stream(ref, fresh: fresh, safe: safe), via: nil)
         }
         var skip: [ServiceID] = []
+        var ownBroken = broken
         if let via = routed[ref] {
-            if !broken, let source = try? await stream(via.ref, fresh: fresh, safe: safe) {
+            if broken {
+                // сломалась замена, а не свой поток
+                ownBroken = false
+                streams[via.ref] = nil
+            } else if let source = try? await stream(via.ref, fresh: fresh, safe: safe) {
                 return Playable(source: FallbackPlan.labeled(source, via.service), via: via)
             }
             routed[ref] = nil
+            forget(ref, via.service)
             skip.append(via.service)
         }
-        if broken { streams[ref] = nil }
-        if from == .sc, soundCloudViaYandex, !safe, !broken, yandex != nil, !skip.contains(.ym) {
+        if ownBroken { streams[ref] = nil }
+        if from == .sc, soundCloudViaYandex, !safe, !ownBroken, yandex != nil, !skip.contains(.ym) {
             if let played = await tryAlias(track, from: from, in: .ym, reason: .preferred, fresh: fresh) { return played }
             skip.append(.ym)
         }
         let failure: Error
-        if broken {
+        if ownBroken {
             failure = Unplayable(reason: .failed, message: "поток не открылся")
         } else {
             do {
@@ -79,8 +85,12 @@ extension MusicCore {
     /// Тот же трек в `service` и его поток; нет или не играет — nil.
     private func tryAlias(_ track: Track, from: ServiceID, in service: ServiceID, reason: FallbackReason, fresh: Bool) async -> Playable? {
         guard let wanted = await fallbackMatch(ref: track.ref, meta: track),
-              let alias = await aliasRef(track.ref, wanted: wanted, in: service),
-              let source = try? await stream(alias, fresh: fresh) else { return nil }
+              let alias = await aliasRef(track.ref, wanted: wanted, in: service) else { return nil }
+        guard let source = try? await stream(alias, fresh: fresh) else {
+            // найденное перестало играть — в следующий раз искать заново
+            forget(track.ref, service)
+            return nil
+        }
         let via = FallbackVia(ref: alias, service: service, from: from, reason: reason)
         routed[track.ref] = via
         return Playable(source: FallbackPlan.labeled(source, service), via: via)
@@ -125,6 +135,11 @@ extension MusicCore {
         }
         if found != nil || !failed { remember(ref, service, found) }
         return found
+    }
+
+    /// Пара перестала играть — забыть (и найденное, и «нет»).
+    private func forget(_ ref: String, _ service: ServiceID) {
+        aliases[ref]?[service] = nil
     }
 
     private func remember(_ ref: String, _ service: ServiceID, _ alias: String?) {

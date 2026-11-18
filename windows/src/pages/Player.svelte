@@ -26,6 +26,7 @@
   import Wave from '../player/Wave.svelte'
   import WhyLine from '../player/WhyLine.svelte'
   import { formatTime, player } from '../player/player.svelte'
+  import { qualityLabel } from '../lib/fallback'
   import { library } from '../lib/library.svelte'
   import { trackMenu } from '../lib/menu.svelte'
   import { hasSelection } from '../lib/selection'
@@ -139,8 +140,8 @@
       <NextUp />
       <!-- что реально играет — своё место под артистом, а не под полосой -->
       {#if player.quality}
-        {#key player.quality}
-          <span class="quality" title={t('Что реально играет')}>{t(player.quality)}</span>
+        {#key qualityLabel(player.quality, player.via)}
+          <span class="quality" title={t('Что реально играет')}>{qualityLabel(player.quality, player.via)}</span>
         {/key}
       {/if}
     </div>
