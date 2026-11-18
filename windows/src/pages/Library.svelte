@@ -27,6 +27,9 @@
   import { t } from '../lib/i18n.svelte'
   import { settings } from '../lib/settings.svelte'
   import { onDestroy } from 'svelte'
+  import { indicator } from '../lib/indicator'
+  import ArtistMap from '../app/artist-map/ArtistMap.svelte'
+  import MapBanner from '../app/artist-map/MapBanner.svelte'
 
   const tabs = ['Все', 'Плейлисты', 'Альбомы', 'Исполнители'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
@@ -52,6 +55,18 @@
   const favCount = $derived([...library.liked].filter(isTrackRef).length)
   const own = $derived(tab === 'Все' ? library.playlists.filter((p) => !p.hidden) : library.playlists)
   const imported = $derived(new Set(library.playlists.map((p) => p.source_ref).filter(Boolean)))
+  /** Исполнители — плитками или картой (переключатель «Список · Карта», запоминается). */
+  const artistViews = [
+    { id: 'list', label: 'Список' },
+    { id: 'map', label: 'Карта' },
+  ] as const
+  const artistsView = $derived(settings.get('library.artists_view'))
+  const showMap = $derived(tab === 'Исполнители' && artistsView === 'map')
+
+  function openMap() {
+    tab = 'Исполнители'
+    settings.set('library.artists_view', 'map')
+  }
   /** Сервисы блока «плейлисты сервисов» по кругу (решение владельца 2026-11-16): клик по названию —
    *  следующий, ряд уезжает свайпом. Сервисы — реализованные из реестра (lib/services): Spotify и
    *  VK Музыка встанут сюда сами, когда их включат. */
@@ -221,6 +236,10 @@
 
 {#snippet favArt()}<NavIcon name="heart" active size={44} />{/snippet}
 
+{#if tab === 'Все' || (tab === 'Исполнители' && !showMap)}
+  <MapBanner imported={imported.size > 0} onopen={openMap} />
+{/if}
+
 {#if tab === 'Все' || tab === 'Плейлисты'}
   <section class="block">
     {#if tab === 'Все'}
@@ -340,8 +359,21 @@
 
 {#if tab === 'Все' || tab === 'Исполнители'}
   <section class="block">
-    <h2>{t('Исполнители')} {#if tab === 'Все'}<button class="more" aria-label={t('Все исполнители')} onclick={() => (tab = 'Исполнители')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
-    {#if artists.length}
+    <h2>
+      {t('Исполнители')}
+      {#if tab === 'Все'}
+        <button class="more" aria-label={t('Все исполнители')} onclick={() => (tab = 'Исполнители')}><Icon name="chevronRight" size={18} /></button>
+      {:else}
+        <span class="views" role="tablist" use:indicator={{ key: artistsView, kind: 'pill' }}>
+          {#each artistViews as v (v.id)}
+            <button class:on={artistsView === v.id} role="tab" aria-selected={artistsView === v.id} onclick={() => settings.set('library.artists_view', v.id)}>{t(v.label)}</button>
+          {/each}
+        </span>
+      {/if}
+    </h2>
+    {#if showMap}
+      <ArtistMap />
+    {:else if artists.length}
       <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll use:edges>
         {#each artists as a (a.ref)}
           <Tile title={a.name} image={a.avatar_url} icon="user" round onclick={() => openRef(a.ref)} />
@@ -518,6 +550,36 @@
   .more {
     display: grid;
     color: var(--text-3);
+  }
+  .views {
+    display: inline-flex;
+    margin-left: auto;
+    padding: 3px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+  }
+  .views :global(.tab-ind.pill) {
+    background: var(--surface-3);
+  }
+  .views button {
+    height: 28px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font-family: var(--font);
+    font-size: calc(13px * var(--fs, 1));
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--text-3);
+    transition: color var(--fast) var(--ease), transform var(--fast) var(--ease);
+  }
+  .views button:hover {
+    color: var(--text-2);
+  }
+  .views button.on {
+    color: var(--text);
+  }
+  .views button:active {
+    transform: scale(0.95);
   }
   .more:hover {
     color: var(--text);
