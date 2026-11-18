@@ -1,18 +1,19 @@
 <script lang="ts">
-  // Подписка → Sonar+ (решение владельца 2026-11-18): тариф по числу мест (Solo · Duo · Trio · Squad),
+  // Подписка → Sonar Deep (решение владельца 2026-11-18): тариф по числу мест (Ping · Echo · Pod · Fleet),
   // срок, что входит, и «Перейти к оплате» — оплата на сайте (`lib/subscription.ts` `payUrl`).
   // Цены — черновик до утверждения владельцем; оплата заработает вместе с сайтом и сервером.
   import Icon from '../../components/Icon.svelte'
   import { api } from '../../lib/api'
   import { cascade } from '../../lib/cascade'
   import { indicator } from '../../lib/indicator'
+  import { edges } from '../../lib/edges'
   import { t, tn } from '../../lib/i18n.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { cleanUsername } from '../../lib/avatar'
-  import { PERIODS, PERKS, PLANS, payUrl, price, rub, savedPercent, type PeriodId, type PlanId } from '../../lib/subscription'
+  import { PERIODS, PERKS, PLANS, SUB_NAME, payUrl, price, rub, savedPercent, type PeriodId, type PlanId } from '../../lib/subscription'
   import { toast } from '../../lib/toast.svelte'
 
-  let planId = $state<PlanId>('solo')
+  let planId = $state<PlanId>('ping')
   let periodId = $state<PeriodId>('1m')
   const plan = $derived(PLANS.find((p) => p.id === planId) ?? PLANS[0])
   const period = $derived(PERIODS.find((p) => p.id === periodId) ?? PERIODS[0])
@@ -59,15 +60,15 @@
   <aside class="card">
     <small class="muted">{t('Подписка на {period}', { period: periodLabel(period.months) })}</small>
     {#key planId}
-      <h3 class="name">Sonar+ {plan.name}</h3>
+      <h3 class="name">{SUB_NAME} {plan.name}</h3>
     {/key}
     <small class="muted">{seatsLabel(plan.seats)}</small>
-    <ul class="perks" use:cascade={planId}>
+    <ul class="perks" use:cascade={planId} use:edges>
       {#each PERKS as perk (perk)}
         <li><Icon name="check" size={15} />{t(perk)}</li>
       {/each}
     </ul>
-    <p class="free">{t('Музыка, лайки, плейлисты и синхронизация — бесплатно и без подписки.')}</p>
+    <p class="free">{t('Музыка, лайки, плейлисты, синхронизация и скачивание треков — бесплатно.')}</p>
     <b class="total">{rub(total)}</b>
     <button class="pay press" onclick={pay}>{t('Перейти к оплате')}<Icon name="link" size={15} /></button>
     <small class="muted">{t('Оплата откроется на сайте Sonar. Подписка придёт на аккаунт, с которого ты её оформил.')}</small>
@@ -206,9 +207,12 @@
     display: flex;
     flex-direction: column;
     gap: 9px;
+    max-height: 300px;
     margin: 14px 0 6px;
-    padding: 0;
+    padding: 0 6px 0 0;
+    overflow-y: auto;
     list-style: none;
+    scrollbar-width: thin;
   }
   .perks li {
     display: flex;

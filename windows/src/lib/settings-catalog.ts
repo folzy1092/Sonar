@@ -34,7 +34,7 @@ export const CATALOG: readonly CatalogEntry[] = [
     ['Плейлисты', 'Все плейлисты разом; один — «Скрыть от других» в его меню', 'privacy.playlists', 'приватность скрыть плейлисты'],
     ['Кто может добавить в друзья', 'Остальные не смогут отправить заявку', 'privacy.friend_requests', 'друзья заявки приватность'],
   ]),
-  ...rows('subscription', 'plans', [['Sonar+', 'Тарифы Solo, Duo, Trio, Squad и оплата на сайте', undefined, 'подписка оплата тариф premium плюс']]),
+  ...rows('subscription', 'plans', [['Sonar Deep', 'Тарифы Ping, Echo, Pod, Fleet и оплата на сайте', undefined, 'подписка оплата тариф premium плюс deep']]),
   ...rows('account', 'stats', [['Статистика', 'Сколько и что ты слушаешь', undefined, 'итоги прослушивания минуты']]),
   ...rows('interface', 'style', [
     ['Готовые стили', undefined, 'appearance.style', 'стиль оформление style'],
