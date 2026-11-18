@@ -21,6 +21,7 @@ export interface Spectrum {
 
 /** Чаще этого снимок не обновляется, мс: волна на 60 к/с (кадр ≥ 14.7 мс) всегда получает свежий. */
 export const MIN_READ_GAP_MS = 12
+const CLOCK_JUMP_MS = 1000
 
 /**
  * Читатель спектра поверх источника анализатора. `source()` → null — анализатора нет (граф Web Audio
@@ -39,7 +40,9 @@ export function createSpectrumReader(source: () => AnalyserLike | null) {
       owner = a
       readAt = -Infinity
     }
-    if (now - readAt >= MIN_READ_GAP_MS || now < readAt) {
+    // зрители одного кадра зовут с отметкой кадра и с performance.now() вперемешку — небольшой шаг
+    // назад не повод читать заново, большой (часы сбились) — повод
+    if (now - readAt >= MIN_READ_GAP_MS || readAt - now > CLOCK_JUMP_MS) {
       a.getByteFrequencyData(buf)
       readAt = now
     }

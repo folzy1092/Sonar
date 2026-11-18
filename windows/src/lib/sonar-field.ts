@@ -151,10 +151,11 @@ export interface Poke {
   kind: PokeKind
 }
 
-/** Живые клики: волна ещё не прошла всё поле (`reach` — его диагональ, px) и не отзвучала. */
+/** Живые клики: волна ещё не прошла всё поле (`reach` — его диагональ, px) и не отзвучала. Клик чуть
+ *  «из будущего» (время события позже начала кадра) остаётся — он просто ещё не начал играть. */
 export function prunePokes(pokes: readonly Poke[], t: number, reach: number): Poke[] {
   const span = POKE_LIFE + reach / FRONT_SPEED
-  return pokes.filter((p) => t - p.time >= 0 && t - p.time < span)
+  return pokes.filter((p) => t - p.time < span)
 }
 
 /** Добавить клик (`count` — его номер): эффекты идут по кругу, отзвучавшие и лишние отбрасываются. */
