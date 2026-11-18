@@ -92,21 +92,21 @@ pub fn cluster_refs(tracks: &[GraphTrack], names: &[String], limit: usize) -> Ve
 // ——— команды ———
 
 #[tauri::command]
-pub fn artist_graph(db: State<'_, Db>) -> Res<Graph> {
+pub async fn artist_graph(db: State<'_, Db>) -> Res<Graph> {
   graph_for(&db.0.lock().unwrap()).map_err(err)
 }
 
 /// Соседи исполнителя по карте, сильные первыми. Для «Похоже на» и «Новое для тебя» на главной:
 /// `discovered: false` — его ещё нет в медиатеке.
 #[tauri::command]
-pub fn artist_neighbors(db: State<'_, Db>, name: String, limit: Option<usize>) -> Res<Vec<Neighbor>> {
+pub async fn artist_neighbors(db: State<'_, Db>, name: String, limit: Option<usize>) -> Res<Vec<Neighbor>> {
   let g = graph_for(&db.0.lock().unwrap()).map_err(err)?;
   Ok(build::neighbors(&g, &name, limit.unwrap_or(DEFAULT_NEIGHBORS).min(MAX_NEIGHBORS)))
 }
 
 /// Треки для плейлиста «по кучке»: исполнители кучки по кругу, не больше 200.
 #[tauri::command]
-pub fn artist_cluster_tracks(db: State<'_, Db>, names: Vec<String>, limit: Option<usize>) -> Res<Vec<Track>> {
+pub async fn artist_cluster_tracks(db: State<'_, Db>, names: Vec<String>, limit: Option<usize>) -> Res<Vec<Track>> {
   if names.is_empty() {
     return Ok(Vec::new());
   }
