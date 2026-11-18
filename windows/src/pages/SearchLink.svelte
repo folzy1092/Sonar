@@ -11,7 +11,7 @@
   import { api, errorText, type LinkItem } from '../lib/api'
   import { library } from '../lib/library.svelte'
   import { toast } from '../lib/toast.svelte'
-  import { openRef, router } from '../app/router.svelte'
+  import { openRef } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
   import { tracksText } from '../lib/format'
   import { trackMenu } from '../lib/menu.svelte'
@@ -19,6 +19,7 @@
   import { t } from '../lib/i18n.svelte'
   import { serviceOf } from '../lib/services'
   import type { ImportService } from '../lib/import'
+  import { openImport } from '../lib/import.svelte'
 
   let { url }: { url: string } = $props()
 
@@ -83,7 +84,7 @@
 
   function importWithMatch() {
     if (!view) return
-    router.go('import', item?.kind === 'import' ? url.trim() : view.ref)
+    openImport(item?.kind === 'import' ? url.trim() : view.ref)
   }
 
   const added = $derived(item?.kind === 'playlist' ? imported : !!view && library.isLiked(view.ref))

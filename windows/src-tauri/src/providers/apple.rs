@@ -14,6 +14,8 @@ pub const TRACK_PREFIX: &str = "am";
 /// Размер обложки вместо `{w}x{h}` шаблона Apple.
 const COVER_SIZE: u32 = 600;
 const DATA_TAG: &str = "id=\"serialized-server-data\"";
+/// Сколько ждать страницу: у клиента Sonar общего тайм-аута нет, а карточка ссылки ждёт ответа.
+const PAGE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// Плейлист или альбом Apple Music.
 #[derive(Debug, Clone, PartialEq)]
@@ -29,7 +31,17 @@ pub struct ApplePage {
 
 /// Скачать и разобрать страницу.
 pub async fn fetch(http: &reqwest::Client, url: &str) -> Result<ApplePage> {
-  let res = http.get(url).header("User-Agent", UA).header("Accept-Language", "en").send().await?;
+  let res = http
+    .get(url)
+    .timeout(PAGE_TIMEOUT)
+    .header("User-Agent", UA)
+    .header("Accept-Language", "en")
+    .send()
+    .await
+    .map_err(|e| {
+      log::warn!("[apple] {}", e.without_url());
+      anyhow!("Apple Music: страница не открылась — проверь интернет")
+    })?;
   if !res.status().is_success() {
     return Err(super::http_error("Apple Music", res.status()));
   }
@@ -39,7 +51,10 @@ pub async fn fetch(http: &reqwest::Client, url: &str) -> Result<ApplePage> {
 /// Разбор HTML страницы плейлиста или альбома.
 pub fn parse_page(html: &str) -> Result<ApplePage> {
   let json = data_json(html).ok_or_else(|| anyhow!("Apple Music: на странице нет данных плейлиста"))?;
-  let v: Value = serde_json::from_str(json).map_err(|e| anyhow!("Apple Music: не разобрал страницу ({e})"))?;
+  let v: Value = serde_json::from_str(json).map_err(|e| {
+    log::warn!("[apple] JSON страницы: {e}");
+    anyhow!("Apple Music: не разобрал страницу")
+  })?;
   let root = &v["data"][0];
   let album = match root["intent"]["$kind"].as_str() {
     Some("PlaylistDetailPageIntent") => false,

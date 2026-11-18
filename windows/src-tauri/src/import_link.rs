@@ -3,7 +3,7 @@
 
 use crate::commands::Db;
 use crate::providers::Track;
-use crate::services::import::{cancel, ImportHead, ImportStep};
+use crate::services::import::{cancel, forget_job, ImportHead, ImportStep};
 use crate::services::Core;
 use crate::store::{Playlist, Store};
 use serde::Serialize;
@@ -38,10 +38,18 @@ pub struct ImportResult {
 /// по нему фильтруются события и работает `import_cancel`.
 #[tauri::command]
 pub async fn import_link(app: tauri::AppHandle, core: State<'_, Arc<Core>>, link: String, job: String) -> Result<ImportResult, String> {
-  let source = tokio::time::timeout(READ_TIMEOUT, core.import_source(&link))
+  let read = tokio::time::timeout(READ_TIMEOUT, core.import_source(&link))
     .await
-    .map_err(|_| "Сервис не ответил за минуту — попробуй ещё раз".to_string())?
-    .map_err(|e| e.to_string())?;
+    .map_err(|_| "Сервис не ответил за минуту — попробуй ещё раз".to_string())
+    .and_then(|r| r.map_err(|e| e.to_string()));
+  let source = match read {
+    Ok(source) => source,
+    Err(e) => {
+      // отмена, пришедшая во время чтения, больше не нужна
+      forget_job(&job);
+      return Err(e);
+    }
+  };
   let _ = app.emit(PROGRESS_EVENT, Progress::Head { job: &job, head: &source.head, tracks: &source.tracks });
   let steps = core
     .import_match_all(&job, &source.tracks, |step| {
@@ -51,7 +59,7 @@ pub async fn import_link(app: tauri::AppHandle, core: State<'_, Arc<Core>>, link
   Ok(ImportResult { head: source.head, tracks: source.tracks, steps })
 }
 
-/// Остановить подбор пар (ушли со страницы импорта).
+/// Остановить подбор пар («Остановить» на экране импорта или новый импорт).
 #[tauri::command]
 pub fn import_cancel(job: String) {
   cancel(&job);

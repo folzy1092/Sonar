@@ -2,6 +2,7 @@
 // поиск, а «назад» возвращает к тому же импорту — с найденным, без нового чтения источника.
 // Новый импорт останавливает прежний (оставшиеся треки прежнего не ищутся).
 import { api, errorText, onImportProgress, type Playlist } from './api'
+import { router } from '../app/router.svelte'
 import { EMPTY_IMPORT, applyProgress, fromResult, importTracks, newJobId, type ImportState } from './import'
 
 class ImportJob {
@@ -41,6 +42,17 @@ class ImportJob {
     }
   }
 
+  /** Новый заход по ссылке (Медиатека, поиск, плейлист сервиса): прочитать источник заново, даже если
+   *  ссылка та же, — плейлист мог измениться. «Назад» из поиска сюда не ходит и видит прежний импорт. */
+  reset() {
+    this.stop()
+    this.job = null
+    this.link = null
+    this.state = EMPTY_IMPORT
+    this.error = null
+    this.saved = null
+  }
+
   /** Остановить подбор пар (новый импорт или «Остановить»). */
   stop() {
     if (this.job && this.running) void api.importCancel(this.job).catch(() => {})
@@ -64,3 +76,9 @@ class ImportJob {
 }
 
 export const importJob = new ImportJob()
+
+/** Открыть экран импорта по ссылке (или ref плейлиста / альбома сервиса) — всегда с новым чтением. */
+export function openImport(link: string) {
+  importJob.reset()
+  router.go('import', link)
+}

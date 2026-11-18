@@ -370,7 +370,7 @@ missing, truncated}`.
 
 Ссылка на плейлист или альбом любого сервиса → смешанный плейлист Sonar (NEXT_PROMPT этап 5). Источники:
 SoundCloud, Яндекс Музыка, Spotify (`open.spotify.com/playlist|album/…`, `spotify:playlist:…`), YouTube /
-YouTube Music (`list=…`, `browse/MPREb_…`), VK (`vk.com/music/playlist|album/<owner>_<id>[_<key>]`,
+YouTube Music (`list=…`, в том числе `watch?v=…&list=…` — кроме миксов `RD…`, `browse/MPREb_…`), VK (`vk.com/music/playlist|album/<owner>_<id>[_<key>]`,
 `z=audio_playlist…`) и Apple Music (`music.apple.com/<страна>/playlist|album/…`). Apple в Sonar — не сервис,
 а только источник: публичная страница отдаёт JSON в `<script id="serialized-server-data">` (не больше ~100
 треков; сколько всего — `trackCount`), треки получают псевдо-ref `am:<id>` — в реестр он не входит и в

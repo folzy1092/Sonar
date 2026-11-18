@@ -5,7 +5,7 @@
 //! Apple Music (своего сервиса нет) ищутся в сервисах по порядку `audio.fallback_order`.
 //!
 //! Прогресс — шагами через `on_step` (команда шлёт их событием `import:progress`), отмена — по id
-//! задачи (`cancel`): уйти со страницы импорта значит не тратить запросы на остальные треки.
+//! задачи (`cancel`): «Остановить» или новый импорт не тратят запросы на остальные треки.
 
 use super::fallback::{can_back_up, candidates};
 use super::Core;
@@ -80,7 +80,8 @@ fn cancelled(job: &str) -> bool {
   CANCELLED.lock().unwrap().contains(job)
 }
 
-fn forget_job(job: &str) {
+/// Забыть задачу: она кончилась (или не началась — источник не прочитался).
+pub fn forget_job(job: &str) {
   CANCELLED.lock().unwrap().remove(job);
 }
 
@@ -130,7 +131,7 @@ impl Core {
 
   /// Плейлист или альбом сервиса по ref.
   async fn collection_source(&self, r: &str) -> Result<ImportSource> {
-    let (svc, kind) = parse_ref(r).ok_or_else(|| anyhow!("плохая ссылка {r}"))?;
+    let (svc, kind) = parse_ref(r).ok_or_else(|| anyhow!("плохая ссылка"))?;
     let service = svc.id.as_str().to_owned();
     match kind {
       RefKind::Playlist => {
