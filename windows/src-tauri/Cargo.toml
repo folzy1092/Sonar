@@ -43,6 +43,8 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 # горячие клавиши по всей системе (hotkeys.rs, Система → Горячие клавиши)
 tauri-plugin-global-shortcut = "2"
+# окно «Сохранить как» для экспорта плейлистов (export.rs)
+tauri-plugin-dialog = "2"
 
 # Кнопки «назад / пауза / вперёд» в превью окна на панели задач (thumbbar.rs) — та же версия, что у Tauri
 [target.'cfg(windows)'.dependencies]
