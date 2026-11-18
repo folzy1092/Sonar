@@ -311,6 +311,23 @@ CREATE TABLE track_alias (
 -- нашлось» — 7 дней, старше чистится при запуске. Метаданные найденного трека пишутся в tracks.
 -- iPhone до сервера — без таблицы: пары держатся в памяти на сеанс (Core/Providers/MusicCore+Fallback.swift).
 
+-- Умные плейлисты (NEXT_PROMPT этап 6; Windows — миграция № 12). Треков не хранят: при каждом открытии
+-- считаются заново по правилам из plays, likes и playlist_items. Формат rules_json — общий для ПК и iPhone,
+-- docs/PLATFORMS.md «Умные плейлисты». Синк — позже (поля deleted и rev уже под него).
+CREATE TABLE smart_playlists (
+  id            TEXT PRIMARY KEY,               -- sm_<16 hex>
+  user_id       TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  rules_json    TEXT NOT NULL,                  -- {"v":1,"source":…,"match":…,"conditions":[…],"sort":…,"limit":…}
+  created_at    INTEGER NOT NULL,               -- мс
+  updated_at    INTEGER NOT NULL,               -- мс
+  deleted       INTEGER NOT NULL DEFAULT 0,
+  rev           INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX smart_playlists_user ON smart_playlists(user_id, deleted);
+-- iPhone до сервера: Application Support/Sonar/smart.json — [{id, name, rules, created_at, updated_at}]
+-- (rules — тот же объект, не строка); дата лайка — likedAt в library.json.
+
 -- Быстрые ссылки входа и репорты — схема в BOT.md §6 (auth_links, reports)
 
 -- Статус (SPEC §3.11), только на сервере

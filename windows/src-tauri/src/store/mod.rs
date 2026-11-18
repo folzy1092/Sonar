@@ -12,6 +12,8 @@ mod alias;
 mod dupes;
 mod local_files;
 mod search;
+mod smart;
+mod smart_rules;
 mod stats;
 mod sync;
 mod system;
@@ -23,6 +25,8 @@ pub use local_files::LocalFile;
 pub use stats::Stats;
 pub use sync::{Change, Op, PlayUpload};
 pub use search::SearchEntry;
+pub use smart::{SmartPlaylist, SmartPreview};
+pub use smart_rules::Rules as SmartRules;
 pub use wave::Taste;
 pub use wave_events::{ServedEvent, WaveStats};
 
@@ -144,6 +148,13 @@ CREATE TABLE track_alias (
   source_ref TEXT NOT NULL, service TEXT NOT NULL, alias_ref TEXT, found_at INTEGER NOT NULL,
   PRIMARY KEY (source_ref, service)
 );
+"#, r#"
+CREATE TABLE smart_playlists (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, rules_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0,
+  rev INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX smart_playlists_user ON smart_playlists(user_id, deleted);
 "#];
 
 pub fn now_ms() -> i64 {

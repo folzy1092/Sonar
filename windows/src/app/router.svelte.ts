@@ -1,5 +1,5 @@
 // Простой роутер страниц: текущая страница с параметром + история для кнопки «назад».
-// playlist: 'favorites' | 'pl_…' (свой) | 'scpl:…' / 'ympl:…' (плейлист сервиса);
+// playlist: 'favorites' | 'pl_…' (свой) | 'sm_…' (умный, SmartPlaylistPage) | 'scpl:…' / 'ympl:…' (плейлист сервиса);
 // artist: 'sca:…' / 'yma:…'; album: 'scalb:…' / 'ymalb:…' (префиксы — lib/services).
 import { refKind } from '../lib/services'
 // profile — предпросмотр своего публичного профиля («Как видят мой профиль»);
