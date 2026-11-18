@@ -48,12 +48,15 @@ enum Lang: String, CaseIterable, Identifiable, Sendable {
 }
 
 enum I18n {
-    /// Словарь языка: Windows + iOS (iOS главнее), затем медиатека и экспорт (`Strings+Library`, `Strings+Export`).
+    /// Словарь языка: Windows + iOS (iOS главнее), затем медиатека, экспорт и умные плейлисты (`Strings+Library`,
+    /// `Strings+Export`, `Strings+Smart`).
     static let dictionaries: [Lang: [String: String]] = [
         .en: windowsEN.merging(iosEN) { _, ios in ios }.merging(accountEN) { _, a in a }.merging(libraryEN) { _, l in l }
-            .merging(exportEN) { _, e in e }.merging(youtubeEN) { _, y in y }.merging(spotifyEN) { _, s in s },
+            .merging(exportEN) { _, e in e }.merging(youtubeEN) { _, y in y }.merging(spotifyEN) { _, s in s }
+            .merging(smartEN) { _, s in s },
         .uk: windowsUK.merging(iosUK) { _, ios in ios }.merging(accountUK) { _, a in a }.merging(libraryUK) { _, l in l }
-            .merging(exportUK) { _, e in e }.merging(youtubeUK) { _, y in y }.merging(spotifyUK) { _, s in s },
+            .merging(exportUK) { _, e in e }.merging(youtubeUK) { _, y in y }.merging(spotifyUK) { _, s in s }
+            .merging(smartUK) { _, s in s },
     ]
 
     /// Перевод строки (ключ — русский текст, можно с контекстом `контекст::Текст`).

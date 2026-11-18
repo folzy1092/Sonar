@@ -186,6 +186,7 @@ struct RouteScreen: View {
         case .recent: PlaylistScreen(source: .recent)
         case let .playlist(playlist): PlaylistScreen(source: .service(playlist))
         case let .sonarPlaylist(id): PlaylistScreen(source: .sonar(id))
+        case let .smartPlaylist(id): SmartPlaylistScreen(id: id)
         case let .artist(ref, name): ArtistScreen(ref: ref, name: name)
         case let .album(ref, title): AlbumScreen(ref: ref, title: title)
         }
