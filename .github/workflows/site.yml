@@ -1,6 +1,6 @@
 # Сайт sonar.folzy.ru (site/, Astro) → GitHub Pages. Спека — docs/SITE.md.
 # В настройках репо: Pages → Source: GitHub Actions; домен берётся из site/public/CNAME.
-name: site
+# Pages включён 2026-11-18 (Settings → Pages → Source: GitHub Actions); домен берётся из site/public/CNAME.
 
 on:
   push:
