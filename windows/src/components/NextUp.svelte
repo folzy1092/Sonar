@@ -1,8 +1,9 @@
 <script lang="ts">
   // «Дальше» (Плеер → Очередь → Предпросмотр следующего трека, queue.preview): за 10 с до конца
   // трека выезжает карточка со следующим треком — у мини-плеера (`float`) или на странице плеера.
-  // У мини-плеера карточка — прямой ребёнок его подложки: правый край вровень с капсулой кнопок,
-  // зазор до плеера — var(--gap), в узком окне не шире плеера. Сверху окна / в верхней половине
+  // У мини-плеера карточка — прямой ребёнок его подложки: отступ от правого края и зазор до плеера —
+  // --next-inset / --next-gap (владелец 2026-11-19: при var(--gap) карточка липла к краям), в узком окне
+  // не шире плеера. Сверху окна / в верхней половине
   // (плавающий) — под плеером, иначе над ним (next-up.ts).
   // Открыта правая панель (очередь / текст) — у мини-плеера не показывается: следующий трек и так виден.
   import Cover from './Cover.svelte'
@@ -37,22 +38,24 @@
   .next {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     max-width: 320px;
     min-width: 0;
-    padding: 6px 12px 6px 6px;
+    padding: 8px 16px 8px 8px;
     border-radius: 14px;
     background: var(--surface-2);
     border: 1px solid var(--card-line);
     box-shadow: var(--sheen);
   }
   .next.float {
-    /* у мини-плеера: отступы от его подложки (border 1px + var(--gap)), правый край — по капсуле кнопок
-       (её отступ — --mini-pad-r в MiniPlayer.svelte), не шире самого плеера */
+    /* у мини-плеера: зазор до его подложки (border 1px + --next-gap) и отступ от правого края —
+       с воздухом, не впритык; не шире самого плеера */
+    --next-gap: 12px;
+    --next-inset: 20px;
     position: absolute;
-    right: var(--mini-pad-r, 12px);
-    bottom: calc(100% + 1px + var(--gap));
-    max-width: min(320px, calc(100% - 2 * var(--mini-pad-r, 12px)));
+    right: var(--next-inset);
+    bottom: calc(100% + 1px + var(--next-gap));
+    max-width: min(320px, calc(100% - 2 * var(--next-inset)));
     z-index: 5;
     transform-origin: right bottom;
     box-shadow:
@@ -60,7 +63,7 @@
       var(--sheen);
   }
   .next.float.below {
-    top: calc(100% + 1px + var(--gap));
+    top: calc(100% + 1px + var(--next-gap));
     bottom: auto;
     transform-origin: right top;
   }

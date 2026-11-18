@@ -2,9 +2,11 @@
   // Поле точек героя Главной (lib/sonar-field.ts; порт iPhone SonarField). Canvas, не больше 30 кадров/с;
   // вне экрана, в свёрнутом окне и в фоне при экономии ресурсов (класс .idle) — не рисуем. Цвет — акцент
   // темы (под обложку). Клик — волна-разлёт / вихрь / подскок по кругу, наведение — лёгкое притяжение,
-  // под музыку — спектр общего анализатора плеера (player/analyser.ts): низы — дыхание и размер капель,
-  // бит — встряска, верха — рябь. «Меньше движения» — 15 к/с, без сдвигов: клик — только смена
-  // прозрачности; экономия ресурсов в неактивном окне — 15 к/с и без встряски.
+  // под музыку — спектр общего анализатора плеера (player/analyser.ts): низы — дыхание, размер капель и
+  // надувание точек сверх полного, середина — размах течения, верха — рябь, бит — встряска и кольцо-пинг
+  // от центра, смена трека — сильное широкое кольцо (lib/sonar-ping.ts). «Меньше движения» — 15 к/с, без
+  // сдвигов: клик — только смена прозрачности; экономия ресурсов в неактивном окне — 15 к/с, без встряски
+  // и колец.
   import { onMount } from 'svelte'
   import raw from '../assets/logo-mark.svg?raw'
   import {
@@ -15,6 +17,7 @@
     approach,
     bandLevels,
     drift,
+    edgeFade,
     fadePulse,
     fieldValue,
     frameDue,
@@ -29,9 +32,11 @@
     type Grid,
     type Poke,
   } from '../lib/sonar-field'
+  import { BEAT_PING, TRACK_PING, addPing, dotRadius, prunePings, stackPings, type Ping } from '../lib/sonar-ping'
   import { reducedMotion } from '../lib/motion'
   import { settings } from '../lib/settings.svelte'
   import { readSpectrum } from '../player/analyser'
+  import { player } from '../player/player.svelte'
 
   let { playing = false, step = 9 }: { playing?: boolean; step?: number } = $props()
 
@@ -41,6 +46,10 @@
   const MAX_DT = 0.1
   /** «Меньше движения»: насколько гаснет поле от клика. */
   const CALM_FADE = 0.3
+  /** Середина спектра раскачивает течение точек: на полной — размах ×(1 + MID_SWAY). */
+  const MID_SWAY = 2
+  /** Доля низов в надувании точек (остальное — кольца). */
+  const LOW_KICK = 0.7
 
   const D = /\sd="([^"]+)"/.exec(raw)?.[1] ?? ''
   const [VX, VY, VW, VH] = (/viewBox="([^"]+)"/.exec(raw)?.[1] ?? '0 0 24 24').split(/\s+/).map(Number)
@@ -114,6 +123,10 @@
     let hy = 0
     let hoverAmt = 0
     let audio: AudioState = AUDIO_START
+    // кольца-пинги: на бит и на смену трека; трек сравниваем по ref, первый кадр — без кольца
+    let pings: Ping[] = []
+    let beatSeen = -Infinity
+    let trackRef = player.current?.ref ?? null
 
     /** Экономия ресурсов в неактивном (но видимом) окне — режим «свёрнуто»: рисуем реже и без встряски. */
     const saving = () => settings.get('system.power_saving') !== 'off' && !document.hasFocus()
@@ -138,6 +151,19 @@
       return spectrum || !isQuiet(audio.levels) ? audio.levels : null
     }
 
+    /** Новые кольца: бит трека — слабое, смена трека — сильное. В «Меньше движения» и экономии — нет. */
+    const ring = (t: number, quiet: boolean) => {
+      const ref = player.current?.ref ?? null
+      const changed = ref !== trackRef
+      trackRef = ref
+      const beat = audio.beatAt !== beatSeen
+      beatSeen = audio.beatAt
+      pings = prunePings(pings, t)
+      if (quiet) return
+      if (changed && ref) pings = addPing(pings, t, TRACK_PING)
+      else if (beat && Number.isFinite(audio.beatAt)) pings = addPing(pings, t, BEAT_PING)
+    }
+
     const draw = (t: number, calm: boolean, lite: boolean) => {
       const dt = Number.isFinite(lastT) ? Math.min(MAX_DT, Math.max(0, t - lastT)) : 0
       lastT = t
@@ -148,6 +174,11 @@
       const levels = listen(t, dt)
       // «Меньше движения»: спектр — сплошь движение, его не показываем (как волна под ползунком)
       const music = calm ? null : levels
+      ring(t, lite)
+      const sway = 1 + MID_SWAY * (music?.mid ?? 0)
+      const lowKick = LOW_KICK * (music?.low ?? 0)
+      const cx = w / 2
+      const cy = h / 2
       const reach = Math.hypot(w, h)
       pokes = prunePokes(pokes, t, reach)
       hoverAmt = approach(hoverAmt, hovering && !calm ? 1 : 0, dt, HOVER_TAU)
@@ -160,13 +191,15 @@
       ctx.globalAlpha = calm ? 1 - CALM_FADE * fadePulse(t - flashAt) : 1
       ctx.fillStyle = color
       ctx.beginPath()
-      const maxR = grid.step * 0.5
       for (let row = 0; row < grid.rows; row++)
         for (let col = 0; col < grid.cols; col++) {
-          const d = drift(col, row, ft)
+          const d = drift(col, row, ft, sway)
           let v = fieldValue(col, row, grid, logo, ft, playing, music) * d.scale
           let x = grid.ox + (col + 0.5) * grid.step
           let y = grid.oy + (row + 0.5) * grid.step
+          // кольцо зажигает точки и вне фигуры; у кромки поля гаснет вместе с ней
+          const ping = pings.length ? stackPings(pings, Math.hypot(x - cx, y - cy), t) * edgeFade(col, row, grid) : 0
+          v = Math.min(1, v + ping)
           if (moving) {
             x += d.dx
             y += d.dy
@@ -189,7 +222,7 @@
               v = Math.min(1, v * o.scale)
             }
           }
-          const r = maxR * v
+          const r = dotRadius(grid.step, v, lowKick + ping)
           if (r < 0.45) continue
           ctx.moveTo(x + r, y)
           ctx.arc(x, y, r, 0, Math.PI * 2)
