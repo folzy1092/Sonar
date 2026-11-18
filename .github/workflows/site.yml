@@ -37,14 +37,17 @@ jobs:
 
       - run: npm ci
 
+      # типы TS и .astro (astro check)
+      - run: npm run check
+
       # тесты сверяют цены с windows/src/lib/subscription.ts и переводы en / uk
       - run: npm test
 
       - run: npm run build
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site/dist
 
@@ -59,4 +62,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

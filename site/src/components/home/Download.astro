@@ -16,7 +16,6 @@ const { lang, headingLevel = 2 } = Astro.props
 const { t } = useT(lang)
 const H = headingLevel === 1 ? 'h1' : 'h2'
 const win = latestEntry('windows')
-const EXE_NAME = 'Sonar-setup.exe'
 
 const IOS_STEPS = [
   t('Скачай Sonar.ipa по кнопке выше.'),

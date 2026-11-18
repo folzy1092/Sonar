@@ -10,6 +10,7 @@ import {
   parseStatus,
   uptimeState,
 } from './status'
+import type { HistoryDay } from './status'
 
 const API_EXAMPLE = {
   state: 'degraded',
@@ -84,7 +85,7 @@ describe('lastDays', () => {
 
 describe('averageUptime', () => {
   it('averages only the days that have the service', () => {
-    const history = [
+    const history: HistoryDay[] = [
       { date: '2026-11-16', items: { api: 100 } },
       { date: '2026-11-17', items: { api: 98, bot: 100 } },
     ]

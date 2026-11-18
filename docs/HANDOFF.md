@@ -1,14 +1,21 @@
 # Передача 2026-11-18 (поздний вечер, сессия на Mac) → сайт `sonar.folzy.ru`
 
 **Начни отсюда.** Сайт по `docs/SITE.md` сделан и лежит в `site/` (Astro 5, свой CSS, ru / en / uk, 33 страницы).
-Деплой — `.github/workflows/site.yml` (тесты → сборка → GitHub Pages). Lighthouse на главной (телефон):
+Деплой — `.github/workflows/site.yml` (типы `astro check` → тесты → сборка → GitHub Pages). Lighthouse на главной (телефон):
 Accessibility 100, SEO 100, Best Practices 96 (403 от GitHub API при лимите запросов), LCP 1,9 с на Slow 4G с 4×
 замедлением, CLS 0,02.
 
-**Чтобы сайт открылся (делает владелец):**
-1. GitHub → Settings → Pages → Source: **GitHub Actions**; Custom domain `sonar.folzy.ru`, Enforce HTTPS.
-2. DNS folzy.ru: `CNAME sonar → folzy1092.github.io` (без прокси Cloudflare, пока не выпущен сертификат).
-3. Перезапустить `site.yml` (Actions → site → Run workflow), если первый прогон был до включения Pages.
+**Чтобы сайт открылся (делает владелец; на 2026-11-18 ещё не сделано):**
+1. GitHub → репо Sonar → Settings → Pages → Source: **GitHub Actions**; Custom domain `sonar.folzy.ru`,
+   Enforce HTTPS. Сейчас Pages у репо выключен: прогоны `site.yml` падают на `configure-pages` с «Get Pages
+   site failed… Not Found», хотя тесты и сборка проходят. У `folzy1092.github.io` свой домен `folzy.is-a.dev`,
+   поэтому без своего домена у Sonar адрес `folzy1092.github.io/Sonar/` уводит на `folzy.is-a.dev/Sonar/` (404).
+2. DNS folzy.ru — серверы имён пока **reg.ru** (`ns1/ns2.reg.ru`), запись добавлять там: `CNAME sonar →
+   folzy1092.github.io.`. На 2026-11-18 её нет (reg.ru отвечает NXDOMAIN). Запись в Cloudflare не сработает,
+   пока серверы имён домена не переключены на Cloudflare (без прокси, пока не выпущен сертификат).
+3. Перезапустить `site.yml` (Actions → site → Re-run all jobs).
+4. Проверка: `https://dns.google/resolve?name=sonar.folzy.ru&type=CNAME` отдаёт `folzy1092.github.io.`,
+   страницы открываются на ru / en / uk, `/@username` — через `404.html`.
 
 **Что важно знать:**
 - Строки — `t('русский текст')`; переводы — `site/src/i18n/en.ts` и `uk.ts`. Тест `src/i18n/coverage.test.ts`

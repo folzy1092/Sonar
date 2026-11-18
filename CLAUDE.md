@@ -213,7 +213,7 @@ Discord RPC: ID приложения Discord пользователь **не в�
 
 - Сервер: `cd server && python -m pytest -q`.
 - Windows: `cd windows && npm run check && npm test`, `cd windows/src-tauri && cargo test`.
-- Сайт: `cd site && npm test && npm run build` (тесты сверяют цены `data/plans.json` с
+- Сайт: `cd site && npm run check && npm test && npm run build` (тесты сверяют цены `data/plans.json` с
   `windows/src/lib/subscription.ts` и что каждая строка переведена на en и uk).
 - iOS: собирается только на CI (Mac нет) — пуш в `main` запускает `ios.yml`; смотреть лог сборки.
 - Обновил API или схему — обнови `docs/API.md` / `docs/DB.md` в том же коммите.

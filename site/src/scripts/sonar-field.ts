@@ -64,7 +64,7 @@ export function mountField(canvas: HTMLCanvasElement): void {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)')
 
   let grid = makeGrid(0, 0, STEP)
-  let logo = new Float32Array(0)
+  let logo: Float32Array = new Float32Array(0)
   let pokes: Poke[] = []
   let kindCounter = -1
   let visible = false
