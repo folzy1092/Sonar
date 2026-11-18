@@ -444,6 +444,13 @@ impl Core {
     p.artist_top(id, limit).await
   }
 
+  /// На кого подписан исполнитель SoundCloud (`sca:<id>`) — связи карты исполнителей.
+  pub async fn sc_followings(&self, artist_ref: &str, max: usize) -> Result<Vec<Artist>> {
+    let id = artist_ref.strip_prefix("sca:").ok_or_else(|| anyhow!("не исполнитель SoundCloud: {artist_ref}"))?;
+    let http = &self.http;
+    self.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.followings(id, max).await }).await
+  }
+
   /// Яндекс подключён — можно брать его похожие и новинки.
   pub async fn has_yandex(&self) -> bool {
     self.ym.read().await.is_some()
