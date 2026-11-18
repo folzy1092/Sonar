@@ -48,6 +48,8 @@ const MAP = {
 const BRANDS = { soundcloud: 'soundcloud' }
 // Система: знак Last.fm
 BRANDS.lastfm = 'lastdotfm'
+// Сервисы: знак YouTube Music
+BRANDS.youtubeMusic = 'youtubemusic'
 
 const paths = (body) => [...body.matchAll(/<path[^>]*\sd="([^"]+)"/g)].map((m) => m[1])
 

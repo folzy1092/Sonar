@@ -103,7 +103,7 @@ CREATE TABLE playlists (
   name          TEXT NOT NULL,
   cover_path    TEXT,                           -- NULL → коллаж из 4 обложек
   hidden        INTEGER NOT NULL DEFAULT 0,
-  source_ref    TEXT,                           -- scpl:… / ympl:… если перенесён
+  source_ref    TEXT,                           -- scpl:… / ympl:… / ytpl:… если перенесён
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL,
   deleted       INTEGER NOT NULL DEFAULT 0,

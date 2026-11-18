@@ -14,7 +14,7 @@ protocol MusicSource: Sendable {
     func search(_ query: String, in service: Service, limit: Int) async throws -> [Track]
 }
 
-/// Один клиент стримингового сервиса. В этой волне — SoundCloud и Яндекс; новые сервисы реестра
+/// Один клиент стримингового сервиса: SoundCloud, Яндекс, YouTube Music; новые сервисы реестра
 /// (`ServiceRegistry`) подключаются сюда же. `MusicCore` пока выбирает клиента сам, по строке сервиса.
 protocol MusicProvider: Sendable {
     /// Строка реестра этого клиента.
@@ -31,6 +31,10 @@ extension SoundCloud: MusicProvider {
 
 extension Yandex: MusicProvider {
     static var serviceID: ServiceID { .ym }
+}
+
+extension YouTube: MusicProvider {
+    static var serviceID: ServiceID { .yt }
 }
 
 /// Параллельно позвать сервис для каждого элемента, ответы — в том же порядке; ошибка — nil.

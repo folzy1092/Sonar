@@ -115,7 +115,7 @@ PublicTrack = {ref, title, artist, cover_url, duration_ms}
 |---|---|---|---|---|---|---|---|
 | `sc` | `soundcloud` | SoundCloud | `sc:<id>` | `scalb:<id>` | `sca:<id>` | `scpl:<id>` | да |
 | `ym` | `yandex` | Яндекс Музыка | `ym:<id>` | `ymalb:<id>` | `yma:<id>` | `ympl:<uid>:<kind>` | да |
-| `yt` | `youtube` | YouTube Music | `yt:<videoId>` | `ytalb:<browseId>` | `yta:<channelId>` | `ytpl:<playlistId>` | нет |
+| `yt` | `youtube` | YouTube Music | `yt:<videoId>` | `ytalb:<browseId>` | `yta:<channelId>` | `ytpl:<playlistId>` | да |
 | `vk` | `vk` | VK Музыка | `vk:<owner>_<id>` | `vkalb:<owner>_<id>` | `vka:<id>` | `vkpl:<owner>_<id>` | нет |
 | `sp` | `spotify` | Spotify | `sp:<id>` | `spalb:<id>` | `spa:<id>` | `sppl:<id>` | нет |
 | `local` | `local` | Локальные файлы | `local:<sha1 пути>` | — | — | — | да (только ПК, §3а) |
@@ -123,7 +123,8 @@ PublicTrack = {ref, title, artist, cover_url, duration_ms}
 Сервисы с «нет» пока только описаны: интерфейс их не показывает, сервер и клиенты отвечают
 «`<Название>`: пока не поддерживается». Что каждый сервис умеет (`caps`) — в `GET /services`.
 
-Особые ref: `scpl:likes` и `ympl:likes` — лайки аккаунта сервиса как плейлист; `ympl:<uid>:<kind>` — плейлист
+Особые ref: `scpl:likes`, `ympl:likes` и `ytpl:likes` — лайки аккаунта сервиса как плейлист (YouTube Music —
+«Понравившаяся музыка», до 2000 треков; обычный плейлист YouTube — до 1000); `ympl:<uid>:<kind>` — плейлист
 пользователя Яндекса; `scpl:<id>` — плейлист SoundCloud. Формат ref не меняется.
 
 Разбор ref (одинаково в Rust, TS и Swift):
@@ -144,6 +145,8 @@ prefix = текст до ПЕРВОГО ':'   (нет ':' или пустой п
 | `ymalb:5` | ym | альбом |
 | `yma:1` | ym | артист |
 | `yt:abc` | yt | трек |
+| `ytpl:likes` | yt | плейлист |
+| `ytalb:MPREb_x` | yt | альбом |
 | `local:abc` | local | трек |
 | `pl_x` | — | — |
 | `similar:sc:1` | — | — |
@@ -178,10 +181,22 @@ prefix = текст до ПЕРВОГО ':'   (нет ':' или пустой п
 |---|---|
 | `sc` / `soundcloud` | `client_id` — обязательно (32 символа); `oauth_token` — необязательно, `OAuth ` в начале срезается |
 | `ym` / `yandex` | `token` — обязательно |
+| `yt` / `youtube` | `cookie` — заголовок Cookie с `music.youtube.com` целиком (`SID=…; SAPISID=…; …`); нужен `SAPISID` (или `__Secure-3PAPISID`), иначе «В cookie нет SAPISID — войди на music.youtube.com и скопируй cookie заново» |
 
 Ключ проверяется запросом аккаунта к сервису и сохраняется только в Keychain / keyring. Неизвестный сервис —
 «Неизвестный сервис: `<svc>`», ещё не работающий — «`<Название>`: пока не поддерживается». Значения полей не
 попадают ни в текст ошибки, ни в лог.
+
+**YouTube Music** (клиенты сами, до сервера; своя реализация InnerTube — rustypipe не берём, GPL-3.0):
+каталог, поиск, лайки и плейлисты — клиент `WEB_REMIX` (с cookie запросы подписываются `SAPISIDHASH`), поток —
+гостевой клиент `VISIONOS` с `visitorData` (cookie не нужен, прямые ссылки без `signatureCipher`). `premium` —
+YouTube Premium по `has_unlimited_entitlement` из ответа аккаунта (не сказано — `null`). Вход: ПК — `login_service {service: "youtube"}` (окно Google внутри
+Sonar, после возврата на `music.youtube.com` забираются cookie `youtube.com`, нужен `SAPISID`), iPhone —
+`YouTubeLoginSheet` так же; не пустил Google — вставка cookie (`cookie` выше). Ссылки `googlevideo.com` без
+диапазона отдаются медленно (~35 КБ/с), поэтому ПК качает их кусками по 8 МБ с `Range: bytes=a-b` и склеивает
+в один ответ локального аудио-сервера (`gvideo.rs`); iPhone играет ссылку AVPlayer'ом напрямую (он сам
+запрашивает диапазоны), при ошибке — ещё раз с новым `visitorData`. Проверка с текущего IP —
+`server/tools/check_yt.py`.
 
 `ServiceEntry` — строка реестра плюс состояние; ключи именно такие (snake_case), все шесть сервисов в порядке реестра:
 
@@ -197,8 +212,8 @@ prefix = текст до ПЕРВОГО ':'   (нет ':' или пустой п
    "implemented": true, "connected": true, "account_name": "Анна", "avatar_url": null, "premium": true},
   {"id": "yt", "key": "youtube", "name": "YouTube Music", "color": "#FF0033", "icon": "youtube-music.svg", "icon_mono": "youtube-music-mono.svg",
    "prefixes": {"track": "yt", "album": "ytalb", "artist": "yta", "playlist": "ytpl"},
-   "caps": {"search": true, "stream": true, "library": true, "playlists": true, "similar": true, "login": true, "key": false},
-   "implemented": false, "connected": false, "account_name": null, "avatar_url": null, "premium": null},
+   "caps": {"search": true, "stream": true, "library": true, "playlists": true, "similar": true, "login": true, "key": true},
+   "implemented": true, "connected": false, "account_name": null, "avatar_url": null, "premium": null},
   {"id": "vk", "…": "…"}, {"id": "sp", "…": "…"},
   {"id": "local", "key": "local", "name": "Локальные файлы", "color": "#8E8E93", "icon": null, "icon_mono": null,
    "prefixes": {"track": "local", "album": null, "artist": null, "playlist": null},

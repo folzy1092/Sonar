@@ -115,6 +115,8 @@ struct TrackSheet: View {
                 Spacer(minLength: 12)
                 if track.service == .soundcloud {
                     SonarIcon(.soundcloud, size: 30).foregroundStyle(Theme.text)
+                } else if track.service == .youtube {
+                    SonarIcon(.youtubeMusic, size: 30).foregroundStyle(Theme.text)
                 } else if track.service == .yandex {
                     Text("Я")
                         .font(.system(size: 16, weight: .heavy))

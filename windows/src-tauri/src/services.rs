@@ -3,7 +3,7 @@
 
 use crate::providers::registry::{by_key, parse_ref, split_ref, RefKind, ServiceId, ServiceInfo, REGISTRY};
 use crate::providers::{
-  soundcloud, yandex, Account, Album, AlbumPage, Artist, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track,
+  soundcloud, yandex, youtube, Account, Album, AlbumPage, Artist, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track,
 };
 use crate::secrets;
 use anyhow::{anyhow, bail, Result};
@@ -19,6 +19,7 @@ mod local;
 mod provider;
 mod sc;
 mod ym;
+mod yt;
 pub use provider::{AnyProvider, Provider};
 
 /// Ссылки SoundCloud и Яндекса живут минуты — держим чуть меньше, при 403 берём заново.
@@ -53,6 +54,7 @@ pub struct ServiceStatus {
 pub struct ServicesStatus {
   pub soundcloud: ServiceStatus,
   pub yandex: ServiceStatus,
+  pub youtube: ServiceStatus,
 }
 
 /// Сервис из реестра и состояние его подключения (команда `services_list`).
@@ -77,6 +79,12 @@ pub struct Core {
   pub http: reqwest::Client,
   sc: RwLock<Option<Stored<soundcloud::Creds>>>,
   ym: RwLock<Option<Stored<yandex::Creds>>>,
+  /// Cookie входа YouTube Music (каталог и поток работают и без него).
+  yt: RwLock<Option<Stored<youtube::Creds>>>,
+  /// `visitorData` гостя YouTube Music для `player` — одна на сессию.
+  yt_visitor: RwLock<Option<String>>,
+  /// «YouTube Music: Высокое» (`audio.yt_quality`, по умолчанию): Opus вместо AAC 128.
+  pub yt_high: AtomicBool,
   /// Сырой JSON треков SoundCloud из поиска — в нём `transcodings` для потока.
   sc_raw: Mutex<HashMap<String, Value>>,
   /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
@@ -115,6 +123,9 @@ impl Core {
       http,
       sc: RwLock::new(secrets::load(ServiceId::Sc.key())),
       ym: RwLock::new(secrets::load(ServiceId::Ym.key())),
+      yt: RwLock::new(secrets::load(ServiceId::Yt.key())),
+      yt_visitor: RwLock::new(None),
+      yt_high: AtomicBool::new(yt_high(None)),
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
@@ -186,6 +197,9 @@ impl Core {
       http: reqwest::Client::new(),
       sc: RwLock::new(None),
       ym: RwLock::new(None),
+      yt: RwLock::new(None),
+      yt_visitor: RwLock::new(None),
+      yt_high: AtomicBool::new(yt_high(None)),
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
@@ -197,18 +211,23 @@ impl Core {
   }
 
   pub async fn status(&self) -> ServicesStatus {
-    ServicesStatus { soundcloud: status(&*self.sc.read().await), yandex: status(&*self.ym.read().await) }
+    ServicesStatus {
+      soundcloud: status(&*self.sc.read().await),
+      yandex: status(&*self.ym.read().await),
+      youtube: status(&*self.yt.read().await),
+    }
   }
 
   /// Все сервисы реестра по порядку; у работающих — подключён ли и чей аккаунт.
   pub async fn list(&self) -> Vec<ServiceEntry> {
-    let ServicesStatus { soundcloud, yandex } = self.status().await;
+    let ServicesStatus { soundcloud, yandex, youtube } = self.status().await;
     REGISTRY
       .iter()
       .map(|info| {
         let st = match info.id {
           ServiceId::Sc => soundcloud.clone(),
           ServiceId::Ym => yandex.clone(),
+          ServiceId::Yt => youtube.clone(),
           _ => ServiceStatus::default(),
         };
         ServiceEntry { info, connected: st.connected, account_name: st.name, avatar_url: st.avatar_url, premium: st.premium }
@@ -240,11 +259,27 @@ impl Core {
     Ok(status(&Some(stored)))
   }
 
+  /// YouTube Music по cookie браузера: проверить вход (`account_menu`) и сохранить в keyring.
+  pub async fn connect_youtube(&self, cookie: &str) -> Result<ServiceStatus> {
+    let creds = youtube::Creds { cookie: youtube::auth::normalize_cookie(cookie)? };
+    let account = youtube::YouTube { http: &self.http, creds: Some(&creds) }.account().await?;
+    let stored = Stored { creds, account };
+    secrets::save(ServiceId::Yt.key(), &stored)?;
+    *self.yt.write().await = Some(stored.clone());
+    Ok(status(&Some(stored)))
+  }
+
+  /// Сменилось качество потока — старые ссылки больше не годятся.
+  pub fn forget_streams(&self) {
+    self.streams.lock().unwrap().clear();
+  }
+
   pub async fn disconnect(&self, service: &str) -> Result<()> {
     let Some(info) = by_key(service) else { bail!("неизвестный сервис {service}") };
     match info.id {
       ServiceId::Sc => *self.sc.write().await = None,
       ServiceId::Ym => *self.ym.write().await = None,
+      ServiceId::Yt => *self.yt.write().await = None,
       _ => bail!("неизвестный сервис {service}"),
     }
     secrets::delete(info.key)
@@ -255,6 +290,7 @@ impl Core {
     match id {
       ServiceId::Sc => Ok(AnyProvider::Sc(sc::ScProvider { core: self })),
       ServiceId::Ym => Ok(AnyProvider::Ym(ym::YmProvider { core: self })),
+      ServiceId::Yt => Ok(AnyProvider::Yt(yt::YtProvider { core: self })),
       ServiceId::Local => Ok(AnyProvider::Local(local::LocalProvider { core: self })),
       other => bail!("{}: пока не поддерживается", other.info().name),
     }
@@ -471,6 +507,19 @@ impl Core {
     Ok(src)
   }
 
+  /// Как `resolve`, но YouTube Music, не открывшийся с первого раза, пробует ещё раз с новой
+  /// visitorData; не помогло — причина в журнал ошибок. У остальных сервисов ошибки не временные
+  /// (нет входа, нет трека) — повтор ничего не даст. В тексте ошибок нет ни cookie, ни подписанных ссылок.
+  pub async fn resolve_retrying(&self, track_ref: &str) -> Result<Source> {
+    match self.resolve(track_ref, false).await {
+      Err(e) if retries_resolve(track_ref) => {
+        log::warn!("поток {track_ref}: {e}; пробую ещё раз");
+        self.resolve(track_ref, true).await.inspect_err(|e| log::error!("поток {track_ref}: {e}"))
+      }
+      r => r,
+    }
+  }
+
   /// Поток SoundCloud как есть (публичный client_id обновляется при 401/403).
   async fn sc_resolve(&self, track_ref: &str, id: &str, fresh: bool) -> Result<Source> {
     let (creds, public) = self.sc_creds(false).await?;
@@ -544,6 +593,12 @@ fn is_auth_error(e: &anyhow::Error) -> bool {
   t.contains("HTTP 401") || t.contains("HTTP 403")
 }
 
+/// Ошибку потока стоит повторить с `fresh`: только YouTube Music (протухшая или помеченная
+/// visitorData, временный LOGIN_REQUIRED плеера).
+pub fn retries_resolve(track_ref: &str) -> bool {
+  crate::providers::registry::is_kind(track_ref, ServiceId::Yt, RefKind::Track)
+}
+
 /// `audio.quality` → потолок битрейта Яндекса. По умолчанию — максимум (FLAC, если есть).
 pub fn quality_kbps(v: Option<&str>) -> u32 {
   match v {
@@ -552,6 +607,11 @@ pub fn quality_kbps(v: Option<&str>) -> u32 {
     Some("high") => 320,
     _ => crate::providers::yandex::LOSSLESS_KBPS,
   }
+}
+
+/// `audio.yt_quality`: «high» (по умолчанию) — Opus, «normal» — AAC 128.
+pub fn yt_high(v: Option<&str>) -> bool {
+  v != Some("normal")
 }
 
 #[cfg(test)]
@@ -570,6 +630,7 @@ mod tests {
     let core = Core::new_empty();
     assert_eq!(core.provider(ServiceId::Sc).unwrap().id(), ServiceId::Sc);
     assert_eq!(core.provider(ServiceId::Ym).unwrap().id(), ServiceId::Ym);
+    assert_eq!(core.provider(ServiceId::Yt).unwrap().id(), ServiceId::Yt);
     assert_eq!(core.provider(ServiceId::Local).unwrap().id(), ServiceId::Local);
   }
 
@@ -614,7 +675,7 @@ mod tests {
   #[test]
   fn provider_unimplemented_errors() {
     let core = Core::new_empty();
-    for id in [ServiceId::Yt, ServiceId::Vk, ServiceId::Sp] {
+    for id in [ServiceId::Vk, ServiceId::Sp] {
       let e = err_text(core.provider(id));
       assert!(e.contains("пока не поддерживается"), "{e}");
       assert!(e.starts_with(id.info().name), "{e}");
@@ -629,7 +690,7 @@ mod tests {
     assert_eq!(err_text(core.search("x", "soundcloud", 5).await), "неизвестный источник soundcloud");
     assert_eq!(err_text(core.search_more("x", "", 5).await), "неизвестный источник ");
     // нереализованный сервис отвечает сразу, без сети
-    assert_eq!(err_text(core.search("x", "yt", 5).await), "YouTube Music: пока не поддерживается");
+    assert_eq!(err_text(core.search("x", "sp", 5).await), "Spotify: пока не поддерживается");
     assert_eq!(err_text(core.search_more("x", "vk", 5).await), "VK Музыка: пока не поддерживается");
   }
 
@@ -639,18 +700,18 @@ mod tests {
     assert_eq!(err_text(core.artist_page("nocolon").await), "плохой ref nocolon");
     assert_eq!(err_text(core.artist_page("xx:1").await), "неизвестный исполнитель xx:1");
     assert_eq!(err_text(core.artist_tracks("sc:1").await), "неизвестный исполнитель sc:1");
-    assert_eq!(err_text(core.artist_top("yta:1", 5).await), "неизвестный исполнитель yta:1");
+    assert_eq!(err_text(core.artist_top("vka:1", 5).await), "неизвестный исполнитель vka:1");
     assert_eq!(err_text(core.artist_albums("scalb:1").await), "неизвестный исполнитель scalb:1");
     assert_eq!(err_text(core.album_page("sca:1").await), "неизвестный альбом sca:1");
-    assert_eq!(err_text(core.album_page("ytalb:1").await), "неизвестный альбом ytalb:1");
+    assert_eq!(err_text(core.album_page("vkalb:1").await), "неизвестный альбом vkalb:1");
     assert_eq!(err_text(core.similar("scpl:1", 5).await), "неизвестный трек scpl:1");
-    assert_eq!(err_text(core.similar("yt:1", 5).await), "неизвестный трек yt:1");
+    assert_eq!(err_text(core.similar("vk:1", 5).await), "неизвестный трек vk:1");
     assert_eq!(err_text(core.service_playlist("pl_x").await), "плохой ref pl_x");
     assert_eq!(err_text(core.service_playlist("sc:1").await), "неизвестный плейлист sc:1");
-    assert_eq!(err_text(core.service_playlist("ytpl:1").await), "неизвестный плейлист ytpl:1");
+    assert_eq!(err_text(core.service_playlist("vkpl:1").await), "неизвестный плейлист vkpl:1");
     assert_eq!(err_text(core.resolve("nocolon", false).await), "плохой ref nocolon");
     assert_eq!(err_text(core.resolve("scalb:1", false).await), "неизвестный источник в scalb:1");
-    assert_eq!(err_text(core.resolve("yt:1", false).await), "неизвестный источник в yt:1");
+    assert_eq!(err_text(core.resolve("vk:1", false).await), "неизвестный источник в vk:1");
   }
 
   /// Без Яндекса ветки ym доходят до своего провайдера и отвечают прежними текстами — без сети.
@@ -676,11 +737,11 @@ mod tests {
   #[tokio::test]
   async fn service_playlists_accepts_short_id_and_key() {
     let core = Core::new_empty();
-    for s in ["sc", "soundcloud", "ym", "yandex"] {
+    for s in ["sc", "soundcloud", "ym", "yandex", "yt", "youtube"] {
       assert!(core.service_playlists(s).await.unwrap().is_empty(), "{s}");
     }
     assert_eq!(err_text(core.service_playlists("zz").await), "неизвестный сервис zz");
-    assert_eq!(err_text(core.service_playlists("youtube").await), "YouTube Music: пока не поддерживается");
+    assert_eq!(err_text(core.service_playlists("vk").await), "VK Музыка: пока не поддерживается");
     // лайки SoundCloud без OAuth-токена — прежний текст
     assert_eq!(err_text(core.service_playlist("scpl:likes").await), "Нужен OAuth-токен SoundCloud");
   }
@@ -707,7 +768,9 @@ mod tests {
     assert_eq!(json[0]["id"], "sc");
     assert_eq!(json[0]["key"], "soundcloud");
     assert_eq!(json[0]["prefixes"]["playlist"], "scpl");
-    assert_eq!(json[2]["caps"]["key"], false);
+    assert_eq!(json[2]["caps"]["key"], true);
+    assert_eq!(json[2]["implemented"], true);
+    assert_eq!(json[3]["implemented"], false);
     assert_eq!(json[5]["icon"], Value::Null);
     assert_eq!(json[5]["prefixes"]["album"], Value::Null);
   }
@@ -742,8 +805,32 @@ mod tests {
     assert_eq!(err_text(core.disconnect("zz").await), "неизвестный сервис zz");
     assert_eq!(err_text(core.disconnect("").await), "неизвестный сервис ");
     // нереализованный сервис — тот же текст, keyring не трогаем
-    assert_eq!(err_text(core.disconnect("yt").await), "неизвестный сервис yt");
-    assert_eq!(err_text(core.disconnect("youtube").await), "неизвестный сервис youtube");
+    assert_eq!(err_text(core.disconnect("vk").await), "неизвестный сервис vk");
+    assert_eq!(err_text(core.disconnect("spotify").await), "неизвестный сервис spotify");
+  }
+
+  /// Без входа в YouTube Music библиотека пуста, «Лайки» просят подключить — без сети.
+  #[tokio::test]
+  async fn yt_library_without_account() {
+    let core = Core::new_empty();
+    assert!(core.service_playlists("youtube").await.unwrap().is_empty());
+    assert_eq!(err_text(core.service_playlist("ytpl:likes").await), "YouTube Music не подключён — открой Настройки → Сервисы");
+    assert!(!core.status().await.youtube.connected);
+  }
+
+  #[test]
+  fn yt_quality_values() {
+    assert!(yt_high(None));
+    assert!(yt_high(Some("high")));
+    assert!(!yt_high(Some("normal")));
+  }
+
+  #[test]
+  fn only_youtube_stream_is_retried() {
+    assert!(retries_resolve("yt:q7mwXbOw58g"));
+    for r in ["sc:1", "ym:2", "ytalb:MPREb_x", "ytpl:likes", "", "yt"] {
+      assert!(!retries_resolve(r), "{r}");
+    }
   }
 }
 

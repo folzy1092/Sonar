@@ -15,6 +15,8 @@ extension SettingsDefaults {
             // эквалайзер: 12 чисел через запятую, пусто — ровно
             "audio.eq": .string(""),
             "audio.eq_enabled": .bool(true),
+            // YouTube Music: normal (AAC 128) · high (AAC до 256), ключ как на ПК
+            "audio.yt_quality": .string(YouTubeQuality.fallback.rawValue),
             // Вид плеера
             "player.style": .string(PlayerStyle.fallback.rawValue),
             "player.background": .string(PlayerBackground.fallback.rawValue),
