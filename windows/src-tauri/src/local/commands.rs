@@ -1,6 +1,7 @@
 //! Команды «Папок с музыкой» (Система → Хранилище) и жизненный цикл индекса: при запуске индекс
 //! берётся из базы, затем фоновый скан и слежка за папками; после каждого скана — событие
-//! `local-files-changed` для интерфейса.
+//! `local-files-changed` для интерфейса. Папку, которая появилась или пропала (флешка, сетевой
+//! диск), замечает редкий опрос: слежка ставится заново и папки пересканируются.
 
 use super::{prune_covers, scan, watch, Index, Summary};
 use crate::commands::Db;
@@ -20,14 +21,29 @@ pub const FOLDERS_KEY: &str = "storage.music_folders";
 pub const CHANGED_EVENT: &str = "local-files-changed";
 /// Тишина после событий файловой системы, прежде чем пересканировать.
 const WATCH_DEBOUNCE: Duration = Duration::from_secs(2);
+/// Как часто проверять, не появилась ли или не пропала ли папка из списка.
+const REARM_POLL: Duration = Duration::from_secs(30);
 /// Больше результатов поиска по файлам не отдаём.
 const MAX_SEARCH: usize = 100;
 
 /// Сканы по очереди: слежка и кнопка «Пересканировать» не должны писать одновременно.
 static SCAN: Mutex<()> = Mutex::new(());
 
-/// Текущий watcher папок; заменить — старый уронится и перестанет следить.
-pub struct LocalWatch(Mutex<Option<RecommendedWatcher>>);
+/// Текущий watcher папок и какие папки были на месте, когда его ставили; заменить — старый
+/// уронится и перестанет следить.
+pub struct LocalWatch(Mutex<Armed>);
+
+#[derive(Default)]
+struct Armed {
+  /// Держим, пока следим: уронили — слежка встала.
+  _watcher: Option<RecommendedWatcher>,
+  folders: Vec<(PathBuf, bool)>,
+}
+
+/// Папки и есть ли каждая сейчас на диске — сравнить со снимком при постановке слежки.
+fn availability(folders: &[PathBuf]) -> Vec<(PathBuf, bool)> {
+  folders.iter().map(|f| (f.clone(), f.is_dir())).collect()
+}
 
 /// Папки из настройки: строки, без пустых и повторов, в порядке добавления.
 pub fn folders_of(store: &Store) -> Vec<PathBuf> {
@@ -69,10 +85,9 @@ fn rescan_store(db: &Mutex<Store>, index: &Index, cover_dir: Option<&Path>) -> R
 pub fn rescan(app: &AppHandle) -> Result<Summary> {
   let core = app.state::<Arc<Core>>();
   let cover_dir = crate::stream::cover_dir().map(PathBuf::as_path);
-  let (summary, changed) = rescan_store(&app.state::<Db>().0, &core.local, cover_dir)?;
-  if changed {
-    let _ = app.emit(CHANGED_EVENT, &summary);
-  }
+  let (summary, _) = rescan_store(&app.state::<Db>().0, &core.local, cover_dir)?;
+  // всегда: пропавший файл базу не меняет, но строку надо перекрасить в серую
+  let _ = app.emit(CHANGED_EVENT, &summary);
   Ok(summary)
 }
 
@@ -86,8 +101,15 @@ fn restart_watch(app: &AppHandle) {
     }
   });
   if let Some(w) = app.try_state::<LocalWatch>() {
-    *w.0.lock().unwrap_or_else(|e| e.into_inner()) = watcher;
+    *w.0.lock().unwrap_or_else(|e| e.into_inner()) = Armed { _watcher: watcher, folders: availability(&folders) };
   }
+}
+
+/// Папка появилась или пропала со времени постановки слежки.
+fn folders_moved(app: &AppHandle) -> bool {
+  let folders = folders_of(&app.state::<Db>().0.lock().unwrap_or_else(|e| e.into_inner()));
+  let now = availability(&folders);
+  app.try_state::<LocalWatch>().is_some_and(|w| w.0.lock().unwrap_or_else(|e| e.into_inner()).folders != now)
 }
 
 /// При запуске: индекс из базы сразу (играть можно до скана), потом скан и слежка в фоне.
@@ -97,12 +119,22 @@ pub fn init(app: &AppHandle) {
     Ok(files) => app.state::<Arc<Core>>().local.replace(&files),
     Err(e) => log::warn!("[local] индекс из базы: {e}"),
   }
-  app.manage(LocalWatch(Mutex::new(None)));
+  app.manage(LocalWatch(Mutex::new(Armed::default())));
   let app = app.clone();
   std::thread::spawn(move || {
     restart_watch(&app);
     if let Err(e) = rescan(&app) {
       log::warn!("[local] скан при запуске: {e}");
+    }
+    // вставили флешку или подключили диск — слежка на неё и скан; вынули — строки серые
+    loop {
+      std::thread::sleep(REARM_POLL);
+      if folders_moved(&app) {
+        restart_watch(&app);
+        if let Err(e) = rescan(&app) {
+          log::warn!("[local] скан после смены папок: {e}");
+        }
+      }
     }
   });
 }
@@ -169,6 +201,18 @@ mod tests {
   }
 
   #[test]
+  fn availability_notices_folder_coming_and_going() {
+    let music = temp_dir("cmd-avail");
+    let gone = music.join("flash");
+    let list = [music.clone(), gone.clone()];
+    let before = availability(&list);
+    assert_eq!(before, [(music.clone(), true), (gone.clone(), false)]);
+    std::fs::create_dir_all(&gone).unwrap();
+    assert_ne!(availability(&list), before);
+    let _ = std::fs::remove_dir_all(music);
+  }
+
+  #[test]
   fn rescan_fills_db_index_and_tracks() {
     let music = temp_dir("cmd-music");
     let covers = temp_dir("cmd-covers");
@@ -180,7 +224,7 @@ mod tests {
 
     let (sum, changed) = rescan_store(&db, &index, Some(&covers)).unwrap();
     assert!(changed);
-    assert_eq!(sum, Summary { total: 1, added: 1, updated: 0, removed: 0 });
+    assert_eq!(sum, Summary { total: 1, added: 1, ..Summary::default() });
     let r = crate::local::local_ref(&a);
     assert_eq!(index.get(&r), Some(a.clone()));
     {
@@ -197,7 +241,13 @@ mod tests {
     // файл пропал — строка остаётся до скана, трек серый
     std::fs::remove_file(&a).unwrap();
     assert!(!db.lock().unwrap().tracks(std::slice::from_ref(&r)).unwrap()[0].available);
-    // после скана строка ушла, обложка-сирота тоже
+    // и после скана строка с обложкой остаётся — «Файл не найден» с «Найти в сервисах»
+    let (sum, _) = rescan_store(&db, &index, Some(&covers)).unwrap();
+    assert_eq!((sum.removed, sum.missing), (0, 1));
+    assert!(!db.lock().unwrap().tracks(std::slice::from_ref(&r)).unwrap()[0].available);
+    assert_eq!(std::fs::read_dir(&covers).unwrap().count(), 1);
+    // папку убрали из списка — строка ушла, обложка-сирота тоже
+    db.lock().unwrap().set_setting(FOLDERS_KEY, &serde_json::json!([])).unwrap();
     let (sum, _) = rescan_store(&db, &index, Some(&covers)).unwrap();
     assert_eq!(sum.removed, 1);
     assert_eq!(index.len(), 0);

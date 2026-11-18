@@ -30,4 +30,10 @@ describe('autoplaySeeds', () => {
     expect(refs(autoplaySeeds([tr('a')], new Set()))).toEqual(['a'])
     expect(autoplaySeeds([], new Set())).toEqual([])
   })
+  it('файлы с компьютера не сиды: у них нет похожих', () => {
+    const local = (c: string) => tr('local:' + c.repeat(40))
+    const q = [tr('a'), local('b'), tr('c'), local('d')]
+    expect(refs(autoplaySeeds(q, new Set(), () => 0))).toEqual(['c', 'a'])
+    expect(autoplaySeeds([local('b'), local('d')], new Set())).toEqual([])
+  })
 })

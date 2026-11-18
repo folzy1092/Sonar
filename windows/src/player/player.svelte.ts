@@ -11,6 +11,8 @@ import { Effects } from './effects'
 import { pitchRatio, tempo } from './tempo.svelte'
 import { settings } from '../lib/settings.svelte'
 import { t } from '../lib/i18n.svelte'
+import { playableQueue } from '../lib/local'
+import { isLocalRef } from '../lib/services'
 import { Clock } from '../lyrics/core/clock'
 import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
 
@@ -258,7 +260,9 @@ class Player {
   // ——— очередь ———
 
   /** Играть список с трека `index`. `context` — откуда (search, favorites, playlist:<id>…). */
-  async playList(tracks: Track[], index: number, context: string | null, title: string | null = null) {
+  async playList(all: Track[], start: number, context: string | null, title: string | null = null) {
+    // пропавшие файлы с компьютера в очередь не идут — на них плеер встал бы с ошибкой
+    const { tracks, index } = playableQueue(all, start)
     if (!tracks.length) return
     this.finishPlay()
     this.tracks = tracks
@@ -280,7 +284,8 @@ class Player {
 
   /** «Следующим» (`next`) или «В очередь» (в конец, но перед похожими автоплея). Пустая очередь —
    *  сразу играет. `auto` — дописывает автоплей: в самый конец, с отметкой. */
-  async addToQueue(tracks: Track[], next: boolean, auto = false) {
+  async addToQueue(all: Track[], next: boolean, auto = false) {
+    const { tracks } = playableQueue(all, 0)
     if (!tracks.length) return
     if (!this.current) return this.playList(tracks, 0, 'queue')
     void api.cacheTracks(tracks).catch(() => {})
@@ -525,11 +530,18 @@ class Player {
         this.loading = false
         this.stage(1)
       }
+      this.localMisses = 0
       this.saveState()
     } catch (e) {
-      if (token === this.loadToken) this.onError(errorText(e))
+      if (token !== this.loadToken) return
+      this.onError(errorText(e))
+      // файл с компьютера пропал уже в очереди — дальше, а не стоп; круг без живых треков не крутим
+      if (autoplay && isLocalRef(track.ref) && ++this.localMisses < this.order.length) void this.next(false)
     }
   }
+
+  /** Сколько пропавших файлов с компьютера подряд пропущено — чтобы не ходить по кругу. */
+  private localMisses = 0
 
   private onTime() {
     const a = this.audio!

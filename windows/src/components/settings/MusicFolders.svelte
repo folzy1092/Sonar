@@ -7,6 +7,7 @@
   import Icon from '../Icon.svelte'
   import { cascade } from '../../lib/cascade'
   import { pulse } from '../../lib/pulse'
+  import { rise } from '../../lib/motion'
   import { settings } from '../../lib/settings.svelte'
   import { api, errorText, onLocalFilesChanged, type LocalSummary } from '../../lib/api'
   import { addFolder, removeFolder } from '../../lib/local'
@@ -81,6 +82,7 @@
           summary.added ? t('новых {n}', { n: summary.added }) : '',
           summary.updated ? t('обновлено {n}', { n: summary.updated }) : '',
           summary.removed ? t('убрано {n}', { n: summary.removed }) : '',
+          summary.missing ? t('не найдено {n}', { n: summary.missing }) : '',
         ].filter(Boolean)
       : [],
   )
@@ -118,6 +120,9 @@
       <button class="link" onclick={openLocal}>{count} {tn(count, ['трек', 'трека', 'треков'])}</button>
       {#if changes.length}<span>· {changes.join(', ')}</span>{/if}
     </p>
+    {#if summary?.truncated}
+      <p class="hint" transition:rise>{t('Файлов больше 50 000 — просканированы не все. Убери лишние папки из списка.')}</p>
+    {/if}
   {/if}
 </Group>
 
