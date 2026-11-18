@@ -5,6 +5,8 @@
   import Icon from '../components/Icon.svelte'
   import PlayPause from '../components/PlayPause.svelte'
   import { pulse } from '../lib/pulse'
+  import { glide, rise, xfade } from '../lib/motion'
+  import { queueItems, queueView } from '../player/queue-view'
   import { replay } from '../lib/replay'
   import { WAVE_CONTEXT, wave } from '../player/my-wave.svelte'
   import { settings } from '../lib/settings.svelte'
@@ -37,10 +39,13 @@
   const pstyle = $derived(settings.get('player.style'))
   let artW = $state(320)
   const coverSize = $derived(pstyle === 'large' ? Math.max(320, artW) : pstyle === 'vinyl' ? Math.round(artW * 0.62) : 320)
-  // «Далее» делится как в SoundCloud: своя очередь, ниже тумблер «Авто похожие» и похожие автоплея
-  const autoAt = $derived(player.upNext.findIndex((t) => player.autoRefs.has(t.ref)))
-  const ownNext = $derived(autoAt < 0 ? player.upNext : player.upNext.slice(0, autoAt))
-  const autoNext = $derived(autoAt < 0 ? [] : player.upNext.slice(autoAt))
+  // очередь: «Ранее» (последние сыгранные), «Сейчас играет», «Далее» как в SoundCloud — своя очередь,
+  // ниже тумблер «Авто похожие» и похожие автоплея. Ключ строки — стабильный id элемента очереди:
+  // при «вперёд / назад» строки переезжают (animate:glide), а не появляются заново
+  const queue = $derived(
+    queueView({ tracks: player.tracks, order: player.order, pos: player.pos, ids: player.entryIds, autoRefs: player.autoRefs }),
+  )
+  const queueRows = $derived(queueItems(queue, { autoSection: player.context !== WAVE_CONTEXT, autoOn: autoplay.on }))
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
   const avatar = $derived(settings.get('player.artist_avatars') ? (track?.artists[0]?.avatar_url ?? null) : null)
   const align = $derived(settings.get('player.title_align'))
@@ -216,34 +221,35 @@
 <section class="panel queue" class:compact={settings.get('queue.view') === 'normal'} transition:slide={{ duration: 260 }}>
   <button class="chip" onclick={openContext} title={t('Открыть источник очереди')}><Icon name={contextIcon} size={14} filled={contextIcon === 'heart'} /> {contextTitle}{#if player.shuffle}<Icon name="shuffle" size={14} />{/if}</button>
 
-  {#if track}
-    <h3>{t('Сейчас играет')}</h3>
-    <TrackRow {track} variant="queue" onplay={() => player.toggle()} />
-  {/if}
-
-  <h3>{t('Далее')}</h3>
-  {#if ownNext.length}
-    <div use:cascade={player.current?.ref}>
-    {#each ownNext as t, i (t.ref + i)}
-      <TrackRow track={t} variant="queue" queueAt={i} onplay={() => player.jumpTo(i)} />
-    {/each}
-    </div>
-  {:else if !autoNext.length && !autoplay.on}
-    <p class="empty">{t('Очередь пуста — включи трек из поиска.')}</p>
-  {/if}
-  <!-- как «Autoplay related tracks» в SoundCloud: после очереди — похожие, они ниже тумблера -->
-  {#if player.context !== WAVE_CONTEXT}
-    <div class="auto">
-      <Switch title={t('Авто похожие')} hint={autoplay.on ? (autoplay.loading && !autoNext.length ? t('Подбираю похожие…') : t('После очереди играют похожие треки')) : t('Очередь доиграет и остановится')} on={autoplay.on} onchange={(v) => autoplay.set(v)} />
-    </div>
-    {#if autoNext.length}
-      <div class="auto-list" use:cascade={autoNext[0]?.ref}>
-      {#each autoNext as t, i (t.ref + i)}
-        <TrackRow track={t} variant="queue" queueAt={ownNext.length + i} onplay={() => player.jumpTo(ownNext.length + i)} />
-      {/each}
+  <!-- одна лента на все разделы: трек из «Далее» переезжает в «Сейчас играет», оттуда в «Ранее»;
+       каскад — только при открытии очереди, дальше строки двигаются сами -->
+  <div class="rows" use:cascade>
+    {#each queueRows as row (row.key)}
+      <div class="row-slot" animate:glide in:rise={{ y: 6 }} out:xfade={{ duration: 140 }}>
+        {#if row.kind === 'head'}
+          <h3>{row.section === 'earlier' ? t('Ранее') : row.section === 'now' ? t('Сейчас играет') : t('Далее')}</h3>
+        {:else if row.kind === 'track'}
+          {@const entry = row.entry}
+          <div class="dim" class:on={row.section === 'earlier'}>
+          {#if row.section === 'earlier'}
+            <TrackRow track={entry.track} variant="queue" onplay={() => player.playPos(entry.pos)} />
+          {:else if row.section === 'now'}
+            <TrackRow track={entry.track} variant="queue" onplay={() => player.toggle()} />
+          {:else}
+            <TrackRow track={entry.track} variant="queue" queueAt={entry.pos - player.pos - 1} onplay={() => player.playPos(entry.pos)} />
+          {/if}
+          </div>
+        {:else if row.kind === 'switch'}
+          <!-- как «Autoplay related tracks» в SoundCloud: после очереди — похожие, они ниже тумблера -->
+          <div class="auto">
+            <Switch title={t('Авто похожие')} hint={autoplay.on ? (autoplay.loading && !queue.auto.length ? t('Подбираю похожие…') : t('После очереди играют похожие треки')) : t('Очередь доиграет и остановится')} on={autoplay.on} onchange={(v) => autoplay.set(v)} />
+          </div>
+        {:else}
+          <p class="empty">{t('Очередь пуста — включи трек из поиска.')}</p>
+        {/if}
       </div>
-    {/if}
-  {/if}
+    {/each}
+  </div>
 </section>
 {/if}
 </div>
@@ -688,6 +694,18 @@
   .empty {
     margin: 4px 6px;
     color: var(--text-3);
+  }
+  /* «Ранее» — приглушённо, при наведении ярче; клик — сыграть снова (приглушает обёртка, а не сама
+     строка: прозрачность строки занята каскадом и появлением) */
+  .dim {
+    transition: opacity var(--fast) var(--ease);
+  }
+  .dim.on {
+    opacity: 0.55;
+  }
+  .dim.on:hover,
+  .dim.on:focus-within {
+    opacity: 0.9;
   }
   @media (prefers-reduced-motion: reduce) {
     .play.loading {

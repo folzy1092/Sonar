@@ -131,6 +131,7 @@
     icon="user"
     round
     meta={a.followers != null ? `${compact(a.followers)} ${tn(a.followers, ['подписчик', 'подписчика', 'подписчиков'])}` : undefined}
+    {context}
     disabled={!sorted.length}
     onplay={() => player.playList(sorted, 0, context, a.name)}
     onshuffle={() => player.playShuffled(sorted, context, a.name)}
