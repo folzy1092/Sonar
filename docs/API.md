@@ -401,6 +401,8 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 | GET | `/player/state` | `PlayerState` (для восстановления на другом устройстве) |
 | POST | `/plays` | `{plays: [{ref, played_at, listened_ms, context}]}` → `{accepted: n}` |
 | GET | `/stats?period=day\|week\|month\|half_year\|year\|all&metric=time\|tracks` | `Stats` |
+| GET | `/stats/recap?kind=month\|year&year=2026&month=11` | `Recap` — итоги месяца (`month` 1–12) или года (без `month`) |
+| GET | `/stats/recap/periods` | `RecapPeriods` — месяцы и годы, за которые есть прослушивания |
 
 ```json
 // PlayerState
@@ -419,6 +421,27 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
  "fav_weekday": 5}
 // buckets: day — 24 часа, week — 7 дней, month — 30 дней, half_year/year — месяцы, all — до 24 месяцев.
 // peak_hour и fav_weekday (0 = пн) — в часовом поясе клиента.
+
+// RecapPeriods (новые сверху; Windows — store/recap.rs, iOS — Core/Stats/Recap.swift)
+{"months": [{"kind": "month", "year": 2026, "month": 11, "total_ms": 52320000}],
+ "years": [{"kind": "year", "year": 2026, "month": null, "total_ms": 412800000}]}
+
+// Recap — карточки «Итогов»
+{"kind": "month", "year": 2026, "month": 11, "total_ms": 52320000, "plays": 812, "tracks": 233,
+ "artists": 61, "active_days": 27, "delta_pct": 14,
+ "top_tracks": [{"ref": "sc:1", "title": "zombie", "artist": "cowboyclicker", "cover_url": "...", "plays": 41, "ms": 7380000}],
+ "top_artists": [{"name": "ONDA ANDAR", "avatar_url": "...", "ref": "sca:1", "ms": 9360000, "plays": 52}],
+ "new_artist": {"artist": {"name": "kyle", "avatar_url": null, "ref": null, "ms": 1200000, "plays": 9},
+                "first_played": "2026-11-04"},
+ "hours": [0, 0, 120000, "… 24 значения, мс"], "peak_hour": 22,
+ "longest_day": {"date": "2026-11-15", "ms": 14400000, "plays": 71},
+ "repeat": {"track": {"ref": "sc:1", "title": "zombie", "artist": "cowboyclicker", "cover_url": "...", "plays": 41, "ms": 7380000},
+            "count": 12, "date": "2026-11-15"},
+ "services": [{"service": "sc", "ms": 40320000, "pct": 77}, {"service": "ym", "ms": 12000000, "pct": 23}]}
+// Топы — по 5; в топ треков и «на повторе» идут только треки с метаданными. new_artist — артист, которого
+// до периода не слушали (нужна история раньше периода), с наибольшим временем. delta_pct — к прошлому
+// месяцу / году (null — тогда не слушал). pct — целые, в сумме ровно 100. Даты и часы — по местному
+// времени клиента.
 ```
 
 ## 5а. Главная: тренды, плейлисты пользователей, чарты (SPEC §4.7)
