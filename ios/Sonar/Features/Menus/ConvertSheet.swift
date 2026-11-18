@@ -29,22 +29,31 @@ struct ConvertSheet: View {
                     .foregroundStyle(Theme.textSecondary)
                     .padding(.top, 4)
 
-                HStack(spacing: 10) {
-                    ForEach(Service.allCases, id: \.self) { service in
-                        Button {
-                            target = service
-                            result = nil
-                        } label: {
-                            Text(service.title)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(target == service ? Theme.accentInk : Theme.text)
-                                .frame(maxWidth: .infinity, minHeight: 48)
-                                .background(target == service ? Theme.accent : Theme.raised, in: Capsule())
+                // сервисов три и больше — капсулы по ширине названия, лента прокручивается (на 375 pt
+                // «Яндекс Музыка» и «YouTube Music» в одну строку втроём не влезают)
+                ScrollView(.horizontal) {
+                    HStack(spacing: 10) {
+                        ForEach(Service.allCases, id: \.self) { service in
+                            Button {
+                                target = service
+                                result = nil
+                            } label: {
+                                Text(service.title)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .lineLimit(1)
+                                    .fixedSize()
+                                    .foregroundStyle(target == service ? Theme.accentInk : Theme.text)
+                                    .padding(.horizontal, 20)
+                                    .frame(minHeight: 48)
+                                    .background(target == service ? Theme.accent : Theme.raised, in: Capsule())
+                            }
+                            .buttonStyle(PressableStyle())
+                            .disabled(running)
                         }
-                        .buttonStyle(PressableStyle())
-                        .disabled(running)
                     }
                 }
+                .scrollIndicators(.hidden)
+                .scrollClipDisabled()
                 .padding(.top, 24)
                 .animation(Motion.spring, value: target)
 

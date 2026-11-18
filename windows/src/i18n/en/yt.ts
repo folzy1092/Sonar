@@ -26,4 +26,6 @@ export default {
   'YouTube Music: не выдал visitorData': 'YouTube Music didn’t return visitorData',
   'YouTube Music: у трека нет аудио': 'YouTube Music: this track has no audio',
   'YouTube Music: у трека нет аудио с прямой ссылкой': 'YouTube Music: this track has no direct audio link',
+  'Не удалось прочитать cookie YouTube Music — вставь cookie вручную в «Сервисах»':
+    'Couldn’t read the YouTube Music cookie — paste it manually in Services',
 } satisfies Record<string, string>

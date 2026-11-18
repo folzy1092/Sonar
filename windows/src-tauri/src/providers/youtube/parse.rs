@@ -574,8 +574,6 @@ pub struct Format {
   pub bitrate: u64,
 }
 
-/// Opus 256 — только с YouTube Premium.
-pub const ITAG_OPUS_256: u32 = 774;
 pub const ITAG_OPUS_160: u32 = 251;
 pub const ITAG_AAC_128: u32 = 140;
 
@@ -607,16 +605,17 @@ pub fn player_formats(v: &Value) -> Result<Vec<Format>> {
   Ok(formats)
 }
 
-/// «Высокое» — Opus 256 (Premium), иначе Opus 160; «Обычное» — AAC 128. Нет нужной — лучшая из есть.
+/// «Высокое» — Opus 160, «Обычное» — AAC 128. Нет нужной — лучшая из есть.
+/// Opus 256 (itag 774, YouTube Premium) гостевой плеер VISIONOS не отдаёт, а плееры с cookie
+/// требуют расшифровки подписи ссылок плеером YouTube на JS — поэтому его здесь нет.
 pub fn pick_format(formats: &[Format], high: bool) -> Option<&Format> {
-  let order: &[u32] = if high { &[ITAG_OPUS_256, ITAG_OPUS_160, ITAG_AAC_128] } else { &[ITAG_AAC_128, ITAG_OPUS_160] };
+  let order: &[u32] = if high { &[ITAG_OPUS_160, ITAG_AAC_128] } else { &[ITAG_AAC_128, ITAG_OPUS_160] };
   order.iter().find_map(|i| formats.iter().find(|f| f.itag == *i)).or_else(|| formats.iter().max_by_key(|f| f.bitrate))
 }
 
 /// Плашка качества в плеере.
 pub fn quality_label(f: &Format) -> String {
   match f.itag {
-    ITAG_OPUS_256 => "Opus 256".into(),
     ITAG_OPUS_160 => "Opus 160".into(),
     ITAG_AAC_128 => "AAC 128".into(),
     _ => {
@@ -743,10 +742,14 @@ mod tests {
     assert_eq!(pick_format(&f, false).map(|f| f.itag), Some(ITAG_AAC_128));
     assert_eq!(pick_format(&f, true).map(|f| f.itag), Some(ITAG_OPUS_160));
     assert_eq!(quality_label(pick_format(&f, true).unwrap()), "Opus 160");
-    let premium = vec![Format { itag: 774, url: "u".into(), mime: "audio/webm; codecs=\"opus\"".into(), bitrate: 256_000 }];
-    assert_eq!(pick_format(&premium, true).map(|f| f.itag), Some(ITAG_OPUS_256));
-    // нет AAC — «Обычное» берёт то, что есть
-    assert_eq!(pick_format(&premium, false).map(|f| f.itag), Some(ITAG_OPUS_256));
+    // незнакомые itag — лучшая по битрейту, плашка по кодеку и битрейту
+    let other = vec![
+      Format { itag: 250, url: "u".into(), mime: "audio/webm; codecs=\"opus\"".into(), bitrate: 70_000 },
+      Format { itag: 774, url: "u".into(), mime: "audio/webm; codecs=\"opus\"".into(), bitrate: 256_000 },
+    ];
+    assert_eq!(pick_format(&other, true).map(|f| f.itag), Some(774));
+    assert_eq!(pick_format(&other, false).map(|f| f.itag), Some(774));
+    assert_eq!(quality_label(pick_format(&other, true).unwrap()), "Opus 256");
   }
 
   #[test]

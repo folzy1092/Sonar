@@ -107,7 +107,7 @@ struct ServicesView: View {
             }
 
             if let error {
-                Label(error, systemImage: "exclamationmark.triangle")
+                Label(t(error), systemImage: "exclamationmark.triangle")
                     .font(.system(size: 14))
                     .foregroundStyle(Theme.danger)
                     .padding(.horizontal, 4)

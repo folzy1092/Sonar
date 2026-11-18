@@ -257,13 +257,21 @@ fn yt_cookie_header<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>) -> 
   youtube::auth::sapisid(&joined).map(|_| joined.clone())
 }
 
+/// Сколько раз подряд можно не прочитать cookie (окно как раз уходит на другую страницу),
+/// прежде чем сдаться с понятной ошибкой.
+const YT_COOKIE_READ_ATTEMPTS: u32 = 5;
+const YT_COOKIE_READ_FAILED: &str = "Не удалось прочитать cookie YouTube Music — вставь cookie вручную в «Сервисах»";
+
 pub async fn youtube(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
   let (tx, mut rx) = mpsc::unbounded_channel::<Option<String>>();
   let w = window(&app, "login-youtube", "Вход в YouTube Music — Sonar", YT_LOGIN_URL)?.build()?;
   on_close(&w, tx.clone());
   let poll_w = w.clone();
+  let read_failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+  let poll_failed = read_failed.clone();
   let poll = tokio::spawn(async move {
     let site = Url::parse(youtube::auth::ORIGIN).expect("url");
+    let mut errors = 0;
     loop {
       tokio::time::sleep(Duration::from_secs(1)).await;
       // ждём, пока окно вернётся на music.youtube.com: cookie там уже полные
@@ -273,18 +281,31 @@ pub async fn youtube(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
       }
       match poll_w.cookies_for_url(site.clone()) {
         Ok(cookies) => {
+          errors = 0;
           if let Some(c) = yt_cookie_header(cookies.iter().map(|c| (c.name(), c.value()))) {
             let _ = tx.send(Some(c));
             break;
           }
         }
-        Err(_) => break,
+        // в тексте ошибки WebView2 cookie нет, только причина
+        Err(e) => {
+          errors += 1;
+          log::warn!("вход YouTube Music: cookie не прочитались ({errors}/{YT_COOKIE_READ_ATTEMPTS}): {e}");
+          if errors >= YT_COOKIE_READ_ATTEMPTS {
+            poll_failed.store(true, std::sync::atomic::Ordering::Relaxed);
+            let _ = tx.send(None);
+            break;
+          }
+        }
       }
     }
   });
   let cookie = wait(&mut rx).await;
   poll.abort();
   let _ = w.close();
+  if read_failed.load(std::sync::atomic::Ordering::Relaxed) {
+    bail!(YT_COOKIE_READ_FAILED);
+  }
   core.connect_youtube(&cookie?).await
 }
 

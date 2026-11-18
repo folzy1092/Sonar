@@ -158,7 +158,8 @@ pub async fn stream_url(core: State<'_, Arc<Core>>, port: State<'_, StreamPort>,
     };
     return Ok(StreamUrl { kind: "file", url: format!("http://127.0.0.1:{}/file?ref={}", port.0, urlencoding::encode(&track_ref)), quality: quality.into() });
   }
-  let src = core.resolve(&track_ref, false).await.map_err(err)?;
+  // YouTube Music не открылся — ещё раз с новой visitorData, причина — в журнал ошибок
+  let src = core.resolve_retrying(&track_ref).await.map_err(err)?;
   let (kind, path, quality) = match src {
     Source::File { quality, .. } => ("file", "file", quality),
     Source::Hls { quality, .. } => ("hls", "hls", quality),

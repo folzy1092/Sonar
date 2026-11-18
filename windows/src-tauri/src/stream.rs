@@ -311,12 +311,17 @@ async fn file(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>, headers:
     let url = match core.resolve(&q.ref_, fresh).await {
       Ok(Source::File { url, .. }) => url,
       Ok(Source::Hls { .. }) => return plain(StatusCode::BAD_REQUEST, "этот трек — HLS, нужен /hls"),
-      Err(e) if !fresh => {
+      // повтор — только YouTube Music (новая visitorData); у остальных ошибка не временная
+      Err(e) if !fresh && crate::services::retries_resolve(&q.ref_) => {
         log::warn!("поток {}: {e}; пробую ещё раз", q.ref_);
         continue;
       }
       Err(e) => {
-        log::error!("поток {}: {e}", q.ref_);
+        if fresh {
+          log::error!("поток {}: {e}", q.ref_);
+        } else {
+          log::warn!("поток {}: {e}", q.ref_);
+        }
         return plain(StatusCode::BAD_GATEWAY, e.to_string());
       }
     };
@@ -334,9 +339,7 @@ async fn file(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>, headers:
         continue;
       }
       Ok(r) => {
-        if r.status().is_server_error() || r.status().is_client_error() {
-          log::error!("поток {}: CDN ответил {}", q.ref_, r.status().as_u16());
-        }
+        log_cdn_status(&q.ref_, r.status());
         return r;
       }
       // без адреса: в ссылке подпись CDN
@@ -348,6 +351,22 @@ async fn file(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>, headers:
     }
   }
   plain(StatusCode::BAD_GATEWAY, "поток недоступен")
+}
+
+/// Обложки YouTube Music — только их хосты, а не весь `*.googleusercontent.com` (там и Диск, и Сайты).
+fn yt_cover_host(h: &str) -> bool {
+  matches!(h, "lh3.googleusercontent.com" | "lh4.googleusercontent.com" | "lh5.googleusercontent.com" | "lh6.googleusercontent.com")
+    || matches!(h, "yt3.googleusercontent.com" | "yt3.ggpht.com" | "i.ytimg.com")
+    || (h.starts_with('i') && h.ends_with(".ytimg.com") && h[1..h.len() - ".ytimg.com".len()].chars().all(|c| c.is_ascii_digit()))
+}
+
+/// Ответ CDN в журнал: 416 — обычный конец диапазона (перемотка, проба за концом файла), не ошибка.
+fn log_cdn_status(track_ref: &str, s: StatusCode) {
+  match s.as_u16() {
+    416 => log::debug!("поток {track_ref}: CDN ответил 416"),
+    400..=599 => log::error!("поток {track_ref}: CDN ответил {}", s.as_u16()),
+    _ => {}
+  }
 }
 
 /// Ответ CDN, после которого ссылку стоит взять заново (один раз).
@@ -409,10 +428,7 @@ pub fn cover_host_allowed(u: &str) -> bool {
           || h == "avatars.yandex.net"
           || h.ends_with(".yandex.net")
           || h.ends_with(".genius.com")
-          // обложки YouTube Music
-          || h.ends_with(".googleusercontent.com")
-          || h.ends_with(".ggpht.com")
-          || h == "i.ytimg.com"
+          || yt_cover_host(h)
       })
     })
     .unwrap_or(false)
@@ -550,7 +566,13 @@ mod tests {
     assert!(cover_host_allowed("https://lh3.googleusercontent.com/abc=w544-h544"));
     assert!(cover_host_allowed("https://yt3.ggpht.com/abc=s544"));
     assert!(cover_host_allowed("https://i.ytimg.com/vi/x/hqdefault.jpg"));
+    assert!(cover_host_allowed("https://yt3.googleusercontent.com/abc=s544"));
+    assert!(cover_host_allowed("https://i9.ytimg.com/vi/x/sddefault.jpg"));
     assert!(!cover_host_allowed("https://googleusercontent.com.evil.com/a.jpg"));
+    assert!(!cover_host_allowed("https://storage.googleusercontent.com/bucket/a.jpg"));
+    assert!(!cover_host_allowed("https://doc-0s-docs.googleusercontent.com/a.jpg"));
+    assert!(!cover_host_allowed("https://evil.ggpht.com/a.jpg"));
+    assert!(!cover_host_allowed("https://ievil.ytimg.com/a.jpg"));
   }
 
   #[test]

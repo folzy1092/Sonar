@@ -475,7 +475,7 @@ final class PlaybackEngine {
     }
 
     private func failed(_ track: Track, _ error: Error) {
-        message = "Не играет «\(track.title)»: \(error.localizedDescription)"
+        message = t("Не играет «{title}»: {reason}", ["title": track.title, "reason": t(error.localizedDescription)])
         // пропустить трек; очередь кончилась — просто стоп
         if let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode == .one ? .off : repeatMode, manual: true),
            target != pos {
