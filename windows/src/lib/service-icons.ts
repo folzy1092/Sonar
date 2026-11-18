@@ -6,6 +6,8 @@ import scSvg from '../assets/services/sc.svg?raw'
 import scMonoSvg from '../assets/services/sc-mono.svg?raw'
 import ytSvg from '../assets/services/yt.svg?raw'
 import ytMonoSvg from '../assets/services/yt-mono.svg?raw'
+/** На обложке (12–18 px) тонкое кольцо пропадало — значок читался как красная точка: здесь кольцо и треугольник крупнее, белая обводка. */
+import ytBadgeSvg from '../assets/services/yt-badge.svg?raw'
 import vkSvg from '../assets/services/vk.svg?raw'
 import vkMonoSvg from '../assets/services/vk-mono.svg?raw'
 import spSvg from '../assets/services/sp.svg?raw'
@@ -51,7 +53,7 @@ export const ICONS: Record<ServiceId, ServiceIcon | null> = {
     likeArtSize: 52,
     cardSize: 26,
   },
-  yt: { badge: prepare(ytSvg), plain: prepare(ytSvg), mono: prepare(ytMonoSvg), likeArtSize: LIKE_ART_SIZE, cardSize: CARD_SIZE },
+  yt: { badge: prepare(ytBadgeSvg), plain: prepare(ytSvg), mono: prepare(ytMonoSvg), likeArtSize: LIKE_ART_SIZE, cardSize: CARD_SIZE },
   vk: { badge: prepare(vkSvg), plain: prepare(vkSvg), mono: prepare(vkMonoSvg), likeArtSize: LIKE_ART_SIZE, cardSize: CARD_SIZE },
   sp: { badge: prepare(spSvg), plain: prepare(spSvg), mono: prepare(spMonoSvg), likeArtSize: LIKE_ART_SIZE, cardSize: CARD_SIZE },
   local: null,
