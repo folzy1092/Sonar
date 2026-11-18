@@ -244,7 +244,7 @@ impl Core {
 
   /// Сервис может искать замену прямо сейчас: SoundCloud (публичный client_id) и YouTube Music
   /// (гость) — всегда, остальные — когда подключены.
-  async fn can_search(&self, id: ServiceId) -> bool {
+  pub(super) async fn can_search(&self, id: ServiceId) -> bool {
     match id {
       ServiceId::Sc | ServiceId::Yt => true,
       ServiceId::Ym => self.ym.read().await.is_some(),
@@ -319,8 +319,8 @@ impl Core {
     }
   }
 
-  /// Тот же трек в выдаче сервиса (не больше двух запросов).
-  async fn search_twin(&self, wanted: &Wanted, svc: ServiceId) -> Result<Option<Track>> {
+  /// Тот же трек в выдаче сервиса (не больше двух запросов). Им же ищет пары импорт по ссылке (`import.rs`).
+  pub(super) async fn search_twin(&self, wanted: &Wanted, svc: ServiceId) -> Result<Option<Track>> {
     let p = self.provider(svc)?;
     for q in wanted.queries() {
       let found = p.search(&q, SEARCH_LIMIT).await?;

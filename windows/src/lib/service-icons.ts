@@ -10,6 +10,8 @@ import vkSvg from '../assets/services/vk.svg?raw'
 import vkMonoSvg from '../assets/services/vk-mono.svg?raw'
 import spSvg from '../assets/services/sp.svg?raw'
 import spMonoSvg from '../assets/services/sp-mono.svg?raw'
+import amSvg from '../assets/services/am.svg?raw'
+import amMonoSvg from '../assets/services/am-mono.svg?raw'
 
 export interface ServiceIcon {
   /** Цветной знак на обложке (у Яндекса — звезда в тёмном круге). */
@@ -53,6 +55,14 @@ export const ICONS: Record<ServiceId, ServiceIcon | null> = {
   vk: { badge: prepare(vkSvg), plain: prepare(vkSvg), mono: prepare(vkMonoSvg), likeArtSize: LIKE_ART_SIZE, cardSize: CARD_SIZE },
   sp: { badge: prepare(spSvg), plain: prepare(spSvg), mono: prepare(spMonoSvg), likeArtSize: LIKE_ART_SIZE, cardSize: CARD_SIZE },
   local: null,
+}
+
+/** Apple Music — не сервис Sonar (слушать оттуда нельзя), только источник импорта по ссылке:
+ *  значок для экрана импорта и карточки ссылки. */
+export const APPLE_MUSIC_ICON: Pick<ServiceIcon, 'badge' | 'plain' | 'mono'> = {
+  badge: prepare(amSvg),
+  plain: prepare(amSvg),
+  mono: prepare(amMonoSvg),
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

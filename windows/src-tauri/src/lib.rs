@@ -11,6 +11,7 @@ mod calls;
 mod glass;
 mod gvideo;
 mod hotkeys;
+mod import_link;
 mod track_cache;
 mod mini;
 mod obs;
@@ -224,6 +225,9 @@ pub fn run() {
       commands::service_playlists,
       commands::service_playlist,
       commands::import_playlist,
+      import_link::import_link,
+      import_link::import_cancel,
+      import_link::import_create,
       commands::set_like,
       commands::liked_refs,
       commands::favorites,

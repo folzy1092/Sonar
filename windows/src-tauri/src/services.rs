@@ -17,6 +17,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 pub mod fallback;
+pub mod import;
 mod local;
 mod provider;
 mod sc;
@@ -38,6 +39,8 @@ pub enum LinkItem {
   Album { album: Album },
   Artist { artist: Artist },
   Playlist { playlist: ServicePlaylist },
+  /// Плейлист или альбом, который можно только перенести с подбором пар (Apple Music).
+  Import { head: import::ImportHead },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -509,22 +512,25 @@ impl Core {
   /// Ссылка из строки поиска → трек, альбом, артист или плейлист (providers/links.rs).
   pub async fn resolve_link(&self, raw: &str) -> Result<LinkItem> {
     use crate::providers::links::{parse, Link};
-    let link = parse(raw).ok_or_else(|| anyhow!("Это не ссылка на трек, альбом, артиста или плейлист SoundCloud и Яндекс Музыки"))?;
+    let link = parse(raw).ok_or_else(|| anyhow!("Это не ссылка на трек, альбом, артиста или плейлист музыкального сервиса"))?;
     match link {
       Link::Ref(r) => {
-        let (kind, id) = r.split_once(':').ok_or_else(|| anyhow!("плохая ссылка"))?;
+        let (svc, kind) = parse_ref(&r).ok_or_else(|| anyhow!("плохая ссылка"))?;
         match kind {
-          "ym" => {
+          RefKind::Album => Ok(LinkItem::Album { album: self.album_page(&r).await?.album }),
+          RefKind::Artist => Ok(LinkItem::Artist { artist: self.artist_page(&r).await?.artist }),
+          RefKind::Playlist => Ok(LinkItem::Playlist { playlist: self.service_playlist(&r).await?.playlist }),
+          RefKind::Track if svc.id == ServiceId::Ym => {
+            let (_, id) = split_ref(&r).ok_or_else(|| anyhow!("плохая ссылка"))?;
             let s = self.ym_creds().await?;
             let t = yandex::Yandex { http: &self.http, creds: &s.creds }.tracks(&[id.to_owned()]).await?;
             let track = t.into_iter().next().ok_or_else(|| anyhow!("Яндекс Музыка: трек не найден"))?;
             Ok(LinkItem::Track { track })
           }
-          "ymalb" => Ok(LinkItem::Album { album: self.album_page(&r).await?.album }),
-          "yma" => Ok(LinkItem::Artist { artist: self.artist_page(&r).await?.artist }),
-          _ => Ok(LinkItem::Playlist { playlist: self.service_playlist(&r).await?.playlist }),
+          RefKind::Track => bail!("{}: ссылки на отдельные треки пока не открываются — вставь ссылку на плейлист или альбом", svc.name),
         }
       }
+      Link::Apple(url) => Ok(LinkItem::Import { head: self.apple_source(&url).await?.head }),
       Link::SoundCloud(url) => {
         let http = &self.http;
         let url = &url;
