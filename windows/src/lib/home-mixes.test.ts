@@ -15,6 +15,7 @@ import {
   pickFromPools,
   readCache,
   seedArtists,
+  similarRow,
 } from './home-mixes'
 
 function tr(ref: string, artist: string, extra: Partial<Track> = {}): Track {
@@ -135,6 +136,17 @@ describe('seedArtists', () => {
     const out = seedArtists([tr('1', 'A'), tr('2', 'a'), tr('3', 'B'), tr('4', 'C'), tr('5', 'D')], 3)
     expect(out.map((x) => x.artist.name)).toEqual(['A', 'B', 'C'])
     expect(out[0].track.ref).toBe('1')
+  })
+})
+
+describe('similarRow', () => {
+  it('вперемешку из пулов, без слышанного, дублей и лишнего от одного исполнителя', () => {
+    const pools = [
+      [tr('1', 'A'), tr('2', 'A'), tr('3', 'A')],
+      [tr('4', 'B'), tr('1', 'A'), tr('5', 'B', { available: false })],
+    ]
+    expect(similarRow(pools, ['4']).map((t) => t.ref)).toEqual(['1', '2'])
+    expect(similarRow(pools, [], 2).map((t) => t.ref)).toEqual(['1', '4'])
   })
 })
 

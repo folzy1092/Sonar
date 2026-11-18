@@ -1,8 +1,8 @@
 <script lang="ts">
   // Главная по reference/pc/Screenshot_20, 23: Sonar Mix (обложка, заголовок, источник, плавающие
-  // обложки следующих треков, большая кнопка); под ней приветствие с ником и подборкой под время
-  // суток, «Релизы недели» тех, на кого стоят лайки, «Похожее»; ниже — тренды, плейлисты
-  // пользователей и чарты Sonar (с сервера, до него — заготовка).
+  // обложки следующих треков, большая кнопка); ниже по порядку — «Для тебя» (карточки подборок →
+  // MixPage), «Релизы недели» тех, на кого стоят лайки, «Похоже на» трёх последних исполнителей;
+  // потом тренды, плейлисты пользователей и чарты Sonar (с сервера, до него — заготовка).
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
   import Tile from '../components/Tile.svelte'
@@ -23,6 +23,7 @@
   import { wave } from '../player/my-wave.svelte'
   import { DAYPART_TEXT, daypart, home, releaseLabel, weekReleases } from './home-data.svelte'
   import { indicator } from '../lib/indicator'
+  import { cascade } from '../lib/cascade'
   import { t } from '../lib/i18n.svelte'
   import SonarField from '../components/SonarField.svelte'
   import { heroPhrase } from '../lib/hero-phrases'
@@ -82,7 +83,7 @@
   const playingWave = $derived(wave.active && player.playing)
 
   function playSimilar(i: number) {
-    void player.playList(home.similar, i, 'similar', t('Похожее'))
+    void player.playList(home.similar, i, 'similar', t('Похоже на'))
   }
   function openAlbum(a: Album) {
     openRef(a.ref)
@@ -181,11 +182,24 @@
   {/if}
 </section>
 
+<!-- «Похоже на» трёх последних исполнителей: аватар и имя открывают исполнителя -->
 {#if home.similar.length || home.similarLoading}
   <section class="block">
-    <h2>{t('Похожее')}{#if home.similarTo}<small> {t('на «{title}»', { title: home.similarTo.title })}</small>{/if}</h2>
+    <div class="like-head">
+      <h2>{t('Похоже на')}</h2>
+      {#if home.similarArtists.length}
+        <div class="seeds" use:cascade={home.similarArtists.map((a) => a.name).join('|')}>
+          {#each home.similarArtists as a (a.name)}
+            <button class="seed press" disabled={!a.ref} title={a.ref ? t('Открыть исполнителя') : a.name} onclick={() => openRef(a.ref)}>
+              {#if a.avatar_url}<img src={a.avatar_url} alt="" />{:else}<span class="seed-ph">{a.name.slice(0, 1).toUpperCase()}</span>{/if}
+              <span class="seed-name">{a.name}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
     {#if home.similar.length}
-      <Shelf>
+      <Shelf key={home.similar.length}>
         {#each home.similar as t, i (t.ref)}
           <Tile title={t.title} subtitle={t.artist} image={t.cover_url} source={t.ref} onclick={() => playSimilar(i)} />
         {/each}
@@ -459,6 +473,68 @@
   }
   .sk-line.short {
     width: 50%;
+  }
+  .like-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-bottom: 14px;
+  }
+  .like-head h2 {
+    margin-bottom: 0;
+  }
+  .seeds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .seed {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 220px;
+    height: 34px;
+    padding: 0 12px 0 4px;
+    border-radius: 999px;
+    background: var(--plate);
+    border: 1px solid var(--card-line);
+    color: var(--text-2);
+    font-weight: 600;
+    transition:
+      background var(--fast) var(--ease),
+      color var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .seed:not(:disabled):hover {
+    background: var(--hover);
+    color: var(--text);
+  }
+  .seed:not(:disabled):active {
+    transform: scale(0.96);
+  }
+  .seed:disabled {
+    cursor: default;
+  }
+  .seed img,
+  .seed-ph {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .seed-ph {
+    display: grid;
+    place-items: center;
+    background: var(--hover);
+    color: var(--text-2);
+    font-size: calc(12px * var(--fs, 1));
+  }
+  .seed-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .head {
     display: flex;

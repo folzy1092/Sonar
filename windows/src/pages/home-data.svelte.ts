@@ -1,14 +1,18 @@
 // Данные главной: подборка под время суток и недавнее (локальная история), релизы недели тех, на
-// кого стоят лайки, похожее на последний трек, аккаунт для приветствия. Сетевое держим 15 минут,
+// кого стоят лайки, «Похоже на» трёх последних исполнителей, аккаунт для приветствия. Сетевое держим 15 минут,
 // чтобы возврат на главную был мгновенным. Тренды, плейлисты пользователей и чарты Sonar — с
 // сервера (API.md §5а), до него эти ряды показывают заготовку.
-import { api, type Album, type ServiceStatus, type Track } from '../lib/api'
+import { api, type Album, type ArtistRef, type ServiceStatus, type Track } from '../lib/api'
+import { seedArtists, similarRow } from '../lib/home-mixes'
 import { t } from '../lib/i18n.svelte'
-import { ACCOUNT_SERVICES, statusOf } from '../lib/services'
+import { ACCOUNT_SERVICES, isLocalRef, statusOf } from '../lib/services'
 
 const TTL = 15 * 60_000
 /** Сколько недавнего держим: подборка «Недавнее» и затравки «Похоже на». */
 const RECENT = 50
+/** «Похоже на»: сколько исполнителей из недавнего и сколько похожих на трек каждого. */
+const SIMILAR_SEEDS = 3
+const SIMILAR_PER_SEED = 16
 const WEEK = 7 * 24 * 3600_000
 
 /** Часть суток для приветствия и подборки. Подписи DAYPART_TEXT — ключи перевода, `t()` при показе. */
@@ -57,13 +61,15 @@ class Home {
   mix = $state<Track[]>([])
   releases = $state<Album[]>([])
   similar = $state<Track[]>([])
-  similarTo = $state<Track | null>(null)
+  /** Исполнители, на которых похож ряд «Похоже на» (аватар и имя кликабельны). */
+  similarArtists = $state<ArtistRef[]>([])
   account = $state<ServiceStatus | null>(null)
   loading = $state(false)
   releasesLoading = $state(false)
   similarLoading = $state(false)
 
   private releasesAt = 0
+  private similarKey = ''
 
   async load() {
     this.loading = !this.recent.length
@@ -102,15 +108,24 @@ class Home {
     }
   }
 
-  /** «Похожее» на последний прослушанный трек; тот же трек — не перезапрашиваем. */
+  /** «Похоже на»: по последним трекам трёх разных исполнителей; те же затравки — не перезапрашиваем. */
   private async loadSimilar() {
-    const seed = this.recent[0]
-    if (!seed || this.similarLoading || (this.similarTo?.ref === seed.ref && this.similar.length)) return
+    const seeds = seedArtists(
+      this.recent.filter((x) => !isLocalRef(x.ref)),
+      SIMILAR_SEEDS,
+    )
+    const key = seeds.map((s) => s.track.ref).join('|')
+    if (!seeds.length || this.similarLoading || (this.similarKey === key && this.similar.length)) return
     this.similarLoading = true
     try {
-      const recent = new Set(this.recent.map((t) => t.ref))
-      this.similar = (await api.similarTracks(seed.ref, 24)).filter((t) => !recent.has(t.ref))
-      this.similarTo = seed
+      const results = await Promise.allSettled(seeds.map((s) => api.similarTracks(s.track.ref, SIMILAR_PER_SEED)))
+      const pools = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
+      this.similar = similarRow(
+        pools,
+        this.recent.map((x) => x.ref),
+      )
+      this.similarArtists = seeds.map((s) => s.artist)
+      this.similarKey = key
     } catch {
       this.similar = []
     } finally {
