@@ -33,7 +33,7 @@ pub fn create_smart_playlist(db: State<'_, Db>, name: String, rules: SmartRules)
   }
   let store = db.0.lock().unwrap();
   let id = store.create_smart_playlist(name, &rules).map_err(err)?;
-  store.smart_playlist(&id).map_err(err)?.ok_or_else(|| "умный плейлист пропал".into())
+  store.smart_playlist(&id).map_err(err)?.ok_or_else(|| "Умный плейлист не найден".into())
 }
 
 #[tauri::command]

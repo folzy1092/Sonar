@@ -62,6 +62,7 @@ export default {
     'Keep listening and liking — the playlist updates itself. Or loosen the rules.',
   'Правила сохранены': 'Rules saved',
   'Умный плейлист «{name}» создан': 'Smart playlist “{name}” created',
+  'Умный плейлист не найден': 'Smart playlist not found',
   'В плейлисте нет треков — сохранять нечего': 'The playlist has no tracks — nothing to save',
   '«{name}» сохранён как обычный плейлист — {tracks}': '“{name}” saved as a regular playlist — {tracks}',
   'Правила не читаются': "Rules can't be read",
