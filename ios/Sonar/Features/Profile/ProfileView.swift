@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Профиль (`photo_1..3`, SETTINGS.md «Меню настроек iOS»): шапка — аватар, имя, «Поделиться» и ✎;
 /// ниже разделы в стеклянных карточках, порядок и названия — как вкладки настроек на Windows. Без сервера
-/// аккаунта нет: «Безопасность», «Приватность», «Ключ API» — честные экраны «появится с сервером».
+/// аккаунта нет: «Безопасность» и «Ключ API» — честные экраны «появится с сервером»; «Приватность» до него —
+/// только настройки `privacy.*`, «Подписка» (Sonar Deep) ведёт на оплату на сайте.
 struct ProfileView: View {
     @Environment(ChromeState.self) private var chrome
     @Environment(UpdateChecker.self) private var checker
@@ -20,9 +21,9 @@ struct ProfileView: View {
                         if AccountStore.serverEnabled { AccountSecurityView() } else { ServerOnlyView(.security) }
                     }
                     divider
-                    link("Приватность", .shield, value: "В разработке") {
-                        ServerOnlyView(.privacy)
-                    }
+                    link("Приватность", .shield) { PrivacySettingsView() }
+                    divider
+                    link("Подписка", .sparkles, value: SonarDeep.name) { SonarDeepView() }
                 }
                 section("Интерфейс", 2) {
                     link("Вид", .palette) { LookSettingsView() }
@@ -121,7 +122,7 @@ struct ProfileView: View {
 
     private func section<Content: View>(_ title: String, _ index: Int, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
+            Text(t(title))
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(Theme.textSecondary)
                 .padding(.leading, 8)
@@ -146,7 +147,7 @@ struct ProfileView: View {
                 SonarIcon(icon, size: 24)
                     .foregroundStyle(Theme.textSecondary)
                     .frame(width: 28)
-                Text(title)
+                Text(t(title))
                     .font(.system(size: 17))
                     .foregroundStyle(Theme.text)
                 Spacer(minLength: 8)
