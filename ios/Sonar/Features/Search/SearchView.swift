@@ -31,6 +31,13 @@ struct SearchView: View {
 
     private var source: Service { Service(rawValue: sourceRaw) ?? .soundcloud }
 
+    /// Кнопка источника перебирает подключаемые сервисы по кругу: SoundCloud → Яндекс → VK → …
+    private var nextSource: Service {
+        let all = Service.allCases
+        let index = all.firstIndex(of: source) ?? 0
+        return all[(index + 1) % all.count]
+    }
+
     private var history: [String] {
         historyRaw.split(separator: "\n").map(String.init)
     }
@@ -40,12 +47,12 @@ struct SearchView: View {
             HStack(spacing: 12) {
                 field
                 CircleButton(icon: source == .soundcloud ? .soundcloud : .music, label: "Искать в: \(source.title)") {
-                    sourceRaw = (source == .soundcloud ? Service.yandex : Service.soundcloud).rawValue
+                    sourceRaw = nextSource.rawValue
                     router.say("Ищу в \(source.title)")
                 }
                 .overlay {
-                    if source == .yandex {
-                        Text("Я")
+                    if let mark = source.mark {
+                        Text(mark)
                             .font(.system(size: 20, weight: .heavy))
                             .foregroundStyle(Theme.text)
                             .frame(width: 52, height: 52)

@@ -37,6 +37,9 @@ struct ConvertSheet: View {
                         } label: {
                             Text(service.title)
                                 .font(.system(size: 16, weight: .semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                                .padding(.horizontal, 8)
                                 .foregroundStyle(target == service ? Theme.accentInk : Theme.text)
                                 .frame(maxWidth: .infinity, minHeight: 48)
                                 .background(target == service ? Theme.accent : Theme.raised, in: Capsule())

@@ -84,7 +84,7 @@ enum ServiceRegistry {
             icon: "vk.svg", iconMono: "vk-mono.svg",
             prefixes: ServicePrefixes(track: "vk", album: "vkalb", artist: "vka", playlist: "vkpl"),
             caps: ServiceCaps(search: true, stream: true, library: true, playlists: true, similar: true, login: true, key: true),
-            implemented: false
+            implemented: true
         ),
         ServiceInfo(
             id: .sp, key: "spotify", name: "Spotify", color: "#1ED760",
@@ -130,7 +130,7 @@ enum ServiceRegistry {
         parse(ref: ref)?.info.id
     }
 
-    /// Работающие сервисы в порядке показа: SoundCloud, Яндекс.
+    /// Работающие сервисы в порядке показа: SoundCloud, Яндекс, VK.
     static var implemented: [ServiceInfo] {
         all.filter(\.implemented)
     }

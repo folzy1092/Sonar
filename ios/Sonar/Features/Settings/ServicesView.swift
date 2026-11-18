@@ -5,26 +5,28 @@ import WebKit
 
 /// Сервисы (`pc/Screenshot_12, 13`, как Windows «Сервисы»): SoundCloud — client_id и OAuth-токен
 /// (без своих ключей поиск и открытые треки идут на публичном client_id с сайта), Яндекс Музыка —
-/// токен `y0_…`. Ключи — только в Keychain этого iPhone.
+/// токен `y0_…`, VK Музыка — вход на oauth.vk.com или ключ `vk1.a.…`. Ключи — только в Keychain этого iPhone.
 struct ServicesView: View {
-    /// Только один сервис (Профиль → SoundCloud / Яндекс Музыка ведут каждый на свой экран); nil — оба.
+    /// Только один сервис (Профиль → SoundCloud / Яндекс Музыка / VK Музыка — каждый на свой экран); nil — все.
     var only: Service?
     @State private var status = MusicCore.Status()
     @State private var clientId = ""
     @State private var oauth = ""
     @State private var yandexToken = ""
+    @State private var vkToken = ""
     @State private var busy: Service?
     @State private var error: String?
     /// Вход в Яндекс по коду: код на экране, пока ждём подтверждения на ya.ru/device.
     @State private var deviceCode: YandexLogin.DeviceCode?
     @State private var login: Task<Void, Never>?
     @State private var showSoundCloudLogin = false
+    @State private var showVKLogin = false
     @Environment(SettingsStore.self) private var settings
     @Environment(\.openURL) private var openURL
 
     var body: some View {
         SettingsScreen(title: only?.title ?? "Сервисы") {
-            if only != .yandex {
+            if only == nil || only == .soundcloud {
             SettingsSection(title: "SoundCloud", footer: status.soundCloud == nil
                             ? "Без своих ключей поиск и открытые треки работают на публичном client_id с сайта. OAuth-токен нужен для лайков, плейлистов и закрытых треков."
                             : nil) {
@@ -51,7 +53,7 @@ struct ServicesView: View {
             .cascade(0)
             }
 
-            if only != .soundcloud {
+            if only == nil || only == .yandex {
             SettingsSection(title: "Яндекс Музыка", footer: status.yandex == nil
                             ? "«Войти через Яндекс» покажет код и откроет ya.ru/device — подтверди вход там, Sonar заберёт токен сам. Или вставь токен y0_… вручную."
                             : nil) {
@@ -79,6 +81,31 @@ struct ServicesView: View {
             .cascade(1)
             }
 
+            if only == nil || only == .vk {
+            SettingsSection(title: t(Service.vk.title), footer: status.vk == nil
+                            ? t("ключ Kate Mobile с доступом к музыке. Проще войти кнопкой выше: ключ Sonar возьмёт сам.")
+                            : nil) {
+                if let account = status.vk {
+                    connected(.vk, account)
+                } else {
+                    Button { error = nil; showVKLogin = true } label: {
+                        Label(t("Войти через VK"), systemImage: "person.badge.key")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .disabled(busy != nil)
+                    RowDivider()
+                    field(t("Токен vk1.a.…"), text: $vkToken, secure: true)
+                    RowDivider()
+                    connectButton(.vk, enabled: !vkToken.isEmpty) {
+                        try await MusicCore.shared.connectVK(token: vkToken)
+                    }
+                }
+            }
+            .cascade(2)
+            }
+
             if let error {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.system(size: 14))
@@ -92,7 +119,7 @@ struct ServicesView: View {
                                subtitle: "Если тот же трек есть на Яндексе — играть оттуда (FLAC / 320)",
                                isOn: Binding(get: { settings.bool("audio.sc_via_yandex") }, set: { settings.set("audio.sc_via_yandex", $0) }))
             }
-            .cascade(2)
+            .cascade(3)
         }
         .animation(Motion.spring, value: status)
         .animation(Motion.spring, value: deviceCode)
@@ -103,6 +130,13 @@ struct ServicesView: View {
             SoundCloudLoginSheet { token in
                 showSoundCloudLogin = false
                 connectSoundCloud(token: token)
+            }
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showVKLogin) {
+            VKLoginSheet { token in
+                showVKLogin = false
+                connectVK(token: token)
             }
             .presentationDragIndicator(.visible)
         }
@@ -121,6 +155,21 @@ struct ServicesView: View {
                 status = await MusicCore.shared.status()
             } catch {
                 withAnimation(Motion.spring) { self.error = error.localizedDescription }
+            }
+        }
+    }
+
+    /// После входа в окне VK: ключ из адреса возврата → подключение (проверка ключа — в `connectVK`).
+    private func connectVK(token: String) {
+        busy = .vk
+        Task {
+            defer { busy = nil }
+            do {
+                _ = try await MusicCore.shared.connectVK(token: token)
+                withAnimation(Motion.spring) { error = nil }
+                status = await MusicCore.shared.status()
+            } catch {
+                withAnimation(Motion.spring) { self.error = t(error.localizedDescription) }
             }
         }
     }
@@ -215,7 +264,7 @@ struct ServicesView: View {
                     _ = try await connect()
                     status = await MusicCore.shared.status()
                 } catch {
-                    self.error = error.localizedDescription
+                    self.error = t(error.localizedDescription)
                 }
                 busy = nil
             }
