@@ -118,8 +118,8 @@
       <span class="meta selectable" use:replay={track?.ref}>
         <span class="title" role="link" tabindex="-1" onclick={openPlayer} onkeydown={() => {}}>{track?.title ?? t('Ничего не играет')}</span>
         {#if player.fallbackNeeded}
-          <!-- трек сервиса без своего потока (Spotify): понятное состояние, по клику — Настройки → Сервисы -->
-          <button class="artist fallback" title={t('Настройки → Сервисы')} onclick={() => settingsPanel.show('services')}>{t('Нужен резервный сервис')}</button>
+          <!-- свой сервис не играет, резерв выключен или не нашёл трек: по клику — Плеер → Аудио → «Резервный сервис» -->
+          <button class="artist fallback" title={t('Настройки → Аудио')} onclick={() => settingsPanel.show('player', 'audio')}>{t('Нужен резервный сервис')}</button>
         {:else if player.error}
           <span class="artist err" title={player.error}>{player.error}</span>
         {:else if track}

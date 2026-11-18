@@ -5,6 +5,7 @@ import { isTauri } from './tauri'
 import { t } from './i18n.svelte'
 import type { Lyrics } from '../lyrics/core/types'
 import type { ServiceId, ServiceKey, ServiceCaps, ServicePrefixes } from './services'
+import type { Via } from './fallback'
 
 /** Короткий id сервиса (lib/services): параметр `src` поиска, корень префикса ref. */
 export type Source = ServiceId
@@ -170,8 +171,10 @@ export interface ServiceState {
 export interface StreamUrl {
   kind: 'file' | 'hls'
   url: string
-  /** Что реально играет: «AAC 160», «MP3 320», «FLAC». */
+  /** Что реально играет: «AAC 160», «MP3 320», «FLAC», «Opus 160 · YouTube Music». */
   quality: string
+  /** Играет не со своего сервиса (резервный сервис, lib/fallback.ts); null — со своего. */
+  via: Via | null
 }
 
 export type StatsPeriod = 'day' | 'week' | 'month' | 'half_year' | 'year' | 'all'
@@ -315,7 +318,10 @@ export const api = {
   disconnectService: (service: Service) => call<void>('disconnect_service', { service }),
 
   search: (q: string, src: Source, limit = 30) => call<Track[]>('search', { q, src, limit }),
-  streamUrl: (trackRef: string) => call<StreamUrl>('stream_url', { trackRef }),
+  /** `track` — трек из интерфейса: по нему ищется замена, если свой сервис его не отдаёт. */
+  streamUrl: (trackRef: string, track?: Track) => call<StreamUrl>('stream_url', { trackRef, track: track ?? null }),
+  /** Свой поток открылся, но не играет — тот же трек из резервного сервиса (или ошибка). */
+  streamFallback: (trackRef: string, track?: Track) => call<StreamUrl>('stream_fallback', { trackRef, track: track ?? null }),
 
   cacheTracks: (tracks: Track[]) => call<void>('cache_tracks', { tracks }),
   /** «Волна офлайн»: следующие треки — в кэш треков заранее (фоном; кэш выключен — ничего). */
