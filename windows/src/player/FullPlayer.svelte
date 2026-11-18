@@ -120,7 +120,7 @@
     {#if withCover}
     <section class="col" transition:fade={{ duration: 220 }}>
       <div class="art">
-        <Cover url={track?.cover_url} size={420} radius="14px" />
+        <Cover url={track?.cover_url} size={560} radius="14px" />
         {#if track}
           <button
             class="on-cover left"
@@ -388,7 +388,7 @@
     max-width: none;
   }
   .col {
-    --art: min(52vh, 520px, 70vw);
+    --art: min(56vh, 560px, 70vw);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -397,7 +397,7 @@
     animation: col-in 0.45s var(--ease);
   }
   .body.text .col {
-    --art: min(48vh, 440px, 34vw);
+    --art: min(52vh, 480px, 37vw); /* +~8 % (владелец 2026-11-18) */
     justify-self: end;
   }
   @keyframes col-in {
@@ -470,10 +470,15 @@
     margin: 22px 0 0;
     font-size: calc(22px * var(--fs, 1));
     font-weight: 800;
+    line-height: 1.2;
     text-align: center;
-    white-space: nowrap;
+    /* длинное название — во вторую строку, троеточие только после неё */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
   .artist {
     display: flex;
@@ -589,6 +594,7 @@
   }
   /* курсор вне окна — прячем управление (как в Dotify) */
   .win,
+  .notch.left,
   .controls,
   .volume {
     transition:
@@ -596,6 +602,7 @@
       transform 0.35s var(--ease);
   }
   .away .win,
+  .away .notch.left,
   .away .on-cover,
   .away .controls,
   .away .volume {
