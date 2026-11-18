@@ -47,6 +47,15 @@ function host(): HTMLDivElement {
   return layer
 }
 
+/** Поддерево без эффектов в слое: живые примеры в настройках (`MiniPreview.svelte`) и закрытая
+ *  шторка настроек — она прозрачна, но лежит поверх окна, и кольца рисовались бы «из ниоткуда». */
+export const FX_SKIP = '[data-fx-skip]'
+
+/** Элемент внутри поддерева, помеченного `data-fx-skip`? */
+export function skipped(el: Pick<Element, 'closest'>): boolean {
+  return el.closest(FX_SKIP) !== null
+}
+
 export interface VisibleOptions {
   /** Ещё и стоит ли на своём месте: окно уехало под панель настроек, предок сдвинут или сейчас
    *  двигается — эффект не рисуем, иначе кольца и дуга смены трека повисли бы мимо мини-плеера
@@ -55,9 +64,11 @@ export interface VisibleOptions {
   steady?: boolean
 }
 
-/** Виден ли элемент: есть размер, попадает в окно и не закрыт полноэкранным слоем `data-fx-overlay`
- *  (иначе дуга мини-плеера рисовалась бы поверх полноэкранного плеера). `steady` — см. VisibleOptions. */
+/** Виден ли элемент: есть размер, попадает в окно, не в `data-fx-skip` и не закрыт полноэкранным
+ *  слоем `data-fx-overlay` (иначе дуга мини-плеера рисовалась бы поверх полноэкранного плеера).
+ *  `steady` — см. VisibleOptions. */
 export function visible(el: Element, { steady = false }: VisibleOptions = {}): DOMRect | null {
+  if (skipped(el)) return null
   const overlay = document.querySelector('[data-fx-overlay]')
   if (overlay && !overlay.contains(el)) return null
   const r = el.getBoundingClientRect()

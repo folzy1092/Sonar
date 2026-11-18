@@ -5,6 +5,7 @@
   import Choice from '../../components/settings/Choice.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Group from '../../components/settings/Group.svelte'
+  import More from '../../components/settings/More.svelte'
   import Soon from '../../components/settings/Soon.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { t } from '../../lib/i18n.svelte'
@@ -65,7 +66,7 @@
   onchange={(v) => settings.set('player.visualizer', v)}
 />
 <Choice
-  title={t('Стиль')}
+  title={t('Вид визуализатора')}
   hint={t('Выберите стиль визуализации аудио')}
   value={settings.get('player.visualizer_style')}
   options={[
@@ -74,53 +75,56 @@
   ]}
   onchange={(v) => settings.set('player.visualizer_style', v)}
 />
-<Switch
-  title={t('Спектр в полноэкранном плеере')}
-  hint={t('Тихая волна звука на дне экрана, за текстом. С «Меньше движения» не рисуется')}
-  on={settings.get('player.visualizer_full')}
-  onchange={(v) => settings.set('player.visualizer_full', v)}
-/>
-<Switch
-  title={t('Почему этот трек')}
-  hint={t('Под артистом у треков «Моей волны» — откуда трек: похож на твой лайк, разведка, забытый любимый')}
-  on={settings.get('player.wave_why')}
-  onchange={(v) => settings.set('player.wave_why', v)}
-/>
 
-<div class="block">
-  <b>{t('Тип ползунка')}</b>
-  <small>{t('Выберите стиль ползунка прогресса')}</small>
-  <div class="sliders">
-    {#each sliders as s (s.id)}
-      <button class="sl" class:on={s.id === settings.get('player.slider')} disabled={s.soon} title={t(s.label)} onclick={() => settings.set('player.slider', s.id)}>
-        <span class="name">{t(s.label)}{#if s.soon}<Soon />{/if}</span>
-        <span class="preview {s.id}">
-          {#if s.id === 'wavy'}
-            <svg viewBox="0 0 200 12" preserveAspectRatio="none"><path d="M0 6 Q 6.25 0 12.5 6 T 25 6 T 37.5 6 T 50 6 T 62.5 6 T 75 6 T 87.5 6 T 100 6" /><line x1="100" y1="6" x2="200" y2="6" /></svg>
-          {:else if s.id === 'wave_bars'}
-            {#each bars as h, i (i)}<i style:height="{h}%" class:past={i < 32}></i>{/each}
-          {:else}
-            <i class="fill"></i><i class="knob"></i>
-          {/if}
-        </span>
-      </button>
-    {/each}
-  </div>
-</div>
-
-<Group title={t('Обложка')}>
-  <Choice
-    title={t('Позиция обложки')}
-    hint={t('Выберите где отображается обложка')}
-    value={settings.get('player.cover_position')}
-    options={[
-      { id: 'left', label: t('Слева'), icon: 'layoutLeft' },
-      { id: 'right', label: t('Справа'), icon: 'layoutRight' },
-    ]}
-    onchange={(v) => settings.set('player.cover_position', v)}
+<More>
+  <Switch
+    title={t('Спектр в полноэкранном плеере')}
+    hint={t('Тихая волна звука на дне экрана, за текстом. С «Меньше движения» не рисуется')}
+    on={settings.get('player.visualizer_full')}
+    onchange={(v) => settings.set('player.visualizer_full', v)}
   />
-  <Switch title={t('Обложка в обложке')} hint={t('Отображать меньшую обложку внутри основной')} on={settings.get('player.pip_cover')} onchange={(v) => settings.set('player.pip_cover', v)} />
-</Group>
+  <Switch
+    title={t('Почему этот трек')}
+    hint={t('Под артистом у треков «Моей волны» — откуда трек: похож на твой лайк, разведка, забытый любимый')}
+    on={settings.get('player.wave_why')}
+    onchange={(v) => settings.set('player.wave_why', v)}
+  />
+
+  <div class="block">
+    <b>{t('Тип ползунка')}</b>
+    <small>{t('Выберите стиль ползунка прогресса')}</small>
+    <div class="sliders">
+      {#each sliders as s (s.id)}
+        <button class="sl" class:on={s.id === settings.get('player.slider')} disabled={s.soon} title={t(s.label)} onclick={() => settings.set('player.slider', s.id)}>
+          <span class="name">{t(s.label)}{#if s.soon}<Soon />{/if}</span>
+          <span class="preview {s.id}">
+            {#if s.id === 'wavy'}
+              <svg viewBox="0 0 200 12" preserveAspectRatio="none"><path d="M0 6 Q 6.25 0 12.5 6 T 25 6 T 37.5 6 T 50 6 T 62.5 6 T 75 6 T 87.5 6 T 100 6" /><line x1="100" y1="6" x2="200" y2="6" /></svg>
+            {:else if s.id === 'wave_bars'}
+              {#each bars as h, i (i)}<i style:height="{h}%" class:past={i < 32}></i>{/each}
+            {:else}
+              <i class="fill"></i><i class="knob"></i>
+            {/if}
+          </span>
+        </button>
+      {/each}
+    </div>
+  </div>
+
+  <Group title={t('Обложка')} hint={t('Обложка на странице плеера')}>
+    <Choice
+      title={t('Позиция обложки')}
+      hint={t('Выберите где отображается обложка')}
+      value={settings.get('player.cover_position')}
+      options={[
+        { id: 'left', label: t('Слева'), icon: 'layoutLeft' },
+        { id: 'right', label: t('Справа'), icon: 'layoutRight' },
+      ]}
+      onchange={(v) => settings.set('player.cover_position', v)}
+    />
+    <Switch title={t('Обложка в обложке')} hint={t('Отображать меньшую обложку внутри основной')} on={settings.get('player.pip_cover')} onchange={(v) => settings.set('player.pip_cover', v)} />
+  </Group>
+</More>
 
 <style>
   .block {

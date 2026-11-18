@@ -7,6 +7,7 @@
   import Choice from '../../components/settings/Choice.svelte'
   import Cards from '../../components/settings/Cards.svelte'
   import Divider from '../../components/settings/Divider.svelte'
+  import More from '../../components/settings/More.svelte'
   import { indicator } from '../../lib/indicator'
   import { rise } from '../../lib/motion'
   import { settings } from '../../lib/settings.svelte'
@@ -79,6 +80,7 @@
   onchange={(v) => settings.set('appearance.mode', v)}
 />
 
+<div class="presets">
 <p class="caption">{t('Готовые темы')}</p>
 <div class="themes">
   {@render tile(t('Под трек'), swatch(theme.accent ?? [196, 164, 132]), cover, () => theme.setEnabled(true))}
@@ -99,6 +101,7 @@
     />
   </div>
 {/if}
+</div>
 
 <Divider />
 
@@ -158,6 +161,8 @@
   options={[12, 14, 16, 18, 20].map((n) => ({ id: n, label: String(n), sub: n === 16 ? t('Авто') : undefined }))}
   onchange={(v) => settings.set('appearance.font_size', v)}
 />
+<!-- редкое — под «Ещё настройки»: ключи и порядок те же (SETTINGS.md) -->
+<More>
 <Choice
   title={t('Жирность шрифта')}
   hint={t('Плотность начертания обычного текста')}
@@ -204,6 +209,7 @@
   on={settings.get('appearance.animations')}
   onchange={(v) => settings.set('appearance.animations', v)}
 />
+</More>
 
 <style>
   .caption {

@@ -209,14 +209,18 @@
     color: var(--text);
     background: var(--hover);
   }
+  /* ширину задаёт сетка карточек в Services.svelte (1–2 колонки по ширине панели) */
   .svc {
-    max-width: 620px;
+    min-width: 0;
     padding: 18px 20px 20px;
-    margin-bottom: 12px;
     border-radius: var(--radius-l);
     background: var(--plate);
     border: 1px solid var(--card-line);
     box-shadow: var(--sheen);
+    transition: border-color var(--fast) var(--ease);
+  }
+  .svc:hover {
+    border-color: var(--border);
   }
   header {
     display: flex;
