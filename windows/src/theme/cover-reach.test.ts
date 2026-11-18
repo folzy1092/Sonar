@@ -57,7 +57,22 @@ describe('cover colour reaches the interface', () => {
 
   it('mini player has a soft cover glow on the left', () => {
     expect(rule(mini, '.cover-glow')).toContain('var(--glow)')
-    expect(rule(mini, '.cover-glow')).toContain('at 0% 50%')
     expect(mini).toContain("class:on={!!track && settings.get('appearance.cover_theme')")
+  })
+
+  it('mini player glow stays around the cover and fades out before the title and artist', () => {
+    // под текстом свечения нет — --text-3 читается на чистом фоне плеера (AA), без примеси --glow
+    const glow = rule(mini, '.cover-glow').match(/radial-gradient\((\d+)px [^)]*at calc\((\d+)px \+ 4px \* var\(--cap-k, 1\)\)/)
+    expect(glow).not.toBeNull()
+    const [radius, centre] = [Number(glow![1]), Number(glow![2])]
+    const pad = Number(rule(mini, '.mini').match(/padding-left: calc\((\d+)px \+ 4px \* var\(--cap-k, 1\)\)/)![1])
+    const nowPad = Number(rule(mini, '.now').match(/padding: (\d+)px/)![1])
+    const gap = Number(rule(mini, '.now').match(/gap: (\d+)px/)![1])
+    const cover = Number(mini.match(/<Cover url=\{track\?\.cover_url\} size=\{(\d+)\}/)![1])
+    // центр — середина обложки, край ореола — не дальше начала колонки текста
+    expect(centre).toBe(pad + nowPad + cover / 2)
+    expect(centre + radius).toBeLessThanOrEqual(pad + nowPad + cover + gap)
+    // и за края обложки он всё же выходит — иначе его не видно
+    expect(radius).toBeGreaterThan(cover / 2)
   })
 })

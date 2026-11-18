@@ -47,6 +47,7 @@ struct LookSettingsView: View {
                 LookCard {
                     LookRow(title: t("Сила темы под обложку"), value: t(strength.title), icon: .contrast) { sheet = .strength }
                 }
+                .cascade(4)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
@@ -68,7 +69,7 @@ struct LookSettingsView: View {
                         .transition(.opacity)
                 }
             }
-            .cascade(4)
+            .cascade(5)
 
             LookCard {
                 LookToggle(title: "Прозрачность", value: settings.bool(LookKey.glass) ? "Включено (\(opacity)%)" : "Выключено",
@@ -80,7 +81,7 @@ struct LookSettingsView: View {
                         .transition(.opacity)
                 }
             }
-            .cascade(5)
+            .cascade(6)
 
             LookCard {
                 LookRow(title: "Скругление", value: corners.title, icon: corners.icon) { sheet = .corners }
@@ -89,14 +90,14 @@ struct LookSettingsView: View {
                 }
                 .buttonStyle(PressableStyle(scale: 0.99))
             }
-            .cascade(6)
+            .cascade(7)
 
             LookCard {
                 LookToggle(title: "Анимации",
                            value: settings.bool(LookKey.animations) ? "Переходы, листы, списки" : "Только короткие переходы",
                            isOn: binding(LookKey.animations))
             }
-            .cascade(7)
+            .cascade(8)
         }
         .animation(Motion.spring, value: backdrop)
         .animation(Motion.spring, value: settings.bool(LookKey.glass))

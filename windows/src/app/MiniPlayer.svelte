@@ -220,11 +220,14 @@
     --text-2: rgba(255, 255, 255, 0.88);
     --text-3: rgba(255, 255, 255, 0.74);
   }
-  /* свечение обложки: --glow меняется плавно (tokens.css @property), сам слой — только прозрачностью */
+  /* свечение обложки: --glow меняется плавно (tokens.css @property), сам слой — только прозрачностью.
+     Ореол только вокруг обложки: центр — середина обложки (отступ плеера 8 + 4·cap-k, .now 4, полобложки 23),
+     радиус 34px гасит его до нуля раньше колонки названия и артиста (обложка 46 + зазор 12) — свечение
+     не ложится под текст, и --text-3 держит контраст AA на --mini-bg */
   .cover-glow {
     position: absolute;
     inset: 0;
-    background: radial-gradient(90% 180% at 0% 50%, var(--glow), transparent 62%);
+    background: radial-gradient(34px 75% at calc(35px + 4px * var(--cap-k, 1)) 50%, var(--glow) 45%, transparent);
     opacity: 0;
     transition: opacity 0.6s var(--ease);
   }

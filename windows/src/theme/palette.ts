@@ -288,9 +288,14 @@ export interface CoverShift {
   lightness: number
 }
 
-/** Средняя светлота обложки — середина и разброс шкалы: L ≤ .3 — «тёмная», L ≥ .9 — «светлая». */
+/**
+ * Средняя светлота обложки — середина и разброс шкалы: L ≤ .35 — «тёмная», L ≥ .85 — «светлая»
+ * (полный сдвиг). Между ними кривая — корень: обычная обложка (L .4–.8) уже даёт заметные 10–15 %
+ * на «Средне», а у самой середины (серая, L .6) сдвиг плавно сходит к нулю.
+ */
 export const PIVOT_L = 0.6
-const SPAN_L = 0.3
+const SPAN_L = 0.25
+const BIAS_CURVE = 0.5
 /** Тёмная тема не уходит в чёрный, светлая — в белый. */
 const DARK_FLOOR = 0.075
 const LIGHT_CEIL = 0.992
@@ -313,7 +318,8 @@ export function coverLightness(px: Uint8ClampedArray | number[]): number {
 /** Насколько и куда сдвигать (−shift…shift): тёмная обложка — минус, светлая — плюс. */
 export function coverBias(shift: CoverShift): number {
   const k = COVER_STRENGTH[shift.strength] ?? COVER_STRENGTH.medium
-  const bias = Math.max(-1, Math.min(1, (shift.lightness - PIVOT_L) / SPAN_L))
+  const d = Math.max(-1, Math.min(1, (shift.lightness - PIVOT_L) / SPAN_L))
+  const bias = Math.sign(d) * Math.abs(d) ** BIAS_CURVE
   return Math.max(-MAX_COVER_SHIFT, Math.min(MAX_COVER_SHIFT, bias * k.shift))
 }
 

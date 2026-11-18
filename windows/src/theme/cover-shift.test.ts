@@ -74,6 +74,18 @@ describe('cover bias', () => {
     expect(at('medium')).toBeLessThanOrEqual(0.15)
   })
 
+  it('ordinary mid covers already shift 10–15 % on medium', () => {
+    for (const lightness of [0.4, 0.8]) {
+      const bias = Math.abs(coverBias({ strength: 'medium', lightness }))
+      expect(bias).toBeGreaterThanOrEqual(0.1)
+      expect(bias).toBeLessThanOrEqual(0.15)
+    }
+    // монотонно: светлее обложка — светлее поверхности
+    const at = (lightness: number) => coverBias({ strength: 'medium', lightness })
+    expect(at(0.5)).toBeLessThan(at(0.55))
+    expect(at(0.65)).toBeLessThan(at(0.7))
+  })
+
   it('unknown strength falls back to medium', () => {
     const odd = coverBias({ strength: 'loud' as CoverStrength, lightness: 0 })
     expect(odd).toBe(coverBias({ strength: 'medium', lightness: 0 }))
