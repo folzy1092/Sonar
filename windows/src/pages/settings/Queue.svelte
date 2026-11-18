@@ -1,11 +1,19 @@
 <script lang="ts">
   // Плеер → Очередь по pc/Screenshot_7: что вернуть при запуске, показ очереди, её положение и вид,
-  // похожие после очереди, «добавлять следующие».
+  // похожие после очереди, «добавлять следующие». Положение — плитки со схемой окна, редкое — в «Ещё».
   import Cards from '../../components/settings/Cards.svelte'
   import Choice from '../../components/settings/Choice.svelte'
   import Switch from '../../components/settings/Switch.svelte'
+  import Tiles from '../../components/settings/Tiles.svelte'
+  import More from '../../components/settings/More.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { t } from '../../lib/i18n.svelte'
+
+  const frame = $derived({
+    tabs: settings.get('tabs.position'),
+    style: settings.get('tabs.style'),
+    mini: settings.get('mini.style') === 'off' ? ('none' as const) : settings.get('mini.position'),
+  })
 </script>
 
 <Choice
@@ -27,16 +35,15 @@
   on={settings.get('queue.preview')}
   onchange={(v) => settings.set('queue.preview', v)}
 />
-<Choice
+<Tiles
   title={t('Положение очереди')}
-  hint={t('Выберите где отображать очередь воспроизведения')}
-  wide
+  hint={t('Где открывается панель очереди')}
   value={settings.get('queue.position')}
   options={[
-    { id: 'bottom' as const, label: t('Снизу'), icon: 'layoutBottom' },
-    { id: 'left' as const, label: t('Слева'), icon: 'layoutLeft' },
-    { id: 'right' as const, label: t('Справа'), icon: 'layoutRight' },
-  ]}
+    { id: 'bottom' as const, label: t('Снизу') },
+    { id: 'left' as const, label: t('Слева') },
+    { id: 'right' as const, label: t('Справа') },
+  ].map((o) => ({ ...o, diagram: { ...frame, queue: o.id } }))}
   onchange={(v) => settings.set('queue.position', v)}
 />
 <Cards
@@ -50,6 +57,7 @@
   ]}
   onchange={(v) => settings.set('queue.view', v)}
 />
+<More>
 <Switch
   title={t('Авто похожие')}
   hint={t('Как в SoundCloud: после любой очереди — поиска, Любимых, плейлиста — играют похожие треки')}
@@ -62,3 +70,4 @@
   on={settings.get('queue.add_following')}
   onchange={(v) => settings.set('queue.add_following', v)}
 />
+</More>

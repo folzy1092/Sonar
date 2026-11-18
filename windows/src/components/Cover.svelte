@@ -2,18 +2,19 @@
   import SourceIcon from './SourceIcon.svelte'
   import Icon from './Icon.svelte'
   import { xfade } from '../lib/motion'
+  import { refKind, serviceOf } from '../lib/services'
 
   interface Props {
     url: string | null | undefined
     size: number
     radius?: string
-    /** Значок источника в углу: sc / ym по ref трека. */
+    /** Значок источника в углу: сервис по ref трека (lib/services). */
     source?: string | null
   }
 
   let { url, size, radius = 'var(--radius-s)', source = null }: Props = $props()
   let failed = $state(false)
-  const src = $derived(source?.startsWith('sc:') ? 'sc' : source?.startsWith('ym:') ? 'ym' : null)
+  const src = $derived(refKind(source) === 'track' ? serviceOf(source) : null)
 
   $effect(() => {
     url
@@ -39,7 +40,7 @@
     {/if}
   {/key}
   {#if src}
-    <span class="src"><SourceIcon kind={src} size={Math.max(12, Math.min(18, Math.round(size * 0.24)))} /></span>
+    <span class="src"><SourceIcon service={src} size={Math.max(12, Math.min(18, Math.round(size * 0.24)))} /></span>
   {/if}
 </div>
 

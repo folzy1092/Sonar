@@ -30,11 +30,12 @@ impl SoundCloud<'_> {
     if let Some(t) = self.creds.oauth_token.as_deref().filter(|t| !t.is_empty()) {
       req = req.header("Authorization", format!("OAuth {t}"));
     }
-    let r = req.send().await?;
+    // client_id едет в адресе — убираем адрес из ошибок reqwest, чтобы ключ не попал в текст
+    let r = req.send().await.map_err(reqwest::Error::without_url)?;
     if !r.status().is_success() {
       return Err(http_error("SoundCloud", r.status()));
     }
-    Ok(r.json().await?)
+    Ok(r.json().await.map_err(reqwest::Error::without_url)?)
   }
 
   /// Проверка ключей: с токеном — профиль, без — пробный поиск.
@@ -45,6 +46,7 @@ impl SoundCloud<'_> {
         name: me["username"].as_str().map(str::to_owned),
         avatar_url: me["avatar_url"].as_str().map(str::to_owned),
         uid: me["id"].as_u64().map(|n| n.to_string()),
+        premium: None,
       });
     }
     self.get(&format!("{API}/search/tracks"), &[("q", "a"), ("limit", "1")]).await?;
@@ -180,7 +182,7 @@ impl SoundCloud<'_> {
 
   /// JSON трека → ссылка на поток (вариант выбирает `pick_transcoding`).
   pub async fn stream(&self, track: &Value) -> Result<Source> {
-    let t = pick_transcoding(track).ok_or_else(|| anyhow!("SoundCloud: у трека нет доступного потока"))?;
+    let t = pick_transcoding(track).ok_or_else(|| super::unplayable::unavailable("SoundCloud: у трека нет доступного потока"))?;
     let url = t["url"].as_str().ok_or_else(|| anyhow!("SoundCloud: пустая ссылка потока"))?;
     let auth = track["track_authorization"].as_str().unwrap_or("");
     let data = self.get(url, &[("track_authorization", auth)]).await?;
@@ -277,6 +279,11 @@ pub fn pick_transcoding(track: &Value) -> Option<&Value> {
   list.iter().filter_map(|t| score(t).map(|s| (s, t))).max_by_key(|(s, _)| *s).map(|(_, t)| t)
 }
 
+/// Играть можно только отрывок: `policy: SNIP` (без Go+) или лучший вариант потока — обрезанный.
+pub fn is_snippet(track: &Value) -> bool {
+  track["policy"] == "SNIP" || pick_transcoding(track).is_some_and(|t| t["snipped"].as_bool() == Some(true))
+}
+
 pub fn track_from_json(j: &Value) -> Option<Track> {
   let id = j["id"].as_u64()?;
   let user = &j["user"];
@@ -358,6 +365,46 @@ mod tests {
   use super::*;
   use serde_json::json;
 
+  const SECRET: &str = "SECRETabcdefghijklmnopqrstuvwxyz";
+
+  /// Текст ошибки `get` с секретным client_id (как его увидит пользователь).
+  async fn sc_err(url: &str) -> String {
+    let http = reqwest::Client::new();
+    let creds = Creds { client_id: SECRET.into(), oauth_token: None };
+    let e = SoundCloud { http: &http, creds: &creds }.get(url, &[("q", "a")]).await.unwrap_err();
+    format!("{e:#}")
+  }
+
+  /// Сеть недоступна — client_id из адреса в текст ошибки не попадает.
+  #[tokio::test]
+  async fn send_error_hides_client_id() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    let e = sc_err(&format!("http://127.0.0.1:{port}/search/tracks")).await;
+    assert!(!e.contains(SECRET), "{e}");
+    assert!(!e.contains("client_id"), "{e}");
+  }
+
+  /// Ответ не JSON — client_id тоже не попадает.
+  #[tokio::test]
+  async fn decode_error_hides_client_id() {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+      let (mut sock, _) = listener.accept().unwrap();
+      let mut buf = [0u8; 4096];
+      let _ = sock.read(&mut buf);
+      let body = "<html>не JSON</html>";
+      let resp = format!("HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+      sock.write_all(resp.as_bytes()).unwrap();
+    });
+    let e = sc_err(&format!("http://127.0.0.1:{port}/search/tracks")).await;
+    assert!(!e.contains(SECRET), "{e}");
+    assert!(!e.contains("client_id"), "{e}");
+  }
+
   fn tc(proto: &str, mime: &str, preset: &str, snipped: bool) -> Value {
     json!({"url": format!("u-{proto}-{preset}"), "preset": preset, "snipped": snipped,
            "format": {"protocol": proto, "mime_type": mime}})
@@ -400,6 +447,15 @@ mod tests {
       tc("hls", "audio/mpeg", "mp3_1_0", false),
     ]}});
     assert_eq!(pick_transcoding(&t).unwrap()["preset"], "mp3_1_0");
+  }
+
+  #[test]
+  fn snippet_by_policy_or_only_snipped_stream() {
+    let full = tc("hls", "audio/mpeg", "mp3_1_0", false);
+    let cut = tc("hls", "audio/mp4; codecs=\"mp4a.40.2\"", "aac_160k", true);
+    assert!(!is_snippet(&json!({"policy": "ALLOW", "media": {"transcodings": [full.clone(), cut.clone()]}})));
+    assert!(is_snippet(&json!({"policy": "ALLOW", "media": {"transcodings": [cut]}})));
+    assert!(is_snippet(&json!({"policy": "SNIP", "media": {"transcodings": [full]}})));
   }
 
   /// Живая проверка: `SC_CLIENT_ID=… cargo test live -- --ignored --nocapture`.

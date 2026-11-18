@@ -2,7 +2,10 @@ import Foundation
 
 // Модели — тот же JSON, что в docs/API.md §3 и Windows-клиенте (`windows/src-tauri/src/providers/mod.rs`):
 // когда появится сервер, клиент получит их же. ref: `sc:<id>` / `ym:<id>` — трек, `sca:` / `yma:` —
-// исполнитель, `scalb:` / `ymalb:` — альбом, `scpl:<id>` / `ympl:<uid>:<kind>` — плейлист сервиса.
+// исполнитель, `scalb:` / `ymalb:` — альбом, `scpl:<id>` / `ympl:<uid>:<kind>` — плейлист сервиса;
+// YouTube Music — `yt:` / `yta:` / `ytalb:` / `ytpl:`;
+// VK — `vk:<owner>_<id>`, `vka:`, `vkalb:` / `vkpl:<owner>_<id>[_<access_key>]`.
+// Все префиксы — в реестре `ServiceRegistry.swift` (docs/API.md «Префиксы ref»).
 
 struct Track: Codable, Hashable, Sendable, Identifiable {
     var ref: String
@@ -30,7 +33,7 @@ struct Track: Codable, Hashable, Sendable, Identifiable {
         case coverURL = "cover_url"
     }
 
-    /// Источник по ref: SoundCloud или Яндекс.
+    /// Источник по ref: SoundCloud, Яндекс или VK.
     var service: Service? { Service(ref: ref) }
 }
 
@@ -110,21 +113,60 @@ enum StreamSource: Equatable, Sendable {
     case hls(url: URL, quality: String)
 }
 
+/// Подключаемые сервисы приложения. Сырые значения хранятся в настройках и Keychain — не менять.
+/// Остальные сервисы реестра (`ServiceID`) появятся здесь, когда заработают.
 enum Service: String, Codable, Sendable, CaseIterable {
     case soundcloud
     case yandex
+    case youtube
+    case vk
 
-    /// По префиксу ref: `sc…` — SoundCloud, `ym…` — Яндекс.
-    init?(ref: String) {
-        if ref.hasPrefix("sc") { self = .soundcloud }
-        else if ref.hasPrefix("ym") { self = .yandex }
-        else { return nil }
+    /// Короткий id в реестре.
+    var id: ServiceID {
+        switch self {
+        case .soundcloud: .sc
+        case .yandex: .ym
+        case .youtube: .yt
+        case .vk: .vk
+        }
     }
 
-    var title: String {
+    var info: ServiceInfo { ServiceRegistry.info(id) }
+
+    /// `.sc` — SoundCloud, `.ym` — Яндекс, `.yt` — YouTube Music, `.vk` — VK Музыка; у остальных сервисов реестра пока нет клиента.
+    init?(id: ServiceID) {
+        switch id {
+        case .sc: self = .soundcloud
+        case .ym: self = .yandex
+        case .yt: self = .youtube
+        case .vk: self = .vk
+        case .sp, .local: return nil
+        }
+    }
+
+    /// По префиксу ref из реестра: `sc:`, `sca:`, `scalb:`, `scpl:` — SoundCloud, `ym…:` — Яндекс, `yt…:` — YouTube Music,
+    /// `vk…:` — VK.
+    init?(ref: String) {
+        guard let service = ServiceRegistry.service(of: ref).flatMap(Service.init(id:)) else { return nil }
+        self = service
+    }
+
+    var title: String { info.name }
+
+    /// Следующий сервис по кругу — кнопка сервиса в Поиске (SoundCloud → Яндекс → YouTube Music → VK → …).
+    var next: Service {
+        let all = Service.allCases
+        let index = all.firstIndex(of: self) ?? 0
+        return all[(index + 1) % all.count]
+    }
+
+    /// Буква сервиса на круглом значке, где своего контура нет (у SoundCloud и YouTube Music — значок).
+    var mark: String? {
         switch self {
-        case .soundcloud: "SoundCloud"
-        case .yandex: "Яндекс Музыка"
+        case .soundcloud: nil
+        case .yandex: "Я"
+        case .youtube: nil
+        case .vk: "VK"
         }
     }
 }
@@ -164,10 +206,16 @@ extension Track {
     /// Главный артист — по нему лимиты разнообразия волны, пауза, подборки.
     var artistKey: String { artistKeys[0] }
 
+    /// Префиксы исполнителей работающих сервисов: `sca:`, `yma:`, `vka:`.
+    private static let artistPrefixes = Service.allCases.map { $0.info.prefixes.artist! + ":" }
+    /// У SoundCloud без id пользователя приходит `sca:0` — такого исполнителя нет.
+    private static let missingArtist = Service.soundcloud.info.prefixes.artist! + ":0"
+
     /// ref главного артиста (`sca:` / `yma:`) — для его страницы, популярных треков и релизов.
-    /// У SoundCloud без id пользователя приходит `sca:0` — такого нет.
     var mainArtistRef: String? {
-        artists.lazy.map(\.ref).first { ($0.hasPrefix("sca:") || $0.hasPrefix("yma:")) && $0 != "sca:0" }
+        artists.lazy.map(\.ref).first { ref in
+            Self.artistPrefixes.contains { ref.hasPrefix($0) } && ref != Self.missingArtist
+        }
     }
 
     /// Имя главного артиста для подписи.

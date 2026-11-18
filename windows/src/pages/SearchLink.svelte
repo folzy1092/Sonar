@@ -2,6 +2,8 @@
   // Ссылка в строке поиска (решение владельца 2026-11-16): вставил ссылку на трек, альбом, артиста
   // или плейлист SoundCloud / Яндекс Музыки — вместо поиска карточка того, что за ней, и одна
   // кнопка «В медиатеку»: трек и альбом — в лайки, артист — подписка, плейлист — перенос в Sonar.
+  // Плейлист и альбом ещё можно «Перенести с подбором» (этап 5, pages/ImportPage): каждому треку —
+  // пара в подключённых сервисах. Apple Music (своего сервиса нет) — только так.
   import Cover from '../components/Cover.svelte'
   import Icon from '../components/Icon.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
@@ -15,6 +17,9 @@
   import { trackMenu } from '../lib/menu.svelte'
   import { pulse } from '../lib/pulse'
   import { t } from '../lib/i18n.svelte'
+  import { serviceOf } from '../lib/services'
+  import type { ImportService } from '../lib/import'
+  import { openImport } from '../lib/import.svelte'
 
   let { url }: { url: string } = $props()
 
@@ -61,14 +66,32 @@
           label: t('Плейлист'),
           round: false,
         }
+      case 'import':
+        return {
+          ref: item.head.source,
+          title: item.head.title,
+          sub: `${item.head.owner ? `${item.head.owner} · ` : ''}${tracksText(item.head.total)}`,
+          cover: item.head.cover_url,
+          label: item.head.album ? t('Альбом') : t('Плейлист'),
+          round: false,
+        }
     }
   })
+  /** Значок источника: сервис по ref, у Apple Music — из шапки импорта. */
+  const service = $derived<ImportService>(item?.kind === 'import' ? item.head.service : (serviceOf(view?.ref) ?? 'ym'))
+  /** Плейлист и альбом можно перенести с подбором пар (экран импорта). */
+  const canMatch = $derived(item?.kind === 'playlist' || item?.kind === 'album' || item?.kind === 'import')
+
+  function importWithMatch() {
+    if (!view) return
+    openImport(item?.kind === 'import' ? url.trim() : view.ref)
+  }
 
   const added = $derived(item?.kind === 'playlist' ? imported : !!view && library.isLiked(view.ref))
   const addLabel = $derived(item?.kind === 'artist' ? (added ? t('Вы подписаны') : t('Подписаться')) : added ? t('В медиатеке') : t('В медиатеку'))
 
   async function add() {
-    if (!item || busy) return
+    if (!item || busy || item.kind === 'import') return
     busy = true
     try {
       if (item.kind === 'playlist') {
@@ -90,6 +113,7 @@
 
   function open() {
     if (!item) return
+    if (item.kind === 'import') return importWithMatch()
     if (item.kind === 'track') void player.playList([item.track], 0, 'search', item.track.title)
     else openRef(view!.ref)
   }
@@ -109,7 +133,7 @@
       <span class="hover"><Icon name={item?.kind === 'track' ? 'play' : 'chevronRight'} size={28} filled={item?.kind === 'track'} /></span>
     </button>
     <div class="info">
-      <span class="kind"><SourceIcon kind={view.ref.startsWith("sc") ? "sc" : "ym"} size={14} /> {view.label}</span>
+      <span class="kind"><SourceIcon {service} size={14} /> {view.label}</span>
       <b class="selectable">{view.title}</b>
       <small>{view.sub}</small>
       <div class="btns">
@@ -129,6 +153,8 @@
           <button class="btn press" onclick={(e) => trackMenu.openAt({ track: tr }, e.currentTarget, 'playlists')}>
             <Icon name="plus" size={16} /> {t('В плейлист')}
           </button>
+        {:else if item?.kind === 'import'}
+          <button class="btn primary press" onclick={importWithMatch}><Icon name="download" size={16} /> {t('Перенести с подбором')}</button>
         {:else}
         <button class="btn primary press" class:done={added} disabled={busy || (added && item?.kind === 'playlist')} onclick={add}>
           {#key added}
@@ -136,6 +162,9 @@
           {/key}
         </button>
         <button class="btn press" onclick={open}>{t('Открыть')}</button>
+        {#if canMatch}
+          <button class="btn press" title={t('Каждому треку — пара в подключённых сервисах')} onclick={importWithMatch}>{t('Перенести с подбором')}</button>
+        {/if}
         {/if}
       </div>
     </div>

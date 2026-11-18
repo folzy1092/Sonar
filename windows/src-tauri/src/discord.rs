@@ -6,6 +6,7 @@
 //! `discord_app_id`, API.md §7) и подменяется через `set_app_id`.
 
 use crate::media::MediaInfo;
+use crate::providers::registry::{parse_ref, RefKind, ServiceId};
 use discord_rich_presence::activity::{Activity, ActivityType, Assets, StatusDisplayType, Timestamps};
 use discord_rich_presence::{DiscordIpc, DiscordIpcClient};
 use discord_rich_presence::activity::Button;
@@ -222,7 +223,9 @@ fn activity(info: &MediaInfo, look: Look) -> Activity<'_> {
   }
   let mut buttons = Vec::new();
   if look.listen {
-    if let Some(r) = info.track_ref.as_deref().filter(|r| r.starts_with("sc:") || r.starts_with("ym:")) {
+    // локальный файл есть только на этом компьютере — по ссылке его не открыть
+    let listenable = |r: &&str| matches!(parse_ref(r), Some((s, RefKind::Track)) if s.implemented && s.id != ServiceId::Local);
+    if let Some(r) = info.track_ref.as_deref().filter(listenable) {
       buttons.push(Button::new("Слушать в Sonar", format!("{SITE}/t/{r}")));
     }
   }

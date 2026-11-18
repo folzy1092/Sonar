@@ -1,19 +1,28 @@
 mod commands;
 mod crashlog;
 mod discord;
+mod dupes;
+mod export;
 mod lastfm;
 mod login;
+mod local;
 mod lyrics;
 mod media;
 mod calls;
 mod glass;
+mod gvideo;
 mod hotkeys;
+mod import_link;
 mod track_cache;
 mod mini;
 mod obs;
 mod providers;
+mod remote;
 mod secrets;
 mod services;
+mod smart;
+#[cfg(feature = "spotify-playback")]
+mod spotify_play;
 mod store;
 mod stream;
 mod sync;
@@ -41,6 +50,12 @@ pub fn run() {
     .plugin(tauri_plugin_process::init())
     // горячие клавиши по всей системе (hotkeys.rs); сочетания ставит интерфейс через `set_hotkeys`
     .plugin(hotkeys::plugin())
+    // окно «Сохранить как» для экспорта плейлистов (export.rs) и выбор папки для «Папок с музыкой»
+    // (local/commands.rs); из интерфейса его не открыть
+    .plugin(tauri_plugin_dialog::init())
+    // обложки локальных файлов: адрес не зависит от порта аудио-сервера, отдаются только
+    // `local-<sha1>.<ext>` из кэша обложек
+    .register_uri_scheme_protocol(local::COVER_SCHEME, |_ctx, req| local_cover_response(req.uri().path()))
     .setup(|app| {
       // журнал ошибок сессии и отчёт после сбоя (в отладке логгер ставит tauri-plugin-log)
       if let Ok(dir) = app.path().app_log_dir() {
@@ -67,11 +82,22 @@ pub fn run() {
       }
 
       let core = Arc::new(Core::new());
+      // access_key треков VK: без него чужой трек VK после перезапуска не играет
+      core.open_vk_keys(dir.join("vk-keys.json"));
       if let Ok(Some(v)) = db.setting("audio.sc_via_yandex") {
         core.sc_via_yandex.store(v.as_bool().unwrap_or(false), std::sync::atomic::Ordering::Relaxed);
       }
+      if let Ok(Some(v)) = db.setting("audio.fallback") {
+        core.fallback.enabled.store(v.as_bool().unwrap_or(true), std::sync::atomic::Ordering::Relaxed);
+      }
+      if let Ok(order) = db.setting("audio.fallback_order") {
+        core.fallback.set_order(services::fallback::parse_order(order.as_ref()));
+      }
       if let Ok(Some(q)) = db.setting("audio.quality") {
         core.max_kbps.store(services::quality_kbps(q.as_str()), std::sync::atomic::Ordering::Relaxed);
+      }
+      if let Ok(Some(q)) = db.setting("audio.yt_quality") {
+        core.yt_high.store(services::yt_high(q.as_str()), std::sync::atomic::Ordering::Relaxed);
       }
       if let Ok(cache) = app.path().app_cache_dir() {
         stream::set_cover_dir(cache.join("covers"));
@@ -145,6 +171,10 @@ pub fn run() {
       app.manage(Db(Mutex::new(db)));
       app.manage(StreamPort(port));
       app.manage(media::Media(Mutex::new(controls)));
+      // пульт с iPhone: сервер стартует, когда интерфейс включит `remote.enabled`
+      app.manage(remote::Remote::new(app.handle().clone()));
+      // папки с музыкой: индекс из базы, фоновый скан и слежка
+      local::commands::init(app.handle());
       // синхронизация аккаунта: молчит, пока не подключён сервер Sonar
       tauri::async_runtime::spawn(sync::background(app.handle().clone()));
       Ok(())
@@ -152,6 +182,14 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       glass::set_glass,
       hotkeys::set_hotkeys,
+      remote::remote_set_enabled,
+      remote::remote_status,
+      remote::remote_pair_start,
+      remote::remote_pair_cancel,
+      remote::remote_unpair,
+      remote::remote_state,
+      export::export_playlist,
+      export::save_image,
       commands::prefetch_tracks,
       commands::set_track_cache,
       commands::add_search_history,
@@ -159,6 +197,7 @@ pub fn run() {
       commands::search_history_count,
       commands::clear_search_history,
       commands::services_status,
+      commands::services_list,
       commands::sync_now,
       commands::artist_tracks,
       commands::mini_window,
@@ -178,11 +217,13 @@ pub fn run() {
       commands::log_frontend,
       commands::connect_soundcloud,
       commands::connect_yandex,
+      commands::connect_service_key,
       commands::obs_status,
       commands::login_service,
       commands::disconnect_service,
       commands::search,
       commands::stream_url,
+      commands::stream_fallback,
       commands::cache_tracks,
       commands::save_player_state,
       commands::load_player_state,
@@ -196,6 +237,9 @@ pub fn run() {
       commands::service_playlists,
       commands::service_playlist,
       commands::import_playlist,
+      import_link::import_link,
+      import_link::import_cancel,
+      import_link::import_create,
       commands::set_like,
       commands::liked_refs,
       commands::favorites,
@@ -209,6 +253,12 @@ pub fn run() {
       commands::add_to_playlist,
       commands::remove_from_playlist,
       commands::reorder_playlist,
+      smart::smart_playlists,
+      smart::smart_playlist,
+      smart::smart_preview,
+      smart::create_smart_playlist,
+      smart::update_smart_playlist,
+      smart::delete_smart_playlist,
       commands::lyrics,
       commands::lyrics_offset,
       commands::lyrics_annotations,
@@ -225,6 +275,8 @@ pub fn run() {
       commands::home_releases,
       commands::daypart_mix,
       commands::stats,
+      commands::recap,
+      commands::recap_periods,
       commands::cached_tracks,
       commands::stream_port,
       commands::all_settings,
@@ -238,7 +290,25 @@ pub fn run() {
       commands::set_autostart,
       commands::autostart_enabled,
       commands::set_tray_mode,
+      local::commands::local_pick_folder,
+      local::commands::local_rescan,
+      local::commands::local_tracks,
+      local::commands::local_search,
+      dupes::commands::find_duplicates,
+      dupes::commands::remove_duplicates,
+      dupes::commands::restore_duplicates,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");
+}
+
+/// Ответ схемы `sonarcover`: обложка из кэша или 404.
+fn local_cover_response(path: &str) -> tauri::http::Response<Vec<u8>> {
+  let found = stream::cover_dir().and_then(|d| local::read_cover(d, path.trim_start_matches('/')));
+  let builder = tauri::http::Response::builder().header("Access-Control-Allow-Origin", "*");
+  let res = match found {
+    Some((bytes, mime)) => builder.header("Content-Type", mime).header("Cache-Control", "max-age=604800").body(bytes),
+    None => builder.status(404).body(Vec::new()),
+  };
+  res.unwrap_or_else(|_| tauri::http::Response::new(Vec::new()))
 }

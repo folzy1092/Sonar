@@ -4,6 +4,13 @@
 //!   после входа страница уходит на адрес с `#access_token=y0_…`, его и перехватываем.
 //! - SoundCloud: обычная страница входа; после входа сайт ставит cookie `oauth_token`, её читаем
 //!   раз в секунду. client_id — публичный, с сайта (как в selfbot).
+//! - YouTube Music: вход Google с возвратом на music.youtube.com; после входа у music.youtube.com
+//!   появляется cookie `SAPISID` — весь набор cookie сайта уходит в keyring (подпись запросов —
+//!   `providers/youtube/auth.rs`). Google может не пустить во встроенное окно — тогда cookie вставляют
+//!   вручную в «Сервисах».
+//! - VK: тот же «токен в адресе» на oauth.vk.com с client_id Kate Mobile (только ему VK открывает
+//!   `audio.*`), `scope=audio,offline` — ключ без срока. Двухфакторка и капча — на страницах VK в
+//!   том же окне. VK уводит на `oauth.vk.com/blank.html#access_token=vk1.a.…` — его и перехватываем.
 //! Окно закрыли, не войдя, — ошибка «Вход отменён». Ждём не больше 10 минут.
 //!
 //! Браузер по умолчанию (просьба владельца 2026-11-16): Яндекс — вход по коду (OAuth device flow того
@@ -13,7 +20,7 @@
 //! cookie чужого браузера не прочитать) — у него остаётся окно входа SoundCloud внутри Sonar.
 //! «Отмена» (`cancel`) обрывает ожидание любого входа через браузер.
 
-use crate::providers::{soundcloud, yandex};
+use crate::providers::{soundcloud, vk, yandex, youtube};
 use crate::services::{Core, ServiceStatus};
 use anyhow::{anyhow, bail, Result};
 use std::sync::Arc;
@@ -125,6 +132,8 @@ pub async fn yandex_device(app: &AppHandle, core: &Arc<Core>, device_id: &str) -
   core.connect_yandex(yandex::Creds { token }).await.map(Some)
 }
 const WAIT: Duration = Duration::from_secs(600);
+/// Куда VK возвращает после входа (адрес возврата приложений без своего сайта).
+const VK_REDIRECT: &str = "https://oauth.vk.com/blank.html";
 
 /// `#access_token=…&…` → токен.
 pub fn token_from_url(url: &Url) -> Option<String> {
@@ -134,6 +143,28 @@ pub fn token_from_url(url: &Url) -> Option<String> {
     .find_map(|kv| kv.strip_prefix("access_token="))
     .filter(|t| !t.is_empty())
     .map(|t| urlencoding::decode(t).map(|c| c.into_owned()).unwrap_or_else(|_| t.to_owned()))
+}
+
+/// Адрес окна входа VK: OAuth Kate Mobile, ключ к музыке без срока.
+fn vk_auth_url() -> String {
+  format!(
+    "https://oauth.vk.com/authorize?client_id={}&display=mobile&redirect_uri={VK_REDIRECT}&scope=audio,offline&response_type=token&revoke=1&v={}",
+    vk::KATE_CLIENT_ID,
+    vk::VERSION
+  )
+}
+
+/// Адрес окна VK → чем кончился вход: `Some(Some(токен))` — вошёл, `Some(None)` — VK вернул ошибку
+/// (отказ, отмена), `None` — вход ещё идёт.
+pub fn vk_outcome(url: &Url) -> Option<Option<String>> {
+  if url.host_str() != Some("oauth.vk.com") || url.path() != "/blank.html" {
+    return None;
+  }
+  if let Some(t) = token_from_url(url) {
+    return Some(Some(t));
+  }
+  let failed = url.fragment().into_iter().chain(url.query()).any(|p| p.split('&').any(|kv| kv.starts_with("error=")));
+  failed.then_some(None)
 }
 
 fn window<'a>(app: &'a AppHandle, label: &str, title: &str, url: &str) -> Result<WebviewWindowBuilder<'a, tauri::Wry, AppHandle>> {
@@ -214,18 +245,19 @@ pub async fn yandex(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
   core.connect_yandex(yandex::Creds { token }).await
 }
 
-pub async fn soundcloud(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
+/// Окно входа сервиса: ждём, пока на `cookie_url` появится cookie `name` (её значение и вернём).
+async fn wait_cookie(app: &AppHandle, label: &str, title: &str, url: &str, cookie_url: &str, name: &'static str) -> Result<String> {
   let (tx, mut rx) = mpsc::unbounded_channel::<Option<String>>();
-  let w = window(&app, "login-soundcloud", "Вход в SoundCloud — Sonar", "https://soundcloud.com/signin")?.build()?;
+  let w = window(app, label, title, url)?.build()?;
   on_close(&w, tx.clone());
   let poll_w = w.clone();
+  let cookie_url = Url::parse(cookie_url)?;
   let poll = tokio::spawn(async move {
-    let sc = Url::parse("https://soundcloud.com/").expect("url");
     loop {
       tokio::time::sleep(Duration::from_secs(1)).await;
-      match poll_w.cookies_for_url(sc.clone()) {
+      match poll_w.cookies_for_url(cookie_url.clone()) {
         Ok(cookies) => {
-          if let Some(c) = cookies.iter().find(|c| c.name() == "oauth_token" && !c.value().is_empty()) {
+          if let Some(c) = cookies.iter().find(|c| c.name() == name && !c.value().is_empty()) {
             let _ = tx.send(Some(c.value().to_owned()));
             break;
           }
@@ -234,19 +266,132 @@ pub async fn soundcloud(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus
       }
     }
   });
-  let token = wait(&mut rx).await;
+  let value = wait(&mut rx).await;
   poll.abort();
   let _ = w.close();
-  let token = token?;
+  value
+}
+
+pub async fn soundcloud(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
+  let token = wait_cookie(&app, "login-soundcloud", "Вход в SoundCloud — Sonar", "https://soundcloud.com/signin", "https://soundcloud.com/", "oauth_token").await?;
   let client_id = soundcloud::public_client_id(&core.http)
     .await
     .map_err(|e| anyhow!("Вошёл, но не нашёл client_id SoundCloud: {e}"))?;
   core.connect_soundcloud(soundcloud::Creds { client_id, oauth_token: Some(token) }).await
 }
 
+/// Страница входа Google, после неё — music.youtube.com.
+const YT_LOGIN_URL: &str = "https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fmusic.youtube.com%2F";
+
+/// Cookie music.youtube.com одной строкой — только когда вход уже есть (`SAPISID` на месте).
+fn yt_cookie_header<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>) -> Option<String> {
+  let joined = pairs.into_iter().filter(|(k, v)| !k.is_empty() && !v.is_empty()).map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("; ");
+  youtube::auth::sapisid(&joined).map(|_| joined.clone())
+}
+
+/// Сколько раз подряд можно не прочитать cookie (окно как раз уходит на другую страницу),
+/// прежде чем сдаться с понятной ошибкой.
+const YT_COOKIE_READ_ATTEMPTS: u32 = 5;
+const YT_COOKIE_READ_FAILED: &str = "Не удалось прочитать cookie YouTube Music — вставь cookie вручную в «Сервисах»";
+
+pub async fn youtube(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
+  let (tx, mut rx) = mpsc::unbounded_channel::<Option<String>>();
+  let w = window(&app, "login-youtube", "Вход в YouTube Music — Sonar", YT_LOGIN_URL)?.build()?;
+  on_close(&w, tx.clone());
+  let poll_w = w.clone();
+  let read_failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+  let poll_failed = read_failed.clone();
+  let poll = tokio::spawn(async move {
+    let site = Url::parse(youtube::auth::ORIGIN).expect("url");
+    let mut errors = 0;
+    loop {
+      tokio::time::sleep(Duration::from_secs(1)).await;
+      // ждём, пока окно вернётся на music.youtube.com: cookie там уже полные
+      let on_site = poll_w.url().is_ok_and(|u| u.host_str() == site.host_str());
+      if !on_site {
+        continue;
+      }
+      match poll_w.cookies_for_url(site.clone()) {
+        Ok(cookies) => {
+          errors = 0;
+          if let Some(c) = yt_cookie_header(cookies.iter().map(|c| (c.name(), c.value()))) {
+            let _ = tx.send(Some(c));
+            break;
+          }
+        }
+        // в тексте ошибки WebView2 cookie нет, только причина
+        Err(e) => {
+          errors += 1;
+          log::warn!("вход YouTube Music: cookie не прочитались ({errors}/{YT_COOKIE_READ_ATTEMPTS}): {e}");
+          if errors >= YT_COOKIE_READ_ATTEMPTS {
+            poll_failed.store(true, std::sync::atomic::Ordering::Relaxed);
+            let _ = tx.send(None);
+            break;
+          }
+        }
+      }
+    }
+  });
+  let cookie = wait(&mut rx).await;
+  poll.abort();
+  let _ = w.close();
+  if read_failed.load(std::sync::atomic::Ordering::Relaxed) {
+    bail!(YT_COOKIE_READ_FAILED);
+  }
+  core.connect_youtube(&cookie?).await
+}
+
+pub async fn vk(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
+  let (tx, mut rx) = mpsc::unbounded_channel::<Option<String>>();
+  let nav_tx = tx.clone();
+  let w = window(&app, "login-vk", "Вход в VK — Sonar", &vk_auth_url())?
+    .on_navigation(move |u| match vk_outcome(u) {
+      Some(outcome) => {
+        let _ = nav_tx.send(outcome);
+        false
+      }
+      None => true,
+    })
+    .build()?;
+  on_close(&w, tx.clone());
+  // адрес с токеном мог прийти без события навигации — проверяем текущий адрес
+  let poll_tx = tx.clone();
+  let poll_w = w.clone();
+  let poll = tokio::spawn(async move {
+    loop {
+      tokio::time::sleep(Duration::from_millis(700)).await;
+      let Ok(u) = poll_w.url() else { break };
+      if let Some(outcome) = vk_outcome(&u) {
+        let _ = poll_tx.send(outcome);
+        break;
+      }
+    }
+  });
+  let token = wait(&mut rx).await;
+  poll.abort();
+  let _ = w.close();
+  core.connect_vk(vk::Creds { token: token? }).await
+}
+
+/// Spotify: вход на accounts.spotify.com, ключ — cookie `sp_dc` веб-плеера open.spotify.com.
+pub async fn spotify(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
+  let sp_dc = wait_cookie(&app, "login-spotify", "Вход в Spotify — Sonar", SPOTIFY_LOGIN, "https://open.spotify.com/", "sp_dc").await?;
+  core.connect_spotify(&sp_dc).await
+}
+
+/// После входа Spotify сам ведёт в веб-плеер — там и появляется `sp_dc`.
+const SPOTIFY_LOGIN: &str = "https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F";
+
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn yt_cookie_needs_sapisid() {
+    assert_eq!(yt_cookie_header([("SID", "1"), ("SAPISID", "a"), ("", "x"), ("HSID", "")]).as_deref(), Some("SID=1; SAPISID=a"));
+    assert_eq!(yt_cookie_header([("__Secure-3PAPISID", "b")]).as_deref(), Some("__Secure-3PAPISID=b"));
+    assert_eq!(yt_cookie_header([("SID", "1"), ("VISITOR_INFO1_LIVE", "v")]), None);
+  }
 
   #[test]
   fn token_in_fragment() {
@@ -254,5 +399,31 @@ mod tests {
     assert_eq!(token_from_url(&u).as_deref(), Some("y0_AbC+d"));
     assert_eq!(token_from_url(&Url::parse("https://music.yandex.ru/").unwrap()), None);
     assert_eq!(token_from_url(&Url::parse("https://x.ru/#access_token=").unwrap()), None);
+  }
+
+  #[test]
+  fn vk_login_outcome() {
+    let ok = Url::parse("https://oauth.vk.com/blank.html#access_token=vk1.a.Xy-Z&expires_in=0&user_id=1").unwrap();
+    assert_eq!(vk_outcome(&ok), Some(Some("vk1.a.Xy-Z".to_owned())));
+    let denied = Url::parse("https://oauth.vk.com/blank.html#error=access_denied&error_reason=user_denied").unwrap();
+    assert_eq!(vk_outcome(&denied), Some(None));
+    let q = Url::parse("https://oauth.vk.com/blank.html?error=invalid_request").unwrap();
+    assert_eq!(vk_outcome(&q), Some(None));
+    // вход ещё идёт: страница входа, двухфакторка, капча, чужой адрес с токеном
+    for u in ["https://oauth.vk.com/authorize?client_id=1", "https://id.vk.com/auth?x=1", "https://evil.example/blank.html#access_token=x", "https://oauth.vk.com/blank.html"] {
+      assert_eq!(vk_outcome(&Url::parse(u).unwrap()), None, "{u}");
+    }
+  }
+
+  #[test]
+  fn vk_auth_url_is_kate_implicit() {
+    let u = Url::parse(&vk_auth_url()).unwrap();
+    let q: std::collections::HashMap<_, _> = u.query_pairs().collect();
+    assert_eq!(u.host_str(), Some("oauth.vk.com"));
+    assert_eq!(q["client_id"], vk::KATE_CLIENT_ID);
+    assert_eq!(q["redirect_uri"], VK_REDIRECT);
+    assert_eq!(q["scope"], "audio,offline");
+    assert_eq!(q["response_type"], "token");
+    assert_eq!(q["v"], "5.131");
   }
 }

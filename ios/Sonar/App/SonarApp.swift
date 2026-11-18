@@ -42,7 +42,10 @@ struct SonarApp: App {
                     SyncService.shared.start()
                     await AccountStore.shared.reportLaunch()
                     await MusicCore.shared.configure(maxKbps: MusicCore.qualityKbps(settings.string("audio.quality")),
-                                                     soundCloudViaYandex: settings.bool("audio.sc_via_yandex"))
+                                                     soundCloudViaYandex: settings.bool("audio.sc_via_yandex"),
+                                                     youTubeHigh: MusicCore.youTubeHigh(settings.string(YouTubeQuality.key)),
+                                                     fallback: FallbackSettings(enabled: settings.bool(FallbackPlan.enabledKey),
+                                                                                saved: settings.string(FallbackPlan.orderKey)))
                 }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { checker.checkIfStale(settings: settings) }

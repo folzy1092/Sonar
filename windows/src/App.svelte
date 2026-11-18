@@ -12,11 +12,19 @@
   import SettingsPanel from './pages/SettingsPanel.svelte'
   import { settingsPanel } from './pages/settings-section.svelte'
   import PlaylistPage from './pages/PlaylistPage.svelte'
+  import SmartPlaylistPage from './pages/SmartPlaylistPage.svelte'
+  import SmartEditor from './app/smart/SmartEditor.svelte'
+  import { isSmartId } from './lib/smart'
   import ArtistPage from './pages/ArtistPage.svelte'
   import AlbumPage from './pages/AlbumPage.svelte'
+  import ProfilePage from './pages/ProfilePage.svelte'
+  import ImportPage from './pages/ImportPage.svelte'
+  import DupesPage from './pages/DupesPage.svelte'
   import TrackMenu from './app/TrackMenu.svelte'
   import PlaylistMenu from './app/PlaylistMenu.svelte'
   import ConfirmDialog from './app/ConfirmDialog.svelte'
+  import QuickOpen from './app/QuickOpen.svelte'
+  import RecapViewer from './app/RecapViewer.svelte'
   import Toast from './app/Toast.svelte'
   import Tooltip from './app/Tooltip.svelte'
   import UpdatePopup from './app/UpdatePopup.svelte'
@@ -36,7 +44,9 @@
   import { initTrackFx } from './lib/track-fx.svelte'
   import { theme } from './theme/theme.svelte'
   import { settings } from './lib/settings.svelte'
+  import { isShutter, openMode } from './lib/settings-open'
   import { hotkeys } from './lib/hotkeys.svelte'
+  import { remote } from './lib/remote.svelte'
   import { slide } from 'svelte/transition'
   import { notch } from './lib/notch'
   import { floating } from './lib/floating'
@@ -49,6 +59,9 @@
     playlist: PlaylistPage,
     artist: ArtistPage,
     album: AlbumPage,
+    profile: ProfilePage,
+    import: ImportPage,
+    dupes: DupesPage,
   }
   /** Строка поиска — только на странице поиска (на главной её нет, решение владельца). */
   const withSearch: Page[] = ['search']
@@ -60,7 +73,8 @@
   /** Строки поиска нет — кнопки окна висят поверх в углу, страница начинается от самого верха. */
   const floatHeader = $derived(ownHeader.includes(router.page) || !withSearch.includes(router.page))
 
-  const Current = $derived(pages[router.page])
+  /** Умный плейлист (`sm_…`) — та же страница «playlist», но своя: треки считают правила. */
+  const Current = $derived(router.page === 'playlist' && isSmartId(router.param) ? SmartPlaylistPage : pages[router.page])
   let scroller: HTMLElement | undefined = $state()
   let island: HTMLElement | undefined = $state()
 
@@ -75,6 +89,7 @@
     void library.load()
     updater.init()
     hotkeys.init()
+    remote.init()
     mini.start()
     // «Тише во время звонков» (calls.rs): микрофон занят другим приложением — музыка стихает
     if (isTauri) void listen<boolean>('call:active', (e) => player.setCall(e.payload))
@@ -139,6 +154,10 @@
   let slotUp = $state(false)
   // плавающая панель вкладок парит над окном где угодно — сетка окна как без панели
   const floatTabs = $derived(settings.get('tabs.style') === 'floating')
+  /** Вкладки сверху или снизу — настройки шторкой, окно стоит на месте (SettingsPanel, lib/settings-open). */
+  const shutter = $derived(isShutter(openMode(settings.get('tabs.position'), settings.get('tabs.style'))))
+  const away = $derived(settingsPanel.open && !shutter)
+  const veiled = $derived(settingsPanel.open && shutter)
   function slotAlive(_node: HTMLElement) {
     slotUp = true
     return { destroy: () => (slotUp = false) }
@@ -157,7 +176,7 @@
 <SettingsPanel />
 
 <div class="stage">
-<div class="shell tabs-{floatTabs ? 'left' : settings.get('tabs.position')} tstyle-{settings.get('tabs.style')} mini-{settings.get('mini.position')}" class:away={settingsPanel.open} class:solo={!slotUp} inert={settingsPanel.open}>
+<div class="shell tabs-{floatTabs ? 'left' : settings.get('tabs.position')} tstyle-{settings.get('tabs.style')} mini-{settings.get('mini.position')}" class:away class:solo={!slotUp} inert={away}>
   {#if settings.get('tabs.position') === 'top' && !floatTabs}
     <!-- островок вкладок сверху узкий — окно таскается и за пустое место вокруг него -->
     <div class="top-drag" data-tauri-drag-region></div>
@@ -165,7 +184,7 @@
   <Rail />
 
   <!-- панель сверху — кнопки окна на её правом конце, карточке вырез не нужен -->
-  <main class="card" class:own-head={floatHeader} class:fixed-page={fixedPages.includes(router.page)} use:notch={settings.get('tabs.position') === 'top' && !floatTabs ? undefined : island}>
+  <main class="card" inert={veiled} class:own-head={floatHeader} class:fixed-page={fixedPages.includes(router.page)} use:notch={settings.get('tabs.position') === 'top' && !floatTabs ? undefined : island}>
     {#if floatHeader}<div class="drag-strip" data-tauri-drag-region></div>{/if}
     <header class="top" data-tauri-drag-region>
       {#if withSearch.includes(router.page)}
@@ -189,13 +208,13 @@
 
   <!-- пока ничего не играло — плеера снизу нет, главная на весь экран; появился трек — плеер выезжает -->
   {#if settings.get('mini.style') !== 'off' && player.current && router.page !== 'player'}
-    <div class="player-slot" transition:slide={{ duration: 280 }} use:slotAlive use:floating={settings.get('mini.position') === 'floating'}>
+    <div class="player-slot" inert={veiled} transition:slide={{ duration: 280 }} use:slotAlive use:floating={settings.get('mini.position') === 'floating'}>
       <MiniPlayer />
     </div>
   {/if}
 </div>
-{#if settingsPanel.open}
-  <!-- клик по отъехавшему окну закрывает настройки -->
+{#if away}
+  <!-- клик по отъехавшему окну закрывает настройки (у шторки — своя вуаль в SettingsPanel) -->
   <button class="back-to-app" aria-label={t('Закрыть настройки')} onclick={() => settingsPanel.close()}></button>
 {/if}
 </div>
@@ -209,6 +228,9 @@
 <TrackMenu />
 <PlaylistMenu />
 <ConfirmDialog />
+<SmartEditor />
+<QuickOpen />
+<RecapViewer />
 <UpdatePopup />
 <CrashNotice />
 <Toast />
@@ -216,9 +238,11 @@
 
 <style>
   /* Открытие настроек (PLATFORMS.md, pc/Screenshot_30..32): окно уезжает вправо на ширину панели
-     и поворачивается вглубь на ~15° (левый край дальше), затемняется; панель слева — плоская. */
+     и поворачивается вглубь на ~15° (левый край дальше), затемняется; панель слева — плоская.
+     Панель — почти во всё окно (NEXT_PROMPT «Этап 0» п. 6): от окна остаётся полоска, за неё
+     окно и возвращается. Вкладки сверху/снизу — шторка, см. SettingsPanel. */
   :global(:root) {
-    --settings-w: 440px;
+    --settings-w: clamp(420px, calc(100vw - 180px), 1180px);
     /* окно и панель едут одним движением (пружина Dotify: damping 28, stiffness 240) */
     --settings-t: 0.52s;
     --settings-ease: cubic-bezier(0.2, 0.9, 0.25, 1);

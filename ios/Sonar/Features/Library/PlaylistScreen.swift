@@ -30,6 +30,7 @@ struct PlaylistScreen: View {
     @State private var filter: LibraryView.SourceFilter = .all
     @State private var showMenu = false
     @State private var showConvert = false
+    @State private var showExport = false
     @State private var renaming = false
     @State private var nameDraft = ""
     @State private var confirmDelete = false
@@ -65,6 +66,14 @@ struct PlaylistScreen: View {
         }
     }
 
+    /// Имя файла экспорта: свои названия (Любимые, Скачанные, Недавнее) — на языке интерфейса.
+    private var exportName: String {
+        switch source {
+        case .service, .sonar: title
+        default: t(title)
+        }
+    }
+
     private var tracks: [Track] {
         switch source {
         case .liked: library.liked
@@ -97,8 +106,9 @@ struct PlaylistScreen: View {
         }
     }
 
-    private var isThisPlaying: Bool {
-        engine.isPlaying && engine.contextTitle == title && !engine.isWave
+    /// «Слушать» ⇄ «Пауза»: играет эта подборка — пауза, на паузе — продолжить с места.
+    private var listen: ListenAction {
+        .resolve(page: title, context: engine.contextTitle, isWave: engine.isWave, hasCurrent: engine.current != nil, isPlaying: engine.isPlaying, ended: engine.queueEnded)
     }
 
     // MARK: - Вид
@@ -214,6 +224,13 @@ struct PlaylistScreen: View {
                 .presentationCornerRadius(30)
                 .presentationBackground(Theme.background)
         }
+        .sheet(isPresented: $showExport) {
+            ExportSheet(name: exportName, tracks: tracks)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(30)
+                .presentationBackground(Theme.background)
+        }
     }
 
     private var topBar: some View {
@@ -289,11 +306,11 @@ struct PlaylistScreen: View {
 
     private var actions: some View {
         HStack(spacing: 12) {
-            AccentCapsuleButton(icon: isThisPlaying ? .pause : .play, title: isThisPlaying ? "Пауза" : "Слушать") {
-                if engine.contextTitle == title, !engine.isWave, engine.current != nil {
-                    engine.toggle()
-                } else {
-                    play(shuffle: false)
+            ListenCapsuleButton(playing: listen.showsPause) {
+                switch listen {
+                case .pause: engine.pause()
+                case .resume: engine.resume()
+                case .start: play(shuffle: false)
                 }
             }
             .disabled(tracks.isEmpty)
@@ -616,6 +633,11 @@ struct PlaylistScreen: View {
             UIPasteboard.general.string = title
             router.say(t("Название скопировано"))
         })
+        if !list.isEmpty {
+            rows.append(.init(icon: .share, title: t("Экспорт"), subtitle: "M3U8, CSV, JSON") {
+                showExport = true
+            })
+        }
         switch source {
         case let .service(playlist):
             if let existing = store.playlist(source: playlist.ref) {

@@ -39,6 +39,9 @@ final class PlaybackEngine {
     /// Откуда играем: «Любимые», «Поиск», название плейлиста.
     private(set) var contextTitle = ""
     private(set) var isPlaying = false
+    /// Очередь доиграла до конца (стоит на последнем треке, пауза): «Слушать» на экране подборки начинает
+    /// её заново (`ListenAction`), а не повторяет последний трек. Снимается при загрузке трека и при игре.
+    private(set) var queueEnded = false
     private(set) var isLoading = false
     /// Секунды.
     private(set) var position: Double = 0
@@ -72,7 +75,7 @@ final class PlaybackEngine {
         order.indices.contains(pos) ? tracks[order[pos]] : nil
     }
 
-    /// Предыдущие · сейчас · далее — для листа очереди.
+    /// Ранее · сейчас · далее — для листа очереди.
     var upNext: [Track] {
         order.indices.contains(pos) ? order[(pos + 1)...].map { tracks[$0] } : []
     }
@@ -95,6 +98,8 @@ final class PlaybackEngine {
         var onStandby: Bool
         var quality: String
         var hls: Bool
+        /// Играет из резервного сервиса — тост при переходе.
+        var via: FallbackVia?
     }
     @ObservationIgnored private var preloaded: Preloaded?
     @ObservationIgnored private var preloading = false
@@ -106,6 +111,12 @@ final class PlaybackEngine {
     /// Третья попытка: поток не открылся и со свежей ссылкой — берём попроще (mp3 вместо FLAC, SC без двойника).
     @ObservationIgnored private var safeRetried = false
     @ObservationIgnored private var safeNext = false
+    /// Четвёртая попытка: свой поток не открылся и попроще — тот же трек из резервного сервиса.
+    @ObservationIgnored private var brokenTried = false
+    @ObservationIgnored private var brokenNext = false
+    /// Сколько треков подряд не открылось: прошли всю очередь — стоп, а не круг мгновенных сбоев
+    /// (очередь из одних треков Spotify при «повторять всё»).
+    @ObservationIgnored private var failStreak = 0
     @ObservationIgnored private var itemStatus: AnyCancellable?
     @ObservationIgnored private var timeControls: [AnyCancellable] = []
     @ObservationIgnored private var timeObservers: [Any] = []
@@ -141,7 +152,7 @@ final class PlaybackEngine {
     @ObservationIgnored private let snapshotFile = PlaybackSnapshotFile()
     @ObservationIgnored private var lastSnapshot = Date.distantPast
     /// Последние применённые качество и «SoundCloud через Яндекс» — чтобы не дёргать MusicCore зря.
-    @ObservationIgnored private var appliedQuality: (kbps: Int, viaYandex: Bool)?
+    @ObservationIgnored private var appliedQuality: (kbps: Int, viaYandex: Bool, youTubeHigh: Bool, fallback: FallbackSettings)?
 
     init() {
         waveMode = WaveMode(rawValue: SettingsStore.shared.string("wave.mode")) ?? .own
@@ -159,6 +170,7 @@ final class PlaybackEngine {
                     MainActor.assumeIsolated {
                         guard let self, index == self.active else { return }
                         self.isPlaying = status != .paused
+                        if status != .paused { self.queueEnded = false }
                         self.nowPlaying.update()
                         self.updateFades()
                         if status == .paused { self.saveSnapshot(force: true) }
@@ -200,6 +212,8 @@ final class PlaybackEngine {
             play([list[index]], at: 0, context: context)
             return
         }
+        // пульт: играет ПК — список уходит туда, этот iPhone молчит
+        if RemoteControl.shared.forward(list, from: index) { return }
         // новая очередь — прошлая волна (если была) закончилась, её сессии исход уже не нужен
         finishPlay(skipped: true, toWave: false)
         isWave = false
@@ -296,6 +310,7 @@ final class PlaybackEngine {
 
     /// «Следующим» / «В очередь».
     func enqueue(_ track: Track, next: Bool) {
+        if RemoteControl.shared.forwardEnqueue(track, next: next) { return }
         tracks.append(track)
         order = QueueMath.enqueue(order: order, pos: pos, newIndex: tracks.count - 1, next: next)
         if next { dropPreload() }
@@ -339,7 +354,9 @@ final class PlaybackEngine {
         switch source {
         case let .file(link, _), let .hls(link, _): url = link
         }
-        let item = AVPlayerItem(asset: AVURLAsset(url: url))
+        // CDN VK отдаёт поток только клиенту с тем же User-Agent, что и у API (Kate Mobile)
+        let options: [String: Any] = VK.isCDN(url) ? [AVURLAssetHTTPUserAgentKey: VK.userAgent] : [:]
+        let item = AVPlayerItem(asset: AVURLAsset(url: url, options: options))
         item.audioTimePitchAlgorithm = .timeDomain
         // буфер вперёд — чтобы мобильная сеть не рвала звук
         item.preferredForwardBufferDuration = 30
@@ -348,14 +365,16 @@ final class PlaybackEngine {
 
     /// Скачанный (или из офлайн-кэша волны) — из файла, без сети; fresh (файл не открылся или ссылка
     /// протухла) — из сети.
-    private static func source(for track: Track, fresh: Bool, safe: Bool = false) async throws -> StreamSource {
+    /// Не играет со своего сервиса — тот же трек из резервного (`MusicCore.playable`), broken — свой
+    /// поток уже не открылся в плеере.
+    private static func source(for track: Track, fresh: Bool, safe: Bool = false, broken: Bool = false) async throws -> MusicCore.Playable {
         if !fresh, !safe, let local = DownloadStore.shared.localURL(track.ref) {
-            return .file(url: local, quality: DownloadStore.shared.quality(track.ref) ?? "Скачан")
+            return .init(source: .file(url: local, quality: DownloadStore.shared.quality(track.ref) ?? "Скачан"), via: nil)
         }
         if !fresh, !safe, let cached = WaveCache.shared.localURL(track.ref) {
-            return .file(url: cached, quality: WaveCache.shared.quality(track.ref) ?? "Офлайн")
+            return .init(source: .file(url: cached, quality: WaveCache.shared.quality(track.ref) ?? "Офлайн"), via: nil)
         }
-        return try await MusicCore.shared.stream(track.ref, fresh: fresh, safe: safe)
+        return try await MusicCore.shared.playable(track, fresh: fresh, safe: safe, broken: broken)
     }
 
     /// Трек есть на телефоне — сыграет без сети.
@@ -376,6 +395,7 @@ final class PlaybackEngine {
 
     /// Загрузить трек на позиции pos. fresh — ссылка протухла, взять новую.
     private func load(autoplay: Bool, fresh: Bool = false) {
+        queueEnded = false
         guard let wanted = current else { return }
         // волна без сети: этого трека на телефоне нет — сразу к ближайшему подкачанному
         if isWave, !fresh, !WaveCache.shared.isOnline, !Self.isLocal(wanted.ref),
@@ -388,10 +408,13 @@ final class PlaybackEngine {
         if !fresh {
             retried = false
             safeRetried = false
+            brokenTried = false
             resetListening()
         }
         let safe = safeNext
         safeNext = false
+        let broken = brokenNext
+        brokenNext = false
         // откуда начать: свежая ссылка — с того же места, восстановленный трек — с запомненной секунды
         let start = fresh ? position : (pendingStart?.ref == track.ref ? pendingStart?.seconds ?? 0 : 0)
         pendingStart = nil
@@ -411,8 +434,10 @@ final class PlaybackEngine {
         nowPlaying.update()
         Task {
             do {
-                let source = try await Self.source(for: track, fresh: fresh, safe: safe)
+                let playable = try await Self.source(for: track, fresh: fresh, safe: safe, broken: broken)
                 guard token == self.loadToken else { return }
+                let source = playable.source
+                if let toast = FallbackPlan.toast(playable.via) { self.message = toast }
                 let item = self.makeItem(source)
                 self.quality = Self.label(source)
                 self.isHLS = Self.streamsHLS(source)
@@ -450,6 +475,7 @@ final class PlaybackEngine {
                     guard let self, let item, item === self.currentItem else { return }
                     switch status {
                     case .readyToPlay:
+                        self.failStreak = 0
                         let seconds = item.duration.seconds
                         if seconds.isFinite, seconds > 0 { self.duration = seconds }
                         // эквалайзер и выравниватель — у файла (HLS их не пропускает)
@@ -464,6 +490,10 @@ final class PlaybackEngine {
                             self.safeRetried = true
                             self.safeNext = true
                             self.load(autoplay: true, fresh: true)
+                        } else if !self.brokenTried {
+                            self.brokenTried = true
+                            self.brokenNext = true
+                            self.load(autoplay: true, fresh: true)
                         } else {
                             self.failed(track, item.error ?? ServiceError(message: "поток не открылся"))
                         }
@@ -475,12 +505,21 @@ final class PlaybackEngine {
     }
 
     private func failed(_ track: Track, _ error: Error) {
-        message = "Не играет «\(track.title)»: \(error.localizedDescription)"
+        message = t("Не играет «{title}»: {reason}", ["title": track.title, "reason": t(error.localizedDescription)])
+        failStreak += 1
+        // не открылась вся очередь подряд — стоп
+        guard failStreak < order.count else {
+            failStreak = 0
+            pause()
+            return
+        }
         // пропустить трек; очередь кончилась — просто стоп
         if let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode == .one ? .off : repeatMode, manual: true),
            target != pos {
             pos = target
             load(autoplay: true)
+        } else {
+            failStreak = 0
         }
     }
 
@@ -531,8 +570,9 @@ final class PlaybackEngine {
         preloading = true
         Task {
             defer { if token == self.loadToken { self.preloading = false } }
-            guard let source = try? await Self.source(for: track, fresh: false),
+            guard let playable = try? await Self.source(for: track, fresh: false),
                   token == self.loadToken, self.currentItem === currentItem, self.preloaded == nil, self.outgoing == nil else { return }
+            let source = playable.source
             let item = self.makeItem(source)
             if overlap {
                 let deck = self.standby
@@ -544,7 +584,7 @@ final class PlaybackEngine {
                 self.player.insert(item, after: currentItem)
             }
             let hls = Self.streamsHLS(source)
-            self.preloaded = Preloaded(pos: target, item: item, onStandby: overlap, quality: Self.label(source), hls: hls)
+            self.preloaded = Preloaded(pos: target, item: item, onStandby: overlap, quality: Self.label(source), hls: hls, via: playable.via)
             if !hls {
                 let leveler = track.loudness == nil
                 self.preloadStatus = item.publisher(for: \.status)
@@ -585,9 +625,11 @@ final class PlaybackEngine {
         loadToken += 1
         retried = false
         safeRetried = false
+        brokenTried = false
         resetListening()
         position = 0
         quality = next.quality
+        if let toast = FallbackPlan.toast(next.via) { message = toast }
         isHLS = next.hls
         if let track = current {
             duration = Double(track.durationMs) / 1000
@@ -627,6 +669,7 @@ final class PlaybackEngine {
             } else {
                 player.pause()
                 seek(to: 0)
+                queueEnded = true
             }
             return
         }
@@ -652,6 +695,7 @@ final class PlaybackEngine {
             // очередь кончилась
             player.pause()
             seek(to: 0)
+            queueEnded = true
             return
         }
         pos = target
@@ -738,6 +782,7 @@ final class PlaybackEngine {
     /// «Моя волна»: сиды из Любимых и недавнего, похожие SoundCloud и Яндекса, учится на лайках и
     /// пропусках, без 👎, бесконечно догружается. Уже играет — пауза / продолжить.
     func playMyWave() {
+        if RemoteControl.shared.forwardWave() { return }
         if isWave, waveSeed == nil, current != nil {
             toggle()
             return
@@ -766,6 +811,8 @@ final class PlaybackEngine {
             defer { self.waveLoading = false }
             do {
                 let list = try await self.wave.start(seed: seed, mode: self.waveMode)
+                // волна по треку при пульте: список собран здесь, играет ПК
+                if RemoteControl.shared.forward(list, from: 0) { return }
                 if self.shuffle { self.shuffle = false }
                 self.play(list, at: 0, context: seed.map { "Волна по «\($0.title)»" } ?? "Моя волна")
                 self.isWave = true
@@ -881,9 +928,12 @@ final class PlaybackEngine {
         }
         let kbps = MusicCore.qualityKbps(AudioQuality.current(settings).rawValue)
         let viaYandex = settings.bool("audio.sc_via_yandex")
-        if appliedQuality?.kbps != kbps || appliedQuality?.viaYandex != viaYandex {
-            appliedQuality = (kbps, viaYandex)
-            Task { await MusicCore.shared.configure(maxKbps: kbps, soundCloudViaYandex: viaYandex) }
+        let youTubeHigh = YouTubeQuality.current(settings) == .high
+        let fallback = FallbackSettings(enabled: settings.bool(FallbackPlan.enabledKey), saved: settings.string(FallbackPlan.orderKey))
+        if appliedQuality?.kbps != kbps || appliedQuality?.viaYandex != viaYandex || appliedQuality?.youTubeHigh != youTubeHigh
+            || appliedQuality?.fallback != fallback {
+            appliedQuality = (kbps, viaYandex, youTubeHigh, fallback)
+            Task { await MusicCore.shared.configure(maxKbps: kbps, soundCloudViaYandex: viaYandex, youTubeHigh: youTubeHigh, fallback: fallback) }
         }
     }
 

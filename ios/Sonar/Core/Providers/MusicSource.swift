@@ -14,6 +14,38 @@ protocol MusicSource: Sendable {
     func search(_ query: String, in service: Service, limit: Int) async throws -> [Track]
 }
 
+/// Один клиент стримингового сервиса: SoundCloud, Яндекс, YouTube Music, VK, Spotify; новые сервисы реестра
+/// (`ServiceRegistry`) подключаются сюда же. `MusicCore` пока выбирает клиента сам, по строке сервиса.
+protocol MusicProvider: Sendable {
+    /// Строка реестра этого клиента.
+    static var serviceID: ServiceID { get }
+    /// Проверка ключей и аккаунт для экрана «Сервисы».
+    func account() async throws -> ServiceAccount
+    /// Исполнители, альбомы и плейлисты для вкладок поиска.
+    func searchMore(_ query: String, limit: Int) async throws -> (artists: [Artist], albums: [Album], playlists: [ServicePlaylist])
+}
+
+extension SoundCloud: MusicProvider {
+    static var serviceID: ServiceID { .sc }
+}
+
+extension Yandex: MusicProvider {
+    static var serviceID: ServiceID { .ym }
+}
+
+extension YouTube: MusicProvider {
+    static var serviceID: ServiceID { .yt }
+}
+
+extension VK: MusicProvider {
+    static var serviceID: ServiceID { .vk }
+}
+
+/// Spotify — только метаданные (на iPhone не играет, `stream` даёт «нужен резервный сервис»).
+extension Spotify: MusicProvider {
+    static var serviceID: ServiceID { .sp }
+}
+
 /// Параллельно позвать сервис для каждого элемента, ответы — в том же порядке; ошибка — nil.
 func concurrentMap<T: Sendable, R: Sendable>(_ items: [T], _ call: @escaping @Sendable (T) async throws -> R) async -> [R?] {
     await withTaskGroup(of: (Int, R?).self) { group in

@@ -46,9 +46,15 @@ struct Yandex: Sendable {
     }
 
     func account() async throws -> ServiceAccount {
-        let account = try await get("/account/status")["account"]
+        try Self.parseAccount(await get("/account/status"))
+    }
+
+    /// Аккаунт из ответа `/account/status` (`result`): имя, uid и Плюс (`plus.hasPlus`, нет поля — nil).
+    static func parseAccount(_ status: JSONValue) throws -> ServiceAccount {
+        let account = status["account"]
         guard let uid = account["uid"].idString else { throw ServiceError(message: "Яндекс Музыка: токен не подошёл") }
-        return ServiceAccount(name: account["displayName"].string ?? account["login"].string, avatarURL: nil, uid: uid)
+        return ServiceAccount(name: account["displayName"].string ?? account["login"].string, avatarURL: nil, uid: uid,
+                              premium: status["plus"]["hasPlus"].bool)
     }
 
     func search(_ query: String, limit: Int) async throws -> [Track] {
@@ -150,7 +156,9 @@ struct Yandex: Sendable {
             return .file(url: url, quality: "FLAC")
         }
         let infos = try await get("/tracks/\(id)/download-info")
-        guard let info = Self.pickMP3(infos, maxKbps: maxKbps) else { throw ServiceError(message: "Яндекс Музыка: нет mp3 для этого трека") }
+        guard let info = Self.pickMP3(infos, maxKbps: maxKbps) else {
+            throw Unplayable(reason: .unavailable, message: "Яндекс Музыка: нет mp3 для этого трека")
+        }
         guard let xmlURL = info["downloadInfoUrl"].string.flatMap(URL.init(string:)) else {
             throw ServiceError(message: "Яндекс Музыка: нет downloadInfoUrl")
         }
@@ -158,7 +166,12 @@ struct Yandex: Sendable {
         guard let link = Self.signedLink(xml).flatMap(URL.init(string:)) else {
             throw ServiceError(message: "Яндекс Музыка: не разобрал ссылку на файл")
         }
-        return .file(url: link, quality: "MP3 \(info["bitrateInKbps"].int ?? 0)")
+        let source = StreamSource.file(url: link, quality: "MP3 \(info["bitrateInKbps"].int ?? 0)")
+        // заблюренный / недоступный целиком трек: Яндекс отдаёт только 30-секундное превью
+        if Self.isPreview(info) {
+            throw Unplayable(reason: .preview, message: "Яндекс Музыка: доступно только превью", preview: source)
+        }
+        return source
     }
 
     // MARK: - Подписи и разбор
@@ -170,8 +183,17 @@ struct Yandex: Sendable {
         return String(Data(mac).base64EncodedString().dropLast())
     }
 
+    /// Вариант download-info — превью (отрывок), а не весь трек.
+    static func isPreview(_ info: JSONValue) -> Bool {
+        info["preview"].bool == true
+    }
+
+    /// Лучший mp3 не выше `maxKbps` (нет такого — самый лёгкий). Полный трек важнее превью: превью
+    /// берётся, только если ничего другого нет.
     static func pickMP3(_ infos: JSONValue, maxKbps: Int) -> JSONValue? {
-        let mp3 = infos.items.filter { $0["codec"].string == "mp3" }
+        let all = infos.items.filter { $0["codec"].string == "mp3" }
+        let full = all.filter { !isPreview($0) }
+        let mp3 = full.isEmpty ? all : full
         let kbps = { (info: JSONValue) in info["bitrateInKbps"].int ?? 0 }
         return mp3.filter { kbps($0) <= maxKbps }.max { kbps($0) < kbps($1) } ?? mp3.min { kbps($0) < kbps($1) }
     }

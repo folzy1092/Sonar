@@ -28,6 +28,7 @@ struct HomeView: View {
                     .padding(.top, 4)
                 waveTitle
                     .padding(.top, 6)
+                RecapInvite()
                 mixes
                     .padding(.top, 34)
                 recent

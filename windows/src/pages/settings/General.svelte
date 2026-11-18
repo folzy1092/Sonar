@@ -13,6 +13,7 @@
   import AboutBlock from './AboutBlock.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { api } from '../../lib/api'
+  import { ACCOUNT_SERVICES, type ServiceKey } from '../../lib/services'
   import { wave } from '../../player/my-wave.svelte'
 
   // автозапуск — реальное состояние из реестра Windows, а не только настройка
@@ -24,7 +25,7 @@
       .catch(() => {})
   })
 
-  function setPlatform(v: 'soundcloud' | 'yandex') {
+  function setPlatform(v: ServiceKey) {
     settings.set('general.platform', v)
     // порция волны подбиралась под старую платформу
     void wave.prefetch(true)
@@ -61,14 +62,11 @@
   title={t('Платформа')}
   hint={t('Откуда главная берёт волну и рекомендации')}
   value={settings.get('general.platform')}
-  options={[
-    { id: 'soundcloud', label: 'SoundCloud' },
-    { id: 'yandex', label: t('Яндекс') },
-  ]}
+  options={ACCOUNT_SERVICES.filter((s) => s.caps.similar).map((s) => ({ id: s.key, label: s.id === 'ym' ? t('Яндекс') : t(s.name) }))}
   onchange={setPlatform}
 />
 
-<Group title={t('Медиатека')}>
+<Group title={t('Медиатека')} hint={t('Плейлисты и лайки на этом компьютере')}>
   <Choice
     title={t('Добавление')}
     hint={t('Куда добавлять новые треки в плейлистах')}
@@ -89,7 +87,7 @@
   </button>
 </Group>
 
-<Group title={t('Запуск')}>
+<Group title={t('Запуск')} hint={t('Что делает Sonar при входе в Windows, по крестику и в фоне')}>
   <Switch title={t('Автозапуск')} hint={t('Открывать Sonar при входе в систему')} on={autostart} onchange={setAutostart} />
   <Switch title={t('Сворачивать в трей')} hint={t('Крестик прячет окно, музыка играет дальше')} on={settings.get('system.tray')} onchange={setTray} />
   <Choice

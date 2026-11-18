@@ -1,7 +1,8 @@
 // Настройки (docs/SETTINGS.md) одним хранилищем: читаются один раз при запуске (`all_settings`),
 // меняются сразу в интерфейсе и пишутся в локальную базу. Значения по умолчанию — из каталога.
 import { api } from './api'
-import type { Surface } from '../theme/palette'
+import type { CoverStrength, Surface } from '../theme/palette'
+import type { ServiceId, ServiceKey } from './services'
 import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook, ProgressLook, TitleStyle } from '../theme/style'
 
 export type MiniStyle = 'off' | 'full' | 'rounded' | 'hybrid' | 'deck'
@@ -15,7 +16,7 @@ export const MINI_PRESETS: Record<Exclude<MiniStyle, 'off'>, { bg: 'theme' | 'co
 }
 
 export const DEFAULTS = {
-  'general.platform': 'soundcloud' as 'soundcloud' | 'yandex',
+  'general.platform': 'soundcloud' as ServiceKey,
   /** Язык интерфейса (lib/i18n.svelte.ts), меняется на лету. */
   'general.language': 'ru' as 'ru' | 'en' | 'uk',
   'general.restore': 'queue' as 'none' | 'track' | 'queue',
@@ -29,6 +30,8 @@ export const DEFAULTS = {
   'profile.username': '' as string,
   'profile.avatar': '' as string,
   'appearance.cover_theme': true,
+  /** Насколько тема идёт за обложкой: поверхности темнее / светлее (palette.ts COVER_STRENGTH). */
+  'appearance.cover_strength': 'medium' as CoverStrength,
   /** Прозрачность окна (Mica / Acrylic под окном, glass.rs). */
   'appearance.glass': false,
   /** Непрозрачность фона окна и карточек при прозрачности, % (100 — как без неё). */
@@ -80,7 +83,11 @@ export const DEFAULTS = {
   'storage.cache_limit_mb': 2048 as number,
   /** Волна офлайн: следующие 15 треков «Моей волны» заранее скачиваются в кэш треков. */
   'storage.wave_offline': false,
+  /** Папки с музыкой на этом компьютере (local/, «На этом компьютере» в Медиатеке). */
+  'storage.music_folders': [] as string[],
   'audio.output_device': '' as string,
+  /** YouTube Music: обычное — AAC 128 кбит/с, высокое — Opus 160 кбит/с (services/yt.rs, тот же ключ на iPhone). */
+  'audio.yt_quality': 'high' as 'normal' | 'high',
   /** Нормализация громкости (player/leveler.ts) — выравнивание тихих и громких треков. */
   'audio.normalize': false,
   /** Кроссфейд, секунды (0 — выкл): следующий трек нарастает, пока текущий затухает. */
@@ -89,6 +96,10 @@ export const DEFAULTS = {
   'audio.gapless': true,
   /** Тише во время звонков: пока другое приложение пишет с микрофона, музыка на 20 % (calls.rs). */
   'audio.duck_calls': true,
+  /** Резервный сервис: свой сервис трек не играет — тот же трек из другого (services/fallback.rs). */
+  'audio.fallback': true,
+  /** Порядок резервных сервисов (id реестра); пусто — порядок реестра (lib/fallback.ts). */
+  'audio.fallback_order': [] as ServiceId[],
   'player.cover_position': 'left' as 'left' | 'right',
   'queue.show': true,
   /** Предпросмотр следующего трека: карточка «Дальше» за 10 с до конца трека. */
@@ -141,6 +152,8 @@ export const DEFAULTS = {
   'system.autostart': true,
   /** Горячие клавиши по всей системе (hotkeys.rs) — выключены, пока не включишь. */
   'hotkeys.enabled': false,
+  /** Пульт с iPhone по Wi-Fi (remote/): сервер в локальной сети и объявление `_sonar._tcp`. Только на этом устройстве. */
+  'remote.enabled': false,
   /** Действие → сочетание (коды KeyboardEvent.code); пустая строка — без клавиши. */
   'hotkeys.map': {
     toggle: 'Ctrl+Alt+Space',
@@ -151,9 +164,13 @@ export const DEFAULTS = {
     volume_down: 'Ctrl+Alt+ArrowDown',
     window: 'Ctrl+Alt+KeyS',
   } as Record<string, string>,
+  /** Быстрое окно (Ctrl+K) — только внутри окна Sonar, от `hotkeys.enabled` не зависит; пусто — выключено. */
+  'hotkeys.quick': 'Ctrl+KeyK',
   'system.tray': true,
   'system.power_saving': 'background' as 'off' | 'minimized' | 'background',
   'wave.mode': 'own' as 'own' | 'hard' | 'calm' | 'sad' | 'fun' | 'new',
+  /** Итоги, которые уже открывали или закрыли на Главной: id через запятую (`month-2026-11,year-2026`), до 24 последних; пусто — никакие. */
+  'stats.recap_seen': '' as string,
   'obs.size': 'standard' as 'standard' | 'compact',
   'obs.hide_paused': true,
   /** Токен ссылки плашки OBS; пусто — плашка выключена (первый создаёт Rust при запуске). */

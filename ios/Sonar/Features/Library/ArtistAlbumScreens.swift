@@ -22,7 +22,10 @@ private struct PageHeader: View {
     @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
 
-    private var isThisPlaying: Bool { engine.isPlaying && engine.contextTitle == context && !engine.isWave }
+    /// «Слушать» ⇄ «Пауза»: играет эта подборка — пауза, на паузе — продолжить с места.
+    private var listen: ListenAction {
+        .resolve(page: context, context: engine.contextTitle, isWave: engine.isWave, hasCurrent: engine.current != nil, isPlaying: engine.isPlaying, ended: engine.queueEnded)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -66,10 +69,12 @@ private struct PageHeader: View {
                 .lineLimit(1)
                 .padding(.top, 2)
             HStack(spacing: 12) {
-                AccentCapsuleButton(icon: isThisPlaying ? .pause : .play, title: isThisPlaying ? "Пауза" : "Слушать") {
-                    if engine.contextTitle == context, !engine.isWave, engine.current != nil {
-                        engine.toggle()
-                    } else if !tracks.isEmpty {
+                ListenCapsuleButton(playing: listen.showsPause) {
+                    switch listen {
+                    case .pause: engine.pause()
+                    case .resume: engine.resume()
+                    case .start:
+                        guard !tracks.isEmpty else { return }
                         if engine.shuffle { engine.toggleShuffle() }
                         engine.play(tracks, at: 0, context: context)
                     }
@@ -187,7 +192,7 @@ struct ArtistScreen: View {
     }
 
     private var followers: String {
-        guard let count = page?.artist.followers, count > 0 else { return ref.hasPrefix("sc") ? "SoundCloud" : "Яндекс Музыка" }
+        guard let count = page?.artist.followers, count > 0 else { return Service(ref: ref)?.title ?? "Яндекс Музыка" }
         return "\(count.formatted()) " + ruPlural(count, "слушатель", "слушателя", "слушателей")
     }
 }

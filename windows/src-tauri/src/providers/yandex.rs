@@ -2,6 +2,7 @@
 //! server/tools/check_ym.py (проверено с ПК владельца 2026-11-12). Запросы — с IP компьютера
 //! (вариант 3 из SPEC §3.7а), не чаще, чем просит пользователь.
 
+use super::unplayable::Unplayable;
 use super::{http_error, Account, Album, AlbumRef, Artist, ArtistRef, ServicePlaylist, Source, Track};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -75,12 +76,10 @@ impl Yandex<'_> {
 
   pub async fn account(&self) -> Result<Account> {
     let st = self.get(&format!("{API}/account/status"), &[]).await?;
-    let acc = &st["account"];
-    let name = acc["displayName"].as_str().or(acc["login"].as_str()).map(str::to_owned);
-    if acc["uid"].is_null() {
+    if st["account"]["uid"].is_null() {
       return Err(anyhow!("Яндекс Музыка: токен не подошёл"));
     }
-    Ok(Account { name, avatar_url: None, uid: id_str(&acc["uid"]) })
+    Ok(account_from_status(&st))
   }
 
   /// Исполнители, альбомы и плейлисты для вкладок поиска (один запрос `type=all`).
@@ -275,7 +274,7 @@ impl Yandex<'_> {
       }
     }
     let infos = self.get(&format!("{API}/tracks/{id}/download-info"), &[]).await?;
-    let info = pick_mp3(&infos, max_kbps).ok_or_else(|| anyhow!("Яндекс Музыка: нет mp3 для этого трека"))?;
+    let info = pick_mp3(&infos, max_kbps).ok_or_else(|| super::unplayable::unavailable("Яндекс Музыка: нет mp3 для этого трека"))?;
     let xml_url = info["downloadInfoUrl"].as_str().ok_or_else(|| anyhow!("Яндекс Музыка: нет downloadInfoUrl"))?;
     let r = self.req(xml_url).send().await?;
     if !r.status().is_success() {
@@ -284,12 +283,26 @@ impl Yandex<'_> {
     let xml = r.text().await?;
     let url = signed_link(&xml).ok_or_else(|| anyhow!("Яндекс Музыка: не разобрал ссылку на файл"))?;
     let quality = format!("MP3 {}", info["bitrateInKbps"].as_u64().unwrap_or(0));
-    Ok(Source::File { url, quality })
+    let src = Source::File { url, quality };
+    // заблюренный / недоступный целиком трек: Яндекс отдаёт только 30-секундное превью
+    if is_preview(info) {
+      return Err(Unplayable::preview("Яндекс Музыка: доступно только превью", src).into());
+    }
+    Ok(src)
   }
 }
 
+/// Вариант download-info — превью (отрывок), а не весь трек.
+pub fn is_preview(info: &Value) -> bool {
+  info["preview"].as_bool() == Some(true)
+}
+
+/// Лучший mp3 не выше `max_kbps` (нет такого — самый лёгкий). Полный трек важнее превью:
+/// превью берётся, только если ничего другого нет.
 pub fn pick_mp3(infos: &Value, max_kbps: u32) -> Option<&Value> {
-  let mp3: Vec<&Value> = infos.as_array()?.iter().filter(|i| i["codec"] == "mp3").collect();
+  let all: Vec<&Value> = infos.as_array()?.iter().filter(|i| i["codec"] == "mp3").collect();
+  let full: Vec<&Value> = all.iter().copied().filter(|i| !is_preview(i)).collect();
+  let mp3 = if full.is_empty() { all } else { full };
   let kbps = |i: &Value| i["bitrateInKbps"].as_u64().unwrap_or(0) as u32;
   mp3
     .iter()
@@ -311,6 +324,13 @@ pub fn signed_link(xml: &str) -> Option<String> {
   let (host, path, ts, s) = (tag(xml, "host")?, tag(xml, "path")?, tag(xml, "ts")?, tag(xml, "s")?);
   let sign = md5::compute(format!("{SALT}{}{s}", path.get(1..)?));
   Some(format!("https://{host}/get-mp3/{sign:x}/{ts}{path}"))
+}
+
+/// Ответ `/account/status` → аккаунт: имя, uid и есть ли Плюс (`plus.hasPlus`; нет поля — None).
+pub(crate) fn account_from_status(st: &Value) -> Account {
+  let acc = &st["account"];
+  let name = acc["displayName"].as_str().or(acc["login"].as_str()).map(str::to_owned);
+  Account { name, avatar_url: None, uid: id_str(&acc["uid"]), premium: st["plus"]["hasPlus"].as_bool() }
 }
 
 fn id_str(v: &Value) -> Option<String> {
@@ -413,6 +433,30 @@ pub fn track_from_json(j: &Value) -> Option<Track> {
 mod tests {
   use super::*;
   use serde_json::json;
+
+  #[test]
+  fn full_track_beats_preview() {
+    let infos = json!([
+      {"codec": "mp3", "bitrateInKbps": 320, "preview": true},
+      {"codec": "mp3", "bitrateInKbps": 192, "preview": false},
+    ]);
+    let got = pick_mp3(&infos, 320).unwrap();
+    assert!(!is_preview(got));
+    assert_eq!(got["bitrateInKbps"], 192);
+    let only = json!([{"codec": "mp3", "bitrateInKbps": 128, "preview": true}]);
+    assert!(is_preview(pick_mp3(&only, 320).unwrap()));
+  }
+
+  #[test]
+  fn account_from_status_premium() {
+    let st = json!({"account": {"uid": 42, "login": "anna", "displayName": "Анна"}, "plus": {"hasPlus": true}});
+    let a = account_from_status(&st);
+    assert_eq!((a.name.as_deref(), a.uid.as_deref(), a.avatar_url, a.premium), (Some("Анна"), Some("42"), None, Some(true)));
+    let no = json!({"account": {"uid": "42", "login": "anna"}, "plus": {"hasPlus": false}});
+    assert_eq!((account_from_status(&no).name.as_deref(), account_from_status(&no).premium), (Some("anna"), Some(false)));
+    let missing = json!({"account": {"uid": 42, "login": "anna"}});
+    assert_eq!(account_from_status(&missing).premium, None);
+  }
 
   #[test]
   fn signs_link_like_library() {

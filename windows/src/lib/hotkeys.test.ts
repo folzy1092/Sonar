@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { comboFrom, comboLabel } from './hotkeys-core'
+import { comboFrom, comboLabel, withCombo, withoutCombo } from './hotkeys-core'
+import { DEFAULTS } from './settings.svelte'
 
 type Mods = Partial<Record<'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey', boolean>>
 const press = (code: string, key: string, mods: Mods = {}) => ({ ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, ...mods, code, key })
@@ -17,5 +18,24 @@ describe('горячие клавиши', () => {
     expect(comboLabel('Ctrl+Alt+KeyL')).toEqual(['Ctrl', 'Alt', 'L'])
     expect(comboLabel('Ctrl+Alt+ArrowUp')).toEqual(['Ctrl', 'Alt', '↑'])
     expect(comboLabel('Alt+Digit1')).toEqual(['Alt', '1'])
+  })
+  it('одно сочетание — одно действие: у других снимается', () => {
+    const map = { toggle: 'Ctrl+KeyK', next: 'Ctrl+Alt+KeyN' }
+    expect(withCombo(map, 'next', 'Ctrl+KeyK')).toEqual({ toggle: '', next: 'Ctrl+KeyK' })
+    expect(withoutCombo(map, 'Ctrl+KeyK')).toEqual({ toggle: '', next: 'Ctrl+Alt+KeyN' })
+    expect(map.toggle).toBe('Ctrl+KeyK')
+  })
+  it('пустое сочетание ничего не снимает', () => {
+    const map = { toggle: '', next: 'Ctrl+Alt+KeyN' }
+    expect(withoutCombo(map, '')).toEqual(map)
+    expect(withCombo(map, 'next', '')).toEqual({ toggle: '', next: '' })
+  })
+  it('«Вернуть по умолчанию» не ставит команде сочетание быстрого окна', () => {
+    const quick = 'Ctrl+Alt+KeyS'
+    const map = withoutCombo(DEFAULTS['hotkeys.map'], quick)
+    expect(map.window).toBe('')
+    expect(Object.values(map)).not.toContain(quick)
+    expect(map.toggle).toBe(DEFAULTS['hotkeys.map'].toggle)
+    expect(DEFAULTS['hotkeys.map'].window).toBe(quick)
   })
 })

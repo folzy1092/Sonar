@@ -119,7 +119,7 @@ struct SoundCloud: Sendable {
     /// JSON трека → ссылка на поток (вариант выбирает `pickTranscoding`).
     func stream(_ track: JSONValue) async throws -> StreamSource {
         guard let transcoding = Self.pickTranscoding(track) else {
-            throw ServiceError(message: "SoundCloud: у трека нет доступного потока")
+            throw Unplayable(reason: .unavailable, message: "SoundCloud: у трека нет доступного потока")
         }
         return try await stream(track, transcoding: transcoding)
     }
@@ -215,6 +215,11 @@ struct SoundCloud: Sendable {
             .max { $0.score < $1.score }?.t
     }
 
+    /// Играть можно только отрывок: `policy: SNIP` (без Go+) или лучший вариант потока — обрезанный.
+    static func isSnippet(_ track: JSONValue) -> Bool {
+        track["policy"].string == "SNIP" || pickTranscoding(track)?["snipped"].bool == true
+    }
+
     /// Прямой mp3 файлом (`progressive`, не превью) — его можно скачать; у многих треков его нет, только HLS.
     static func pickProgressive(_ track: JSONValue) -> JSONValue? {
         track["media"]["transcodings"].items.first { t in
@@ -297,4 +302,6 @@ struct ServiceAccount: Codable, Equatable, Sendable {
     var avatarURL: String?
     /// id аккаунта в сервисе — для его плейлистов и лайков.
     var uid: String?
+    /// Подписка (Яндекс Плюс); nil — сервис не говорит. Старый JSON в Keychain без поля читается как nil.
+    var premium: Bool? = nil
 }
