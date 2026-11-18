@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { visible } from './fx-layer'
+import { FX_SKIP, skipped, visible } from './fx-layer'
 
 // Без DOM: элемент и предки — простые объекты с тем, что читает `visible` (lib/fx-layer.ts).
 interface FakeNode {
@@ -8,6 +8,7 @@ interface FakeNode {
   getAnimations: () => Animation[]
   getBoundingClientRect: () => DOMRect
   style: { transform: string }
+  closest: (selector: string) => Element | null
 }
 
 function node(parent: FakeNode | null, transform = 'none', animations: Animation[] = []): FakeNode {
@@ -17,6 +18,7 @@ function node(parent: FakeNode | null, transform = 'none', animations: Animation
     getAnimations: () => animations,
     getBoundingClientRect: () => ({ left: 100, top: 100, right: 132, bottom: 132, width: 32, height: 32 }) as DOMRect,
     style: { transform },
+    closest: () => null,
   }
 }
 
@@ -55,5 +57,30 @@ describe('visible', () => {
   it('элемент за пределами окна — не рисуется ни в каком режиме', () => {
     const off = { ...node(null), getBoundingClientRect: () => ({ left: 0, top: 900, right: 32, bottom: 932, width: 32, height: 32 }) as DOMRect }
     expect(visible(off as unknown as Element)).toBeNull()
+  })
+})
+
+/** Заглушка элемента: `closest` находит предка, только если он помечен `data-fx-skip`. */
+const skipNode = (insideSkip: boolean) => ({
+  closest: (selector: string) => (selector === FX_SKIP && insideSkip ? ({} as Element) : null),
+})
+
+describe('слой эффектов: пропуск живых примеров и закрытой шторки', () => {
+  it('элемент внутри data-fx-skip пропускается — кольца от превью не рисуются', () => {
+    // Arrange
+    const inPreview = skipNode(true)
+    // Act
+    const result = skipped(inPreview)
+    // Assert
+    expect(result).toBe(true)
+  })
+
+  it('обычный элемент окна не пропускается', () => {
+    expect(skipped(skipNode(false))).toBe(false)
+  })
+
+  it('visible: элемент в data-fx-skip не рисуется даже на виду', () => {
+    const el = { ...node(null), closest: (sel: string) => (sel === FX_SKIP ? ({} as Element) : null) }
+    expect(visible(el as unknown as Element)).toBeNull()
   })
 })

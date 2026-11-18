@@ -1,9 +1,18 @@
 <script lang="ts">
   import { hscroll } from '../lib/hscroll'
   import { edges } from '../lib/edges'
-  // Панель настроек слева (reference/pc/Screenshot_30..32): вкладки разделов сверху, под ними
-  // капсулы подразделов (docs/PLATFORMS.md «Настройки — одинаковые разделы»). Панель выезжает
-  // слева одновременно с уходом окна вглубь (App.svelte) — как в Dotify.
+  // Панель настроек (reference/pc/Screenshot_30..32): сверху поиск по настройкам, вкладки разделов,
+  // под ними капсулы подразделов (docs/PLATFORMS.md «Настройки — одинаковые разделы»). Вкладки окна
+  // сбоку — панель выезжает с той же стороны, а окно уходит вглубь (App.svelte), как в Dotify; сверху
+  // или снизу — панель шторкой опускается (поднимается), окно стоит под вуалью (NEXT_PROMPT «Этап 0» п. 7).
+  // Ширина — во всё окно с полями, содержимое в 1–2 колонки по ширине (п. 6).
+  import { tick } from 'svelte'
+  import SettingsSearch from '../components/settings/SettingsSearch.svelte'
+  import SearchResults from '../components/settings/SearchResults.svelte'
+  import { SUB_LEADS, type CatalogEntry } from '../lib/settings-catalog'
+  import { jumpToSetting } from '../lib/settings-jump'
+  import { SHUTTER_MS, isShutter, openMode, springEasing, veilClip, type Box } from '../lib/settings-open'
+  import { settings } from '../lib/settings.svelte'
   import Icon from '../components/Icon.svelte'
   import Services from './settings/Services.svelte'
   import Stats from './settings/Stats.svelte'
@@ -47,15 +56,86 @@
   }
   const subs = $derived(SUBS[settingsPanel.tab])
   const sub = $derived(settingsPanel.sub)
+  /** Страницы из строк настроек — в широкой панели раскладываются в две колонки. */
+  const COLUMN_SUBS = ['look', 'tabs', 'audio', 'view', 'queue', 'mini', 'general']
+
+  let query = $state('')
+  const searching = $derived(query.trim().length > 0)
 
   $effect(() => {
     settingsPanel.tab
     settingsPanel.sub
     scroller?.scrollTo({ top: 0 })
   })
+
+  /** Пункт из поиска: открыть его раздел, дождаться страницы и докрутить до самой настройки. */
+  async function pick(entry: CatalogEntry) {
+    query = ''
+    settingsPanel.show(entry.tab, entry.sub)
+    await tick()
+    requestAnimationFrame(() => scroller && void jumpToSetting(scroller, t(entry.title)))
+  }
+
+  // Шторка: вкладки окна сверху или снизу (плавающие — как слева)
+  const shutter = $derived(isShutter(openMode(settings.get('tabs.position'), settings.get('tabs.style'))))
+  const easing = springEasing()
+  /** Где панель вкладок окна: шторка выходит из-под неё, вуаль её не затемняет. */
+  let rail = $state<Box | null>(null)
+
+  $effect(() => {
+    settingsPanel.open
+    settings.get('tabs.position')
+    if (!shutter) return
+    const el = document.querySelector<HTMLElement>('.shell .rail')
+    if (!el) return
+    const measure = () => {
+      const r = el.getBoundingClientRect()
+      rail = { left: r.left, top: r.top, right: r.right, bottom: r.bottom }
+    }
+    const raf = requestAnimationFrame(measure)
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    window.addEventListener('resize', measure)
+    return () => {
+      cancelAnimationFrame(raf)
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  })
+
+  const edgeTop = $derived(rail && settings.get('tabs.position') === 'top' ? rail.bottom : 0)
+  const edgeBottom = $derived(rail && settings.get('tabs.position') === 'bottom' ? window.innerHeight - rail.top : 0)
 </script>
 
-<aside class="panel" class:open={settingsPanel.open} inert={!settingsPanel.open} aria-label={t('Настройки')}>
+{#if shutter}
+  <!-- вуаль над окном: оно не двигается, только темнеет и чуть размывается; клик — закрыть -->
+  <button
+    class="veil"
+    class:open={settingsPanel.open}
+    tabindex="-1"
+    aria-label={t('Закрыть настройки')}
+    style:clip-path={veilClip(rail)}
+    onclick={() => settingsPanel.close()}
+  ></button>
+{/if}
+
+<aside
+  class="panel"
+  class:open={settingsPanel.open}
+  class:shutter
+  class:from-top={shutter && settings.get('tabs.position') === 'top'}
+  class:from-bottom={shutter && settings.get('tabs.position') === 'bottom'}
+  style:--edge-top="{edgeTop}px"
+  style:--edge-bottom="{edgeBottom}px"
+  style:--shutter-t="{SHUTTER_MS}ms"
+  style:--shutter-ease={easing}
+  inert={!settingsPanel.open}
+  data-fx-skip={settingsPanel.open ? undefined : ''}
+  aria-label={t('Настройки')}
+>
+  <div class="find-row" data-tauri-drag-region>
+    <SettingsSearch bind:query />
+  </div>
   <div class="tabs-wrap">
   <nav
     class="tabs"
@@ -69,6 +149,7 @@
       <button
         class:on={settingsPanel.tab === tb.id}
         onclick={(e) => {
+          query = ''
           settingsPanel.show(tb.id)
           e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
         }}>{t(tb.title)}</button
@@ -83,7 +164,7 @@
     </button>
   </div>
 
-  {#if subs.length > 1}
+  {#if subs.length > 1 && !searching}
     {#key settingsPanel.tab}
       <div class="subs tab-in" use:indicator={{ key: sub, kind: 'pill' }} use:hscroll={{ wheel: true }} use:edges>
         {#each subs as s (s.id)}
@@ -94,6 +175,7 @@
             disabled={s.soon || s.lock}
             title={s.lock ? t('{title} — в разработке', { title: t(s.title) }) : s.soon ? t('{title} — скоро, вместе с сервером', { title: t(s.title) }) : t(s.title)}
             onclick={(e) => {
+              query = ''
               settingsPanel.sub = s.id
               e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
             }}
@@ -106,41 +188,48 @@
   {/if}
 
   <div class="scroll" bind:this={scroller}>
-    {#key `${settingsPanel.tab}:${sub}`}
-      <div class="tab-in">
-        {#if sub === 'stats'}
-          <Stats />
-        {:else if sub === 'profile'}
-          <Profile />
-        {:else if sub === 'style'}
-          <Style />
-        {:else if sub === 'look'}
-          <Look />
-        {:else if sub === 'tabs'}
-          <TabsView />
-        {:else if sub === 'queue'}
-          <Queue />
-        {:else if sub === 'mini'}
-          <Mini />
-        {:else if sub === 'audio'}
-          <Audio />
-        {:else if sub === 'view'}
-          <PlayerView />
-        {:else if sub === 'services'}
-          <Services />
-        {:else if sub === 'apps'}
-          <Integrations />
-        {:else if sub === 'general'}
-          <General />
-        {:else if sub === 'hotkeys'}
-          <Hotkeys />
-        {:else if sub === 'storage'}
-          <Storage />
-        {:else if sub === 'update'}
-          <Update />
-        {/if}
-      </div>
-    {/key}
+    {#if searching}
+      <SearchResults query={query.trim()} onpick={pick} />
+    {:else}
+      {#key `${settingsPanel.tab}:${sub}`}
+        <div class="tab-in page">
+          {#if SUB_LEADS[sub]}<p class="lead">{t(SUB_LEADS[sub])}</p>{/if}
+          <div class="body" class:cols={COLUMN_SUBS.includes(sub)}>
+            {#if sub === 'stats'}
+              <Stats />
+            {:else if sub === 'profile'}
+              <Profile />
+            {:else if sub === 'style'}
+              <Style />
+            {:else if sub === 'look'}
+              <Look />
+            {:else if sub === 'tabs'}
+              <TabsView />
+            {:else if sub === 'queue'}
+              <Queue />
+            {:else if sub === 'mini'}
+              <Mini />
+            {:else if sub === 'audio'}
+              <Audio />
+            {:else if sub === 'view'}
+              <PlayerView />
+            {:else if sub === 'services'}
+              <Services />
+            {:else if sub === 'apps'}
+              <Integrations />
+            {:else if sub === 'general'}
+              <General />
+            {:else if sub === 'hotkeys'}
+              <Hotkeys />
+            {:else if sub === 'storage'}
+              <Storage />
+            {:else if sub === 'update'}
+              <Update />
+            {/if}
+          </div>
+        </div>
+      {/key}
+    {/if}
   </div>
 </aside>
 
@@ -162,6 +251,69 @@
   .panel.open {
     transform: none;
   }
+  /* Шторка (вкладки окна сверху или снизу): панель во всю ширину с полями выходит из-под панели
+     вкладок — сверху вниз или снизу вверх, пружиной ~350 мс. Окно не двигается, лежит под вуалью. */
+  .panel.shutter {
+    --shutter-r: var(--radius-xl);
+    z-index: 40;
+    inset: calc(var(--edge-top) + var(--gap)) var(--gap) calc(var(--edge-bottom) + var(--gap));
+    width: auto;
+    border: 1px solid var(--card-line);
+    border-radius: var(--shutter-r);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+    clip-path: inset(0 round var(--shutter-r));
+    transform: none;
+    opacity: 1;
+    transition:
+      clip-path var(--shutter-t) var(--shutter-ease),
+      transform var(--shutter-t) var(--shutter-ease),
+      opacity calc(var(--shutter-t) * 0.6) var(--ease);
+    will-change: clip-path, transform;
+  }
+  .panel.shutter:not(.open) {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .panel.from-top:not(.open) {
+    clip-path: inset(0 0 100% 0 round var(--shutter-r));
+    transform: translateY(-16px);
+  }
+  .panel.from-bottom:not(.open) {
+    clip-path: inset(100% 0 0 0 round var(--shutter-r));
+    transform: translateY(16px);
+  }
+  /* «Меньше движения» — шторка только проявляется, без сдвига и раскрытия */
+  @media (prefers-reduced-motion: reduce) {
+    .panel.shutter:not(.open) {
+      clip-path: inset(0 round var(--shutter-r));
+      transform: none;
+    }
+    .veil {
+      backdrop-filter: none;
+    }
+  }
+  :global(:root.no-motion) .panel.shutter:not(.open) {
+    clip-path: inset(0 round var(--shutter-r));
+    transform: none;
+  }
+  :global(:root.no-motion) .veil {
+    backdrop-filter: none;
+  }
+  .veil {
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(3px) saturate(0.9);
+    opacity: 0;
+    pointer-events: none;
+    cursor: pointer;
+    transition: opacity var(--shutter-t, 350ms) var(--ease);
+  }
+  .veil.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
   /* панель вкладок справа — настройки зеркально выезжают справа (App.svelte, :root.side-right) */
   :global(:root.side-right) .panel {
     inset: 0 0 0 auto;
@@ -171,6 +323,11 @@
   }
   :global(:root.side-right) .panel.open {
     transform: none;
+  }
+  .find-row {
+    display: flex;
+    justify-content: center;
+    padding: 14px 16px 2px;
   }
   .tabs-wrap {
     position: relative;
@@ -280,6 +437,37 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 16px 16px 32px;
+    /* поля растут с шириной окна; колонки считаются от ширины самой панели (container), а не окна */
+    padding: 16px clamp(16px, 3vw, 48px) 32px;
+    container-type: inline-size;
+  }
+  .page {
+    max-width: 1240px;
+    margin: 0 auto;
+  }
+  .lead {
+    margin: 0 0 10px;
+    color: var(--text-3);
+    font-size: calc(13px * var(--fs, 1));
+  }
+  /* две колонки в широкой панели; блок целиком в одной колонке, «Ещё настройки» — на всю ширину */
+  @container (min-width: 860px) {
+    .cols,
+    .cols :global([data-more] .inner) {
+      column-count: 2;
+      column-gap: 48px;
+    }
+  }
+  .cols > :global(*),
+  .cols :global([data-more] .inner > *) {
+    break-inside: avoid;
+  }
+  /* найденный поиском пункт коротко подсвечен (lib/settings-jump.ts) */
+  .scroll :global(.flash) {
+    border-radius: 12px;
+    transition: background-color 0.6s var(--ease) !important;
+  }
+  .scroll :global(.flash.found) {
+    background-color: color-mix(in srgb, var(--accent) 16%, transparent);
   }
 </style>

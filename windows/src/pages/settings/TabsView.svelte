@@ -1,54 +1,58 @@
 <script lang="ts">
   // Интерфейс → Вкладки по pc/Screenshot_31: где панель вкладок (слева / справа / сверху / снизу), её
   // стиль, подстройка цвета под страницу и автоскрытие. Сетка окна — App.svelte, вид панели — Rail.svelte.
-  import Choice from '../../components/settings/Choice.svelte'
-  import Cards from '../../components/settings/Cards.svelte'
+  // Позиция и стиль — крупные плитки со схемой окна (NEXT_PROMPT «Этап 0» п. 5), редкое — в «Ещё».
+  import Tiles from '../../components/settings/Tiles.svelte'
   import Switch from '../../components/settings/Switch.svelte'
-  import Divider from '../../components/settings/Divider.svelte'
+  import More from '../../components/settings/More.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { t } from '../../lib/i18n.svelte'
+
+  const position = $derived(settings.get('tabs.position'))
+  const style = $derived(settings.get('tabs.style'))
+  const mini = $derived(settings.get('mini.style') === 'off' ? 'none' : settings.get('mini.position'))
+  // на схемах позиции плавающая панель не видна бы была — рисуем обычную
+  const shapeStyle = $derived(style === 'floating' ? 'default' : style)
 </script>
 
-<Choice
+<Tiles
   title={t('Позиция вкладок')}
-  hint={t('Выберите расположение панели вкладок')}
-  icons
-  value={settings.get('tabs.position')}
+  hint={t('Где стоит панель разделов')}
+  value={position}
   options={[
-    { id: 'top' as const, label: t('Сверху'), icon: 'layoutTop' },
-    { id: 'bottom' as const, label: t('Снизу'), icon: 'layoutBottom' },
-    { id: 'left' as const, label: t('Слева'), icon: 'layoutLeft' },
-    { id: 'right' as const, label: t('Справа'), icon: 'layoutRight' },
-  ]}
+    { id: 'top' as const, label: t('Сверху') },
+    { id: 'bottom' as const, label: t('Снизу') },
+    { id: 'left' as const, label: t('Слева') },
+    { id: 'right' as const, label: t('Справа') },
+  ].map((o) => ({ ...o, diagram: { tabs: o.id, style: shapeStyle, mini } }))}
   onchange={(v) => settings.set('tabs.position', v)}
 />
 
-<Cards
+<Tiles
   title={t('Стиль вкладок')}
-  hint={t('Выберите стиль отображения вкладок')}
-  list
-  value={settings.get('tabs.style')}
+  hint={t('Как выглядит панель разделов')}
+  value={style}
   options={[
-    { id: 'default' as const, label: t('По умолчанию'), sub: t('Классическая панель'), icon: 'layout' },
-    { id: 'compact' as const, label: t('Компактный'), sub: t('Минимум места'), icon: 'compress' },
-    { id: 'full' as const, label: t('Полный'), sub: t('Вся высота экрана'), icon: 'stack' },
-    { id: 'round' as const, label: t('Круглый'), sub: t('Круглые иконки'), icon: 'circle' },
-    { id: 'floating' as const, label: t('Плавающий'), sub: t('Парящий островок'), icon: 'hash' },
-  ]}
+    { id: 'default' as const, label: t('По умолчанию'), sub: t('Классическая панель') },
+    { id: 'compact' as const, label: t('Компактный'), sub: t('Минимум места') },
+    { id: 'full' as const, label: t('Полный'), sub: t('Вся высота экрана') },
+    { id: 'round' as const, label: t('Круглый'), sub: t('Круглые иконки') },
+    { id: 'floating' as const, label: t('Плавающий'), sub: t('Парящий островок') },
+  ].map((o) => ({ ...o, diagram: { tabs: position, style: o.id, mini } }))}
   onchange={(v) => settings.set('tabs.style', v)}
 />
 
-<Divider />
-
-<Switch
-  title={t('Подстраивать вкладки')}
-  hint={t('Контент страницы будет влиять на вкладки')}
-  on={settings.get('tabs.adapt')}
-  onchange={(v) => settings.set('tabs.adapt', v)}
-/>
-<Switch
-  title={t('Скрытие элементов')}
-  hint={t('Автоскрытие неактивных панелей')}
-  on={settings.get('tabs.autohide')}
-  onchange={(v) => settings.set('tabs.autohide', v)}
-/>
+<More>
+  <Switch
+    title={t('Подстраивать вкладки')}
+    hint={t('Панель берёт цвет подкраски страницы')}
+    on={settings.get('tabs.adapt')}
+    onchange={(v) => settings.set('tabs.adapt', v)}
+  />
+  <Switch
+    title={t('Скрытие элементов')}
+    hint={t('Мышь замерла на 3 секунды — панель и мини плеер гаснут')}
+    on={settings.get('tabs.autohide')}
+    onchange={(v) => settings.set('tabs.autohide', v)}
+  />
+</More>
