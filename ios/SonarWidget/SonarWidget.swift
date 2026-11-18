@@ -27,6 +27,12 @@ extension PlayTarget {
         case .quick: .bolt
         }
     }
+
+    /// Подпись по языку системы: ключ — русский `title`, перевод — `en.lproj` / `uk.lproj` этого расширения
+    /// (словари `t()` приложения виджету недоступны).
+    var label: LocalizedStringKey {
+        LocalizedStringKey(title)
+    }
 }
 
 /// Значок MingCute цветом переднего плана.
@@ -93,7 +99,7 @@ private struct ButtonsView: View {
                         VStack(alignment: .leading, spacing: 0) {
                             WidgetIcon(name: target.icon, size: 24)
                             Spacer(minLength: 6)
-                            Text(target.title)
+                            Text(target.label)
                                 .font(.system(size: 13, weight: .semibold))
                                 .lineLimit(2)
                                 .minimumScaleFactor(0.85)
@@ -190,7 +196,7 @@ private struct QuickView: View {
             }
             .frame(width: 48, height: 48)
             Spacer(minLength: 8)
-            Text(target.title)
+            Text(target.label)
                 .font(.system(size: 15, weight: .bold))
                 .foregroundStyle(.white)
                 .lineLimit(2)
@@ -234,7 +240,7 @@ private struct LockView: View {
                 LogoMark(size: 30)
                     .widgetAccentable()
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(OpenWaveIntent.target.title)
+                    Text(OpenWaveIntent.target.label)
                         .font(.system(size: 15, weight: .semibold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
@@ -252,7 +258,7 @@ private struct LockView: View {
                     .widgetAccentable()
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(OpenWaveIntent.target.title))
+            .accessibilityLabel(Text(OpenWaveIntent.target.label))
         }
     }
 }

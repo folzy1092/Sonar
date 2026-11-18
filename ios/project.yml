@@ -110,6 +110,7 @@ targets:
     type: app-extension
     platform: iOS
     sources:
+      # вместе с en.lproj / uk.lproj — переводы подписей виджетов по языку системы (ключ — русская строка)
       - path: SonarWidget
       # общие с приложением файлы — только фигуры значков и цели ссылок, без темы и настроек
       - path: Sonar/DesignSystem/Icons/IconPaths.swift

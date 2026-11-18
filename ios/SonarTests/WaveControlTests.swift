@@ -49,6 +49,33 @@ final class WaveControlTests: XCTestCase {
             }
         }
     }
+
+    /// Подписи виджетов переводятся по языку системы: en и uk с одинаковыми ключами, среди них — названия
+    /// целей (`PlayTarget.title`) и интента кнопки.
+    func testWidgetStringsTranslated() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SonarWidget")
+        let en = root.appendingPathComponent("en.lproj/Localizable.strings")
+        let uk = root.appendingPathComponent("uk.lproj/Localizable.strings")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: en.path), "нет исходников рядом с тестами")
+        let english = try Self.strings(at: en)
+        let ukrainian = try Self.strings(at: uk)
+
+        XCTAssertEqual(Set(english.keys), Set(ukrainian.keys))
+        var required = PlayTarget.allCases.map(\.title)
+        required += ["Открыть «Мою волну»", "Открывает Sonar и включает «Мою волну»."]
+        for key in required {
+            XCTAssertFalse(english[key, default: ""].isEmpty, key)
+            XCTAssertFalse(ukrainian[key, default: ""].isEmpty, key)
+        }
+    }
+
+    private static func strings(at url: URL) throws -> [String: String] {
+        let plist = try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil)
+        return try XCTUnwrap(plist as? [String: String], url.lastPathComponent)
+    }
 }
 
 /// Шаблон своего символа (SF Symbols v3.0) — то, что проверяет Xcode: направляющие и пути начертаний.
