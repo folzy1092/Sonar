@@ -58,6 +58,12 @@ final class ProviderTests: XCTestCase {
         XCTAssertNil(SoundCloud.findClientId("client_id:\"short\""))
     }
 
+    /// С айфонным агентом soundcloud.com отдаёт m.soundcloud.com без скриптов — client_id ищем десктопным.
+    func testClientIdUsesDesktopAgent() {
+        XCTAssertFalse(SoundCloud.clientIdAgent.contains("iPhone"))
+        XCTAssertFalse(SoundCloud.clientIdAgent.contains("Mobile"))
+    }
+
     func testSoundCloudPlaylistToAlbumAndPhantom() throws {
         let playlist = try json(#"""
         {"id": 77, "title": "suffocate reality", "track_count": 9, "release_date": "2024-03-01T00:00:00Z",

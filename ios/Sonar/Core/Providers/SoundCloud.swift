@@ -140,11 +140,12 @@ struct SoundCloud: Sendable {
     // MARK: - Публичный client_id
 
     /// Публичный client_id с soundcloud.com (как `_sc_refresh_client_id` в selfbot): страница → скрипты
-    /// `a-v2.sndcdn.com/assets/*.js` с конца → `client_id:"<32 символа>"`.
+    /// `a-v2.sndcdn.com/assets/*.js` с конца → `client_id:"<32 символа>"`. Агент — десктопный: с айфонным
+    /// soundcloud.com уводит на m.soundcloud.com, где этих скриптов нет.
     static func publicClientId(session: URLSession = .shared) async throws -> String {
         func text(_ url: String) async throws -> String {
             var request = URLRequest(url: URL(string: url)!)
-            request.setValue(HTTP.browserAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue(clientIdAgent, forHTTPHeaderField: "User-Agent")
             return String(decoding: try await HTTP.data(request, service: "SoundCloud", session: session), as: UTF8.self)
         }
         let page = try await text("https://soundcloud.com/")
@@ -153,6 +154,8 @@ struct SoundCloud: Sendable {
         }
         throw ServiceError(message: "SoundCloud: не нашёл client_id на сайте — вставь свой в Профиль → Сервисы")
     }
+
+    static let clientIdAgent = HTTP.desktopAgent
 
     static func scriptURLs(_ html: String) -> [String] {
         let start = "https://a-v2.sndcdn.com/assets/"
