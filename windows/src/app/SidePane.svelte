@@ -18,7 +18,7 @@
 
   const hasLyrics = $derived(!!player.current && lyrics.status === 'ready')
   /** Текст пропал (новый трек без текста) — панель сама показывает очередь. */
-  const mode = $derived(sidePane.mode === 'lyrics' && hasLyrics ? 'lyrics' : 'queue')
+  const mode = $derived(sidePane.shown(hasLyrics))
   const queue = $derived(
     queueView({ tracks: player.tracks, order: player.order, pos: player.pos, ids: player.entryIds, autoRefs: player.autoRefs }),
   )
