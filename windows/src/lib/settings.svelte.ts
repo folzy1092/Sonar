@@ -2,7 +2,7 @@
 // меняются сразу в интерфейсе и пишутся в локальную базу. Значения по умолчанию — из каталога.
 import { api } from './api'
 import type { CoverStrength, Surface } from '../theme/palette'
-import type { ServiceKey } from './services'
+import type { ServiceId, ServiceKey } from './services'
 import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook, ProgressLook, TitleStyle } from '../theme/style'
 
 export type MiniStyle = 'off' | 'full' | 'rounded' | 'hybrid' | 'deck'
@@ -96,6 +96,10 @@ export const DEFAULTS = {
   'audio.gapless': true,
   /** Тише во время звонков: пока другое приложение пишет с микрофона, музыка на 20 % (calls.rs). */
   'audio.duck_calls': true,
+  /** Резервный сервис: свой сервис трек не играет — тот же трек из другого (services/fallback.rs). */
+  'audio.fallback': true,
+  /** Порядок резервных сервисов (id реестра); пусто — порядок реестра (lib/fallback.ts). */
+  'audio.fallback_order': [] as ServiceId[],
   'player.cover_position': 'left' as 'left' | 'right',
   'queue.show': true,
   /** Предпросмотр следующего трека: карточка «Дальше» за 10 с до конца трека. */
