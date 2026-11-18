@@ -203,6 +203,7 @@ pub fn run() {
       commands::sync_now,
       commands::artist_tracks,
       commands::mini_window,
+      commands::overlay_window,
       commands::thumbbar_init,
       commands::thumbbar_state,
       commands::show_main,

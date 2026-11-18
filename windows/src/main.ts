@@ -23,16 +23,17 @@ if (isTauri) catchErrors()
 // их обработчики, они срабатывают как обычно. Клавиша меню и Shift+F10 дают то же событие.
 window.addEventListener('contextmenu', (e) => e.preventDefault(), { capture: true })
 
-// мини-окно (mini.rs) открывает тот же index.html с #mini — там только плашка, без плеера и заставки
-const isMini = location.hash === '#mini'
-if (isMini) {
+// мини-окно и оверлей (mini.rs) открывают тот же index.html с #mini / #overlay — там только плашка,
+// без плеера и заставки
+const plaque = location.hash === '#mini' ? 'mini' : location.hash === '#overlay' ? 'overlay' : null
+if (plaque) {
   document.documentElement.classList.add('mini-window')
   document.getElementById('splash')?.remove()
 }
 
-const app = mount(isMini ? MiniWindow : App, {
-  target: document.getElementById('app')!,
-})
+const app = plaque
+  ? mount(MiniWindow, { target: document.getElementById('app')!, props: { kind: plaque } })
+  : mount(App, { target: document.getElementById('app')! })
 
 // Заставка из index.html: знак крутится пропеллером и, не останавливаясь, растворяется (класс .out).
 const splash = document.getElementById('splash')

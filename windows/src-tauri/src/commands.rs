@@ -636,6 +636,12 @@ pub async fn mini_window(app: tauri::AppHandle, show: bool) -> Res<bool> {
   crate::mini::toggle(&app, show).map_err(err)
 }
 
+/// Оверлей (Интерфейс → Оверлей): показать / переставить по `layout` / закрыть. Вернёт, открыт ли.
+#[tauri::command]
+pub async fn overlay_window(app: tauri::AppHandle, show: bool, layout: Option<crate::mini::Layout>) -> Res<bool> {
+  crate::mini::overlay(&app, show, &layout.unwrap_or_default()).map_err(err)
+}
+
 /// Кнопки «назад / пауза / вперёд» в превью окна на панели задач: `icons` — prev, play, pause, next
 /// (RGBA 32×32, рисует интерфейс из наших значков).
 #[tauri::command]

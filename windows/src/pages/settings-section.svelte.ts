@@ -18,8 +18,8 @@ export const TABS: { id: SettingsTab; title: string }[] = [
 ]
 
 /** Подразделы — капсулы под вкладками, по reference/pc. `soon` — с сервером / ещё не сделано,
- *  `lock` — «В разработке» (приватность). Не делаем: подписку, Кастом/Мастерскую, оверлей, прокси
- *  (CLAUDE.md). Горячие клавиши — делаем (решение владельца 2026-11-17). */
+ *  `lock` — «В разработке» (приватность). Не делаем: Кастом/Мастерскую, прокси
+ *  (CLAUDE.md). Оверлей — делаем (решение владельца 2026-11-18). Горячие клавиши — делаем (решение владельца 2026-11-17). */
 export interface SettingsSub {
   id: string
   title: string
@@ -45,6 +45,7 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
     { id: 'audio', title: 'Аудио', icon: 'volume' },
     { id: 'view', title: 'Вид', icon: 'player' },
     { id: 'mini', title: 'Мини плеер', icon: 'music' },
+    { id: 'overlay', title: 'Оверлей', icon: 'monitor' },
   ],
   services: [{ id: 'services', title: 'Сервисы', icon: 'key' }],
   integrations: [{ id: 'apps', title: 'Приложения', icon: 'stack' }],
@@ -97,6 +98,7 @@ export const NAV: NavGroup[] = [
       { tab: 'interface', sub: 'look' },
       { tab: 'player', sub: 'view' },
       { tab: 'player', sub: 'mini' },
+      { tab: 'player', sub: 'overlay' },
     ],
   },
 ]
