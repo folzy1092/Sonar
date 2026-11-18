@@ -1377,6 +1377,12 @@ pub fn set_zoom(window: tauri::WebviewWindow, kind: String, percent: f64) {
   crate::zoom::set(&window, &kind, percent);
 }
 
+/// Заставка нарисовала первый кадр — можно показать главное окно (tray.rs `show_first`).
+#[tauri::command]
+pub fn first_paint(app: tauri::AppHandle) {
+  crate::tray::show_first(&app);
+}
+
 /// Автозапуск с Windows (`system.autostart`): запись в HKCU…Run через tauri-plugin-autostart.
 #[tauri::command]
 pub fn set_autostart(app: tauri::AppHandle, on: bool) -> Res<()> {

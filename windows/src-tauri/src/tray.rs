@@ -10,7 +10,21 @@ use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 /// `system.tray`: true — крестик прячет окно, false — закрывает Sonar.
 pub static HIDE_ON_CLOSE: AtomicBool = AtomicBool::new(true);
 
+/// Окно создаётся скрытым (`visible: false` в tauri.conf.json): иначе до старта WebView2 видна пустая
+/// рамка. Первый показ — когда заставка из index.html нарисовала кадр (`first_paint`), страховка —
+/// через 3 с из `setup`. Запуск с `--autostart` остаётся в трее.
+static FIRST_SHOWN: AtomicBool = AtomicBool::new(false);
+pub static START_HIDDEN: AtomicBool = AtomicBool::new(false);
+
+pub fn show_first(app: &AppHandle) {
+  if START_HIDDEN.load(Ordering::Relaxed) || FIRST_SHOWN.swap(true, Ordering::Relaxed) {
+    return;
+  }
+  show_main(app);
+}
+
 pub fn show_main(app: &AppHandle) {
+  FIRST_SHOWN.store(true, Ordering::Relaxed);
   if let Some(w) = app.get_webview_window("main") {
     let _ = w.unminimize();
     let _ = w.show();
