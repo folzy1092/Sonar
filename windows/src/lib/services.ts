@@ -176,17 +176,23 @@ export const SERVICES: readonly ServiceInfo[] = Object.freeze([
     color: '#0077FF',
     prefixes: prefixes('vk'),
     caps: ALL_CAPS,
-    implemented: false,
+    implemented: true,
     gender: 'f',
     nameIn: 'VK Музыке',
-    openIn: null,
+    openIn: 'Открыть в VK',
     status: FEMALE_STATUS,
     loginLabel: 'Войти через VK',
     loginBusyLabel: LOGIN_BUSY,
     reloginLabel: RELOGIN,
     reloginWhen: 'connected',
-    keyFields: [{ name: 'token', label: 'Токен', secret: true, optional: false, placeholder: '' }],
-    keyHint: null,
+    keyFields: [{ name: 'token', label: 'Токен', secret: true, optional: false, placeholder: 'vk1.a.…' }],
+    keyHint: [
+      { text: 'Токен вида' },
+      { raw: ' ' },
+      { code: 'vk1.a.…' },
+      { raw: ' — ' },
+      { text: 'ключ Kate Mobile с доступом к музыке. Проще войти кнопкой выше: ключ Sonar возьмёт сам.' },
+    ],
     keyReplaceLabel: 'Заменить токен',
   },
   {
@@ -286,5 +292,8 @@ export function playlistWebUrl(ref: string): string | null {
   const m = /^ympl:([^:]+):(.+)$/.exec(ref)
   if (m) return `https://music.yandex.ru/users/${m[1]}/playlists/${m[2]}`
   if (ref === 'scpl:likes') return 'https://soundcloud.com/you/likes'
+  if (ref === 'vkpl:likes') return 'https://vk.com/audio'
+  const vk = /^vkpl:(-?\d+_\d+(?:_[0-9a-z]+)?)$/i.exec(ref)
+  if (vk) return `https://vk.com/music/playlist/${vk[1]}`
   return null
 }

@@ -5,6 +5,7 @@ pub mod links;
 pub mod matching;
 pub mod registry;
 pub mod soundcloud;
+pub mod vk;
 pub mod yandex;
 
 use serde::{Deserialize, Serialize};
