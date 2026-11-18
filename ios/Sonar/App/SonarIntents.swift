@@ -5,7 +5,7 @@ import Foundation
 // своей парой. Все команды — `AudioPlaybackIntent`: выполняются в самом Sonar в фоне, без открытия окна.
 // Фразы — `SonarShortcuts` ниже; английские — `Resources/en.lproj/AppShortcuts.strings`.
 // Русского языка у Siri нет — по-русски команды видны в «Командах» и в поиске Spotlight; голосом Siri
-// понимает английские фразы («Play My Wave in Sonar»). CarPlay — нельзя: нужен entitlement от Apple.
+// понимает английские фразы («Play Sonar Mix in Sonar»). CarPlay — нельзя: нужен entitlement от Apple.
 
 /// Ошибка для Siri: проговаривает текст.
 struct SonarIntentError: Error, CustomLocalizedStringResourceConvertible {
@@ -27,7 +27,7 @@ private func runQuick(_ target: PlayTarget) async throws {
 }
 
 struct PlayWaveIntent: AudioPlaybackIntent {
-    static var title: LocalizedStringResource { "Включить «Мою волну»" }
+    static var title: LocalizedStringResource { "Включить Sonar Mix" }
 
     @MainActor
     func perform() async throws -> some IntentResult {
@@ -73,7 +73,7 @@ struct ResumePlaybackIntent: AudioPlaybackIntent {
     func perform() async throws -> some IntentResult {
         let engine = PlaybackEngine.shared
         guard engine.current != nil else {
-            // очереди нет (первый запуск) — «Моя волна», как кнопка на Главной
+            // очереди нет (первый запуск) — Sonar Mix, как кнопка на Главной
             try await runQuick(.wave)
             return .result()
         }
@@ -98,10 +98,10 @@ struct NextTrackIntent: AudioPlaybackIntent {
 struct SonarShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: PlayWaveIntent(), phrases: [
-            "Включи мою волну в \(.applicationName)",
-            "Моя волна в \(.applicationName)",
-            "\(.applicationName) моя волна",
-        ], shortTitle: "Моя волна", systemImageName: "dot.radiowaves.left.and.right")
+            "Включи Sonar Mix в \(.applicationName)",
+            "Sonar Mix в \(.applicationName)",
+            "\(.applicationName) микс",
+        ], shortTitle: "Sonar Mix", systemImageName: "dot.radiowaves.left.and.right")
         AppShortcut(intent: PlayLikedIntent(), phrases: [
             "Включи любимые в \(.applicationName)",
             "\(.applicationName) любимые",

@@ -206,9 +206,8 @@ enum WaveReason {
             if let name = c.artistNames[seed] { return "Популярное у \(name) — ты его слушаешь" }
             return nil
         }
-        let prefix: String? = c.mode.isMood && WaveMath.moodFit(c.mode, track) > 0 ? c.mode.title : nil
+        let prefix: String? = c.mode.isMood && WaveMath.moodFit(c.mode, track) > 0 ? c.mode.label : nil
         if let base {
-            if c.mode == .new, !known { return "Новый для тебя артист · \(lowerFirst(base))" }
             return prefix.map { "\($0) · \(lowerFirst(base))" } ?? base
         }
         if !known { return "Новый для тебя артист" }

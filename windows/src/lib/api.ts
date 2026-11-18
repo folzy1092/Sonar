@@ -52,7 +52,7 @@ export interface Track {
   available: boolean
   /** Прослушивания на сервисе (SoundCloud), у Яндекса нет. */
   plays?: number
-  /** «Почему этот трек» — только у треков «Моей волны» (wave.rs `why`). */
+  /** «Почему этот трек» — только у треков Sonar Mix (wave.rs `why`). */
   why?: WaveWhy
 }
 
@@ -435,7 +435,7 @@ export const api = {
   streamFallback: (trackRef: string, track?: Track) => call<StreamUrl>('stream_fallback', { trackRef, track: track ?? null }),
 
   cacheTracks: (tracks: Track[]) => call<void>('cache_tracks', { tracks }),
-  /** «Волна офлайн»: следующие треки — в кэш треков заранее (фоном; кэш выключен — ничего). */
+  /** «Sonar Mix офлайн»: следующие треки — в кэш треков заранее (фоном; кэш выключен — ничего). */
   prefetchTracks: (refs: string[]) => call<void>('prefetch_tracks', { refs }),
   /** Горячие клавиши (hotkeys.rs): действие → сочетание. Вернёт действия, чьё сочетание не встало. */
   setHotkeys: (keys: Record<string, string>) => call<string[]>('set_hotkeys', { keys }),

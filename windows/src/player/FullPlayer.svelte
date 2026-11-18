@@ -135,7 +135,7 @@
             class="on-cover right"
             class:on={wave.isDisliked(track.ref)}
             aria-label={t('Не нравится')}
-            title={wave.isDisliked(track.ref) ? t('Снова можно ставить в волну') : t('Не нравится — больше не ставить')}
+            title={wave.isDisliked(track.ref) ? t('Снова можно ставить в Sonar Mix') : t('Не нравится — больше не ставить')}
             onclick={() => track && wave.dislike(track)}
           >
             <span class="ic" use:pulse={wave.isDisliked(track.ref)}><Icon name="dislike" size={18} filled={wave.isDisliked(track.ref)} /></span>

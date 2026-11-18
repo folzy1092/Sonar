@@ -1,6 +1,6 @@
 import Foundation
 
-// Своя «Моя волна» (SPEC §3.7, docs/WAVE.md) — упрощённый порт Windows `wave.rs` + `my-wave.svelte.ts`.
+// Своя волна Sonar Mix (SPEC §3.7, docs/WAVE.md) — упрощённый порт Windows `wave.rs` + `my-wave.svelte.ts`.
 // Rotor Яндекса не используем: кандидаты — «похожие» SoundCloud и Яндекса от сидов (Любимые, недавно
 // дослушанное, что зашло в этой сессии) и популярное 1–2 привычных артистов; три «забытых любимых»
 // на места 2, 5, 8. Порция — 10 треков, догружается, когда до конца меньше трёх. Сигналы — оценка
@@ -8,47 +8,59 @@ import Foundation
 // два ранних пропуска артиста подряд — пауза до конца сессии, два ранних пропуска подряд — «Далее»
 // пересобирается. 👎 не попадает никогда.
 //
-// Режимы — те же 6, что в Windows (`WAVE_MODES`, `wave.rs` `MODES` / `MOODS` / `mood_fit` / `weights`):
-// «Своя» — по лайкам, настроения (Жёсткая / Спокойная / Грустная / Весёлая) — словарь настроений по
-// тегам и названию, «Незнакомое» — артисты, которых нет в Любимых и истории (+ второй шаг разведки).
+// Настроения — те же 9, что в Windows (`WAVE_MODES`, `wave.rs` `MODES` / `MOODS` / `mood_fit` / `weights`):
+// «Обычное» — по лайкам; остальные — словарь настроения по тегам и названию плюс вкус. Сон и
+// Концентрация — «функциональные»: словарь важнее вкуса, подбор строже; Популярное — по числу
+// прослушиваний. «Незнакомое» убрано (2026-11-18): сохранённое `new` читается как «Обычное».
 // Чего из Windows пока нет: профиль тегов, время суток, своя платформа, кэш похожих, журнал
 // `wave_events`; вкус к артисту — без выборки Томпсона (шум даёт разброс).
 
-/// Режим волны — кнопка под «Моя волна» на Главной. Хранится в настройке `wave.mode`.
+/// Настроение Sonar Mix — долгое нажатие на поле точек Главной. Хранится в настройке `wave.mode`.
 enum WaveMode: String, CaseIterable, Sendable, Identifiable {
-    case own, hard, calm, sad, fun, new
+    case own, fun, calm, sad, hard, night, sleep, popular, focus
 
     var id: String { rawValue }
 
+    /// Из настройки: незнакомое значение (старое `new` — «Незнакомое») — «Обычное».
+    static func stored(_ raw: String) -> WaveMode { WaveMode(rawValue: raw) ?? .own }
+
+    /// Подпись (ключ перевода; у «Обычного» — с контекстом: в стиле то же слово значит другое).
     var title: String {
         switch self {
-        case .own: "Своя"
-        case .hard: "Жёсткая"
-        case .calm: "Спокойная"
-        case .sad: "Грустная"
-        case .fun: "Весёлая"
-        case .new: "Незнакомое"
+        case .own: "настроение::Обычное"
+        case .fun: "Весёлое"
+        case .calm: "Спокойное"
+        case .sad: "Грустное"
+        case .hard: "Жёсткое"
+        case .night: "Ночное"
+        case .sleep: "Сон"
+        case .popular: "Популярное"
+        case .focus: "Концентрация"
         }
     }
+
+    /// Подпись без контекста перевода — для русских строк вроде «Спокойное · похож на …».
+    var label: String { title.components(separatedBy: "::").last ?? title }
 
     var subtitle: String {
         switch self {
         case .own: "по твоим лайкам"
-        case .hard: "фонк, рэйдж, рок"
+        case .fun: "поп, хаус, движ"
         case .calm: "чилл, лоу-фай, акустика"
         case .sad: "когда накрыло"
-        case .fun: "поп, хаус, движ"
-        case .new: "новые для тебя артисты"
+        case .hard: "фонк, рэйдж, рок"
+        case .night: "синтвейв, трип-хоп, дип-хаус"
+        case .sleep: "эмбиент, тихо, без слов"
+        case .popular: "хиты и тренды"
+        case .focus: "инструментал, лоу-фай, классика"
         }
     }
 
-    /// Настроение (подбор по словарю `moods`).
-    var isMood: Bool {
-        switch self {
-        case .hard, .calm, .sad, .fun: true
-        case .own, .new: false
-        }
-    }
+    /// Настроение (подбор по словарю `moods`); «Обычное» — нет.
+    var isMood: Bool { self != .own }
+
+    /// Сон и Концентрация — музыка под дело: словарь важнее вкуса, подбор строже (`is_functional`).
+    var isFunctional: Bool { self == .sleep || self == .focus }
 
     /// Следующий по кругу.
     var next: WaveMode {
@@ -70,15 +82,23 @@ struct WaveWeights: Sendable, Equatable {
     var trackSkips = -1.2
     var mood = 0.0
     var skipRate = 0.0
+    var popularity = 0.0
 
     static func of(_ mode: WaveMode) -> WaveWeights {
         var w = WaveWeights()
         switch mode {
-        case .new:
-            w.known = -2.5
-            w.fresh = 1
-            w.skipRate = -1
-        case .hard, .calm, .sad, .fun:
+        case .popular:
+            w.mood = 0.8
+            w.popularity = 2.2
+            w.likedArtist = 0.8
+            w.known = 0.3
+            w.affinity = 0.4
+        case .sleep, .focus:
+            w.mood = 2.2
+            w.likedArtist = 0.5
+            w.known = 0.2
+            w.affinity = 0.3
+        case .fun, .calm, .sad, .hard, .night:
             w.mood = 1.5
             w.likedArtist = 1
             w.known = 0.4
@@ -226,7 +246,7 @@ enum WaveMath {
     static let sessionArtistCap = 4
     /// Не больше стольких треков порции от одного сида (мягкий лимит).
     static let seedCap = 4
-    /// Похожих от каждого сида: «Своя» — 25, остальным — 35 (есть из чего выбрать подходящее).
+    /// Похожих от каждого сида: «Обычное» — 25, остальным — 35 (есть из чего выбрать подходящее).
     static func similarLimit(_ mode: WaveMode) -> Int { mode == .own ? 25 : 35 }
 
     /// Настроения — группы тегов Last.fm / MIREX плюс жанры, что обычно туда ложатся (`wave.rs` `MOODS` 1:1).
@@ -237,9 +257,8 @@ enum WaveMath {
             "rusrap", "hip-hop", "hiphop", "rap", "energetic", "workout", "gym", "intense", "angry", "энерг",
         ]),
         (.calm, [
-            "lofi", "lo-fi", "chill", "ambient", "acoustic", "piano", "jazz", "sleep", "calm", "relax", "study", "classical",
-            "instrumental", "soul", "r&b", "rnb", "downtempo", "bossa", "folk", "mellow", "soothing", "serene", "meditat",
-            "lounge", "new age", "спокой",
+            "lofi", "lo-fi", "chill", "ambient", "acoustic", "piano", "jazz", "calm", "relax", "classical", "instrumental",
+            "soul", "r&b", "rnb", "downtempo", "bossa", "folk", "mellow", "soothing", "serene", "lounge", "спокой",
         ]),
         (.sad, [
             "sad", "emo", "depress", "melanchol", "slowed", "reverb", "heartbreak", "lonely", "cry", "alone", "grief", "tears",
@@ -251,7 +270,32 @@ enum WaveMath {
             "sped up", "nightcore", "funk", "k-pop", "kpop", "upbeat", "feel good", "sunny", "cheerful", "latin", "весел",
             "радост", "лето",
         ]),
+        (.night, [
+            "night", "midnight", "nocturn", "darkwave", "synthwave", "retrowave", "outrun", "vaporwave", "witch house",
+            "trip-hop", "trip hop", "triphop", "deep house", "after hours", "afterhours", "city pop", "noir", "neo-soul",
+            "neo soul", "dark", "ночь", "ночн", "полноч",
+        ]),
+        (.sleep, [
+            "sleep", "lullaby", "ambient", "drone", "meditat", "new age", "white noise", "rain sounds", "nature sounds",
+            "dreamy", "dream pop", "healing", "432hz", "soft piano", "сон", "колыбел", "засып", "медитац",
+        ]),
+        (.popular, [
+            "hits", "chart", "top 40", "top 50", "top 100", "viral", "tiktok", "trending", "mainstream", "billboard", "хиты",
+            "чарт", "тренд",
+        ]),
+        (.focus, [
+            "focus", "study", "concentrat", "instrumental", "lofi", "lo-fi", "chillhop", "jazzhop", "classical", "piano",
+            "post-rock", "post rock", "minimal", "soundtrack", "score", "beats to", "coding", "фокус", "концентрац", "учёб",
+            "учеб",
+        ]),
     ]
+
+    /// Популярность трека по числу прослушиваний (`popularity`): 1 тыс. и меньше — 0, 10 млн и больше — 1
+    /// (логарифм). Число неизвестно (у Яндекса его нет) — 0, а не «непопулярен».
+    static func popularity(_ track: Track) -> Double {
+        guard let plays = track.plays else { return 0 }
+        return min(max((log10(Double(plays) + 1) - 3) / 4, 0), 1)
+    }
 
     /// Насколько трек подходит настроению (`mood_fit`): совпал по жанру / тегам / названию — плюс
     /// (1.6…2.2), похож на другое настроение — −0.8, ничего не известно — 0. Не настроение — 0.
@@ -269,15 +313,19 @@ enum WaveMath {
     }
 
     /// Знакомое и новое по режиму (`familiarity`): сколько незнакомых артистов пустить в порцию из n и
-    /// порог прослушиваний SoundCloud для незнакомых. «Незнакомое» — без лимита и порога.
+    /// порог прослушиваний SoundCloud для незнакомых. «Обычное» — до 30 %, настроения — до 40 %, волна по
+    /// треку — до 50 %, «Популярное» — до 60 % (хиты чужих артистов — его суть) и только заметные треки.
     static func familiarity(_ mode: WaveMode, bySeed: Bool, n: Int = portion) -> (maxUnknown: Int?, minPlays: Int) {
         let share = { (k: Double) in Int((Double(n) * k).rounded()) }
-        if mode == .new { return (nil, 0) }
         if bySeed { return (share(0.5), 300) }
-        return mode == .own ? (share(0.3), 1000) : (share(0.4), 1000)
+        switch mode {
+        case .own: return (share(0.3), 1000)
+        case .popular: return (share(0.6), 50000)
+        default: return (share(0.4), 1000)
+        }
     }
 
-    /// Сколько своих «забытых» лайков в порции (`liked_share`): «Своя» — 3, настроение — 2, остальное — 0.
+    /// Сколько своих «забытых» лайков в порции (`liked_share`): «Обычное» — 3, настроение — 2, по треку — 0.
     static func likedShare(_ mode: WaveMode, bySeed: Bool) -> Int {
         if bySeed { return 0 }
         return mode == .own ? 3 : mode.isMood ? 2 : 0
@@ -350,6 +398,7 @@ enum WaveMath {
         return w.affinity * taste.affinity(track) + w.likedArtist * liked + w.known * known + w.fresh * (1 - known)
             + w.votes * votes + w.rank * rank + w.fromSession * live + w.sessionSkipped * skippedArtist
             + w.trackSkips * trackSkips + w.mood * moodFit(session.mode, track) + w.skipRate * skipRate
+            + w.popularity * popularity(track)
     }
 
     /// Порция из n: без дублей и фильтрованных, не два одинаковых артиста подряд (и не тот, что только
@@ -368,9 +417,15 @@ enum WaveMath {
                 && (served[artist] ?? 0) < sessionArtistCap
                 && (filter.minPlaysUnknown == 0 || taste.isKnown(track) || (track.plays ?? Int.max) >= filter.minPlaysUnknown)
         }
-        // настроение: подходящих хватает — неподходящие мимо совсем
-        if session.mode.isMood, pool.filter({ moodFit(session.mode, $0) > 0 }).count >= n * 3 {
-            pool.removeAll { moodFit(session.mode, $0) < 0 }
+        // настроение: подходящих хватает — неподходящие мимо совсем; Сон и Концентрация строже — только
+        // подходящие словарю, если их на порцию с запасом
+        if session.mode.isMood {
+            let fits = pool.filter { moodFit(session.mode, $0) > 0 }.count
+            if session.mode.isFunctional, fits >= n * 2 {
+                pool.removeAll { moodFit(session.mode, $0) <= 0 }
+            } else if fits >= n * 3 {
+                pool.removeAll { moodFit(session.mode, $0) < 0 }
+            }
         }
         let scored = pool.map { (score: score($0, taste: taste, origin: origin, session: session) + noise() * 0.3, track: $0) }
             .sorted { $0.score > $1.score }
@@ -425,19 +480,6 @@ enum WaveMath {
         }
         if out.count < 3 {
             out = pick(candidates, taste: taste, origin: origin, session: session, filter: open, n: n, relaxed: true, noise: noise)
-        }
-        return out
-    }
-
-    /// Второй шаг разведки «Незнакомого»: лучшие по месту в похожих кандидаты незнакомых артистов
-    /// (по одному на артиста) — от них ещё похожие.
-    static func hopSeeds(_ candidates: [Track], taste: Taste, origin: WaveOrigin, banned: Set<String>, k: Int) -> [String] {
-        let best = candidates.filter { !taste.isKnown($0) && !banned.contains($0.ref) }
-            .sorted { (origin.rank[$0.ref] ?? 0) > (origin.rank[$1.ref] ?? 0) }
-        var artists = Set<String>()
-        var out: [String] = []
-        for track in best where out.count < k && artists.insert(track.artistKey).inserted && !out.contains(track.ref) {
-            out.append(track.ref)
         }
         return out
     }
@@ -556,13 +598,11 @@ final class MyWave {
             throw ServiceError(message: "Волне пока не от чего оттолкнуться — лайкни или послушай пару треков.")
         }
         let mode = session.mode
-        // знакомое в котёл: популярное 1–2 привычных артистов (у волны по треку — его артиста); в «Незнакомом» — нет
-        let artists: [String] = if mode == .new {
-            []
-        } else if let seed = session.seed {
+        // знакомое в котёл: популярное 1–2 привычных артистов (у волны по треку — его артиста)
+        let artists: [String] = if let seed = session.seed {
             seed.mainArtistRef.map { [$0] } ?? []
         } else {
-            WaveMath.sample(WaveMath.favoriteArtistRefs(liked: liked, recent: history.recent, limit: 15), mode == .own ? 2 : 1, random: random)
+            WaveMath.sample(WaveMath.favoriteArtistRefs(liked: liked, recent: history.recent, limit: 15), mode == .own || mode == .popular ? 2 : 1, random: random)
         }
         let source = source
         let limit = WaveMath.similarLimit(mode)
@@ -589,16 +629,6 @@ final class MyWave {
 
         let taste = history.taste(liked: liked)
         let bySeed = session.seed != nil
-        // «Незнакомое»: второй шаг — похожие от лучших незнакомых (3 запроса)
-        if mode == .new, !bySeed {
-            let hops = WaveMath.hopSeeds(candidates, taste: taste, origin: origin, banned: library.disliked, k: 3)
-            let more = await concurrentMap(hops) { try await source.similar(to: $0, limit: 20) }
-            for (hop, list) in zip(hops, more) {
-                guard let list else { continue }
-                origin.add(seed: hop, list: list, live: false)
-                candidates += list
-            }
-        }
         let familiar = WaveMath.familiarity(mode, bySeed: bySeed)
         var filter = WaveFilter(
             recent: history.playedRefs(withinDays: 7),

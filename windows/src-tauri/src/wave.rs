@@ -1,4 +1,4 @@
-//! Своя «Моя волна» (SPEC §3.7, PSEUDOCODE §11) в автономном клиенте: кандидаты — похожие треки
+//! Своя волна Sonar Mix (SPEC §3.7, PSEUDOCODE §11) в автономном клиенте: кандидаты — похожие треки
 //! от сидов (последние лайки и дослушанные + немного «разведки» по старым лайкам), фильтры
 //! (не играть прослушанное за 7 дней, дизлайки, артисты на паузе) и выбор порции с разнообразием.
 //! Сессию (что уже выдано, кто на паузе) держит интерфейс и передаёт сюда — ядро без состояния.
@@ -16,8 +16,12 @@ pub const PORTION: usize = 10;
 pub struct Rng(u64);
 
 impl Rng {
+  /// Зерно перемешивается splitmix64: у голого xorshift с малым зерном первые числа почти нули.
   pub fn new(seed: u64) -> Self {
-    Self(seed | 1)
+    let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    Self((z ^ (z >> 31)) | 1)
   }
   pub fn next(&mut self) -> u64 {
     let mut x = self.0;
@@ -74,7 +78,7 @@ pub struct Filter {
   pub exclude: HashSet<String>,
   /// Артисты на паузе до конца сессии (два пропуска подряд), в нижнем регистре.
   pub paused_artists: HashSet<String>,
-  /// Сколько треков **незнакомых** артистов (ни лайка, ни прослушиваний) пускать в порцию: «Своя»
+  /// Сколько треков **незнакомых** артистов (ни лайка, ни прослушиваний) пускать в порцию: «Обычное»
   /// волна — в основном знакомое, как у Яндекса. `None` — без лимита. См. [`familiarity`].
   pub max_unknown: Option<usize>,
   /// Трек SoundCloud незнакомого артиста с меньшим числом прослушиваний не берём: в «похожих»
@@ -83,14 +87,14 @@ pub struct Filter {
 }
 
 /// Знакомое и новое по режиму: (сколько незнакомых артистов в порции из `n`, порог прослушиваний
-/// для треков SoundCloud незнакомых). «Своя» — до 30 %, настроения — до 40 %, волна по треку —
-/// до 50 %, «Незнакомое» — без лимита и порога (оно про новых).
+/// для треков SoundCloud незнакомых). «Обычное» — до 30 %, настроения — до 40 %, волна по треку —
+/// до 50 %, «Популярное» — до 60 % (хиты чужих артистов — его суть) и только заметные треки.
 pub fn familiarity(mode: &str, by_seed: bool, n: usize) -> (Option<usize>, u64) {
   let share = |k: f64| Some(((n as f64) * k).round() as usize);
   match mode {
-    "new" => (None, 0),
     _ if by_seed => (share(0.5), 300),
     "own" => (share(0.3), 1000),
+    "popular" => (share(0.6), 50_000),
     _ => (share(0.4), 1000),
   }
 }
@@ -185,12 +189,14 @@ pub fn is_early_skip(listened_ms: u64, duration_ms: u64, manual_skip: bool) -> b
   reward(listened_ms, duration_ms, manual_skip, false, false) <= -1.0
 }
 
-/// Режим волны (кнопка под «Моя волна»): `own` — своя по лайкам, настроения `hard` / `calm` /
-/// `sad` / `fun` и `new` — незнакомое. Настроение угадываем по жанру, тегам и названию трека —
-/// группы тегов настроений Last.fm / MIREX (Hu & Downie) плюс жанры, которые обычно туда ложатся.
-pub const MODES: [&str; 6] = ["own", "hard", "calm", "sad", "fun", "new"];
+/// Режим Sonar Mix (настроение под «Sonar Mix» на главной): `own` — обычное, по лайкам; остальное —
+/// настроения. Настроение угадываем по жанру, тегам и названию трека — группы тегов настроений
+/// Last.fm / MIREX (Hu & Downie) плюс жанры, которые обычно туда ложатся. «Популярное» вдобавок
+/// тянет треки с большим числом прослушиваний (`popularity`). Старое `new` («Незнакомое») убрано —
+/// незнакомый режим приходит как `own` (commands.rs берёт `own` для всего, чего нет в `MODES`).
+pub const MODES: [&str; 9] = ["own", "fun", "calm", "sad", "hard", "night", "sleep", "popular", "focus"];
 
-const MOODS: [(&str, &[&str]); 4] = [
+const MOODS: [(&str, &[&str]); 8] = [
   (
     "hard",
     &[
@@ -202,9 +208,8 @@ const MOODS: [(&str, &[&str]); 4] = [
   (
     "calm",
     &[
-      "lofi", "lo-fi", "chill", "ambient", "acoustic", "piano", "jazz", "sleep", "calm", "relax", "study", "classical",
-      "instrumental", "soul", "r&b", "rnb", "downtempo", "bossa", "folk", "mellow", "soothing", "serene", "meditat",
-      "lounge", "new age", "спокой",
+      "lofi", "lo-fi", "chill", "ambient", "acoustic", "piano", "jazz", "calm", "relax", "classical", "instrumental",
+      "soul", "r&b", "rnb", "downtempo", "bossa", "folk", "mellow", "soothing", "serene", "lounge", "спокой",
     ],
   ),
   (
@@ -223,7 +228,51 @@ const MOODS: [(&str, &[&str]); 4] = [
       "радост", "лето",
     ],
   ),
+  (
+    "night",
+    &[
+      "night", "midnight", "nocturn", "darkwave", "synthwave", "retrowave", "outrun", "vaporwave", "witch house",
+      "trip-hop", "trip hop", "triphop", "deep house", "after hours", "afterhours", "city pop", "noir", "neo-soul",
+      "neo soul", "dark", "ночь", "ночн", "полноч",
+    ],
+  ),
+  (
+    "sleep",
+    &[
+      "sleep", "lullaby", "ambient", "drone", "meditat", "new age", "white noise", "rain sounds", "nature sounds",
+      "dreamy", "dream pop", "healing", "432hz", "soft piano", "сон", "колыбел", "засып", "медитац",
+    ],
+  ),
+  (
+    "popular",
+    &["hits", "chart", "top 40", "top 50", "top 100", "viral", "tiktok", "trending", "mainstream", "billboard", "хиты", "чарт", "тренд"],
+  ),
+  (
+    "focus",
+    &[
+      "focus", "study", "concentrat", "instrumental", "lofi", "lo-fi", "chillhop", "jazzhop", "classical", "piano",
+      "post-rock", "post rock", "minimal", "soundtrack", "score", "beats to", "coding", "фокус", "концентрац", "учёб",
+      "учеб",
+    ],
+  ),
 ];
+
+/// Режим — настроение (есть словарь в `MOODS`); `own` и всё незнакомое — нет.
+pub fn is_mood(mode: &str) -> bool {
+  MOODS.iter().any(|(m, _)| *m == mode)
+}
+
+/// «Функциональные» настроения — Сон и Концентрация: музыка под дело, а не под вкус. Подбор строже
+/// (только подходящие словарю, если их хватает), вкус к артисту весит меньше.
+fn is_functional(mode: &str) -> bool {
+  matches!(mode, "sleep" | "focus")
+}
+
+/// Популярность трека по числу прослушиваний: 1 тыс. и меньше — 0, 10 млн и больше — 1 (логарифм).
+/// Число неизвестно (у Яндекса его нет) — 0, а не «непопулярен».
+pub fn popularity(t: &Track) -> f64 {
+  t.plays.map_or(0.0, |p| (((p as f64) + 1.0).log10() - 3.0) / 4.0).clamp(0.0, 1.0)
+}
 
 /// Насколько трек подходит настроению: совпал по жанру/тегам/названию — плюс, похож на другое
 /// настроение — минус, ничего не известно — ноль.
@@ -507,6 +556,8 @@ pub struct Features {
   pub mood: f64,
   /// Доля пропусков артиста.
   pub skip_rate: f64,
+  /// `popularity` трека, 0 … 1 (весит только в «Популярном»).
+  pub popularity: f64,
 }
 
 /// Веса признаков режима. Стартовые значения — ровно те числа, что были в `score` до разбиения на
@@ -529,6 +580,7 @@ pub struct Weights {
   pub hour: f64,
   pub mood: f64,
   pub skip_rate: f64,
+  pub popularity: f64,
 }
 
 impl Weights {
@@ -549,11 +601,13 @@ impl Weights {
       + self.hour * f.hour
       + self.mood * f.mood
       + self.skip_rate * f.skip_rate
+      + self.popularity * f.popularity
   }
 }
 
-/// Веса режима: «Незнакомое» — чужие артисты, настроения — `mood_fit` плюс вкус, остальное («Своя») —
-/// лайки, вкус и время суток. Общее для всех — «похожесть» и то, что зашло или не зашло в сессии.
+/// Веса режима: настроения — `mood_fit` плюс вкус (Ночное — сильнее время суток, Сон и Концентрация —
+/// словарь важнее вкуса, Популярное — число прослушиваний), остальное («Обычное») — лайки, вкус и время
+/// суток. Общее для всех — «похожесть» и то, что зашло или не зашло в сессии.
 pub fn weights(mode: &str) -> Weights {
   let common = Weights {
     votes: 0.6,
@@ -565,9 +619,42 @@ pub fn weights(mode: &str) -> Weights {
     ..Default::default()
   };
   match mode {
-    "new" => Weights { known: -2.5, fresh: 1.0, skip_rate: -1.0, platform: 0.3, profile_fit: 0.6, ..common },
+    "popular" => Weights {
+      mood: 0.8,
+      popularity: 2.2,
+      liked_artist: 0.8,
+      known: 0.3,
+      affinity: 0.4,
+      platform: 0.3,
+      hour: 0.2,
+      profile_fit: 0.8,
+      mode_profile: 1.2,
+      ..common
+    },
+    m if is_functional(m) => Weights {
+      mood: 2.2,
+      liked_artist: 0.5,
+      known: 0.2,
+      affinity: 0.3,
+      platform: 0.3,
+      hour: 0.2,
+      profile_fit: 0.5,
+      mode_profile: 1.5,
+      ..common
+    },
+    "night" => Weights {
+      mood: 1.5,
+      liked_artist: 1.0,
+      known: 0.4,
+      affinity: 0.6,
+      platform: 0.3,
+      hour: 1.2,
+      profile_fit: 0.8,
+      mode_profile: 1.5,
+      ..common
+    },
     // настроение: словарь `mood_fit` — подсказка на старте, профиль режима — то, чему он научился у тебя
-    "hard" | "calm" | "sad" | "fun" => Weights {
+    m if is_mood(m) => Weights {
       mood: 1.5,
       liked_artist: 1.0,
       // знакомый артист — плюс: волна должна звучать твоей, а не чужими «похожими»
@@ -626,8 +713,9 @@ fn features(t: &Track, taste: &Taste, origin: &Origin, session: &Session, prefer
     track_skips: taste.track_skips.get(&t.ref_).copied().unwrap_or(0.0).min(2.0),
     platform: platform as u8 as f64,
     hour: keys.iter().filter_map(|k| taste.hour_share.get(k).copied()).fold(0.0, f64::max),
-    mood: if matches!(mode, "hard" | "calm" | "sad" | "fun") { mood_fit(mode, t) } else { 0.0 },
+    mood: if is_mood(mode) { mood_fit(mode, t) } else { 0.0 },
     skip_rate: skips / (plays + skips + 1.0),
+    popularity: popularity(t),
   }
 }
 
@@ -699,9 +787,12 @@ pub fn pick_with(
     // случайные заливы незнакомых авторов SoundCloud (мало прослушиваний) — мимо
     .filter(|t| filter.min_plays_unknown == 0 || is_known(t, taste) || t.plays.is_none_or(|p| p >= filter.min_plays_unknown))
     .collect();
-  if matches!(mode, "hard" | "calm" | "sad" | "fun") {
+  if is_mood(mode) {
     let fits = pool.iter().filter(|t| mood_fit(mode, t) > 0.0).count();
-    if fits >= n * 3 {
+    // Сон и Концентрация строже: хватает подходящих словарю на порцию с запасом — только они
+    if is_functional(mode) && fits >= n * 2 {
+      pool.retain(|t| mood_fit(mode, t) > 0.0);
+    } else if fits >= n * 3 {
       pool.retain(|t| mood_fit(mode, t) >= 0.0);
     }
   }
@@ -769,15 +860,15 @@ pub fn pick_with(
   out
 }
 
-/// Сколько своих лайков в порции из 10 (docs/WAVE.md 4.1): «Своя» — 3, настроение — до 2,
-/// «Незнакомое» и волна по треку — 0.
+/// Сколько своих лайков в порции из 10 (docs/WAVE.md 4.1): «Обычное» — 3, настроение — до 2,
+/// волна по треку — 0.
 pub fn liked_share(mode: &str, by_seed: bool) -> usize {
   if by_seed {
     return 0;
   }
   match mode {
     "own" => 3,
-    "hard" | "calm" | "sad" | "fun" => 2,
+    m if is_mood(m) => 2,
     _ => 0,
   }
 }
@@ -791,7 +882,7 @@ pub fn pick_liked(cands: Vec<Track>, taste: &Taste, session: &Session, filter: &
     return Vec::new();
   }
   let origin = Origin::default();
-  let mood = matches!(mode, "hard" | "calm" | "sad" | "fun");
+  let mood = is_mood(mode);
   let mut scored: Vec<(f64, Picked)> = cands
     .into_iter()
     .filter(|t| t.available && !filter.banned.contains(&t.ref_) && !filter.exclude.contains(&t.ref_))
@@ -930,15 +1021,18 @@ mod tests {
     origin.add("seed1", &[t("sc:1", "a"), t("sc:2", "b")], false);
     origin.add("seed2", &[t("sc:2", "b")], false);
     origin.add("seed3", &[t("sc:2", "b")], false);
-    let out = pick(vec![t("sc:1", "a"), t("sc:2", "b")], &taste, &origin, &Session::default(), &f, None, "new", 1, false, &mut Rng::new(3));
+    let out = pick(vec![t("sc:1", "a"), t("sc:2", "b")], &taste, &origin, &Session::default(), &f, None, "own", 1, false, &mut Rng::new(3));
     assert_eq!(out[0].ref_, "sc:2");
     // пропущенный в сессии артист уступает
     let mut s = Session::default();
     s.skipped_artists.insert("b".into());
     let mut o2 = Origin::default();
     o2.add("seed1", &[t("sc:2", "b"), t("sc:1", "a")], false);
-    let out = pick(vec![t("sc:1", "a"), t("sc:2", "b")], &taste, &o2, &s, &f, None, "new", 1, false, &mut Rng::new(3));
-    assert_eq!(out[0].ref_, "sc:1");
+    // в «Обычном» есть случайная проба вкуса (affinity), поэтому — большинство из многих прогонов
+    let wins = (1..=40)
+      .filter(|seed| pick(vec![t("sc:1", "a"), t("sc:2", "b")], &taste, &o2, &s, &f, None, "own", 1, false, &mut Rng::new(*seed))[0].ref_ == "sc:1")
+      .count();
+    assert!(wins >= 28, "пропущенный артист уступает в большинстве прогонов: {wins}/40");
   }
 
   #[test]
@@ -1082,10 +1176,6 @@ mod tests {
     let noise = rng.unit() * 0.3;
     let base = sim + live + noise;
     match mode {
-      "new" => {
-        let known = liked > 0.0 || plays > 0.0;
-        base + (if known { -2.5 } else { 1.0 }) - skips / (plays + skips + 1.0) + platform * 0.5
-      }
       "hard" | "calm" | "sad" | "fun" => base + mood_fit(mode, t) * 1.5 + liked * 0.5 + affinity * 0.6 + platform * 0.5 + hour * 0.4,
       _ => base + liked + affinity + platform + hour * 1.2,
     }
@@ -1112,7 +1202,7 @@ mod tests {
     cands[2].tags = Some("sad emo".into());
     cands[3].tags = Some("phonk drift".into());
     cands[4].tags = Some("pop dance".into());
-    for mode in MODES {
+    for mode in ["own", "hard", "calm", "sad", "fun"] {
       for prefer in [None, Some("sc"), Some("ym")] {
         for (i, c) in cands.iter().enumerate() {
           for session in [&session, &Session::default()] {
@@ -1122,9 +1212,7 @@ mod tests {
             let f = features(c, &taste, &origin, session, prefer, mode, &mut r2);
             // «знакомый артист» в «Своей» и настроениях добавлен после (меньше незнакомых) — без него формула прежняя
             let mut w = weights(mode);
-            if mode != "new" {
-              w.known = 0.0;
-            }
+            w.known = 0.0;
             let new = w.dot(&f) + r2.unit() * 0.3;
             assert!((old - new).abs() < 1e-9, "{mode} {prefer:?} {}: {old} ≠ {new}", c.ref_);
           }
@@ -1163,7 +1251,7 @@ mod tests {
     let out = pick(vec![obscure, popular, mine], &taste, &Origin::default(), &Session::default(), &f, None, "own", 10, false, &mut Rng::new(2));
     let refs: Vec<&str> = out.iter().map(|x| x.ref_.as_str()).collect();
     assert!(!refs.contains(&"sc:1") && refs.contains(&"sc:2") && refs.contains(&"sc:3"));
-    assert_eq!(familiarity("new", false, 10), (None, 0));
+    assert_eq!(familiarity("popular", false, 10), (Some(6), 50_000));
     assert_eq!(familiarity("own", false, 10), (Some(3), 1000));
   }
 
@@ -1318,9 +1406,9 @@ mod tests {
     b.tags = Some("polka".into());
     let o = Origin::default();
     let s = Session::default();
-    // «Незнакомое»: вкус к артисту не участвует, поэтому порядок определяет профиль
+    // незнакомые артисты: вкус к артисту одинаковый, поэтому порядок определяет профиль
     for seed in 1..20 {
-      let out = pick(vec![b.clone(), a.clone()], &taste, &o, &s, &Filter::default(), None, "new", 2, false, &mut Rng::new(seed));
+      let out = pick(vec![b.clone(), a.clone()], &taste, &o, &s, &Filter::default(), None, "own", 2, false, &mut Rng::new(seed));
       assert_eq!(out[0].ref_, "sc:1", "seed {seed}");
     }
     // режим научился: gothboiclique в «Грустной» заходит, но слова «sad» в тегах нет — словарь молчит
@@ -1437,7 +1525,8 @@ mod tests {
   fn liked_share_by_mode_and_mood_filter() {
     assert_eq!(liked_share("own", false), 3);
     assert_eq!(liked_share("sad", false), 2);
-    assert_eq!(liked_share("new", false), 0);
+    assert_eq!(liked_share("night", false), 2);
+    assert_eq!(liked_share("legacy", false), 0);
     assert_eq!(liked_share("own", true), 0);
     let mut sad = t("sc:1", "a");
     sad.tags = Some("sad emo".into());
@@ -1460,5 +1549,65 @@ mod tests {
     assert_eq!(why(&picked("sc:3", "artist"), &origin, None), ("artist", Some("sca:9".into())));
     assert_eq!(why(&picked("sc:4", "liked"), &origin, None).0, "liked");
     assert_eq!(why(&picked("sc:5", "hop2"), &origin, None).0, "explore");
+  }
+
+  #[test]
+  fn nine_moods_without_discover() {
+    assert_eq!(MODES.len(), 9);
+    assert!(!MODES.contains(&"new"), "«Незнакомое» убрано");
+    assert!(!is_mood("own") && !is_mood("new"));
+    for m in MODES.iter().filter(|m| **m != "own") {
+      assert!(is_mood(m), "{m} — настроение со своим словарём");
+      assert!(weights(m).mood > 0.0 && weights(m).mode_profile > 0.0, "{m}");
+    }
+  }
+
+  #[test]
+  fn new_moods_have_own_profiles() {
+    let tagged = |r: &str, tags: &str| {
+      let mut x = t(r, "a");
+      x.tags = Some(tags.into());
+      x
+    };
+    assert!(mood_fit("night", &tagged("sc:1", "synthwave midnight")) > 1.0);
+    assert!(mood_fit("sleep", &tagged("sc:2", "sleep ambient drone")) > 1.0);
+    assert!(mood_fit("focus", &tagged("sc:3", "study instrumental chillhop")) > 1.0);
+    assert!(mood_fit("popular", &tagged("sc:4", "viral tiktok hits")) > 1.0);
+    // фонк — не сон и не концентрация
+    assert!(mood_fit("sleep", &tagged("sc:5", "phonk drift")) < 0.0);
+    assert!(mood_fit("focus", &tagged("sc:5", "phonk drift")) < 0.0);
+    // профили разные: один и тот же трек по-разному подходит разным настроениям
+    let lofi = tagged("sc:6", "lofi study beats to relax");
+    assert!(mood_fit("focus", &lofi) > mood_fit("sleep", &lofi));
+  }
+
+  #[test]
+  fn popular_prefers_many_plays() {
+    assert_eq!(popularity(&t("ym:1", "a")), 0.0, "нет числа — не штраф");
+    let mut big = t("sc:1", "a");
+    big.plays = Some(10_000_000);
+    let mut small = t("sc:2", "b");
+    small.plays = Some(2_000);
+    assert!((popularity(&big) - 1.0).abs() < 1e-9);
+    assert!(popularity(&small) < 0.1);
+    for seed in 1..15 {
+      let out = pick(vec![small.clone(), big.clone()], &Taste::default(), &Origin::default(), &Session::default(), &Filter::default(), None, "popular", 2, false, &mut Rng::new(seed));
+      assert_eq!(out[0].ref_, "sc:1", "seed {seed}");
+    }
+    assert_eq!(weights("own").popularity, 0.0, "популярность весит только в «Популярном»");
+  }
+
+  #[test]
+  fn sleep_and_focus_keep_only_fitting_when_enough() {
+    let mut cands: Vec<Track> = (0..6)
+      .map(|i| {
+        let mut x = t(&format!("sc:{i}"), &format!("a{i}"));
+        x.tags = Some("sleep ambient".into());
+        x
+      })
+      .collect();
+    cands.push(t("sc:99", "zz"));
+    let out = pick(cands, &Taste::default(), &Origin::default(), &Session::default(), &Filter::default(), None, "sleep", 3, false, &mut Rng::new(1));
+    assert!(out.iter().all(|x| x.ref_ != "sc:99"), "трек без признаков сна не попадает, когда подходящих хватает");
   }
 }
