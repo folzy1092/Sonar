@@ -141,7 +141,7 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 последние ≤ 12 с трека затихают, следующий загружается на паузе. Включён — луна на кнопке
 (`Playback/PlayerExtras.swift` `SleepTimer`, `Features/Player/SleepTimerSheet.swift`).
 
-## Профиль — `profile.*` (Аккаунт → Профиль, Windows 2026-11-16)
+## Профиль — `profile.*` (Аккаунт → Профиль, Windows 2026-11-16, оформление — 2026-11-18)
 
 До сервера профиль хранится в настройках (синхронизируется как остальные); с сервером — `GET /me`
 и `PATCH /me` (`API.md`). Пусто — имя и аватар из подключённого сервиса.
@@ -151,6 +151,20 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 | `profile.name` | отображаемое имя (приветствие на главной), до 40 знаков | `''` | да |
 | `profile.username` | `@username`: латиница, цифры, `_`, 3–32 | `''` | да |
 | `profile.avatar` | WebP data URL 256×256, обрезан в круг (iPhone — JPEG data URL 256×256 из галереи, `ProfileEditView`) | `''` | да |
+| `profile.banner` | баннер над аватаром: WebP data URL 900×300 (центр-кроп, `coverFromFile`) | `''` | да |
+| `profile.background` | фон всей карточки профиля: WebP data URL 960×540 | `''` | да |
+| `profile.color` | цвет профиля (ник, кольцо аватара, акценты): `''` без цвета · `red` `orange` `yellow` `lime` `green` `teal` `blue` `violet` `pink` `white` (`lib/profile-look.ts`) | `''` | да |
+| `profile.status` | строка под ником, до 80 знаков | `''` | да |
+| `profile.bio` | «О себе», до 190 знаков | `''` | да |
+| `profile.links` | до 5 ссылок `[{kind: telegram\|discord\|site, url}]`; `@ник` → `t.me/ник`, только http(s) | `[]` | да |
+| `profile.layout` | вид шапки: `avatar` · `big_name` · `banner` · `center` | `avatar` | да |
+| `profile.nick_font` | шрифт ника: `default` · `caveat` · `marck` · `pacifico` · `lobster` · `amatic` · `pixel` · `retro` · `russo` · `unbounded` · `tektur` · `dela` | `default` | да |
+| `profile.nick_effect` | эффект ника: `none` · `shimmer` · `neon` · `cartoon` · `highlight` · `3d` · `retro` | `none` | да |
+| `profile.showcase` | витрина, до 6 мест `[{kind: playlist\|album\|artist\|track, ref, title, subtitle, cover_url}]`; плейлисты из `privacy.hidden_playlists` не ставятся и не показываются | `[]` | да |
+
+Уровней, значков, Мастерской и Canvas нет (решение владельца 2026-11-18). На ПК всё это видно в превью
+«как увидят другие» сверху страницы; публичная страница по ссылке и `ProfileView` на iPhone покажут баннер,
+фон и эффекты, когда появится сервер.
 
 ## Приватность — `privacy.*` (Аккаунт → Приватность, решение владельца 2026-11-18)
 

@@ -1,15 +1,24 @@
-// Аватар профиля (Аккаунт → Профиль): файл с компьютера → квадрат по центру 256×256, обрезанный в
-// круг (прозрачные углы) → WebP data URL. Маленький (≈ 10–30 КБ), поэтому живёт в настройках
-// (`profile.avatar`) и синхронизируется вместе с ними; с сервером уйдёт в PATCH /me.
-export async function avatarFromFile(file: File, size = 256): Promise<string> {
+// Картинки профиля (Аккаунт → Профиль): файл с компьютера → WebP data URL. Аватар — квадрат по центру
+// 256×256, обрезанный в круг (≈ 10–30 КБ); баннер и фон — прямоугольник «по обложке» (обрезка по центру).
+// Маленькие, поэтому живут в настройках (`profile.*`) и синхронизируются вместе с ними; с сервером уйдут
+// в PATCH /me.
+
+function loadImage(file: File): Promise<{ img: HTMLImageElement; done: () => void }> {
   const url = URL.createObjectURL(file)
+  return new Promise((resolve, reject) => {
+    const i = new Image()
+    i.onload = () => resolve({ img: i, done: () => URL.revokeObjectURL(url) })
+    i.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('не картинка'))
+    }
+    i.src = url
+  })
+}
+
+export async function avatarFromFile(file: File, size = 256): Promise<string> {
+  const { img, done } = await loadImage(file)
   try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const i = new Image()
-      i.onload = () => resolve(i)
-      i.onerror = () => reject(new Error('не картинка'))
-      i.src = url
-    })
     const side = Math.min(img.naturalWidth, img.naturalHeight)
     const sx = (img.naturalWidth - side) / 2
     const sy = (img.naturalHeight - side) / 2
@@ -22,7 +31,24 @@ export async function avatarFromFile(file: File, size = 256): Promise<string> {
     g.drawImage(img, sx, sy, side, side, 0, 0, size, size)
     return c.toDataURL('image/webp', 0.86)
   } finally {
-    URL.revokeObjectURL(url)
+    done()
+  }
+}
+
+/** Баннер или фон: обрезка по центру до пропорций width×height и уменьшение до них. */
+export async function coverFromFile(file: File, width: number, height: number, quality = 0.8): Promise<string> {
+  const { img, done } = await loadImage(file)
+  try {
+    const scale = Math.max(width / img.naturalWidth, height / img.naturalHeight)
+    const sw = width / scale
+    const sh = height / scale
+    const c = document.createElement('canvas')
+    c.width = width
+    c.height = height
+    c.getContext('2d')!.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, 0, 0, width, height)
+    return c.toDataURL('image/webp', quality)
+  } finally {
+    done()
   }
 }
 
