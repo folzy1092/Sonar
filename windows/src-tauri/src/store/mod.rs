@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 mod alias;
+mod dupes;
 mod local_files;
 mod search;
 mod stats;
@@ -17,6 +18,7 @@ mod system;
 mod wave;
 mod wave_events;
 pub use alias::TrackAlias;
+pub use dupes::{DupeList, Removed};
 pub use local_files::LocalFile;
 pub use stats::Stats;
 pub use sync::{Change, Op, PlayUpload};
