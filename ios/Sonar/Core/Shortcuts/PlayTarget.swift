@@ -16,7 +16,8 @@ enum PlayTarget: String, CaseIterable, Sendable {
         URL(string: "sonar://play/\(rawValue)")!
     }
 
-    /// Подпись на кнопке виджета (виджет живёт отдельно от приложения и словарей `t()`, поэтому по-русски).
+    /// Подпись на кнопке виджета. Виджет живёт отдельно от приложения и словарей `t()`: эта русская строка —
+    /// ключ `SonarWidget/en.lproj` и `uk.lproj` (`PlayTarget.label` в `SonarWidget.swift`).
     var title: String {
         switch self {
         case .liked: "Любимые"
