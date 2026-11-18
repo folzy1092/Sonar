@@ -33,4 +33,12 @@ describe('старые значения настроек', () => {
     expect(migrateSettings({ 'tabs.style': 'full' })['tabs.style']).toBe('default')
     expect(migrateSettings({ 'tabs.style': 'floating' })['tabs.style']).toBe('floating')
   })
+
+  it('мини плеер: «Снизу внутри» становится плавающим, прогресс одной строкой — списком', () => {
+    expect(migrateSettings({ 'mini.position': 'bottom_inset' })['mini.position']).toBe('floating')
+    expect(migrateSettings({ 'mini.position': 'top' })['mini.position']).toBe('top')
+    expect(migrateSettings({ 'mini.progress': 'cover' })['mini.progress']).toEqual(['cover'])
+    const list = { 'mini.progress': ['line', 'cover'] }
+    expect(migrateSettings(list)).toBe(list)
+  })
 })

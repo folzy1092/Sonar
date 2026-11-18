@@ -73,4 +73,12 @@ export default {
   "При запуске": "On launch",
   "Продолжать очередь": "Continue the queue",
   "Страница плеера: стиль, визуализатор, ползунок, обложка и очередь": "Player page: style, visualizer, seek bar, cover and queue",
+  "Где мини плеер в окне. Плавающий можно перетащить": "Where the mini player sits in the window. The floating one can be dragged",
+  "Во всю ширину": "Full width",
+  "Как видно, сколько прошло. Можно выбрать несколько": "How elapsed time is shown. You can pick several",
+  "Форма обложки в мини плеере": "Cover shape in the mini player",
+  "Круглая": "Round",
+  "Концы мини плеера и левой панели": "Ends of the mini player and the left panel",
+  "Скругление формы": "Shape rounding",
+  "Скругление обложки": "Cover rounding",
 }
