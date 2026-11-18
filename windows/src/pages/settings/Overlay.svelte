@@ -1,27 +1,32 @@
 <script lang="ts">
   // Интерфейс → Оверлей (SETTINGS_NEXT «Оверлей», решение владельца 2026-11-18): плашка поверх других
-  // программ и игр (mini.rs, окно `overlay`). Режим — живые превью, место — макет экрана с сеткой 3×3:
-  // плашку можно перетащить, отпустили — прилипает к ближайшей клетке. Размер и прозрачность — ползунки,
-  // макет меняется прямо под пальцем. Открыть — горячей клавишей, кнопкой или само, когда Sonar свёрнут.
+  // программ и игр (mini.rs, окно `overlay`). Режим — живые превью, место — схема всех мониторов, как они
+  // стоят в Windows (MonitorScheme, lib/monitor-layout.ts): выбрал монитор, нажал точку или утащил плашку —
+  // она прилипает к ближайшей клетке. Размер и прозрачность — ползунки, схема меняется прямо под пальцем.
+  // Открыть — горячей клавишей, кнопкой или само, когда Sonar свёрнут.
+  import { invoke } from '@tauri-apps/api/core'
   import Card from '../../components/settings/Card.svelte'
   import Choice from '../../components/settings/Choice.svelte'
+  import MonitorScheme from '../../components/settings/MonitorScheme.svelte'
   import PreviewTiles from '../../components/settings/PreviewTiles.svelte'
   import Slider from '../../components/settings/Slider.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Icon from '../../components/Icon.svelte'
   import { settings, type OverlayAnchor, type OverlayMode } from '../../lib/settings.svelte'
-  import { OVERLAY_ANCHORS, OVERLAY_LIMITS, anchorAlign, nearestAnchor, overlayLayout } from '../../lib/overlay'
+  import { OVERLAY_LIMITS, overlayLayout } from '../../lib/overlay'
+  import { BROWSER_MONITOR, monitorChoice, pickMonitor, type MonitorInfo } from '../../lib/monitor-layout'
   import { comboLabel } from '../../lib/hotkeys-core'
   import { mini } from '../../lib/mini.svelte'
   import { player } from '../../player/player.svelte'
   import { isTauri } from '../../lib/tauri'
   import { t } from '../../lib/i18n.svelte'
+  import { pop } from '../../lib/motion'
 
-  /** Ширина экрана, которую изображает макет, — логические пиксели обычного монитора. */
-  const SCREEN_W = 1920
+  /** Как часто переспрашиваем мониторы, пока страница открыта: подключили или сняли — схема обновится. */
+  const MONITORS_POLL_MS = 2500
 
   type Num = 'opacity' | 'scale' | 'width' | 'height'
-  // пока тянут ползунок — макет показывает значение под пальцем, отпустили — сохраняем
+  // пока тянут ползунок — схема показывает значение под пальцем, отпустили — сохраняем
   let live = $state<Partial<Record<Num, number>>>({})
   const num = (k: Num) => live[k] ?? settings.get(`overlay.${k}`)
 
@@ -33,30 +38,42 @@
   const layout = $derived(overlayLayout(mode === 'off' ? 'card' : mode, num('width'), num('height'), num('scale'), anchor))
   const combo = $derived(settings.get('hotkeys.map').overlay ?? '')
 
-  // перетаскивание плашки по макету: доли 0…1 под курсором, пока тянут
-  let screen = $state<HTMLDivElement>()
-  let drag = $state<{ x: number; y: number } | null>(null)
-  const align = $derived(drag ?? anchorAlign(anchor))
+  // мониторы: в приложении — из Rust (list_monitors), в браузере — один обычный 1920×1080
+  let monitors = $state<MonitorInfo[]>(isTauri ? [] : [BROWSER_MONITOR])
+  let monitorsFailed = $state(false)
+  const shown = $derived(monitors.length ? monitors : monitorsFailed ? [BROWSER_MONITOR] : [])
+  const picked = $derived(pickMonitor(shown, settings.get('overlay.monitor')))
 
-  function point(e: PointerEvent) {
-    const r = screen!.getBoundingClientRect()
-    const clamp = (v: number) => Math.min(1, Math.max(0, v))
-    return { x: clamp((e.clientX - r.left) / r.width), y: clamp((e.clientY - r.top) / r.height) }
+  async function loadMonitors() {
+    try {
+      const list = await invoke<MonitorInfo[]>('list_monitors')
+      monitorsFailed = false
+      if (JSON.stringify(list) !== JSON.stringify(monitors)) monitors = list
+    } catch (e) {
+      // схема остаётся прежней; пусто — рисуем обычный экран и честно говорим об этом
+      console.warn('оверлей: мониторы не получены', e)
+      monitorsFailed = true
+    }
   }
-  function grab(e: PointerEvent) {
-    if (off || mode === 'fullscreen') return
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    drag = point(e)
+
+  $effect(() => {
+    if (!isTauri) return
+    void loadMonitors()
+    const timer = setInterval(() => void loadMonitors(), MONITORS_POLL_MS)
+    const onFocus = () => void loadMonitors()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+    }
+  })
+
+  /** Выбрали монитор и клетку. Монитор пишем, только если его сменили: двигая плашку по основному,
+   *  пока выбранный отключён, сохранённый выбор не теряем. */
+  function place(m: MonitorInfo, a: OverlayAnchor) {
+    if (m.id !== picked.monitor?.id) settings.set('overlay.monitor', monitorChoice(m))
+    if (a !== anchor) settings.set('overlay.position', a)
   }
-  function move(e: PointerEvent) {
-    if (drag) drag = point(e)
-  }
-  function drop() {
-    if (!drag) return
-    settings.set('overlay.position', nearestAnchor(drag.x, drag.y))
-    drag = null
-  }
-  const setAnchor = (a: OverlayAnchor) => settings.set('overlay.position', a)
 
   /** Название клетки для экранного диктора: «Сверху слева»… */
   function cellName(a: OverlayAnchor) {
@@ -64,6 +81,14 @@
     const col = { l: t('слева'), c: t('по центру'), r: t('справа') }[a[1] as 'l' | 'c' | 'r']
     return `${row} ${col}`
   }
+
+  const positionHint = $derived(
+    mode === 'fullscreen'
+      ? t('Полноэкранный оверлей занимает весь монитор — нажми другой, чтобы перенести')
+      : shown.length > 1
+        ? t('Нажми монитор и точку — или перетащи плашку, хоть на другой монитор')
+        : t('Перетащи плашку или нажми точку — она встанет в ближайшую клетку'),
+  )
 </script>
 
 {#snippet plaque(m: OverlayMode, round: boolean)}
@@ -110,50 +135,43 @@
   </div>
 </Card>
 
+{#snippet schemePlaque()}
+  <span class="fit">{@render plaque(mode === 'island' ? 'island' : 'card', shape === 'rounded')}</span>
+{/snippet}
+
+{#snippet schemeBig()}
+  <span class="big fullcard" class:sq={shape === 'square'} style:--z={num('scale') / 100}><i class="art" style:--art={cover ? `url("${cover}")` : null}></i><i class="ln"></i><i class="ln short"></i></span>
+{/snippet}
+
 <div class="dimmable" class:off>
-  <Card title={t('Положение на экране')} hint={mode === 'fullscreen' ? t('Полноэкранный оверлей занимает весь экран — место не нужно') : t('Перетащи плашку или нажми точку — она встанет в ближайшую клетку')}>
-    <div
-      class="screen"
-      class:full={mode === 'fullscreen'}
-      bind:this={screen}
-      style:--o={num('opacity') / 100}
-    >
-      {#each OVERLAY_ANCHORS as a (a)}
-        {@const p = anchorAlign(a)}
-        <button
-          class="cell"
-          class:on={a === anchor && !drag}
-          style:--x={p.x}
-          style:--y={p.y}
-          aria-label={cellName(a)}
-          disabled={mode === 'fullscreen'}
-          onclick={() => setAnchor(a)}
-        ></button>
-      {/each}
-      {#if mode === 'fullscreen'}
-        <span class="big" class:sq={shape === 'square'} style:zoom={num('scale') / 100}><i class="art" style:--art={cover ? `url("${cover}")` : null}></i><i class="ln"></i><i class="ln short"></i></span>
-      {:else}
-        <span
-          class="drag"
-          class:dragging={!!drag}
-          role="slider"
-          tabindex="-1"
-          aria-label={t('Положение на экране')}
-          aria-valuetext={cellName(anchor)}
-          aria-valuenow={OVERLAY_ANCHORS.indexOf(anchor)}
-          style:--x={align.x}
-          style:--y={align.y}
-          style:--w={layout.width / SCREEN_W}
-          style:--h={layout.height / SCREEN_W}
-          onpointerdown={grab}
-          onpointermove={move}
-          onpointerup={drop}
-          onpointercancel={drop}
-        >
-          {@render plaque(mode, shape === 'rounded')}
-        </span>
-      {/if}
-    </div>
+  <Card title={t('Положение на экране')} hint={positionHint}>
+    {#if shown.length && picked.monitor}
+      <MonitorScheme
+        monitors={shown}
+        selectedId={picked.monitor.id}
+        {anchor}
+        {layout}
+        fullscreen={mode === 'fullscreen'}
+        opacity={num('opacity') / 100}
+        plaque={schemePlaque}
+        big={schemeBig}
+        {cellName}
+        onplace={place}
+      />
+    {:else}
+      <div class="loading" aria-busy="true"></div>
+    {/if}
+    {#if monitorsFailed}
+      <p class="note" in:pop={{ y: 4 }}>
+        <Icon name="monitor" size={14} />
+        <span>{t('Не удалось узнать мониторы — показан обычный экран')}</span>
+      </p>
+    {:else if picked.missing}
+      <p class="note" in:pop={{ y: 4 }}>
+        <Icon name="monitor" size={14} />
+        <span>{t('Выбранный монитор отключён — оверлей пока на основном. Подключишь — вернётся сам')}</span>
+      </p>
+    {/if}
   </Card>
 
   <Card title={t('Вид')}>
@@ -358,29 +376,23 @@
     width: 50%;
   }
 
-  /* ——— макет экрана с сеткой 3×3 ——— */
-  .screen {
-    --pad: 4%;
-    position: relative;
+  /* ——— плашка и карточка на схеме мониторов (MonitorScheme) ——— */
+  .fit {
+    display: block;
     width: 100%;
-    max-width: 560px;
-    margin: 4px auto 12px;
-    aspect-ratio: 16 / 9;
-    border-radius: 10px;
-    border: 1px solid var(--border-strong);
-    background:
-      radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
-      linear-gradient(135deg, var(--surface-3), var(--surface-2));
-    overflow: hidden;
-    touch-action: none;
+    height: 100%;
   }
-  .screen.full {
-    display: grid;
-    place-items: center;
-    background: linear-gradient(135deg, color-mix(in srgb, var(--surface-3) calc(100% - var(--o) * 60%), #000), color-mix(in srgb, var(--surface-2) calc(100% - var(--o) * 60%), #000));
+  .fit .pl {
+    padding: 0 4%;
+    gap: 5%;
   }
-  .screen.full .big {
-    width: 26%;
+  .fit .pl.island {
+    width: 100%;
+  }
+  .fullcard {
+    width: clamp(36px, calc(26% * var(--z, 1)), 80%);
+    gap: 3px;
+    padding: 7% 4%;
     animation: pop 0.35s var(--ease);
   }
   @keyframes pop {
@@ -389,82 +401,48 @@
       scale: 0.9;
     }
   }
-  .cell {
-    position: absolute;
-    left: calc(var(--pad) + (100% - 2 * var(--pad)) * var(--x));
-    top: calc(var(--pad) + (100% - 2 * var(--pad)) * var(--y));
-    width: 10px;
-    height: 10px;
-    margin: -5px 0 0 -5px;
-    border-radius: 50%;
-    background: var(--text-3);
-    opacity: 0.45;
-    transition:
-      opacity 0.2s var(--ease),
-      scale 0.25s var(--ease),
-      background 0.2s var(--ease);
+  .loading {
+    height: 150px;
+    margin: 6px auto 14px;
+    max-width: 420px;
+    border-radius: 8px;
+    background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2)) 0 0 / 200% 100%;
+    animation: shimmer 1.4s linear infinite;
   }
-  .cell:hover:not(:disabled) {
-    opacity: 1;
-    scale: 1.4;
+  @keyframes shimmer {
+    to {
+      background-position: -200% 0;
+    }
   }
-  /* выбранную клетку и так видно по плашке — точка под ней гаснет */
-  .cell.on {
-    opacity: 0;
+  .note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 12px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--text-2);
+    font-size: calc(12px * var(--fs, 1));
+    line-height: 1.45;
   }
-  .screen.full .cell {
-    opacity: 0;
-  }
-  /* плашка: ширина и высота — доли экрана (высота тоже от ширины — так сохраняются пропорции окна) */
-  .drag {
-    --pw: calc(var(--w) * 100%);
-    position: absolute;
-    width: var(--pw);
-    aspect-ratio: calc(var(--w) / var(--h));
-    left: calc(var(--pad) + (100% - 2 * var(--pad) - var(--pw)) * var(--x));
-    top: calc(var(--pad) + (100% - 2 * var(--pad)) * var(--y));
-    translate: 0 calc(var(--y) * -100%);
-    cursor: grab;
-    transition:
-      left 0.4s var(--ease),
-      top 0.4s var(--ease),
-      translate 0.4s var(--ease),
-      width 0.25s var(--ease),
-      aspect-ratio 0.25s var(--ease);
-  }
-  .drag.dragging {
-    cursor: grabbing;
-    transition:
-      width 0.25s var(--ease),
-      aspect-ratio 0.25s var(--ease);
-  }
-  .drag.dragging .pl {
-    box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
-    scale: 1.04;
-  }
-  .drag .pl {
-    --o: inherit;
-    padding: 0 4%;
-    transition:
-      scale 0.2s var(--ease),
-      box-shadow 0.2s var(--ease),
-      border-radius 0.3s var(--ease),
-      background 0.3s var(--ease);
-  }
-  .drag .pl.island {
-    width: 100%;
+  .note :global(svg) {
+    flex: none;
+    margin-top: 1px;
+    color: var(--accent);
   }
 
   /* ——— строки «Как открыть» ——— */
   .row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 14px;
+    gap: 10px 14px;
     padding: 11px 0;
   }
   .txt {
     display: flex;
-    flex: 1;
+    flex: 1 1 220px;
     flex-direction: column;
     gap: 3px;
     min-width: 0;
@@ -481,6 +459,7 @@
   }
   .keys {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
   }
   kbd {
@@ -518,11 +497,18 @@
   .show:disabled {
     opacity: 0.5;
   }
+  /* узкое окно: кнопка и клавиши уходят под подпись во всю ширину, без прокрутки вбок */
+  @container (max-width: 520px) {
+    .row > :not(.txt) {
+      flex-basis: 100%;
+    }
+    .show {
+      width: 100%;
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .drag,
-    .cell,
-    .screen.full .big {
-      transition: opacity 0.2s;
+    .fullcard,
+    .loading {
       animation: none;
     }
   }
