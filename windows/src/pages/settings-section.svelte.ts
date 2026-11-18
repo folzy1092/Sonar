@@ -33,6 +33,7 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
     { id: 'profile', title: 'Профиль', icon: 'user2' },
     { id: 'login', title: 'Вход', icon: 'shield', soon: true },
     { id: 'privacy', title: 'Приватность', icon: 'lock' },
+    { id: 'notifications', title: 'Уведомления', icon: 'bell' },
     { id: 'stats', title: 'Статистика', icon: 'bars' },
   ],
   subscription: [{ id: 'plans', title: 'Sonar Deep', icon: 'sparkles' }],
@@ -70,6 +71,7 @@ export const NAV: NavGroup[] = [
     items: [
       { tab: 'account', sub: 'login' },
       { tab: 'account', sub: 'privacy' },
+      { tab: 'account', sub: 'notifications' },
       { tab: 'subscription', sub: 'plans' },
       { tab: 'account', sub: 'stats' },
       { tab: 'services', sub: 'services' },
