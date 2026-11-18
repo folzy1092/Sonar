@@ -1,6 +1,7 @@
 mod commands;
 mod crashlog;
 mod discord;
+mod dupes;
 mod export;
 mod lastfm;
 mod login;
@@ -274,6 +275,9 @@ pub fn run() {
       local::commands::local_rescan,
       local::commands::local_tracks,
       local::commands::local_search,
+      dupes::commands::find_duplicates,
+      dupes::commands::remove_duplicates,
+      dupes::commands::restore_duplicates,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");

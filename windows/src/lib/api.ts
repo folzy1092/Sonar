@@ -113,6 +113,21 @@ export interface Playlist {
   tracks: ListTrack[] | null
 }
 
+/** Где ищутся дубли: Любимые или id своего плейлиста (`pl_…`). */
+export type DupeListId = 'favorites' | `pl_${string}`
+
+/** Группа дублей (dupes/mod.rs): `keep` — кого оставить по умолчанию, он же первый в `items`. */
+export interface DupeGroup {
+  keep: string
+  items: ListTrack[]
+}
+
+/** Что убрали одной правкой «Убрать отмеченные» — для «Отменить». */
+export interface RemovedDupes {
+  list: DupeListId
+  items: { item_id: string; added_at: number }[]
+}
+
 export interface SearchMore {
   artists: Artist[]
   albums: Album[]
@@ -373,6 +388,12 @@ export const api = {
     call<void>('add_to_playlist', { id, tracks, position }),
   removeFromPlaylist: (id: string, itemIds: string[]) => call<void>('remove_from_playlist', { id, itemIds }),
   reorderPlaylist: (id: string, itemIds: string[]) => call<void>('reorder_playlist', { id, itemIds }),
+  /** Дубли в Любимых или своём плейлисте — офлайн, по сохранённым метаданным. */
+  findDuplicates: (list: DupeListId) => call<DupeGroup[]>('find_duplicates', { list }),
+  /** Убрать строки одной правкой; ответ — для «Отменить». */
+  removeDuplicates: (list: DupeListId, itemIds: string[]) => call<RemovedDupes>('remove_duplicates', { list, itemIds }),
+  /** Вернуть убранное; вернёт, сколько строк вернулось. */
+  restoreDuplicates: (removed: RemovedDupes) => call<number>('restore_duplicates', { removed }),
 
   getSetting: <T>(key: string) => call<T | null>('get_setting', { key }),
   setSetting: (key: string, value: unknown) => call<void>('set_setting', { key, value }),

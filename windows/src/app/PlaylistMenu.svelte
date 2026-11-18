@@ -280,6 +280,10 @@
         {@render item('playNext', t('Следующими'), () => withFav((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
         {@render item('queue', t('В очередь'), () => withFav((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}
         <hr />
+        {@render item('stack', t('Найти дубли'), () => {
+          playlistMenu.close()
+          router.go('dupes', 'favorites')
+        })}
         {@render exportEntry()}
         <hr />
         <button class="item danger" role="menuitem" onclick={clearFav}>
@@ -333,6 +337,10 @@
           }),
         )}
         {@render item('copy', t('Копировать название'), copyOwnTitle)}
+        {@render item('stack', t('Найти дубли'), () => {
+          playlistMenu.close()
+          router.go('dupes', own.id)
+        })}
         {@render exportEntry()}
         <hr />
         {@render item(own.hidden ? 'eye' : 'eyeOff', own.hidden ? t('Показать плейлист') : t('Скрыть плейлист'), toggleHidden)}
