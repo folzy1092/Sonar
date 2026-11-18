@@ -88,6 +88,20 @@ def wave(d):
     d.line(pts, fill=0, width=18, joint="curve")
 
 
+def server(d):
+    """Сервер (статус «Основной»): три стойки-юнита, слева огоньки, справа щель."""
+    w, h, gap = 236, 60, 16
+    top = C - (3 * h + 2 * gap) / 2
+    for i in range(3):
+        y = top + i * (h + gap)
+        d.rounded_rectangle([C - w / 2, y, C + w / 2, y + h], 16, fill=0)
+        cy = y + h / 2
+        for k in range(2):                                  # два огонька
+            cx = C - w / 2 + 34 + k * 30
+            d.ellipse([cx - 9, cy - 9, cx + 9, cy + 9], fill=255)
+        d.rounded_rectangle([C + 10, cy - 6, C + w / 2 - 28, cy + 6], 6, fill=255)  # щель
+
+
 def logo_polys(size, box, cx=None, cy=None):
     """Контуры знака Sonar из brand/logo.svg (только M/C/L/Z), вписанные в квадрат box с центром (cx, cy)."""
     import re
@@ -143,7 +157,7 @@ def sonar(d):
 
 
 BADGES = {"windows": windows, "iphone": iphone, "android": android, "music": music,
-          "diamond": diamond, "heart": heart, "bug": bug, "wave": wave, "sonar": sonar}
+          "diamond": diamond, "heart": heart, "bug": bug, "wave": wave, "server": server, "sonar": sonar}
 
 def plain(glyph, size=100, pad=0.06):
     """Просто знак без розетки (решение владельца 2026-11-15): белый на прозрачном, вписан в квадрат."""
