@@ -50,7 +50,7 @@ struct RootView: View {
                     showUpdate = true
                 }
                 .padding(.horizontal, Theme.gutter)
-                .padding(.bottom, BottomChrome.visibleHeight(hasMini: engine.current != nil, collapsed: chrome.collapsed) + 10)
+                .padding(.bottom, BottomChrome.visibleHeight(hasMini: engine.current != nil || RemoteControl.shared.isActive, collapsed: chrome.collapsed) + 10)
                 .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.96, anchor: .bottom)))
             }
 
@@ -237,7 +237,7 @@ struct BottomChrome: View {
 
     var body: some View {
         let style = TabBarStyle(rawValue: settings.string(LookKey.tabStyle)) ?? .floating
-        let hasMini = engine.current != nil
+        let hasMini = engine.current != nil || RemoteControl.shared.isActive
         let collapsed = chrome.collapsed && hasMini && settings.bool(LookKey.tabsCollapse)
         let tint: Color? = settings.bool(LookKey.tabsAdapt) ? Theme.tint : nil
         GeometryReader { geo in

@@ -39,8 +39,30 @@ struct FullPlayerView: View {
     @State private var showLyricsMenu = false
 
     private var lyricsStore: LyricsStore { LyricsStore.shared }
+    /// «Где играть»: этот iPhone или Sonar на ПК (пульт).
+    @State private var showDevices = false
 
     var body: some View {
+        Group {
+            if RemoteControl.shared.isActive {
+                RemotePlayerView(showDevices: $showDevices)
+                    .transition(.opacity)
+            } else {
+                localPlayer
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.35), value: RemoteControl.shared.isActive)
+        .sheet(isPresented: $showDevices) {
+            DevicePickerSheet()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(30)
+                .presentationBackground(Theme.background)
+        }
+    }
+
+    private var localPlayer: some View {
         ZStack {
             if showLyrics {
                 lyricsBackground
@@ -695,6 +717,11 @@ struct FullPlayerView: View {
             }
             Spacer()
             HStack(spacing: 26) {
+                Button { showDevices = true } label: {
+                    SonarIcon(.computer, size: 26)
+                        .foregroundStyle(Theme.text)
+                }
+                .accessibilityLabel(t("Где играть"))
                 Button { showLyrics = true } label: {
                     SonarIcon(.letterT, size: 26)
                         .foregroundStyle(lyricsStore.lyrics != nil && lyricsStore.trackRef == engine.current?.ref
