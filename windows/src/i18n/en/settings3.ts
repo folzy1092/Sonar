@@ -67,4 +67,10 @@ export default {
   "Свернуть, развернуть и закрыть — в духе Windows или macOS": "Minimize, maximize and close — Windows or macOS style",
   "Когда окно развёрнуто; «Авто» — как в окне": "When the window is maximized; “Auto” — same as windowed",
   "Цвета, прозрачность, шрифт, форма, масштаб и вкладки": "Colors, transparency, font, shape, scale and tabs",
+  "Ползунок": "Seek bar",
+  "Маленькая чёткая обложка внутри большой размытой": "A small sharp cover inside a large blurred one",
+  "Переливы": "Shimmer",
+  "При запуске": "On launch",
+  "Продолжать очередь": "Continue the queue",
+  "Страница плеера: стиль, визуализатор, ползунок, обложка и очередь": "Player page: style, visualizer, seek bar, cover and queue",
 }

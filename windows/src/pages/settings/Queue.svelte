@@ -1,11 +1,11 @@
 <script lang="ts">
-  // Плеер → Очередь по pc/Screenshot_7: что вернуть при запуске, показ очереди, её положение и вид,
-  // похожие после очереди, «добавлять следующие». Положение — плитки со схемой окна, редкое — в «Ещё».
-  import Cards from '../../components/settings/Cards.svelte'
+  // Карточка «Очередь» на странице «Плеер» (SETTINGS_NEXT «Плеер» п. 6, с 2026-11-18 — не отдельный
+  // раздел): что вернуть при запуске, показ очереди, её положение (плитки со схемой окна) и вид,
+  // «Продолжать очередь» похожими, «Добавлять следующие».
+  import PreviewTiles from '../../components/settings/PreviewTiles.svelte'
   import Choice from '../../components/settings/Choice.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Tiles from '../../components/settings/Tiles.svelte'
-  import More from '../../components/settings/More.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { t } from '../../lib/i18n.svelte'
 
@@ -17,7 +17,7 @@
 </script>
 
 <Choice
-  title={t('Продолжить с прошлого раза')}
+  title={t('При запуске')}
   hint={t('Что вернуть при открытии приложения')}
   wide
   value={settings.get('general.restore')}
@@ -46,20 +46,27 @@
   ].map((o) => ({ ...o, diagram: { ...frame, queue: o.id } }))}
   onchange={(v) => settings.set('queue.position', v)}
 />
-<Cards
+{#snippet viewTile(id: 'normal' | 'extended', on: boolean)}
+  <span class="rows" class:ext={id === 'extended'} class:on>
+    {#each [0, 1, 2] as i (i)}
+      <span class="r">{#if id === 'extended'}<i class="c"></i>{/if}<i class="t" style:width="{70 - i * 12}%"></i></span>
+    {/each}
+  </span>
+{/snippet}
+<PreviewTiles
   title={t('Вид очереди')}
   hint={t('Выберите режим отображения треков в списке очереди')}
   cols={2}
   value={settings.get('queue.view')}
   options={[
-    { id: 'normal' as const, label: t('Обычный'), icon: 'textLines' },
-    { id: 'extended' as const, label: t('Развернутый'), icon: 'queue' },
+    { id: 'normal' as const, label: t('Обычный') },
+    { id: 'extended' as const, label: t('Развернутый') },
   ]}
+  tile={viewTile}
   onchange={(v) => settings.set('queue.view', v)}
 />
-<More>
 <Switch
-  title={t('Авто похожие')}
+  title={t('Продолжать очередь')}
   hint={t('Как в SoundCloud: после любой очереди — поиска, Любимых, плейлиста — играют похожие треки')}
   on={settings.get('general.similar_autoplay')}
   onchange={(v) => settings.set('general.similar_autoplay', v)}
@@ -70,4 +77,38 @@
   on={settings.get('queue.add_following')}
   onchange={(v) => settings.set('queue.add_following', v)}
 />
-</More>
+
+<style>
+  .rows {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 70%;
+  }
+  .r {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 7px;
+    transition: height var(--normal) var(--ease);
+  }
+  .ext .r {
+    height: 12px;
+  }
+  .c {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    border-radius: 3px;
+    background: var(--surface-3);
+  }
+  .t {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--text-3);
+    transition: background var(--fast) var(--ease);
+  }
+  .on .t {
+    background: var(--text-2);
+  }
+</style>

@@ -43,7 +43,6 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
   player: [
     { id: 'audio', title: 'Аудио', icon: 'volume' },
     { id: 'view', title: 'Вид', icon: 'player' },
-    { id: 'queue', title: 'Очередь', icon: 'queue' },
     { id: 'mini', title: 'Мини плеер', icon: 'music' },
   ],
   services: [{ id: 'services', title: 'Сервисы', icon: 'key' }],
@@ -82,7 +81,6 @@ export const NAV: NavGroup[] = [
       { tab: 'system', sub: 'general' },
       { tab: 'player', sub: 'audio' },
       { tab: 'system', sub: 'storage' },
-      { tab: 'player', sub: 'queue' },
       { tab: 'integrations', sub: 'apps' },
       { tab: 'system', sub: 'hotkeys' },
       { tab: 'system', sub: 'remote' },
@@ -110,6 +108,9 @@ export function navSub(tab: SettingsTab, sub: string): SettingsSub | undefined {
   return found
 }
 
+/** Бывшие подразделы → куда влились (2026-11-18). */
+const MERGED_SUBS: Readonly<Record<string, string>> = { tabs: 'look', queue: 'view' }
+
 /** Подраздел по умолчанию — первый рабочий. */
 export const firstSub = (tab: SettingsTab) => (SUBS[tab].find((s) => !s.soon && !s.lock) ?? SUBS[tab][0]).id
 
@@ -123,8 +124,8 @@ class SettingsPanel {
       this.tab = tab
       this.sub = firstSub(tab)
     }
-    // «Вкладки» влились в «Вид» (2026-11-18) — старые ссылки ведут туда
-    if (sub) this.sub = sub === 'tabs' ? 'look' : sub
+    // «Вкладки» влились в «Вид», «Очередь» — в «Плеер» (2026-11-18): старые ссылки ведут туда
+    if (sub) this.sub = MERGED_SUBS[sub] ?? sub
     this.open = true
   }
 
