@@ -365,7 +365,7 @@ iOS Last.fm (2026-11-17, `LastfmSettingsView`, `Core/Integrations/`): вход �
 |---|---|---|---|
 | `hotkeys.enabled` | bool | `false` | нет |
 | `hotkeys.map` | действие → сочетание (`KeyboardEvent.code`): `toggle` Ctrl+Alt+Space, `next` Ctrl+Alt+→, `prev` Ctrl+Alt+←, `like` Ctrl+Alt+L, `volume_up` Ctrl+Alt+↑, `volume_down` Ctrl+Alt+↓ (±5 %), `window` Ctrl+Alt+S (показать / скрыть окно) | см. слева | нет |
-| `hotkeys.quick` | сочетание быстрого окна (`KeyboardEvent.code`), `''` — выключено. Только **внутри окна** Sonar, от `hotkeys.enabled` не зависит (строка «Внутри Sonar → Быстрое окно» видна всегда); то же сочетание из `hotkeys.map` снимается и наоборот | `Ctrl+KeyK` | нет |
+| `hotkeys.quick` | сочетание быстрого окна (`KeyboardEvent.code`), `''` — выключено. Только **внутри окна** Sonar, от `hotkeys.enabled` не зависит (строка «Внутри Sonar → Быстрое окно» видна всегда); то же сочетание из `hotkeys.map` снимается и наоборот (и при «Вернуть по умолчанию») | `Ctrl+KeyK` | нет |
 
 **Быстрое окно** (`app/QuickOpen.svelte`, `lib/quick*.ts`): по центру поверх всего — поле и список.
 Сразу ищет действия (играть/пауза, следующий/предыдущий, лайк, перемешать, «Моя волна» и её настроения,

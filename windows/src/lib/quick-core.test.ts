@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { altLayouts, bestScore, cyrToEn, enToRu, enToUk, fuzzyScore, interleave, jumpGroup, normalize, rank, step, uniqueByRef, words } from './quick-core'
+import { altLayouts, bestScore, cyrToEn, enToRu, enToUk, fuzzyScore, interleave, jumpGroup, normalize, rank, searchLayouts, step, uniqueByRef, words } from './quick-core'
 
 describe('раскладка', () => {
   it('английская → русская', () => {
@@ -135,5 +135,33 @@ describe('результаты сервисов', () => {
   it('повторы по ref убираются, первый остаётся', () => {
     const list = [{ ref: 'a', n: 1 }, { ref: 'b', n: 2 }, { ref: 'a', n: 3 }]
     expect(uniqueByRef(list)).toEqual([{ ref: 'a', n: 1 }, { ref: 'b', n: 2 }])
+  })
+})
+
+describe('поиск в сервисах по раскладкам', () => {
+  const fetchFrom = (hits: Record<string, string[]>) => {
+    const asked: string[] = []
+    const fetch = async (q: string) => {
+      asked.push(q)
+      return hits[q] ?? []
+    }
+    return { asked, fetch }
+  }
+  const empty = (r: string[]) => !r.length
+
+  it('украинское слово в английской раскладке находится через «привіт»', async () => {
+    const { asked, fetch } = fetchFrom({ привіт: ['ym:1'] })
+    expect(await searchLayouts('ghbdsn', fetch, empty)).toEqual(['ym:1'])
+    expect(asked).toEqual(['ghbdsn', 'привыт', 'привіт'])
+  })
+  it('нашлось сразу — другие раскладки не спрашиваем', async () => {
+    const { asked, fetch } = fetchFrom({ ghbdtn: ['sc:1'] })
+    expect(await searchLayouts('ghbdtn', fetch, empty)).toEqual(['sc:1'])
+    expect(asked).toEqual(['ghbdtn'])
+  })
+  it('запрос устарел — дальше не ищем', async () => {
+    const { asked, fetch } = fetchFrom({})
+    expect(await searchLayouts('ghbdsn', fetch, empty, () => false)).toEqual([])
+    expect(asked).toEqual(['ghbdsn'])
   })
 })
