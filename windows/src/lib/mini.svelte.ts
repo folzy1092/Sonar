@@ -35,7 +35,7 @@ class Mini {
 
   private layout(): OverlayLayout {
     const g = settings.get.bind(settings)
-    return overlayLayout(g('overlay.mode'), g('overlay.width'), g('overlay.height'), g('overlay.scale'), g('overlay.position'))
+    return overlayLayout(g('overlay.mode'), g('overlay.width'), g('overlay.height'), g('overlay.scale'), g('overlay.position'), g('overlay.monitor'))
   }
 
   private look(): OverlayLook {

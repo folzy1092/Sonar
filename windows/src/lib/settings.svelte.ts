@@ -172,6 +172,9 @@ export const DEFAULTS = {
   'overlay.shape': 'rounded' as 'square' | 'rounded',
   /** Клетка сетки 3×3 на экране: строка t/m/b + столбец l/c/r. */
   'overlay.position': 'tc' as OverlayAnchor,
+  /** Монитор оверлея: `primary` (основной, какой бы ни был) или `monitorDevicePath` (monitors.rs);
+   *  выбранный отключили — оверлей на основном, настройка не стирается. */
+  'overlay.monitor': 'primary' as string,
   /** Непрозрачность, %. */
   'overlay.opacity': 90 as number,
   /** Масштаб, %: умножает ширину и высоту. */
