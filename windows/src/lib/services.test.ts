@@ -23,7 +23,7 @@ const TABLE = [
   { id: 'sc', key: 'soundcloud', name: 'SoundCloud', short: 'SC', color: '#FF5500', pre: ['sc', 'scalb', 'sca', 'scpl'], caps: '1111111', implemented: true },
   { id: 'ym', key: 'yandex', name: 'Яндекс Музыка', short: 'Я', color: '#FFBC0D', pre: ['ym', 'ymalb', 'yma', 'ympl'], caps: '1111111', implemented: true },
   { id: 'yt', key: 'youtube', name: 'YouTube Music', short: 'YT', color: '#FF0033', pre: ['yt', 'ytalb', 'yta', 'ytpl'], caps: '1111111', implemented: true },
-  { id: 'vk', key: 'vk', name: 'VK Музыка', short: 'VK', color: '#0077FF', pre: ['vk', 'vkalb', 'vka', 'vkpl'], caps: '1111111', implemented: false },
+  { id: 'vk', key: 'vk', name: 'VK Музыка', short: 'VK', color: '#0077FF', pre: ['vk', 'vkalb', 'vka', 'vkpl'], caps: '1111111', implemented: true },
   { id: 'sp', key: 'spotify', name: 'Spotify', short: 'SP', color: '#1ED760', pre: ['sp', 'spalb', 'spa', 'sppl'], caps: '1011110', implemented: false },
   { id: 'local', key: 'local', name: 'Локальные файлы', short: '♪', color: '#8E8E93', pre: ['local', null, null, null], caps: '0110000', implemented: true },
 ] as const
@@ -40,6 +40,10 @@ const EXAMPLES: [string, ServiceId | null, RefKind | null][] = [
   ['ympl:42:1003', 'ym', 'playlist'],
   ['ymalb:5', 'ym', 'album'],
   ['yma:1', 'ym', 'artist'],
+  ['vk:-2001_456', 'vk', 'track'],
+  ['vkalb:-2000_5_k9', 'vk', 'album'],
+  ['vka:123456', 'vk', 'artist'],
+  ['vkpl:likes', 'vk', 'playlist'],
   ['yt:abc', 'yt', 'track'],
   ['local:abc', 'local', 'track'],
   ['pl_x', null, null],
@@ -148,12 +152,12 @@ describe('byId', () => {
 })
 
 describe('IMPLEMENTED', () => {
-  it('sc, ym, yt и локальные файлы, в порядке таблицы', () => {
-    expect(IMPLEMENTED.map((s) => s.id)).toEqual(['sc', 'ym', 'yt', 'local'])
+  it('sc, ym, yt, vk и локальные файлы, в порядке таблицы', () => {
+    expect(IMPLEMENTED.map((s) => s.id)).toEqual(['sc', 'ym', 'yt', 'vk', 'local'])
   })
 
   it('сервисы с аккаунтом — без локальных файлов', () => {
-    expect(ACCOUNT_SERVICES.map((s) => s.id)).toEqual(['sc', 'ym', 'yt'])
+    expect(ACCOUNT_SERVICES.map((s) => s.id)).toEqual(['sc', 'ym', 'yt', 'vk'])
     expect(Object.isFrozen(ACCOUNT_SERVICES)).toBe(true)
   })
 })
@@ -168,9 +172,9 @@ describe('isLocalRef', () => {
 })
 
 describe('connected', () => {
-  it('только сервисы с аккаунтом и подключённые, в порядке реестра; vk и local игнорируются', () => {
+  it('только сервисы с аккаунтом и подключённые, в порядке реестра; local игнорируется', () => {
     const list = [row('yt', true), row('ym', true), row('vk', true), row('sc', true), row('local', true)]
-    expect(connected(list).map((s) => s.id)).toEqual(['sc', 'ym', 'yt'])
+    expect(connected(list).map((s) => s.id)).toEqual(['sc', 'ym', 'yt', 'vk'])
   })
 
   it('неподключённые отбрасываются', () => {
@@ -185,11 +189,13 @@ describe('statusOf', () => {
     const sc = { connected: true, name: 'dj', avatar_url: null }
     const ym = { connected: false, name: null, avatar_url: null }
     const yt = { connected: true, name: 'me', avatar_url: null }
-    const status = { soundcloud: sc, yandex: ym, youtube: yt }
+    const vk = { connected: true, name: 'Иван', avatar_url: null }
+    const status = { soundcloud: sc, yandex: ym, youtube: yt, vk }
     expect(statusOf(status, byId('sc')!)).toBe(sc)
     expect(statusOf(status, byId('ym')!)).toBe(ym)
     expect(statusOf(status, byId('yt')!)).toBe(yt)
-    expect(statusOf(status, byId('vk')!)).toBeNull()
+    expect(statusOf(status, byId('vk')!)).toBe(vk)
+    expect(statusOf(status, byId('sp')!)).toBeNull()
     expect(statusOf(null, byId('sc')!)).toBeNull()
   })
 })
@@ -200,7 +206,8 @@ describe('isTrackRef', () => {
     expect(isTrackRef('ym:1')).toBe(true)
     expect(isTrackRef('local:abc')).toBe(true)
     expect(isTrackRef('yt:1')).toBe(true)
-    expect(isTrackRef('vk:1')).toBe(false)
+    expect(isTrackRef('vk:-1_2')).toBe(true)
+    expect(isTrackRef('sp:1')).toBe(false)
     expect(isTrackRef('scpl:likes')).toBe(false)
     expect(isTrackRef('pl_x')).toBe(false)
     expect(isTrackRef(null)).toBe(false)
@@ -220,6 +227,13 @@ describe('playlistWebUrl', () => {
     expect(playlistWebUrl('ytpl:likes')).toBe('https://music.youtube.com/playlist?list=LM')
     expect(playlistWebUrl('ytpl:PLabc_-1')).toBe('https://music.youtube.com/playlist?list=PLabc_-1')
     expect(playlistWebUrl('ytpl:a/b')).toBeNull()
+  })
+
+  it('VK: плейлист по id с ключом и «Моя музыка»', () => {
+    expect(playlistWebUrl('vkpl:-2000_9_ab12')).toBe('https://vk.com/music/playlist/-2000_9_ab12')
+    expect(playlistWebUrl('vkpl:1_15')).toBe('https://vk.com/music/playlist/1_15')
+    expect(playlistWebUrl('vkpl:likes')).toBe('https://vk.com/audio')
+    expect(playlistWebUrl('vkpl:x/y')).toBeNull()
   })
 })
 

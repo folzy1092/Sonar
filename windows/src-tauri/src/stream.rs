@@ -2,9 +2,10 @@
 //! обычные адреса без CORS и протухших ссылок:
 //! - `/file?ref=ym:1` — файл (mp3 Яндекса, mp3 SoundCloud) с поддержкой Range;
 //! - `/hls?ref=sc:1` — плейлист HLS, где ссылки на куски заменены на `/seg?u=…`;
-//! - `/seg?u=…` — кусок HLS с CDN SoundCloud (`*.sndcdn.com`, `*.soundcloud.cloud`).
+//! - `/seg?u=…` — кусок HLS (и ключ AES-128) с CDN SoundCloud (`*.sndcdn.com`, `*.soundcloud.cloud`)
+//!   или VK (`*.vkuseraudio.net` и соседи; к CDN VK — с User-Agent Kate Mobile, `ua_for`).
 //! - `/file?ref=yt:…` — YouTube Music: CDN `*.googlevideo.com` читается кусками (`gvideo.rs`).
-//! - `/cover?u=…` — обложка с CDN SoundCloud/Яндекса с кэшем на диске (`<кэш>/covers`) и CORS —
+//! - `/cover?u=…` — обложка с CDN SoundCloud/Яндекса/VK/YouTube с кэшем на диске (`<кэш>/covers`) и CORS —
 //!   из неё интерфейс берёт цвет темы (SPEC §4.4); размер и очистка — экран «Хранилище».
 //!
 //! Локальные файлы (`local:<sha1>`): `/file` отдаёт файл с диска с Range, но только из индекса
@@ -14,7 +15,7 @@
 //! Кэш треков (`track_cache.rs`): трек на диске — `/file` отдаёт его с диска (Range — кусками);
 //! файл, прочитанный с начала до конца, ложится в кэш на лету; HLS — фоновая загрузка и склейка.
 
-use crate::providers::{Source, UA};
+use crate::providers::{vk, Source, UA};
 use crate::services::Core;
 use axum::body::Body;
 use axum::extract::{Query, State};
@@ -142,7 +143,7 @@ fn cors(mut r: Response<Body>) -> Response<Body> {
 
 /// Проксирует ответ CDN: статус, нужные заголовки и тело потоком.
 async fn proxy(core: &Core, url: &str, range: Option<&HeaderValue>) -> Result<Response<Body>, reqwest::Error> {
-  let mut req = core.http.get(url).header("User-Agent", UA);
+  let mut req = core.http.get(url).header("User-Agent", ua_for(url));
   if let Some(r) = range {
     req = req.header(header::RANGE, r.as_bytes());
   }
@@ -189,7 +190,7 @@ fn serve_cached(path: &std::path::Path, mime: &str, total: u64, range: Option<&H
 
 /// Как `proxy`, но если ответ — весь файл с начала, тело по пути пишется в кэш треков.
 async fn proxy_cached(core: &Core, url: &str, range: Option<&HeaderValue>, track_ref: &str) -> Result<Response<Body>, reqwest::Error> {
-  let mut req = core.http.get(url).header("User-Agent", UA);
+  let mut req = core.http.get(url).header("User-Agent", ua_for(url));
   if let Some(r) = range {
     req = req.header(header::RANGE, r.as_bytes());
   }
@@ -272,7 +273,7 @@ async fn cache_hls(core: Arc<Core>, track_ref: String, playlist: String, base: u
     let (init, segs, mime) = track_cache::hls_parts(&playlist, &base)?;
     let mut w = track_cache::Writer::new(&track_ref, mime, None)?;
     for u in init.into_iter().chain(segs) {
-      let r = core.http.get(&u).header("User-Agent", UA).send().await.ok()?;
+      let r = core.http.get(&u).header("User-Agent", ua_for(&u)).send().await.ok()?;
       if !r.status().is_success() {
         return None;
       }
@@ -308,7 +309,7 @@ pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
     }
     match core.resolve(&r, false).await {
       Ok(Source::Hls { url, .. }) => {
-        let up = core.http.get(&url).header("User-Agent", UA).send().await;
+        let up = core.http.get(&url).header("User-Agent", ua_for(&url)).send().await;
         match up {
           Ok(up) if up.status().is_success() => {
             let base = up.url().clone();
@@ -339,7 +340,7 @@ pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
       }
       Ok(Source::File { url, .. }) => {
         let ok = async {
-          let up = core.http.get(&url).header("User-Agent", UA).send().await.ok()?;
+          let up = core.http.get(&url).header("User-Agent", ua_for(&url)).send().await.ok()?;
           if !up.status().is_success() {
             return None;
           }
@@ -467,7 +468,7 @@ async fn hls(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>) -> Respon
       Ok(Source::File { .. }) => return plain(StatusCode::BAD_REQUEST, "этот трек — файл, нужен /file"),
       Err(e) => return plain(StatusCode::BAD_GATEWAY, e.to_string()),
     };
-    let up = match core.http.get(&url).header("User-Agent", UA).send().await {
+    let up = match core.http.get(&url).header("User-Agent", ua_for(&url)).send().await {
       Ok(r) => r,
       Err(e) => return plain(StatusCode::BAD_GATEWAY, e.to_string()),
     };
@@ -491,10 +492,33 @@ async fn hls(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>) -> Respon
   plain(StatusCode::BAD_GATEWAY, "поток недоступен")
 }
 
+/// CDN VK: потоки, ключи HLS и картинки.
+const VK_HOSTS: [&str; 4] = [".vkuseraudio.net", ".vkuseraudio.com", ".vk-cdn.net", ".userapi.com"];
+
+fn host_of(u: &str) -> Option<String> {
+  url::Url::parse(u).ok().and_then(|u| u.host_str().map(str::to_owned))
+}
+
+fn is_vk_host(h: &str) -> bool {
+  VK_HOSTS.iter().any(|s| h.ends_with(s))
+}
+
+/// User-Agent для запроса к CDN: VK отдаёт музыку только клиенту Kate Mobile, остальным — браузерный.
+pub fn ua_for(u: &str) -> &'static str {
+  if host_of(u).is_some_and(|h| is_vk_host(&h)) {
+    vk::UA
+  } else {
+    UA
+  }
+}
+
+/// Хосты, с которых `/seg` берёт куски HLS: только CDN SoundCloud и VK — не открытый прокси.
+pub fn seg_host_allowed(u: &str) -> bool {
+  host_of(u).is_some_and(|h| h.ends_with(".sndcdn.com") || h.ends_with(".soundcloud.cloud") || is_vk_host(&h))
+}
+
 async fn seg(State(core): State<Arc<Core>>, Query(q): Query<SegQuery>, headers: HeaderMap) -> Response<Body> {
-  // Только CDN SoundCloud — локальный сервер не должен быть открытым прокси.
-  let allowed = url::Url::parse(&q.u).ok().and_then(|u| u.host_str().map(|h| h.ends_with(".sndcdn.com") || h.ends_with(".soundcloud.cloud"))) == Some(true);
-  if !allowed {
+  if !seg_host_allowed(&q.u) {
     return plain(StatusCode::FORBIDDEN, "чужой адрес");
   }
   match proxy(&core, &q.u, headers.get(header::RANGE)).await {
@@ -515,6 +539,8 @@ pub fn cover_host_allowed(u: &str) -> bool {
           || h.ends_with(".yandex.net")
           || h.ends_with(".genius.com")
           || yt_cover_host(h)
+          || is_vk_host(h)
+          || h.ends_with(".vkuserphoto.ru")
       })
     })
     .unwrap_or(false)
@@ -551,7 +577,7 @@ async fn cover(State(core): State<Arc<Core>>, Query(q): Query<CoverQuery>, heade
       return image(bytes);
     }
   }
-  let res = match core.http.get(&q.u).header("User-Agent", UA).send().await {
+  let res = match core.http.get(&q.u).header("User-Agent", ua_for(&q.u)).send().await {
     Ok(r) if r.status().is_success() => r,
     Ok(r) => return plain(StatusCode::BAD_GATEWAY, format!("HTTP {}", r.status().as_u16())),
     Err(e) => return plain(StatusCode::BAD_GATEWAY, e.to_string()),
@@ -757,6 +783,34 @@ mod tests {
     assert!(!cover_host_allowed("https://doc-0s-docs.googleusercontent.com/a.jpg"));
     assert!(!cover_host_allowed("https://evil.ggpht.com/a.jpg"));
     assert!(!cover_host_allowed("https://ievil.ytimg.com/a.jpg"));
+    assert!(cover_host_allowed("https://sun9-1.userapi.com/impg/a.jpg?size=600x600"));
+    assert!(cover_host_allowed("https://sun1-2.vkuserphoto.ru/a.jpg"));
+    assert!(!cover_host_allowed("https://userapi.com.evil.com/a.jpg"));
+  }
+
+  #[test]
+  fn seg_hosts_and_vk_user_agent() {
+    assert!(seg_host_allowed("https://cf-hls-media.sndcdn.com/media/1.m4s"));
+    assert!(seg_host_allowed("https://cs1-2v4.vkuseraudio.net/s/v1/ac/x/seg-1-a1.ts"));
+    assert!(seg_host_allowed("https://cs9-1v4.vkuseraudio.com/s/v1/ac/x/key.pub"));
+    assert!(!seg_host_allowed("https://evil.com/?x=.vkuseraudio.net"));
+    assert!(!seg_host_allowed("not a url"));
+    assert_eq!(ua_for("https://cs1-2v4.vkuseraudio.net/s/v1/ac/x/index.m3u8"), vk::UA);
+    assert_eq!(ua_for("https://cf-hls-media.sndcdn.com/x.m3u8"), UA);
+    assert_eq!(ua_for("garbage"), UA);
+  }
+
+  /// HLS VK: куски и ключ AES-128 идут через `/seg`, hls.js расшифровывает сам.
+  #[test]
+  fn rewrites_vk_aes_key() {
+    let base = url::Url::parse("https://cs1-2v4.vkuseraudio.net/s/v1/ac/abc/index.m3u8?siren=1").unwrap();
+    let src = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"https://cs1-2v4.vkuseraudio.net/s/v1/ac/abc/key.pub?siren=1\"\n#EXTINF:5,\nseg-1-a1.ts?siren=1\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:5,\nseg-2-a1.ts\n";
+    let out = rewrite_m3u8(src, &base);
+    let lines: Vec<_> = out.lines().collect();
+    assert_eq!(lines[1], "#EXT-X-KEY:METHOD=AES-128,URI=\"/seg?u=https%3A%2F%2Fcs1-2v4.vkuseraudio.net%2Fs%2Fv1%2Fac%2Fabc%2Fkey.pub%3Fsiren%3D1\"");
+    assert_eq!(lines[3], "/seg?u=https%3A%2F%2Fcs1-2v4.vkuseraudio.net%2Fs%2Fv1%2Fac%2Fabc%2Fseg-1-a1.ts%3Fsiren%3D1");
+    assert_eq!(lines[4], "#EXT-X-KEY:METHOD=NONE");
+    assert!(lines.iter().filter(|l| !l.starts_with('#')).all(|l| seg_host_allowed(&urlencoding::decode(l.trim_start_matches("/seg?u=")).unwrap())));
   }
 
   #[test]

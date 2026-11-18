@@ -94,6 +94,11 @@ extension I18n {
         "Плейлисты сервисов": "Service playlists",
         "Подключи SoundCloud или Яндекс Музыку в Сервисах — здесь появятся их плейлисты": "Connect SoundCloud or Yandex Music in Services — their playlists will show up here",
         "Играет кнопка «Быстрый плейлист» в виджете и команда Siri": "Played by the “Quick playlist” widget button and the Siri command",
+        "VK Музыка не подключена — открой Профиль → Сервисы": "VK Music isn't connected — open Profile → Services",
+        "Вход в VK": "Sign in to VK",
+        "VK не дал доступ — попробуй ещё раз": "VK didn't grant access — try again",
+        "Токен vk1.a.…": "Token vk1.a.…",
+        "Неверная ссылка на плейлист VK": "Invalid VK playlist link",
     ]
 
     static let iosUK: [String: String] = [
@@ -187,5 +192,10 @@ extension I18n {
         "Плейлисты сервисов": "Плейлисти сервісів",
         "Подключи SoundCloud или Яндекс Музыку в Сервисах — здесь появятся их плейлисты": "Підключи SoundCloud або Яндекс Музику в Сервісах — тут з'являться їхні плейлисти",
         "Играет кнопка «Быстрый плейлист» в виджете и команда Siri": "Грає кнопка «Швидкий плейлист» у віджеті та команда Siri",
+        "VK Музыка не подключена — открой Профиль → Сервисы": "VK Музика не підключена — відкрий Профіль → Сервіси",
+        "Вход в VK": "Вхід у VK",
+        "VK не дал доступ — попробуй ещё раз": "VK не дав доступу — спробуй ще раз",
+        "Токен vk1.a.…": "Токен vk1.a.…",
+        "Неверная ссылка на плейлист VK": "Неправильне посилання на плейлист VK",
     ]
 }
