@@ -109,6 +109,11 @@ jobs:
           cp -R build/Sonar.xcarchive/Products/Applications/Sonar.app build/Payload/
           # виджет «Домой» встроен в приложение (без него сборка не нужна — ловим сразу)
           test -f build/Payload/Sonar.app/PlugIns/SonarWidget.appex/Info.plist
+          # в нём — символ знака Sonar для кнопки Пункта управления (sonar.mark.symbolset → Assets.car)
+          test -f build/Payload/Sonar.app/PlugIns/SonarWidget.appex/Assets.car
+          # и переводы подписей виджетов (SonarWidget/en.lproj, uk.lproj)
+          test -f build/Payload/Sonar.app/PlugIns/SonarWidget.appex/en.lproj/Localizable.strings
+          test -f build/Payload/Sonar.app/PlugIns/SonarWidget.appex/uk.lproj/Localizable.strings
           ls build/Payload/Sonar.app/PlugIns
           (cd build && zip -qry Sonar.ipa Payload)
           ls -lh build/Sonar.ipa
