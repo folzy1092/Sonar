@@ -52,6 +52,12 @@ lofty = "0.22"
 notify = "8"
 # окно «Сохранить как» для экспорта плейлистов (export.rs) и выбор папки с музыкой (local)
 tauri-plugin-dialog = "2"
+# Пульт: iPhone управляет Sonar по Wi-Fi (remote/): WebSocket-сервер в локальной сети, объявление mDNS
+# `_sonar._tcp`, QR-код привязки, случайные код и ключ устройства
+tokio-tungstenite = { version = "0.28", default-features = false, features = ["handshake"] }
+mdns-sd = "0.22"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+getrandom = "0.3"
 # Поток Spotify Premium (spotify_play.rs) — только с фичей `spotify-playback`, см. [features]
 librespot-core = { version = "0.8.0", default-features = false, features = ["rustls-tls-webpki-roots"], optional = true }
 librespot-audio = { version = "0.8.0", default-features = false, optional = true }

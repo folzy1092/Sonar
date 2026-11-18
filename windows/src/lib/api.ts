@@ -184,6 +184,34 @@ export interface ArtistStat {
   plays: number
 }
 
+/** Привязанный к пульту телефон (без ключа — он только на телефоне). */
+export interface RemoteDevice {
+  id: string
+  name: string
+  paired_at: number
+  last_seen: number
+  online: boolean
+}
+
+export interface RemoteStatus {
+  running: boolean
+  port: number
+  /** Адрес ПК в локальной сети. */
+  host: string | null
+  name: string
+  /** Объявить ПК в сети не вышло — телефон подключится только по QR. */
+  mdns_error: string | null
+  error: string | null
+  pairing: boolean
+  devices: RemoteDevice[]
+}
+
+export interface RemotePairStart {
+  code: string
+  expires_in_ms: number
+  qr_svg: string
+}
+
 export interface TrackStat {
   ref: string
   title: string
@@ -322,6 +350,13 @@ export const api = {
   prefetchTracks: (refs: string[]) => call<void>('prefetch_tracks', { refs }),
   /** Горячие клавиши (hotkeys.rs): действие → сочетание. Вернёт действия, чьё сочетание не встало. */
   setHotkeys: (keys: Record<string, string>) => call<string[]>('set_hotkeys', { keys }),
+  // пульт с iPhone (remote/): сервер в локальной сети, привязка кодом, состояние плеера телефонам
+  remoteSetEnabled: (on: boolean) => call<void>('remote_set_enabled', { on }),
+  remoteStatus: () => call<RemoteStatus>('remote_status'),
+  remotePairStart: () => call<RemotePairStart>('remote_pair_start'),
+  remotePairCancel: () => call<void>('remote_pair_cancel'),
+  remoteUnpair: (id: string) => call<void>('remote_unpair', { id }),
+  remoteState: (state: unknown) => (isTauri ? invoke<void>('remote_state', { state }) : Promise.resolve()),
   /** Экспорт плейлиста (export.rs): окно «Сохранить как» и запись готового текста; `null` — окно
    *  закрыли, иначе имя сохранённого файла. */
   exportPlaylist: (name: string, format: 'm3u8' | 'csv' | 'json', title: string, contents: string) =>
@@ -462,6 +497,27 @@ export function onLocalFilesChanged(cb: () => void): () => void {
 export function onHotkey(cb: (action: string) => void): () => void {
   if (!isTauri) return () => {}
   const off = listen<string>('hotkey', (e) => cb(e.payload))
+  return () => void off.then((fn) => fn())
+}
+
+/** Пульт: команда с телефона (remote-core.ts `parseCommand`). */
+export function onRemoteCommand(cb: (cmd: unknown) => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen<unknown>('remote-command', (e) => cb(e.payload))
+  return () => void off.then((fn) => fn())
+}
+
+/** Пульт: подключился / отключился телефон, сервер включён или выключен, код ввели неверно. */
+export function onRemoteChanged(cb: () => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen('remote-changed', () => cb())
+  return () => void off.then((fn) => fn())
+}
+
+/** Пульт: телефон привязан (имя телефона). */
+export function onRemotePaired(cb: (name: string) => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen<string>('remote-paired', (e) => cb(e.payload))
   return () => void off.then((fn) => fn())
 }
 
