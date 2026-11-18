@@ -46,6 +46,7 @@ struct ProfileView: View {
                     link("Яндекс Музыка", .music) { ServicesView(only: .yandex) }
                     divider
                     link("YouTube Music", .youtubeMusic) { ServicesView(only: .youtube) }
+                    link(Service.vk.title, .music) { ServicesView(only: .vk) }
                 }
                 section("Интеграции", 5) {
                     link("Last.fm", .wave) { LastfmSettingsView() }

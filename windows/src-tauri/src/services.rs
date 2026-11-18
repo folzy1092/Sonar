@@ -3,7 +3,7 @@
 
 use crate::providers::registry::{by_key, parse_ref, split_ref, RefKind, ServiceId, ServiceInfo, REGISTRY};
 use crate::providers::{
-  soundcloud, yandex, youtube, Account, Album, AlbumPage, Artist, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track,
+  soundcloud, vk as vk_api, yandex, youtube, Account, Album, AlbumPage, Artist, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track,
 };
 use crate::secrets;
 use anyhow::{anyhow, bail, Result};
@@ -18,11 +18,13 @@ use tokio::sync::RwLock;
 mod local;
 mod provider;
 mod sc;
+mod vk;
+mod vk_keys;
 mod ym;
 mod yt;
 pub use provider::{AnyProvider, Provider};
 
-/// Ссылки SoundCloud и Яндекса живут минуты — держим чуть меньше, при 403 берём заново.
+/// Ссылки SoundCloud, Яндекса и VK живут минуты — держим чуть меньше, при 403 берём заново.
 const STREAM_TTL: Duration = Duration::from_secs(240);
 
 /// Что нашлось по ссылке из строки поиска.
@@ -55,6 +57,7 @@ pub struct ServicesStatus {
   pub soundcloud: ServiceStatus,
   pub yandex: ServiceStatus,
   pub youtube: ServiceStatus,
+  pub vk: ServiceStatus,
 }
 
 /// Сервис из реестра и состояние его подключения (команда `services_list`).
@@ -85,6 +88,11 @@ pub struct Core {
   yt_visitor: RwLock<Option<String>>,
   /// «YouTube Music: Высокое» (`audio.yt_quality`, по умолчанию): Opus вместо AAC 128.
   pub yt_high: AtomicBool,
+  vk: RwLock<Option<Stored<vk_api::Creds>>>,
+  /// Ссылки на поток, которые VK отдал вместе с треками, и когда (services/vk.rs).
+  vk_seen: Mutex<HashMap<String, (String, Instant)>>,
+  /// access_key треков VK — на диске, переживают перезапуск (services/vk_keys.rs).
+  vk_keys: Mutex<vk_keys::VkKeys>,
   /// Сырой JSON треков SoundCloud из поиска — в нём `transcodings` для потока.
   sc_raw: Mutex<HashMap<String, Value>>,
   /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
@@ -126,6 +134,9 @@ impl Core {
       yt: RwLock::new(secrets::load(ServiceId::Yt.key())),
       yt_visitor: RwLock::new(None),
       yt_high: AtomicBool::new(yt_high(None)),
+      vk: RwLock::new(secrets::load(ServiceId::Vk.key())),
+      vk_seen: Mutex::new(HashMap::new()),
+      vk_keys: Mutex::new(vk_keys::VkKeys::memory()),
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
@@ -200,6 +211,9 @@ impl Core {
       yt: RwLock::new(None),
       yt_visitor: RwLock::new(None),
       yt_high: AtomicBool::new(yt_high(None)),
+      vk: RwLock::new(None),
+      vk_seen: Mutex::new(HashMap::new()),
+      vk_keys: Mutex::new(vk_keys::VkKeys::memory()),
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
@@ -215,12 +229,13 @@ impl Core {
       soundcloud: status(&*self.sc.read().await),
       yandex: status(&*self.ym.read().await),
       youtube: status(&*self.yt.read().await),
+      vk: status(&*self.vk.read().await),
     }
   }
 
   /// Все сервисы реестра по порядку; у работающих — подключён ли и чей аккаунт.
   pub async fn list(&self) -> Vec<ServiceEntry> {
-    let ServicesStatus { soundcloud, yandex, youtube } = self.status().await;
+    let ServicesStatus { soundcloud, yandex, youtube, vk } = self.status().await;
     REGISTRY
       .iter()
       .map(|info| {
@@ -228,6 +243,7 @@ impl Core {
           ServiceId::Sc => soundcloud.clone(),
           ServiceId::Ym => yandex.clone(),
           ServiceId::Yt => youtube.clone(),
+          ServiceId::Vk => vk.clone(),
           _ => ServiceStatus::default(),
         };
         ServiceEntry { info, connected: st.connected, account_name: st.name, avatar_url: st.avatar_url, premium: st.premium }
@@ -274,12 +290,31 @@ impl Core {
     self.streams.lock().unwrap().clear();
   }
 
+  /// Токен VK (`vk1.a.…`): проверяем, что он живой и что ему открыта музыка, и кладём в keyring.
+  pub async fn connect_vk(&self, creds: vk_api::Creds) -> Result<ServiceStatus> {
+    let creds = vk_api::Creds { token: creds.token.trim().to_owned() };
+    if creds.token.is_empty() {
+      bail!("Вставь токен VK");
+    }
+    let account = vk_api::Vk { http: &self.http, creds: &creds }.account().await?;
+    let stored = Stored { creds, account };
+    secrets::save(ServiceId::Vk.key(), &stored)?;
+    *self.vk.write().await = Some(stored.clone());
+    self.streams.lock().unwrap().clear();
+    self.vk_seen.lock().unwrap().clear();
+    Ok(status(&Some(stored)))
+  }
+
   pub async fn disconnect(&self, service: &str) -> Result<()> {
     let Some(info) = by_key(service) else { bail!("неизвестный сервис {service}") };
     match info.id {
       ServiceId::Sc => *self.sc.write().await = None,
       ServiceId::Ym => *self.ym.write().await = None,
       ServiceId::Yt => *self.yt.write().await = None,
+      ServiceId::Vk => {
+        *self.vk.write().await = None;
+        self.vk_seen.lock().unwrap().clear();
+      }
       _ => bail!("неизвестный сервис {service}"),
     }
     secrets::delete(info.key)
@@ -291,6 +326,7 @@ impl Core {
       ServiceId::Sc => Ok(AnyProvider::Sc(sc::ScProvider { core: self })),
       ServiceId::Ym => Ok(AnyProvider::Ym(ym::YmProvider { core: self })),
       ServiceId::Yt => Ok(AnyProvider::Yt(yt::YtProvider { core: self })),
+      ServiceId::Vk => Ok(AnyProvider::Vk(vk::VkProvider { core: self })),
       ServiceId::Local => Ok(AnyProvider::Local(local::LocalProvider { core: self })),
       other => bail!("{}: пока не поддерживается", other.info().name),
     }
@@ -385,6 +421,11 @@ impl Core {
   /// Яндекс подключён — можно брать его похожие и новинки.
   pub async fn has_yandex(&self) -> bool {
     self.ym.read().await.is_some()
+  }
+
+  /// VK подключён — его лайки и треки годятся для волны.
+  pub async fn has_vk(&self) -> bool {
+    self.vk.read().await.is_some()
   }
 
   /// Альбомы исполнителя (для «Релизов» на главной).
@@ -631,6 +672,7 @@ mod tests {
     assert_eq!(core.provider(ServiceId::Sc).unwrap().id(), ServiceId::Sc);
     assert_eq!(core.provider(ServiceId::Ym).unwrap().id(), ServiceId::Ym);
     assert_eq!(core.provider(ServiceId::Yt).unwrap().id(), ServiceId::Yt);
+    assert_eq!(core.provider(ServiceId::Vk).unwrap().id(), ServiceId::Vk);
     assert_eq!(core.provider(ServiceId::Local).unwrap().id(), ServiceId::Local);
   }
 
@@ -675,7 +717,7 @@ mod tests {
   #[test]
   fn provider_unimplemented_errors() {
     let core = Core::new_empty();
-    for id in [ServiceId::Vk, ServiceId::Sp] {
+    for id in [ServiceId::Sp] {
       let e = err_text(core.provider(id));
       assert!(e.contains("пока не поддерживается"), "{e}");
       assert!(e.starts_with(id.info().name), "{e}");
@@ -691,7 +733,7 @@ mod tests {
     assert_eq!(err_text(core.search_more("x", "", 5).await), "неизвестный источник ");
     // нереализованный сервис отвечает сразу, без сети
     assert_eq!(err_text(core.search("x", "sp", 5).await), "Spotify: пока не поддерживается");
-    assert_eq!(err_text(core.search_more("x", "vk", 5).await), "VK Музыка: пока не поддерживается");
+    assert_eq!(err_text(core.search_more("x", "sp", 5).await), "Spotify: пока не поддерживается");
   }
 
   #[tokio::test]
@@ -700,18 +742,18 @@ mod tests {
     assert_eq!(err_text(core.artist_page("nocolon").await), "плохой ref nocolon");
     assert_eq!(err_text(core.artist_page("xx:1").await), "неизвестный исполнитель xx:1");
     assert_eq!(err_text(core.artist_tracks("sc:1").await), "неизвестный исполнитель sc:1");
-    assert_eq!(err_text(core.artist_top("vka:1", 5).await), "неизвестный исполнитель vka:1");
+    assert_eq!(err_text(core.artist_top("spa:1", 5).await), "неизвестный исполнитель spa:1");
     assert_eq!(err_text(core.artist_albums("scalb:1").await), "неизвестный исполнитель scalb:1");
     assert_eq!(err_text(core.album_page("sca:1").await), "неизвестный альбом sca:1");
-    assert_eq!(err_text(core.album_page("vkalb:1").await), "неизвестный альбом vkalb:1");
+    assert_eq!(err_text(core.album_page("spalb:1").await), "неизвестный альбом spalb:1");
     assert_eq!(err_text(core.similar("scpl:1", 5).await), "неизвестный трек scpl:1");
-    assert_eq!(err_text(core.similar("vk:1", 5).await), "неизвестный трек vk:1");
+    assert_eq!(err_text(core.similar("sp:1", 5).await), "неизвестный трек sp:1");
     assert_eq!(err_text(core.service_playlist("pl_x").await), "плохой ref pl_x");
     assert_eq!(err_text(core.service_playlist("sc:1").await), "неизвестный плейлист sc:1");
-    assert_eq!(err_text(core.service_playlist("vkpl:1").await), "неизвестный плейлист vkpl:1");
+    assert_eq!(err_text(core.service_playlist("sppl:1").await), "неизвестный плейлист sppl:1");
     assert_eq!(err_text(core.resolve("nocolon", false).await), "плохой ref nocolon");
     assert_eq!(err_text(core.resolve("scalb:1", false).await), "неизвестный источник в scalb:1");
-    assert_eq!(err_text(core.resolve("vk:1", false).await), "неизвестный источник в vk:1");
+    assert_eq!(err_text(core.resolve("sp:1", false).await), "неизвестный источник в sp:1");
   }
 
   /// Без Яндекса ветки ym доходят до своего провайдера и отвечают прежними текстами — без сети.
@@ -734,14 +776,93 @@ mod tests {
     assert_eq!(err_text(core.resolve("ym:1", true).await), "Яндекс Музыка не подключена");
   }
 
+  /// Без VK ветки vk доходят до своего провайдера и отвечают без сети.
+  #[tokio::test]
+  async fn vk_dispatch_without_account() {
+    let core = Core::new_empty();
+    let not_connected = "VK Музыка не подключена — открой Настройки → Сервисы";
+    assert_eq!(err_text(core.search("x", "vk", 5).await), not_connected);
+    assert_eq!(err_text(core.search_more("x", "vk", 5).await), not_connected);
+    assert_eq!(err_text(core.artist_page("vka:1").await), not_connected);
+    assert_eq!(err_text(core.artist_tracks("vka:1").await), not_connected);
+    assert_eq!(err_text(core.artist_albums("vka:1").await), not_connected);
+    assert_eq!(err_text(core.album_page("vkalb:-1_2_ab").await), not_connected);
+    assert_eq!(err_text(core.similar("vk:1_2", 5).await), not_connected);
+    assert_eq!(err_text(core.service_playlist("vkpl:1_2").await), not_connected);
+    assert_eq!(err_text(core.service_playlist("vkpl:likes").await), "VK Музыка не подключена");
+    assert_eq!(err_text(core.service_playlist("vkpl:x").await), "плохой ref vkpl:x");
+    assert_eq!(err_text(core.resolve("vk:1_2", false).await), "VK Музыка не подключена");
+    assert_eq!(err_text(core.resolve("vk:1_2_key", true).await), "плохой ref vk:1_2_key");
+    assert!(core.service_playlists("vk").await.unwrap().is_empty());
+    assert_eq!(core.status().await.vk.connected, false);
+  }
+
+  /// Ссылка из поиска играет без второго запроса к VK; протухла (`fresh`) — идём в VK.
+  #[tokio::test]
+  async fn vk_stream_uses_seen_url() {
+    let core = Core::new_empty();
+    let audio = |url: &str| vk_api::audio_from_json(&serde_json::json!({
+      "id": 2, "owner_id": -1, "title": "t", "artist": "a", "access_key": "k", "url": url
+    })).unwrap();
+    let tracks = core.vk_keep(vec![audio("https://cs1.vkuseraudio.net/s/v1/ac/x/index.m3u8")]);
+    assert_eq!(tracks[0].ref_, "vk:-1_2");
+    assert!(matches!(core.resolve("vk:-1_2", false).await.unwrap(), Source::Hls { .. }));
+    // fresh — к VK, а он не подключён
+    assert_eq!(err_text(core.resolve("vk:-1_2", true).await), "VK Музыка не подключена");
+    core.vk_keep(vec![audio("https://vk.com/mp3/audio_api_unavailable.mp3")]);
+    core.streams.lock().unwrap().clear();
+    assert_eq!(err_text(core.resolve("vk:-1_2", false).await), "VK Музыка: VK не отдал ссылку на трек");
+  }
+
+  /// Ссылка старше `STREAM_TTL` не берётся — идём в VK.
+  #[tokio::test]
+  async fn vk_seen_url_expires() {
+    let core = Core::new_empty();
+    let Some(old) = Instant::now().checked_sub(STREAM_TTL + Duration::from_secs(1)) else { return };
+    core.vk_seen.lock().unwrap().insert("vk:-1_2".into(), ("https://cs1.vkuseraudio.net/s/v1/ac/x/index.m3u8".into(), old));
+    assert_eq!(err_text(core.resolve("vk:-1_2", false).await), "VK Музыка не подключена");
+  }
+
+  /// После перезапуска (пустой `vk_seen`, новое ядро) access_key трека берётся с диска.
+  #[test]
+  fn vk_key_survives_restart() {
+    let dir = std::env::temp_dir().join(format!("sonar-vkrestart-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("vk-keys.json");
+    let before = Core::new_empty();
+    before.open_vk_keys(file.clone());
+    let audio = vk_api::audio_from_json(&serde_json::json!({
+      "id": 2, "owner_id": -1, "title": "t", "artist": "a", "access_key": "k7", "url": "https://cs1.vkuseraudio.net/a.mp3"
+    }))
+    .unwrap();
+    before.vk_keep(vec![audio]);
+    drop(before);
+
+    let after = Core::new_empty();
+    after.open_vk_keys(file);
+    assert!(after.vk_seen.lock().unwrap().is_empty());
+    assert_eq!(after.vk_full_id("-1_2"), "-1_2_k7");
+    assert_eq!(after.vk_full_id("-1_3"), "-1_3");
+    let _ = std::fs::remove_dir_all(&dir);
+  }
+
+  #[tokio::test]
+  async fn connect_vk_rejects_empty_token() {
+    let core = Core::new_empty();
+    let e = err_text(core.connect_vk(vk_api::Creds { token: "  ".into() }).await);
+    assert_eq!(e, "Вставь токен VK");
+    assert!(!core.status().await.vk.connected);
+  }
+
   #[tokio::test]
   async fn service_playlists_accepts_short_id_and_key() {
     let core = Core::new_empty();
-    for s in ["sc", "soundcloud", "ym", "yandex", "yt", "youtube"] {
+    for s in ["sc", "soundcloud", "ym", "yandex", "yt", "youtube", "vk"] {
       assert!(core.service_playlists(s).await.unwrap().is_empty(), "{s}");
     }
     assert_eq!(err_text(core.service_playlists("zz").await), "неизвестный сервис zz");
-    assert_eq!(err_text(core.service_playlists("vk").await), "VK Музыка: пока не поддерживается");
+    assert_eq!(err_text(core.service_playlists("sp").await), "Spotify: пока не поддерживается");
     // лайки SoundCloud без OAuth-токена — прежний текст
     assert_eq!(err_text(core.service_playlist("scpl:likes").await), "Нужен OAuth-токен SoundCloud");
   }
@@ -770,7 +891,8 @@ mod tests {
     assert_eq!(json[0]["prefixes"]["playlist"], "scpl");
     assert_eq!(json[2]["caps"]["key"], true);
     assert_eq!(json[2]["implemented"], true);
-    assert_eq!(json[3]["implemented"], false);
+    assert_eq!(json[3]["implemented"], true);
+    assert_eq!(json[4]["implemented"], false);
     assert_eq!(json[5]["icon"], Value::Null);
     assert_eq!(json[5]["prefixes"]["album"], Value::Null);
   }
@@ -805,7 +927,7 @@ mod tests {
     assert_eq!(err_text(core.disconnect("zz").await), "неизвестный сервис zz");
     assert_eq!(err_text(core.disconnect("").await), "неизвестный сервис ");
     // нереализованный сервис — тот же текст, keyring не трогаем
-    assert_eq!(err_text(core.disconnect("vk").await), "неизвестный сервис vk");
+    assert_eq!(err_text(core.disconnect("sp").await), "неизвестный сервис sp");
     assert_eq!(err_text(core.disconnect("spotify").await), "неизвестный сервис spotify");
   }
 

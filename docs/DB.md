@@ -15,7 +15,7 @@
 | `sp` | `spotify` | `sp:` | `spalb:` | `spa:` | `sppl:` |
 | `local` | `local` | `local:` | — | — | — |
 
-Работают пока `sc` и `ym`. Префикс — текст до первого `:`, сравнивается целиком. Не сервисы: `pl_…`, `similar:<ref>`.
+Работают пока `sc`, `ym` и `vk`. Префикс — текст до первого `:`, сравнивается целиком. Не сервисы: `pl_…`, `similar:<ref>`.
 
 ```sql
 CREATE TABLE users (
@@ -64,7 +64,7 @@ CREATE TABLE tg_requests (                      -- быстрый вход и п
 
 CREATE TABLE service_accounts (
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  service       TEXT NOT NULL,                  -- key сервиса из таблицы префиксов: soundcloud | yandex (позже youtube | vk | spotify)
+  service       TEXT NOT NULL,                  -- key сервиса из таблицы префиксов: soundcloud | yandex | vk (позже youtube | spotify)
   credentials   BLOB NOT NULL,                  -- Fernet(JSON: client_id, oauth_token / token)
   ext_user_id   TEXT,
   ext_name      TEXT,

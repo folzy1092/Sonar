@@ -31,12 +31,13 @@ struct SearchView: View {
 
     private var source: Service { Service(rawValue: sourceRaw) ?? .soundcloud }
 
-    /// Значок круга сервиса: у Яндекса своего нет — поверх рисуется «Я».
+    /// Значок круга сервиса: у Яндекса и VK своего нет — поверх рисуется буква.
     private var sourceIcon: IconName {
         switch source {
         case .soundcloud: .soundcloud
         case .yandex: .music
         case .youtube: .youtubeMusic
+        case .vk: .music
         }
     }
 
@@ -53,8 +54,8 @@ struct SearchView: View {
                     router.say("Ищу в \(source.title)")
                 }
                 .overlay {
-                    if source == .yandex {
-                        Text("Я")
+                    if let mark = source.mark {
+                        Text(mark)
                             .font(.system(size: 20, weight: .heavy))
                             .foregroundStyle(Theme.text)
                             .frame(width: 52, height: 52)

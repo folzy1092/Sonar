@@ -8,6 +8,9 @@
 //!   появляется cookie `SAPISID` — весь набор cookie сайта уходит в keyring (подпись запросов —
 //!   `providers/youtube/auth.rs`). Google может не пустить во встроенное окно — тогда cookie вставляют
 //!   вручную в «Сервисах».
+//! - VK: тот же «токен в адресе» на oauth.vk.com с client_id Kate Mobile (только ему VK открывает
+//!   `audio.*`), `scope=audio,offline` — ключ без срока. Двухфакторка и капча — на страницах VK в
+//!   том же окне. VK уводит на `oauth.vk.com/blank.html#access_token=vk1.a.…` — его и перехватываем.
 //! Окно закрыли, не войдя, — ошибка «Вход отменён». Ждём не больше 10 минут.
 //!
 //! Браузер по умолчанию (просьба владельца 2026-11-16): Яндекс — вход по коду (OAuth device flow того
@@ -17,7 +20,7 @@
 //! cookie чужого браузера не прочитать) — у него остаётся окно входа SoundCloud внутри Sonar.
 //! «Отмена» (`cancel`) обрывает ожидание любого входа через браузер.
 
-use crate::providers::{soundcloud, yandex, youtube};
+use crate::providers::{soundcloud, vk, yandex, youtube};
 use crate::services::{Core, ServiceStatus};
 use anyhow::{anyhow, bail, Result};
 use std::sync::Arc;
@@ -129,6 +132,8 @@ pub async fn yandex_device(app: &AppHandle, core: &Arc<Core>, device_id: &str) -
   core.connect_yandex(yandex::Creds { token }).await.map(Some)
 }
 const WAIT: Duration = Duration::from_secs(600);
+/// Куда VK возвращает после входа (адрес возврата приложений без своего сайта).
+const VK_REDIRECT: &str = "https://oauth.vk.com/blank.html";
 
 /// `#access_token=…&…` → токен.
 pub fn token_from_url(url: &Url) -> Option<String> {
@@ -138,6 +143,28 @@ pub fn token_from_url(url: &Url) -> Option<String> {
     .find_map(|kv| kv.strip_prefix("access_token="))
     .filter(|t| !t.is_empty())
     .map(|t| urlencoding::decode(t).map(|c| c.into_owned()).unwrap_or_else(|_| t.to_owned()))
+}
+
+/// Адрес окна входа VK: OAuth Kate Mobile, ключ к музыке без срока.
+fn vk_auth_url() -> String {
+  format!(
+    "https://oauth.vk.com/authorize?client_id={}&display=mobile&redirect_uri={VK_REDIRECT}&scope=audio,offline&response_type=token&revoke=1&v={}",
+    vk::KATE_CLIENT_ID,
+    vk::VERSION
+  )
+}
+
+/// Адрес окна VK → чем кончился вход: `Some(Some(токен))` — вошёл, `Some(None)` — VK вернул ошибку
+/// (отказ, отмена), `None` — вход ещё идёт.
+pub fn vk_outcome(url: &Url) -> Option<Option<String>> {
+  if url.host_str() != Some("oauth.vk.com") || url.path() != "/blank.html" {
+    return None;
+  }
+  if let Some(t) = token_from_url(url) {
+    return Some(Some(t));
+  }
+  let failed = url.fragment().into_iter().chain(url.query()).any(|p| p.split('&').any(|kv| kv.starts_with("error=")));
+  failed.then_some(None)
 }
 
 fn window<'a>(app: &'a AppHandle, label: &str, title: &str, url: &str) -> Result<WebviewWindowBuilder<'a, tauri::Wry, AppHandle>> {
@@ -309,6 +336,38 @@ pub async fn youtube(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
   core.connect_youtube(&cookie?).await
 }
 
+pub async fn vk(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
+  let (tx, mut rx) = mpsc::unbounded_channel::<Option<String>>();
+  let nav_tx = tx.clone();
+  let w = window(&app, "login-vk", "Вход в VK — Sonar", &vk_auth_url())?
+    .on_navigation(move |u| match vk_outcome(u) {
+      Some(outcome) => {
+        let _ = nav_tx.send(outcome);
+        false
+      }
+      None => true,
+    })
+    .build()?;
+  on_close(&w, tx.clone());
+  // адрес с токеном мог прийти без события навигации — проверяем текущий адрес
+  let poll_tx = tx.clone();
+  let poll_w = w.clone();
+  let poll = tokio::spawn(async move {
+    loop {
+      tokio::time::sleep(Duration::from_millis(700)).await;
+      let Ok(u) = poll_w.url() else { break };
+      if let Some(outcome) = vk_outcome(&u) {
+        let _ = poll_tx.send(outcome);
+        break;
+      }
+    }
+  });
+  let token = wait(&mut rx).await;
+  poll.abort();
+  let _ = w.close();
+  core.connect_vk(vk::Creds { token: token? }).await
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -326,5 +385,31 @@ mod tests {
     assert_eq!(token_from_url(&u).as_deref(), Some("y0_AbC+d"));
     assert_eq!(token_from_url(&Url::parse("https://music.yandex.ru/").unwrap()), None);
     assert_eq!(token_from_url(&Url::parse("https://x.ru/#access_token=").unwrap()), None);
+  }
+
+  #[test]
+  fn vk_login_outcome() {
+    let ok = Url::parse("https://oauth.vk.com/blank.html#access_token=vk1.a.Xy-Z&expires_in=0&user_id=1").unwrap();
+    assert_eq!(vk_outcome(&ok), Some(Some("vk1.a.Xy-Z".to_owned())));
+    let denied = Url::parse("https://oauth.vk.com/blank.html#error=access_denied&error_reason=user_denied").unwrap();
+    assert_eq!(vk_outcome(&denied), Some(None));
+    let q = Url::parse("https://oauth.vk.com/blank.html?error=invalid_request").unwrap();
+    assert_eq!(vk_outcome(&q), Some(None));
+    // вход ещё идёт: страница входа, двухфакторка, капча, чужой адрес с токеном
+    for u in ["https://oauth.vk.com/authorize?client_id=1", "https://id.vk.com/auth?x=1", "https://evil.example/blank.html#access_token=x", "https://oauth.vk.com/blank.html"] {
+      assert_eq!(vk_outcome(&Url::parse(u).unwrap()), None, "{u}");
+    }
+  }
+
+  #[test]
+  fn vk_auth_url_is_kate_implicit() {
+    let u = Url::parse(&vk_auth_url()).unwrap();
+    let q: std::collections::HashMap<_, _> = u.query_pairs().collect();
+    assert_eq!(u.host_str(), Some("oauth.vk.com"));
+    assert_eq!(q["client_id"], vk::KATE_CLIENT_ID);
+    assert_eq!(q["redirect_uri"], VK_REDIRECT);
+    assert_eq!(q["scope"], "audio,offline");
+    assert_eq!(q["response_type"], "token");
+    assert_eq!(q["v"], "5.131");
   }
 }
