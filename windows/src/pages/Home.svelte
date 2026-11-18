@@ -8,7 +8,6 @@
   import Tile from '../components/Tile.svelte'
   import Shelf from '../components/Shelf.svelte'
   import Cover from '../components/Cover.svelte'
-  import LoadFx from '../components/LoadFx.svelte'
   import RecapInvite from '../components/RecapInvite.svelte'
   import PlayPause from '../components/PlayPause.svelte'
   import { api, type Album, type Track } from '../lib/api'
@@ -18,16 +17,33 @@
   import { settings } from '../lib/settings.svelte'
   import { WAVE_MODES } from '../player/my-wave.svelte'
   import { reducedMotion } from '../lib/motion'
-  import { cubicOut, cubicIn } from 'svelte/easing'
+  import { cubicOut } from 'svelte/easing'
   import { wave } from '../player/my-wave.svelte'
   import { DAYPART_TEXT, daypart, home, releaseLabel, weekReleases } from './home-data.svelte'
   import { indicator } from '../lib/indicator'
-  import { flyOrb } from '../lib/fly'
-  import { colorOf } from '../theme/theme.svelte'
-  import { css, inkFor, type RGB } from '../theme/palette'
   import { t } from '../lib/i18n.svelte'
+  import SonarField from '../components/SonarField.svelte'
+  import { heroPhrase } from '../lib/hero-phrases'
 
-  const part = DAYPART_TEXT[daypart(new Date().getHours())]
+  const partId = daypart(new Date().getHours())
+  const part = DAYPART_TEXT[partId]
+  const phrase = heroPhrase(partId)
+  let moodsOpen = $state(false)
+
+  /** Клик мимо всплывашки настроений — закрыть (открывается и закрывается только кликом). */
+  function outside(node: HTMLElement, close: () => void) {
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (!node.contains(target) && !(target instanceof Element && target.closest('.moods-btn'))) close()
+    }
+    window.addEventListener('mousedown', onDown, true)
+    return { destroy: () => window.removeEventListener('mousedown', onDown, true) }
+  }
+
+  function pop(_n: Element) {
+    if (reducedMotion()) return { duration: 140, css: (t: number) => `opacity:${t}` }
+    return { duration: 200, easing: cubicOut, css: (t: number, u: number) => `opacity:${t};transform:translateY(${-6 * u}px) scale(${0.97 + 0.03 * t})` }
+  }
   const hello = part.hello
   // приветствие — из профиля Sonar (Аккаунт → Профиль), пусто — из подключённого сервиса
   const me = $derived({
@@ -52,11 +68,6 @@
     wave.ensureCovers()
   })
 
-  // Обложки волны — «лицо» её стиля (wave.covers): от перемотки треков не меняются.
-  const waveTracks = $derived<Track[]>(wave.covers)
-  // Большая обложка — играющий трек: подсветка (--cover-glow) идёт от его цвета, и обложка с ней совпадает
-  // (решение владельца 2026-11-17); ничего не играет — «лицо» волны.
-  const waveCover = $derived(player.current?.cover_url ?? waveTracks[0]?.cover_url ?? home.recent[0]?.cover_url ?? null)
   const playingWave = $derived(wave.active && player.playing)
 
   const titles = (list: Track[]) =>
@@ -66,26 +77,6 @@
       .join(', ')
   const recentTitle = $derived(titles(home.recent))
 
-  let playBtn: HTMLButtonElement | undefined = $state()
-  /** Цвет кнопки: после прилёта сгустка — цвет обложки (как в Dotify), иначе — белая. */
-  let btnColor = $state<RGB | null>(null)
-  const ink = $derived(btnColor ? css(inkFor(btnColor)) : null)
-
-  /** Обложка выбирает стиль волны: сгусток её цвета летит в кнопку, кнопка перекрашивается.
-   *  Большая — обычная волна режима (играет — пауза), маленькая — волна в стиле этого трека:
-   *  он звучит первым, дальше — похожие на него, и стиль держится, сколько ни листай треки. */
-  async function playCover(e: MouseEvent, t: Track | undefined, style: boolean) {
-    const el = e.currentTarget as Element
-    const url = t?.cover_url ?? waveCover
-    const color = (url ? await colorOf(url) : null) ?? ([255, 255, 255] as RGB)
-    if (playBtn) void flyOrb(el, playBtn, color).then(() => (btnColor = color))
-    if (!style || !t) {
-      if (wave.active && !wave.seed) return wave.toggle()
-      return void wave.start(undefined, true, t?.ref)
-    }
-    if (wave.active && wave.seed?.ref === t.ref) return wave.toggle()
-    void wave.start(t)
-  }
 
   function playMix(i: number) {
     void player.playList(home.mix, i, 'daypart', t(part.mix))
@@ -102,83 +93,61 @@
 
   const mode = $derived(WAVE_MODES.find((m) => m.id === wave.mode) ?? WAVE_MODES[0])
 
-  /** Полу-3D переворот подписи режима: новая выезжает снизу, поворачиваясь к нам, старая уходит вверх. */
-  function flipIn(_n: Element) {
-    if (reducedMotion()) return { duration: 160, css: (t: number) => `opacity:${t}` }
-    return {
-      duration: 420,
-      easing: cubicOut,
-      css: (t: number, u: number) => `opacity:${t};transform:rotateX(${-80 * u}deg) translateY(${6 * u}px)`,
-    }
-  }
-  function flipOut(_n: Element) {
-    if (reducedMotion()) return { duration: 120, css: (t: number) => `opacity:${t}` }
-    return {
-      duration: 300,
-      easing: cubicIn,
-      css: (t: number, u: number) => `opacity:${t};transform:rotateX(${80 * u}deg) translateY(${-6 * u}px)`,
-    }
-  }
 </script>
 
-<!-- Герой как у Dotify: без карточки; слева обложка и «Моя волна» (Roboto Flex), справа — сцена
-     с двумя обложками следующих треков и большой кнопкой. -->
-<section class="wave" class:on={wave.active}>
-  <div class="lead">
-    <button class="art" data-fx-cover aria-label={t('Играть волну')} onclick={(e) => playCover(e, waveTracks[0], false)}>
-      <Cover url={waveCover} size={158} radius="26px" />
-      <!-- загрузка трека волны — на обложке героя, если волна играет -->
-      <LoadFx on={wave.active} url={player.current?.cover_url} />
-    </button>
-    <div class="wave-text">
-      <h1 class="font-wave" data-fx-title>{#each t('Моя волна').split(' ') as w, i (i)}<span>{w}</span>{/each}</h1>
-      <!-- режим волны: клик — следующий (Своя → Жёсткая → Спокойная → …), карточка переворачивается -->
-      <button class="mode" title={t('Режим волны — нажми, чтобы сменить')} onclick={() => wave.nextMode()}>
-        {#key mode.id}
-          <span class="flip" in:flipIn out:flipOut>
-            <Icon name={mode.icon} size={15} />
-            <b>{t(mode.title)}</b>{#if wave.loading}<span class="sub">· {t('подбираю…')}</span>{:else if wave.active && wave.seed}<span class="sub">· {t('в стиле «{title}»', { title: wave.seed.title })}</span>{:else}<span class="sub">· {t(mode.sub)}</span>{/if}
-          </span>
-        {/key}
+<!-- Герой (решение владельца 2026-11-18): приветствие с аватаром, крупная фраза под время суток с
+     акцентным словом, «Слушать» и настроение волны; справа — живое поле точек (слизь ⇄ знак Sonar). -->
+<section class="hero" class:on={wave.active}>
+  <div class="hero-text">
+    <div class="hi">
+      {#if me.avatar}<img src={me.avatar} alt="" />{/if}
+      <span>{me.name ? t('{hello}, {name}', { hello: t(hello), name: me.name }) : t(hello)}</span>
+    </div>
+    <h1 class="font-wave" data-fx-title>{t(phrase[0])} <em>{t(phrase[1])}</em></h1>
+    <span class="kind">
+      {t('Моя волна')} · {t(mode.title)}{#if wave.loading} · {t('подбираю…')}{:else if wave.active && wave.seed} · {t('в стиле «{title}»', { title: wave.seed.title })}{/if}
+    </span>
+    <div class="actions">
+      <button
+        class="listen press"
+        class:busy={wave.loading && !wave.active}
+        title={wave.error && !wave.active ? wave.error : undefined}
+        onclick={() => wave.toggle()}
+      >
+        <PlayPause playing={playingWave} size={18} />
+        {playingWave ? t('Пауза') : t('Слушать')}
       </button>
+      <button
+        class="moods-btn press"
+        class:on={moodsOpen}
+        aria-label={t('Настроение волны')}
+        title={t('Настроение волны')}
+        aria-expanded={moodsOpen}
+        onclick={() => (moodsOpen = !moodsOpen)}
+      >
+        <Icon name="adjustments" size={18} />
+      </button>
+      {#if moodsOpen}
+        <div class="moods" role="dialog" aria-label={t('Настроение волны')} use:outside={() => (moodsOpen = false)} transition:pop>
+          <b>{t('Какое настроение?')}</b>
+          <div class="chips">
+            {#each WAVE_MODES as m (m.id)}
+              <button class="chip press" class:on={wave.mode === m.id} title={t(m.sub)} onclick={() => void wave.setMode(m.id, wave.active)}>
+                <Icon name={m.icon} size={15} />{t(m.title)}
+              </button>
+            {/each}
+          </div>
+        </div>
+      {/if}
     </div>
   </div>
-
-  <div class="scene" class:still={!player.playing}>
-    {#each waveTracks.slice(1, 3) as tr, i (tr.ref)}
-      <button
-        class="float f{i} idle-pause"
-        class:picked={wave.active && wave.seed?.ref === tr.ref}
-        aria-label={t('Волна в стиле «{title}»', { title: tr.title })}
-        title={t('Волна в стиле: {artist} — {title}', { artist: tr.artist, title: tr.title })}
-        onclick={(e) => playCover(e, tr, true)}
-      >
-        <Cover url={tr.cover_url} size={64} radius="16px" />
-      </button>
-    {/each}
-    <button
-      bind:this={playBtn}
-      class="wave-play"
-      class:busy={wave.loading && !wave.active}
-      style:background-color={btnColor ? css(btnColor) : null}
-      style:color={ink}
-      aria-label={playingWave ? t('Пауза') : t('Включить волну')}
-      title={wave.error && !wave.active ? wave.error : playingWave ? t('Пауза') : t('Включить волну')}
-      onclick={() => wave.toggle()}
-    >
-      <PlayPause playing={playingWave} size={38} />
-    </button>
-  </div>
+  <div class="hero-field"><SonarField playing={playingWave} /></div>
 </section>
 
 <RecapInvite />
 
 <section class="block">
-  <h2>{t(hello)}{#if me.name},
-      <span class="who">
-        {#if me.avatar}<img src={me.avatar} alt="" />{/if}
-        {me.name}
-      </span>{/if}</h2>
+  <h2>{t('Для тебя')}</h2>
   {#if home.mix.length || home.recent.length}
     <Shelf wheel>
       <!-- первым — подборка под время суток (что слушаешь в эти часы + лайки), за ней «Недавнее»;
@@ -281,185 +250,177 @@
 {/snippet}
 
 <style>
-  /* обложки плывут только пока играет музыка — на паузе стоят */
-  .scene.still .float {
-    /* появление доигрывает всегда, на паузе стоит только покачивание */
-    animation-play-state: running, paused;
-  }
-  .wave {
+  .hero {
     position: relative;
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 24px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+    min-height: 300px;
     padding: 8px 0 0;
   }
-  .lead {
-    display: flex;
-    align-items: flex-end;
-    gap: 28px;
-    min-width: 0;
-  }
-  .art {
+  .hero-text {
     position: relative;
-    flex-shrink: 0;
-    overflow: hidden;
-    border-radius: 26px;
-    /* обычная тень; «Монолит» — свечение цвета обложки (palette.ts SURFACE_DECOR) */
-    box-shadow: var(--cover-glow);
-    transition: transform var(--normal) var(--ease);
-  }
-  .art:hover {
-    transform: scale(1.03);
-  }
-  .art:active {
-    transform: scale(0.96);
-  }
-  .wave-text {
+    z-index: 1;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
-    padding-bottom: 4px;
-    min-width: 0;
+    gap: 10px;
   }
-  h1 {
+  .hi {
     display: flex;
-    flex-direction: column;
-    font-size: calc(54px * var(--fs, 1));
-    line-height: 0.92;
-    letter-spacing: -0.02em;
-  }
-  .mode {
-    display: inline-grid;
-    justify-items: start;
-    margin-left: -8px;
-    padding: 5px 10px;
-    border-radius: 10px;
+    align-items: center;
+    gap: 8px;
     color: var(--text-2);
+    font-weight: 600;
+    animation: rise-in var(--normal) var(--ease) both;
+  }
+  .hi img {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .hero h1 {
+    margin: 0;
+    max-width: 12ch;
+    font-size: clamp(40px, 5.6vw, 76px);
+    line-height: 0.98;
+    letter-spacing: -0.02em;
+    animation: rise-in calc(var(--normal) * 1.6) var(--ease) both;
+  }
+  .hero h1 em {
+    font-style: normal;
+    color: color-mix(in srgb, var(--accent) 75%, var(--text));
+    transition: color 0.6s var(--ease);
+  }
+  .kind {
+    color: var(--text-3);
     font-size: calc(13px * var(--fs, 1));
-    white-space: nowrap;
-    perspective: 420px;
+  }
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  .actions {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .listen {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 46px;
+    padding: 0 22px 0 18px;
+    border-radius: 999px;
+    background: var(--text);
+    color: var(--surface-0);
+    font-weight: 700;
+    transition:
+      transform var(--fast) var(--ease),
+      filter var(--fast) var(--ease),
+      opacity var(--normal) var(--ease);
+  }
+  .listen:hover {
+    filter: brightness(0.92);
+  }
+  .listen:active {
+    transform: scale(0.96);
+  }
+  .listen.busy {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .moods-btn {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--plate);
+    border: 1px solid var(--card-line);
+    color: var(--text-2);
     transition:
       background var(--fast) var(--ease),
       color var(--fast) var(--ease);
   }
-  .mode:hover {
+  .moods-btn:hover,
+  .moods-btn.on {
     background: var(--hover);
     color: var(--text);
   }
-  .mode:active .flip {
-    scale: 0.96;
+  .moods {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(380px, 80vw);
+    padding: 14px;
+    border-radius: 18px;
+    background: var(--surface-1, var(--surface-0));
+    border: 1px solid var(--card-line);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
   }
-  /* старая и новая подпись стоят в одной клетке и переворачиваются вокруг горизонтальной оси */
-  .flip {
-    grid-area: 1 / 1;
+  .moods b {
+    font-size: calc(13px * var(--fs, 1));
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    transform-origin: 50% 50% -10px;
-    backface-visibility: hidden;
-    transition: scale var(--fast) var(--ease);
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: var(--plate);
+    color: var(--text-2);
+    font-size: calc(13px * var(--fs, 1));
+    transition:
+      background var(--fast) var(--ease),
+      color var(--fast) var(--ease);
   }
-  .flip b {
-    font-weight: 700;
+  .chip:hover {
+    background: var(--hover);
     color: var(--text);
   }
-  .flip .sub {
-    color: var(--text-3);
+  .chip.on {
+    background: var(--text);
+    color: var(--surface-0);
+    font-weight: 600;
   }
-  /* сцена справа: 288×224, обложки 64 px, кнопка 80 px (размеры Dotify) */
-  .scene {
+  .hero-field {
     position: relative;
-    flex-shrink: 0;
-    width: 288px;
-    height: 224px;
-  }
-  .float {
-    position: absolute;
-    border-radius: 16px;
-    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
-    filter: saturate(0.55) brightness(0.9);
-    cursor: pointer;
-    transition: filter var(--normal) var(--ease);
-    animation:
-      float-in 0.6s var(--ease) both,
-      bob 6s ease-in-out 0.6s infinite alternate;
-  }
-  .float:hover,
-  .float.picked {
-    filter: none;
-  }
-  /* выбранный стиль — тонкое кольцо цвета темы вокруг обложки */
-  .float::after {
-    content: '';
-    position: absolute;
-    inset: -5px;
-    border-radius: 21px;
-    border: 2px solid var(--accent, var(--text));
-    opacity: 0;
-    scale: 0.9;
-    transition:
-      opacity var(--normal) var(--ease),
-      scale var(--normal) var(--ease);
-    pointer-events: none;
-  }
-  .float.picked::after {
+    height: 300px;
+    margin-right: -12px;
     opacity: 0.9;
-    scale: 1;
   }
-  /* верхняя обложка — ниже чёлки с кнопками окна (--notch-h ставит lib/notch на карточку) */
-  .float.f0 {
-    right: 12px;
-    top: calc(var(--notch-h, 0px) + 6px);
-    animation-delay: 0.08s, 1.4s;
-  }
-  .float.f1 {
-    right: 128px;
-    top: 96px;
-  }
-  @keyframes float-in {
-    from {
-      opacity: 0;
-      transform: translateY(14px) scale(0.9);
+  @media (max-width: 760px) {
+    .hero {
+      grid-template-columns: 1fr;
+    }
+    .hero-field {
+      position: absolute;
+      inset: 0 0 auto 40%;
+      opacity: 0.35;
     }
   }
-  @keyframes bob {
-    to {
-      transform: translateY(-7px);
+  @media (prefers-reduced-motion: reduce) {
+    .hi,
+    .hero h1 {
+      animation: none;
     }
-  }
-  .wave-play {
-    position: absolute;
-    right: 8px;
-    bottom: 0;
-    display: grid;
-    place-items: center;
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background-color: var(--text);
-    color: var(--on-text);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-    transition:
-      background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-      color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-      opacity 0.22s ease,
-      filter 0.22s ease;
-  }
-  .wave-play:hover {
-    transform: scale(1.05);
-  }
-  .wave-play:active {
-    transform: scale(0.93);
-  }
-  /* загрузка — как у Dotify: прозрачнее, меньше, чуть размыта */
-  .wave-play.busy {
-    opacity: 0.35;
-    transform: scale(0.82);
-    filter: blur(1.5px);
-    pointer-events: none;
   }
   .block {
     margin-top: 32px;
@@ -479,18 +440,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .who {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--accent);
-  }
-  .who img {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    object-fit: cover;
   }
   .row {
     display: flex;
