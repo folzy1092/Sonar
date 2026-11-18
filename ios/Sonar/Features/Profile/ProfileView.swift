@@ -49,8 +49,6 @@ struct ProfileView: View {
                     link(Service.vk.title, .music) { ServicesView(only: .vk) }
                 }
                 section("Интеграции", 5) {
-                    link("Last.fm", .wave) { LastfmSettingsView() }
-                    divider
                     link("Ключ API", .link) {
                         ServerOnlyView(.apiKey)
                     }

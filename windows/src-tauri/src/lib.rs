@@ -3,7 +3,6 @@ mod crashlog;
 mod discord;
 mod dupes;
 mod export;
-mod lastfm;
 mod login;
 mod local;
 mod lyrics;
@@ -68,6 +67,9 @@ pub fn run() {
             .build(),
         )?;
       }
+
+      // Last.fm убран (docs/LASTFM_EXIT.md): прежний вход из keyring стираем, чтобы не копить мусор
+      secrets::forget_retired();
 
       // Локальная база: %APPDATA%/com.folzy.sonar/sonar.db
       let dir = app.path().app_data_dir()?;
@@ -205,10 +207,7 @@ pub fn run() {
       commands::thumbbar_state,
       commands::show_main,
       commands::obs_new_token,
-      commands::lastfm_status,
-      commands::lastfm_login,
       commands::cancel_login,
-      commands::lastfm_logout,
       commands::discord_status,
       commands::resolve_link,
       commands::report_pending,
