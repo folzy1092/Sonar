@@ -66,6 +66,9 @@ async fn connection(remote: Arc<Remote>, stream: TcpStream, mut stop: watch::Rec
   };
   let (tx, mut rx) = mpsc::unbounded_channel::<Out>();
   let conn = remote.connect(&device, tx);
+  // Срок тишины считаем только по входящим: исходящие `state` идут постоянно и не должны
+  // продлевать жизнь пропавшему телефону.
+  let mut deadline = tokio::time::Instant::now() + IDLE;
   loop {
     tokio::select! {
       // сначала очередь: `bye` должен уйти до закрытия
@@ -74,15 +77,19 @@ async fn connection(remote: Arc<Remote>, stream: TcpStream, mut stop: watch::Rec
         Some(Out::Text(t)) => if ws.send(Message::text(t)).await.is_err() { break },
         Some(Out::Close) | None => break,
       },
-      msg = tokio::time::timeout(IDLE, ws.next()) => match msg {
-        Ok(Some(Ok(Message::Text(t)))) => {
-          if let Some(reply) = remote.handle(t.as_str()) {
-            if ws.send(Message::text(reply)).await.is_err() { break }
+      msg = ws.next() => {
+        deadline = tokio::time::Instant::now() + IDLE;
+        match msg {
+          Some(Ok(Message::Text(t))) => {
+            if let Some(reply) = remote.handle(t.as_str()) {
+              if ws.send(Message::text(reply)).await.is_err() { break }
+            }
           }
+          Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
+          Some(Ok(_)) => {}
         }
-        Ok(Some(Ok(Message::Close(_)))) | Ok(Some(Err(_))) | Ok(None) | Err(_) => break,
-        Ok(Some(Ok(_))) => {}
       },
+      _ = tokio::time::sleep_until(deadline) => break,
       _ = stop.changed() => break,
     }
   }
