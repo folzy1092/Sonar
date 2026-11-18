@@ -1,3 +1,4 @@
+mod artist_graph;
 mod commands;
 mod crashlog;
 mod discord;
@@ -261,6 +262,9 @@ pub fn run() {
       smart::create_smart_playlist,
       smart::update_smart_playlist,
       smart::delete_smart_playlist,
+      artist_graph::artist_graph,
+      artist_graph::artist_neighbors,
+      artist_graph::artist_cluster_tracks,
       commands::lyrics,
       commands::lyrics_offset,
       commands::lyrics_annotations,
