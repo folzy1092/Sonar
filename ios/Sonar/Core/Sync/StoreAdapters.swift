@@ -122,7 +122,9 @@ final class LikesSyncAdapter: SyncAdapter {
         let current = LikeOrder.addedTimes(order: list.map(\.ref), known: known, now: now())
         let at = change.value["added_at"].int64 ?? now()
         list.insert(track, at: LikeOrder.insertIndex(at, times: current))
-        if list != library.liked { library.applySynced(liked: list) }
+        if list != library.liked {
+            library.applySynced(liked: list, likedAt: existing == nil ? [track.ref: Int(at)] : [:])
+        }
         return true
     }
 }
