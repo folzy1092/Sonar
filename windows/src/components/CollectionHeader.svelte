@@ -9,6 +9,8 @@
 
   interface Props {
     title: string
+    /** Значок перед названием (искры у умного плейлиста). */
+    titleIcon?: IconName
     subtitle?: Snippet
     meta?: string
     image?: string | null
@@ -27,7 +29,7 @@
     tools?: Snippet
   }
 
-  let { title, subtitle, meta, image = null, covers = [], icon = 'music', round = false, disabled = false, context = null, onplay, onshuffle, onqueue, actions, tools }: Props = $props()
+  let { title, titleIcon, subtitle, meta, image = null, covers = [], icon = 'music', round = false, disabled = false, context = null, onplay, onshuffle, onqueue, actions, tools }: Props = $props()
   let failed = $state(false)
 </script>
 
@@ -44,7 +46,7 @@
     {/if}
   </div>
   <div class="text">
-    <h1 class="selectable" {title}>{title}</h1>
+    <h1 class="selectable" {title}>{#if titleIcon}<span class="mark" aria-hidden="true"><Icon name={titleIcon} size={30} /></span>{/if}{title}</h1>
     {#if subtitle}<p class="sub">{@render subtitle()}</p>{/if}
     {#if meta}<p class="meta">{meta}</p>{/if}
   </div>
@@ -107,6 +109,12 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .mark {
+    display: inline-flex;
+    vertical-align: -0.08em;
+    margin-right: 10px;
+    color: var(--accent);
   }
   .sub {
     margin: 8px 0 0;

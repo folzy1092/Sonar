@@ -14,6 +14,8 @@
   import { api, onLocalFilesChanged, type Album, type Artist, type ServicePlaylist, type ServiceStatus, type ServicesStatus } from '../lib/api'
   import { tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
+  import { smartLists } from '../lib/smart-lists.svelte'
+  import { blankRules } from '../lib/smart'
   import { openRef, router } from '../app/router.svelte'
   import { settingsPanel } from './settings-section.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
@@ -119,6 +121,7 @@
   $effect(() => {
     library.version
     void loadSaved()
+    void smartLists.load()
   })
   void library.load()
   void loadServices()
@@ -149,6 +152,13 @@
     creating = false
     newName = ''
     if (p) router.go('playlist', p.id)
+  }
+
+  /** «Умный плейлист» из окна создания: конструктор правил с уже введённым названием. */
+  function createSmart() {
+    creating = false
+    smartLists.edit({ id: null, name: newName.trim(), rules: blankRules() })
+    newName = ''
   }
 
   function openServices() {
@@ -194,6 +204,8 @@
   />
 {/snippet}
 
+{#snippet smartBadge()}<Icon name="sparkles" size={15} />{/snippet}
+
 {#snippet favArt()}<NavIcon name="heart" active size={44} />{/snippet}
 
 {#if tab === 'Все' || tab === 'Плейлисты'}
@@ -225,6 +237,17 @@
             e.preventDefault()
             playlistMenu.openOwn(p, e.clientX, e.clientY)
           }}
+        />
+      {/each}
+      {#each smartLists.list as p (p.id)}
+        <Tile
+          title={p.name}
+          subtitle={t('Умный плейлист')}
+          meta={p.error ? t('Правила не читаются') : tracksText(p.track_count)}
+          covers={p.covers}
+          icon="sparkles"
+          badge={smartBadge}
+          onclick={() => router.go('playlist', p.id)}
         />
       {/each}
     </div>
@@ -327,6 +350,7 @@
         <button type="button" class="ghost" onclick={() => (creating = false)}>{t('Отмена')}</button>
         <button type="submit" class="primary" disabled={!newName.trim()}>{t('Создать')}</button>
       </div>
+      <button type="button" class="smart" onclick={createSmart}><Icon name="sparkles" size={15} /> {t('Умный плейлист — по правилам')}</button>
     </form>
   {/if}
   <div class="actions">
@@ -561,6 +585,27 @@
   }
   .primary:disabled {
     opacity: 0.4;
+  }
+  .smart {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px dashed var(--border-strong);
+    color: var(--text-2);
+    font-weight: 600;
+    transition:
+      background var(--fast) var(--ease),
+      color var(--fast) var(--ease);
+  }
+  .smart:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
+  .smart :global(svg) {
+    color: var(--accent);
   }
   .hint {
     margin: -6px 0 12px;

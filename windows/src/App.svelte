@@ -12,6 +12,9 @@
   import SettingsPanel from './pages/SettingsPanel.svelte'
   import { settingsPanel } from './pages/settings-section.svelte'
   import PlaylistPage from './pages/PlaylistPage.svelte'
+  import SmartPlaylistPage from './pages/SmartPlaylistPage.svelte'
+  import SmartEditor from './app/smart/SmartEditor.svelte'
+  import { isSmartId } from './lib/smart'
   import ArtistPage from './pages/ArtistPage.svelte'
   import AlbumPage from './pages/AlbumPage.svelte'
   import ProfilePage from './pages/ProfilePage.svelte'
@@ -64,7 +67,8 @@
   /** Строки поиска нет — кнопки окна висят поверх в углу, страница начинается от самого верха. */
   const floatHeader = $derived(ownHeader.includes(router.page) || !withSearch.includes(router.page))
 
-  const Current = $derived(pages[router.page])
+  /** Умный плейлист (`sm_…`) — та же страница «playlist», но своя: треки считают правила. */
+  const Current = $derived(router.page === 'playlist' && isSmartId(router.param) ? SmartPlaylistPage : pages[router.page])
   let scroller: HTMLElement | undefined = $state()
   let island: HTMLElement | undefined = $state()
 
@@ -217,6 +221,7 @@
 <TrackMenu />
 <PlaylistMenu />
 <ConfirmDialog />
+<SmartEditor />
 <QuickOpen />
 <UpdatePopup />
 <CrashNotice />

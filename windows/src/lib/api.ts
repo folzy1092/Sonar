@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event'
 import { isTauri } from './tauri'
 import { t } from './i18n.svelte'
 import type { Lyrics } from '../lyrics/core/types'
+import type { SmartRules } from './smart'
 import type { ServiceId, ServiceKey, ServiceCaps, ServicePrefixes } from './services'
 
 /** Короткий id сервиса (lib/services): параметр `src` поиска, корень префикса ref. */
@@ -109,6 +110,30 @@ export interface Playlist {
   duration_ms: number
   covers: string[]
   tracks: ListTrack[] | null
+}
+
+/** Умный плейлист (`sm_…`): правила из lib/smart.ts, треки пересчитываются при открытии. */
+export interface SmartPlaylist {
+  id: string
+  name: string
+  rules: unknown
+  created_at: number
+  updated_at: number
+  track_count: number
+  duration_ms: number
+  covers: string[]
+  tracks: ListTrack[] | null
+  /** Не посчитался: правила не читаются или исходного плейлиста больше нет. */
+  error: 'invalid' | 'source_missing' | null
+}
+
+/** Предпросмотр правил в конструкторе: счётчик и первые треки. */
+export interface SmartPreview {
+  track_count: number
+  duration_ms: number
+  covers: string[]
+  tracks: ListTrack[]
+  error: 'invalid' | 'source_missing' | null
 }
 
 export interface SearchMore {
@@ -355,6 +380,13 @@ export const api = {
     call<void>('add_to_playlist', { id, tracks, position }),
   removeFromPlaylist: (id: string, itemIds: string[]) => call<void>('remove_from_playlist', { id, itemIds }),
   reorderPlaylist: (id: string, itemIds: string[]) => call<void>('reorder_playlist', { id, itemIds }),
+  smartPlaylists: () => call<SmartPlaylist[]>('smart_playlists'),
+  smartPlaylist: (id: string) => call<SmartPlaylist>('smart_playlist', { id }),
+  smartPreview: (rules: SmartRules) => call<SmartPreview>('smart_preview', { rules }),
+  createSmartPlaylist: (name: string, rules: SmartRules) => call<SmartPlaylist>('create_smart_playlist', { name, rules }),
+  updateSmartPlaylist: (id: string, patch: { name?: string; rules?: SmartRules }) =>
+    call<void>('update_smart_playlist', { id, ...patch }),
+  deleteSmartPlaylist: (id: string) => call<void>('delete_smart_playlist', { id }),
 
   getSetting: <T>(key: string) => call<T | null>('get_setting', { key }),
   setSetting: (key: string, value: unknown) => call<void>('set_setting', { key, value }),

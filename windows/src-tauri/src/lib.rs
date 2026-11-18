@@ -17,6 +17,7 @@ mod obs;
 mod providers;
 mod secrets;
 mod services;
+mod smart;
 #[cfg(feature = "spotify-playback")]
 mod spotify_play;
 mod store;
@@ -230,6 +231,12 @@ pub fn run() {
       commands::add_to_playlist,
       commands::remove_from_playlist,
       commands::reorder_playlist,
+      smart::smart_playlists,
+      smart::smart_playlist,
+      smart::smart_preview,
+      smart::create_smart_playlist,
+      smart::update_smart_playlist,
+      smart::delete_smart_playlist,
       commands::lyrics,
       commands::lyrics_offset,
       commands::lyrics_annotations,
