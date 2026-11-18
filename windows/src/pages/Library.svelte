@@ -11,17 +11,19 @@
   import NavIcon from '../components/NavIcon.svelte'
   import { playlistMenu } from '../lib/playlist-menu.svelte'
   import Tile from '../components/Tile.svelte'
-  import { api, type Album, type Artist, type ServicePlaylist, type ServiceStatus, type ServicesStatus } from '../lib/api'
+  import { api, onLocalFilesChanged, type Album, type Artist, type ServicePlaylist, type ServiceStatus, type ServicesStatus } from '../lib/api'
   import { tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
   import { openRef, router } from '../app/router.svelte'
   import { settingsPanel } from './settings-section.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
-  import { IMPLEMENTED, byId, isTrackRef, serviceOf, statusOf, type ServiceId } from '../lib/services'
+  import { ACCOUNT_SERVICES, byId, isTrackRef, serviceOf, statusOf, type ServiceId } from '../lib/services'
   import { ICONS } from '../lib/service-icons'
   import { reducedMotion } from '../lib/motion'
   import { cubicOut } from 'svelte/easing'
   import { t } from '../lib/i18n.svelte'
+  import { settings } from '../lib/settings.svelte'
+  import { onDestroy } from 'svelte'
 
   const tabs = ['Все', 'Плейлисты', 'Альбомы', 'Исполнители'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
@@ -34,6 +36,10 @@
   /** Статус сервисов уже запрошен (успешно или нет) — дальше не скелет, а ответ. */
   let servicesTried = $state(false)
   let creating = $state(false)
+  /** Файлы из «Папок с музыкой» (Система → Хранилище): сколько и первые обложки для плитки. */
+  let localCount = $state(0)
+  let localCovers = $state<string[]>([])
+  const hasFolders = $derived(settings.get('storage.music_folders').length > 0)
   let newName = $state('')
 
   const favCount = $derived([...library.liked].filter(isTrackRef).length)
@@ -42,10 +48,10 @@
   /** Сервисы блока «плейлисты сервисов» по кругу (решение владельца 2026-11-16): клик по названию —
    *  следующий, ряд уезжает свайпом. Сервисы — реализованные из реестра (lib/services): Spotify и
    *  VK Музыка встанут сюда сами, когда их включат. */
-  let svc = $state<ServiceId>(IMPLEMENTED[0].id)
+  let svc = $state<ServiceId>(ACCOUNT_SERVICES[0].id)
   /** Куда едет свайп: 1 — следующий справа налево. */
   let dir = $state(1)
-  const svcInfo = $derived(byId(svc) ?? IMPLEMENTED[0])
+  const svcInfo = $derived(byId(svc) ?? ACCOUNT_SERVICES[0])
   const svcName = $derived(t(svcInfo.name))
   const svcConnected = $derived(!!statusOf(status, svcInfo)?.connected)
   /** Плейлисты выбранного сервиса, ещё не перенесённые в Sonar (перенесённые уже есть среди своих). */
@@ -64,9 +70,9 @@
   }
 
   function nextService() {
-    const i = IMPLEMENTED.findIndex((x) => x.id === svc)
+    const i = ACCOUNT_SERVICES.findIndex((x) => x.id === svc)
     dir = 1
-    svc = IMPLEMENTED[(i + 1) % IMPLEMENTED.length].id
+    svc = ACCOUNT_SERVICES[(i + 1) % ACCOUNT_SERVICES.length].id
   }
 
   /** Смена сервиса снизу вверх (решение владельца 2026-11-16): прежний уходит вверх, следующий
@@ -81,7 +87,7 @@
     }
   }
   const accounts = $derived(
-    status ? IMPLEMENTED.map((s) => statusOf(status, s)).filter((s): s is ServiceStatus => !!s?.connected) : [],
+    status ? ACCOUNT_SERVICES.map((s) => statusOf(status, s)).filter((s): s is ServiceStatus => !!s?.connected) : [],
   )
 
   async function loadSaved() {
@@ -98,11 +104,11 @@
       const st = await api.servicesStatus()
       status = st
       const lists = await Promise.all(
-        IMPLEMENTED.map((s): Promise<ServicePlaylist[]> | ServicePlaylist[] =>
+        ACCOUNT_SERVICES.map((s): Promise<ServicePlaylist[]> | ServicePlaylist[] =>
           statusOf(st, s)?.connected ? api.servicePlaylists(s.key).catch((e) => ((phantomError = String(e)), [])) : [],
         ),
       )
-      phantom = Object.fromEntries(IMPLEMENTED.map((s, i) => [s.id, lists[i]]))
+      phantom = Object.fromEntries(ACCOUNT_SERVICES.map((s, i) => [s.id, lists[i]]))
     } catch {
       status = null
     } finally {
@@ -117,10 +123,23 @@
   void library.load()
   void loadServices()
 
+  async function loadLocal() {
+    try {
+      const list = await api.localTracks()
+      localCount = list.length
+      localCovers = list.flatMap((x) => (x.cover_url ? [x.cover_url] : [])).filter((c, i, a) => a.indexOf(c) === i).slice(0, 4)
+    } catch {
+      // вне приложения
+    }
+  }
+  void loadLocal()
+  onDestroy(onLocalFilesChanged(() => void loadLocal()))
+
   function refresh() {
     void library.load(true)
     void loadSaved()
     void loadServices()
+    void loadLocal()
   }
 
   async function create() {
@@ -210,6 +229,24 @@
       {/each}
     </div>
   </section>
+
+  <!-- файлы из «Папок с музыкой» (NEXT_PROMPT этап 10): только если папки выбраны или что-то найдено -->
+  {#if hasFolders || localCount}
+    <section class="block">
+      <h2>{t('На этом компьютере')} <button class="more" aria-label={t('Все файлы')} onclick={() => router.go('playlist', 'local')}><Icon name="chevronRight" size={18} /></button></h2>
+      <div class="row" use:cascade={tab}>
+        <Tile
+          title={t('Файлы')}
+          subtitle={t('Папки с музыкой')}
+          meta={tracksText(localCount)}
+          icon="monitor"
+          covers={localCovers}
+          onclick={() => router.go('playlist', 'local')}
+        />
+        <Tile title={t('Папки')} subtitle={t('Настройки → Хранилище')} icon="library" ghost onclick={() => settingsPanel.show('system', 'storage')} />
+      </div>
+    </section>
+  {/if}
 
   <!-- плейлисты сервисов — свой ряд, сервис переключается по кругу кликом по названию -->
   <section class="block">

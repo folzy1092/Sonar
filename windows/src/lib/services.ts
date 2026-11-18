@@ -218,7 +218,7 @@ export const SERVICES: readonly ServiceInfo[] = Object.freeze([
     color: '#8E8E93',
     prefixes: prefixes('local', false),
     caps: { search: false, stream: true, library: true, playlists: false, similar: false, login: false, key: false },
-    implemented: false,
+    implemented: true,
     gender: 'm',
     nameIn: 'локальных файлах',
     openIn: null,
@@ -234,6 +234,15 @@ export const SERVICES: readonly ServiceInfo[] = Object.freeze([
 ] satisfies ServiceInfo[])
 
 export const IMPLEMENTED: readonly ServiceInfo[] = Object.freeze(SERVICES.filter((s) => s.implemented))
+
+/** Реализованные сервисы с аккаунтом (вход или ключ): карточки «Сервисов», плейлисты сервисов,
+ *  платформа главной. Локальные файлы — без аккаунта, их место — Хранилище и «На этом компьютере». */
+export const ACCOUNT_SERVICES: readonly ServiceInfo[] = Object.freeze(IMPLEMENTED.filter((s) => s.caps.login || s.caps.key))
+
+/** Трек с этого компьютера (`local:<sha1 пути>`). */
+export function isLocalRef(ref: string | null | undefined): boolean {
+  return serviceOf(ref) === 'local'
+}
 
 /** Сервис по короткому id ('sc') или длинному ключу ('soundcloud'). */
 export function byId(idOrKey: string | null | undefined): ServiceInfo | null {
@@ -264,15 +273,15 @@ export function refKind(ref: string | null | undefined): RefKind | null {
   return parseRef(ref)?.kind ?? null
 }
 
-/** Трек подключаемого сервиса (лайки, счётчики «Мне нравится»): `sc:…` / `ym:…`. */
+/** Трек реализованного сервиса (лайки, счётчики «Мне нравится»): `sc:…` / `ym:…` / `local:…`. */
 export function isTrackRef(ref: string | null | undefined): boolean {
   const parsed = parseRef(ref)
   return parsed !== null && parsed.kind === 'track' && parsed.service.implemented
 }
 
-/** Подключённые и реализованные сервисы, в порядке реестра. */
+/** Подключённые сервисы с аккаунтом, в порядке реестра. */
 export function connected(list: readonly ServiceState[]): ServiceInfo[] {
-  return SERVICES.filter((s) => s.implemented && list.some((row) => row.connected && (row.id === s.id || row.key === s.key)))
+  return ACCOUNT_SERVICES.filter((s) => list.some((row) => row.connected && (row.id === s.id || row.key === s.key)))
 }
 
 /** Статус сервиса из `services_status` по ключу (там только soundcloud/yandex). */

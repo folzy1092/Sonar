@@ -5,6 +5,11 @@
 //! - `/seg?u=…` — кусок HLS с CDN SoundCloud (`*.sndcdn.com`, `*.soundcloud.cloud`).
 //! - `/cover?u=…` — обложка с CDN SoundCloud/Яндекса с кэшем на диске (`<кэш>/covers`) и CORS —
 //!   из неё интерфейс берёт цвет темы (SPEC §4.4); размер и очистка — экран «Хранилище».
+//!
+//! Локальные файлы (`local:<sha1>`): `/file` отдаёт файл с диска с Range, но только из индекса
+//! `Core::local` (копия таблицы `local_files`) и только с ключом сессии `&k=` (`local_key`);
+//! `/cover` — их обложки `sonarcover://…` из кэша обложек. CORS у них — не `*`, а лишь окну Sonar:
+//! чужая страница в браузере не прочитает музыку и обложки с диска, даже угадав порт и путь.
 //! Кэш треков (`track_cache.rs`): трек на диске — `/file` отдаёт его с диска (Range — кусками);
 //! файл, прочитанный с начала до конца, ложится в кэш на лету; HLS — фоновая загрузка и склейка.
 
@@ -41,6 +46,62 @@ struct CoverQuery {
 struct RefQuery {
   #[serde(rename = "ref")]
   ref_: String,
+  /// Ключ сессии — нужен только локальным файлам.
+  #[serde(default)]
+  k: Option<String>,
+}
+
+/// Ключ сессии для локальных файлов: случайный на каждый запуск, в адрес `/file` его кладёт
+/// `stream_url`. Без новых зависимостей — `RandomState` берёт случайные ключи у системы.
+pub fn local_key() -> &'static str {
+  static KEY: OnceLock<String> = OnceLock::new();
+  KEY.get_or_init(|| {
+    use std::hash::{BuildHasher, Hasher};
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    (0..2u8)
+      .map(|i| {
+        let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+        h.write_u128(nanos);
+        h.write_u32(std::process::id());
+        h.write_u8(i);
+        format!("{:016x}", h.finish())
+      })
+      .collect()
+  })
+}
+
+/// Адрес трека на этом сервере (`file` или `hls`); локальному файлу — с ключом сессии.
+pub fn track_url(port: u16, kind: &str, track_ref: &str) -> String {
+  let base = format!("http://127.0.0.1:{port}/{kind}?ref={}", urlencoding::encode(track_ref));
+  if crate::local::is_local_ref(track_ref) {
+    format!("{base}&k={}", local_key())
+  } else {
+    base
+  }
+}
+
+/// Откуда может прийти окно Sonar: WebView2 (`http(s)://tauri.localhost`), macOS/Linux
+/// (`tauri://localhost`), а в отладке — dev-сервер Vite.
+fn app_origin(origin: &str) -> bool {
+  matches!(origin, "http://tauri.localhost" | "https://tauri.localhost" | "tauri://localhost")
+    || (cfg!(debug_assertions) && origin == "http://localhost:5173")
+}
+
+/// CORS для данных с диска: разрешаем только окну Sonar, а не `*`.
+fn app_cors(mut r: Response<Body>, headers: &HeaderMap) -> Response<Body> {
+  let h = r.headers_mut();
+  h.insert(header::VARY, HeaderValue::from_static("Origin"));
+  if let Some(o) = headers.get(header::ORIGIN).filter(|o| o.to_str().is_ok_and(app_origin)) {
+    h.insert(header::ACCESS_CONTROL_ALLOW_ORIGIN, o.clone());
+    h.insert(header::ACCESS_CONTROL_EXPOSE_HEADERS, HeaderValue::from_static("Content-Length, Content-Range"));
+  }
+  r
+}
+
+fn local_plain(status: StatusCode, text: &'static str, headers: &HeaderMap) -> Response<Body> {
+  let mut r = Response::new(Body::from(text));
+  *r.status_mut() = status;
+  app_cors(r, headers)
 }
 
 #[derive(Deserialize)]
@@ -211,6 +272,10 @@ pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
     if PREFETCH_GEN.load(Ordering::SeqCst) != ticket || !track_cache::enabled() {
       return;
     }
+    // локальный файл и так на диске
+    if crate::local::is_local_ref(&r) {
+      continue;
+    }
     if !track_cache::claim(&r) {
       continue;
     }
@@ -256,7 +321,28 @@ pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
   }
 }
 
+/// Локальный файл: путь — только из индекса, ref из запроса путём не становится; без ключа
+/// сессии — 403.
+fn local_file(core: &Core, q: &RefQuery, headers: &HeaderMap) -> Response<Body> {
+  if q.k.as_deref() != Some(local_key()) {
+    return local_plain(StatusCode::FORBIDDEN, "нет ключа", headers);
+  }
+  let Some(path) = core.local.get(&q.ref_) else { return local_plain(StatusCode::NOT_FOUND, "Файл не найден", headers) };
+  match std::fs::metadata(&path) {
+    Ok(m) if m.is_file() => {
+      let mut r = serve_cached(&path, crate::local::audio_mime(&path), m.len(), headers.get(header::RANGE));
+      r.headers_mut().remove(header::ACCESS_CONTROL_ALLOW_ORIGIN);
+      r.headers_mut().remove(header::ACCESS_CONTROL_EXPOSE_HEADERS);
+      app_cors(r, headers)
+    }
+    _ => local_plain(StatusCode::NOT_FOUND, "Файл не найден", headers),
+  }
+}
+
 async fn file(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>, headers: HeaderMap) -> Response<Body> {
+  if crate::local::is_local_ref(&q.ref_) {
+    return local_file(&core, &q, &headers);
+  }
   let range = headers.get(header::RANGE);
   // трек уже на диске — без сети
   if let Some((path, mime, total)) = track_cache::lookup(&q.ref_) {
@@ -336,7 +422,22 @@ pub fn cover_host_allowed(u: &str) -> bool {
     .unwrap_or(false)
 }
 
-async fn cover(State(core): State<Arc<Core>>, Query(q): Query<CoverQuery>) -> Response<Body> {
+/// Обложка локального файла (`sonarcover://…/local-<sha1>.<ext>`) — из кэша обложек.
+fn local_cover(name: &str, headers: &HeaderMap) -> Response<Body> {
+  match cover_dir().and_then(|d| crate::local::read_cover(d, name)) {
+    Some((bytes, mime)) => {
+      let mut r = Response::new(Body::from(bytes));
+      r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static(mime));
+      app_cors(r, headers)
+    }
+    None => local_plain(StatusCode::NOT_FOUND, "нет обложки", headers),
+  }
+}
+
+async fn cover(State(core): State<Arc<Core>>, Query(q): Query<CoverQuery>, headers: HeaderMap) -> Response<Body> {
+  if let Some(name) = crate::local::cover_name_from_url(&q.u) {
+    return local_cover(name, &headers);
+  }
   if !cover_host_allowed(&q.u) {
     return plain(StatusCode::FORBIDDEN, "чужой адрес");
   }
@@ -425,6 +526,89 @@ mod tests {
     let bytes = r.bytes().await.unwrap();
     println!("{} — {}: кусок {} байт", track.artist, track.title, bytes.len());
     assert!(bytes.len() > 10_000);
+  }
+
+  fn indexed_core(path: &std::path::Path) -> (Arc<Core>, String) {
+    let core = Core::new_empty_for_tests();
+    let r = crate::local::local_ref(path);
+    core.local.replace(&[crate::store::LocalFile {
+      ref_: r.clone(),
+      path: path.to_string_lossy().into_owned(),
+      mtime: 0,
+      size: 0,
+      title: "T".into(),
+      artist: String::new(),
+      album: None,
+      duration_ms: 0,
+      cover_path: None,
+    }]);
+    (Arc::new(core), r)
+  }
+
+  #[tokio::test]
+  async fn local_file_served_with_range_only_from_index() {
+    use crate::local::fixtures::{temp_dir, wav_bytes, write_wav};
+    let dir = temp_dir("stream");
+    let path = dir.join("song.wav");
+    write_wav(&path, 500);
+    let bytes = wav_bytes(500);
+    let (core, r) = indexed_core(&path);
+    let port = start(core).await.unwrap();
+    let http = reqwest::Client::new();
+    let base = format!("http://127.0.0.1:{port}");
+
+    let url = track_url(port, "file", &r);
+    assert!(url.ends_with(&format!("&k={}", local_key())));
+    let res = http.get(&url).header("Range", "bytes=10-19").header("Origin", "http://tauri.localhost").send().await.unwrap();
+    assert_eq!(res.status(), 206);
+    assert_eq!(res.headers()["access-control-allow-origin"], "http://tauri.localhost");
+    assert_eq!(res.headers()["content-type"], "audio/wav");
+    assert_eq!(res.headers()["content-range"], format!("bytes 10-19/{}", bytes.len()).as_str());
+    assert_eq!(res.bytes().await.unwrap().as_ref(), &bytes[10..20]);
+
+    // чужая страница: CORS ей не открыт, а без ключа файла нет вовсе
+    let res = http.get(&url).header("Origin", "https://evil.example").send().await.unwrap();
+    assert_eq!(res.status(), 200);
+    assert!(res.headers().get("access-control-allow-origin").is_none());
+    assert_eq!(res.bytes().await.unwrap().len(), bytes.len());
+    assert_eq!(http.get(format!("{base}/file?ref={r}")).send().await.unwrap().status(), 403);
+    assert_eq!(http.get(format!("{base}/file?ref={r}&k=0")).send().await.unwrap().status(), 403);
+
+    // не из индекса — 404, путь в ref не читается
+    let key = local_key();
+    let fake = format!("local:{}", "0".repeat(40));
+    assert_eq!(http.get(format!("{base}/file?ref={fake}&k={key}")).send().await.unwrap().status(), 404);
+    let sneaky = format!("{base}/file?ref=local:{}&k={key}", urlencoding_path(&path));
+    assert_eq!(http.get(sneaky).send().await.unwrap().status(), 404);
+
+    // файл удалили — 404
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(http.get(&url).send().await.unwrap().status(), 404);
+    let _ = std::fs::remove_dir_all(dir);
+  }
+
+  fn urlencoding_path(p: &std::path::Path) -> String {
+    url::form_urlencoded::byte_serialize(p.to_string_lossy().as_bytes()).collect()
+  }
+
+  #[tokio::test]
+  async fn foreign_cover_urls_still_refused() {
+    let core = Arc::new(Core::new_empty_for_tests());
+    let port = start(core).await.unwrap();
+    let http = reqwest::Client::new();
+    let base = format!("http://127.0.0.1:{port}");
+    let ask = |u: String| {
+      let http = http.clone();
+      let base = base.clone();
+      async move {
+        let q: String = url::form_urlencoded::byte_serialize(u.as_bytes()).collect();
+        http.get(format!("{base}/cover?u={q}")).send().await.unwrap().status().as_u16()
+      }
+    };
+    assert_eq!(ask(crate::local::cover_url("../sonar.db")).await, 403);
+    assert_eq!(ask("file:///etc/passwd".into()).await, 403);
+    // имя правильное, но такой обложки нет — 404, не чтение чего попало
+    assert_eq!(ask(crate::local::cover_url(&format!("local-{}.jpg", "e".repeat(40)))).await, 404);
   }
 
   #[test]

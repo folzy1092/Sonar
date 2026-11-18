@@ -13,7 +13,7 @@
   import AboutBlock from './AboutBlock.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { api } from '../../lib/api'
-  import { IMPLEMENTED, type ServiceKey } from '../../lib/services'
+  import { ACCOUNT_SERVICES, type ServiceKey } from '../../lib/services'
   import { wave } from '../../player/my-wave.svelte'
 
   // автозапуск — реальное состояние из реестра Windows, а не только настройка
@@ -62,7 +62,7 @@
   title={t('Платформа')}
   hint={t('Откуда главная берёт волну и рекомендации')}
   value={settings.get('general.platform')}
-  options={IMPLEMENTED.map((s) => ({ id: s.key, label: s.id === 'ym' ? t('Яндекс') : t(s.name) }))}
+  options={ACCOUNT_SERVICES.map((s) => ({ id: s.key, label: s.id === 'ym' ? t('Яндекс') : t(s.name) }))}
   onchange={setPlatform}
 />
 

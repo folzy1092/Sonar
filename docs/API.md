@@ -118,7 +118,7 @@ PublicTrack = {ref, title, artist, cover_url, duration_ms}
 | `yt` | `youtube` | YouTube Music | `yt:<videoId>` | `ytalb:<browseId>` | `yta:<channelId>` | `ytpl:<playlistId>` | нет |
 | `vk` | `vk` | VK Музыка | `vk:<owner>_<id>` | `vkalb:<owner>_<id>` | `vka:<id>` | `vkpl:<owner>_<id>` | нет |
 | `sp` | `spotify` | Spotify | `sp:<id>` | `spalb:<id>` | `spa:<id>` | `sppl:<id>` | нет |
-| `local` | `local` | Локальные файлы | `local:<sha1 пути>` | — | — | — | нет |
+| `local` | `local` | Локальные файлы | `local:<sha1 пути>` | — | — | — | да (только ПК, §3а) |
 
 Сервисы с «нет» пока только описаны: интерфейс их не показывает, сервер и клиенты отвечают
 «`<Название>`: пока не поддерживается». Что каждый сервис умеет (`caps`) — в `GET /services`.
@@ -252,6 +252,38 @@ prefix = текст до ПЕРВОГО ':'   (нет ':' или пустой п
 Страницы: `/artists/{ref}` → `{artist: Artist, top: [Track], albums: [Album]}`,
 `/albums/{ref}` → `{album: Album, tracks: [Track]}`,
 `/services/{svc}/playlists/{id}/tracks` → `{playlist: ServicePlaylist, tracks: [Track]}`.
+
+## 3а. Локальные файлы (только ПК, без сервера)
+
+Папки из настройки `storage.music_folders` (Система → Хранилище → «Папки с музыкой», в синк не идёт)
+сканирует клиент: lofty читает теги и обложку (mp3, flac, m4a, ogg, opus, wav), `notify` следит за
+папками (пауза 2 с). Трек — обычный `Track` с ref `local:<sha1 пути>`, `album.ref` пустой (страницы
+альбома нет), `available: false` — файла сейчас нет на диске. Сервер такие ref только хранит в лайках
+и плейлистах (как любой ref), поток и метаданные — на устройстве. У сервиса нет входа и ключа; `caps`:
+`stream`, `library`; нет `search` сервиса (свой локальный поиск ниже), `similar`, `playlists`.
+
+Команды Tauri (`src-tauri/src/local/commands.rs`):
+
+| Команда | Аргументы | Ответ |
+|---|---|---|
+| `local_pick_folder` | `{title}` | путь выбранной папки или `null` (системный диалог, tauri-plugin-dialog) |
+| `local_rescan` | — | `{total, added, updated, removed, missing, truncated}` — скан всех папок сейчас; `missing` — строк, чьих файлов нет на диске, `truncated` — файлов больше 50 000, обход остановлен |
+| `local_tracks` | — | `[Track]` — все файлы, по исполнителю и названию |
+| `local_search` | `{query, limit?}` | `[Track]` — все слова запроса в названии/исполнителе/альбоме, без учёта регистра; `limit` ≤ 100 |
+
+Событие `local-files-changed` — после каждого скана (ручного, по слежению, после того как папка из
+списка появилась или пропала — опрос раз в 30 с); данные — тот же итог `{total, added, updated, removed,
+missing, truncated}`.
+
+Локальный аудио-сервер (`stream.rs`, `127.0.0.1`): `GET /file?ref=local:<sha1>&k=<ключ>` отдаёт файл с
+поддержкой `Range` (206) — **только** ref из индекса `local_files`, путь в запросе не принимается. `k` —
+случайный ключ сессии (новый при каждом запуске), его кладёт в адрес `stream_url`; без него — 403. CORS у
+файлов и обложек `local-*` — не `*`, а только окну Sonar (`http(s)://tauri.localhost`, `tauri://localhost`,
+в отладке `http://localhost:5173`): чужая страница в браузере не прочитает музыку с диска. В SMTC обложка
+локального файла уходит путём `file://…` из кэша обложек.
+Обложки — своя схема окна `sonarcover`: `http://sonarcover.localhost/local-<sha1>.<ext>` на Windows,
+`sonarcover://localhost/…` на macOS; отдаются только имена `local-<40 hex>.<jpg|png|gif|bmp|tiff>` из кэша
+обложек (тот же файл отдаёт и `/cover?u=<адрес sonarcover>` — для фона и темы под обложку). Плашка качества в плеере — `FLAC · файл`, `MP3 · файл` и т. п.
 
 ## 4. Медиатека
 

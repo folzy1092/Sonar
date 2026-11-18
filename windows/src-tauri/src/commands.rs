@@ -150,14 +150,14 @@ pub async fn stream_url(core: State<'_, Arc<Core>>, port: State<'_, StreamPort>,
       "audio/mp4" | "audio/aac" => "AAC · кэш",
       _ => "MP3 · кэш",
     };
-    return Ok(StreamUrl { kind: "file", url: format!("http://127.0.0.1:{}/file?ref={}", port.0, urlencoding::encode(&track_ref)), quality: quality.into() });
+    return Ok(StreamUrl { kind: "file", url: crate::stream::track_url(port.0, "file", &track_ref), quality: quality.into() });
   }
   let src = core.resolve(&track_ref, false).await.map_err(err)?;
   let (kind, path, quality) = match src {
     Source::File { quality, .. } => ("file", "file", quality),
     Source::Hls { quality, .. } => ("hls", "hls", quality),
   };
-  Ok(StreamUrl { kind, url: format!("http://127.0.0.1:{}/{path}?ref={}", port.0, urlencoding::encode(&track_ref)), quality })
+  Ok(StreamUrl { kind, url: crate::stream::track_url(port.0, path, &track_ref), quality })
 }
 
 /// «Волна офлайн»: следующие треки волны — в кэш треков заранее (фоном, по одному; новый вызов
@@ -720,6 +720,12 @@ fn seed_weights(fresh: &[String], both: &[String], weak: &std::collections::Hash
     .collect()
 }
 
+/// Сиды волны и автоплея: у локальных файлов (`local:…`) похожих нет — такой сид только занял бы
+/// место, а «все сиды локальные» отключили бы запасной старт от лайков сервиса.
+fn seedable(refs: Vec<String>) -> Vec<String> {
+  refs.into_iter().filter(|r| !crate::local::is_local_ref(r)).collect()
+}
+
 /// «Похожие» через кэш на сутки (docs/WAVE.md 4.4): повторная порция от тех же сидов не ходит в сеть.
 /// Берём с запасом (40) и режем до `limit`; ошибки сети не кэшируются.
 async fn similar_cached(core: &Core, db: &Db, r: &str, limit: u32) -> anyhow::Result<Vec<Track>> {
@@ -745,7 +751,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   use crate::wave::{artist_key, pick_with, tag_set, Filter, Origin, Rng, Session, PORTION};
   let mut rng = Rng::new(crate::store::now_ms() as u64);
   // что зашло в сессии — свежие в конце; берём до трёх последних
-  let live: Vec<String> = req.session.iter().rev().take(3).map(|t| t.ref_.clone()).collect();
+  let live: Vec<String> = seedable(req.session.iter().rev().map(|t| t.ref_.clone()).collect()).into_iter().take(3).collect();
   let mut session = Session {
     skipped_artists: req.skipped_artists.iter().map(|a| a.to_lowercase()).collect(),
     recent_artists: req.served_artists.iter().map(|a| a.to_lowercase()).collect(),
@@ -780,23 +786,23 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
       // стиль «по треку» держится всю сессию; зашедшее в ней понемногу его уточняет
       Some(s) => {
         store.upsert_tracks(std::slice::from_ref(s)).map_err(err)?;
-        let mut v = vec![s.ref_.clone()];
+        let mut v = seedable(vec![s.ref_.clone()]);
         v.extend(live.iter().filter(|r| **r != s.ref_).take(2).cloned());
         v
       }
       None if !live.is_empty() => {
         // волна учится на ходу: зашедшее в сессии + немного общего вкуса и разведки
         let mut v = live.clone();
-        let fresh = store.recent_like_refs(15).map_err(err)?;
+        let fresh = seedable(store.recent_like_refs(15).map_err(err)?);
         let fresh: Vec<String> = fresh.into_iter().filter(|r| !v.contains(r)).collect();
         v.extend(rng.weighted_sample(&seed_weights(&fresh, &[], &weak), 2));
-        let old = store.old_like_refs(15, 300).map_err(err)?;
+        let old = seedable(store.old_like_refs(15, 300).map_err(err)?);
         v.extend(rng.sample(&old, 1));
         v
       }
       None => {
-        let likes = store.recent_like_refs(15).map_err(err)?;
-        let finished = store.recent_finished_refs(10).map_err(err)?;
+        let likes = seedable(store.recent_like_refs(15).map_err(err)?);
+        let finished = seedable(store.recent_finished_refs(10).map_err(err)?);
         let mut fresh = likes.clone();
         for r in &finished {
           if !fresh.contains(r) {
@@ -804,7 +810,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
           }
         }
         if fresh.is_empty() {
-          fresh = store.recent_play_refs(10).map_err(err)?;
+          fresh = seedable(store.recent_play_refs(10).map_err(err)?);
         }
         // настроение — больше сидов, чтобы было из чего выбрать подходящее
         let wide = req.mode.as_deref().is_some_and(|m| m != "own");
@@ -812,7 +818,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
         let both: Vec<String> = likes.iter().filter(|r| finished.contains(r)).cloned().collect();
         let mut seeds = rng.weighted_sample(&seed_weights(&fresh, &both, &weak), if wide { 8 } else { 5 });
         // 10–20 % «разведки»: похожие от случайного старого лайка
-        let old = store.old_like_refs(15, 300).map_err(err)?;
+        let old = seedable(store.old_like_refs(15, 300).map_err(err)?);
         seeds.extend(rng.sample(&old, 1));
         seeds
       }
@@ -850,7 +856,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   };
 
   let has_ym = core.has_yandex().await;
-  let mut seeds: Vec<String> = seeds.into_iter().filter(|r| has_ym || !is_kind(r, ServiceId::Ym, RefKind::Track)).collect();
+  let mut seeds: Vec<String> = seedable(seeds).into_iter().filter(|r| has_ym || !is_kind(r, ServiceId::Ym, RefKind::Track)).collect();
   let mut taste = taste;
   // Новичок: в Sonar ни лайков, ни прослушиваний — волна стартует от лайков (а если их нет —
   // от плейлистов) в выбранном сервисе. Их артисты считаются любимыми.
@@ -1196,7 +1202,8 @@ pub fn clear_storage(db: State<'_, Db>, kind: String) -> Res<()> {
   let clear_covers = || {
     if let Some(d) = crate::stream::cover_dir() {
       if let Ok(rd) = std::fs::read_dir(d) {
-        for e in rd.flatten() {
+        // обложки локальных файлов не кэш, а часть индекса папок с музыкой — их не трогаем
+        for e in rd.flatten().filter(|e| !crate::local::is_cover_file(&e.file_name().to_string_lossy())) {
           let _ = std::fs::remove_file(e.path());
         }
       }
@@ -1348,6 +1355,14 @@ mod tests {
 
   fn fields(pairs: &[(&str, &str)]) -> HashMap<String, String> {
     pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+  }
+
+  #[test]
+  fn local_files_are_not_wave_seeds() {
+    let local = |c: char| format!("local:{}", c.to_string().repeat(40));
+    // всё лайкнутое — локальное: сидов нет, волна стартует запасным путём (лайки сервиса)
+    assert!(seedable(vec![local('a'), local('b')]).is_empty());
+    assert_eq!(seedable(vec![local('a'), "sc:1".into(), "ym:2".into(), local('b')]), ["sc:1", "ym:2"]);
   }
 
   #[test]

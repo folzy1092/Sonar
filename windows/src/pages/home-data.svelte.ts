@@ -4,7 +4,7 @@
 // сервера (API.md §5а), до него эти ряды показывают заготовку.
 import { api, type Album, type ServiceStatus, type Track } from '../lib/api'
 import { t } from '../lib/i18n.svelte'
-import { IMPLEMENTED, statusOf } from '../lib/services'
+import { ACCOUNT_SERVICES, statusOf } from '../lib/services'
 
 const TTL = 15 * 60_000
 const WEEK = 7 * 24 * 3600_000
@@ -81,7 +81,7 @@ class Home {
     try {
       const s = await api.servicesStatus()
       // первый по порядку реестра подключённый сервис с именем аккаунта (SoundCloud, потом Яндекс)
-      this.account = IMPLEMENTED.map((svc) => statusOf(s, svc)).find((a) => a?.connected && a.name) ?? null
+      this.account = ACCOUNT_SERVICES.map((svc) => statusOf(s, svc)).find((a) => a?.connected && a.name) ?? null
     } catch {
       this.account = null
     }

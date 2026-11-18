@@ -8,12 +8,14 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+mod local_files;
 mod search;
 mod stats;
 mod sync;
 mod system;
 mod wave;
 mod wave_events;
+pub use local_files::LocalFile;
 pub use stats::Stats;
 pub use sync::{Change, Op, PlayUpload};
 pub use search::SearchEntry;
@@ -128,6 +130,11 @@ CREATE TABLE search_history (
   ref TEXT, title TEXT, subtitle TEXT, cover_url TEXT, at INTEGER NOT NULL
 );
 CREATE INDEX search_history_time ON search_history(user_id, at);
+"#, r#"
+CREATE TABLE local_files (
+  ref TEXT PRIMARY KEY, path TEXT UNIQUE NOT NULL, mtime INTEGER NOT NULL, size INTEGER NOT NULL,
+  title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT, duration_ms INTEGER NOT NULL, cover_path TEXT
+);
 "#];
 
 pub fn now_ms() -> i64 {
@@ -309,6 +316,8 @@ impl Store {
         })
         .optional()?;
       if let Some((ref_, title, artist, artists, album, dur, cover_url, url, tags)) = row {
+        // локальный файл: серый, если его нет в индексе или на диске («Файл не найден»)
+        let available = !crate::local::is_local_ref(&ref_) || self.local_file(&ref_)?.is_some_and(|f| f.exists());
         out.push(Track {
           ref_,
           title,
@@ -319,7 +328,7 @@ impl Store {
           cover_url,
           url,
           explicit: false,
-          available: true,
+          available,
           plays: None,
           tags,
         });
@@ -783,7 +792,7 @@ mod tests {
       ("ympl:42:3", None),
       ("yt:1", None),
       ("yta:1", None),
-      ("local:1", None),
+      ("local:1", Some("track")),
       ("pl_x", None),
       ("similar:sc:1", None),
       ("sc", None),
