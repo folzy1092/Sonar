@@ -109,7 +109,7 @@ Discord RPC: ID приложения Discord пользователь **не в�
 | `server/` | Python 3.13, FastAPI + aiogram-бот входа, SQLite. Хостинг — Velt, контейнер Python |
 | `ios/` | SwiftUI-приложение, проект генерирует XcodeGen (`ios/project.yml`) |
 | `windows/` | **первая платформа**: Tauri 2 (Rust + Svelte), автономно до появления сервера — SPEC §9 |
-| `site/` | публичный сайт на GitHub Pages (`sonar.folzy.ru`): скачать, профиль по ссылке |
+| `site/` | публичный сайт на GitHub Pages (`sonar.folzy.ru`): скачать, оплата, профиль по ссылке — спека `docs/SITE.md` |
 | `brand/` | иконки и лого (тёмная и светлая), см. `brand/README.md` |
 | `updates/` | `update.json` + `changelog.json` — их читает автообновление клиентов |
 | `.github/workflows/` | сборка IPA (macOS-раннер) → GitHub Release, тесты сервера |
