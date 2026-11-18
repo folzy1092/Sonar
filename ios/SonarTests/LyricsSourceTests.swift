@@ -210,7 +210,7 @@ final class LyricsSourceTests: XCTestCase {
         XCTAssertEqual(gtx.source, "en")
         let lines = try LyricsTranslator.parseLines(#"[["Я вижу свет","en"],["в твоих глазах","en"]]"#)
         XCTAssertEqual(lines.lines, ["Я вижу свет", "в твоих глазах"])
-        XCTAssertEqual(lines.source, "en")
+        XCTAssertEqual(lines.sources, ["en", "en"])
         XCTAssertEqual(try LyricsTranslator.parseLines(#"["раз","два"]"#).lines, ["раз", "два"])
         XCTAssertThrowsError(try LyricsTranslator.parse("{}"))
     }
@@ -226,6 +226,29 @@ final class LyricsSourceTests: XCTestCase {
         XCTAssertEqual(transport.hosts, ["clients5.google.com", "translate.googleapis.com"])
         let body = String(decoding: transport.requests[0].httpBody ?? Data(), as: UTF8.self)
         XCTAssertEqual(body, "q=one&q=two")
+    }
+
+    func testTranslateSkipsLinesAlreadyInTargetLanguage() {
+        // русская песня с английской строкой, интерфейс на русском: переводим только английское
+        let mixed = LyricsTranslator.dropSameLanguage(["Я иду домой", "Hello darkness", "Ночь темна"],
+                                                      translated: ["Я иду домой", "Привет, тьма", "Ночь темна"],
+                                                      sources: ["ru", "en", "ru"], to: "ru")
+        XCTAssertEqual(mixed.lines, ["", "Привет, тьма", ""])
+        XCTAssertEqual(mixed.source, "en")
+        // язык первой строки больше не решает за весь текст
+        let first = LyricsTranslator.dropSameLanguage(["Yeah", "Ты моя звезда"], translated: ["Ага", "Ты моя звезда"],
+                                                      sources: ["en", "ru"], to: "ru-RU")
+        XCTAssertEqual(first.lines, ["Ага", ""])
+        // весь текст на языке интерфейса — source = язык интерфейса
+        let same = LyricsTranslator.dropSameLanguage(["Hello", "World"], translated: ["Hello", "World"],
+                                                     sources: ["en", "en"], to: "en")
+        XCTAssertEqual(same.lines, ["", ""])
+        XCTAssertEqual(same.source, "en")
+        // gtx: один язык на весь текст, но строка не изменилась — переводить нечего
+        let gtx = LyricsTranslator.dropSameLanguage(["Привет, мир!", "Bonjour"], translated: ["привет мир", "Привет"],
+                                                    sources: ["fr"], to: "ru")
+        XCTAssertEqual(gtx.lines, ["", "Привет"])
+        XCTAssertEqual(gtx.source, "fr")
     }
 
     // MARK: порядок поиска (fetch_any)
