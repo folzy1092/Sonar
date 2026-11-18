@@ -1,33 +1,59 @@
 <script lang="ts">
   // Правая панель «Очередь / Текст» (app/side-pane.svelte.ts). Очередь — те же строки, что в плеере
   // (queueView / queueItems), текст — LyricsView в уменьшенном масштабе. Выезжает справа, закрывается
-  // крайней кнопкой мини-плеера.
-  import { fly } from 'svelte/transition'
+  // крайней кнопкой мини-плеера. Есть текст — сверху капсулы «Текст · Очередь», нет — только очередь.
+  import { untrack } from 'svelte'
+  import { fly, slide } from 'svelte/transition'
   import TrackRow from '../components/TrackRow.svelte'
-  import IconButton from '../components/IconButton.svelte'
   import LyricsView from '../lyrics/LyricsView.svelte'
   import { lyrics } from '../lyrics/lyrics.svelte'
   import { cascade } from '../lib/cascade'
-  import { glide, rise, xfade } from '../lib/motion'
+  import { indicator } from '../lib/indicator'
+  import { glide, reducedMotion, rise, xfade } from '../lib/motion'
   import { t } from '../lib/i18n.svelte'
   import { player } from '../player/player.svelte'
   import { queueItems, queueView } from '../player/queue-view'
   import { WAVE_CONTEXT } from '../player/my-wave.svelte'
   import { autoplay } from '../player/autoplay.svelte'
-  import { sidePane } from './side-pane.svelte'
+  import { knownLyrics, lyricsAvail, sidePane, type PaneMode } from './side-pane.svelte'
 
-  const hasLyrics = $derived(!!player.current && lyrics.status === 'ready')
-  /** Текст пропал (новый трек без текста) — панель сама показывает очередь. */
-  const mode = $derived(sidePane.shown(hasLyrics))
+  const ref = $derived(player.current?.ref ?? null)
+  const avail = $derived(lyricsAvail(lyrics.status, lyrics.ref, ref))
+  // новый трек с текстом — текст, без текста — очередь; выбор руками держится до смены трека
+  $effect(() => sidePane.sync(ref, avail))
+  const mode = $derived(sidePane.shown(avail))
+  // переключатель — только когда текст есть; пока текст следующего трека ищется, не прячется и не мигает
+  let hasText = $state(false)
+  $effect.pre(() => {
+    const a = avail
+    hasText = untrack(() => knownLyrics(a, hasText))
+  })
+  const modes: PaneMode[] = ['lyrics', 'queue']
   const queue = $derived(
     queueView({ tracks: player.tracks, order: player.order, pos: player.pos, ids: player.entryIds, autoRefs: player.autoRefs }),
   )
   const rows = $derived(queueItems(queue, { autoSection: player.context !== WAVE_CONTEXT, autoOn: autoplay.on }))
+
+  /** Переключатель появляется и прячется по высоте; «Меньше движения» — только прозрачность. */
+  function reveal(node: Element) {
+    return reducedMotion() ? xfade(node, { duration: 160 }) : slide(node, { duration: 220 })
+  }
 </script>
 
-<aside class="pane" transition:fly={{ x: 40, duration: 260 }} aria-label={mode === 'lyrics' ? t('Текст песни') : t('Очередь')}>
+<aside class="pane" transition:fly={{ x: reducedMotion() ? 0 : 40, duration: 260 }} aria-label={mode === 'lyrics' ? t('Текст песни') : t('Очередь')}>
+  {#if hasText}
+    <div class="switch-row" transition:reveal>
+      <div class="switch" role="tablist" aria-label={t('Вид панели')} use:indicator={{ key: mode, kind: 'pill' }}>
+        {#each modes as m (m)}
+          <button class="seg press" class:on={mode === m} role="tab" aria-selected={mode === m} onclick={() => sidePane.pick(m)}>
+            {m === 'lyrics' ? t('Текст') : t('Очередь')}
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
   {#key mode}
-    <div class="body" in:fly={{ y: 8, duration: 220 }}>
+    <div class="body" in:fly={{ y: reducedMotion() ? 0 : 8, duration: 220 }}>
       {#if mode === 'lyrics'}
         <div class="lyr"><LyricsView /></div>
       {:else}
@@ -54,16 +80,6 @@
       {/if}
     </div>
   {/key}
-  {#if hasLyrics}
-    <div class="foot">
-      <IconButton
-        icon={mode === 'lyrics' ? 'queue' : 'letterT'}
-        label={mode === 'lyrics' ? t('Очередь') : t('Текст песни')}
-        size={17}
-        onclick={() => (sidePane.mode = mode === 'lyrics' ? 'queue' : 'lyrics')}
-      />
-    </div>
-  {/if}
 </aside>
 
 <style>
@@ -108,9 +124,38 @@
   .dim.on:focus-within {
     opacity: 0.9;
   }
-  .foot {
+  /* «Текст · Очередь» — две капсулы сверху, выбранную подсвечивает переезжающий индикатор */
+  .switch-row {
+    flex: none;
+  }
+  .switch {
     display: flex;
-    padding: 8px 10px 10px;
-    border-top: 1px solid var(--border);
+    gap: 4px;
+    margin: 10px 10px 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background: var(--plate);
+    border: 1px solid var(--card-line);
+  }
+  .seg {
+    flex: 1;
+    height: 30px;
+    padding: 0 14px;
+    border-radius: 999px;
+    color: var(--text-2);
+    font-weight: 600;
+    font-size: calc(13px * var(--fs, 1));
+    transition:
+      color var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .seg:hover:not(.on) {
+    color: var(--text);
+  }
+  .seg.on {
+    color: var(--accent-ink);
+  }
+  .switch :global(.tab-ind.pill) {
+    background: var(--accent);
   }
 </style>
