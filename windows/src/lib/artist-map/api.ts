@@ -89,6 +89,15 @@ export async function related(artistName: string, opts: { limit?: number; onlyNe
   }
 }
 
+/** Соседи сразу нескольких исполнителей — для синхронного отбора (`related` в `lib/home-mixes.ts`).
+ *  Имена без соседей и ошибки дают пустой список, без исключений. */
+export async function relatedLookup(names: readonly string[], limit = DEFAULT_RELATED): Promise<(name: string) => string[]> {
+  const unique = [...new Set(names.filter(Boolean))]
+  const lists = await Promise.all(unique.map((n) => related(n, { limit })))
+  const byName = new Map(unique.map((n, i) => [n, lists[i]] as const))
+  return (name) => byName.get(name) ?? []
+}
+
 /** Подписка на события подкачки: ход и «граф обновился». */
 export async function onMapEvents(handlers: {
   progress?: (p: FollowProgress) => void

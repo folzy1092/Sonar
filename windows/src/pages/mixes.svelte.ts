@@ -6,6 +6,7 @@ import { api, type Artist, type Track } from '../lib/api'
 import { settings } from '../lib/settings.svelte'
 import { t } from '../lib/i18n.svelte'
 import { isLocalRef } from '../lib/services'
+import { relatedLookup } from '../lib/artist-map/api'
 import {
   dayKey,
   dedupe,
@@ -165,11 +166,15 @@ class Mixes {
     this.loading = true
     try {
       const { known, taste, seeds } = await gatherTaste()
-      const results = await Promise.allSettled(seeds.map((ref) => api.similarTracks(ref, PER_SEED)))
+      const [results, related] = await Promise.all([
+        Promise.allSettled(seeds.map((ref) => api.similarTracks(ref, PER_SEED))),
+        // соседи любимых по карте исполнителей — доп. сигнал: их треки выше
+        relatedLookup(taste),
+      ])
       const pools = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
       const exclude = new Set(seeds)
-      this.newTracks = pickFromPools(pools, { known, taste, exclude })
-      this.fresh = pickFromPools(pools, { known, taste, exclude, filter: (x) => isFresh(x) })
+      this.newTracks = pickFromPools(pools, { known, taste, related, exclude })
+      this.fresh = pickFromPools(pools, { known, taste, related, exclude, filter: (x) => isFresh(x) })
       this.day = dayKey()
       this.save()
     } catch {

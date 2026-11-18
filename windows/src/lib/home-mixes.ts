@@ -191,11 +191,19 @@ export function seedArtists(recent: readonly Track[], n = PREVIEW_ARTISTS): { ar
 }
 
 /** Ряд «Похоже на» на Главной: пулы похожего по затравкам вперемешку, без дублей, без уже слышанного
- *  (`exclude`), не больше `MAX_PER_ARTIST` на исполнителя. */
-export function similarRow(pools: readonly (readonly Track[])[], exclude: Iterable<string> = [], limit = MIX_LIMIT): Track[] {
+ *  (`exclude`), не больше `MAX_PER_ARTIST` на исполнителя. Треки соседей затравок по карте исполнителей
+ *  (`near`) — первыми, порядок внутри сохраняется. */
+export function similarRow(
+  pools: readonly (readonly Track[])[],
+  exclude: Iterable<string> = [],
+  limit = MIX_LIMIT,
+  near: Iterable<string> = [],
+): Track[] {
   const skip = new Set(exclude)
-  const list = interleave(pools).filter((t) => !skip.has(t.ref) && t.available !== false)
-  return limitPerArtist(dedupe(list)).slice(0, limit)
+  const close = new Set([...near].map(normName).filter(Boolean))
+  const list = limitPerArtist(dedupe(interleave(pools).filter((t) => !skip.has(t.ref) && t.available !== false)))
+  const isNear = (t: Track) => trackArtists(t).some((a) => close.has(normName(a.name)))
+  return [...list.filter(isNear), ...list.filter((t) => !isNear(t))].slice(0, limit)
 }
 
 /** Выбор трека для «Похоже на трек»: без повторов, по запросу в названии или исполнителе. */
