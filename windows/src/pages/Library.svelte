@@ -14,6 +14,7 @@
   import { api, looksLikeLink, onLocalFilesChanged, type Album, type Artist, type ServicePlaylist, type ServiceStatus, type ServicesStatus } from '../lib/api'
   import { tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
+  import { openImport } from '../lib/import.svelte'
   import { openRef, router } from '../app/router.svelte'
   import { settingsPanel } from './settings-section.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
@@ -160,7 +161,7 @@
     const link = linkText.trim()
     linking = false
     linkText = ''
-    router.go('import', link)
+    openImport(link)
   }
 
   function openServices() {

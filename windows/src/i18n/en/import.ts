@@ -27,6 +27,8 @@ export default {
   'Перенести можно только плейлист или альбом': 'Only a playlist or album can be imported',
   'Apple Music: на странице нет данных плейлиста': 'Apple Music: the page has no playlist data',
   'Apple Music: по ссылке не плейлист и не альбом': 'Apple Music: the link is not a playlist or album',
+  'Apple Music: страница не открылась — проверь интернет': 'Apple Music: the page didn’t open — check your internet connection',
+  'Apple Music: не разобрал страницу': 'Apple Music: couldn’t read the page',
   'Apple Music: на странице нет шапки плейлиста': 'Apple Music: the page has no playlist header',
   'YouTube Music: ссылки на отдельные треки пока не открываются — вставь ссылку на плейлист или альбом':
     'YouTube Music: single-track links don’t open yet — paste a playlist or album link',

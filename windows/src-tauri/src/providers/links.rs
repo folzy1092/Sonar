@@ -125,13 +125,19 @@ fn youtube(host: &str, parts: &[&str], url: &Url) -> Option<Link> {
   if host == "youtu.be" {
     return parts.first().filter(|id| video_id(id)).and_then(|id| r("yt", id));
   }
+  let playlist = |list: &str| match list {
+    "LM" => r("ytpl", "likes"),
+    list => r("ytpl", list.trim_start_matches("VL")),
+  };
   match parts {
-    ["watch", ..] => query("v").filter(|v| video_id(v)).and_then(|v| r("yt", &v)),
-    ["shorts", id, ..] if video_id(id) => r("yt", id),
-    ["playlist", ..] => match query("list")?.as_str() {
-      "LM" => r("ytpl", "likes"),
-      list => r("ytpl", list.trim_start_matches("VL")),
+    // трек, открытый из плейлиста (`watch?v=…&list=PL…`), — это ссылка на плейлист: её так копируют
+    // из адресной строки. Микс `RD…` собирается под зрителя — тогда это просто трек.
+    ["watch", ..] => match query("list") {
+      Some(list) if !list.starts_with("RD") => playlist(&list),
+      _ => query("v").filter(|v| video_id(v)).and_then(|v| r("yt", &v)),
     },
+    ["shorts", id, ..] if video_id(id) => r("yt", id),
+    ["playlist", ..] => playlist(&query("list")?),
     ["browse", id, ..] if id.starts_with("MPREb_") => r("ytalb", id),
     ["browse", id, ..] if id.starts_with("VL") => r("ytpl", &id[2..]),
     ["channel", id, ..] if id.starts_with("UC") => r("yta", id),
@@ -216,6 +222,9 @@ mod tests {
   #[test]
   fn youtube_links() {
     assert_eq!(parse("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RD"), r("yt:dQw4w9WgXcQ"));
+    assert_eq!(parse("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVMdQw4w9WgXcQ"), r("yt:dQw4w9WgXcQ"));
+    assert_eq!(parse("https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=PLabc_123&index=2"), r("ytpl:PLabc_123"));
+    assert_eq!(parse("https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=OLAK5uy_abc"), r("ytpl:OLAK5uy_abc"));
     assert_eq!(parse("https://youtu.be/dQw4w9WgXcQ?t=3"), r("yt:dQw4w9WgXcQ"));
     assert_eq!(parse("https://music.youtube.com/watch?v=dQw4w9WgXcQ"), r("yt:dQw4w9WgXcQ"));
     assert_eq!(parse("https://music.youtube.com/playlist?list=PLabc_123"), r("ytpl:PLabc_123"));
