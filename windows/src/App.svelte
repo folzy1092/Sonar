@@ -19,6 +19,7 @@
   import PlaylistMenu from './app/PlaylistMenu.svelte'
   import ConfirmDialog from './app/ConfirmDialog.svelte'
   import QuickOpen from './app/QuickOpen.svelte'
+  import RecapViewer from './app/RecapViewer.svelte'
   import Toast from './app/Toast.svelte'
   import Tooltip from './app/Tooltip.svelte'
   import UpdatePopup from './app/UpdatePopup.svelte'
@@ -218,6 +219,7 @@
 <PlaylistMenu />
 <ConfirmDialog />
 <QuickOpen />
+<RecapViewer />
 <UpdatePopup />
 <CrashNotice />
 <Toast />
