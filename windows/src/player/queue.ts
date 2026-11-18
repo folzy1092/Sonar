@@ -25,6 +25,15 @@ export function nextPos(pos: number, length: number, repeat: Repeat, manual: boo
   return repeat === 'off' ? null : 0
 }
 
+/** Куда перескочить, когда трек сам не играет (Spotify без резервного сервиса): дальше по очереди,
+ *  как ручное «следующий» (повтор одного трека не держит). `skips` — сколько таких треков подряд уже
+ *  пропущено: когда пропущена вся очередь, `null` — остановиться, а не крутиться по кругу. */
+export function fallbackSkipPos(pos: number, length: number, repeat: Repeat, skips: number): number | null {
+  if (skips >= length) return null
+  const p = nextPos(pos, length, repeat, true)
+  return p === pos ? null : p
+}
+
 export function prevPos(pos: number, length: number, repeat: Repeat): number {
   if (pos > 0) return pos - 1
   return repeat === 'all' && length > 0 ? length - 1 : 0

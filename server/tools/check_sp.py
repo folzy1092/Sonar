@@ -125,7 +125,8 @@ def web_token(sp_dc):
     })
     code, ms, data = request(f"{WEB}/api/token?{query}", {"Cookie": f"sp_dc={sp_dc}"})
     text = data if isinstance(data, str) else json.dumps(data)
-    if code == 400 or "totp" in text.lower():
+    # «totp» ищем только в ответе с ошибкой: в удачном случайный accessToken может его содержать
+    if code == 400 or (not 200 <= code < 300 and "totp" in text.lower()):
         raise Stop(f"HTTP {code} за {ms} мс: {STALE}")
     if code >= 400:
         raise Stop(f"HTTP {code} за {ms} мс")

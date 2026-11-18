@@ -68,8 +68,21 @@ final class SpotifyTests: XCTestCase {
         XCTAssertEqual(message(403, #"{"error":"Invalid TOTP"}"#), Spotify.totpStale)
         XCTAssertEqual(message(429, ""), "Spotify: слишком много запросов, подожди минуту (HTTP 429)")
         XCTAssertEqual(message(200, "not json"), "Spotify: непонятный ответ веб-плеера")
+        // удачный ответ, где в случайном токене попалось «TOTP», — не «ключ устарел»
+        XCTAssertEqual(try parse(200, #"{"accessToken":"BQxTOTPy","isAnonymous":false}"#).accessToken, "BQxTOTPy")
         // срок не пришёл — полчаса от «сейчас»
         XCTAssertEqual(try parse(200, #"{"accessToken":"BQ3"}"#).expiresAtMs, Spotify.defaultTokenLifeMs)
+    }
+
+    func testSearchSourceCycleIncludesSpotifyOnlyWhenConnected() {
+        typealias Source = SearchView.Source
+        XCTAssertEqual(Source.soundcloud.next(spotifyConnected: false), .yandex)
+        XCTAssertEqual(Source.yandex.next(spotifyConnected: false), .soundcloud)
+        XCTAssertEqual(Source.yandex.next(spotifyConnected: true), .spotify)
+        XCTAssertEqual(Source.spotify.next(spotifyConnected: true), .soundcloud)
+        // сырые значения SoundCloud и Яндекса — как у Service: старая настройка search.source читается
+        XCTAssertEqual(Source(rawValue: Service.yandex.rawValue), .yandex)
+        XCTAssertEqual(Source(rawValue: Service.soundcloud.rawValue), .soundcloud)
     }
 
     func testTrackMapping() throws {

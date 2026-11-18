@@ -106,6 +106,9 @@ final class PlaybackEngine {
     /// Третья попытка: поток не открылся и со свежей ссылкой — берём попроще (mp3 вместо FLAC, SC без двойника).
     @ObservationIgnored private var safeRetried = false
     @ObservationIgnored private var safeNext = false
+    /// Сколько треков подряд не открылось: прошли всю очередь — стоп, а не круг мгновенных сбоев
+    /// (очередь из одних треков Spotify при «повторять всё»).
+    @ObservationIgnored private var failStreak = 0
     @ObservationIgnored private var itemStatus: AnyCancellable?
     @ObservationIgnored private var timeControls: [AnyCancellable] = []
     @ObservationIgnored private var timeObservers: [Any] = []
@@ -450,6 +453,7 @@ final class PlaybackEngine {
                     guard let self, let item, item === self.currentItem else { return }
                     switch status {
                     case .readyToPlay:
+                        self.failStreak = 0
                         let seconds = item.duration.seconds
                         if seconds.isFinite, seconds > 0 { self.duration = seconds }
                         // эквалайзер и выравниватель — у файла (HLS их не пропускает)
@@ -476,11 +480,20 @@ final class PlaybackEngine {
 
     private func failed(_ track: Track, _ error: Error) {
         message = "Не играет «\(track.title)»: \(error.localizedDescription)"
+        failStreak += 1
+        // не открылась вся очередь подряд — стоп
+        guard failStreak < order.count else {
+            failStreak = 0
+            pause()
+            return
+        }
         // пропустить трек; очередь кончилась — просто стоп
         if let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode == .one ? .off : repeatMode, manual: true),
            target != pos {
             pos = target
             load(autoplay: true)
+        } else {
+            failStreak = 0
         }
     }
 

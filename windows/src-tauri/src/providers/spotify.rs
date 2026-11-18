@@ -18,6 +18,8 @@ const API: &str = "https://api.spotify.com/v1";
 const TOKEN_URL: &str = "https://open.spotify.com/api/token";
 /// Сколько треков отдаёт одна страница Web API.
 const PAGE: usize = 50;
+/// Предел страниц треков одного альбома (по `PAGE`): `next`, указывающий на себя, не крутит вечно.
+const ALBUM_MAX_PAGES: usize = 40;
 /// Токен обновляем за минуту до конца.
 const TOKEN_MARGIN_MS: u64 = 60_000;
 /// Шаг TOTP веб-плеера, секунд.
@@ -124,11 +126,13 @@ pub fn token_query(secret: &TotpSecret, unix_secs: u64) -> Vec<(&'static str, St
 
 /// Ответ `api/token` → токен или понятная ошибка (без `sp_dc` в тексте).
 pub fn parse_token(status: u16, body: &str) -> Result<WebToken> {
-  let stale = status == 400 || body.to_ascii_lowercase().contains("totp");
+  // «totp» ищем только в ответе с ошибкой: в удачном случайный accessToken может его содержать
+  let failed = !(200..300).contains(&status);
+  let stale = status == 400 || (failed && body.to_ascii_lowercase().contains("totp"));
   if stale {
     bail!(TOTP_STALE);
   }
-  if !(200..300).contains(&status) {
+  if failed {
     return Err(http_error("Spotify", reqwest::StatusCode::from_u16(status).unwrap_or(reqwest::StatusCode::BAD_GATEWAY)));
   }
   let v: Value = serde_json::from_str(body).map_err(|_| anyhow!("Spotify: непонятный ответ веб-плеера"))?;
@@ -155,6 +159,20 @@ async fn fetch_token(http: &reqwest::Client, creds: &Creds, secret: &TotpSecret)
   let status = r.status().as_u16();
   let body = r.text().await.unwrap_or_default();
   parse_token(status, &body)
+}
+
+/// Полный адрес Web API: путь от `API` или готовая ссылка (`next`), но только на api.spotify.com —
+/// токен веб-плеера не уходит на чужие адреса из ответа.
+pub fn api_url(path: &str) -> Option<String> {
+  if path.starts_with('/') {
+    return Some(format!("{API}{path}"));
+  }
+  path.starts_with(&format!("{API}/")).then(|| path.to_owned())
+}
+
+/// Ссылка на следующую страницу (`next`), если она ведёт в Web API.
+fn next_url(page: &Value) -> Option<String> {
+  page["next"].as_str().and_then(api_url)
 }
 
 // --- разбор JSON Web API ---
@@ -305,7 +323,7 @@ impl Spotify<'_> {
   }
 
   async fn get(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
-    let url = if path.starts_with("https://") { path.to_owned() } else { format!("{API}{path}") };
+    let url = api_url(path).ok_or_else(|| anyhow!("Spotify: непонятный ответ веб-плеера"))?;
     let mut r = self.send(&url, query, &self.token(false).await?).await?;
     if r.status() == reqwest::StatusCode::UNAUTHORIZED {
       r = self.send(&url, query, &self.token(true).await?).await?;
@@ -322,8 +340,7 @@ impl Spotify<'_> {
     let mut page = self.get(path, &[("limit", PAGE.to_string())]).await?;
     loop {
       out.extend(page["items"].as_array().cloned().unwrap_or_default());
-      let next = page["next"].as_str().map(str::to_owned);
-      match next {
+      match next_url(&page) {
         Some(n) if out.len() < max => page = self.get(&n, &[]).await?,
         _ => break,
       }
@@ -405,13 +422,12 @@ impl Spotify<'_> {
     let album = album_from(&v).ok_or_else(|| anyhow!("Spotify: альбом не найден"))?;
     let mut tracks: Vec<Track> = list(&v["tracks"]["items"], |t| track_from(t, Some(&v)));
     // длинные альбомы: остальные страницы треков
-    if let Some(next) = v["tracks"]["next"].as_str() {
-      let mut page = self.get(next, &[]).await?;
-      loop {
-        tracks.extend(list(&page["items"], |t| track_from(t, Some(&v))));
-        let Some(n) = page["next"].as_str().map(str::to_owned) else { break };
-        page = self.get(&n, &[]).await?;
-      }
+    let mut next = next_url(&v["tracks"]);
+    for _ in 0..ALBUM_MAX_PAGES {
+      let Some(n) = next else { break };
+      let page = self.get(&n, &[]).await?;
+      tracks.extend(list(&page["items"], |t| track_from(t, Some(&v))));
+      next = next_url(&page);
     }
     Ok((album, tracks))
   }
@@ -459,6 +475,18 @@ mod tests {
   }
 
   #[test]
+  fn api_url_only_spotify_web_api() {
+    assert_eq!(api_url("/me").as_deref(), Some("https://api.spotify.com/v1/me"));
+    let next = "https://api.spotify.com/v1/albums/1/tracks?offset=50&limit=50";
+    assert_eq!(api_url(next).as_deref(), Some(next));
+    assert_eq!(api_url("https://attacker.example/x"), None);
+    assert_eq!(api_url("https://api.spotify.com.attacker.example/v1/x"), None);
+    assert_eq!(api_url("http://api.spotify.com/v1/me"), None);
+    assert_eq!(next_url(&json!({ "next": "https://evil.example/v1" })), None);
+    assert_eq!(next_url(&json!({ "next": null })), None);
+  }
+
+  #[test]
   fn parse_token_ok_and_errors() {
     let ok = parse_token(200, r#"{"clientId":"c","accessToken":"BQ1","accessTokenExpirationTimestampMs":1700000000000,"isAnonymous":false}"#).unwrap();
     assert_eq!(ok, WebToken { access_token: "BQ1".into(), expires_at_ms: 1_700_000_000_000 });
@@ -470,6 +498,9 @@ mod tests {
     assert_eq!(parse_token(403, r#"{"error":"Invalid TOTP"}"#).unwrap_err().to_string(), TOTP_STALE);
     assert_eq!(parse_token(429, "").unwrap_err().to_string(), "Spotify: слишком много запросов, подожди минуту (HTTP 429)");
     assert_eq!(parse_token(200, "not json").unwrap_err().to_string(), "Spotify: непонятный ответ веб-плеера");
+    // удачный ответ, где в случайном токене попалось «TOTP», — не «ключ устарел»
+    let lucky = parse_token(200, r#"{"accessToken":"BQxTOTPy","accessTokenExpirationTimestampMs":1,"isAnonymous":false}"#).unwrap();
+    assert_eq!(lucky.access_token, "BQxTOTPy");
   }
 
   fn track_json() -> Value {

@@ -1,6 +1,7 @@
 // Строки Spotify на iPhone (этап 3 NEXT_PROMPT): «Сервисы», окно входа, ошибки `Spotify.swift`. Отдельным
 // словарём, чтобы не трогать общий сгенерированный Strings+Windows.swift; ключ — русская строка, переводы —
-// те же, что в windows/src/i18n/{en,uk}/sp.ts.
+// те же, что в windows/src/i18n/{en,uk}/sp.ts. Ключи из общих словарей сюда не повторять: этот словарь
+// сливается последним и перебил бы их во всём приложении.
 
 extension I18n {
     static let spotifyEN: [String: String] = [
@@ -12,7 +13,6 @@ extension I18n {
         "Подключено · Premium": "Connected · Premium",
         "На iPhone Spotify не играет: лайки, плейлисты и поиск — отсюда, а трек сыграет резервный сервис. На ПК с Premium Spotify играет сам.":
             "Spotify does not play on iPhone: likes, playlists and search come from it, and the track plays through a fallback service. On a PC with Premium, Spotify plays by itself.",
-        "Любимые треки": "Liked Songs",
         "Spotify: нужен резервный сервис": "Spotify: a fallback service is needed",
         "Spotify не подключён — открой Настройки → Сервисы": "Spotify is not connected — open Settings → Services",
         "Вставь значение cookie sp_dc с open.spotify.com": "Paste the sp_dc cookie value from open.spotify.com",
@@ -34,7 +34,6 @@ extension I18n {
         "Подключено · Premium": "Підключено · Premium",
         "На iPhone Spotify не играет: лайки, плейлисты и поиск — отсюда, а трек сыграет резервный сервис. На ПК с Premium Spotify играет сам.":
             "На iPhone Spotify не грає: лайки, плейлисти й пошук — звідси, а трек зіграє резервний сервіс. На ПК з Premium Spotify грає сам.",
-        "Любимые треки": "Улюблені треки",
         "Spotify: нужен резервный сервис": "Spotify: потрібен резервний сервіс",
         "Spotify не подключён — открой Настройки → Сервисы": "Spotify не підключено — відкрий Налаштування → Сервіси",
         "Вставь значение cookie sp_dc с open.spotify.com": "Встав значення cookie sp_dc з open.spotify.com",

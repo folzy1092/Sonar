@@ -112,9 +112,11 @@ struct Spotify: Sendable {
 
     /// Ответ `api/token` → токен или понятная ошибка (без `sp_dc` в тексте).
     static func parseToken(status: Int, body: Data, nowMs: Int64) throws -> WebToken {
+        // «totp» ищем только в ответе с ошибкой: в удачном случайный accessToken может его содержать
+        let failed = !(200 ..< 300).contains(status)
         let text = String(decoding: body, as: UTF8.self).lowercased()
-        if status == 400 || text.contains("totp") { throw ServiceError(message: totpStale) }
-        guard (200 ..< 300).contains(status) else { throw ServiceError.http("Spotify", status) }
+        if status == 400 || (failed && text.contains("totp")) { throw ServiceError(message: totpStale) }
+        guard !failed else { throw ServiceError.http("Spotify", status) }
         guard let json = try? JSONValue(data: body) else { throw ServiceError(message: "Spotify: непонятный ответ веб-плеера") }
         guard let token = json["accessToken"].string, !token.isEmpty, json["isAnonymous"].bool != true else {
             throw ServiceError(message: spDcBad)
