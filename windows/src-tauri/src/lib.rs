@@ -7,6 +7,7 @@ mod lyrics;
 mod media;
 mod calls;
 mod glass;
+mod gvideo;
 mod hotkeys;
 mod track_cache;
 mod mini;
@@ -72,6 +73,9 @@ pub fn run() {
       }
       if let Ok(Some(q)) = db.setting("audio.quality") {
         core.max_kbps.store(services::quality_kbps(q.as_str()), std::sync::atomic::Ordering::Relaxed);
+      }
+      if let Ok(Some(q)) = db.setting("audio.yt_quality") {
+        core.yt_high.store(services::yt_high(q.as_str()), std::sync::atomic::Ordering::Relaxed);
       }
       if let Ok(cache) = app.path().app_cache_dir() {
         stream::set_cover_dir(cache.join("covers"));

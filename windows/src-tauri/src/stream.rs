@@ -3,6 +3,7 @@
 //! - `/file?ref=ym:1` — файл (mp3 Яндекса, mp3 SoundCloud) с поддержкой Range;
 //! - `/hls?ref=sc:1` — плейлист HLS, где ссылки на куски заменены на `/seg?u=…`;
 //! - `/seg?u=…` — кусок HLS с CDN SoundCloud (`*.sndcdn.com`, `*.soundcloud.cloud`).
+//! - `/file?ref=yt:…` — YouTube Music: CDN `*.googlevideo.com` читается кусками (`gvideo.rs`).
 //! - `/cover?u=…` — обложка с CDN SoundCloud/Яндекса с кэшем на диске (`<кэш>/covers`) и CORS —
 //!   из неё интерфейс берёт цвет темы (SPEC §4.4); размер и очистка — экран «Хранилище».
 //! Кэш треков (`track_cache.rs`): трек на диске — `/file` отдаёт его с диска (Range — кусками);
@@ -18,7 +19,7 @@ use axum::Router;
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
-use crate::track_cache;
+use crate::{gvideo, track_cache};
 
 /// Папка кэша обложек (`%LOCALAPPDATA%/com.folzy.sonar/covers`), задаётся при запуске.
 static COVER_DIR: OnceLock<PathBuf> = OnceLock::new();
@@ -127,7 +128,6 @@ fn serve_cached(path: &std::path::Path, mime: &str, total: u64, range: Option<&H
 
 /// Как `proxy`, но если ответ — весь файл с начала, тело по пути пишется в кэш треков.
 async fn proxy_cached(core: &Core, url: &str, range: Option<&HeaderValue>, track_ref: &str) -> Result<Response<Body>, reqwest::Error> {
-  use futures_util::StreamExt;
   let mut req = core.http.get(url).header("User-Agent", UA);
   if let Some(r) = range {
     req = req.header(header::RANGE, r.as_bytes());
@@ -154,16 +154,25 @@ async fn proxy_cached(core: &Core, url: &str, range: Option<&HeaderValue>, track
   let Some(w) = writer else {
     return Ok(cors(res.body(Body::from_stream(up.bytes_stream())).unwrap_or_else(|_| Response::new(Body::empty()))));
   };
+  Ok(cors(res.body(Body::from_stream(tee(up.bytes_stream(), w))).unwrap_or_else(|_| Response::new(Body::empty()))))
+}
+
+/// Тело ответа, которое по пути пишется в кэш треков; дошло до конца — файл готов, оборвалось —
+/// недописанный файл удалит `Drop` у `Writer`.
+fn tee<E: Send + 'static>(
+  body: impl futures_util::Stream<Item = Result<axum::body::Bytes, E>> + Send + 'static,
+  w: track_cache::Writer,
+) -> impl futures_util::Stream<Item = Result<axum::body::Bytes, E>> + Send + 'static {
+  use futures_util::StreamExt;
   let w = Arc::new(Mutex::new(Some(w)));
   let w1 = w.clone();
-  let body = up.bytes_stream().map(move |chunk| {
+  let body = body.map(move |chunk| {
     match &chunk {
       Ok(b) => {
         if let Some(w) = w1.lock().unwrap().as_mut() {
           w.write(b)
         }
       }
-      // оборвалось — недописанный файл удалит Drop
       Err(_) => drop(w1.lock().unwrap().take()),
     }
     chunk
@@ -173,9 +182,27 @@ async fn proxy_cached(core: &Core, url: &str, range: Option<&HeaderValue>, track
     if let Some(done) = done {
       done.finish();
     }
-    Ok::<_, reqwest::Error>(axum::body::Bytes::new())
+    Ok::<_, E>(axum::body::Bytes::new())
   });
-  Ok(cors(res.body(Body::from_stream(body.chain(tail))).unwrap_or_else(|_| Response::new(Body::empty()))))
+  body.chain(tail)
+}
+
+/// YouTube Music: диапазон с `*.googlevideo.com` кусками; весь файл с начала — ещё и в кэш.
+async fn serve_gvideo(core: &Core, url: &str, range: Option<&HeaderValue>, track_ref: &str) -> Response<Body> {
+  let asked = range.and_then(|h| h.to_str().ok());
+  match gvideo::open(&core.http, url, asked).await {
+    Ok(o) => {
+      let writer = if o.whole() { track_cache::Writer::new(track_ref, &o.mime, Some(o.total)) } else { None };
+      let head = o.response(Body::empty());
+      let body = match writer {
+        Some(w) => Body::from_stream(tee(o.body, w)),
+        None => Body::from_stream(o.body),
+      };
+      let (parts, _) = head.into_parts();
+      cors(Response::from_parts(parts, body))
+    }
+    Err(f) => cors(gvideo::fail_response(&f)),
+  }
 }
 
 /// HLS SoundCloud в кэш: скачать init-кусок и все куски по порядку и склеить в один файл (в фоне).
@@ -228,6 +255,23 @@ pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
           _ => {}
         }
       }
+      Ok(Source::File { url, .. }) if gvideo::is_gvideo(&url) => {
+        let ok = async {
+          let o = gvideo::open(&core.http, &url, None).await.ok()?;
+          let mut w = track_cache::Writer::new(&r, &o.mime, Some(o.total))?;
+          use futures_util::StreamExt;
+          let mut body = o.body;
+          while let Some(chunk) = body.next().await {
+            w.write(&chunk.ok()?);
+          }
+          w.finish();
+          Some(())
+        }
+        .await;
+        if ok.is_none() {
+          log::info!("волна офлайн: {r} не скачался");
+        }
+      }
       Ok(Source::File { url, .. }) => {
         let ok = async {
           let up = core.http.get(&url).header("User-Agent", UA).send().await.ok()?;
@@ -267,17 +311,48 @@ async fn file(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>, headers:
     let url = match core.resolve(&q.ref_, fresh).await {
       Ok(Source::File { url, .. }) => url,
       Ok(Source::Hls { .. }) => return plain(StatusCode::BAD_REQUEST, "этот трек — HLS, нужен /hls"),
-      Err(e) => return plain(StatusCode::BAD_GATEWAY, e.to_string()),
+      Err(e) if !fresh => {
+        log::warn!("поток {}: {e}; пробую ещё раз", q.ref_);
+        continue;
+      }
+      Err(e) => {
+        log::error!("поток {}: {e}", q.ref_);
+        return plain(StatusCode::BAD_GATEWAY, e.to_string());
+      }
     };
-    let res = if track_cache::enabled() && from_start { proxy_cached(&core, &url, range, &q.ref_).await } else { proxy(&core, &url, range).await };
+    let res = if gvideo::is_gvideo(&url) {
+      Ok(serve_gvideo(&core, &url, range, &q.ref_).await)
+    } else if track_cache::enabled() && from_start {
+      proxy_cached(&core, &url, range, &q.ref_).await
+    } else {
+      proxy(&core, &url, range).await
+    };
     match res {
-      // 403/410 — ссылка протухла: один раз берём новую
-      Ok(r) if !fresh && matches!(r.status().as_u16(), 403 | 404 | 410) => continue,
-      Ok(r) => return r,
-      Err(e) => return plain(StatusCode::BAD_GATEWAY, e.to_string()),
+      // 403/410 — ссылка протухла, 5xx — сбой CDN: один раз берём новую
+      Ok(r) if !fresh && retry_status(r.status()) => {
+        log::warn!("поток {}: CDN ответил {}, беру ссылку заново", q.ref_, r.status().as_u16());
+        continue;
+      }
+      Ok(r) => {
+        if r.status().is_server_error() || r.status().is_client_error() {
+          log::error!("поток {}: CDN ответил {}", q.ref_, r.status().as_u16());
+        }
+        return r;
+      }
+      // без адреса: в ссылке подпись CDN
+      Err(e) => {
+        let e = e.without_url();
+        log::error!("поток {}: {e}", q.ref_);
+        return plain(StatusCode::BAD_GATEWAY, e.to_string());
+      }
     }
   }
   plain(StatusCode::BAD_GATEWAY, "поток недоступен")
+}
+
+/// Ответ CDN, после которого ссылку стоит взять заново (один раз).
+fn retry_status(s: StatusCode) -> bool {
+  matches!(s.as_u16(), 403 | 404 | 410) || s.is_server_error()
 }
 
 async fn hls(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>) -> Response<Body> {
@@ -330,7 +405,14 @@ pub fn cover_host_allowed(u: &str) -> bool {
     .filter(|u| u.scheme() == "https")
     .and_then(|u| {
       u.host_str().map(|h| {
-        h.ends_with(".sndcdn.com") || h == "avatars.yandex.net" || h.ends_with(".yandex.net") || h.ends_with(".genius.com")
+        h.ends_with(".sndcdn.com")
+          || h == "avatars.yandex.net"
+          || h.ends_with(".yandex.net")
+          || h.ends_with(".genius.com")
+          // обложки YouTube Music
+          || h.ends_with(".googleusercontent.com")
+          || h.ends_with(".ggpht.com")
+          || h == "i.ytimg.com"
       })
     })
     .unwrap_or(false)
@@ -428,11 +510,47 @@ mod tests {
   }
 
   #[test]
+  fn retries_expired_links_and_cdn_failures_only() {
+    for s in [403, 404, 410, 500, 502, 503] {
+      assert!(retry_status(StatusCode::from_u16(s).unwrap()), "{s}");
+    }
+    for s in [200, 206, 400, 416] {
+      assert!(!retry_status(StatusCode::from_u16(s).unwrap()), "{s}");
+    }
+  }
+
+  /// YouTube Music через аудио-сервер: Range за пределами первого мегабайта и весь файл кусками.
+  #[tokio::test]
+  #[ignore = "живой YouTube Music (гостем)"]
+  async fn live_server_youtube() {
+    let core = Arc::new(Core::new_empty_for_tests());
+    let port = start(core.clone()).await.unwrap();
+    let track = &core.search("Caort Star$Hopping", "yt", 3).await.unwrap()[0];
+    let http = reqwest::Client::new();
+    let url = format!("http://127.0.0.1:{port}/file?ref={}", track.ref_);
+    let r = http.get(&url).header(header::RANGE, "bytes=1048576-2097151").send().await.unwrap();
+    let status = r.status().as_u16();
+    if status != 206 {
+      panic!("диапазон: {status} {}", r.text().await.unwrap_or_default());
+    }
+    println!("{} — {}: {}", track.artist, track.title, r.headers()[header::CONTENT_RANGE].to_str().unwrap());
+    assert_eq!(r.bytes().await.unwrap().len(), 1_048_576);
+    let t = std::time::Instant::now();
+    let whole = http.get(&url).send().await.unwrap().bytes().await.unwrap();
+    println!("весь файл: {} байт за {:?}", whole.len(), t.elapsed());
+    assert!(whole.len() > 2_000_000);
+  }
+
+  #[test]
   fn cover_hosts() {
     assert!(cover_host_allowed("https://i1.sndcdn.com/artworks-1-t500x500.jpg"));
     assert!(cover_host_allowed("https://avatars.yandex.net/get-music-content/1/400x400"));
     assert!(!cover_host_allowed("http://i1.sndcdn.com/a.jpg"));
     assert!(!cover_host_allowed("https://evil.com/?x=.sndcdn.com"));
+    assert!(cover_host_allowed("https://lh3.googleusercontent.com/abc=w544-h544"));
+    assert!(cover_host_allowed("https://yt3.ggpht.com/abc=s544"));
+    assert!(cover_host_allowed("https://i.ytimg.com/vi/x/hqdefault.jpg"));
+    assert!(!cover_host_allowed("https://googleusercontent.com.evil.com/a.jpg"));
   }
 
   #[test]
