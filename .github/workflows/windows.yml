@@ -75,7 +75,13 @@ jobs:
         run: npm test
 
       - name: Тесты Rust
-        run: cargo test
+        # упавшие тесты — в аннотации (их видно без входа в GitHub, логи — только со входом)
+        run: |
+          set -o pipefail
+          if ! cargo test 2>&1 | tee ../../cargo-test.log; then
+            python ../../.github/scripts/cargo-annotate.py ../../cargo-test.log
+            exit 1
+          fi
         working-directory: windows/src-tauri
 
       - name: Версия релиза

@@ -36,12 +36,10 @@ enum QuickPlaylist: Equatable, Sendable {
     case service(String)
 
     static let key = "widget.quick_playlist"
-    /// Плейлисты сервисов, которые можно поставить на виджет.
-    static let prefixes = ["scpl:", "ympl:", "ytpl:"]
     /// Название выбранного плейлиста сервиса — чтобы показать его в настройках без сети.
     static let titleKey = "widget.quick_playlist_title"
     /// Префиксы плейлистов сервисов (виджет не видит реестр — список вручную).
-    static let prefixes = ["scpl:", "ympl:", "vkpl:"]
+    static let prefixes = ["scpl:", "ympl:", "ytpl:", "vkpl:"]
 
     init(setting value: String) {
         let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
