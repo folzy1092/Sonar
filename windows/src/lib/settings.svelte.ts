@@ -152,6 +152,8 @@ export const DEFAULTS = {
   'system.autostart': true,
   /** Горячие клавиши по всей системе (hotkeys.rs) — выключены, пока не включишь. */
   'hotkeys.enabled': false,
+  /** Пульт с iPhone по Wi-Fi (remote/): сервер в локальной сети и объявление `_sonar._tcp`. Только на этом устройстве. */
+  'remote.enabled': false,
   /** Действие → сочетание (коды KeyboardEvent.code); пустая строка — без клавиши. */
   'hotkeys.map': {
     toggle: 'Ctrl+Alt+Space',

@@ -30,6 +30,17 @@ struct MiniPlayer: View {
     }
 
     var body: some View {
+        // пульт: играет ПК — мини-плеер показывает его («Играет на …»)
+        if RemoteControl.shared.isActive {
+            RemoteMiniPlayer(compact: compact, open: open)
+                .transition(.opacity)
+        } else {
+            localBody
+        }
+    }
+
+    @ViewBuilder
+    private var localBody: some View {
         if let track = engine.current {
             HStack(spacing: compact ? 10 : 12) {
                 if style.cover != .hidden {

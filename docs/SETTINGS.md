@@ -387,6 +387,19 @@ iOS Last.fm (2026-11-17, `LastfmSettingsView`, `Core/Integrations/`): вход �
 `system.autostart` (true), `system.tray` (true), `system.power_saving`
 (`off` / `minimized` / `background`, по умолч. `background`).
 
+### Пульт с iPhone — `remote.*` (Система → Пульт, 2026-11-18)
+
+Телефон управляет музыкой на этом ПК по Wi-Fi (`remote/`, протокол — API.md §10 «Пульт»). Включён —
+WebSocket на порту 53120 (занят — любой свободный) и объявление `_sonar._tcp` в сети; кнопка «Привязать
+iPhone» показывает 6-значный код и QR, ниже — привязанные телефоны с «Отвязать» (ключи — в keyring). Под
+переключателем — подсказка про брандмауэр Windows (разрешить Sonar в частных сетях), mDNS не встал —
+«привяжи по QR». На iPhone настроек
+нет: «Где играть» в полноэкранном плеере (`DevicePickerSheet`), ключ к каждому ПК — в Связке ключей.
+
+| Ключ | Значения | По умолч. | sync |
+|---|---|---|---|
+| `remote.enabled` (PC) | bool | `false` | нет — только это устройство (`LOCAL_PREFIXES` в `store/sync.rs`) |
+
 ### Горячие клавиши PC — `hotkeys.*` (Система → Горячие клавиши, решение владельца 2026-11-17)
 
 По всей системе (`tauri-plugin-global-shortcut`, `hotkeys.rs`), работают и в трее. Клик по сочетанию —

@@ -34,7 +34,7 @@ const LOCAL_SETTINGS: &[&str] = &[
   "obs.token",
   "lyrics.view",
 ];
-const LOCAL_PREFIXES: &[&str] = &["system.", "update.", "storage.", "sync."];
+const LOCAL_PREFIXES: &[&str] = &["system.", "update.", "storage.", "sync.", "remote."];
 
 pub fn setting_syncs(key: &str) -> bool {
   !LOCAL_SETTINGS.contains(&key) && !LOCAL_PREFIXES.iter().any(|p| key.starts_with(p))
