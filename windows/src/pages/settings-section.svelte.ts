@@ -55,6 +55,7 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
     { id: 'remote', title: 'Пульт', icon: 'phone' },
     { id: 'update', title: 'Обновления', icon: 'download' },
     { id: 'storage', title: 'Хранилище', icon: 'database' },
+    { id: 'about', title: 'О приложении', icon: 'info' },
   ],
 }
 
@@ -81,12 +82,13 @@ export const NAV: NavGroup[] = [
     items: [
       { tab: 'system', sub: 'general' },
       { tab: 'player', sub: 'audio' },
-      { tab: 'player', sub: 'queue' },
       { tab: 'system', sub: 'storage' },
+      { tab: 'player', sub: 'queue' },
       { tab: 'integrations', sub: 'apps' },
       { tab: 'system', sub: 'hotkeys' },
       { tab: 'system', sub: 'remote' },
       { tab: 'system', sub: 'update' },
+      { tab: 'system', sub: 'about' },
     ],
   },
   {
