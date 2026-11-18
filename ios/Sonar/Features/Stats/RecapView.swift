@@ -129,7 +129,8 @@ struct RecapView: View {
         .onKeyPress(.escape) { dismiss(); return .handled }
         .task {
             focused = true
-            SettingsStore.shared.set("stats.recap_seen", .string(ref.id))
+            let seen = SettingsStore.shared.string("stats.recap_seen")
+            SettingsStore.shared.set("stats.recap_seen", .string(RecapEngine.markSeen(seen, ref.id)))
             await model.load()
         }
         .task(id: ShotKey(index: index, colors: model.colors, images: model.images.count, cards: model.cards.count)) {

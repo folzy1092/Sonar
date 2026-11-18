@@ -15,6 +15,7 @@
   import { periodTitle, recapKindTitle } from '../lib/recap-text'
   import { copyCard, saveCard } from '../lib/recap-share'
   import { recap } from '../lib/recap.svelte'
+  import { quick } from '../lib/quick.svelte'
 
   const SLIDE_PX = 64
 
@@ -55,7 +56,7 @@
   }
 
   function onWindowKey(e: KeyboardEvent) {
-    if (!recap.isOpen) return
+    if (!recap.isOpen || quick.open) return
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
@@ -177,7 +178,7 @@
   .recap {
     position: fixed;
     inset: 0;
-    z-index: 68;
+    z-index: 59; /* над плеером и всплывашками (≤58), под тостами (60) и Ctrl+K (66) */
     display: grid;
     grid-template-rows: auto 1fr auto;
     color: var(--rc-ink);

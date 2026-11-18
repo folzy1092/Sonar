@@ -1,6 +1,6 @@
 // Открытые итоги (RecapViewer): какие, загруженные данные, карточки, текущая карточка и цвета из обложки.
 import { api, errorText, type Recap } from './api'
-import { buildCards, coverOf, recapColors, recapId, step, type RecapCard, type RecapColors, type RecapRef } from './recap-core'
+import { buildCards, coverOf, markSeen, recapColors, recapId, step, type RecapCard, type RecapColors, type RecapRef } from './recap-core'
 import { settings } from './settings.svelte'
 import { colorOf } from '../theme/theme.svelte'
 
@@ -32,7 +32,7 @@ class RecapStore {
     this.error = null
     this.loading = true
     this.colors = recapColors(null)
-    settings.set('stats.recap_seen', recapId(ref))
+    this.remember(ref)
     try {
       const data = await api.recap(ref.kind, ref.year, ref.month)
       if (seq !== this.seq) return
@@ -71,7 +71,12 @@ class RecapStore {
 
   /** Закрыть приглашение на Главной, не открывая итоги. */
   dismiss(ref: RecapRef) {
-    settings.set('stats.recap_seen', recapId(ref))
+    this.remember(ref)
+  }
+
+  /** Запомнить в `stats.recap_seen`: эти итоги больше не зовут на Главной. */
+  private remember(ref: RecapRef) {
+    settings.set('stats.recap_seen', markSeen(settings.get('stats.recap_seen'), recapId(ref)))
   }
 }
 

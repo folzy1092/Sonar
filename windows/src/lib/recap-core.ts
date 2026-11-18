@@ -27,18 +27,47 @@ export function recapId(r: RecapRef): string {
 const monthRef = (year: number, month: number): RecapRef => ({ kind: 'month', year, month })
 const yearRef = (year: number): RecapRef => ({ kind: 'year', year, month: null })
 
-/** Какие итоги звать на Главной сейчас: весь декабрь — итоги года; первые `INVITE_DAYS` дней месяца —
- *  прошлый месяц (в начале января — прошлый год целиком). Мало слушал или уже открывал — null. */
-export function inviteFor(now: Date, periods: RecapPeriods, seen: string | null): RecapRef | null {
+/** Сколько последних итогов помнит `stats.recap_seen` (больше двух лет месяцев и годов — не нужно). */
+export const MAX_SEEN = 24
+const SEEN_SEP = ','
+
+/** Открытые или скрытые итоги из `stats.recap_seen`: id через запятую, старые первыми. */
+export function seenIds(raw: string | null | undefined): string[] {
+  return (raw ?? '')
+    .split(SEEN_SEP)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+/** Новое значение `stats.recap_seen` с `id` в конце: без повторов, не больше `MAX_SEEN` последних. */
+export function markSeen(raw: string | null | undefined, id: string): string {
+  const rest = seenIds(raw).filter((s) => s !== id)
+  return [...rest, id].slice(-MAX_SEEN).join(SEEN_SEP)
+}
+
+/** Кандидаты на Главной по порядку: весь декабрь — итоги года (в первые дни — ещё и ноябрь);
+ *  первые `INVITE_DAYS` дней месяца — прошлый месяц, в начале января — сначала прошлый год. */
+function inviteCandidates(now: Date): RecapRef[] {
   const y = now.getFullYear()
   const m = now.getMonth()
-  let ref: RecapRef | null = null
-  if (m === DECEMBER) ref = yearRef(y)
-  else if (now.getDate() <= INVITE_DAYS) ref = m === JANUARY ? yearRef(y - 1) : monthRef(y, m)
-  if (!ref || recapId(ref) === seen) return null
-  const list = ref.kind === 'year' ? periods.years : periods.months
-  const found = list.find((p) => p.year === ref.year && p.month === ref.month)
-  return found && found.total_ms >= MIN_INVITE_MS ? ref : null
+  const early = now.getDate() <= INVITE_DAYS
+  if (m === DECEMBER) return early ? [yearRef(y), monthRef(y, m)] : [yearRef(y)]
+  if (!early) return []
+  return m === JANUARY ? [yearRef(y - 1), monthRef(y - 1, 12)] : [monthRef(y, m)]
+}
+
+/** Какие итоги звать на Главной сейчас: первый кандидат, которого ещё не открывали и не скрывали и за
+ *  который наслушано хотя бы `MIN_INVITE_MS`; иначе null. `seen` — значение `stats.recap_seen`. */
+export function inviteFor(now: Date, periods: RecapPeriods, seen: string | null): RecapRef | null {
+  const done = new Set(seenIds(seen))
+  return (
+    inviteCandidates(now).find((ref) => {
+      if (done.has(recapId(ref))) return false
+      const list = ref.kind === 'year' ? periods.years : periods.months
+      const found = list.find((p) => p.year === ref.year && p.month === ref.month)
+      return !!found && found.total_ms >= MIN_INVITE_MS
+    }) ?? null
+  )
 }
 
 export type RecapCard =

@@ -20,6 +20,8 @@ const FOOTER_Y = CARD_H - 80
 const ROW_H = 172
 const ROW_COVER = 128
 const FALLBACK_FONT = 'system-ui, sans-serif'
+/** Начертания, которыми рисуется карточка: их грузим заранее, иначе canvas молча возьмёт запасной шрифт. */
+const WEIGHTS = [500, 600, 700, 800]
 
 type Ctx = CanvasRenderingContext2D
 type Images = Map<string, HTMLImageElement>
@@ -40,6 +42,14 @@ function fontFamily(): string {
 
 const setFont = (s: Scene, size: number, weight = 600) => (s.g.font = `${weight} ${size}px ${s.font}`)
 const ink = (s: Scene, a = 1) => css(s.colors.ink, a)
+
+/** Начертания `WEIGHTS` с кириллицей; не загрузилось — рисуем тем, что есть (картинка важнее шрифта). */
+async function loadFonts(family: string): Promise<void> {
+  const fonts = document.fonts
+  if (!fonts?.load) return
+  await Promise.all(WEIGHTS.map((w) => fonts.load(`${w} 40px ${family}`, 'Aa Яя').catch(() => [])))
+  await fonts.ready
+}
 
 async function loadImage(url: string): Promise<HTMLImageElement | null> {
   const src = await proxied(url)
@@ -251,14 +261,15 @@ function body(s: Scene, data: Recap) {
 
 /** Нарисовать карточку на новом canvas 1080×1350. */
 export async function renderCard(card: RecapCard, ref: RecapRef, data: Recap, colors: RecapColors): Promise<HTMLCanvasElement> {
-  await document.fonts?.ready
+  const font = fontFamily()
+  await loadFonts(font)
   const images = await loadImages(imageUrls(card, data))
   const canvas = document.createElement('canvas')
   canvas.width = CARD_W
   canvas.height = CARD_H
   const g = canvas.getContext('2d')
   if (!g) throw new Error('Не удалось нарисовать картинку')
-  const s: Scene = { g, card, ref, colors, images, font: fontFamily() }
+  const s: Scene = { g, card, ref, colors, images, font }
   background(s)
   chrome(s, cardText(card, ref).eyebrow)
   body(s, data)
