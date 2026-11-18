@@ -1,3 +1,42 @@
+# Передача 2026-11-18 (ночь, сессия на Mac) → пакет «Главная, текст, оверлей, карта»
+
+**Начни отсюда.** Сделаны все 10 пунктов пакета, всё в `main` (39 коммитов после 2946e74, последние — фиксы по ревью).
+Проверки перед пушем: `npm run check` 0/0, vitest 817, `cargo test` 398. exe на Mac не собрать — его собирает CI
+(`windows.yml`), смотреть глазами на ПК: в браузере (vite) видны только пустые состояния и заглушки.
+
+**Что где:**
+- Боковая панель «Текст · Очередь» — `app/side-pane.svelte.ts` (`lyricsAvail`, сама выбирает вкладку), капсулы с
+  `use:indicator`; «Дальше» — по `var(--gap)` от краёв, вровень с капсулой мини-плеера.
+- Поле точек Главной — `components/SonarField.svelte` (порт `ios/.../SonarField.swift`: клик, наведение; анализатор
+  тот же, что у `Wave.svelte`). «Меньше движения» и `power_saving` — без толчков, реже кадры; свёрнуто — не рисует.
+- «Для тебя» — `lib/home-mixes.ts` (чистые сборщики, тесты), `pages/mixes.svelte.ts` (кэш на день в localStorage
+  `sonar.home-mixes`), `components/MixCard.svelte`, `pages/MixPage.svelte` (маршрут `mix`), выбор трека —
+  `components/TrackPicker.svelte`, ключ `home.similar_seed`.
+- Полки — `lib/hscroll.ts` (`arrowsFor`, `pageDelta`, `watchOverflow`) + `Shelf.svelte`.
+- Настройки по ширине — `components/settings/settings-row.css` (`.set-row/.set-text/.set-ctl/.set-chips/.set-grid`,
+  `@container`). Проверено скриптом на 800 / 1280 / 1920: ничего не вылезает, горизонтальной прокрутки нет.
+- Dev-подписка — `lib/subscription.ts` `subscriptionOf(profile)` (локально до `GET /me`), `DEV_USERNAMES = ['folzy']`,
+  значок `components/profile/DevBadge.svelte`; iPhone — `SonarDeep.swift` `subscriptionOf(username:)`, `DevBadge.swift`.
+- Оверлей — `src-tauri/src/monitors.rs` (`list_monitors`, DisplayConfig: имя, devicePath, Гц, рабочая область, DPI),
+  `mini.rs` ставит окно по рабочей области и следит за подключением мониторов (раз в 2 с, пока оверлей открыт);
+  схема — `components/settings/MonitorScheme.svelte` + `lib/monitor-layout.ts`. `overlay.monitor` = `'primary'` или
+  devicePath; монитор отключили — оверлей на основном, настройка не теряется.
+- Карта исполнителей — Rust `artist_graph/` (`parse` фиты, `build` граф и соседи, `follows` подписки SC пачками,
+  кэш на 6 ч), `store/artist_graph.rs`, миграция № 13 (`docs/DB.md`); TS `lib/artist-map/*` (раскладка сотами,
+  камера, отрисовка, «почему рядом»), экран `app/artist-map/ArtistMap.svelte`, ключи `library.artists_view`,
+  `library.map_banner_done`. Соседи — `relatedLookup` в `lib/artist-map/api.ts`; в волне — `Features.scene`.
+
+**Проверить на ПК (не проверено вживую):** схема с 2+ мониторами и перетаскивание плашки между ними, смена монитора
+на лету; карта на большой медиатеке (60 кадров при 300+ узлах), подписки SC в фоне; поле точек под музыку.
+
+**Мелкие хвосты (не баги, на потом):** `use:indicator` может прыгнуть по вертикали, когда капсулы переносятся;
+у `/@username` на сайте нет значка Dev; в Медиатеке и `settings/Cards` полки с краями без стрелок, `Stats.svelte` —
+своя горизонтальная прокрутка; стрелки полок по центру 80 px, у `MixCard` (196 px) смотрятся чуть выше центра;
+пустые сетевые подборки пересобираются при каждом открытии; кэш аватарок карты выкидывает по порядку добавления;
+холст опирается на `ctx.roundRect` (WebView2 — есть).
+
+---
+
 # Передача 2026-11-18 (поздний вечер, сессия на Mac) → сайт `sonar.folzy.ru`
 
 **Начни отсюда.** Сайт по `docs/SITE.md` сделан и лежит в `site/` (Astro 5, свой CSS, ru / en / uk, 33 страницы).
