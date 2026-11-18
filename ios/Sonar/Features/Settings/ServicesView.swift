@@ -5,26 +5,28 @@ import WebKit
 
 /// Сервисы (`pc/Screenshot_12, 13`, как Windows «Сервисы»): SoundCloud — client_id и OAuth-токен
 /// (без своих ключей поиск и открытые треки идут на публичном client_id с сайта), Яндекс Музыка —
-/// токен `y0_…`. Ключи — только в Keychain этого iPhone.
+/// токен `y0_…`, YouTube Music — вход Google или cookie music.youtube.com. Ключи — только в Keychain этого iPhone.
 struct ServicesView: View {
-    /// Только один сервис (Профиль → SoundCloud / Яндекс Музыка ведут каждый на свой экран); nil — оба.
+    /// Только один сервис (Профиль → SoundCloud / Яндекс Музыка / YouTube Music ведут каждый на свой экран); nil — все.
     var only: Service?
     @State private var status = MusicCore.Status()
     @State private var clientId = ""
     @State private var oauth = ""
     @State private var yandexToken = ""
+    @State private var youTubeCookie = ""
     @State private var busy: Service?
     @State private var error: String?
     /// Вход в Яндекс по коду: код на экране, пока ждём подтверждения на ya.ru/device.
     @State private var deviceCode: YandexLogin.DeviceCode?
     @State private var login: Task<Void, Never>?
     @State private var showSoundCloudLogin = false
+    @State private var showYouTubeLogin = false
     @Environment(SettingsStore.self) private var settings
     @Environment(\.openURL) private var openURL
 
     var body: some View {
         SettingsScreen(title: only?.title ?? "Сервисы") {
-            if only != .yandex {
+            if only == nil || only == .soundcloud {
             SettingsSection(title: "SoundCloud", footer: status.soundCloud == nil
                             ? "Без своих ключей поиск и открытые треки работают на публичном client_id с сайта. OAuth-токен нужен для лайков, плейлистов и закрытых треков."
                             : nil) {
@@ -51,7 +53,7 @@ struct ServicesView: View {
             .cascade(0)
             }
 
-            if only != .soundcloud {
+            if only == nil || only == .yandex {
             SettingsSection(title: "Яндекс Музыка", footer: status.yandex == nil
                             ? "«Войти через Яндекс» покажет код и откроет ya.ru/device — подтверди вход там, Sonar заберёт токен сам. Или вставь токен y0_… вручную."
                             : nil) {
@@ -79,6 +81,31 @@ struct ServicesView: View {
             .cascade(1)
             }
 
+            if only == nil || only == .youtube {
+            SettingsSection(title: "YouTube Music", footer: status.youtube == nil
+                            ? t("Без входа работают поиск, исполнители, альбомы и прослушивание. Вход нужен для «Лайков» и твоих плейлистов. Если Google не пустит во встроенный браузер — вставь cookie music.youtube.com вручную.")
+                            : nil) {
+                if let account = status.youtube {
+                    connected(.youtube, account)
+                } else {
+                    Button { error = nil; showYouTubeLogin = true } label: {
+                        Label(t("Войти в YouTube Music"), systemImage: "person.badge.key")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .disabled(busy != nil)
+                    RowDivider()
+                    field(t("Cookie music.youtube.com"), text: $youTubeCookie, secure: true)
+                    RowDivider()
+                    connectButton(.youtube, enabled: !youTubeCookie.isEmpty) {
+                        try await MusicCore.shared.connectYouTube(cookie: youTubeCookie)
+                    }
+                }
+            }
+            .cascade(2)
+            }
+
             if let error {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.system(size: 14))
@@ -87,12 +114,14 @@ struct ServicesView: View {
                     .transition(.opacity)
             }
 
+            if only != .youtube {
             SettingsSection(title: "Качество") {
                 SettingsToggle(title: "SoundCloud в качестве Яндекса",
                                subtitle: "Если тот же трек есть на Яндексе — играть оттуда (FLAC / 320)",
                                isOn: Binding(get: { settings.bool("audio.sc_via_yandex") }, set: { settings.set("audio.sc_via_yandex", $0) }))
             }
-            .cascade(2)
+            .cascade(3)
+            }
         }
         .animation(Motion.spring, value: status)
         .animation(Motion.spring, value: deviceCode)
@@ -103,6 +132,13 @@ struct ServicesView: View {
             SoundCloudLoginSheet { token in
                 showSoundCloudLogin = false
                 connectSoundCloud(token: token)
+            }
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showYouTubeLogin) {
+            YouTubeLoginSheet { cookie in
+                showYouTubeLogin = false
+                connectYouTube(cookie: cookie)
             }
             .presentationDragIndicator(.visible)
         }
@@ -117,6 +153,21 @@ struct ServicesView: View {
             do {
                 let id = try await SoundCloud.publicClientId()
                 _ = try await MusicCore.shared.connectSoundCloud(SoundCloudCreds(clientId: id, oauthToken: token))
+                withAnimation(Motion.spring) { error = nil }
+                status = await MusicCore.shared.status()
+            } catch {
+                withAnimation(Motion.spring) { self.error = error.localizedDescription }
+            }
+        }
+    }
+
+    /// После входа в окне Google: cookie music.youtube.com → проверка аккаунта → Keychain.
+    private func connectYouTube(cookie: String) {
+        busy = .youtube
+        Task {
+            defer { busy = nil }
+            do {
+                _ = try await MusicCore.shared.connectYouTube(cookie: cookie)
                 withAnimation(Motion.spring) { error = nil }
                 status = await MusicCore.shared.status()
             } catch {
@@ -188,7 +239,8 @@ struct ServicesView: View {
     private func applySettings() {
         let kbps = MusicCore.qualityKbps(settings.string("audio.quality"))
         let viaYandex = settings.bool("audio.sc_via_yandex")
-        Task { await MusicCore.shared.configure(maxKbps: kbps, soundCloudViaYandex: viaYandex) }
+        let youTubeHigh = MusicCore.youTubeHigh(settings.string(YouTubeQuality.key))
+        Task { await MusicCore.shared.configure(maxKbps: kbps, soundCloudViaYandex: viaYandex, youTubeHigh: youTubeHigh) }
     }
 
     private func field(_ title: String, text: Binding<String>, secure: Bool = false) -> some View {

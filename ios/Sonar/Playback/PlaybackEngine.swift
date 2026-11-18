@@ -141,7 +141,7 @@ final class PlaybackEngine {
     @ObservationIgnored private let snapshotFile = PlaybackSnapshotFile()
     @ObservationIgnored private var lastSnapshot = Date.distantPast
     /// Последние применённые качество и «SoundCloud через Яндекс» — чтобы не дёргать MusicCore зря.
-    @ObservationIgnored private var appliedQuality: (kbps: Int, viaYandex: Bool)?
+    @ObservationIgnored private var appliedQuality: (kbps: Int, viaYandex: Bool, youTubeHigh: Bool)?
 
     init() {
         waveMode = WaveMode(rawValue: SettingsStore.shared.string("wave.mode")) ?? .own
@@ -881,9 +881,10 @@ final class PlaybackEngine {
         }
         let kbps = MusicCore.qualityKbps(AudioQuality.current(settings).rawValue)
         let viaYandex = settings.bool("audio.sc_via_yandex")
-        if appliedQuality?.kbps != kbps || appliedQuality?.viaYandex != viaYandex {
-            appliedQuality = (kbps, viaYandex)
-            Task { await MusicCore.shared.configure(maxKbps: kbps, soundCloudViaYandex: viaYandex) }
+        let youTubeHigh = YouTubeQuality.current(settings) == .high
+        if appliedQuality?.kbps != kbps || appliedQuality?.viaYandex != viaYandex || appliedQuality?.youTubeHigh != youTubeHigh {
+            appliedQuality = (kbps, viaYandex, youTubeHigh)
+            Task { await MusicCore.shared.configure(maxKbps: kbps, soundCloudViaYandex: viaYandex, youTubeHigh: youTubeHigh) }
         }
     }
 
