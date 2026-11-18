@@ -9,8 +9,9 @@ const UK = "'йцукенгшщзхїфівапролджєячсмитьбю"
 const toMap = (from: string, to: string) => new Map([...from].map((c, i) => [c, to[i]] as const))
 const EN_RU = toMap(EN, RU)
 const EN_UK = toMap(EN, UK)
-// обратно: русские и украинские буквы → латиница той же клавиши (общие буквы совпадают)
-const CYR_EN = new Map([...toMap(UK, EN), ...toMap(RU, EN)])
+// обратно: русские и украинские буквы → латиница той же клавиши (общие буквы совпадают);
+// ґ — на клавише г (AltGr в обычной украинской раскладке Windows)
+const CYR_EN = new Map([...toMap(UK, EN), ...toMap(RU, EN), ['ґ', 'u'] as const])
 
 function convert(text: string, map: Map<string, string>): string {
   return [...text.toLowerCase()].map((c) => map.get(c) ?? c).join('')
