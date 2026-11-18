@@ -14,6 +14,7 @@ mod hotkeys;
 mod import_link;
 mod track_cache;
 mod mini;
+mod monitors;
 mod obs;
 mod providers;
 mod remote;
@@ -204,6 +205,7 @@ pub fn run() {
       commands::artist_tracks,
       commands::mini_window,
       commands::overlay_window,
+      commands::list_monitors,
       commands::thumbbar_init,
       commands::thumbbar_state,
       commands::show_main,

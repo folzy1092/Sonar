@@ -642,6 +642,13 @@ pub async fn overlay_window(app: tauri::AppHandle, show: bool, layout: Option<cr
   crate::mini::overlay(&app, show, &layout.unwrap_or_default()).map_err(err)
 }
 
+/// Все мониторы, как они расставлены (Интерфейс → Оверлей → «Положение на экране»): название модели,
+/// разрешение, частота, рабочая область, масштаб, основной ли — `monitors.rs`.
+#[tauri::command]
+pub async fn list_monitors(app: tauri::AppHandle) -> Res<Vec<crate::monitors::MonitorInfo>> {
+  Ok(crate::monitors::list(&app))
+}
+
 /// Кнопки «назад / пауза / вперёд» в превью окна на панели задач: `icons` — prev, play, pause, next
 /// (RGBA 32×32, рисует интерфейс из наших значков).
 #[tauri::command]
