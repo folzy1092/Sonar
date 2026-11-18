@@ -6,6 +6,7 @@
   import CountUp from '../../components/CountUp.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Choice from '../../components/settings/Choice.svelte'
+  import MusicFolders from '../../components/settings/MusicFolders.svelte'
   import { searchHistory } from '../../lib/search-history.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { api, type StorageUsage } from '../../lib/api'
@@ -82,6 +83,8 @@
       onchange={(v) => settings.set('storage.wave_offline', v)}
     />
   {/if}
+
+  <MusicFolders />
 
   <Group title={t('Очистка кеша')}>
     {#snippet action()}

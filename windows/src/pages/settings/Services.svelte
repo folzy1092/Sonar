@@ -9,7 +9,7 @@
   import ServiceCard, { FREE_LOCK, type ServiceLock } from './ServiceCard.svelte'
   import { t } from '../../lib/i18n.svelte'
   import { api, errorText, type ServiceStatus, type ServicesStatus } from '../../lib/api'
-  import { IMPLEMENTED, statusOf, type ServiceInfo } from '../../lib/services'
+  import { ACCOUNT_SERVICES, statusOf, type ServiceInfo } from '../../lib/services'
   import { listen } from '@tauri-apps/api/event'
   import { isTauri } from '../../lib/tauri'
 
@@ -42,7 +42,7 @@
   <p class="note">{loadError}</p>
 {/if}
 
-{#each IMPLEMENTED as s (s.id)}
+{#each ACCOUNT_SERVICES as s (s.id)}
   <ServiceCard info={s} state={statusOf(status, s)} onchange={(next) => update(s, next)} bind:lock />
 {/each}
 
