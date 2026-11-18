@@ -150,13 +150,23 @@ pub async fn search(
 pub struct StreamUrl {
   kind: &'static str,
   url: String,
-  /// Что реально играет: «AAC 160», «MP3 320», «FLAC».
+  /// Что реально играет: «AAC 160», «MP3 320», «FLAC», «Opus 160 · YouTube Music».
   quality: String,
+  /// Играет не со своего сервиса: откуда и почему (для всплывашки «Играет из …»).
+  via: Option<crate::services::fallback::Via>,
 }
 
-/// Адрес на локальном аудио-сервере для `<audio>` (file) или hls.js (hls).
+/// Адрес на локальном аудио-сервере для `<audio>` (file) или hls.js (hls). Свой сервис трек не
+/// отдаёт — тот же трек из резервного (`audio.fallback`). `track` — трек из интерфейса: по нему
+/// ищется замена, если в кэше треков его нет.
 #[tauri::command]
-pub async fn stream_url(core: State<'_, Arc<Core>>, port: State<'_, StreamPort>, track_ref: String) -> Res<StreamUrl> {
+pub async fn stream_url(
+  core: State<'_, Arc<Core>>,
+  db: State<'_, Db>,
+  port: State<'_, StreamPort>,
+  track_ref: String,
+  track: Option<Track>,
+) -> Res<StreamUrl> {
   // трек в кэше на диске — играет файлом оттуда (и HLS, уже склеенный)
   if let Some((_, mime, _)) = crate::track_cache::lookup(&track_ref) {
     let quality = match mime.as_str() {
@@ -165,15 +175,59 @@ pub async fn stream_url(core: State<'_, Arc<Core>>, port: State<'_, StreamPort>,
       "audio/webm" => "Opus · кэш",
       _ => "MP3 · кэш",
     };
-    return Ok(StreamUrl { kind: "file", url: crate::stream::track_url(port.0, "file", &track_ref), quality: quality.into() });
+    let url = crate::stream::track_url(port.0, "file", &track_ref);
+    return Ok(StreamUrl { kind: "file", url, quality: quality.into(), via: None });
   }
+  playable_url(&core, &db, port.0, &track_ref, track, false).await
+}
+
+/// Свой поток открылся, но не играет (ошибка `<audio>` после повтора) — тот же трек из резервного
+/// сервиса. Замены нет — ошибка, и плеер идёт дальше по очереди.
+#[tauri::command]
+pub async fn stream_fallback(
+  core: State<'_, Arc<Core>>,
+  db: State<'_, Db>,
+  port: State<'_, StreamPort>,
+  track_ref: String,
+  track: Option<Track>,
+) -> Res<StreamUrl> {
+  playable_url(&core, &db, port.0, &track_ref, track, true).await
+}
+
+async fn playable_url(core: &Core, db: &Db, port: u16, track_ref: &str, track: Option<Track>, broken: bool) -> Res<StreamUrl> {
+  let (known, meta) = {
+    let db = db.0.lock().unwrap();
+    let known = db.track_aliases(track_ref).unwrap_or_else(|e| {
+      log::warn!("[fallback] track_alias {track_ref}: {e}");
+      Vec::new()
+    });
+    let meta = track.or_else(|| db.tracks(&[track_ref.to_owned()]).ok().and_then(|t| t.into_iter().next()));
+    (known, meta)
+  };
+  core.fallback.remember(&known);
   // YouTube Music не открылся — ещё раз с новой visitorData, причина — в журнал ошибок
-  let src = core.resolve_retrying(&track_ref).await.map_err(err)?;
-  let (kind, path, quality) = match src {
+  let played = core.resolve_playable(track_ref, meta.as_ref(), broken).await;
+  // найденные пары, «не нашлось» и переставшие играть — на диск, даже когда замены нет
+  let writes = core.fallback.take_writes();
+  if !writes.is_empty() {
+    if let Err(e) = db.0.lock().unwrap().apply_track_alias_writes(&writes) {
+      log::warn!("[fallback] track_alias {track_ref}: {e}");
+    }
+  }
+  let played = played.map_err(err)?;
+  {
+    let mut db = db.0.lock().unwrap();
+    if let Some(t) = &played.found {
+      if let Err(e) = db.upsert_tracks(std::slice::from_ref(t)) {
+        log::warn!("[fallback] трек замены {}: {e}", t.ref_);
+      }
+    }
+  }
+  let (kind, path, quality) = match played.source {
     Source::File { quality, .. } => ("file", "file", quality),
     Source::Hls { quality, .. } => ("hls", "hls", quality),
   };
-  Ok(StreamUrl { kind, url: crate::stream::track_url(port.0, path, &track_ref), quality })
+  Ok(StreamUrl { kind, url: crate::stream::track_url(port, path, track_ref), quality, via: played.via })
 }
 
 /// «Волна офлайн»: следующие треки волны — в кэш треков заранее (фоном, по одному; новый вызов
@@ -315,6 +369,12 @@ pub fn set_setting(
   }
   if key == "audio.sc_via_yandex" {
     core.sc_via_yandex.store(value.as_bool().unwrap_or(false), Ordering::Relaxed);
+  }
+  if key == "audio.fallback" {
+    core.fallback.enabled.store(value.as_bool().unwrap_or(true), Ordering::Relaxed);
+  }
+  if key == "audio.fallback_order" {
+    core.fallback.set_order(crate::services::fallback::parse_order(Some(&value)));
   }
   if key == "audio.quality" {
     core.max_kbps.store(crate::services::quality_kbps(value.as_str()), Ordering::Relaxed);
@@ -1181,6 +1241,8 @@ pub fn all_settings(db: State<'_, Db>) -> Res<std::collections::HashMap<String, 
 pub fn reset_settings(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<()> {
   db.0.lock().unwrap().reset_settings().map_err(err)?;
   core.sc_via_yandex.store(false, Ordering::Relaxed);
+  core.fallback.enabled.store(true, Ordering::Relaxed);
+  core.fallback.set_order(crate::services::fallback::default_order());
   core.max_kbps.store(crate::services::quality_kbps(None), Ordering::Relaxed);
   core.yt_high.store(crate::services::yt_high(None), Ordering::Relaxed);
   Ok(())

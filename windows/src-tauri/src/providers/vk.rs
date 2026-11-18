@@ -368,7 +368,7 @@ pub fn audio_from_json(j: &Value) -> Option<VkAudio> {
 pub fn source_from_url(url: &str) -> Result<Source> {
   let u = url::Url::parse(url).map_err(|_| anyhow!(NO_STREAM))?;
   if u.path().contains("audio_api_unavailable") {
-    return Err(anyhow!(NO_STREAM));
+    return Err(super::unplayable::unavailable(NO_STREAM));
   }
   let quality = "MP3 320".to_owned();
   if u.path().ends_with(".m3u8") {

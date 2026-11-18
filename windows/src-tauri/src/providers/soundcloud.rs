@@ -182,7 +182,7 @@ impl SoundCloud<'_> {
 
   /// JSON трека → ссылка на поток (вариант выбирает `pick_transcoding`).
   pub async fn stream(&self, track: &Value) -> Result<Source> {
-    let t = pick_transcoding(track).ok_or_else(|| anyhow!("SoundCloud: у трека нет доступного потока"))?;
+    let t = pick_transcoding(track).ok_or_else(|| super::unplayable::unavailable("SoundCloud: у трека нет доступного потока"))?;
     let url = t["url"].as_str().ok_or_else(|| anyhow!("SoundCloud: пустая ссылка потока"))?;
     let auth = track["track_authorization"].as_str().unwrap_or("");
     let data = self.get(url, &[("track_authorization", auth)]).await?;
@@ -277,6 +277,11 @@ pub fn pick_transcoding(track: &Value) -> Option<&Value> {
     Some(if t["snipped"].as_bool() == Some(true) { base - 10_000 } else { base })
   };
   list.iter().filter_map(|t| score(t).map(|s| (s, t))).max_by_key(|(s, _)| *s).map(|(_, t)| t)
+}
+
+/// Играть можно только отрывок: `policy: SNIP` (без Go+) или лучший вариант потока — обрезанный.
+pub fn is_snippet(track: &Value) -> bool {
+  track["policy"] == "SNIP" || pick_transcoding(track).is_some_and(|t| t["snipped"].as_bool() == Some(true))
 }
 
 pub fn track_from_json(j: &Value) -> Option<Track> {
@@ -442,6 +447,15 @@ mod tests {
       tc("hls", "audio/mpeg", "mp3_1_0", false),
     ]}});
     assert_eq!(pick_transcoding(&t).unwrap()["preset"], "mp3_1_0");
+  }
+
+  #[test]
+  fn snippet_by_policy_or_only_snipped_stream() {
+    let full = tc("hls", "audio/mpeg", "mp3_1_0", false);
+    let cut = tc("hls", "audio/mp4; codecs=\"mp4a.40.2\"", "aac_160k", true);
+    assert!(!is_snippet(&json!({"policy": "ALLOW", "media": {"transcodings": [full.clone(), cut.clone()]}})));
+    assert!(is_snippet(&json!({"policy": "ALLOW", "media": {"transcodings": [cut]}})));
+    assert!(is_snippet(&json!({"policy": "SNIP", "media": {"transcodings": [full]}})));
   }
 
   /// Живая проверка: `SC_CLIENT_ID=… cargo test live -- --ignored --nocapture`.

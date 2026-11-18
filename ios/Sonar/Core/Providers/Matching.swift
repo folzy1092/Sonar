@@ -3,7 +3,8 @@ import Foundation
 /// Тот же трек на другом сервисе: трек SoundCloud → Яндекс Музыка, чтобы играть его в FLAC / 320 (без Go+
 /// SoundCloud отдаёт максимум AAC 160). Правила строгие — лучше сыграть SoundCloud, чем чужую версию:
 /// длительность ±3 с, исполнитель совпадает, название почти одинаковое (≥ 0.9), а «версии» (remix, live,
-/// sped up, slowed…) совпадают с обеих сторон. Порт `providers/matching.rs`.
+/// sped up, slowed…) совпадают с обеих сторон. Порт `providers/matching.rs`. Та же сверка ищет трек
+/// в резервном сервисе (`Fallback.swift`): тот же трек на любом сервисе, не только на Яндексе.
 struct TrackMatch: Sendable {
     static let maxDurationDiffMs = 3000
     static let minTitle = 0.9
@@ -83,25 +84,39 @@ struct TrackMatch: Sendable {
     }
 
     /// reuploads — кандидаты с SoundCloud: у них настоящий артист часто в названии «АРТИСТ - ТРЕК».
+    /// Недоступные (`available == false`) не берём: их и заменяем.
     func best(_ candidates: [Track], reuploads: Bool) -> Track? {
-        let wanted = Set(artists.flatMap(Self.artistNames))
         var best: (track: Track, score: Double)?
         for candidate in candidates where candidate.available {
-            if durationMs > 0, candidate.durationMs > 0, abs(durationMs - candidate.durationMs) > Self.maxDurationDiffMs { continue }
-            var names = candidate.artists.map { TrackText.norm($0.name) } + Self.artistNames(candidate.artist)
-            var foundTitles = [TrackText.norm(TrackText.cleanTitle(candidate.title))]
-            if reuploads, let reupload = TrackText.reuploadVariant(candidate.title) {
-                names += Self.artistNames(reupload.artist)
-                foundTitles.append(TrackText.norm(TrackText.cleanTitle(reupload.title)))
-            }
-            let theirs = Set(names.filter { !$0.isEmpty })
-            if theirs.isDisjoint(with: wanted) { continue }
-            if Self.versions(candidate.title) != versions { continue }
-            let score = titles.flatMap { title in foundTitles.map { TrackText.similarity(TrackText.norm(title), $0) } }.max() ?? 0
-            if score >= Self.minTitle, best.map({ score > $0.score }) ?? true {
+            if let score = score(candidate, reuploads: reuploads), best.map({ score > $0.score }) ?? true {
                 best = (candidate, score)
             }
         }
         return best?.track
+    }
+
+    /// Похожесть названия (0.9…1.0), если кандидат — тот же трек; иначе nil. Доступность не смотрит —
+    /// это общая сверка для резерва (этап 4), импорта по ссылке (этап 5) и дублей (этап 7).
+    func score(_ candidate: Track, reuploads: Bool = false) -> Double? {
+        if durationMs > 0, candidate.durationMs > 0, abs(durationMs - candidate.durationMs) > Self.maxDurationDiffMs { return nil }
+        var names = candidate.artists.map { TrackText.norm($0.name) } + Self.artistNames(candidate.artist)
+        var foundTitles = [TrackText.norm(TrackText.cleanTitle(candidate.title))]
+        if reuploads, let reupload = TrackText.reuploadVariant(candidate.title) {
+            names += Self.artistNames(reupload.artist)
+            foundTitles.append(TrackText.norm(TrackText.cleanTitle(reupload.title)))
+        }
+        let wanted = Set(artists.flatMap(Self.artistNames))
+        let theirs = Set(names.filter { !$0.isEmpty })
+        guard !theirs.isDisjoint(with: wanted), Self.versions(candidate.title) == versions else { return nil }
+        let score = titles.flatMap { title in foundTitles.map { TrackText.similarity(TrackText.norm(title), $0) } }.max() ?? 0
+        return score >= Self.minTitle ? score : nil
+    }
+
+    /// Один ли это трек (по метаданным, без сети) — в обе стороны: перезалив «АРТИСТ - ТРЕК» с SoundCloud
+    /// совпадает с треком Яндекса и наоборот. Порт `same_track` из `providers/matching.rs`.
+    static func sameTrack(_ a: Track, _ b: Track) -> Bool {
+        a.ref == b.ref
+            || from(a).score(b, reuploads: b.service == .soundcloud) != nil
+            || from(b).score(a, reuploads: a.service == .soundcloud) != nil
     }
 }

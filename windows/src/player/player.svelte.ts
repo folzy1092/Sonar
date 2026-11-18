@@ -4,13 +4,14 @@
 // Два элемента для бесшовности и кроссфейда, GainNode нормализации — позже (W5).
 import Hls from 'hls.js'
 import { untrack } from 'svelte'
-import { api, errorText, onMediaControl, type PlayerState, type Repeat, type Track } from '../lib/api'
+import { api, errorText, onMediaControl, type PlayerState, type Repeat, type StreamUrl, type Track } from '../lib/api'
 import { eq } from './eq.svelte'
 import { Leveler } from './leveler'
 import { Effects } from './effects'
 import { pitchRatio, tempo } from './tempo.svelte'
 import { settings } from '../lib/settings.svelte'
 import { isFallbackError } from '../lib/services'
+import { fallbackToast, type Via } from '../lib/fallback'
 import { t } from '../lib/i18n.svelte'
 import { playableQueue } from '../lib/local'
 import { isLocalRef } from '../lib/services'
@@ -60,6 +61,8 @@ class Player {
   error = $state<string | null>(null)
   /** Сервис трека сам не играет (Spotify без Premium) — нужен резервный сервис, не сбой. */
   fallbackNeeded = $state(false)
+  /** Трек играет не со своего сервиса (резервный сервис): откуда и почему; null — со своего. */
+  via = $state<Via | null>(null)
   positionMs = $state(0)
   durationMs = $state(0)
   /** Реальный формат потока для плашки: «AAC 160», «MP3 320», «FLAC». */
@@ -184,7 +187,11 @@ class Player {
     )
     addEventListener('ratechange', tick(() => this.clock.setRate(a.playbackRate, a.currentTime, now())))
     addEventListener('ended', () => this.onEnded())
-    addEventListener('error', () => this.onError(a.error?.message || t('не удалось воспроизвести')))
+    addEventListener('error', () => {
+      const message = a.error?.message || t('не удалось воспроизвести')
+      if (a === this.audio) void this.onMediaError(message)
+      else this.onError(message)
+    })
   }
 
   private initRest() {
@@ -532,6 +539,7 @@ class Player {
     this.ended = false
     this.error = null
     this.fallbackNeeded = false
+    this.via = null
     this.loading = true
     this.stage(0)
     this.durationMs = track.duration_ms
@@ -543,42 +551,85 @@ class Player {
     this.updateMedia()
 
     try {
-      const s = await api.streamUrl(track.ref)
+      const s = await api.streamUrl(track.ref, track)
       if (token !== this.loadToken) return
       this.stage(0.35)
-      this.quality = s.quality
-      if (s.kind === 'hls' && Hls.isSupported()) {
-        const hls = new Hls({ startPosition: startMs / 1000 })
-        hls.on(Hls.Events.ERROR, (_e, data) => {
-          if (data.fatal && token === this.loadToken) this.onError(`HLS: ${data.details}`)
-        })
-        hls.on(Hls.Events.MANIFEST_PARSED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.6))
-        hls.on(Hls.Events.FRAG_LOADED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.9))
-        hls.loadSource(s.url)
-        hls.attachMedia(a)
-        this.hls = hls
-      } else {
-        a.src = s.url
-        if (startMs) a.currentTime = startMs / 1000
-      }
-      this.applySpeed()
-      this.listenedMs = 0
-      this.startedAt = Date.now()
-      this.lastTick = 0
-      if (autoplay) await a.play()
-      else {
-        this.loading = false
-        this.stage(1)
-      }
+      this.announce(s)
+      await this.attach(s, token, autoplay, startMs)
       this.localMisses = 0
       this.saveState()
     } catch (e) {
-      if (token !== this.loadToken) return
+      // play() отклонён из-за ошибки потока — её уже подхватил onMediaError и ищет резервный сервис
+      if (token !== this.loadToken || this.fallbackTried === token) return
       if (isFallbackError(track.ref, e) && this.skipFallback(autoplay, fallbackSkips + 1)) return
       this.fallbackNeeded = isFallbackError(track.ref, e)
       this.onError(errorText(e))
       // файл с компьютера пропал уже в очереди — дальше, а не стоп; круг без живых треков не крутим
       if (autoplay && isLocalRef(track.ref) && ++this.localMisses < this.order.length) void this.next(false)
+    }
+  }
+
+  /** Поток в дек: HLS — через hls.js, файл — в <audio>; потом скорость и старт (`autoplay`). */
+  private async attach(s: StreamUrl, token: number, autoplay: boolean, startMs: number) {
+    const a = this.audio
+    if (!a) return
+    if (s.kind === 'hls' && Hls.isSupported()) {
+      const hls = new Hls({ startPosition: startMs / 1000 })
+      hls.on(Hls.Events.ERROR, (_e, data) => {
+        if (data.fatal && token === this.loadToken) void this.onMediaError(`HLS: ${data.details}`)
+      })
+      hls.on(Hls.Events.MANIFEST_PARSED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.6))
+      hls.on(Hls.Events.FRAG_LOADED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.9))
+      hls.loadSource(s.url)
+      hls.attachMedia(a)
+      this.hls = hls
+    } else {
+      a.src = s.url
+      if (startMs) a.currentTime = startMs / 1000
+    }
+    this.applySpeed()
+    this.listenedMs = 0
+    this.startedAt = Date.now()
+    this.lastTick = 0
+    if (autoplay) await a.play()
+    else {
+      this.loading = false
+      this.stage(1)
+    }
+  }
+
+  /** Плашка качества и всплывашка «Играет из YouTube Music — в SoundCloud недоступен». */
+  private announce(s: StreamUrl) {
+    this.quality = s.quality
+    this.via = s.via
+    const note = fallbackToast(s.via)
+    if (note) toast.show(note)
+  }
+
+  /** Загрузка, для которой резервный сервис уже пробовали: второй раз не ищем, а показываем ошибку. */
+  private fallbackTried = -1
+
+  /** Свой поток открылся, но не играет (ошибка <audio> или hls.js) — тот же трек из резервного
+   *  сервиса (`stream_fallback`), с того же места. Не нашёлся или резерв выключен — ошибка как раньше. */
+  private async onMediaError(message: string) {
+    const track = this.current
+    const token = this.loadToken
+    const canRetry = track && !isLocalRef(track.ref) && this.fallbackTried !== token && settings.get('audio.fallback')
+    if (!track || !canRetry) return this.onError(message)
+    this.fallbackTried = token
+    const resume = this.playing || this.loading
+    const startMs = this.positionMs
+    this.loading = resume
+    try {
+      const s = await api.streamFallback(track.ref, track)
+      if (token !== this.loadToken) return
+      this.hls?.destroy()
+      this.hls = null
+      this.error = null
+      this.announce(s)
+      await this.attach(s, token, resume, startMs)
+    } catch {
+      if (token === this.loadToken) this.onError(message)
     }
   }
 
@@ -635,7 +686,7 @@ class Player {
     const left = dur - ms
     if (left < span + 6000 && this.warmedFor !== next.ref) {
       this.warmedFor = next.ref
-      void api.streamUrl(next.ref).catch(() => {})
+      void api.streamUrl(next.ref, next).catch(() => {})
     }
     // timeupdate идёт ~4 раза в секунду — запас на один шаг
     if (left <= span + 260) void this.crossfade(p, span)
