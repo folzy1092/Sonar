@@ -1,7 +1,9 @@
 <script lang="ts" generics="T extends string | number">
   // Сегменты (pc/Screenshot_7 «Ничего / Трек / Очередь», 16 «В начало / В конец»): капсула выбранного
   // переезжает (lib/indicator). `wide` — сегменты под названием; `icons` — только значки (позиция,
-  // выравнивание). Вариант с `soon` неактивен («скоро» во всплывающей подсказке).
+  // выравнивание). Вариант с `soon` неактивен («скоро» во всплывающей подсказке). `preview` — живой пример
+  // между названием и сегментами (с `wide`: скругление, кнопки окна).
+  import type { Snippet } from 'svelte'
   import { indicator } from '../../lib/indicator'
   import Icon from '../Icon.svelte'
   import type { IconName } from '../icons'
@@ -21,8 +23,9 @@
     /** Сегменты на всю ширину (с `wide`). */
     fill?: boolean
     soon?: boolean
+    preview?: Snippet
   }
-  let { title, hint, value, options, onchange, wide = false, icons = false, fill = false, soon = false }: Props = $props()
+  let { title, hint, value, options, onchange, wide = false, icons = false, fill = false, soon = false, preview }: Props = $props()
 </script>
 
 <div class="row" class:wide class:fill>
@@ -30,6 +33,7 @@
     <b>{title}{#if soon}<Soon />{/if}</b>
     {#if hint}<small>{hint}</small>{/if}
   </span>
+  {#if preview}{@render preview()}{/if}
   <div class="seg" class:icons class:dim={soon} use:indicator={{ key: value, kind: 'pill' }}>
     {#each options as o (o.id)}
       <button

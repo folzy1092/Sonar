@@ -28,4 +28,9 @@ describe('старые значения настроек', () => {
     expect(migrateSettings(stored)['hotkeys.scope']).toBe('top')
     expect(migrateSettings({})).toEqual({})
   })
+
+  it('убранный стиль вкладок «Полный» читается как «По умолчанию», остальные не трогает', () => {
+    expect(migrateSettings({ 'tabs.style': 'full' })['tabs.style']).toBe('default')
+    expect(migrateSettings({ 'tabs.style': 'floating' })['tabs.style']).toBe('floating')
+  })
 })

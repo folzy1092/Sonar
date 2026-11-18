@@ -50,7 +50,12 @@ export const DEFAULTS = {
   'appearance.preset': 'neutral' as string,
   'appearance.animations': true,
   'appearance.scale_window': 100,
-  'appearance.scale_fullscreen': 100,
+  /** Масштаб, когда окно развёрнуто; `0` — «Авто», как в окне. */
+  'appearance.scale_fullscreen': 100 as number,
+  /** Кнопки окна: `auto` — как в системе (на Windows — Windows), `windows` — значки, `macos` — три кружка. */
+  'appearance.window_buttons': 'auto' as 'auto' | 'windows' | 'macos',
+  /** Значок сервиса рядом с длительностью трека в списках («Показывать площадки»). */
+  'appearance.show_sources': false,
   /** Шрифт интерфейса; по умолчанию — как в стиле Sonar (theme/style.ts). */
   'appearance.font': 'Golos Text Variable' as string,
   /** Размер шрифта: 16 — как задумано, остальные — множитель n / 16 ко всему тексту. */
