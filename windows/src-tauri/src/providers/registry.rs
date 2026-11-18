@@ -155,8 +155,10 @@ pub const REGISTRY: &[ServiceInfo] = &[
     icon: Some("spotify.svg"),
     icon_mono: Some("spotify-mono.svg"),
     prefixes: Prefixes { track: "sp", album: Some("spalb"), artist: Some("spa"), playlist: Some("sppl") },
-    caps: Caps { stream: false, key: false, ..ALL_CAPS },
-    implemented: false,
+    // поток — только Premium через librespot (фича `spotify-playback`), без неё — резервный сервис;
+    // рекомендаций Spotify не берём
+    caps: Caps { stream: false, similar: false, ..ALL_CAPS },
+    implemented: true,
   },
   ServiceInfo {
     id: ServiceId::Local,
@@ -206,15 +208,15 @@ pub fn is_kind(r: &str, id: ServiceId, kind: RefKind) -> bool {
   matches!(parse_ref(r), Some((s, k)) if s.id == id && k == kind)
 }
 
-/// Лайки аккаунта как плейлист: `scpl:likes` / `ympl:likes` / `ytpl:likes` / `vkpl:likes`. У остальных пока нет.
+/// Лайки аккаунта как плейлист: `scpl:likes` / `ympl:likes` / `ytpl:likes` / `vkpl:likes` / `sppl:likes`. У остальных пока нет.
 pub fn likes_ref(id: ServiceId) -> Option<String> {
   match id {
-    ServiceId::Sc | ServiceId::Ym | ServiceId::Yt | ServiceId::Vk => info(id).prefixes.playlist.map(|p| format!("{p}:likes")),
+    ServiceId::Sc | ServiceId::Ym | ServiceId::Yt | ServiceId::Vk | ServiceId::Sp => info(id).prefixes.playlist.map(|p| format!("{p}:likes")),
     _ => None,
   }
 }
 
-/// Сервисы, которые уже работают в Sonar (SoundCloud, Яндекс Музыка, YouTube Music, VK Музыка, локальные файлы).
+/// Сервисы, которые уже работают в Sonar (SoundCloud, Яндекс Музыка, YouTube Music, VK Музыка, Spotify, локальные файлы).
 #[allow(dead_code)] // часть API реестра (как в services.ts); в Rust пока зовут только тесты
 pub fn implemented() -> impl Iterator<Item = &'static ServiceInfo> {
   REGISTRY.iter().filter(|s| s.implemented)
@@ -257,8 +259,8 @@ mod tests {
     (
       (ServiceId::Sp, "spotify", "Spotify", "#1ED760", Some("spotify.svg"), Some("spotify-mono.svg")),
       ("sp", Some("spalb"), Some("spa"), Some("sppl")),
-      [true, false, true, true, true, true, false],
-      false,
+      [true, false, true, true, false, true, true],
+      true,
     ),
     (
       (ServiceId::Local, "local", "Локальные файлы", "#8E8E93", None, None),
@@ -382,24 +384,26 @@ mod tests {
     assert_eq!(likes_ref(ServiceId::Ym).as_deref(), Some("ympl:likes"));
     assert_eq!(likes_ref(ServiceId::Yt).as_deref(), Some("ytpl:likes"));
     assert_eq!(likes_ref(ServiceId::Vk).as_deref(), Some("vkpl:likes"));
+    assert_eq!(likes_ref(ServiceId::Sp).as_deref(), Some("sppl:likes"));
     assert_eq!(likes_ref(ServiceId::Local), None);
   }
 
   #[test]
-  fn implemented_is_sc_ym_yt_vk_and_local() {
+  fn implemented_is_sc_ym_yt_vk_sp_and_local() {
     let ids: Vec<ServiceId> = implemented().map(|s| s.id).collect();
-    assert_eq!(ids, [ServiceId::Sc, ServiceId::Ym, ServiceId::Yt, ServiceId::Vk, ServiceId::Local]);
+    assert_eq!(ids, [ServiceId::Sc, ServiceId::Ym, ServiceId::Yt, ServiceId::Vk, ServiceId::Sp, ServiceId::Local]);
   }
 
   #[test]
   fn capabilities() {
-    // реализованные сервисы с аккаунтом умеют всё, что есть в «Сервисах» сейчас;
-    // локальные файлы — без входа и ключа (папки — в Хранилище)
+    // реализованные сервисы с аккаунтом ищут, дают медиатеку, плейлисты, вход и ключ; поток и похожие —
+    // кроме Spotify; локальные файлы — без входа и ключа (папки — в Хранилище)
     for s in implemented().filter(|s| s.caps.login) {
       let c = s.caps;
-      assert!(c.search && c.stream && c.library && c.playlists && c.similar && c.login && c.key, "{}", s.key);
+      assert!(c.search && c.library && c.playlists && c.login && c.key, "{}", s.key);
+      assert_eq!(c.stream && c.similar, s.id != ServiceId::Sp, "{}", s.key);
     }
-    assert!(!info(ServiceId::Sp).caps.stream, "Spotify не отдаёт поток");
+    assert!(!info(ServiceId::Sp).caps.stream, "Spotify сам не играет — нужен резервный сервис");
     let local = info(ServiceId::Local).caps;
     assert!(!local.search && local.stream && !local.login && !local.key);
     // у каждого сервиса с плейлистами есть префикс плейлиста, у каждого с library — трек

@@ -13,6 +13,7 @@
   import Volume from '../player/Volume.svelte'
   import { player } from '../player/player.svelte'
   import { openRef, router } from './router.svelte'
+  import { settingsPanel } from '../pages/settings-section.svelte'
   import { library } from '../lib/library.svelte'
   import { hasSelection } from '../lib/selection'
   import { replay } from '../lib/replay'
@@ -116,7 +117,10 @@
       </button>
       <span class="meta selectable" use:replay={track?.ref}>
         <span class="title" role="link" tabindex="-1" onclick={openPlayer} onkeydown={() => {}}>{track?.title ?? t('Ничего не играет')}</span>
-        {#if player.error}
+        {#if player.fallbackNeeded}
+          <!-- трек сервиса без своего потока (Spotify): понятное состояние, по клику — Настройки → Сервисы -->
+          <button class="artist fallback" title={t('Настройки → Сервисы')} onclick={() => settingsPanel.show('services')}>{t('Нужен резервный сервис')}</button>
+        {:else if player.error}
           <span class="artist err" title={player.error}>{player.error}</span>
         {:else if track}
           <span class="artist">
@@ -419,6 +423,21 @@
   }
   .artist.err {
     color: var(--danger);
+  }
+  .artist.fallback {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    text-align: left;
+    color: var(--text-2);
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    transition: color var(--fast) var(--ease);
+  }
+  .artist.fallback:hover {
+    color: var(--text);
   }
   .center {
     display: flex;

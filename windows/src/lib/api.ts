@@ -147,6 +147,7 @@ export interface ServicesStatus {
   /** YouTube Music: подключён — есть cookie аккаунта (каталог работает и без него). */
   youtube: ServiceStatus
   vk: ServiceStatus
+  spotify: ServiceStatus
 }
 
 /** Строка `services_list`: реестр + состояние подключения (ключи — snake_case, как в Rust). */

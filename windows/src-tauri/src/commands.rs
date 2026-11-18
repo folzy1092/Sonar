@@ -60,6 +60,8 @@ enum KeyCreds {
   /// Cookie music.youtube.com как вставили; разбирает и проверяет `Core::connect_youtube`.
   Yt(String),
   Vk(vk::Creds),
+  /// Cookie `sp_dc` как есть: разбор и проверка — в Core::connect_spotify.
+  Sp(String),
 }
 
 /// Поля формы → ключи сервиса. Нет обязательного поля — пустая строка, её отклонит проверка
@@ -71,6 +73,7 @@ fn key_creds(info: &ServiceInfo, fields: &HashMap<String, String>) -> Res<KeyCre
     ServiceId::Ym => Ok(KeyCreds::Ym(ym_creds(field("token").unwrap_or("")))),
     ServiceId::Yt => Ok(KeyCreds::Yt(field("cookie").unwrap_or("").to_owned())),
     ServiceId::Vk => Ok(KeyCreds::Vk(vk::Creds { token: field("token").unwrap_or("").trim().to_owned() })),
+    ServiceId::Sp => Ok(KeyCreds::Sp(field("sp_dc").unwrap_or("").to_owned())),
     _ => Err(format!("{}: пока не поддерживается", info.name)),
   }
 }
@@ -90,6 +93,7 @@ pub async fn connect_service_key(core: State<'_, Arc<Core>>, service: String, fi
     KeyCreds::Ym(creds) => core.connect_yandex(creds).await,
     KeyCreds::Yt(cookie) => core.connect_youtube(&cookie).await,
     KeyCreds::Vk(creds) => core.connect_vk(creds).await,
+    KeyCreds::Sp(sp_dc) => core.connect_spotify(&sp_dc).await,
   }
   .map_err(err)
 }
@@ -111,6 +115,7 @@ pub async fn login_service(app: tauri::AppHandle, core: State<'_, Arc<Core>>, db
     "soundcloud" => crate::login::soundcloud(app, core).await,
     "youtube" => crate::login::youtube(app, core).await,
     "vk" => crate::login::vk(app, core).await,
+    "spotify" => crate::login::spotify(app, core).await,
     _ => Err(anyhow::anyhow!("Неизвестный сервис: {service}")),
   }
   .map_err(err)
@@ -1430,12 +1435,14 @@ mod tests {
     assert_eq!(c.token, "");
     let KeyCreds::Vk(c) = key_creds(info(ServiceId::Vk), &fields(&[("token", " vk1.a.t \n")])).unwrap() else { panic!("ожидался VK") };
     assert_eq!(c.token, "vk1.a.t");
+    let KeyCreds::Sp(v) = key_creds(info(ServiceId::Sp), &fields(&[("sp_dc", "sp_dc=AQ")])).unwrap() else { panic!("ожидался Spotify") };
+    assert_eq!(v, "sp_dc=AQ");
   }
 
   #[test]
   fn key_creds_unimplemented_service() {
-    let e = key_creds(info(ServiceId::Sp), &fields(&[("token", "SECRET123")])).unwrap_err();
-    assert_eq!(e, "Spotify: пока не поддерживается");
+    let e = key_creds(info(ServiceId::Local), &fields(&[("token", "SECRET123")])).unwrap_err();
+    assert_eq!(e, "Локальные файлы: пока не поддерживается");
   }
 
   #[test]
@@ -1464,7 +1471,8 @@ mod tests {
     let e = core.connect_youtube("SID=SECRET123; HSID=x").await.map_err(err).unwrap_err();
     assert!(!e.contains(secret), "{e}");
     assert_eq!(e, "В cookie нет SAPISID — войди на music.youtube.com и скопируй cookie заново");
-    let e = key_creds(info(ServiceId::Sp), &fields(&[("token", secret)])).unwrap_err();
+    let KeyCreds::Sp(raw) = key_creds(info(ServiceId::Sp), &fields(&[("sp_dc", secret)])).unwrap() else { panic!("ожидался Spotify") };
+    let e = core.connect_spotify(&raw).await.map_err(err).unwrap_err();
     assert!(!e.contains(secret), "{e}");
     let KeyCreds::Vk(creds) = key_creds(info(ServiceId::Vk), &fields(&[("token", " ")])).unwrap() else { panic!("ожидался VK") };
     assert_eq!(core.connect_vk(creds).await.map_err(err).unwrap_err(), "Вставь токен VK");

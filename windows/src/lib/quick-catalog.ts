@@ -100,7 +100,7 @@ export const SETTINGS_KEYWORDS: Readonly<Record<string, readonly string[]>> = {
   view: ['Стиль плеера', 'Визуализатор', 'Аватарки артистов', 'Почему этот трек', 'Позиция обложки'],
   queue: ['Предпросмотр следующего трека', 'Положение очереди', 'Вид очереди', 'Авто похожие'],
   mini: ['Позиция', 'Прогресс', 'Обложка'],
-  services: ['SoundCloud', 'Яндекс Музыка', 'YouTube Music', 'VK Музыка'],
+  services: ['SoundCloud', 'Яндекс Музыка', 'YouTube Music', 'VK Музыка', 'Spotify'],
   apps: ['Discord RPC', 'Last.fm', 'OBS Studio'],
   general: ['Язык', 'Платформа', 'Экономия ресурсов', 'Открывать Sonar при входе в систему'],
   hotkeys: ['Сочетания', 'Быстрое окно'],

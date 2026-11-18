@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
+import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, fallbackSkipPos, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
 
 describe('makeOrder', () => {
   it('без перемешивания — по порядку', () => {
@@ -9,6 +9,21 @@ describe('makeOrder', () => {
     const order = makeOrder(6, 3, true, () => 0.42)
     expect(order[0]).toBe(3)
     expect([...order].sort()).toEqual([0, 1, 2, 3, 4, 5])
+  })
+})
+
+describe('fallbackSkipPos', () => {
+  it('пропускает трек без потока дальше по очереди, повтор одного не держит', () => {
+    expect(fallbackSkipPos(0, 3, 'off', 1)).toBe(1)
+    expect(fallbackSkipPos(0, 3, 'one', 1)).toBe(1)
+  })
+  it('конец очереди без повтора — стоп', () => {
+    expect(fallbackSkipPos(2, 3, 'off', 1)).toBeNull()
+  })
+  it('вся очередь без потока при повторе всех — стоп, а не круг', () => {
+    expect(fallbackSkipPos(2, 3, 'all', 1)).toBe(0)
+    expect(fallbackSkipPos(0, 3, 'all', 3)).toBeNull()
+    expect(fallbackSkipPos(0, 1, 'all', 1)).toBeNull()
   })
 })
 

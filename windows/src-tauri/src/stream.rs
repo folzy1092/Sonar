@@ -188,6 +188,32 @@ fn serve_cached(path: &std::path::Path, mime: &str, total: u64, range: Option<&H
   cors(r)
 }
 
+/// Трек из памяти (Spotify через librespot) с поддержкой Range.
+#[cfg(feature = "spotify-playback")]
+fn serve_bytes(bytes: std::sync::Arc<Vec<u8>>, mime: &'static str, range: Option<&HeaderValue>) -> Response<Body> {
+  let total = bytes.len() as u64;
+  let asked = range.and_then(|h| h.to_str().ok());
+  let (start, end, partial) = match track_cache::parse_range(asked, total) {
+    Some((a, b)) => (a, b.min(total.saturating_sub(1)), true),
+    None if asked.is_some() => return plain(StatusCode::RANGE_NOT_SATISFIABLE, ""),
+    None => (0, total.saturating_sub(1), false),
+  };
+  let data = bytes.get(start as usize..=end as usize).unwrap_or_default().to_vec();
+  let len = data.len() as u64;
+  let mut r = Response::new(Body::from(data));
+  let h = r.headers_mut();
+  h.insert(header::CONTENT_TYPE, HeaderValue::from_static(mime));
+  h.insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+  h.insert(header::CONTENT_LENGTH, HeaderValue::from(len));
+  if partial {
+    if let Ok(v) = HeaderValue::from_str(&format!("bytes {start}-{end}/{total}")) {
+      h.insert(header::CONTENT_RANGE, v);
+    }
+    *r.status_mut() = StatusCode::PARTIAL_CONTENT;
+  }
+  cors(r)
+}
+
 /// Как `proxy`, но если ответ — весь файл с начала, тело по пути пишется в кэш треков.
 async fn proxy_cached(core: &Core, url: &str, range: Option<&HeaderValue>, track_ref: &str) -> Result<Response<Body>, reqwest::Error> {
   let mut req = core.http.get(url).header("User-Agent", ua_for(url));
@@ -412,6 +438,13 @@ async fn file(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>, headers:
         return plain(StatusCode::BAD_GATEWAY, e.to_string());
       }
     };
+    #[cfg(feature = "spotify-playback")]
+    if let Some(id) = url.strip_prefix(crate::spotify_play::SCHEME) {
+      return match core.spotify_ogg(id).await {
+        Ok((bytes, _)) => serve_bytes(bytes, "audio/ogg", range),
+        Err(e) => plain(StatusCode::BAD_GATEWAY, e.to_string()),
+      };
+    }
     let res = if gvideo::is_gvideo(&url) {
       Ok(serve_gvideo(&core, &url, range, &q.ref_).await)
     } else if track_cache::enabled() && from_start {
@@ -541,6 +574,10 @@ pub fn cover_host_allowed(u: &str) -> bool {
           || yt_cover_host(h)
           || is_vk_host(h)
           || h.ends_with(".vkuserphoto.ru")
+          // обложки и аватары Spotify
+          || h == "i.scdn.co"
+          || h == "mosaic.scdn.co"
+          || h.ends_with(".spotifycdn.com")
       })
     })
     .unwrap_or(false)
@@ -811,6 +848,15 @@ mod tests {
     assert_eq!(lines[3], "/seg?u=https%3A%2F%2Fcs1-2v4.vkuseraudio.net%2Fs%2Fv1%2Fac%2Fabc%2Fseg-1-a1.ts%3Fsiren%3D1");
     assert_eq!(lines[4], "#EXT-X-KEY:METHOD=NONE");
     assert!(lines.iter().filter(|l| !l.starts_with('#')).all(|l| seg_host_allowed(&urlencoding::decode(l.trim_start_matches("/seg?u=")).unwrap())));
+
+  }
+
+  #[test]
+  fn spotify_cover_hosts() {
+    assert!(cover_host_allowed("https://i.scdn.co/image/ab67616d0000b273"));
+    assert!(cover_host_allowed("https://mosaic.scdn.co/640/ab67616d"));
+    assert!(cover_host_allowed("https://image-cdn-ak.spotifycdn.com/image/ab67"));
+    assert!(!cover_host_allowed("https://i.scdn.co.evil.com/x"));
   }
 
   #[test]

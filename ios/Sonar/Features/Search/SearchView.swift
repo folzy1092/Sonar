@@ -1,7 +1,8 @@
 import SwiftUI
 import UIKit
 
-/// Поиск (`IMG_6767`): поле-капсула, справа круг сервиса (SoundCloud → Яндекс → YouTube Music) и круг «ссылка из буфера»;
+/// Поиск (`IMG_6767`): поле-капсула, справа круг сервиса (SoundCloud → Яндекс → YouTube Music → VK → Spotify, если
+/// подключён) и круг «ссылка из буфера»;
 /// чипы Всё · Треки · Альбомы · Артисты · Плейлисты. Пустой запрос — «Недавнее» (история поиска, по
 /// одному убирается ✕, «Очистить» — всё). Ссылка SoundCloud / Яндекса — сразу карточка «что за ней».
 struct SearchView: View {
@@ -12,6 +13,38 @@ struct SearchView: View {
         case artists = "Артисты"
         case playlists = "Плейлисты"
         var id: String { rawValue }
+    }
+
+    /// Где искать. Сырые значения SoundCloud, Яндекса, YouTube Music и VK — как у `Service` (настройка
+    /// `search.source`), Spotify — только метаданные: найденный трек сыграет резервный сервис.
+    enum Source: String, Sendable {
+        case soundcloud
+        case yandex
+        case youtube
+        case vk
+        case spotify
+
+        /// Свой клиент в `MusicCore`; у Spotify — `SpotifyCore`, поэтому nil.
+        var service: Service? { Service(rawValue: rawValue) }
+
+        var title: String { service?.title ?? ServiceRegistry.info(.sp).name }
+
+        /// Буква поверх круга, если своего значка нет.
+        var badge: String? {
+            guard let service else { return "S" }
+            return service.mark
+        }
+
+        /// Следующий по кругу (SoundCloud → Яндекс → YouTube Music → VK → Spotify); Spotify — только подключённый.
+        func next(spotifyConnected: Bool) -> Source {
+            switch self {
+            case .soundcloud: .yandex
+            case .yandex: .youtube
+            case .youtube: .vk
+            case .vk: spotifyConnected ? .spotify : .soundcloud
+            case .spotify: .soundcloud
+            }
+        }
     }
 
     @Environment(PlaybackEngine.self) private var engine
@@ -29,7 +62,7 @@ struct SearchView: View {
     @State private var task: Task<Void, Never>?
     @FocusState private var focused: Bool
 
-    private var source: Service { Service(rawValue: sourceRaw) ?? .soundcloud }
+    private var source: Source { Source(rawValue: sourceRaw) ?? .soundcloud }
 
     /// Значок круга сервиса: у Яндекса и VK своего нет — поверх рисуется буква.
     private var sourceIcon: IconName {
@@ -37,7 +70,7 @@ struct SearchView: View {
         case .soundcloud: .soundcloud
         case .yandex: .music
         case .youtube: .youtubeMusic
-        case .vk: .music
+        case .vk, .spotify: .music
         }
     }
 
@@ -50,12 +83,15 @@ struct SearchView: View {
             HStack(spacing: 12) {
                 field
                 CircleButton(icon: sourceIcon, label: "Искать в: \(source.title)") {
-                    sourceRaw = source.next.rawValue
-                    router.say("Ищу в \(source.title)")
+                    Task {
+                        let connected = await SpotifyCore.shared.account != nil
+                        sourceRaw = source.next(spotifyConnected: connected).rawValue
+                        router.say("Ищу в \(source.title)")
+                    }
                 }
                 .overlay {
-                    if let mark = source.mark {
-                        Text(mark)
+                    if let badge = source.badge {
+                        Text(badge)
                             .font(.system(size: 20, weight: .heavy))
                             .foregroundStyle(Theme.text)
                             .frame(width: 52, height: 52)
@@ -430,8 +466,8 @@ struct SearchView: View {
                     more = SearchResults()
                     if case let .track(track) = item { tracks = [track] } else { tracks = [] }
                 } else {
-                    async let found = MusicCore.shared.search(text, in: service)
-                    async let extra: SearchResults? = wantsMore ? (try? await MusicCore.shared.searchMore(text, in: service)) : nil
+                    async let found = Self.findTracks(text, in: service)
+                    async let extra: SearchResults? = wantsMore ? (try? await Self.findMore(text, in: service)) : nil
                     let list = try await found
                     let rest = await extra
                     guard !Task.isCancelled else { return }
@@ -448,6 +484,16 @@ struct SearchView: View {
                 self.error = error.localizedDescription
             }
         }
+    }
+
+    private static func findTracks(_ text: String, in source: Source) async throws -> [Track] {
+        if let service = source.service { return try await MusicCore.shared.search(text, in: service) }
+        return try await SpotifyCore.shared.search(text)
+    }
+
+    private static func findMore(_ text: String, in source: Source) async throws -> SearchResults {
+        if let service = source.service { return try await MusicCore.shared.searchMore(text, in: service) }
+        return try await SpotifyCore.shared.searchMore(text)
     }
 }
 

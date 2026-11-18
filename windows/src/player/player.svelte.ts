@@ -10,11 +10,13 @@ import { Leveler } from './leveler'
 import { Effects } from './effects'
 import { pitchRatio, tempo } from './tempo.svelte'
 import { settings } from '../lib/settings.svelte'
+import { isFallbackError } from '../lib/services'
 import { t } from '../lib/i18n.svelte'
 import { playableQueue } from '../lib/local'
 import { isLocalRef } from '../lib/services'
 import { Clock } from '../lyrics/core/clock'
-import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
+import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, fallbackSkipPos, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
+import { toast } from '../lib/toast.svelte'
 
 
 const HEARTBEAT_MS = 30_000
@@ -56,6 +58,8 @@ class Player {
     if (p >= 1) this.loadDone = setTimeout(() => (this.loadProgress = null), 250)
   }
   error = $state<string | null>(null)
+  /** Сервис трека сам не играет (Spotify без Premium) — нужен резервный сервис, не сбой. */
+  fallbackNeeded = $state(false)
   positionMs = $state(0)
   durationMs = $state(0)
   /** Реальный формат потока для плашки: «AAC 160», «MP3 320», «FLAC». */
@@ -512,8 +516,9 @@ class Player {
     this.effects?.setReverb(tempo.wet)
   }
 
-  /** `crossfade` — зовёт кроссфейд: старый дек ещё затухает, громкость нового выставит сам переход. */
-  private async load(autoplay: boolean, startMs = 0, crossfade = false) {
+  /** `crossfade` — зовёт кроссфейд: старый дек ещё затухает, громкость нового выставит сам переход.
+   *  `fallbackSkips` — сколько треков подряд уже пропущено из-за «нужен резервный сервис». */
+  private async load(autoplay: boolean, startMs = 0, crossfade = false, fallbackSkips = 0) {
     if (!crossfade) {
       this.endFade()
       this.gainTo(this.audio, 1, 0)
@@ -526,6 +531,7 @@ class Player {
     const token = ++this.loadToken
     this.ended = false
     this.error = null
+    this.fallbackNeeded = false
     this.loading = true
     this.stage(0)
     this.durationMs = track.duration_ms
@@ -568,6 +574,8 @@ class Player {
       this.saveState()
     } catch (e) {
       if (token !== this.loadToken) return
+      if (isFallbackError(track.ref, e) && this.skipFallback(autoplay, fallbackSkips + 1)) return
+      this.fallbackNeeded = isFallbackError(track.ref, e)
       this.onError(errorText(e))
       // файл с компьютера пропал уже в очереди — дальше, а не стоп; круг без живых треков не крутим
       if (autoplay && isLocalRef(track.ref) && ++this.localMisses < this.order.length) void this.next(false)
@@ -576,6 +584,18 @@ class Player {
 
   /** Сколько пропавших файлов с компьютера подряд пропущено — чтобы не ходить по кругу. */
   private localMisses = 0
+
+  /** Трек сам не играет (нужен резервный сервис) — не стоп, а следующий по очереди. Вся очередь
+   *  такая — `false`: остаётся понятное состояние «нужен резервный сервис» в мини-плеере. */
+  private skipFallback(autoplay: boolean, skips: number): boolean {
+    if (!autoplay) return false
+    const p = fallbackSkipPos(this.pos, this.order.length, this.repeat, skips)
+    if (p === null) return false
+    toast.show(t('Нужен резервный сервис — трек пропущен'))
+    this.pos = p
+    void this.load(true, 0, false, skips)
+    return true
+  }
 
   private onTime() {
     const a = this.audio!
