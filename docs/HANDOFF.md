@@ -359,6 +359,10 @@ Spotify, резерв. Логи CI без входа в GitHub не видны: 
 - (добавлены владельцем 2026-11-16) `SONAR_REPORT_BOT_TOKEN`, `SONAR_REPORT_CHAT`, `SONAR_REPORT_THREAD` — отдельный бот отчётов
   (не @SonarMusicApp), админ лог-группы, тема «Sonar ошибки». Без них «Отправить лог» кладёт файл в «Загрузки».
 - `SONAR_LASTFM_KEY`, `SONAR_LASTFM_SECRET` — больше не нужны (Last.fm убран 2026-11-18), владелец может удалить.
+- **История Last.fm — до 1 декабря** (ключа API у владельца нет): listenbrainz.org → Settings → Import →
+  Last.fm, ник Last.fm, «Start Import From» пустое; когда импорт дойдёт до конца —
+  `python3 server/tools/export_listenbrainz.py` (ник ListenBrainz скрытым вводом) →
+  `server/data/listenbrainz-export.jsonl`. Подробно — `docs/LASTFM_EXIT.md` п. 1.
 
 ## 3. Не проверено вживую (Sonar владельца был запущен, второе окно не открыть)
 
