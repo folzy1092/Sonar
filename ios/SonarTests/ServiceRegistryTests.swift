@@ -22,7 +22,7 @@ final class ServiceRegistryTests: XCTestCase {
         Row(id: .yt, key: "youtube", name: "YouTube Music", color: "#FF0033", icon: "youtube-music.svg", iconMono: "youtube-music-mono.svg",
             prefixes: ServicePrefixes(track: "yt", album: "ytalb", artist: "yta", playlist: "ytpl"), implemented: false),
         Row(id: .vk, key: "vk", name: "VK Музыка", color: "#0077FF", icon: "vk.svg", iconMono: "vk-mono.svg",
-            prefixes: ServicePrefixes(track: "vk", album: "vkalb", artist: "vka", playlist: "vkpl"), implemented: false),
+            prefixes: ServicePrefixes(track: "vk", album: "vkalb", artist: "vka", playlist: "vkpl"), implemented: true),
         Row(id: .sp, key: "spotify", name: "Spotify", color: "#1ED760", icon: "spotify.svg", iconMono: "spotify-mono.svg",
             prefixes: ServicePrefixes(track: "sp", album: "spalb", artist: "spa", playlist: "sppl"), implemented: false),
         Row(id: .local, key: "local", name: "Локальные файлы", color: "#8E8E93", icon: nil, iconMono: nil,
@@ -48,7 +48,7 @@ final class ServiceRegistryTests: XCTestCase {
         XCTAssertFalse(spotify.key)
         let local = ServiceRegistry.info(.local).caps
         XCTAssertEqual(local, ServiceCaps(search: false, stream: true, library: true, playlists: false, similar: false, login: false, key: false))
-        XCTAssertEqual(ServiceRegistry.implemented.map(\.id), [.sc, .ym])
+        XCTAssertEqual(ServiceRegistry.implemented.map(\.id), [.sc, .ym, .vk])
     }
 
     func testPrefixesUnique() {
@@ -69,6 +69,10 @@ final class ServiceRegistryTests: XCTestCase {
             ("ymalb:5", .ym, .album),
             ("yma:1", .ym, .artist),
             ("yt:abc", .yt, .track),
+            ("vk:-2001_456", .vk, .track),
+            ("vkalb:-2000111_77_k9", .vk, .album),
+            ("vka:123", .vk, .artist),
+            ("vkpl:likes", .vk, .playlist),
             ("local:abc", .local, .track),
             ("pl_x", nil, nil),
             ("similar:sc:1", nil, nil),
@@ -108,7 +112,11 @@ final class ServiceRegistryTests: XCTestCase {
         XCTAssertNil(Service(ref: "pl_x"))
         XCTAssertEqual(Service(id: .sc), .soundcloud)
         XCTAssertEqual(Service(id: .ym), .yandex)
-        XCTAssertNil(Service(id: .vk))
+        XCTAssertEqual(Service(id: .vk), .vk)
+        XCTAssertNil(Service(id: .yt))
+        XCTAssertEqual(Service(ref: "vkpl:1_2"), .vk)
+        XCTAssertEqual(Service.vk.info.key, "vk")
+        XCTAssertEqual(Service.vk.title, "VK Музыка")
         XCTAssertEqual(Service.soundcloud.id, .sc)
         XCTAssertEqual(Service.yandex.info.key, "yandex")
         XCTAssertEqual(Service.soundcloud.title, "SoundCloud")
@@ -122,12 +130,16 @@ final class ServiceRegistryTests: XCTestCase {
         XCTAssertEqual(track.mainArtistRef, "yma:5")
         track.artists = [ArtistRef(ref: "yta:1", name: "A")]
         XCTAssertNil(track.mainArtistRef)
+        track.artists = [ArtistRef(ref: "vka:9", name: "A")]
+        XCTAssertEqual(track.mainArtistRef, "vka:9")
     }
 
     func testAllCasesUnchanged() {
-        XCTAssertEqual(Service.allCases, [.soundcloud, .yandex])
+        XCTAssertEqual(Service.allCases, [.soundcloud, .yandex, .vk])
         XCTAssertEqual(Service.soundcloud.rawValue, "soundcloud")
         XCTAssertEqual(Service.yandex.rawValue, "yandex")
+        // сырое значение — имя в Keychain и настройках, как key реестра
+        XCTAssertEqual(Service.allCases.map(\.rawValue), Service.allCases.map(\.info.key))
     }
 
     func testServiceAccountDecodesWithoutPremium() throws {

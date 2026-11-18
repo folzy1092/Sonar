@@ -27,12 +27,14 @@ struct LibraryView: View {
         case all = "Все сервисы"
         case soundcloud = "SoundCloud"
         case yandex = "Яндекс Музыка"
+        case vk = "VK Музыка"
 
         func keeps(_ ref: String) -> Bool {
             switch self {
             case .all: true
             case .soundcloud: ServiceRegistry.service(of: ref) == .sc
             case .yandex: ServiceRegistry.service(of: ref) == .ym
+            case .vk: ServiceRegistry.service(of: ref) == .vk
             }
         }
     }
