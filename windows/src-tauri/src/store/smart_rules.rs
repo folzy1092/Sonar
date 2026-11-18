@@ -157,25 +157,24 @@ impl History {
 }
 
 impl Rules {
-  /// Проверка перед сохранением: понятная причина вместо молча пустого плейлиста.
+  /// Проверка перед сохранением: понятная причина вместо молча пустого плейлиста. Причина — ключ строки
+  /// для `t()` на клиенте, те же, что у `rulesProblem` в lib/smart.ts.
   pub fn validate(&self) -> Result<(), String> {
     if self.v != RULES_VERSION {
-      return Err(format!("неизвестная версия правил: {}", self.v));
+      return Err("Правила из новой версии Sonar".into());
     }
     if let Source::Playlist { id } = &self.source {
       if id.trim().is_empty() {
-        return Err("не выбран плейлист".into());
+        return Err("Выбери плейлист".into());
       }
     }
     if self.conditions.len() > MAX_CONDITIONS {
-      return Err(format!("условий больше {MAX_CONDITIONS}"));
+      return Err("Слишком много условий".into());
     }
     for c in &self.conditions {
       match c {
-        Condition::Service { value, .. } if !is_service(value) => {
-          return Err(format!("неизвестный сервис: {value}"));
-        }
-        Condition::Artist { value, .. } if value.trim().is_empty() => return Err("не указан исполнитель".into()),
+        Condition::Service { value, .. } if !is_service(value) => return Err("Выбери сервис".into()),
+        Condition::Artist { value, .. } if value.trim().is_empty() => return Err("Впиши исполнителя".into()),
         _ => {}
       }
     }
@@ -399,14 +398,20 @@ mod tests {
   #[test]
   fn validate_rejects_bad_rules() {
     assert!(rules(r#"{"v":1,"source":{"kind":"liked"}}"#).validate().is_ok());
-    assert!(rules(r#"{"v":2,"source":{"kind":"liked"}}"#).validate().is_err());
-    assert!(rules(r#"{"v":1,"source":{"kind":"playlist","id":" "}}"#).validate().is_err());
+    let err = |json: &str| rules(json).validate().unwrap_err();
+    assert_eq!(err(r#"{"v":2,"source":{"kind":"liked"}}"#), "Правила из новой версии Sonar");
+    assert_eq!(err(r#"{"v":1,"source":{"kind":"playlist","id":" "}}"#), "Выбери плейлист");
     for bad in ["zz", "sca", ""] {
       let svc = format!(r#"{{"v":1,"source":{{"kind":"liked"}},"conditions":[{{"field":"service","op":"is","value":"{bad}"}}]}}"#);
-      assert!(rules(&svc).validate().is_err(), "{bad}");
+      assert_eq!(err(&svc), "Выбери сервис", "{bad}");
     }
     let artist = r#"{"v":1,"source":{"kind":"liked"},"conditions":[{"field":"artist","op":"is","value":""}]}"#;
-    assert!(rules(artist).validate().is_err());
+    assert_eq!(err(artist), "Впиши исполнителя");
+    let many = format!(
+      r#"{{"v":1,"source":{{"kind":"liked"}},"conditions":[{}]}}"#,
+      vec![r#"{"field":"added","days":1}"#; MAX_CONDITIONS + 1].join(",")
+    );
+    assert_eq!(err(&many), "Слишком много условий");
     let unknown = r#"{"v":1,"source":{"kind":"liked"},"conditions":[{"field":"mood","value":1}]}"#;
     assert!(serde_json::from_str::<Rules>(unknown).is_err());
   }

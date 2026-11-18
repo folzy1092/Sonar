@@ -215,7 +215,7 @@ impl Store {
 
 fn found(changed: usize) -> Result<()> {
   if changed == 0 {
-    anyhow::bail!("умный плейлист не найден");
+    anyhow::bail!("Умный плейлист не найден");
   }
   Ok(())
 }

@@ -50,18 +50,22 @@
     return n ? `${from} · ${n} ${tn(n, ['условие', 'условия', 'условий'])}` : from
   })
 
+  // номер загрузки: ответ старого пересчёта, пришедший после нового, не затирает свежий
+  let loadSeq = 0
   async function load() {
+    const seq = ++loadSeq
     error = null
     try {
-      data = await api.smartPlaylist(id)
+      const next = await api.smartPlaylist(id)
+      if (seq === loadSeq) data = next
     } catch (e) {
-      error = errorText(e)
+      if (seq === loadSeq) error = errorText(e)
     } finally {
-      loading = false
+      if (seq === loadSeq) loading = false
     }
   }
 
-  // пересчёт после любой правки медиатеки: лайк, новое прослушивание, правка правил
+  // пересчёт при открытии и после правки медиатеки (лайк, плейлист, правила умного плейлиста)
   $effect(() => {
     library.version
     void load()

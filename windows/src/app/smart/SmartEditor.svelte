@@ -53,10 +53,16 @@
     if (condKeys.length !== n) condKeys = Array.from({ length: n }, (_, i) => condKeys[i] ?? ++keySeq)
   })
 
-  // живой предпросмотр: правила поменялись — пересчитать через паузу
+  // живой предпросмотр: правила поменялись — пересчитать через паузу; ответ на старые правила,
+  // пришедший позже нового, не показываем (номер запроса)
+  let previewSeq = 0
   $effect(() => {
     const d = smartLists.draft
-    if (!d) return
+    const seq = ++previewSeq
+    if (!d) {
+      preview = null
+      return
+    }
     const rules = normalizeRules(d.rules)
     if (rulesProblem(rules, serviceIds)) {
       preview = null
@@ -64,9 +70,10 @@
     }
     const timer = setTimeout(async () => {
       try {
-        preview = await api.smartPreview(rules)
+        const next = await api.smartPreview(rules)
+        if (seq === previewSeq) preview = next
       } catch {
-        preview = null
+        if (seq === previewSeq) preview = null
       }
     }, PREVIEW_DELAY_MS)
     return () => clearTimeout(timer)
