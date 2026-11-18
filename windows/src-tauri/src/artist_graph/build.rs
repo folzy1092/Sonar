@@ -2,7 +2,7 @@
 //! прослушиваний (плюс «неоткрытые» соседи снаружи), рёбра — фиты, подписки SoundCloud, общие
 //! соавторы и «похожие» сервиса. Веса логарифмические: десятый фит весит не в десять раз больше первого.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde::Serialize;
 
