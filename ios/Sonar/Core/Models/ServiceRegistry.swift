@@ -137,4 +137,13 @@ enum ServiceRegistry {
     static var implemented: [ServiceInfo] {
         all.filter(\.implemented)
     }
+
+    /// Лучший звук — первым: кого оставить среди дублей (`DupeFinder`). Тот же порядок — `QUALITY_ORDER`
+    /// в `providers/registry.rs`: Яндекс (FLAC) > свой файл > Spotify > VK > YouTube Music > SoundCloud.
+    static let qualityOrder: [ServiceID] = [.ym, .local, .sp, .vk, .yt, .sc]
+
+    /// Место трека по качеству звука: меньше — лучше; ref без сервиса — последним.
+    static func qualityRank(_ ref: String) -> Int {
+        service(of: ref).flatMap { qualityOrder.firstIndex(of: $0) } ?? qualityOrder.count
+    }
 }
