@@ -81,6 +81,8 @@ export const DEFAULTS = {
   'storage.cache_limit_mb': 2048 as number,
   /** Волна офлайн: следующие 15 треков «Моей волны» заранее скачиваются в кэш треков. */
   'storage.wave_offline': false,
+  /** Папки с музыкой на этом компьютере (local/, «На этом компьютере» в Медиатеке). */
+  'storage.music_folders': [] as string[],
   'audio.output_device': '' as string,
   /** Нормализация громкости (player/leveler.ts) — выравнивание тихих и громких треков. */
   'audio.normalize': false,

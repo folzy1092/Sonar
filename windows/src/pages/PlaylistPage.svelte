@@ -3,12 +3,13 @@
   import { cascade } from '../lib/cascade'
   // Плейлист / Любимые (pc/Screenshot_28). Параметр роутера:
   //   favorites — свои лайки; pl_… — плейлист Sonar (правка, скрыть, удалить, порядок перетаскиванием);
-  //   scpl:… / ympl:… — плейлист сервиса «фантомом», с кнопкой «Перенести в Sonar».
+  //   scpl:… / ympl:… — плейлист сервиса «фантомом», с кнопкой «Перенести в Sonar»;
+  //   local — файлы из «Папок с музыкой» (Система → Хранилище), обновляется сам после скана.
   import CollectionHeader from '../components/CollectionHeader.svelte'
   import EmptyState from '../components/EmptyState.svelte'
   import Icon from '../components/Icon.svelte'
   import TrackRow from '../components/TrackRow.svelte'
-  import { api, errorText, type ListTrack, type Track } from '../lib/api'
+  import { api, errorText, onLocalFilesChanged, type ListTrack, type Track } from '../lib/api'
   import { durationText, tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
   import { toast } from '../lib/toast.svelte'
@@ -16,13 +17,16 @@
   import { player } from '../player/player.svelte'
   import { t } from '../lib/i18n.svelte'
   import { byId, serviceOf } from '../lib/services'
+  import { settingsPanel } from './settings-section.svelte'
+  import { onDestroy } from 'svelte'
 
   const id = router.param ?? 'favorites'
-  const kind: 'favorites' | 'own' | 'service' = id === 'favorites' ? 'favorites' : id.startsWith('pl_') ? 'own' : 'service'
+  const kind: 'favorites' | 'own' | 'service' | 'local' =
+    id === 'favorites' ? 'favorites' : id === 'local' ? 'local' : id.startsWith('pl_') ? 'own' : 'service'
 
-  let title = $state(kind === 'favorites' ? 'Любимые' : '')
-  /** Заголовок на экране: «Любимые» переводятся на лету, остальное — название как есть. */
-  const heading = $derived(kind === 'favorites' ? t('Любимые') : title)
+  let title = $state('')
+  /** Заголовок на экране: «Любимые» и «На этом компьютере» переводятся на лету, остальное — как есть. */
+  const heading = $derived(kind === 'favorites' ? t('Любимые') : kind === 'local' ? t('На этом компьютере') : title)
   let owner = $state('')
   let covers = $state<string[]>([])
   let image = $state<string | null>(null)
@@ -32,7 +36,7 @@
   let error = $state<string | null>(null)
 
   const sorts = [
-    { id: 'custom', label: kind === 'favorites' ? 'Сначала новые' : 'По порядку' },
+    { id: 'custom', label: kind === 'favorites' ? 'Сначала новые' : kind === 'local' ? 'По исполнителю' : 'По порядку' },
     { id: 'title', label: 'По названию' },
     { id: 'artist', label: 'По исполнителю' },
     { id: 'duration', label: 'По длительности' },
@@ -54,7 +58,7 @@
     return list
   })
   const total = $derived(items.reduce((s, t) => s + t.duration_ms, 0))
-  const context = kind === 'favorites' ? 'favorites' : `playlist:${id}`
+  const context = kind === 'favorites' ? 'favorites' : kind === 'local' ? 'local' : `playlist:${id}`
   const canReorder = $derived(kind === 'own' && sort.id === 'custom' && !filter.trim())
 
   async function load() {
@@ -63,6 +67,9 @@
       if (kind === 'favorites') {
         items = await api.favorites()
         covers = []
+      } else if (kind === 'local') {
+        items = await api.localTracks()
+        covers = [...new Set(items.flatMap((x) => (x.cover_url ? [x.cover_url] : [])))].slice(0, 4)
       } else if (kind === 'own') {
         const p = await api.playlist(id)
         title = p.name
@@ -90,6 +97,8 @@
     void load()
   })
   if (kind === 'service') void load()
+  // локальные — заново после скана папок (новый файл, правка тегов, удаление)
+  if (kind === 'local') onDestroy(onLocalFilesChanged(() => void load()))
 
   const play = (i: number) => player.playList(visible, i, context, heading)
 
@@ -172,7 +181,7 @@
   title={heading}
   {image}
   {covers}
-  icon={kind === 'favorites' ? 'heart' : 'music'}
+  icon={kind === 'favorites' ? 'heart' : kind === 'local' ? 'monitor' : 'music'}
   meta={loading ? '' : `${tracksText(items.length)}${items.length ? `, ${durationText(total)}` : ''}`}
   disabled={!visible.length}
   onplay={() => play(0)}
@@ -181,6 +190,7 @@
 >
   {#snippet subtitle()}
     {#if kind === 'favorites'}{t('Лайкнутые треки')}
+    {:else if kind === 'local'}{t('Папки с музыкой')}
     {:else if kind === 'own'}{t('Плейлист Sonar')}{#if hidden} · {t('скрыт')}{/if}
     {:else}{owner ? `${owner} · ` : ''}{t(byId(serviceOf(id))?.name ?? 'Яндекс Музыка')}{/if}
   {/snippet}
@@ -188,6 +198,10 @@
     {#if kind === 'service'}
       <button class="tool" disabled={importing || !items.length} onclick={importToSonar}>
         <Icon name="download" size={16} /> {importing ? t('Переношу…') : t('Перенести в Sonar')}
+      </button>
+    {:else if kind === 'local'}
+      <button class="tool" onclick={() => settingsPanel.show('system', 'storage')}>
+        <Icon name="library" size={16} /> {t('Папки')}
       </button>
     {/if}
   {/snippet}
@@ -229,9 +243,13 @@
     <div class="skeleton">{#each { length: 8 } as _, i (i)}<div class="sk"></div>{/each}</div>
   {:else if !items.length}
     <EmptyState
-      icon={kind === 'favorites' ? 'heart' : 'music'}
+      icon={kind === 'favorites' ? 'heart' : kind === 'local' ? 'monitor' : 'music'}
       title={t('Пока пусто')}
-      text={kind === 'favorites' ? t('Нажми на сердце у трека — он появится здесь.') : t('Добавляй треки через меню трека: «Добавить в плейлист».')}
+      text={kind === 'favorites'
+        ? t('Нажми на сердце у трека — он появится здесь.')
+        : kind === 'local'
+          ? t('Добавь папку с музыкой в Настройках → Хранилище — mp3, flac, m4a, ogg, opus и wav появятся здесь.')
+          : t('Добавляй треки через меню трека: «Добавить в плейлист».')}
     />
   {:else if !visible.length}
     <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('В «{title}» нет «{query}».', { title: heading, query: filter.trim() })} />

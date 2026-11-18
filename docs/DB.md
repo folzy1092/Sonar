@@ -276,6 +276,23 @@ CREATE TABLE sync_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 -- Пришедшее с сервера пишется с rev = 0 (обратно не едет); своё неотправленное изменение строки
 -- пришедшее не перезаписывает.
 
+-- только клиент (Windows, миграция № 10): локальные файлы — «Папки с музыкой» (NEXT_PROMPT этап 10).
+-- Только на этом устройстве, в синк не идёт; лайки и плейлисты хранят обычный ref.
+CREATE TABLE local_files (
+  ref           TEXT PRIMARY KEY,               -- local:<sha1 пути> — стабилен, пока файл лежит на месте
+  path          TEXT UNIQUE NOT NULL,           -- полный путь файла
+  mtime         INTEGER NOT NULL,               -- время изменения, мс; вместе с size решает, читать ли теги заново
+  size          INTEGER NOT NULL,
+  title         TEXT NOT NULL,                  -- из тегов (lofty), иначе из имени «Исполнитель - Название»
+  artist        TEXT NOT NULL,                  -- пусто — «Неизвестный исполнитель»
+  album         TEXT,
+  duration_ms   INTEGER NOT NULL,
+  cover_path    TEXT                            -- кэш обложек: covers/local-<sha1 картинки>.<ext>
+);
+-- Скан пишет и метаданные в tracks (Любимые и плейлисты видят новые теги). Папка, которой сейчас нет
+-- (флешка), строк не теряет — трек приходит с available = false («Файл не найден»); убранная из
+-- storage.music_folders папка — строки удаляются, неиспользуемые обложки local-* чистятся.
+
 -- Быстрые ссылки входа и репорты — схема в BOT.md §6 (auth_links, reports)
 
 -- Статус (SPEC §3.11), только на сервере

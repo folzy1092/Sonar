@@ -5,6 +5,9 @@
 //! - `/seg?u=…` — кусок HLS с CDN SoundCloud (`*.sndcdn.com`, `*.soundcloud.cloud`).
 //! - `/cover?u=…` — обложка с CDN SoundCloud/Яндекса с кэшем на диске (`<кэш>/covers`) и CORS —
 //!   из неё интерфейс берёт цвет темы (SPEC §4.4); размер и очистка — экран «Хранилище».
+//!
+//! Локальные файлы (`local:<sha1>`): `/file` отдаёт файл с диска с Range, но только из индекса
+//! `Core::local` (копия таблицы `local_files`); `/cover` — их обложки `sonarcover://…` из кэша обложек.
 //! Кэш треков (`track_cache.rs`): трек на диске — `/file` отдаёт его с диска (Range — кусками);
 //! файл, прочитанный с начала до конца, ложится в кэш на лету; HLS — фоновая загрузка и склейка.
 
@@ -211,6 +214,10 @@ pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
     if PREFETCH_GEN.load(Ordering::SeqCst) != ticket || !track_cache::enabled() {
       return;
     }
+    // локальный файл и так на диске
+    if crate::local::is_local_ref(&r) {
+      continue;
+    }
     if !track_cache::claim(&r) {
       continue;
     }
@@ -256,8 +263,20 @@ pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
   }
 }
 
+/// Локальный файл: путь — только из индекса, ref из запроса путём не становится.
+fn local_file(core: &Core, r: &str, range: Option<&HeaderValue>) -> Response<Body> {
+  let Some(path) = core.local.get(r) else { return plain(StatusCode::NOT_FOUND, "Файл не найден") };
+  match std::fs::metadata(&path) {
+    Ok(m) if m.is_file() => serve_cached(&path, crate::local::audio_mime(&path), m.len(), range),
+    _ => plain(StatusCode::NOT_FOUND, "Файл не найден"),
+  }
+}
+
 async fn file(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>, headers: HeaderMap) -> Response<Body> {
   let range = headers.get(header::RANGE);
+  if crate::local::is_local_ref(&q.ref_) {
+    return local_file(&core, &q.ref_, range);
+  }
   // трек уже на диске — без сети
   if let Some((path, mime, total)) = track_cache::lookup(&q.ref_) {
     return serve_cached(&path, &mime, total, range);
@@ -336,7 +355,22 @@ pub fn cover_host_allowed(u: &str) -> bool {
     .unwrap_or(false)
 }
 
+/// Обложка локального файла (`sonarcover://…/local-<sha1>.<ext>`) — из кэша обложек.
+fn local_cover(name: &str) -> Response<Body> {
+  match cover_dir().and_then(|d| crate::local::read_cover(d, name)) {
+    Some((bytes, mime)) => {
+      let mut r = Response::new(Body::from(bytes));
+      r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static(mime));
+      cors(r)
+    }
+    None => plain(StatusCode::NOT_FOUND, "нет обложки"),
+  }
+}
+
 async fn cover(State(core): State<Arc<Core>>, Query(q): Query<CoverQuery>) -> Response<Body> {
+  if let Some(name) = crate::local::cover_name_from_url(&q.u) {
+    return local_cover(name);
+  }
   if !cover_host_allowed(&q.u) {
     return plain(StatusCode::FORBIDDEN, "чужой адрес");
   }
@@ -425,6 +459,81 @@ mod tests {
     let bytes = r.bytes().await.unwrap();
     println!("{} — {}: кусок {} байт", track.artist, track.title, bytes.len());
     assert!(bytes.len() > 10_000);
+  }
+
+  fn indexed_core(path: &std::path::Path) -> (Arc<Core>, String) {
+    let core = Core::new_empty_for_tests();
+    let r = crate::local::local_ref(path);
+    core.local.replace(&[crate::store::LocalFile {
+      ref_: r.clone(),
+      path: path.to_string_lossy().into_owned(),
+      mtime: 0,
+      size: 0,
+      title: "T".into(),
+      artist: String::new(),
+      album: None,
+      duration_ms: 0,
+      cover_path: None,
+    }]);
+    (Arc::new(core), r)
+  }
+
+  #[tokio::test]
+  async fn local_file_served_with_range_only_from_index() {
+    use crate::local::fixtures::{temp_dir, wav_bytes, write_wav};
+    let dir = temp_dir("stream");
+    let path = dir.join("song.wav");
+    write_wav(&path, 500);
+    let bytes = wav_bytes(500);
+    let (core, r) = indexed_core(&path);
+    let port = start(core).await.unwrap();
+    let http = reqwest::Client::new();
+    let base = format!("http://127.0.0.1:{port}");
+
+    let res = http.get(format!("{base}/file?ref={r}")).header("Range", "bytes=10-19").send().await.unwrap();
+    assert_eq!(res.status(), 206);
+    assert_eq!(res.headers()["content-type"], "audio/wav");
+    assert_eq!(res.headers()["content-range"], format!("bytes 10-19/{}", bytes.len()).as_str());
+    assert_eq!(res.bytes().await.unwrap().as_ref(), &bytes[10..20]);
+
+    let res = http.get(format!("{base}/file?ref={r}")).send().await.unwrap();
+    assert_eq!(res.status(), 200);
+    assert_eq!(res.bytes().await.unwrap().len(), bytes.len());
+
+    // не из индекса — 404, путь в ref не читается
+    let fake = format!("local:{}", "0".repeat(40));
+    assert_eq!(http.get(format!("{base}/file?ref={fake}")).send().await.unwrap().status(), 404);
+    let sneaky = format!("{base}/file?ref=local:{}", urlencoding_path(&path));
+    assert_eq!(http.get(sneaky).send().await.unwrap().status(), 404);
+
+    // файл удалили — 404
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(http.get(format!("{base}/file?ref={r}")).send().await.unwrap().status(), 404);
+    let _ = std::fs::remove_dir_all(dir);
+  }
+
+  fn urlencoding_path(p: &std::path::Path) -> String {
+    url::form_urlencoded::byte_serialize(p.to_string_lossy().as_bytes()).collect()
+  }
+
+  #[tokio::test]
+  async fn foreign_cover_urls_still_refused() {
+    let core = Arc::new(Core::new_empty_for_tests());
+    let port = start(core).await.unwrap();
+    let http = reqwest::Client::new();
+    let base = format!("http://127.0.0.1:{port}");
+    let ask = |u: String| {
+      let http = http.clone();
+      let base = base.clone();
+      async move {
+        let q: String = url::form_urlencoded::byte_serialize(u.as_bytes()).collect();
+        http.get(format!("{base}/cover?u={q}")).send().await.unwrap().status().as_u16()
+      }
+    };
+    assert_eq!(ask(crate::local::cover_url("../sonar.db")).await, 403);
+    assert_eq!(ask("file:///etc/passwd".into()).await, 403);
+    // имя правильное, но такой обложки нет — 404, не чтение чего попало
+    assert_eq!(ask(crate::local::cover_url(&format!("local-{}.jpg", "e".repeat(40)))).await, 404);
   }
 
   #[test]

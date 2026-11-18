@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { ServiceState } from './api'
 import {
+  ACCOUNT_SERVICES,
   IMPLEMENTED,
+  isLocalRef,
   SERVICES,
   byId,
   connected,
@@ -23,7 +25,7 @@ const TABLE = [
   { id: 'yt', key: 'youtube', name: 'YouTube Music', short: 'YT', color: '#FF0033', pre: ['yt', 'ytalb', 'yta', 'ytpl'], caps: '1111110', implemented: false },
   { id: 'vk', key: 'vk', name: 'VK Музыка', short: 'VK', color: '#0077FF', pre: ['vk', 'vkalb', 'vka', 'vkpl'], caps: '1111111', implemented: false },
   { id: 'sp', key: 'spotify', name: 'Spotify', short: 'SP', color: '#1ED760', pre: ['sp', 'spalb', 'spa', 'sppl'], caps: '1011110', implemented: false },
-  { id: 'local', key: 'local', name: 'Локальные файлы', short: '♪', color: '#8E8E93', pre: ['local', null, null, null], caps: '0110000', implemented: false },
+  { id: 'local', key: 'local', name: 'Локальные файлы', short: '♪', color: '#8E8E93', pre: ['local', null, null, null], caps: '0110000', implemented: true },
 ] as const
 
 const capsString = (s: ServiceInfo) =>
@@ -146,13 +148,27 @@ describe('byId', () => {
 })
 
 describe('IMPLEMENTED', () => {
-  it('только sc и ym, в порядке таблицы', () => {
-    expect(IMPLEMENTED.map((s) => s.id)).toEqual(['sc', 'ym'])
+  it('sc, ym и локальные файлы, в порядке таблицы', () => {
+    expect(IMPLEMENTED.map((s) => s.id)).toEqual(['sc', 'ym', 'local'])
+  })
+
+  it('сервисы с аккаунтом — без локальных файлов', () => {
+    expect(ACCOUNT_SERVICES.map((s) => s.id)).toEqual(['sc', 'ym'])
+    expect(Object.isFrozen(ACCOUNT_SERVICES)).toBe(true)
+  })
+})
+
+describe('isLocalRef', () => {
+  it('только local:…', () => {
+    expect(isLocalRef('local:' + 'a'.repeat(40))).toBe(true)
+    expect(isLocalRef('sc:1')).toBe(false)
+    expect(isLocalRef('localx:1')).toBe(false)
+    expect(isLocalRef(null)).toBe(false)
   })
 })
 
 describe('connected', () => {
-  it('только реализованные и подключённые, в порядке реестра; подключённый yt игнорируется', () => {
+  it('только сервисы с аккаунтом и подключённые, в порядке реестра; yt и local игнорируются', () => {
     const list = [row('yt', true), row('ym', true), row('vk', true), row('sc', true), row('local', true)]
     expect(connected(list).map((s) => s.id)).toEqual(['sc', 'ym'])
   })
@@ -180,6 +196,7 @@ describe('isTrackRef', () => {
   it('трек реализованного сервиса', () => {
     expect(isTrackRef('sc:1')).toBe(true)
     expect(isTrackRef('ym:1')).toBe(true)
+    expect(isTrackRef('local:abc')).toBe(true)
     expect(isTrackRef('yt:1')).toBe(false)
     expect(isTrackRef('scpl:likes')).toBe(false)
     expect(isTrackRef('pl_x')).toBe(false)

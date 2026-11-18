@@ -15,6 +15,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
+mod local;
 mod provider;
 mod sc;
 mod ym;
@@ -87,6 +88,8 @@ pub struct Core {
   pub sc_via_yandex: AtomicBool,
   /// Найденные пары `sc:…` → `ym:…` (None — на Яндексе нет), чтобы не искать каждый раз.
   ym_twins: Mutex<HashMap<String, Option<String>>>,
+  /// Локальные файлы: ref → путь (Хранилище → «Папки с музыкой»).
+  pub local: crate::local::Index,
 }
 
 fn status<C>(s: &Option<Stored<C>>) -> ServiceStatus {
@@ -119,6 +122,7 @@ impl Core {
       // по умолчанию выключено (решение владельца 2026-11-17): на Яндексе треки бывают заблюрены
       sc_via_yandex: AtomicBool::new(false),
       ym_twins: Mutex::new(HashMap::new()),
+      local: crate::local::Index::default(),
     }
   }
 
@@ -188,6 +192,7 @@ impl Core {
       max_kbps: AtomicU32::new(crate::providers::yandex::LOSSLESS_KBPS),
       sc_via_yandex: AtomicBool::new(false),
       ym_twins: Mutex::new(HashMap::new()),
+      local: crate::local::Index::default(),
     }
   }
 
@@ -250,6 +255,7 @@ impl Core {
     match id {
       ServiceId::Sc => Ok(AnyProvider::Sc(sc::ScProvider { core: self })),
       ServiceId::Ym => Ok(AnyProvider::Ym(ym::YmProvider { core: self })),
+      ServiceId::Local => Ok(AnyProvider::Local(local::LocalProvider { core: self })),
       other => bail!("{}: пока не поддерживается", other.info().name),
     }
   }
@@ -458,7 +464,10 @@ impl Core {
       Some(src) => src,
       None => p.stream(id, fresh).await?,
     };
-    self.streams.lock().unwrap().insert(track_ref.to_owned(), (src.clone(), Instant::now()));
+    // путь к файлу не протухает, а файл могли переместить — локальные не кэшируем
+    if p.id() != ServiceId::Local {
+      self.streams.lock().unwrap().insert(track_ref.to_owned(), (src.clone(), Instant::now()));
+    }
     Ok(src)
   }
 
@@ -561,12 +570,51 @@ mod tests {
     let core = Core::new_empty();
     assert_eq!(core.provider(ServiceId::Sc).unwrap().id(), ServiceId::Sc);
     assert_eq!(core.provider(ServiceId::Ym).unwrap().id(), ServiceId::Ym);
+    assert_eq!(core.provider(ServiceId::Local).unwrap().id(), ServiceId::Local);
+  }
+
+  #[tokio::test]
+  async fn local_stream_only_from_index() {
+    use crate::local::fixtures::{temp_dir, write_wav};
+    let core = Core::new_empty();
+    let dir = temp_dir("svc-local");
+    let path = dir.join("a.flac");
+    write_wav(&path, 100);
+    let r = crate::local::local_ref(&path);
+    // не в индексе — «Файл не найден», путь из ref не читается
+    assert_eq!(err_text(core.resolve(&r, false).await), local::NOT_FOUND);
+    let f = crate::store::LocalFile {
+      ref_: r.clone(),
+      path: path.to_string_lossy().into_owned(),
+      mtime: 0,
+      size: 0,
+      title: "T".into(),
+      artist: String::new(),
+      album: None,
+      duration_ms: 0,
+      cover_path: None,
+    };
+    core.local.replace(&[f]);
+    match core.resolve(&r, false).await.unwrap() {
+      Source::File { url, quality } => {
+        assert_eq!(url, path.to_string_lossy());
+        assert_eq!(quality, "FLAC · файл");
+      }
+      other => panic!("{other:?}"),
+    }
+    // файл удалили — сразу «не найден», без кэша
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(err_text(core.resolve(&r, false).await), local::NOT_FOUND);
+    // у локальных нет страниц и похожих
+    assert!(core.similar(&r, 5).await.unwrap().is_empty());
+    assert!(core.search("x", "local", 5).await.unwrap().is_empty());
+    let _ = std::fs::remove_dir_all(dir);
   }
 
   #[test]
   fn provider_unimplemented_errors() {
     let core = Core::new_empty();
-    for id in [ServiceId::Yt, ServiceId::Vk, ServiceId::Sp, ServiceId::Local] {
+    for id in [ServiceId::Yt, ServiceId::Vk, ServiceId::Sp] {
       let e = err_text(core.provider(id));
       assert!(e.contains("пока не поддерживается"), "{e}");
       assert!(e.starts_with(id.info().name), "{e}");

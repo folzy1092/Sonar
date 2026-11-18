@@ -20,11 +20,15 @@
   import { t } from '../lib/i18n.svelte'
   import { byId } from '../lib/services'
 
+  /** Сколько файлов с компьютера показать в поиске. */
+  const LOCAL_LIMIT = 20
   const tabs = ['Все', 'Треки', 'Артисты', 'Альбомы', 'Плейлисты'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
   const sourceName = $derived(t(byId(search.source)?.nameIn ?? 'Яндекс Музыке'))
 
   let results = $state<Track[]>([])
+  /** Совпадения среди файлов «Папок с музыкой» — отдельным блоком над результатами сервиса. */
+  let localHits = $state<Track[]>([])
   let more = $state<SearchMore>({ artists: [], albums: [], playlists: [] })
   let loading = $state(false)
   let error = $state<string | null>(null)
@@ -51,6 +55,7 @@
     error = null
     if (!q || looksLikeLink(q)) {
       results = []
+      localHits = []
       more = { artists: [], albums: [], playlists: [] }
       loading = false
       return
@@ -58,6 +63,10 @@
     const my = ++seq
     loading = true
     const timer = setTimeout(async () => {
+      api
+        .localSearch(q, LOCAL_LIMIT)
+        .then((found) => my === seq && (localHits = found))
+        .catch(() => my === seq && (localHits = []))
       api
         .searchMore(q, src)
         .then((m) => my === seq && (more = m))
@@ -82,10 +91,25 @@
     return () => clearTimeout(timer)
   })
 
+  function playLocal(i: number) {
+    void player.playList(localHits, i, 'search')
+  }
+
   function openServices() {
     settingsPanel.show('services')
   }
 </script>
+
+{#snippet localBlock(short: boolean)}
+  {#if localHits.length}
+    <h2>{t('На этом компьютере')} {#if short && localHits.length > 3}<button class="more" onclick={() => (tab = 'Треки')}>{t('Показать все')}</button>{/if}</h2>
+    <div class="list" use:cascade={localHits}>
+      {#each short ? localHits.slice(0, 3) : localHits as lt, i (lt.ref)}
+        <TrackRow track={lt} onplay={() => playLocal(i)} />
+      {/each}
+    </div>
+  {/if}
+{/snippet}
 
 {#if !link}
   <div class="chips" use:indicator={{ key: tab, kind: 'pill' }}>
@@ -100,6 +124,7 @@
 {:else if !search.query.trim()}
   <EmptyState icon="search" title={t('Что включить?')} text={t('Ищи треки в SoundCloud и Яндекс Музыке — или вставь ссылку на трек, альбом или плейлист.')} />
 {:else if error}
+  {@render localBlock(false)}
   <div class="err">
     <EmptyState icon="key" title={t('Не получилось')} text={error} />
     {#if notConnected}
@@ -110,11 +135,12 @@
   <div class="skeleton" aria-label={t('Ищу…')}>
     {#each { length: 6 } as _, i (i)}<div class="sk"></div>{/each}
   </div>
-{:else if !results.length && !more.artists.length && !more.albums.length && !more.playlists.length}
+{:else if !results.length && !localHits.length && !more.artists.length && !more.albums.length && !more.playlists.length}
   <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('По запросу «{query}» в {source} пусто.', { query: search.query.trim(), source: sourceName })} />
 {:else}
   {@const all = tab === 'Все'}
   {#key tab}<div class="tab-in">
+  {#if all || tab === 'Треки'}{@render localBlock(all)}{/if}
   {#if (all || tab === 'Треки') && results.length}
     <h2>{t('Треки')} {#if all && results.length > 5}<button class="more" onclick={() => (tab = 'Треки')}>{t('Показать все')}</button>{/if}</h2>
     <div class="list" class:stale={loading} use:cascade={results}>
@@ -154,7 +180,7 @@
       {/each}
     </div>
   {/if}
-  {#if !all && ((tab === 'Треки' && !results.length) || (tab === 'Артисты' && !more.artists.length) || (tab === 'Альбомы' && !more.albums.length) || (tab === 'Плейлисты' && !more.playlists.length))}
+  {#if !all && ((tab === 'Треки' && !results.length && !localHits.length) || (tab === 'Артисты' && !more.artists.length) || (tab === 'Альбомы' && !more.albums.length) || (tab === 'Плейлисты' && !more.playlists.length))}
     <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('{what} по запросу «{query}» не нашлись.', { what: t(tab), query: search.query.trim() })} />
   {/if}
   </div>{/key}

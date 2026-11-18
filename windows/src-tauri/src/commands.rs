@@ -1196,7 +1196,8 @@ pub fn clear_storage(db: State<'_, Db>, kind: String) -> Res<()> {
   let clear_covers = || {
     if let Some(d) = crate::stream::cover_dir() {
       if let Ok(rd) = std::fs::read_dir(d) {
-        for e in rd.flatten() {
+        // обложки локальных файлов не кэш, а часть индекса папок с музыкой — их не трогаем
+        for e in rd.flatten().filter(|e| !crate::local::is_cover_file(&e.file_name().to_string_lossy())) {
           let _ = std::fs::remove_file(e.path());
         }
       }

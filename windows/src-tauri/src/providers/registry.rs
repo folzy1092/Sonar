@@ -167,7 +167,7 @@ pub const REGISTRY: &[ServiceInfo] = &[
     icon_mono: None,
     prefixes: Prefixes { track: "local", album: None, artist: None, playlist: None },
     caps: Caps { search: false, stream: true, library: true, playlists: false, similar: false, login: false, key: false },
-    implemented: false,
+    implemented: true,
   },
 ];
 
@@ -214,7 +214,7 @@ pub fn likes_ref(id: ServiceId) -> Option<String> {
   }
 }
 
-/// Сервисы, которые уже работают в Sonar (SoundCloud, Яндекс Музыка).
+/// Сервисы, которые уже работают в Sonar (SoundCloud, Яндекс Музыка, локальные файлы).
 #[allow(dead_code)] // часть API реестра (как в services.ts); в Rust пока зовут только тесты
 pub fn implemented() -> impl Iterator<Item = &'static ServiceInfo> {
   REGISTRY.iter().filter(|s| s.implemented)
@@ -264,7 +264,7 @@ mod tests {
       (ServiceId::Local, "local", "Локальные файлы", "#8E8E93", None, None),
       ("local", None, None, None),
       [false, true, true, false, false, false, false],
-      false,
+      true,
     ),
   ];
 
@@ -385,20 +385,22 @@ mod tests {
   }
 
   #[test]
-  fn implemented_is_sc_and_ym() {
+  fn implemented_is_sc_ym_and_local() {
     let ids: Vec<ServiceId> = implemented().map(|s| s.id).collect();
-    assert_eq!(ids, [ServiceId::Sc, ServiceId::Ym]);
+    assert_eq!(ids, [ServiceId::Sc, ServiceId::Ym, ServiceId::Local]);
   }
 
   #[test]
   fn capabilities() {
-    // реализованные умеют всё, что есть в «Сервисах» сейчас
-    for s in implemented() {
+    // реализованные сервисы с аккаунтом умеют всё, что есть в «Сервисах» сейчас;
+    // локальные файлы — без входа и ключа (папки — в Хранилище)
+    for s in implemented().filter(|s| s.caps.login) {
       let c = s.caps;
       assert!(c.search && c.stream && c.library && c.playlists && c.similar && c.login && c.key, "{}", s.key);
     }
     assert!(!info(ServiceId::Sp).caps.stream, "Spotify не отдаёт поток");
-    assert!(!info(ServiceId::Local).caps.search && info(ServiceId::Local).caps.stream);
+    let local = info(ServiceId::Local).caps;
+    assert!(!local.search && local.stream && !local.login && !local.key);
     // у каждого сервиса с плейлистами есть префикс плейлиста, у каждого с library — трек
     for s in REGISTRY {
       assert_eq!(s.caps.playlists, s.prefixes.playlist.is_some(), "{}", s.key);

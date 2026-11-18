@@ -3,6 +3,7 @@ mod crashlog;
 mod discord;
 mod lastfm;
 mod login;
+mod local;
 mod lyrics;
 mod media;
 mod calls;
@@ -41,6 +42,11 @@ pub fn run() {
     .plugin(tauri_plugin_process::init())
     // горячие клавиши по всей системе (hotkeys.rs); сочетания ставит интерфейс через `set_hotkeys`
     .plugin(hotkeys::plugin())
+    // окно выбора папки для «Папок с музыкой» (local/commands.rs)
+    .plugin(tauri_plugin_dialog::init())
+    // обложки локальных файлов: адрес не зависит от порта аудио-сервера, отдаются только
+    // `local-<sha1>.<ext>` из кэша обложек
+    .register_uri_scheme_protocol(local::COVER_SCHEME, |_ctx, req| local_cover_response(req.uri().path()))
     .setup(|app| {
       // журнал ошибок сессии и отчёт после сбоя (в отладке логгер ставит tauri-plugin-log)
       if let Ok(dir) = app.path().app_log_dir() {
@@ -145,6 +151,8 @@ pub fn run() {
       app.manage(Db(Mutex::new(db)));
       app.manage(StreamPort(port));
       app.manage(media::Media(Mutex::new(controls)));
+      // папки с музыкой: индекс из базы, фоновый скан и слежка
+      local::commands::init(app.handle());
       // синхронизация аккаунта: молчит, пока не подключён сервер Sonar
       tauri::async_runtime::spawn(sync::background(app.handle().clone()));
       Ok(())
@@ -240,7 +248,22 @@ pub fn run() {
       commands::set_autostart,
       commands::autostart_enabled,
       commands::set_tray_mode,
+      local::commands::local_pick_folder,
+      local::commands::local_rescan,
+      local::commands::local_tracks,
+      local::commands::local_search,
     ])
     .run(tauri::generate_context!())
     .expect("error while building tauri application");
+}
+
+/// Ответ схемы `sonarcover`: обложка из кэша или 404.
+fn local_cover_response(path: &str) -> tauri::http::Response<Vec<u8>> {
+  let found = stream::cover_dir().and_then(|d| local::read_cover(d, path.trim_start_matches('/')));
+  let builder = tauri::http::Response::builder().header("Access-Control-Allow-Origin", "*");
+  let res = match found {
+    Some((bytes, mime)) => builder.header("Content-Type", mime).header("Cache-Control", "max-age=604800").body(bytes),
+    None => builder.status(404).body(Vec::new()),
+  };
+  res.unwrap_or_else(|_| tauri::http::Response::new(Vec::new()))
 }
