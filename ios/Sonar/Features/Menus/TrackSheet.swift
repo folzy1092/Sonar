@@ -117,7 +117,7 @@ struct TrackSheet: View {
                     SonarIcon(.soundcloud, size: 30).foregroundStyle(Theme.text)
                 } else if track.service == .youtube {
                     SonarIcon(.youtubeMusic, size: 30).foregroundStyle(Theme.text)
-                } else if let mark = track.service.mark {
+                } else if let mark = track.service?.mark {
                     Text(mark)
                         .font(.system(size: 16, weight: .heavy))
                         .minimumScaleFactor(0.6)
