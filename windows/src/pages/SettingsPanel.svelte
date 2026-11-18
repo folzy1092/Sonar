@@ -5,6 +5,7 @@
   // или снизу — панель шторкой опускается (поднимается), окно стоит под вуалью (NEXT_PROMPT «Этап 0» п. 7).
   // Ширина — во всё окно с полями, содержимое в 1–2 колонки по ширине (п. 6).
   import { tick } from 'svelte'
+  import '../components/settings/settings-row.css'
   import SettingsSearch from '../components/settings/SettingsSearch.svelte'
   import SearchResults from '../components/settings/SearchResults.svelte'
   import { SUB_LEADS, type CatalogEntry } from '../lib/settings-catalog'

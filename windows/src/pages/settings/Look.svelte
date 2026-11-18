@@ -106,7 +106,8 @@
   }
   .themes {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* до четырёх в ряд, не уже 96px */
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, max(96px, (100% - 3 * 8px) / 4)), 1fr));
     gap: 8px;
     padding-bottom: 12px;
   }

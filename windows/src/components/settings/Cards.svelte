@@ -65,10 +65,12 @@
     line-height: 1.45;
     color: var(--text-3);
   }
+  /* не больше `--cols` в ряд и не уже 112px: в узком окне карточки переносятся */
   .cards {
+    --gap: 8px;
     display: grid;
-    grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, max(112px, (100% - (var(--cols) - 1) * var(--gap)) / var(--cols))), 1fr));
+    gap: var(--gap);
     margin-top: 9px;
   }
   .cards.scroll {
@@ -82,7 +84,7 @@
     display: none;
   }
   .cards.scroll .card {
-    flex: 0 0 calc((100% - 16px) / 3);
+    flex: 0 0 max(124px, calc((100% - 16px) / 3));
   }
   .cards.list {
     grid-template-columns: 1fr;

@@ -270,7 +270,7 @@
   }
   .cards {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 196px), 1fr));
     gap: 10px;
   }
   .card {
@@ -357,8 +357,8 @@
     color: var(--accent-ink);
   }
   .name-in {
-    flex: 1;
-    min-width: 160px;
+    flex: 1 1 160px;
+    min-width: 0;
     height: 32px;
     padding: 0 12px;
     border-radius: var(--radius-m);

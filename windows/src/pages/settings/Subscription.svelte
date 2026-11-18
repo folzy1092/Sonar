@@ -81,7 +81,8 @@
     gap: 24px;
     align-items: start;
   }
-  @media (max-width: 860px) {
+  /* ширина панели настроек, не окна (окно не уже 960) */
+  @container (max-width: 620px) {
     .sub {
       grid-template-columns: 1fr;
     }

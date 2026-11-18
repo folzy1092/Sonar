@@ -56,7 +56,7 @@
   .tiles {
     position: relative;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(var(--min), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--min)), 1fr));
     gap: 10px;
     margin-top: 10px;
     padding: 3px;

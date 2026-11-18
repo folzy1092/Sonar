@@ -144,7 +144,8 @@
   }
   .fonts {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    /* до четырёх в ряд, не уже 104px */
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, max(104px, (100% - 3 * 8px) / 4)), 1fr));
     gap: 8px;
     margin-top: 12px;
   }

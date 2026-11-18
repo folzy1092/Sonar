@@ -448,7 +448,8 @@
     height: 160px;
     border-radius: 18px;
   }
-  @media (max-width: 560px) {
+  /* ширина панели настроек, не окна (окно не уже 960) */
+  @container (max-width: 440px) {
     .summary {
       grid-template-columns: 1fr;
       justify-items: center;
