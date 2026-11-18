@@ -6,6 +6,8 @@
   // статистики → Любимые → плейлисты → чаще всего слушает. Только просмотр: у гостя ничего не играет.
   import CountUp from '../../components/CountUp.svelte'
   import Icon from '../../components/Icon.svelte'
+  import DevBadge from '../../components/profile/DevBadge.svelte'
+  import { subscriptionOf } from '../../lib/subscription'
   import { cascade } from '../../lib/cascade'
   import { dateLong, durationText, tracksText } from '../../lib/format'
   import { t, tn } from '../../lib/i18n.svelte'
@@ -16,6 +18,8 @@
   let { profile, loading }: { profile: PublicProfile; loading: boolean } = $props()
 
   const initial = $derived(profileInitial(profile))
+  // значок «Dev» у ника разработчика; с сервером признак придёт в самом профиле
+  const dev = $derived(subscriptionOf({ username: profile.username }).tier === 'dev')
   const since = $derived(profile.created_at ? dateLong(new Date(profile.created_at).toISOString().slice(0, 10)) : null)
   const moreLikes = $derived(profile.likes.count - profile.likes.tracks.length)
   const morePlaylists = $derived(profile.playlist_count - profile.playlists.length)
@@ -45,7 +49,10 @@
     </span>
     <div class="who">
       <span class="kind">{t('Профиль Sonar')}</span>
-      <h1>{profile.display_name || t('Без имени')}</h1>
+      <span class="name-line">
+        <h1>{profile.display_name || t('Без имени')}</h1>
+        {#if dev}<DevBadge size={13} />{/if}
+      </span>
       <p class="handle">
         {#if profile.username}<span>@{profile.username}</span>{:else}<span class="muted">{t('без @username')}</span>{/if}
         {#if profile.number !== null}<span>#{profile.number}</span>{/if}
@@ -190,7 +197,14 @@
     font-weight: 600;
     color: var(--text-3);
   }
+  .name-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
   h1 {
+    min-width: 0;
     margin: 0;
     font-size: calc(40px * var(--fs, 1));
     line-height: 1.1;

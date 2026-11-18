@@ -34,6 +34,8 @@
   import Overlay from './settings/Overlay.svelte'
   import { NAV, navSub, settingsPanel, type SettingsTab } from './settings-section.svelte'
   import { profileInitial } from '../lib/public-profile'
+  import { subscriptionOf } from '../lib/subscription'
+  import DevBadge from '../components/profile/DevBadge.svelte'
   import { cleanUsername } from '../lib/avatar'
   import { t } from '../lib/i18n.svelte'
 
@@ -45,6 +47,7 @@
   const name = $derived(settings.get('profile.name').trim())
   const username = $derived(cleanUsername(settings.get('profile.username')))
   const avatar = $derived(settings.get('profile.avatar'))
+  const dev = $derived(subscriptionOf({ username }).tier === 'dev')
   const initial = $derived(profileInitial({ display_name: name, username: username || null }))
 
   function go(tab: SettingsTab, s: string) {
@@ -139,7 +142,10 @@
       </span>
       <span class="who">
         <b>{name || t('Без имени')}</b>
-        <small>{username ? `@${username}` : t('Задать @username')}</small>
+        <span class="handle">
+          <small>{username ? `@${username}` : t('Задать @username')}</small>
+          {#if dev}<DevBadge size={9.5} />{/if}
+        </span>
       </span>
     </button>
 
@@ -387,6 +393,12 @@
   }
   .who small {
     color: var(--text-3);
+  }
+  .handle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
   }
   .groups {
     --fade: 24px;

@@ -2,9 +2,11 @@
   // Превью профиля «как увидят другие» (Аккаунт → Профиль, SETTINGS_NEXT «Профиль»): фон, баннер, аватар
   // с точкой «в сети» и кольцом цвета профиля, ник в своём шрифте и эффекте, @username, статус, о себе,
   // ссылки и витрина. Четыре раскладки шапки (`layout`) переключаются плавно. Только рисует — данные
-  // приходят готовыми (lib/profile-look.ts).
+  // приходят готовыми (lib/profile-look.ts). У ника разработчика — значок «Dev» (`subscriptionOf`).
   import Icon from '../Icon.svelte'
   import Nick from './Nick.svelte'
+  import DevBadge from './DevBadge.svelte'
+  import { subscriptionOf } from '../../lib/subscription'
   import { t } from '../../lib/i18n.svelte'
   import { linkLabel, type NickEffect, type ProfileLayout, type ProfileLink, type ShowcaseItem } from '../../lib/profile-look'
 
@@ -27,6 +29,7 @@
 
   const LINK_ICON = { telegram: 'telegram', discord: 'discord', site: 'world' } as const
   const KIND_ICON = { playlist: 'playlist', album: 'disc', artist: 'user', track: 'music' } as const
+  const dev = $derived(subscriptionOf({ username: p.username }).tier === 'dev')
   const initial = $derived((p.name.trim() || p.username || '?').slice(0, 1).toUpperCase())
 </script>
 
@@ -41,7 +44,10 @@
       <i class="online" title={t('В сети')}></i>
     </span>
     <div class="who">
-      <Nick text={p.name.trim() || t('Без имени')} font={p.nickFont} effect={p.nickEffect} color={p.color} size={p.layout === 'big_name' ? 34 : 22} />
+      <span class="nick-line">
+        <Nick text={p.name.trim() || t('Без имени')} font={p.nickFont} effect={p.nickEffect} color={p.color} size={p.layout === 'big_name' ? 34 : 22} />
+        {#if dev}<DevBadge color={p.color} size={p.layout === 'big_name' ? 12 : 10.5} />{/if}
+      </span>
       <small>{p.username ? `@${p.username}` : t('без @username')}</small>
     </div>
   </header>
@@ -155,6 +161,13 @@
     flex-direction: column;
     min-width: 0;
     padding-bottom: 4px;
+  }
+  .nick-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
   }
   .who small {
     font-size: calc(12px * var(--fs, 1));

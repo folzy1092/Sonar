@@ -57,14 +57,45 @@ export const FREE_LIMITS = {
 /** Пределы пока выключены: без оплаты подписку не оформить, а резать своих нельзя. */
 export const LIMITS_ENFORCED = false
 
+/** Чья подписка: `free` — бесплатный Sonar, `dev` — разработчик (всё Sonar Deep, без срока и пределов).
+ *  С сервером добавятся тарифы (`PlanId`) из `GET /me`. */
+export type SubscriptionTier = 'free' | 'dev'
+
+export interface Subscription {
+  tier: SubscriptionTier
+  /** Открыты все функции Sonar Deep. */
+  deep: boolean
+  /** Пределы бесплатного (`FREE_LIMITS`) не действуют. */
+  unlimited: boolean
+  /** До какого дня, ISO-дата; `null` — без срока (или подписки нет). */
+  until: string | null
+}
+
+/** Ники разработчиков (без «@», строчными): статус «Dev» до сервера. */
+export const DEV_USERNAMES: readonly string[] = ['folzy']
+
+export const FREE_SUBSCRIPTION: Readonly<Subscription> = Object.freeze({ tier: 'free', deep: false, unlimited: false, until: null })
+export const DEV_SUBSCRIPTION: Readonly<Subscription> = Object.freeze({ tier: 'dev', deep: true, unlimited: true, until: null })
+
+/** «  @Folzy » → «folzy»: без пробелов по краям и «@» в начале, без учёта регистра. */
+export const normalizeUsername = (raw: string | null | undefined): string => (raw ?? '').trim().replace(/^@+/, '').trim().toLowerCase()
+
+/** Подписка профиля — ЕДИНСТВЕННОЕ место, где это решается; все проверки Sonar Deep и пределов идут
+ *  через неё. До сервера это ЛОКАЛЬНАЯ проверка по нику: владелец (`@folzy`) — «Dev», остальные —
+ *  бесплатный Sonar. С сервером её заменит ответ `GET /me` (поле подписки), а ник решать перестанет. */
+export function subscriptionOf(profile: { username?: string | null } | null | undefined): Readonly<Subscription> {
+  const nick = normalizeUsername(profile?.username)
+  return nick && DEV_USERNAMES.includes(nick) ? DEV_SUBSCRIPTION : FREE_SUBSCRIPTION
+}
+
 /** Сколько треков перенести за раз: с подпиской — все, без — до предела. */
-export function importCap(total: number, subscribed: boolean, enforced = LIMITS_ENFORCED): number {
-  return subscribed || !enforced ? total : Math.min(total, FREE_LIMITS.import_tracks)
+export function importCap(total: number, sub: Readonly<Subscription>, enforced = LIMITS_ENFORCED): number {
+  return sub.unlimited || !enforced ? total : Math.min(total, FREE_LIMITS.import_tracks)
 }
 
 /** Можно ли создать ещё один плейлист. */
-export function canCreatePlaylist(count: number, subscribed: boolean, enforced = LIMITS_ENFORCED): boolean {
-  return subscribed || !enforced || count < FREE_LIMITS.playlists
+export function canCreatePlaylist(count: number, sub: Readonly<Subscription>, enforced = LIMITS_ENFORCED): boolean {
+  return sub.unlimited || !enforced || count < FREE_LIMITS.playlists
 }
 
 /** Что даёт Sonar Deep — ключи перевода, по важности; без этого музыка играет так же. */

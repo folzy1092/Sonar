@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canCreatePlaylist, FREE_LIMITS, importCap, PERIODS, PLANS, payUrl, price, savedPercent } from './subscription'
+import { canCreatePlaylist, DEV_SUBSCRIPTION, FREE_LIMITS, FREE_SUBSCRIPTION, importCap, PERIODS, PLANS, payUrl, price, savedPercent, subscriptionOf } from './subscription'
 
 describe('подписка', () => {
   it('месяц — ровно цена тарифа, дольше — дешевле в пересчёте на месяц', () => {
@@ -32,12 +32,36 @@ describe('подписка', () => {
   })
 
   it('пределы бесплатного: перенос до 500, плейлистов до 5 — только когда включены', () => {
-    expect(importCap(650, false, true)).toBe(FREE_LIMITS.import_tracks)
-    expect(importCap(650, true, true)).toBe(650)
-    expect(importCap(650, false, false)).toBe(650)
-    expect(canCreatePlaylist(5, false, true)).toBe(false)
-    expect(canCreatePlaylist(4, false, true)).toBe(true)
-    expect(canCreatePlaylist(50, true, true)).toBe(true)
-    expect(canCreatePlaylist(50, false)).toBe(true)
+    expect(importCap(650, FREE_SUBSCRIPTION, true)).toBe(FREE_LIMITS.import_tracks)
+    expect(importCap(650, DEV_SUBSCRIPTION, true)).toBe(650)
+    expect(importCap(650, FREE_SUBSCRIPTION, false)).toBe(650)
+    expect(canCreatePlaylist(5, FREE_SUBSCRIPTION, true)).toBe(false)
+    expect(canCreatePlaylist(4, FREE_SUBSCRIPTION, true)).toBe(true)
+    expect(canCreatePlaylist(50, DEV_SUBSCRIPTION, true)).toBe(true)
+    expect(canCreatePlaylist(50, FREE_SUBSCRIPTION)).toBe(true)
+  })
+
+  it('владелец — «Dev»: ник без учёта регистра, «@» и пробелов по краям', () => {
+    for (const username of ['folzy', '@Folzy', ' folzy ', '  @FOLZY  ']) {
+      const sub = subscriptionOf({ username })
+      expect(sub.tier).toBe('dev')
+      expect(sub.deep).toBe(true)
+      expect(sub.unlimited).toBe(true)
+      expect(sub.until).toBeNull()
+    }
+  })
+
+  it('остальные и пустой ник — бесплатный Sonar', () => {
+    for (const username of ['other', 'folzy2', 'fol zy', '', '   ', '@', null, undefined])
+      expect(subscriptionOf({ username }).tier).toBe('free')
+    expect(subscriptionOf(null)).toEqual(FREE_SUBSCRIPTION)
+    expect(subscriptionOf(undefined).deep).toBe(false)
+  })
+
+  it('«Dev» снимает пределы, даже когда они включены', () => {
+    const dev = subscriptionOf({ username: '@folzy' })
+    expect(importCap(10_000, dev, true)).toBe(10_000)
+    expect(canCreatePlaylist(999, dev, true)).toBe(true)
+    expect(canCreatePlaylist(FREE_LIMITS.playlists, subscriptionOf({ username: 'guest' }), true)).toBe(false)
   })
 })
