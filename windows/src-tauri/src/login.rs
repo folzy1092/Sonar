@@ -245,18 +245,19 @@ pub async fn yandex(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
   core.connect_yandex(yandex::Creds { token }).await
 }
 
-pub async fn soundcloud(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
+/// Окно входа сервиса: ждём, пока на `cookie_url` появится cookie `name` (её значение и вернём).
+async fn wait_cookie(app: &AppHandle, label: &str, title: &str, url: &str, cookie_url: &str, name: &'static str) -> Result<String> {
   let (tx, mut rx) = mpsc::unbounded_channel::<Option<String>>();
-  let w = window(&app, "login-soundcloud", "Вход в SoundCloud — Sonar", "https://soundcloud.com/signin")?.build()?;
+  let w = window(app, label, title, url)?.build()?;
   on_close(&w, tx.clone());
   let poll_w = w.clone();
+  let cookie_url = Url::parse(cookie_url)?;
   let poll = tokio::spawn(async move {
-    let sc = Url::parse("https://soundcloud.com/").expect("url");
     loop {
       tokio::time::sleep(Duration::from_secs(1)).await;
-      match poll_w.cookies_for_url(sc.clone()) {
+      match poll_w.cookies_for_url(cookie_url.clone()) {
         Ok(cookies) => {
-          if let Some(c) = cookies.iter().find(|c| c.name() == "oauth_token" && !c.value().is_empty()) {
+          if let Some(c) = cookies.iter().find(|c| c.name() == name && !c.value().is_empty()) {
             let _ = tx.send(Some(c.value().to_owned()));
             break;
           }
@@ -265,10 +266,14 @@ pub async fn soundcloud(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus
       }
     }
   });
-  let token = wait(&mut rx).await;
+  let value = wait(&mut rx).await;
   poll.abort();
   let _ = w.close();
-  let token = token?;
+  value
+}
+
+pub async fn soundcloud(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
+  let token = wait_cookie(&app, "login-soundcloud", "Вход в SoundCloud — Sonar", "https://soundcloud.com/signin", "https://soundcloud.com/", "oauth_token").await?;
   let client_id = soundcloud::public_client_id(&core.http)
     .await
     .map_err(|e| anyhow!("Вошёл, но не нашёл client_id SoundCloud: {e}"))?;
@@ -367,6 +372,15 @@ pub async fn vk(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
   let _ = w.close();
   core.connect_vk(vk::Creds { token: token? }).await
 }
+
+/// Spotify: вход на accounts.spotify.com, ключ — cookie `sp_dc` веб-плеера open.spotify.com.
+pub async fn spotify(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
+  let sp_dc = wait_cookie(&app, "login-spotify", "Вход в Spotify — Sonar", SPOTIFY_LOGIN, "https://open.spotify.com/", "sp_dc").await?;
+  core.connect_spotify(&sp_dc).await
+}
+
+/// После входа Spotify сам ведёт в веб-плеер — там и появляется `sp_dc`.
+const SPOTIFY_LOGIN: &str = "https://accounts.spotify.com/login?continue=https%3A%2F%2Fopen.spotify.com%2F";
 
 #[cfg(test)]
 mod tests {

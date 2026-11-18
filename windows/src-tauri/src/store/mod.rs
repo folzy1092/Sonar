@@ -795,7 +795,7 @@ mod tests {
       ("ytalb:1", Some("album")),
       ("ytpl:likes", None),
       ("vk:1", Some("track")),
-      ("sp:1", None),
+      ("sp:1", Some("track")),
       ("local:1", Some("track")),
       ("pl_x", None),
       ("similar:sc:1", None),
