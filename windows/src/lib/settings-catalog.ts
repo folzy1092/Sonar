@@ -26,7 +26,22 @@ const rows = (tab: SettingsTab, sub: string, list: Row[]): CatalogEntry[] =>
   list.map(([title, hint, key, words]) => ({ tab, sub, title, hint, key, words }))
 
 export const CATALOG: readonly CatalogEntry[] = [
-  ...rows('account', 'profile', [['Профиль', 'Имя, @username и аватар', undefined, 'аватар имя username ник']]),
+  ...rows('account', 'profile', [
+    ['Профиль', 'Имя, @username и аватар', undefined, 'аватар имя username ник'],
+    ['Аватар', 'Круглый, в левой панели и на главной', 'profile.avatar', 'картинка фото avatar'],
+    ['Баннер', 'Полоса над аватаром, 3 : 1', 'profile.banner', 'обложка шапка banner'],
+    ['Фон', 'За всей карточкой профиля, 16 : 9', 'profile.background', 'картинка background'],
+    ['Цвет профиля', 'Красит ник, кольцо аватара и акценты профиля', 'profile.color', 'цвет color акцент'],
+    ['Отображаемое имя', undefined, 'profile.name', 'имя name'],
+    ['Имя пользователя', undefined, 'profile.username', 'username ник логин'],
+    ['Статус', 'Короткая строка под ником', 'profile.status', 'status'],
+    ['О себе', undefined, 'profile.bio', 'bio описание'],
+    ['Ссылки', undefined, 'profile.links', 'telegram discord сайт links'],
+    ['Вид профиля', undefined, 'profile.layout', 'шапка layout'],
+    ['Шрифт ника', undefined, 'profile.nick_font', 'шрифт font ник'],
+    ['Эффект ника', undefined, 'profile.nick_effect', 'неон перелив effect ник'],
+    ['Витрина', 'Покажи в профиле то, что любишь: плейлист, альбом, исполнителя или трек', 'profile.showcase', 'showcase любимое'],
+  ]),
   ...rows('account', 'privacy', [
     ['Что играет сейчас', 'Трек, который звучит прямо сейчас', 'privacy.now_playing', 'приватность скрыть профиль'],
     ['Статистика', 'Прослушивания, часы и любимые артисты', 'privacy.stats', 'приватность скрыть профиль'],
@@ -172,7 +187,7 @@ export const CATALOG: readonly CatalogEntry[] = [
 
 /** «Что это меняет» — одна строка над каждым подразделом. */
 export const SUB_LEADS: Readonly<Record<string, string>> = {
-  profile: 'Имя, @username и аватар — как тебя видят друзья',
+  profile: 'Аватар, баннер, ник, ссылки и витрина — как тебя видят друзья',
   login: 'Вход в аккаунт Sonar — появится вместе с сервером',
   privacy: 'Что видят другие в твоём профиле по ссылке',
   plans: 'Дополнительные возможности Sonar — музыка играет и без подписки',

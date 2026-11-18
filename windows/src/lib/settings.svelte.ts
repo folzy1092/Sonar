@@ -4,6 +4,7 @@ import { api } from './api'
 import { migrateSettings } from './settings-migrate'
 import type { CoverStrength, Surface } from '../theme/palette'
 import type { ServiceId, ServiceKey } from './services'
+import type { NickEffect, NickFont, ProfileColor, ProfileLayout, ProfileLink, ShowcaseItem } from './profile-look'
 import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook, ProgressLook, TitleStyle } from '../theme/style'
 
 export type MiniStyle = 'off' | 'full' | 'rounded' | 'hybrid' | 'deck'
@@ -37,6 +38,19 @@ export const DEFAULTS = {
   'profile.name': '' as string,
   'profile.username': '' as string,
   'profile.avatar': '' as string,
+  /** Вид профиля (SETTINGS_NEXT «Профиль», lib/profile-look.ts): баннер 900×300 и фон 960×540 — WebP
+   *  data URL; цвет ('' — цвет темы); статус и «о себе»; ссылки; раскладка шапки; шрифт и эффект ника;
+   *  витрина до 6 мест. Публикуется с сервером (PATCH /me). */
+  'profile.banner': '' as string,
+  'profile.background': '' as string,
+  'profile.color': '' as '' | ProfileColor,
+  'profile.status': '' as string,
+  'profile.bio': '' as string,
+  'profile.links': [] as ProfileLink[],
+  'profile.layout': 'avatar' as ProfileLayout,
+  'profile.nick_font': 'default' as NickFont,
+  'profile.nick_effect': 'none' as NickEffect,
+  'profile.showcase': [] as ShowcaseItem[],
   /** Приватность профиля (Аккаунт → Приватность, lib/public-profile.ts): что видит гость по ссылке. */
   'privacy.friend_requests': 'everyone' as 'everyone' | 'fof' | 'nobody',
   'privacy.now_playing': 'everyone' as 'everyone' | 'friends' | 'nobody',
