@@ -90,10 +90,18 @@ pub async fn run(app: &AppHandle) {
   if RUNNING.swap(true, Ordering::AcqRel) {
     return;
   }
-  let res = pass(app).await;
-  RUNNING.store(false, Ordering::Release);
-  if let Err(e) = res {
+  let _running = RunningGuard;
+  if let Err(e) = pass(app).await {
     log::warn!("карта исполнителей: {e}");
+  }
+}
+
+/// Снимает флаг `RUNNING` и при панике внутри прохода — иначе карта больше не обновится до перезапуска.
+struct RunningGuard;
+
+impl Drop for RunningGuard {
+  fn drop(&mut self) {
+    RUNNING.store(false, Ordering::Release);
   }
 }
 
