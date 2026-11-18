@@ -18,6 +18,7 @@ use tokio::sync::RwLock;
 mod provider;
 mod sc;
 mod vk;
+mod vk_keys;
 mod ym;
 pub use provider::{AnyProvider, Provider};
 
@@ -79,8 +80,10 @@ pub struct Core {
   sc: RwLock<Option<Stored<soundcloud::Creds>>>,
   ym: RwLock<Option<Stored<yandex::Creds>>>,
   vk: RwLock<Option<Stored<vk_api::Creds>>>,
-  /// Треки VK, которые уже видели: access_key и ссылка на поток (services/vk.rs).
-  vk_seen: Mutex<HashMap<String, (Option<String>, Option<String>)>>,
+  /// Ссылки на поток, которые VK отдал вместе с треками, и когда (services/vk.rs).
+  vk_seen: Mutex<HashMap<String, (String, Instant)>>,
+  /// access_key треков VK — на диске, переживают перезапуск (services/vk_keys.rs).
+  vk_keys: Mutex<vk_keys::VkKeys>,
   /// Сырой JSON треков SoundCloud из поиска — в нём `transcodings` для потока.
   sc_raw: Mutex<HashMap<String, Value>>,
   /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
@@ -119,6 +122,7 @@ impl Core {
       ym: RwLock::new(secrets::load(ServiceId::Ym.key())),
       vk: RwLock::new(secrets::load(ServiceId::Vk.key())),
       vk_seen: Mutex::new(HashMap::new()),
+      vk_keys: Mutex::new(vk_keys::VkKeys::memory()),
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
@@ -191,6 +195,7 @@ impl Core {
       ym: RwLock::new(None),
       vk: RwLock::new(None),
       vk_seen: Mutex::new(HashMap::new()),
+      vk_keys: Mutex::new(vk_keys::VkKeys::memory()),
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
       streams: Mutex::new(HashMap::new()),
@@ -701,6 +706,39 @@ mod tests {
     core.vk_keep(vec![audio("https://vk.com/mp3/audio_api_unavailable.mp3")]);
     core.streams.lock().unwrap().clear();
     assert_eq!(err_text(core.resolve("vk:-1_2", false).await), "VK Музыка: VK не отдал ссылку на трек");
+  }
+
+  /// Ссылка старше `STREAM_TTL` не берётся — идём в VK.
+  #[tokio::test]
+  async fn vk_seen_url_expires() {
+    let core = Core::new_empty();
+    let Some(old) = Instant::now().checked_sub(STREAM_TTL + Duration::from_secs(1)) else { return };
+    core.vk_seen.lock().unwrap().insert("vk:-1_2".into(), ("https://cs1.vkuseraudio.net/s/v1/ac/x/index.m3u8".into(), old));
+    assert_eq!(err_text(core.resolve("vk:-1_2", false).await), "VK Музыка не подключена");
+  }
+
+  /// После перезапуска (пустой `vk_seen`, новое ядро) access_key трека берётся с диска.
+  #[test]
+  fn vk_key_survives_restart() {
+    let dir = std::env::temp_dir().join(format!("sonar-vkrestart-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("vk-keys.json");
+    let before = Core::new_empty();
+    before.open_vk_keys(file.clone());
+    let audio = vk_api::audio_from_json(&serde_json::json!({
+      "id": 2, "owner_id": -1, "title": "t", "artist": "a", "access_key": "k7", "url": "https://cs1.vkuseraudio.net/a.mp3"
+    }))
+    .unwrap();
+    before.vk_keep(vec![audio]);
+    drop(before);
+
+    let after = Core::new_empty();
+    after.open_vk_keys(file);
+    assert!(after.vk_seen.lock().unwrap().is_empty());
+    assert_eq!(after.vk_full_id("-1_2"), "-1_2_k7");
+    assert_eq!(after.vk_full_id("-1_3"), "-1_3");
+    let _ = std::fs::remove_dir_all(&dir);
   }
 
   #[tokio::test]

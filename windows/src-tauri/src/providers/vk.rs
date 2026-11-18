@@ -4,7 +4,7 @@
 //! Kate Mobile. Запросы — POST с формой: токен в теле, не в адресе, и не попадает ни в ошибку
 //! reqwest, ни в журнал. Проверка с компьютера владельца — `server/tools/check_vk.py`.
 //!
-//! ref: трек `vk:<owner>_<id>` (access_key трека — в памяти ядра, services.rs), альбом
+//! ref: трек `vk:<owner>_<id>` (access_key трека — на диске, services/vk_keys.rs), альбом
 //! `vkalb:<owner>_<id>[_<access_key>]`, плейлист `vkpl:<owner>_<id>[_<access_key>]` и `vkpl:likes`,
 //! исполнитель `vka:<id>` (docs/API.md «Префиксы ref»).
 
@@ -141,16 +141,31 @@ impl Vk<'_> {
     Ok(audios(&v["items"]))
   }
 
+  /// Исполнители, альбомы и плейлисты. Каждый из трёх запросов необязателен: упал один —
+  /// остальные всё равно показываем; общей ошибкой — только протухший ключ.
   pub async fn search_more(&self, q: &str, limit: u32) -> Result<(Vec<Artist>, Vec<Album>, Vec<ServicePlaylist>)> {
     let n = limit.min(100).to_string();
-    let artists = self.call("audio.searchArtists", &[("q", q.into()), ("count", n.clone())]).await?;
-    let albums = self.call("audio.searchAlbums", &[("q", q.into()), ("count", n.clone())]).await?;
-    let playlists = self.call("audio.searchPlaylists", &[("q", q.into()), ("count", n)]).await?;
+    let params = [("q", q.to_owned()), ("count", n)];
+    let artists = self.optional_items("audio.searchArtists", &params).await?;
+    let albums = self.optional_items("audio.searchAlbums", &params).await?;
+    let playlists = self.optional_items("audio.searchPlaylists", &params).await?;
     Ok((
-      items(&artists).iter().filter_map(artist_from_json).collect(),
-      items(&albums).iter().filter_map(album_from_json).collect(),
-      items(&playlists).iter().filter_map(playlist_from_json).collect(),
+      artists.iter().filter_map(artist_from_json).collect(),
+      albums.iter().filter_map(album_from_json).collect(),
+      playlists.iter().filter_map(playlist_from_json).collect(),
     ))
+  }
+
+  /// `items` метода; ошибка (кроме протухшего ключа) — пустой список и строка в журнал.
+  async fn optional_items(&self, method: &str, params: &[(&str, String)]) -> Result<Vec<Value>> {
+    match self.call(method, params).await {
+      Ok(v) => Ok(items(&v)),
+      Err(e) if e.to_string() == AUTH_EXPIRED => Err(e),
+      Err(e) => {
+        log::warn!("[vk] {method} пропущен: {e}");
+        Ok(Vec::new())
+      }
+    }
   }
 
   /// Треки по `owner_id_id[_access_key]` (до 100 за раз).
@@ -210,21 +225,30 @@ impl Vk<'_> {
   /// Метод со страницами `count`/`offset`: до `max` треков.
   async fn pages(&self, method: &str, params: &[(&str, String)], max: usize) -> Result<Vec<VkAudio>> {
     let mut out = Vec::new();
+    let mut offset = 0;
     while out.len() < max {
+      let asked = PAGE.min(max - out.len());
       let mut p = params.to_vec();
-      p.push(("count", PAGE.min(max - out.len()).to_string()));
-      p.push(("offset", out.len().to_string()));
+      p.push(("count", asked.to_string()));
+      p.push(("offset", offset.to_string()));
       let v = self.call(method, &p).await?;
       let raw = items(&v);
-      let total = v["count"].as_u64().unwrap_or(0) as usize;
+      offset += raw.len();
       out.extend(audios(&Value::Array(raw.clone())));
-      if raw.is_empty() || out.len() >= total {
+      let total = v["count"].as_u64().map(|c| c as usize);
+      if last_page(raw.len(), asked, offset, total) {
         break;
       }
     }
     out.truncate(max);
     Ok(out)
   }
+}
+
+/// Страниц больше нет: пустая страница; есть `count` — дошли до него; нет `count` (так бывает у
+/// `audio.getAudiosByArtist`) — VK отдал меньше, чем просили.
+fn last_page(got: usize, asked: usize, offset: usize, total: Option<usize>) -> bool {
+  got == 0 || total.map_or(got < asked, |t| offset >= t)
 }
 
 /// `items` ответа-списка (или сам ответ, если это массив).
@@ -463,6 +487,18 @@ mod tests {
       "main_artists": [{ "name": "Земфира", "domain": "zemfira", "id": "123456789" }],
       "featured_artists": [{ "name": "Гость", "id": "42" }]
     })
+  }
+
+  /// Ответ без `count` не обрывает страницы на первой: идём дальше, пока страница полная.
+  #[test]
+  fn pages_without_count() {
+    assert!(!last_page(200, 200, 200, None));
+    assert!(last_page(37, 200, 237, None));
+    assert!(last_page(0, 200, 400, None));
+    // с count — по нему, даже если страница короче
+    assert!(!last_page(150, 200, 150, Some(500)));
+    assert!(last_page(200, 200, 500, Some(500)));
+    assert!(last_page(0, 200, 0, Some(10)));
   }
 
   #[test]

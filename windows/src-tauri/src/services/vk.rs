@@ -1,13 +1,16 @@
 //! VK Музыка за общим видом сервиса: `vk`/`vka`/`vkalb`/`vkpl`.
-//! access_key трека и ссылку на поток VK отдаёт вместе с треком — ядро держит их в памяти
-//! (`Core::vk_seen`), чтобы не спрашивать VK второй раз; при протухшей ссылке (`fresh`) — `audio.getById`.
+//! Ссылку на поток VK отдаёт вместе с треком — ядро держит её в памяти (`Core::vk_seen`) до
+//! `STREAM_TTL`, чтобы не спрашивать VK второй раз. access_key трека — на диске (`vk_keys.rs`):
+//! с ним `audio.getById` отдаёт трек и после перезапуска.
 
 use super::provider::Provider;
-use super::{Core, PlaylistPage, Stored};
+use super::{Core, PlaylistPage, Stored, STREAM_TTL};
 use crate::providers::registry::ServiceId;
 use crate::providers::vk::{self, VkAudio};
 use crate::providers::{Album, AlbumPage, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track};
 use anyhow::{anyhow, Result};
+use std::path::PathBuf;
+use std::time::Instant;
 
 /// Все треки исполнителя для вкладки «Треки» (VK отдаёт по 200, каждый запрос — 350 мс).
 const MAX: usize = 600;
@@ -17,7 +20,7 @@ const MAX_LIST: usize = 1000;
 const MAX_LIKES: usize = 2000;
 /// Популярное на странице исполнителя.
 const TOP: usize = 10;
-/// Сколько треков помнить с их access_key и ссылкой.
+/// Сколько ссылок на поток держать в памяти; сверх — выкидываем протухшие.
 const SEEN_MAX: usize = 5000;
 const NOT_CONNECTED: &str = "VK Музыка не подключена — открой Настройки → Сервисы";
 const NOT_CONNECTED_SHORT: &str = "VK Музыка не подключена";
@@ -32,19 +35,42 @@ impl Core {
     self.vk.read().await.clone().ok_or_else(|| anyhow!(NOT_CONNECTED))
   }
 
-  /// Треки VK → модели; access_key и ссылку запоминаем для потока.
+  /// access_key треков VK — с диска (`<папка данных>/vk-keys.json`), при запуске приложения.
+  pub fn open_vk_keys(&self, file: PathBuf) {
+    *self.vk_keys.lock().unwrap() = super::vk_keys::VkKeys::open(file);
+  }
+
+  /// Треки VK → модели; ссылку запоминаем в памяти, access_key — на диске.
   pub(super) fn vk_keep(&self, list: Vec<VkAudio>) -> Vec<Track> {
-    let mut seen = self.vk_seen.lock().unwrap();
-    if seen.len() > SEEN_MAX {
-      seen.clear();
+    let now = Instant::now();
+    {
+      let mut seen = self.vk_seen.lock().unwrap();
+      if seen.len() > SEEN_MAX {
+        seen.retain(|_, (_, at)| at.elapsed() < STREAM_TTL);
+      }
+      for a in &list {
+        if let Some(url) = &a.stream_url {
+          seen.insert(a.track.ref_.clone(), (url.clone(), now));
+        }
+      }
     }
-    list
-      .into_iter()
-      .map(|a| {
-        seen.insert(a.track.ref_.clone(), (a.access_key, a.stream_url));
-        a.track
-      })
-      .collect()
+    let keys = list.iter().filter_map(|a| Some((a.track.ref_.clone(), a.access_key.clone()?)));
+    self.vk_keys.lock().unwrap().remember(keys);
+    list.into_iter().map(|a| a.track).collect()
+  }
+
+  /// Ссылка, которую VK отдал вместе с треком, пока она не протухла.
+  fn vk_seen_url(&self, track_ref: &str) -> Option<String> {
+    let seen = self.vk_seen.lock().unwrap();
+    seen.get(track_ref).filter(|(_, at)| at.elapsed() < STREAM_TTL).map(|(url, _)| url.clone())
+  }
+
+  /// id для `audio.getById`: `owner_id_id` и запомненный access_key, если он есть.
+  pub(super) fn vk_full_id(&self, id: &str) -> String {
+    match self.vk_keys.lock().unwrap().get(&format!("vk:{id}")) {
+      Some(k) => format!("{id}_{k}"),
+      None => id.to_owned(),
+    }
   }
 
   /// id своего аккаунта VK: из сохранённого, иначе спросить у VK.
@@ -122,18 +148,17 @@ impl Provider for VkProvider<'_> {
     Ok(self.core.vk_keep(list))
   }
 
-  /// Ссылка из поиска, пока она свежая; иначе (`fresh` или не видели) — `audio.getById` с access_key.
+  /// Ссылка из поиска, пока она свежая; иначе (`fresh`, протухла или не видели) — `audio.getById`
+  /// с access_key с диска.
   async fn stream(&self, id: &str, fresh: bool) -> Result<Source> {
     if !vk::is_audio_id(id) {
       return Err(anyhow!("плохой ref vk:{id}"));
     }
-    let track_ref = format!("vk:{id}");
-    let (key, url) = self.core.vk_seen.lock().unwrap().get(&track_ref).cloned().unwrap_or_default();
-    if let (false, Some(url)) = (fresh, url) {
+    if let Some(url) = (!fresh).then(|| self.core.vk_seen_url(&format!("vk:{id}"))).flatten() {
       return vk::source_from_url(&url);
     }
     let s = self.core.vk.read().await.clone().ok_or_else(|| anyhow!(NOT_CONNECTED_SHORT))?;
-    let full = key.map_or_else(|| id.to_owned(), |k| format!("{id}_{k}"));
+    let full = self.core.vk_full_id(id);
     let found = vk::Vk { http: &self.core.http, creds: &s.creds }.by_id(&[full]).await?;
     let audio = found.into_iter().next().ok_or_else(|| anyhow!("VK Музыка: трек не найден"))?;
     let url = audio.stream_url.clone().unwrap_or_default();
