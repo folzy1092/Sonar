@@ -102,6 +102,15 @@ def server(d):
         d.rounded_rectangle([C + 10, cy - 6, C + w / 2 - 28, cy + 6], 6, fill=255)  # щель
 
 
+def desktop(d):
+    """Компьютер: монитор контуром (как iphone), ножка и подставка."""
+    w, h, top = 264, 172, C - 120
+    d.rounded_rectangle([C - w / 2, top, C + w / 2, top + h], 26, fill=0)
+    d.rounded_rectangle([C - w / 2 + 18, top + 18, C + w / 2 - 18, top + h - 18], 12, fill=255)
+    d.rectangle([C - 16, top + h - 2, C + 16, top + h + 40], fill=0)                 # ножка
+    d.rounded_rectangle([C - 70, top + h + 34, C + 70, top + h + 54], 10, fill=0)    # подставка
+
+
 def logo_polys(size, box, cx=None, cy=None):
     """Контуры знака Sonar из brand/logo.svg (только M/C/L/Z), вписанные в квадрат box с центром (cx, cy)."""
     import re
@@ -157,7 +166,7 @@ def sonar(d):
 
 
 BADGES = {"windows": windows, "iphone": iphone, "android": android, "music": music,
-          "diamond": diamond, "heart": heart, "bug": bug, "wave": wave, "server": server, "sonar": sonar}
+          "diamond": diamond, "heart": heart, "bug": bug, "wave": wave, "server": server, "desktop": desktop, "sonar": sonar}
 
 def plain(glyph, size=100, pad=0.06):
     """Просто знак без розетки (решение владельца 2026-11-15): белый на прозрачном, вписан в квадрат."""
