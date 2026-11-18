@@ -10,8 +10,9 @@ name: iOS
 # и тот же файл — в служебном релизе `ios-latest`, постоянная ссылка на свежую сборку:
 #   https://github.com/folzy1092/Sonar/releases/download/ios-latest/Sonar.ipa
 # Оба релиза НЕ помечаются Latest: Latest занят Windows (releases/latest/download/Sonar-setup.exe).
-# Объявляет обновление человек — правкой updates/ios-update.json (как «рубильник» в Shadow). Для
-# удобства ручной запуск с `announce: true` после сборки сам вписывает в него новую сборку.
+# Объявление (updates/ios-update.json, «рубильник» как в Shadow): каждая сборка из main после пуша
+# объявляется сама — телефоны предлагают обновиться (решение владельца 2026-11-18). Ручной запуск —
+# только с `announce: true`; выключить объявления — `"enabled": false` в ios-update.json.
 on:
   push:
     branches: [main, dev]
@@ -149,9 +150,10 @@ jobs:
             --notes "Служебный релиз: здесь всегда Sonar.ipa последней сборки — сейчас $VERSION ($BUILD), ios-build-$BUILD. Все сборки — релизы ios-build-*."
 
       - name: Объявить обновление
-        if: github.ref == 'refs/heads/main' && inputs.announce
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.announce)
         env:
           TITLE: ${{ inputs.title }}
+          EVENT: ${{ github.event_name }}
         run: |
           cd ..
           git config user.name "Folzy"
@@ -162,6 +164,9 @@ jobs:
           data = json.load(open(path, encoding='utf-8'))
           build, version = int(os.environ['BUILD']), os.environ['VERSION']
           base = 'https://github.com/folzy1092/Sonar/releases'
+          if os.environ['EVENT'] == 'push' and not data.get('enabled', True):
+              print('Объявления выключены (enabled: false) — сборка не объявлена')
+              raise SystemExit(0)
           data.update(enabled=True, build=build, version=version,
                       ipa_url=f'{base}/download/ios-build-{build}/Sonar.ipa',
                       url=f'{base}/tag/ios-build-{build}')
@@ -172,5 +177,6 @@ jobs:
               f.write('\n')
           PY
           git add updates/ios-update.json
+          git diff --cached --quiet && exit 0
           git commit -m "updates: iOS — объявлена сборка $VERSION ($BUILD) [skip ci]"
           for i in 1 2 3 4; do git pull --rebase -q origin main && git push origin HEAD:main && break; sleep $((i * 5)); done
