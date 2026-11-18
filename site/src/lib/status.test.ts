@@ -17,7 +17,7 @@ const API_EXAMPLE = {
   title: 'Частичный сбой',
   uptime_30d: 99.87,
   listening_now: 3,
-  listeners_today: 7,
+  listeners_24h: 7,
   users: 12,
   checked_at: 1_763_500_000_000,
   infra: [
@@ -34,11 +34,11 @@ describe('parseStatus', () => {
     expect(report?.uptime30d).toBe(99.87)
     expect(report?.items.get('api')).toEqual({ id: 'api', state: 'ok', ms: 42 })
     expect(report?.items.get('yandex')?.state).toBe('degraded')
-    expect(report?.people).toEqual({ online: 3, today: 7, users: 12 })
+    expect(report?.people).toEqual({ online: 3, day: 7, users: 12 })
   })
 
   it('leaves people null when the server did not send them', () => {
-    expect(parseStatus({ state: 'ok', checked_at: 1 })?.people).toEqual({ online: null, today: null, users: null })
+    expect(parseStatus({ state: 'ok', checked_at: 1 })?.people).toEqual({ online: null, day: null, users: null })
   })
 
   it('returns null for a foreign or broken response', () => {

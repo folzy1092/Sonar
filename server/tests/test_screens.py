@@ -79,17 +79,11 @@ def test_unset_items_do_not_spoil_header():
 
 def test_status_public_numbers_and_platforms():
     items = {k: Item(k, OK, 42) for k in KEYS + ["youtube", "vk", "spotify", "apple"]}
-    html = S.status(items, 1, 5, 99.9, owner=False, today=3).html
-    assert "Слушателей за сегодня: <b>3</b>" in html
+    html = S.status(items, 1, 5, 99.9, owner=False, day=3).html
+    assert "Слушателей за 24 часа: <b>3</b>" in html
     assert "Основной: " in html and "42 мс" in html.split("Хранилище")[0]  # мс «Основного» — всем
     for name in ("YouTube Music", "VK Музыка", "Spotify", "Apple Music"):
         assert name in html
     items["spotify"] = Item("spotify", DOWN)
     assert "штатно" in S.status(items, 0, 0, None, owner=False).html  # будущие платформы шапку не портят
-    assert "Слушателей за сегодня" not in S.status(items, 0, 0, None, owner=False).html
-
-
-def test_day_start_is_midnight():
-    from sonar.db import day_start_ms
-    start = day_start_ms(1794700000.0)
-    assert start <= 1794700000000 < start + 86400_000
+    assert "Слушателей за 24 часа" not in S.status(items, 0, 0, None, owner=False).html

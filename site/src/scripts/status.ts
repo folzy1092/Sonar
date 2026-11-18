@@ -23,7 +23,7 @@ interface Strings {
   ago: string
   justNow: string
   uptime: string
-  people: Record<'online' | 'today' | 'users', string>
+  people: Record<'online' | 'day' | 'users', string>
   rowUptime: string
   barsLabel: string
   noIncidents: string
@@ -101,7 +101,7 @@ function renderBanner(root: HTMLElement, s: Strings, lang: Lang, locale: string,
   if (report) {
     const uptime = fill(s.uptime, { pct: formatUptime(report.uptime30d, locale) })
     const num = new Intl.NumberFormat(locale)
-    const people = (['online', 'today', 'users'] as const).flatMap((k) => {
+    const people = (['online', 'day', 'users'] as const).flatMap((k) => {
       const n = report.people[k]
       return n === null ? [] : [fill(s.people[k], { n: num.format(n) })]
     })

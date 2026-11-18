@@ -18,7 +18,7 @@ from aiogram.types import CallbackQuery, Message
 
 from ..accounts import AccountError, Accounts, User, looks_like_token
 from ..config import Settings
-from ..db import day_start_ms, now_ms
+from ..db import now_ms
 from ..logs import LogGroup
 from ..posts import Draft
 from ..releases import PLATFORMS, ReleaseError, Releases, check_url, parse_targets, version_from_url
@@ -119,7 +119,7 @@ async def cmd_status(msg: Message, ctx: Ctx):
 async def status_screen(ctx: Ctx, tg_id: int, fresh: bool = False) -> Screen:
     items = await ctx.status.current(max_age_s=0 if fresh else 60)
     return S.status(items, ctx.accounts.listening_now(), ctx.accounts.users_count(), ctx.status.uptime(), ctx.is_owner(tg_id),
-                    ctx.status.never_ok(), today=ctx.accounts.listeners_today(day_start_ms()))
+                    ctx.status.never_ok(), day=ctx.accounts.listeners_24h())
 
 
 # ---- кнопки ----

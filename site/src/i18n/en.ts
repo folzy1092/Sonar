@@ -163,7 +163,7 @@ const en: Dict = {
   "Обновлено только что": "Updated just now",
   "Аптайм за 30 дней: {pct}": "30-day uptime: {pct}",
   "Слушают онлайн: {n}": "Listening now: {n}",
-  "Слушателей за сегодня: {n}": "Listeners today: {n}",
+  "Слушателей за 24 часа: {n}": "Listeners in 24 hours: {n}",
   "Пользователей: {n}": "Users: {n}",
   "Аптайм {pct}": "Uptime {pct}",
   "{name}: аптайм за 30 дней — {pct}": "{name}: 30-day uptime — {pct}",
