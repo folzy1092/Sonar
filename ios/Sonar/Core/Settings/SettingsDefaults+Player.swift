@@ -32,7 +32,7 @@ extension SettingsDefaults {
             "queue.view": .string(QueueView.fallback.rawValue),
             "queue.add_following": .bool(true),
             "general.restore": .string(RestoreMode.fallback.rawValue),
-            // Моя волна: подкачка следующих на Wi‑Fi для игры без сети (`WaveCache`) и «Почему этот трек»
+            // Sonar Mix: подкачка следующих на Wi‑Fi для игры без сети (`WaveCache`) и «Почему этот трек»
             "storage.wave_offline": .bool(true),
             "player.wave_why": .bool(true),
         ]

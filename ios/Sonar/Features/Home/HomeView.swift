@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Главная (`IMG_6764`, `IMG_6765`, `photo_5`): знак Sonar и колокольчик, поле точек «Моей волны»,
+/// Главная (`IMG_6764`, `IMG_6765`, `photo_5`): знак Sonar и колокольчик, поле точек Sonar Mix,
 /// заголовок с вопросом под время суток и большая кнопка, подборки «Для вас» и «Открытия» (мозаика из
 /// четырёх обложек), «Недавнее» страницами по четыре трека, «Релизы». Данные — `HomeFeed` и
 /// `PlayHistory` (на телефоне, без сервера).
@@ -93,7 +93,7 @@ struct HomeView: View {
     private var waveTitle: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Моя волна")
+                Text("Sonar Mix")
                     .font(.system(size: 42, weight: .black).width(.expanded))
                     .foregroundStyle(Theme.text)
                     .lineLimit(1)
@@ -106,7 +106,7 @@ struct HomeView: View {
                     Button { showModes = true } label: {
                         HStack(spacing: 6) {
                             SonarIcon(WaveModeSheet.icon(engine.waveMode), filled: true, size: 15)
-                            Text(engine.waveMode.title)
+                            Text(t(engine.waveMode.title))
                                 .font(.system(size: 14, weight: .semibold))
                         }
                         .foregroundStyle(Theme.accent)
@@ -121,7 +121,7 @@ struct HomeView: View {
             }
             Spacer(minLength: 8)
             Button {
-                // сама ставит на паузу / продолжает, если «Моя волна» уже играет
+                // сама ставит на паузу / продолжает, если Sonar Mix уже играет
                 engine.playMyWave()
             } label: {
                 ZStack {
@@ -138,11 +138,11 @@ struct HomeView: View {
                     .shadow(color: Theme.glow.opacity(0.45), radius: 18, y: 6)
             }
             .buttonStyle(PressableStyle(scale: 0.9))
-            .accessibilityLabel(myWavePlaying ? "Пауза" : "Включить Мою волну")
+            .accessibilityLabel(myWavePlaying ? "Пауза" : "Включить Sonar Mix")
         }
     }
 
-    /// Играет именно «Моя волна» (не «Волна по треку»).
+    /// Играет именно Sonar Mix (не «Волна по треку»).
     private var myWavePlaying: Bool {
         engine.isWave && engine.waveSeed == nil && engine.isPlaying
     }

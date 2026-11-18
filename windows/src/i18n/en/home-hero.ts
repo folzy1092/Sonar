@@ -3,7 +3,7 @@
 export default {
   'Для тебя': 'For you',
   '{hello}, {name}': '{hello}, {name}',
-  'Настроение волны': 'Wave mood',
+  'Настроение Sonar Mix': 'Sonar Mix mood',
   'Какое настроение?': 'What’s the mood?',
   'Мягкий старт': 'A soft start',
   'утра': 'to the morning',

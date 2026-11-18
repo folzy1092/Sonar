@@ -1,4 +1,4 @@
-// Знак Sonar как свой символ (SF Symbols template v3.0) для кнопки «Моя волна» в Пункте управления: кнопки
+// Знак Sonar как свой символ (SF Symbols template v3.0) для кнопки Sonar Mix в Пункте управления: кнопки
 // Пункта управления (ControlWidget, iOS 18) рисуют только символы — обычную картинку или SwiftUI-фигуру там
 // не показать, а SF Symbol владелец не хочет. Источник — brand/logo.svg, тот же знак, что LogoMark.
 // Шаблон — минимальный «переменный» (Ultralight-S, Regular-S, Black-S), как у SwiftDraw: Xcode сам

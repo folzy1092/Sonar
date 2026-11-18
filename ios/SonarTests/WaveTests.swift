@@ -1,7 +1,7 @@
 import XCTest
 @testable import Sonar
 
-/// «Моя волна»: сиды, отбор порции, сигналы сессии и сама волна на заглушке сервисов.
+/// Sonar Mix: сиды, отбор порции, сигналы сессии и сама волна на заглушке сервисов.
 @MainActor
 final class WaveTests: XCTestCase {
     private let zero: () -> Double = { 0 }
@@ -253,11 +253,30 @@ final class WaveTests: XCTestCase {
     }
 
     func testModesListLikeWindows() {
-        XCTAssertEqual(WaveMode.allCases.map(\.rawValue), ["own", "hard", "calm", "sad", "fun", "new"])
-        XCTAssertEqual(WaveMode.allCases.map(\.title), ["Своя", "Жёсткая", "Спокойная", "Грустная", "Весёлая", "Незнакомое"])
+        XCTAssertEqual(WaveMode.allCases.map(\.rawValue),
+                       ["own", "fun", "calm", "sad", "hard", "night", "sleep", "popular", "focus"])
+        XCTAssertEqual(WaveMode.allCases.map(\.label),
+                       ["Обычное", "Весёлое", "Спокойное", "Грустное", "Жёсткое", "Ночное", "Сон", "Популярное", "Концентрация"])
+        XCTAssertEqual(WaveMode.own.title, "настроение::Обычное", "в стиле «Обычное» значит другое — ключ с контекстом")
         XCTAssertEqual(WaveMode.hard.subtitle, "фонк, рэйдж, рок")
-        XCTAssertEqual(WaveMode.new.next, .own)
+        XCTAssertEqual(WaveMode.focus.next, .own)
         XCTAssertEqual(SettingsStore.defaults["wave.mode"], .string("own"))
+    }
+
+    func testLegacyDiscoverModeReadsAsOwn() {
+        XCTAssertEqual(WaveMode.stored("new"), .own, "«Незнакомое» убрано — сохранённое значение читается как «Обычное»")
+        XCTAssertEqual(WaveMode.stored("night"), .night)
+        XCTAssertEqual(WaveMode.stored(""), .own)
+    }
+
+    func testNineMoodsHaveOwnDictionaries() {
+        XCTAssertFalse(WaveMode.own.isMood)
+        for mode in WaveMode.allCases where mode != .own {
+            XCTAssertTrue(mode.isMood, mode.rawValue)
+            XCTAssertTrue(WaveMath.moods.contains { $0.0 == mode }, "\(mode.rawValue) — свой словарь")
+            XCTAssertGreaterThan(WaveWeights.of(mode).mood, 0, mode.rawValue)
+        }
+        XCTAssertEqual(WaveMode.allCases.filter(\.isFunctional), [.sleep, .focus])
     }
 
     func testMoodFit() {
@@ -272,8 +291,7 @@ final class WaveTests: XCTestCase {
         XCTAssertEqual(WaveMath.moodFit(.sad, plain), 0, "ничего не известно")
         XCTAssertGreaterThan(WaveMath.moodFit(.sad, sadTitle), 0, "по названию тоже")
         XCTAssertLessThan(WaveMath.moodFit(.fun, sadTitle), 0)
-        XCTAssertEqual(WaveMath.moodFit(.own, phonk), 0, "«Своя» — без настроения")
-        XCTAssertEqual(WaveMath.moodFit(.new, phonk), 0)
+        XCTAssertEqual(WaveMath.moodFit(.own, phonk), 0, "«Обычное» — без настроения")
     }
 
     func testMoodModePrefersFittingTracks() {
@@ -296,40 +314,63 @@ final class WaveTests: XCTestCase {
         XCTAssertFalse(out.contains { $0.ref == "sc:loud" })
     }
 
-    func testNewModeAvoidsKnownArtists() {
+    func testNewMoodsHaveOwnProfiles() {
+        XCTAssertGreaterThan(WaveMath.moodFit(.night, tagged("sc:1", "synthwave midnight")), 1)
+        XCTAssertGreaterThan(WaveMath.moodFit(.sleep, tagged("sc:2", "sleep ambient drone")), 1)
+        XCTAssertGreaterThan(WaveMath.moodFit(.focus, tagged("sc:3", "study instrumental chillhop")), 1)
+        XCTAssertGreaterThan(WaveMath.moodFit(.popular, tagged("sc:4", "viral tiktok hits")), 1)
+        // фонк — не сон и не концентрация
+        XCTAssertLessThan(WaveMath.moodFit(.sleep, tagged("sc:5", "phonk drift")), 0)
+        XCTAssertLessThan(WaveMath.moodFit(.focus, tagged("sc:5", "phonk drift")), 0)
+        // профили разные: один и тот же трек по-разному подходит разным настроениям
+        let lofi = tagged("sc:6", "lofi study beats to relax")
+        XCTAssertGreaterThan(WaveMath.moodFit(.focus, lofi), WaveMath.moodFit(.sleep, lofi))
+    }
+
+    func testPopularPrefersManyPlays() {
+        XCTAssertEqual(WaveMath.popularity(makeTrack("ym:1", "A")), 0, "нет числа — не штраф")
+        let big = makeTrack("sc:1", "Big", plays: 10_000_000)
+        let small = makeTrack("sc:2", "Small", plays: 60_000)
+        XCTAssertEqual(WaveMath.popularity(big), 1, accuracy: 1e-9)
+        XCTAssertLessThan(WaveMath.popularity(small), 0.5)
+        var session = WaveSession()
+        session.mode = .popular
+        let out = WaveMath.pick([small, big], taste: Taste(), origin: WaveOrigin(), session: session, filter: WaveFilter(), noise: zero)
+        XCTAssertEqual(out.first?.ref, "sc:1")
+        XCTAssertEqual(WaveWeights.of(.own).popularity, 0, "популярность весит только в «Популярном»")
+    }
+
+    func testSleepAndFocusKeepOnlyFittingWhenEnough() {
+        var cands = (0 ..< 25).map { i -> Track in
+            var t = makeTrack("sc:c\(i)", "Artist\(i)", plays: 5000)
+            t.tags = "sleep ambient"
+            return t
+        }
+        cands.insert(makeTrack("sc:plain", "Plain", plays: 5000), at: 0)
+        var session = WaveSession()
+        session.mode = .sleep
+        let out = WaveMath.pick(cands, taste: Taste(), origin: WaveOrigin(), session: session, filter: WaveFilter(), noise: zero)
+        XCTAssertFalse(out.isEmpty)
+        XCTAssertFalse(out.contains { $0.ref == "sc:plain" }, "трек без признаков сна не попадает, когда подходящих хватает")
+    }
+
+    func testFamiliarityAndLikedShareByMode() {
         var taste = Taste()
         taste.likedArtists = ["fav"]
         var session = WaveSession()
-        session.mode = .new
+        session.mode = .own
         let fav = makeTrack("sc:1", "Fav")
         let stranger = makeTrack("sc:2", "Stranger")
-        XCTAssertGreaterThan(WaveMath.score(stranger, taste: taste, origin: WaveOrigin(), session: session),
-                             WaveMath.score(fav, taste: taste, origin: WaveOrigin(), session: session))
-        session.mode = .own
         XCTAssertGreaterThan(WaveMath.score(fav, taste: taste, origin: WaveOrigin(), session: session),
                              WaveMath.score(stranger, taste: taste, origin: WaveOrigin(), session: session))
-        XCTAssertNil(WaveMath.familiarity(.new, bySeed: false).maxUnknown)
         XCTAssertEqual(WaveMath.familiarity(.own, bySeed: false).maxUnknown, 3)
         XCTAssertEqual(WaveMath.familiarity(.sad, bySeed: false).maxUnknown, 4)
+        XCTAssertEqual(WaveMath.familiarity(.popular, bySeed: false).maxUnknown, 6)
+        XCTAssertEqual(WaveMath.familiarity(.popular, bySeed: false).minPlays, 50000)
         XCTAssertEqual(WaveMath.familiarity(.own, bySeed: true).maxUnknown, 5)
         XCTAssertEqual(WaveMath.likedShare(.own, bySeed: false), 3)
         XCTAssertEqual(WaveMath.likedShare(.fun, bySeed: false), 2)
-        XCTAssertEqual(WaveMath.likedShare(.new, bySeed: false), 0)
+        XCTAssertEqual(WaveMath.likedShare(.night, bySeed: false), 2)
         XCTAssertEqual(WaveMath.likedShare(.own, bySeed: true), 0)
-    }
-
-    func testNewModeExploresSecondHop() async throws {
-        let dir = tempDirectory()
-        let library = LibraryStore(file: dir.appendingPathComponent("library.json"))
-        let history = PlayHistory(file: dir.appendingPathComponent("history.json"))
-        let source = FakeSource()
-        library.toggleLike(makeTrack("sc:liked", "Fav"))
-        source.similarByRef["sc:liked"] = [makeTrack("sc:u1", "Stranger1"), makeTrack("sc:f2", "Fav")]
-        source.similarByRef["sc:u1"] = (0 ..< 12).map { makeTrack("sc:h\($0)", "Hop\($0)") }
-        let wave = MyWave(source: source, library: library, history: history, random: { 0 })
-        let list = try await wave.start(seed: nil, mode: .new)
-        XCTAssertTrue(list.contains { $0.ref.hasPrefix("sc:h") }, "второй шаг от незнакомого")
-        XCTAssertEqual(list.first?.artistKey == "fav", false, "знакомое — в конце, если вообще")
-        XCTAssertFalse(list.contains { $0.ref == "sc:liked" }, "в «Незнакомом» своих лайков нет")
     }
 }

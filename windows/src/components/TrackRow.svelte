@@ -3,6 +3,8 @@
   // (ссылки на их страницы), прослушивания, ❤, длительность, ⋮. Правый клик — то же меню трека.
   import Cover from './Cover.svelte'
   import Icon from './Icon.svelte'
+  import SourceIcon from './SourceIcon.svelte'
+  import { serviceOf } from '../lib/services'
   import { pulse } from '../lib/pulse'
   import type { Track } from '../lib/api'
   import { library } from '../lib/library.svelte'
@@ -138,6 +140,10 @@
     >
       <span class="ic" use:pulse={liked}><Icon name="heart" size={15} filled={liked} /></span>
     </button>
+    {/if}
+    {#if settings.get('appearance.show_sources') && serviceOf(track.ref)}
+      <!-- Интерфейс → Вид → «Показывать площадки»: откуда трек, рядом с длительностью -->
+      <span class="src"><SourceIcon service={serviceOf(track.ref)!} size={14} /></span>
     {/if}
     {#if variant === 'list'}
       <span class="dur">{formatTime(track.duration_ms)}</span>
@@ -363,6 +369,12 @@
     font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
+  }
+  .src {
+    display: grid;
+    place-items: center;
+    flex: none;
+    opacity: 0.85;
   }
   .dur {
     min-width: 36px;

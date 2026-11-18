@@ -1,6 +1,8 @@
 <script lang="ts">
-  // Система → Хранилище (pc/Screenshot_18): сколько занято (полоса по типам), очистка обложек и
-  // текстов, сброс настроек треков, кэш треков (вкл., лимит, сколько занято, очистка — track_cache.rs).
+  // Приложение → Хранилище (SETTINGS_NEXT «Хранилище»): сверху карточка — кольцо с общим размером и
+  // «Что очистить?» (галочки, размер, полоска доли), внизу кнопка «Очистить N MB» на сумму отмеченного.
+  // Ниже — кеширование треков отдельной карточкой, папки с музыкой и «Данные» (история поиска,
+  // настройки треков). Размеры — storage_usage, очистка — clear_storage (track_cache.rs, commands.rs).
   import { onMount } from 'svelte'
   import Group from '../../components/settings/Group.svelte'
   import CountUp from '../../components/CountUp.svelte'
@@ -13,16 +15,45 @@
   import { t, tn } from '../../lib/i18n.svelte'
   import { toast } from '../../lib/toast.svelte'
 
+  type Kind = 'tracks' | 'covers' | 'lyrics'
+  const KINDS: Kind[] = ['tracks', 'covers', 'lyrics']
+  /** Длина окружности кольца (r = 52) — от неё считаются дуги долей. */
+  const RING = 2 * Math.PI * 52
+  const RING_GAP = 4
+
   let usage = $state<StorageUsage | null>(null)
   let confirmPrefs = $state(false)
+  let busy = $state(false)
+  // Кэш треков — то, что играет без сети, поэтому по умолчанию не отмечен.
+  let picked = $state<Record<Kind, boolean>>({ tracks: false, covers: true, lyrics: true })
+  let historyCount = $state(0)
 
   const mb = (b: number) => b / 1_048_576
   const mbText = (b: number) =>
     b < 1_048_576 ? t('{n} КБ', { n: Math.max(1, Math.round(b / 1024)) }) : t('{n} МБ', { n: mb(b) < 10 ? mb(b).toFixed(1) : Math.round(mb(b)) })
+  const bytes = (u: StorageUsage, k: Kind) => (k === 'tracks' ? u.tracks_bytes : k === 'covers' ? u.covers_bytes : u.lyrics_bytes)
+  const count = (u: StorageUsage, k: Kind) => (k === 'tracks' ? u.tracks : k === 'covers' ? u.covers : u.lyrics)
   const total = $derived(usage ? usage.tracks_bytes + usage.covers_bytes + usage.lyrics_bytes + usage.db_bytes : 0)
-  const part = (b: number) => (total ? Math.max(2, (b / total) * 100) : 0)
+  const share = (b: number) => (total ? b / total : 0)
+  const selected = $derived(usage ? KINDS.filter((k) => picked[k]).reduce((sum, k) => sum + bytes(usage!, k), 0) : 0)
 
-  let historyCount = $state(0)
+  const label = (k: Kind) => (k === 'tracks' ? t('Треки') : k === 'covers' ? t('Обложки') : t('Тексты'))
+  const units = (k: Kind, n: number) =>
+    k === 'tracks' ? tn(n, ['трек', 'трека', 'треков']) : k === 'covers' ? tn(n, ['обложка', 'обложки', 'обложек']) : tn(n, ['текст', 'текста', 'текстов'])
+
+  /** Дуги кольца: доли по порядку, между ними зазор; самая малая доля всё равно видна. */
+  const arcs = $derived.by(() => {
+    if (!usage || !total) return []
+    const parts = [...KINDS.map((k) => ({ id: k as string, b: bytes(usage!, k) })), { id: 'db', b: usage.db_bytes }].filter((p) => p.b > 0)
+    let offset = 0
+    return parts.map((p) => {
+      const len = Math.max(2, share(p.b) * RING - RING_GAP)
+      const arc = { id: p.id, len, offset }
+      offset += len + RING_GAP
+      return arc
+    })
+  })
+
   async function refresh() {
     try {
       usage = await api.storageUsage()
@@ -31,86 +62,113 @@
     }
     historyCount = await api.searchHistoryCount().catch(() => 0)
   }
-  async function clearHistory() {
-    await searchHistory.clear()
-    toast.show(t('История поиска очищена'))
-    await refresh()
-  }
   onMount(refresh)
 
-  async function clear(kind: 'covers' | 'tracks' | 'lyrics' | 'track_prefs' | 'all', done: string) {
+  async function clearPicked() {
+    if (busy || !selected) return
+    busy = true
+    const freed = mbText(selected)
     try {
-      await api.clearStorage(kind)
-      toast.show(done)
+      for (const k of KINDS.filter((k) => picked[k])) await api.clearStorage(k)
+      toast.show(t('Освобождено {n}', { n: freed }))
+    } catch (e) {
+      toast.show(String(e))
+    }
+    busy = false
+    await refresh()
+  }
+
+  async function clearPrefs() {
+    try {
+      await api.clearStorage('track_prefs')
+      toast.show(t('Настройки треков сброшены'))
     } catch (e) {
       toast.show(String(e))
     }
     confirmPrefs = false
     await refresh()
   }
+
+  async function clearHistory() {
+    await searchHistory.clear()
+    toast.show(t('История поиска очищена'))
+    await refresh()
+  }
 </script>
 
 {#if usage}
-  <div class="total">
-    <b><CountUp value={mb(total)} format={(n) => n.toFixed(1)} /> MB</b>
-    <span>{t('Занято')}</span>
-  </div>
-  <div class="bar" aria-hidden="true">
-    {#if usage.tracks_bytes}<i class="tracks" style:width="{part(usage.tracks_bytes)}%"></i>{/if}
-    <i class="covers" style:width="{part(usage.covers_bytes)}%"></i>
-    <i class="lyrics" style:width="{part(usage.lyrics_bytes)}%"></i>
-    <i class="db" style:width="{part(usage.db_bytes)}%"></i>
-  </div>
+  <section class="card summary">
+    <div class="ring">
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="track" cx="60" cy="60" r="52" />
+        {#each arcs as a (a.id)}
+          <circle
+            class="arc {a.id}"
+            cx="60"
+            cy="60"
+            r="52"
+            stroke-dasharray="{a.len} {RING}"
+            stroke-dashoffset={-a.offset}
+          />
+        {/each}
+      </svg>
+      <div class="sum">
+        <b><CountUp value={mb(total)} format={(n) => n.toFixed(1)} /></b>
+        <span>MB · {t('Занято')}</span>
+      </div>
+    </div>
 
-  <Switch
-    title={t('Кеширование треков')}
-    hint={t('Прослушанные треки сохраняются на диск и в следующий раз играют без сети')}
-    on={settings.get('storage.cache_tracks')}
-    onchange={(v) => settings.set('storage.cache_tracks', v)}
-  />
-  {#if settings.get('storage.cache_tracks')}
-    <Choice
-      title={t('Размер кэша треков')}
-      hint={t('Сверх лимита удаляются давно не игравшие')}
-      value={settings.get('storage.cache_limit_mb')}
-      options={[512, 1024, 2048, 5120, 10240].map((n) => ({ id: n, label: n < 1024 ? t('{n} МБ', { n }) : t('{n} ГБ', { n: n / 1024 }) }))}
-      onchange={(v) => settings.set('storage.cache_limit_mb', v)}
-    />
+    <div class="pick">
+      <b class="ask">{t('Что очистить?')}</b>
+      {#each KINDS as k (k)}
+        {@const b = bytes(usage, k)}
+        <label class="item" class:on={picked[k]}>
+          <input type="checkbox" checked={picked[k]} disabled={!b} onchange={(e) => (picked = { ...picked, [k]: e.currentTarget.checked })} />
+          <span class="box" aria-hidden="true"></span>
+          <span class="name">
+            <span class="line"><span class="dot {k}"></span>{label(k)}<small>{count(usage, k)} {units(k, count(usage, k))}</small></span>
+            <span class="share"><i class={k} style:width="{Math.max(b ? 3 : 0, share(b) * 100)}%"></i></span>
+          </span>
+          <span class="size">{mbText(b)}</span>
+        </label>
+      {/each}
+    </div>
+
+    <button class="clear" disabled={!selected || busy} onclick={clearPicked}>
+      {selected ? t('Очистить {n}', { n: mbText(selected) }) : t('Нечего очищать')}
+    </button>
+  </section>
+
+  <section class="card">
     <Switch
-      title={t('Волна офлайн')}
-      hint={t('Следующие 15 треков «Моей волны» заранее скачиваются в кэш — волна доиграет и без сети')}
-      on={settings.get('storage.wave_offline')}
-      onchange={(v) => settings.set('storage.wave_offline', v)}
+      title={t('Кеширование треков')}
+      hint={t('Прослушанные треки сохраняются на диск и в следующий раз играют без сети')}
+      on={settings.get('storage.cache_tracks')}
+      onchange={(v) => settings.set('storage.cache_tracks', v)}
     />
-  {/if}
+    {#if settings.get('storage.cache_tracks')}
+      <Choice
+        title={t('Размер кэша треков')}
+        hint={t('Сверх лимита удаляются давно не игравшие')}
+        value={settings.get('storage.cache_limit_mb')}
+        options={[512, 1024, 2048, 5120, 10240].map((n) => ({ id: n, label: n < 1024 ? t('{n} МБ', { n }) : t('{n} ГБ', { n: n / 1024 }) }))}
+        onchange={(v) => settings.set('storage.cache_limit_mb', v)}
+      />
+      <Switch
+        title={t('Sonar Mix офлайн')}
+        hint={t('Следующие 15 треков Sonar Mix заранее скачиваются в кэш — микс доиграет и без сети')}
+        on={settings.get('storage.wave_offline')}
+        onchange={(v) => settings.set('storage.wave_offline', v)}
+      />
+    {/if}
+  </section>
 
   <MusicFolders />
-
-  <Group title={t('Очистка кеша')}>
-    {#snippet action()}
-      <button class="link" onclick={() => clear('all', t('Кэш очищен'))}>{t('Очистить всё')}</button>
-    {/snippet}
-    <div class="row">
-      <span class="dot tracks"></span>
-      <span class="text"><b>{t('Треки')}</b><small>{usage.tracks} {tn(usage.tracks, ['трек', 'трека', 'треков'])}, {mbText(usage.tracks_bytes)}</small></span>
-      <button class="link" disabled={!usage.tracks} onclick={() => clear('tracks', t('Кэш треков очищен'))}>{t('Очистить')}</button>
-    </div>
-    <div class="row">
-      <span class="dot covers"></span>
-      <span class="text"><b>{t('Обложки')}</b><small>{usage.covers} {tn(usage.covers, ['обложка', 'обложки', 'обложек'])}, {mbText(usage.covers_bytes)}</small></span>
-      <button class="link" onclick={() => clear('covers', t('Обложки удалены'))}>{t('Очистить')}</button>
-    </div>
-    <div class="row">
-      <span class="dot lyrics"></span>
-      <span class="text"><b>{t('Тексты')}</b><small>{usage.lyrics} {tn(usage.lyrics, ['текст', 'текста', 'текстов'])}, {mbText(usage.lyrics_bytes)}</small></span>
-      <button class="link" onclick={() => clear('lyrics', t('Тексты удалены'))}>{t('Очистить')}</button>
-    </div>
-  </Group>
 
   <Group title={t('Данные')}>
     <div class="row">
       <span class="text"><b>{t('История поиска')}</b><small>{historyCount} {tn(historyCount, ['запись', 'записи', 'записей'])} — {t('запросы и открытые из поиска результаты')}</small></span>
-      <button class="link" disabled={!historyCount} onclick={clearHistory}>{t('Очистить')}</button>
+      <button class="pill" disabled={!historyCount} onclick={clearHistory}>{t('Очистить')}</button>
     </div>
     <div class="row">
       <span class="text">
@@ -118,9 +176,9 @@
         <small>{t('Скорость, эквалайзер и сдвиг текста, сохранённые для отдельных треков ({n})', { n: usage.track_prefs })}</small>
       </span>
       {#if confirmPrefs}
-        <button class="link danger" onclick={() => clear('track_prefs', t('Настройки треков сброшены'))}>{t('Точно сбросить?')}</button>
+        <button class="pill danger" onclick={clearPrefs}>{t('Точно сбросить?')}</button>
       {:else}
-        <button class="link" disabled={!usage.track_prefs} onclick={() => (confirmPrefs = true)}>{t('Сбросить')}</button>
+        <button class="pill" disabled={!usage.track_prefs} onclick={() => (confirmPrefs = true)}>{t('Сбросить')}</button>
       {/if}
     </div>
   </Group>
@@ -129,55 +187,224 @@
 {/if}
 
 <style>
-  .total {
+  .card {
+    padding: 14px 16px;
+    border-radius: var(--radius-xl, 18px);
+    background: var(--plate);
+    margin-bottom: 12px;
+  }
+  .summary {
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: 14px 22px;
+    align-items: center;
+  }
+  .ring {
+    position: relative;
+    width: 132px;
+    height: 132px;
+  }
+  .ring svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+  circle {
+    fill: none;
+    stroke-width: 11;
+  }
+  .track {
+    stroke: var(--hover);
+  }
+  .arc {
+    stroke-linecap: round;
+    transition:
+      stroke-dasharray 0.7s var(--ease),
+      stroke-dashoffset 0.7s var(--ease);
+    animation: ring-in 0.8s var(--ease) both;
+  }
+  @keyframes ring-in {
+    from {
+      stroke-dasharray: 0 999;
+    }
+  }
+  .sum {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+  }
+  .sum b {
+    font-family: var(--font-display);
+    font-size: calc(24px * var(--fs, 1));
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .sum span {
+    font-size: calc(11px * var(--fs, 1));
+    color: var(--text-3);
+  }
+  .pick {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .ask {
+    font-size: calc(14px * var(--fs, 1));
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .item {
+    position: relative;
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 7px 8px;
+    margin: 0 -8px;
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--text-3);
+    transition:
+      background var(--fast) var(--ease),
+      color var(--fast) var(--ease);
+  }
+  .item:hover {
+    background: var(--hover);
+  }
+  .item.on {
+    color: var(--text);
+  }
+  .item input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .box {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    border: 1.5px solid var(--text-3);
+    display: grid;
+    place-items: center;
+    transition:
+      background var(--fast) var(--ease),
+      border-color var(--fast) var(--ease);
+  }
+  .box::after {
+    content: '';
+    width: 8px;
+    height: 4px;
+    border: 2px solid var(--accent-ink);
+    border-top: 0;
+    border-right: 0;
+    transform: translateY(-1px) rotate(-45deg) scale(0);
+    transition: transform var(--fast) var(--ease);
+  }
+  .on .box {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .on .box::after {
+    transform: translateY(-1px) rotate(-45deg) scale(1);
+  }
+  .item input:focus-visible + .box {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .item:has(input:disabled) {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .name {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+  }
+  .line {
     display: flex;
     align-items: baseline;
     gap: 8px;
-  }
-  .total b {
-    font-family: var(--font-display);
-    font-size: calc(30px * var(--fs, 1));
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-  .total span {
     font-size: calc(13px * var(--fs, 1));
+    font-weight: 600;
+  }
+  .line small {
+    font-size: calc(11px * var(--fs, 1));
+    font-weight: 400;
     color: var(--text-3);
   }
-  .bar {
-    display: flex;
-    gap: 3px;
-    height: 6px;
-    margin: 10px 0 8px;
+  .share {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--hover);
+    overflow: hidden;
   }
-  .bar i {
-    border-radius: 3px;
+  .share i {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
     transition: width 0.6s var(--ease);
+  }
+  .size {
+    font-size: calc(13px * var(--fs, 1));
+    font-variant-numeric: tabular-nums;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    align-self: center;
+  }
+  /* Доли — оттенки текста, кольцо и полоски одного цвета на тип. */
+  .tracks {
+    background: var(--accent);
+    stroke: var(--accent);
   }
   .covers {
     background: var(--text);
+    stroke: var(--text);
   }
   .lyrics {
     background: var(--text-2);
+    stroke: var(--text-2);
   }
   .db {
-    background: var(--text-3);
+    stroke: var(--text-3);
   }
-  .tracks {
+  .clear {
+    grid-column: 1 / -1;
+    height: 42px;
+    border-radius: 12px;
     background: var(--text);
-    opacity: 0.4;
+    color: var(--bg, #000);
+    font-size: calc(14px * var(--fs, 1));
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    transition:
+      opacity var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .clear:hover:not(:disabled) {
+    opacity: 0.88;
+  }
+  .clear:active:not(:disabled) {
+    transform: scale(0.985);
+  }
+  .clear:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
   .row {
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 10px 0;
-  }
-  .dot {
-    width: 12px;
-    height: 8px;
-    border-radius: 2px;
-    transform: skewX(-20deg);
   }
   .text {
     flex: 1;
@@ -193,25 +420,50 @@
     font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
-  .link {
+  .pill {
+    padding: 7px 14px;
+    border-radius: 999px;
+    background: var(--hover);
     font-size: calc(13px * var(--fs, 1));
-    color: var(--text-2);
-    padding: 6px 4px;
-    transition: color var(--fast) var(--ease);
-  }
-  .link:hover:not(:disabled) {
     color: var(--text);
+    transition:
+      background var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
   }
-  .link:disabled {
+  .pill:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
+  .pill:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+  .pill:disabled {
     opacity: 0.4;
     cursor: default;
   }
-  .link.danger {
+  .pill.danger {
     color: var(--danger);
     animation: tab-in var(--normal) var(--ease);
   }
   .ph {
-    height: 120px;
-    border-radius: 14px;
+    height: 160px;
+    border-radius: 18px;
+  }
+  @media (max-width: 560px) {
+    .summary {
+      grid-template-columns: 1fr;
+      justify-items: center;
+    }
+    .pick {
+      width: 100%;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .arc {
+      animation: none;
+    }
+    .clear:active,
+    .pill:active {
+      transform: none;
+    }
   }
 </style>

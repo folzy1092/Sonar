@@ -152,11 +152,11 @@ final class PlaybackExtrasTests: XCTestCase {
         XCTAssertEqual(WaveReason.text(for: makeTrack("sc:x", "Y"), known: false, c), "Новый для тебя артист")
         XCTAssertEqual(WaveReason.text(for: makeTrack("sc:x", "Y"), known: true, c), "Подобрано по твоему вкусу")
 
-        c.mode = .new
-        XCTAssertEqual(WaveReason.text(for: makeTrack("sc:3", "X"), known: false, c), "Новый для тебя артист · похож на «Дослушанная»")
+        XCTAssertEqual(WaveReason.text(for: makeTrack("sc:3", "X"), known: false, c), "Похож на «Дослушанная»",
+                       "«Незнакомого» больше нет — у трека с сидом причина та же, знаком артист или нет")
         c.mode = .calm
         let chill = makeTrack("sc:3", "X", title: "lofi chill")
-        XCTAssertEqual(WaveReason.text(for: chill, known: true, c), "Спокойная · похож на «Дослушанная»")
+        XCTAssertEqual(WaveReason.text(for: chill, known: true, c), "Спокойное · похож на «Дослушанная»")
         c.waveSeed = "sc:f"
         XCTAssertEqual(WaveReason.text(for: finished, known: true, c), "С него началась волна")
     }

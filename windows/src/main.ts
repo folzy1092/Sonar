@@ -1,5 +1,5 @@
 import { mount } from 'svelte'
-// Шрифты как в Dotify: Inter (интерфейс) и Roboto Flex (заголовок «Моя волна»), из fontsource — в exe
+// Шрифты как в Dotify: Inter (интерфейс) и Roboto Flex (заголовок Sonar Mix), из fontsource — в exe
 import '@fontsource-variable/inter/opsz.css'
 import '@fontsource-variable/roboto-flex/full.css'
 // каталог шрифтов Интерфейс → Вид (латиница+кириллица; файл грузится, только когда шрифт показан)

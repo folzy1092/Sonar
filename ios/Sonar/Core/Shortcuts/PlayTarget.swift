@@ -6,7 +6,7 @@ import Foundation
 enum PlayTarget: String, CaseIterable, Sendable {
     /// Любимые — свои лайки Sonar.
     case liked
-    /// «Моя волна».
+    /// Sonar Mix.
     case wave
     /// Быстрый плейлист — выбирается в Система → Общее → «Виджет и Siri» (`widget.quick_playlist`).
     case quick
@@ -21,7 +21,7 @@ enum PlayTarget: String, CaseIterable, Sendable {
     var title: String {
         switch self {
         case .liked: "Любимые"
-        case .wave: "Моя волна"
+        case .wave: "Sonar Mix"
         case .quick: "Быстрый плейлист"
         }
     }

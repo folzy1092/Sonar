@@ -12,7 +12,7 @@ import UIKit
 ///
 /// Скачанный трек (`DownloadStore`) играет из файла, без сети. История и сигналы волны — `PlayHistory`:
 /// прослушивание засчитывается на пороге min(30 с, половины трека), при смене трека — дослушан / пропущен.
-/// «Моя волна» и «Волна по треку» — `MyWave`, догружается вместо «Авто похожих».
+/// Sonar Mix и «Волна по треку» — `MyWave`, догружается вместо «Авто похожих».
 ///
 /// Настройки раздела «Плеер» применяются на лету (`observeSettings`): эквалайзер и выравниватель —
 /// `AudioTap` (только файлы, не HLS), нормализация по R128 Яндекса — громкость плеера (`Loudness`, и на HLS),
@@ -56,11 +56,11 @@ final class PlaybackEngine {
     private(set) var rate: Float = 1
     /// Треки, дописанные «Авто похожими» (в очереди — отдельным блоком).
     private(set) var autoRefs: Set<String> = []
-    /// Сейчас играет «Моя волна» или «Волна по треку» — для кнопки ▶/⏸ на Главной.
+    /// Сейчас играет Sonar Mix или «Волна по треку» — для кнопки ▶/⏸ на Главной.
     private(set) var isWave = false
     /// Волна подбирает первую порцию.
     private(set) var waveLoading = false
-    /// «Волна по треку»: от какого трека (nil — «Моя волна»).
+    /// «Волна по треку»: от какого трека (nil — Sonar Mix).
     private(set) var waveSeed: Track?
     /// Режим волны (настройка `wave.mode`).
     private(set) var waveMode: WaveMode = .own
@@ -155,7 +155,7 @@ final class PlaybackEngine {
     @ObservationIgnored private var appliedQuality: (kbps: Int, viaYandex: Bool, youTubeHigh: Bool, fallback: FallbackSettings)?
 
     init() {
-        waveMode = WaveMode(rawValue: SettingsStore.shared.string("wave.mode")) ?? .own
+        waveMode = WaveMode.stored(SettingsStore.shared.string("wave.mode"))
         restore()
         observeSettings()
         for (index, deck) in decks.enumerated() {
@@ -779,7 +779,7 @@ final class PlaybackEngine {
 
     // MARK: - Волна
 
-    /// «Моя волна»: сиды из Любимых и недавнего, похожие SoundCloud и Яндекса, учится на лайках и
+    /// Sonar Mix: сиды из Любимых и недавнего, похожие SoundCloud и Яндекса, учится на лайках и
     /// пропусках, без 👎, бесконечно догружается. Уже играет — пауза / продолжить.
     func playMyWave() {
         if RemoteControl.shared.forwardWave() { return }
@@ -814,7 +814,7 @@ final class PlaybackEngine {
                 // волна по треку при пульте: список собран здесь, играет ПК
                 if RemoteControl.shared.forward(list, from: 0) { return }
                 if self.shuffle { self.shuffle = false }
-                self.play(list, at: 0, context: seed.map { "Волна по «\($0.title)»" } ?? "Моя волна")
+                self.play(list, at: 0, context: seed.map { "Sonar Mix по «\($0.title)»" } ?? "Sonar Mix")
                 self.isWave = true
                 self.waveSeed = seed
                 self.waveReasons = self.wave.reasons

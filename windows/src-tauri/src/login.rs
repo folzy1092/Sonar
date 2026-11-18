@@ -184,9 +184,16 @@ const CHROME_JS: &str = r#"(() => {
     '#sonar-x:hover{background:rgba(127,127,127,.35);color:#fff}';
   const mount = () => {
     if (document.getElementById('sonar-bar')) return;
-    const st = document.createElement('style');
-    st.textContent = css;
-    document.documentElement.appendChild(st);
+    // свой лист стилей через CSSOM: строгий CSP страницы (без 'unsafe-inline') не режет его, в отличие от <style>
+    try {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(css);
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    } catch (_) {
+      const st = document.createElement('style');
+      st.textContent = css;
+      document.documentElement.appendChild(st);
+    }
     const bar = document.createElement('div');
     bar.id = 'sonar-bar';
     const x = document.createElement('button');

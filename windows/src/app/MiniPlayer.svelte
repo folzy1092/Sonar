@@ -194,7 +194,7 @@
               label={hasLyrics ? t('Текст песни') : t('Очередь')}
               size={17}
               active={sidePane.open}
-              onclick={() => sidePane.toggle(hasLyrics ? 'lyrics' : 'queue')}
+              onclick={() => sidePane.toggle(hasLyrics ? 'lyrics' : 'queue', hasLyrics)}
             />
           </span>
         {/key}

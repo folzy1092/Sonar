@@ -1,7 +1,7 @@
 import Foundation
 
 /// Ссылки `sonar://` (BOT.md, SPEC §4.5а):
-/// - `sonar://play/liked|wave|quick` — кнопки виджета: включить Любимые, «Мою волну», быстрый плейлист;
+/// - `sonar://play/liked|wave|quick` — кнопки виджета: включить Любимые, Sonar Mix, быстрый плейлист;
 /// - `sonar://auth/<code>` — вход с другого устройства (окно подтверждения, с сервером);
 /// - `sonar://remote/pair?pc=…&code=…` — QR пульта с экрана ПК (Система → Пульт), `RemotePairLink`;
 /// - `sonar://track/<ref>`, `sonar://user/<username>` — пока только узнаём вид ссылки.

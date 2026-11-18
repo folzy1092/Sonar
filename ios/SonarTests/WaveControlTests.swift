@@ -1,7 +1,7 @@
 import XCTest
 @testable import Sonar
 
-/// «Моя волна» в Пункте управления и на экране блокировки: интент кнопки (`Core/Shortcuts/OpenWaveIntent.swift`)
+/// Sonar Mix в Пункте управления и на экране блокировки: интент кнопки (`Core/Shortcuts/OpenWaveIntent.swift`)
 /// и свой символ знака Sonar (`SonarWidget/Assets.xcassets/sonar.mark.symbolset`, `ios/scripts/gen-symbol.mjs`).
 final class WaveControlTests: XCTestCase {
     func testControlOpensWaveLink() {
@@ -65,7 +65,7 @@ final class WaveControlTests: XCTestCase {
 
         XCTAssertEqual(Set(english.keys), Set(ukrainian.keys))
         var required = PlayTarget.allCases.map(\.title)
-        required += ["Открыть «Мою волну»", "Открывает Sonar и включает «Мою волну»."]
+        required += ["Открыть Sonar Mix", "Открывает Sonar и включает Sonar Mix."]
         for key in required {
             XCTAssertFalse(english[key, default: ""].isEmpty, key)
             XCTAssertFalse(ukrainian[key, default: ""].isEmpty, key)
