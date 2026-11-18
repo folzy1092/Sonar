@@ -75,16 +75,24 @@ struct ProfileView: View {
         .animation(Motion.spring, value: checker.available)
     }
 
+    /// Разработчик Sonar — значок «Dev» у имени (`SonarDeep.subscriptionOf`, до сервера — по нику).
+    private var isDev: Bool {
+        SonarDeep.subscriptionOf(username: settings.string(LookKey.profileUsername)).tier == .dev
+    }
+
     /// Шапка (`photo_1`): аватар в обводке акцентом, имя, подпись; «Поделиться» — широкая кнопка акцентом, ✎ — профиль.
     private var header: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 16) {
                 ProfileAvatar(size: 76)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(LocalProfile.name(settings))
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(Theme.text)
-                        .lineLimit(1)
+                    HStack(spacing: 10) {
+                        Text(LocalProfile.name(settings))
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(Theme.text)
+                            .lineLimit(1)
+                        if isDev { DevBadge(size: 12) }
+                    }
                     Text("Аккаунт Sonar появится вместе с сервером")
                         .font(.system(size: 14))
                         .foregroundStyle(Theme.textSecondary)

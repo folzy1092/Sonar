@@ -85,6 +85,44 @@ enum SonarDeep {
         return parts?.url
     }
 
+    // MARK: Статус подписки аккаунта
+
+    /// Уровень: бесплатный или разработчик Sonar (всё открыто). С сервером добавятся оплаченные тарифы.
+    enum Tier: String, Equatable, Sendable {
+        case free
+        case dev
+    }
+
+    /// Подписка аккаунта (как ПК `Subscription`): открыто ли Sonar Deep, сняты ли бесплатные лимиты, до какого числа.
+    struct Subscription: Equatable, Sendable {
+        let tier: Tier
+        /// Открыты функции Sonar Deep.
+        let deep: Bool
+        /// Бесплатные лимиты (плейлисты, перенос, кэш) не действуют.
+        let unlimited: Bool
+        /// Конец срока; nil — без срока.
+        let until: Date?
+    }
+
+    /// Ники разработчиков Sonar (без «@», в нижнем регистре) — как ПК `DEV_USERNAMES`.
+    static let devUsernames: Set<String> = ["folzy"]
+
+    static let freeSubscription = Subscription(tier: .free, deep: false, unlimited: false, until: nil)
+    static let devSubscription = Subscription(tier: .dev, deep: true, unlimited: true, until: nil)
+
+    /// Ник для сравнения: без пробелов по краям, без «@» в начале, в нижнем регистре (ПК `normalizeUsername`).
+    static func normalizeUsername(_ raw: String?) -> String {
+        LocalProfile.cleanUsername(raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    /// Подписка аккаунта — ЕДИНСТВЕННОЕ место, где она решается (порт ПК `subscriptionOf`). До сервера это
+    /// ЛОКАЛЬНАЯ проверка по нику из `profile.username`: разработчику (`folzy`) открыто всё, без лимитов и срока.
+    /// С сервером её заменит ответ `GET /me` — экраны менять не придётся, они спрашивают только эту функцию.
+    static func subscriptionOf(username: String?) -> Subscription {
+        let nick = normalizeUsername(username)
+        return !nick.isEmpty && devUsernames.contains(nick) ? devSubscription : freeSubscription
+    }
+
     /// «1 799 ₽» — узкий неразрывный пробел между тысячами и неразрывный перед ₽, как на ПК.
     static func rub(_ amount: Int) -> String {
         let digits = String(abs(amount))

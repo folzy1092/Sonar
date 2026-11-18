@@ -1,7 +1,7 @@
 import XCTest
 @testable import Sonar
 
-/// Sonar Deep на iPhone: цены как на ПК (`lib/subscription.ts`), ссылка на оплату и строки экрана.
+/// Sonar Deep на iPhone: цены как на ПК (`lib/subscription.ts`), ссылка на оплату, статус Dev по нику и строки экрана.
 @MainActor
 final class SonarDeepTests: XCTestCase {
     private func plan(_ id: String) -> SonarDeep.Plan { SonarDeep.plans.first { $0.id == id }! }
@@ -51,6 +51,40 @@ final class SonarDeepTests: XCTestCase {
         XCTAssertEqual(SonarDeep.rub(100), "100\u{00A0}₽")
         XCTAssertEqual(SonarDeep.rub(3420), "3\u{202F}420\u{00A0}₽")
         XCTAssertEqual(SonarDeep.rub(1_234_567), "1\u{202F}234\u{202F}567\u{00A0}₽")
+    }
+
+    func testOwnerNickIsDev() {
+        for nick in ["folzy", "@Folzy", " folzy ", "  @FOLZY  "] {
+            let sub = SonarDeep.subscriptionOf(username: nick)
+            XCTAssertEqual(sub, SonarDeep.devSubscription, nick)
+            XCTAssertEqual(sub.tier, .dev, nick)
+            XCTAssertTrue(sub.deep, nick)
+            XCTAssertTrue(sub.unlimited, nick)
+            XCTAssertNil(sub.until, nick)
+        }
+    }
+
+    func testOtherOrEmptyNickIsFree() {
+        for nick in ["other", "folzy2", "fol zy", "", "   ", "@", nil] as [String?] {
+            let sub = SonarDeep.subscriptionOf(username: nick)
+            XCTAssertEqual(sub, SonarDeep.freeSubscription, String(describing: nick))
+            XCTAssertFalse(sub.deep)
+            XCTAssertFalse(sub.unlimited)
+        }
+    }
+
+    func testNormalizeUsername() {
+        XCTAssertEqual(SonarDeep.normalizeUsername("  @@FolZy "), "folzy")
+        XCTAssertEqual(SonarDeep.normalizeUsername(nil), "")
+    }
+
+    func testDevStringsTranslated() {
+        let keys = ["Разработчик Sonar: открыто всё Sonar Deep", "без срока",
+                    "Ты разработчик Sonar: всё Sonar Deep открыто, лимитов нет. Тарифы ниже — для остальных."]
+        for lang in [Lang.en, .uk] {
+            let dict = I18n.dictionaries[lang] ?? [:]
+            for key in keys { XCTAssertNotNil(dict[key], "\(lang): \(key)") }
+        }
     }
 
     func testScreenStringsTranslated() {

@@ -158,10 +158,18 @@ struct ProfileEditView: View {
             .buttonStyle(PressableStyle(scale: 0.95))
             .accessibilityLabel("Выбрать аватар")
 
-            Text(LocalProfile.cleanName(name).isEmpty ? LocalProfile.fallbackName : LocalProfile.cleanName(name))
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(Theme.text)
-                .contentTransition(.opacity)
+            HStack(spacing: 8) {
+                Text(LocalProfile.cleanName(name).isEmpty ? LocalProfile.fallbackName : LocalProfile.cleanName(name))
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(Theme.text)
+                    .contentTransition(.opacity)
+                // значок разработчика — по нику, который сейчас вписан (`SonarDeep.subscriptionOf`)
+                if SonarDeep.subscriptionOf(username: username).tier == .dev {
+                    DevBadge(size: 11)
+                        .transition(.opacity)
+                }
+            }
+            .animation(Motion.spring, value: SonarDeep.subscriptionOf(username: username).tier)
             Text(LocalProfile.cleanUsername(username).isEmpty ? "без @username" : "@\(LocalProfile.cleanUsername(username))")
                 .font(.system(size: 15))
                 .foregroundStyle(Theme.textSecondary)
