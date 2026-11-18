@@ -1,10 +1,10 @@
 <script lang="ts">
-  // Интерфейс → Вкладки по pc/Screenshot_31: где панель вкладок (слева / справа / сверху / снизу), её
+  // Интерфейс → Вид → «Вкладки» по pc/Screenshot_31: где панель вкладок (слева / справа / сверху / снизу), её
   // стиль, подстройка цвета под страницу и автоскрытие. Сетка окна — App.svelte, вид панели — Rail.svelte.
-  // Позиция и стиль — крупные плитки со схемой окна (NEXT_PROMPT «Этап 0» п. 5), редкое — в «Ещё».
+  // С 2026-11-18 — карточка внутри «Вида» (SETTINGS_NEXT): отдельного пункта «Вкладки» нет. Стиль «Полный»
+  // убран (от «По умолчанию» не отличался), старое значение переводит settings-migrate.
   import Tiles from '../../components/settings/Tiles.svelte'
   import Switch from '../../components/settings/Switch.svelte'
-  import More from '../../components/settings/More.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { t } from '../../lib/i18n.svelte'
 
@@ -35,14 +35,12 @@
   options={[
     { id: 'default' as const, label: t('По умолчанию'), sub: t('Классическая панель') },
     { id: 'compact' as const, label: t('Компактный'), sub: t('Минимум места') },
-    { id: 'full' as const, label: t('Полный'), sub: t('Вся высота экрана') },
     { id: 'round' as const, label: t('Круглый'), sub: t('Круглые иконки') },
     { id: 'floating' as const, label: t('Плавающий'), sub: t('Парящий островок') },
   ].map((o) => ({ ...o, diagram: { tabs: position, style: o.id, mini } }))}
   onchange={(v) => settings.set('tabs.style', v)}
 />
 
-<More>
   <Switch
     title={t('Подстраивать вкладки')}
     hint={t('Панель берёт цвет подкраски страницы')}
@@ -55,4 +53,4 @@
     on={settings.get('tabs.autohide')}
     onchange={(v) => settings.set('tabs.autohide', v)}
   />
-</More>
+

@@ -42,7 +42,7 @@ export default {
   'SoundCloud в качестве Яндекса': 'SoundCloud in Yandex quality',
   'Если тот же трек есть на Яндексе (исполнитель, название и длительность совпадают), играть его оттуда — в качестве выше. Иначе SoundCloud: AAC 160 кбит/с, с Go+ — 256.': 'If the same track is on Yandex (artist, title and duration match), play it from there in higher quality. Otherwise SoundCloud: AAC 160 kbps, 256 with Go+.',
   'Платформа': 'Platform',
-  'Откуда главная берёт волну и рекомендации': 'Where Home gets its wave and recommendations',
+  'Откуда главная берёт Sonar Mix и рекомендации': 'Where Home gets Sonar Mix and recommendations',
   'Яндекс': 'Yandex',
   'Медиатека': 'Library',
   'Добавление': 'Adding tracks',

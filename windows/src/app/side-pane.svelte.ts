@@ -3,13 +3,23 @@
 // на очередь и обратно. Полноэкранный плеер — по клику на обложку мини-плеера.
 export type PaneMode = 'queue' | 'lyrics'
 
+/** Выбранный вид с поправкой на трек без текста. */
+export function effectiveMode(mode: PaneMode, hasLyrics: boolean): PaneMode {
+  return mode === 'lyrics' && hasLyrics ? 'lyrics' : 'queue'
+}
+
 class SidePane {
   open = $state(false)
   mode = $state<PaneMode>('queue')
 
+  /** Что панель показывает на деле: без текста у трека — очередь, даже если выбран текст. */
+  shown(hasLyrics: boolean): PaneMode {
+    return effectiveMode(this.mode, hasLyrics)
+  }
+
   /** Кнопка мини-плеера: та же панель в том же виде — закрыть, иначе открыть нужный вид. */
-  toggle(mode: PaneMode) {
-    if (this.open && this.mode === mode) this.open = false
+  toggle(mode: PaneMode, hasLyrics = true) {
+    if (this.open && this.shown(hasLyrics) === mode) this.open = false
     else {
       this.mode = mode
       this.open = true

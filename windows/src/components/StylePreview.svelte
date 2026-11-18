@@ -40,7 +40,7 @@
     <div class="mini" class:run={play > 0}>
       <span class="cover"><span class="rings"><i></i><i></i></span></span>
       <span class="meta">
-        <b class:editorial={axes.title_style === 'editorial'}>{t('Моя волна')}</b>
+        <b class:editorial={axes.title_style === 'editorial'}>{t('Sonar Mix')}</b>
         <small>Sonar</small>
       </span>
       <span class="ctrls">

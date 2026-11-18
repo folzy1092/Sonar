@@ -1,10 +1,10 @@
 import SwiftUI
 import UIKit
 
-/// Настроения «Моей волны» — долгое нажатие на поле точек (вид — `IMG` 09:51 владельца). Режимы те же,
-/// что в ПК-клиенте (`wave.rs` MODES): Своя, Жёсткая, Спокойная, Грустная, Весёлая, Незнакомое. Плитки
-/// в две колонки, у каждой свой цвет — подсветка справа и значок; выбранная — светлая. «Готово» —
-/// закрыть; если волна играет, она перезапускается в новом настроении.
+/// Настроения Sonar Mix — долгое нажатие на поле точек (вид — `IMG` 09:51 владельца). Режимы те же,
+/// что в ПК-клиенте (`wave.rs` MODES): Обычное, Весёлое, Спокойное, Грустное, Жёсткое, Ночное, Сон,
+/// Популярное, Концентрация. Плитки в две колонки, у каждой свой цвет — подсветка справа и значок;
+/// выбранная — светлая. «Готово» — закрыть; если волна играет, она перезапускается в новом настроении.
 struct WaveModeSheet: View {
     @Environment(PlaybackEngine.self) private var engine
     @Environment(\.dismiss) private var dismiss
@@ -14,7 +14,7 @@ struct WaveModeSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Настроения")
+            Text(t("Настроения"))
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(Theme.textSecondary)
                 .padding(.leading, 4)
@@ -25,7 +25,7 @@ struct WaveModeSheet: View {
                 }
             }
             .padding(.top, 14)
-            Text(picked.subtitle)
+            Text(t(picked.subtitle))
                 .font(.system(size: 15))
                 .foregroundStyle(Theme.textSecondary)
                 .frame(maxWidth: .infinity)
@@ -37,7 +37,7 @@ struct WaveModeSheet: View {
                 if picked != engine.waveMode { engine.setWaveMode(picked) }
                 dismiss()
             } label: {
-                Text("Готово")
+                Text(t("Готово"))
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(Theme.background)
                     .frame(maxWidth: .infinity)
@@ -63,7 +63,7 @@ struct WaveModeSheet: View {
             HStack(spacing: 14) {
                 SonarIcon(Self.icon(mode), filled: selected, size: 24)
                     .foregroundStyle(selected ? Color.black : hue)
-                Text(mode.title)
+                Text(t(mode.title))
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(selected ? Color.black : Theme.text)
                     .lineLimit(1)
@@ -92,11 +92,14 @@ struct WaveModeSheet: View {
     static func icon(_ mode: WaveMode) -> IconName {
         switch mode {
         case .own: .heart
-        case .hard: .bolt
-        case .calm: .moon
-        case .sad: .rain
         case .fun: .sun
-        case .new: .compass
+        case .calm: .headphone
+        case .sad: .rain
+        case .hard: .bolt
+        case .night: .moon
+        case .sleep: .eyeClosed
+        case .popular: .fire
+        case .focus: .sparkles
         }
     }
 
@@ -104,11 +107,14 @@ struct WaveModeSheet: View {
     static func hue(_ mode: WaveMode) -> Color {
         switch mode {
         case .own: Color(red: 0.96, green: 0.55, blue: 0.66)
-        case .hard: Color(red: 0.95, green: 0.45, blue: 0.38)
+        case .fun: Color(red: 0.98, green: 0.82, blue: 0.4)
         case .calm: Color(red: 0.55, green: 0.78, blue: 0.85)
         case .sad: Color(red: 0.6, green: 0.62, blue: 0.95)
-        case .fun: Color(red: 0.98, green: 0.82, blue: 0.4)
-        case .new: Color(red: 0.55, green: 0.88, blue: 0.62)
+        case .hard: Color(red: 0.95, green: 0.45, blue: 0.38)
+        case .night: Color(red: 0.62, green: 0.5, blue: 0.92)
+        case .sleep: Color(red: 0.6, green: 0.72, blue: 0.98)
+        case .popular: Color(red: 0.98, green: 0.6, blue: 0.35)
+        case .focus: Color(red: 0.55, green: 0.88, blue: 0.62)
         }
     }
 }

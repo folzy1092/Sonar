@@ -52,7 +52,7 @@ final class SettingsStore {
         "audio.sc_via_yandex": .bool(false),
         // «Авто похожие» после очереди, как в SoundCloud
         "general.similar_autoplay": .bool(true),
-        // режим «Моей волны»: own · hard · calm · sad · fun · new (`WaveMode`)
+        // настроение Sonar Mix: own · fun · calm · sad · hard · night · sleep · popular · focus (`WaveMode`); старое `new` — own
         "wave.mode": .string("own"),
         // текст песни (SETTINGS.md «Текст песни»): rawValue `LyricsMode` / `LyricsSize` / `LyricsTextStyle` / `LyricsAnimation`
         "lyrics.mode": .string("words"),

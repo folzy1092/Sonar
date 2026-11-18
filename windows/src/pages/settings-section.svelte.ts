@@ -39,22 +39,21 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
   interface: [
     { id: 'style', title: 'Стиль', icon: 'sparkles' },
     { id: 'look', title: 'Вид', icon: 'palette' },
-    { id: 'tabs', title: 'Вкладки', icon: 'grid' },
   ],
   player: [
     { id: 'audio', title: 'Аудио', icon: 'volume' },
     { id: 'view', title: 'Вид', icon: 'player' },
-    { id: 'queue', title: 'Очередь', icon: 'queue' },
     { id: 'mini', title: 'Мини плеер', icon: 'music' },
   ],
   services: [{ id: 'services', title: 'Сервисы', icon: 'key' }],
   integrations: [{ id: 'apps', title: 'Приложения', icon: 'stack' }],
   system: [
     { id: 'general', title: 'Общее', icon: 'adjustments' },
-    { id: 'hotkeys', title: 'Горячие клавиши', icon: 'keyboard' },
+    { id: 'hotkeys', title: 'Клавиши', icon: 'keyboard' },
     { id: 'remote', title: 'Пульт', icon: 'phone' },
     { id: 'update', title: 'Обновления', icon: 'download' },
     { id: 'storage', title: 'Хранилище', icon: 'database' },
+    { id: 'about', title: 'О приложении', icon: 'info' },
   ],
 }
 
@@ -81,12 +80,12 @@ export const NAV: NavGroup[] = [
     items: [
       { tab: 'system', sub: 'general' },
       { tab: 'player', sub: 'audio' },
-      { tab: 'player', sub: 'queue' },
       { tab: 'system', sub: 'storage' },
       { tab: 'integrations', sub: 'apps' },
       { tab: 'system', sub: 'hotkeys' },
       { tab: 'system', sub: 'remote' },
       { tab: 'system', sub: 'update' },
+      { tab: 'system', sub: 'about' },
     ],
   },
   {
@@ -94,7 +93,6 @@ export const NAV: NavGroup[] = [
     items: [
       { tab: 'interface', sub: 'style' },
       { tab: 'interface', sub: 'look' },
-      { tab: 'interface', sub: 'tabs' },
       { tab: 'player', sub: 'view' },
       { tab: 'player', sub: 'mini' },
     ],
@@ -110,6 +108,9 @@ export function navSub(tab: SettingsTab, sub: string): SettingsSub | undefined {
   return found
 }
 
+/** Бывшие подразделы → куда влились (2026-11-18). */
+const MERGED_SUBS: Readonly<Record<string, string>> = { tabs: 'look', queue: 'view' }
+
 /** Подраздел по умолчанию — первый рабочий. */
 export const firstSub = (tab: SettingsTab) => (SUBS[tab].find((s) => !s.soon && !s.lock) ?? SUBS[tab][0]).id
 
@@ -123,7 +124,8 @@ class SettingsPanel {
       this.tab = tab
       this.sub = firstSub(tab)
     }
-    if (sub) this.sub = sub
+    // «Вкладки» влились в «Вид», «Очередь» — в «Плеер» (2026-11-18): старые ссылки ведут туда
+    if (sub) this.sub = MERGED_SUBS[sub] ?? sub
     this.open = true
   }
 

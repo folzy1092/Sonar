@@ -1,6 +1,7 @@
 // Настройки (docs/SETTINGS.md) одним хранилищем: читаются один раз при запуске (`all_settings`),
 // меняются сразу в интерфейсе и пишутся в локальную базу. Значения по умолчанию — из каталога.
 import { api } from './api'
+import { migrateSettings } from './settings-migrate'
 import type { CoverStrength, Surface } from '../theme/palette'
 import type { ServiceId, ServiceKey } from './services'
 import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook, ProgressLook, TitleStyle } from '../theme/style'
@@ -49,7 +50,12 @@ export const DEFAULTS = {
   'appearance.preset': 'neutral' as string,
   'appearance.animations': true,
   'appearance.scale_window': 100,
-  'appearance.scale_fullscreen': 100,
+  /** Масштаб, когда окно развёрнуто; `0` — «Авто», как в окне. */
+  'appearance.scale_fullscreen': 100 as number,
+  /** Кнопки окна: `auto` — как в системе (на Windows — Windows), `windows` — значки, `macos` — три кружка. */
+  'appearance.window_buttons': 'auto' as 'auto' | 'windows' | 'macos',
+  /** Значок сервиса рядом с длительностью трека в списках («Показывать площадки»). */
+  'appearance.show_sources': false,
   /** Шрифт интерфейса; по умолчанию — как в стиле Sonar (theme/style.ts). */
   'appearance.font': 'Golos Text Variable' as string,
   /** Размер шрифта: 16 — как задумано, остальные — множитель n / 16 ко всему тексту. */
@@ -62,7 +68,7 @@ export const DEFAULTS = {
   'appearance.style': 'sonar' as string,
   /** Формулы фона, поверхностей, границ, теней и бликов (palette.ts SURFACES). */
   'appearance.surface': 'monolith' as Surface,
-  /** Шрифт заголовков («Моя волна», названия страниц и разделов). */
+  /** Шрифт заголовков (Sonar Mix, названия страниц и разделов). */
   'appearance.font_display': 'Unbounded Variable' as string,
   'appearance.title_style': 'plain' as TitleStyle,
   /** Толщина линий иконок левой панели и мини-плеера. */
@@ -89,7 +95,7 @@ export const DEFAULTS = {
   'storage.cache_tracks': false,
   /** Лимит кэша треков, МБ; сверх — вытесняются давно не игравшие. */
   'storage.cache_limit_mb': 2048 as number,
-  /** Волна офлайн: следующие 15 треков «Моей волны» заранее скачиваются в кэш треков. */
+  /** Sonar Mix офлайн: следующие 15 треков Sonar Mix заранее скачиваются в кэш треков. */
   'storage.wave_offline': false,
   /** Папки с музыкой на этом компьютере (local/, «На этом компьютере» в Медиатеке). */
   'storage.music_folders': [] as string[],
@@ -142,7 +148,7 @@ export const DEFAULTS = {
   'player.visualizer_style': 'wave' as 'wave' | 'bars',
   /** Спектр звука на дне полноэкранного плеера (тихо, за текстом). */
   'player.visualizer_full': false,
-  /** Строка «Почему этот трек» под артистом у треков «Моей волны». */
+  /** Строка «Почему этот трек» под артистом у треков Sonar Mix. */
   'player.wave_why': true,
   /** Тип ползунка прогресса (Плеер → Вид). */
   'player.slider': 'normal' as 'normal' | 'thin' | 'smooth' | 'wavy' | 'wave_bars',
@@ -160,25 +166,41 @@ export const DEFAULTS = {
   'integrations.lastfm.scrobble': true,
   'integrations.lastfm.now_playing': true,
   'system.autostart': true,
-  /** Горячие клавиши по всей системе (hotkeys.rs) — выключены, пока не включишь. */
-  'hotkeys.enabled': false,
+  /** Где действуют сочетания (`HotkeyScope`): только в окне · ещё и пока открыто мини-окно / оверлей · везде,
+   *  даже из трея (hotkeys.rs). Старое `hotkeys.enabled = true` читается как `global` — `settings-migrate.ts`. */
+  'hotkeys.scope': 'app' as 'app' | 'top' | 'global',
   /** Пульт с iPhone по Wi-Fi (remote/): сервер в локальной сети и объявление `_sonar._tcp`. Только на этом устройстве. */
   'remote.enabled': false,
-  /** Действие → сочетание (коды KeyboardEvent.code); пустая строка — без клавиши. */
+  /** Действие (`HOTKEY_ACTIONS`) → сочетание (коды KeyboardEvent.code); пустая строка — без клавиши. Чего нет
+   *  в сохранённой карте (новые действия) — берётся отсюда. Всё, что может работать по всей системе, — с
+   *  Ctrl+Alt: голый Ctrl+O / Ctrl+T перехватил бы «Открыть» и «Новую вкладку» во всех программах. */
   'hotkeys.map': {
     toggle: 'Ctrl+Alt+Space',
     next: 'Ctrl+Alt+ArrowRight',
     prev: 'Ctrl+Alt+ArrowLeft',
-    like: 'Ctrl+Alt+KeyL',
+    seek_back: '',
+    seek_fwd: '',
     volume_up: 'Ctrl+Alt+ArrowUp',
     volume_down: 'Ctrl+Alt+ArrowDown',
+    mute: 'Ctrl+Alt+KeyM',
+    shuffle: '',
+    repeat: '',
+    like: 'Ctrl+Alt+KeyL',
+    search: 'Slash',
+    lyrics: 'Ctrl+KeyL',
+    queue: 'Ctrl+KeyQ',
+    settings: 'Ctrl+Comma',
+    wave: '',
+    overlay: 'Ctrl+Alt+KeyO',
+    mini: 'Ctrl+Alt+KeyT',
     window: 'Ctrl+Alt+KeyS',
   } as Record<string, string>,
-  /** Быстрое окно (Ctrl+K) — только внутри окна Sonar, от `hotkeys.enabled` не зависит; пусто — выключено. */
+  /** Быстрое окно (Ctrl+K) — только внутри окна Sonar, от `hotkeys.scope` не зависит; пусто — выключено. */
   'hotkeys.quick': 'Ctrl+KeyK',
   'system.tray': true,
   'system.power_saving': 'background' as 'off' | 'minimized' | 'background',
-  'wave.mode': 'own' as 'own' | 'hard' | 'calm' | 'sad' | 'fun' | 'new',
+  /** Настроение Sonar Mix (`WAVE_MODES`); старое `new` («Незнакомое») читается как `own` — `settings-migrate.ts`. */
+  'wave.mode': 'own' as 'own' | 'fun' | 'calm' | 'sad' | 'hard' | 'night' | 'sleep' | 'popular' | 'focus',
   /** Итоги, которые уже открывали или закрыли на Главной: id через запятую (`month-2026-11,year-2026`), до 24 последних; пусто — никакие. */
   'stats.recap_seen': '' as string,
   'obs.size': 'standard' as 'standard' | 'compact',
@@ -203,7 +225,7 @@ class Settings {
     this.loading ??= api
       .allSettings()
       .then((all) => {
-        this.values = { ...all, ...this.early }
+        this.values = { ...migrateSettings(all), ...this.early }
         this.early = {}
       })
       .catch(() => {})

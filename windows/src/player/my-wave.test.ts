@@ -73,7 +73,7 @@ beforeEach(async () => {
   vi.useRealTimers()
 })
 
-describe('Моя волна: серия ранних пропусков', () => {
+describe('Sonar Mix: серия ранних пропусков', () => {
   it('два ранних пропуска пересобирают «Далее»: ближайший остаётся, остальное — новая порция', async () => {
     api.wavePortion.mockResolvedValueOnce(batch('a')).mockResolvedValueOnce(batch('b', 6))
     await wave.start()
@@ -147,7 +147,7 @@ describe('Моя волна: серия ранних пропусков', () => 
   })
 })
 
-describe('Моя волна: журнал исходов (wave_events)', () => {
+describe('Sonar Mix: журнал исходов (wave_events)', () => {
   it('порции одной сессии идут под одним id, исход каждого трека уходит в журнал с оценкой', async () => {
     api.wavePortion.mockResolvedValueOnce(batch('a')).mockResolvedValueOnce(batch('b', 3))
     await wave.start()
@@ -187,7 +187,7 @@ describe('Моя волна: журнал исходов (wave_events)', () => {
   })
 })
 
-describe('Моя волна: пропущенное уходит в минус следующей порции', () => {
+describe('Sonar Mix: пропущенное уходит в минус следующей порции', () => {
   it('пропущенные треки сессии едут в запросе (теги — в минус), дослушанный пропущенный уходит из списка', async () => {
     api.wavePortion.mockResolvedValueOnce(batch('a', 12)).mockResolvedValueOnce(batch('b', 2))
     await wave.start()
@@ -215,7 +215,7 @@ describe('Моя волна: пропущенное уходит в минус �
   })
 })
 
-describe('Моя волна: режим из быстрого окна', () => {
+describe('Sonar Mix: режим из быстрого окна', () => {
   it('setMode с play — волна сразу играет', async () => {
     api.wavePortion.mockResolvedValue(batch('m'))
     await wave.setMode('sad', true)

@@ -1,6 +1,8 @@
-//! Горячие клавиши по всей системе (Система → Горячие клавиши, решение владельца 2026-11-17).
+//! Горячие клавиши по всей системе (Приложение → Клавиши, решение владельца 2026-11-17).
 //! Работают, даже когда Sonar свёрнут или спрятан в трей. Сочетания приходят из интерфейса
-//! (`hotkeys.map` в настройках, вид `Ctrl+Alt+Space` — коды клавиш как у `KeyboardEvent.code`).
+//! (`hotkeys.map` в настройках, вид `Ctrl+Alt+Space` — коды клавиш как у `KeyboardEvent.code`); какие
+//! из них ставить, решает интерфейс по области `hotkeys.scope` («Везде» или «Поверх окон», пока
+//! открыто мини-окно). Действия «только внутри окна» (поиск, текст, очередь, настройки) сюда не приходят.
 //! «Показать / скрыть окно» делает сам Rust, остальное — событие `hotkey` в интерфейс
 //! (плеер слушает его так же, как медиа-клавиши).
 
@@ -11,7 +13,24 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 /// Действия, которые можно повесить на клавиши.
-pub const ACTIONS: &[&str] = &["toggle", "next", "prev", "like", "volume_up", "volume_down", "window"];
+/// Тот же порядок, что `HOTKEY_ACTIONS` в `src/lib/hotkeys-core.ts` без `local` (сверяет тест vitest).
+pub const ACTIONS: &[&str] = &[
+  "toggle",
+  "next",
+  "prev",
+  "seek_back",
+  "seek_fwd",
+  "volume_up",
+  "volume_down",
+  "mute",
+  "shuffle",
+  "repeat",
+  "like",
+  "wave",
+  "overlay",
+  "mini",
+  "window",
+];
 
 /// Зарегистрированные сейчас: id сочетания → действие.
 static BOUND: Mutex<Vec<(u32, String)>> = Mutex::new(Vec::new());
@@ -113,5 +132,14 @@ mod tests {
     assert!(parse("Ctrl+Alt").is_none(), "нужна клавиша, не только модификаторы");
     assert!(parse("").is_none());
     assert_eq!(parse("Ctrl+Alt+KeyL").map(|s| s.id()), parse("Control+Alt+KeyL").map(|s| s.id()));
+  }
+
+  #[test]
+  fn new_defaults_parse() {
+    for accel in ["Ctrl+Alt+KeyM", "Ctrl+Alt+KeyO", "Ctrl+Alt+KeyT", "Ctrl+Alt+KeyS"] {
+      assert!(parse(accel).is_some(), "{accel}");
+    }
+    assert!(parse("Slash").is_none(), "голую клавишу по всей системе не ставим");
+    assert_eq!(ACTIONS.len(), 15);
   }
 }

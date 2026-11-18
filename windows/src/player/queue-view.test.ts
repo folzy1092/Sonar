@@ -91,7 +91,7 @@ describe('queueItems', () => {
     ])
   })
 
-  it('без «Ранее» в начале и без тумблера в «Моей волне»', () => {
+  it('без «Ранее» в начале и без тумблера в Sonar Mix', () => {
     const view = queueView(src({ pos: 0, tracks: [tr('a'), tr('b')], order: [0, 1], ids: [1, 2] }))
     expect(keys(queueItems(view, { autoSection: false, autoOn: false }))).toEqual(['h-now', 'e1', 'h-next', 'e2'])
   })

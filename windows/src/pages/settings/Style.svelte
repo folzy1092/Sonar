@@ -167,7 +167,7 @@
   onchange={(v) => setAxis('surface', v)}
 />
 <Select title={t('Шрифт интерфейса')} hint={t('Обычный текст, кнопки, списки')} value={axes.font} options={fontOptions} onchange={(v) => setAxis('font', v)} />
-<Select title={t('Шрифт заголовков')} hint={t('«Моя волна», названия страниц и разделов')} value={axes.font_display} options={fontOptions} onchange={(v) => setAxis('font_display', v)} />
+<Select title={t('Шрифт заголовков')} hint={t('Sonar Mix, названия страниц и разделов')} value={axes.font_display} options={fontOptions} onchange={(v) => setAxis('font_display', v)} />
 <Choice
   title={t('Оформление заголовков')}
   hint={t('«Журнал» — капсом, крупно, с номерами разделов')}

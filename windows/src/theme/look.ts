@@ -117,7 +117,7 @@ export function fontStack(f: string): string | null {
   return `'${f}', ${mono ? 'monospace' : "'Inter Variable', 'Segoe UI', sans-serif"}`
 }
 
-/** Широкие шрифты: у героя «Моя волна» в оформлении `editorial` кегль меньше, чтобы влезали две строки. */
+/** Широкие шрифты: у героя Sonar Mix в оформлении `editorial` кегль меньше, чтобы влезали две строки. */
 export const WIDE_FONTS = new Set([
   'Unbounded Variable',
   'Science Gothic Variable',
