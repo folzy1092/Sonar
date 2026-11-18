@@ -22,4 +22,6 @@ export default {
   'Spotify: файл трека недоступен': 'Spotify: the track file is unavailable',
   'Spotify: поток оборвался': 'Spotify: the stream was cut off',
   'Spotify: пустой файл трека': 'Spotify: empty track file',
+  'Нужен резервный сервис — трек пропущен': 'A fallback service is needed — track skipped',
+  'Нужен резервный сервис': 'A fallback service is needed',
 } satisfies Record<string, string>
