@@ -109,7 +109,8 @@ h3 {
   bottom: -1px;
   height: 2px;
   border-radius: 2px;
-  background: var(--text);
+  /* полоска под вкладками — цвет темы (под обложку — цвет обложки, плавно через @property) */
+  background: var(--accent);
 }
 .tab-ind.pill {
   top: 0;

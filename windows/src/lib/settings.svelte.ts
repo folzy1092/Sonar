@@ -1,7 +1,7 @@
 // Настройки (docs/SETTINGS.md) одним хранилищем: читаются один раз при запуске (`all_settings`),
 // меняются сразу в интерфейсе и пишутся в локальную базу. Значения по умолчанию — из каталога.
 import { api } from './api'
-import type { Surface } from '../theme/palette'
+import type { CoverStrength, Surface } from '../theme/palette'
 import type { ServiceKey } from './services'
 import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook, ProgressLook, TitleStyle } from '../theme/style'
 
@@ -30,6 +30,8 @@ export const DEFAULTS = {
   'profile.username': '' as string,
   'profile.avatar': '' as string,
   'appearance.cover_theme': true,
+  /** Насколько тема идёт за обложкой: поверхности темнее / светлее (palette.ts COVER_STRENGTH). */
+  'appearance.cover_strength': 'medium' as CoverStrength,
   /** Прозрачность окна (Mica / Acrylic под окном, glass.rs). */
   'appearance.glass': false,
   /** Непрозрачность фона окна и карточек при прозрачности, % (100 — как без неё). */

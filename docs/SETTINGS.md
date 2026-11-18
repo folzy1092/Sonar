@@ -132,6 +132,7 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 |---|---|---|---|
 | `appearance.mode` | `system` / `dark` / `light` — светлая: формулы `palette.ts SURFACES_LIGHT`, «как в системе» — `prefers-color-scheme` на лету | `dark` | да |
 | `appearance.cover_theme` | bool — тема под обложку | `true` | да |
+| `appearance.cover_strength` | `weak` / `medium` / `strong` — сила темы под обложку (Интерфейс → Тема, видна при «Под трек»): фон и поверхности уходят за светлотой обложки — тёмная темнее, светлая светлее — на 8 / 14 / 20 % (не больше 20 %; полный сдвиг у явно тёмной или светлой обложки, у обычной — 10–15 % на «Средне», у серой середины — почти ноль), с лёгким оттенком её цвета; не до чёрного и не в серый, текст держит контраст AA (сдвиг ослабляется), смена плавная 0.6 с (`palette.ts` `COVER_STRENGTH`, `Palette.swift` `CoverStrength`) | `medium` | да |
 | `appearance.preset` | `neutral`, `amoled`, `crimson`, `nord`, `sky`, `mint`, `violet`, `blossom`, `sakura`, `terminal`, `aqua`, `sunset`, `slate` — выбор готовой темы выключает «Под трек» | `neutral` | да |
 | `appearance.animations` | bool — выключено: только прозрачность, как «Меньше движения» | `true` | да |
 | `appearance.tab_style` | `standard` (во всю ширину у края) / `rounded` (во всю ширину, скруглён сверху) / `floating` (капсула) / `compact` (узкая капсула, только значки) — нижняя панель iPhone (`BottomChrome`, Интерфейс → Вкладки, 2026-11-17) | `floating` | да |
