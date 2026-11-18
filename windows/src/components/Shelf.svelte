@@ -2,11 +2,13 @@
   // Полка — горизонтальный ряд карточек (главная, поиск, медиатека). Колесо листает вбок (hscroll),
   // край, за которым есть ещё карточки, затухает (edges), а при наведении по бокам появляются
   // стрелки ‹ ›: даже если ширина окна совпала так, что карточка не обрезалась, видно, что дальше
-  // что-то есть. Стрелка листает на ширину полки минус одну карточку.
+  // что-то есть. Есть ли куда листать — общая логика `lib/hscroll.ts` (`arrowsFor`, допуск 2 px):
+  // ряд влез — стрелок нет. Стрелка плавно листает на видимую ширину, целыми карточками (`pageDelta`).
   import type { Snippet } from 'svelte'
   import Icon from './Icon.svelte'
   import { cascade } from '../lib/cascade'
-  import { hscroll } from '../lib/hscroll'
+  import { hscroll, pageDelta } from '../lib/hscroll'
+  import { reducedMotion } from '../lib/motion'
   import { edges } from '../lib/edges'
   import { t } from '../lib/i18n.svelte'
 
@@ -26,8 +28,9 @@
 
   function go(dir: -1 | 1) {
     if (!row) return
-    const card = row.firstElementChild?.getBoundingClientRect().width ?? 160
-    row.scrollBy({ left: dir * Math.max(card, row.clientWidth - card - 18), behavior: 'smooth' })
+    const card = row.firstElementChild?.getBoundingClientRect().width ?? 0
+    const gap = parseFloat(getComputedStyle(row).columnGap) || 0
+    row.scrollBy({ left: dir * pageDelta(row.clientWidth, card, gap), behavior: reducedMotion() ? 'auto' : 'smooth' })
   }
 </script>
 
