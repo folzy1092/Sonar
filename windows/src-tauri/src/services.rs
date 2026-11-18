@@ -498,6 +498,19 @@ impl Core {
     Ok(src)
   }
 
+  /// Как `resolve`, но YouTube Music, не открывшийся с первого раза, пробует ещё раз с новой
+  /// visitorData; не помогло — причина в журнал ошибок. У остальных сервисов ошибки не временные
+  /// (нет входа, нет трека) — повтор ничего не даст. В тексте ошибок нет ни cookie, ни подписанных ссылок.
+  pub async fn resolve_retrying(&self, track_ref: &str) -> Result<Source> {
+    match self.resolve(track_ref, false).await {
+      Err(e) if retries_resolve(track_ref) => {
+        log::warn!("поток {track_ref}: {e}; пробую ещё раз");
+        self.resolve(track_ref, true).await.inspect_err(|e| log::error!("поток {track_ref}: {e}"))
+      }
+      r => r,
+    }
+  }
+
   /// Поток SoundCloud как есть (публичный client_id обновляется при 401/403).
   async fn sc_resolve(&self, track_ref: &str, id: &str, fresh: bool) -> Result<Source> {
     let (creds, public) = self.sc_creds(false).await?;
@@ -569,6 +582,12 @@ impl Core {
 fn is_auth_error(e: &anyhow::Error) -> bool {
   let t = e.to_string();
   t.contains("HTTP 401") || t.contains("HTTP 403")
+}
+
+/// Ошибку потока стоит повторить с `fresh`: только YouTube Music (протухшая или помеченная
+/// visitorData, временный LOGIN_REQUIRED плеера).
+pub fn retries_resolve(track_ref: &str) -> bool {
+  crate::providers::registry::is_kind(track_ref, ServiceId::Yt, RefKind::Track)
 }
 
 /// `audio.quality` → потолок битрейта Яндекса. По умолчанию — максимум (FLAC, если есть).
@@ -756,6 +775,14 @@ mod tests {
     assert!(yt_high(None));
     assert!(yt_high(Some("high")));
     assert!(!yt_high(Some("normal")));
+  }
+
+  #[test]
+  fn only_youtube_stream_is_retried() {
+    assert!(retries_resolve("yt:q7mwXbOw58g"));
+    for r in ["sc:1", "ym:2", "ytalb:MPREb_x", "ytpl:likes", "", "yt"] {
+      assert!(!retries_resolve(r), "{r}");
+    }
   }
 }
 

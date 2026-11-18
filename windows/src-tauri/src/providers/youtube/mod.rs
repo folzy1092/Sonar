@@ -220,7 +220,7 @@ impl YouTube<'_> {
     Ok(r.json().await?)
   }
 
-  /// Ссылка на аудио: «Высокое» — Opus 256/160, «Обычное» — AAC 128.
+  /// Ссылка на аудио: «Высокое» — Opus 160, «Обычное» — AAC 128.
   pub async fn stream(&self, video_id: &str, visitor: &str, high: bool) -> Result<Source> {
     let formats = parse::player_formats(&self.player(video_id, visitor).await?)?;
     let f = parse::pick_format(&formats, high).ok_or_else(|| anyhow!("YouTube Music: у трека нет аудио"))?;
