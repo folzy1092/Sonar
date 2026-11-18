@@ -1,0 +1,17 @@
+/* Виджеты Sonar по-английски. Ключ — русская строка из SonarWidget.swift и Core/Shortcuts (язык системы). */
+
+"Моя волна" = "My Wave";
+"Любимые" = "Favorites";
+"Быстрый плейлист" = "Quick playlist";
+
+"Любимые, «Моя волна» и быстрый плейлист — в одно касание." = "Favorites, My Wave and a quick playlist — one tap away.";
+
+"Что включать" = "What to play";
+"Кнопка Sonar" = "Sonar button";
+"Sonar — кнопка" = "Sonar — button";
+"Одно касание — и играет «Моя волна», Любимые или быстрый плейлист." = "One tap plays My Wave, Favorites or a quick playlist.";
+
+"Знак Sonar на экране блокировки: касание — и играет «Моя волна»." = "The Sonar mark on the Lock Screen: tap it and My Wave starts.";
+
+"Открывает Sonar и включает «Мою волну»." = "Opens Sonar and starts My Wave.";
+"Открыть «Мою волну»" = "Open My Wave";

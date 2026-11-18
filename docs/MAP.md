@@ -104,12 +104,12 @@ Sonar/
 │   ├── project.yml           XcodeGen: таргеты Sonar, SonarWidget, SonarTests; bundle com.folzy.sonar
 │   ├── SonarWidget/          виджет «Домой» (WidgetKit, com.folzy.sonar.widget): кнопки → sonar://play/…;
 │   │                         «Моя волна» в Пункте управления и на экране блокировки, символ знака sonar.mark
+│   │                         en.lproj / uk.lproj — переводы подписей (ключ — русская строка)
 │   ├── Sonar/
 │   │   ├── App/
 │   │   │   ├── SonarApp.swift        @main, сцена
 │   │   │   ├── DeepLink.swift        ссылки sonar:// (play/liked|wave|quick — виджет)
 │   │   │   ├── SonarIntents.swift    Siri и «Команды» (App Intents, без entitlement)
-│   │   │   (Core/Shortcuts/OpenWaveIntent.swift — интент кнопки Пункта управления, общий с виджетом)
 │   │   │   ├── AppState.swift        вошёл/не вошёл, текущий пользователь
 │   │   │   ├── RootView.swift        свой таб-бар + мини-плеер + полный плеер
 │   │   │   ├── ChromeState.swift     свёрнут ли таб-бар (прокрутка, гистерезис)
@@ -120,6 +120,7 @@ Sonar/
 │   │   │   ├── Storage/      база (DB.md), Keychain.swift
 │   │   │   ├── Sync/         SyncEngine: очередь ops, pull по таймеру
 │   │   │   ├── Lyrics/       тексты на устройстве: Lyrics.swift (fetchAny), Lrclib.swift, Genius.swift — порт selfbot
+│   │   │   ├── Shortcuts/    PlayTarget (цели sonar://play/…), OpenWaveIntent — кнопка Пункта управления; общие с виджетом
 │   │   │   └── Settings/     SettingsStore: ключи из SETTINGS.md, умолчания (пока UserDefaults), потом синк
 │   │   ├── Playback/
 │   │   │   ├── PlaybackEngine.swift  AVQueuePlayer, предзагрузка, ошибки потока
