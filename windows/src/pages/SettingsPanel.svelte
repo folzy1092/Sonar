@@ -21,6 +21,7 @@
   import Style from './settings/Style.svelte'
   import Profile from './settings/Profile.svelte'
   import Privacy from './settings/Privacy.svelte'
+  import Subscription from './settings/Subscription.svelte'
   import PlayerView from './settings/PlayerView.svelte'
   import Integrations from './settings/Integrations.svelte'
   import General from './settings/General.svelte'
@@ -203,6 +204,8 @@
               <Profile />
             {:else if sub === 'privacy'}
               <Privacy />
+            {:else if sub === 'plans'}
+              <Subscription />
             {:else if sub === 'style'}
               <Style />
             {:else if sub === 'look'}

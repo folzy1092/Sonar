@@ -70,17 +70,49 @@ export interface PublicProfile {
   playlist_count: number
 }
 
-/** Что гость видит в профиле (`privacy.*` в настройках). */
+/** Кому видно: всем, только друзьям, никому. */
+export type Audience = 'everyone' | 'friends' | 'nobody'
+/** Кто может добавить в друзья: все, друзья друзей, никто. */
+export type FriendRequests = 'everyone' | 'fof' | 'nobody'
+/** Кто смотрит профиль. */
+export type Viewer = 'guest' | 'friend'
+
+/** Что видно в профиле (`privacy.*` в настройках, Аккаунт → Приватность). */
 export interface ProfilePrivacy {
-  now_playing: boolean
+  now_playing: Audience
   /** Статистика и любимые артисты. */
-  stats: boolean
-  likes: boolean
-  /** all — все плейлисты Sonar; visible — кроме скрытых из «Все»; none — ни одного. */
-  playlists: 'all' | 'visible' | 'none'
+  stats: Audience
+  likes: Audience
+  /** Все плейлисты разом; отдельный плейлист прячется ото всех через `hidden_playlists`. */
+  playlists: Audience
+  /** id плейлистов, скрытых ото всех (меню плейлиста → «Скрыть от других»). */
+  hidden_playlists: readonly string[]
 }
 
-export const OPEN_PRIVACY: ProfilePrivacy = { now_playing: true, stats: true, likes: true, playlists: 'all' }
+export const OPEN_PRIVACY: ProfilePrivacy = {
+  now_playing: 'everyone',
+  stats: 'everyone',
+  likes: 'everyone',
+  playlists: 'everyone',
+  hidden_playlists: [],
+}
+
+/** Значение настройки → аудитория; прежние bool (true / false) и неизвестное — понятно куда. */
+export function audienceOf(v: unknown, fallback: Audience = 'everyone'): Audience {
+  if (v === 'everyone' || v === 'friends' || v === 'nobody') return v
+  if (v === true) return 'everyone'
+  if (v === false) return 'nobody'
+  return fallback
+}
+
+/** Видит ли смотрящий то, что открыто этой аудитории. */
+export const canSee = (audience: Audience, viewer: Viewer): boolean =>
+  audience === 'everyone' || (audience === 'friends' && viewer === 'friend')
+
+/** Может ли человек отправить заявку в друзья: `mutual` — есть ли у вас общие друзья. */
+export function canRequestFriend(rule: FriendRequests, mutual: boolean): boolean {
+  return rule === 'everyone' || (rule === 'fof' && mutual)
+}
 
 /** Из чего собирается профиль. Не загрузилось (вне приложения, ошибка) — null, раздел просто пуст. */
 export interface ProfileSource {
@@ -95,6 +127,8 @@ export interface ProfileSource {
   playing?: boolean
   /** Нет — всё открыто. */
   privacy?: ProfilePrivacy
+  /** Кто смотрит; по умолчанию — гость. */
+  viewer?: Viewer
 }
 
 export function toPublicTrack(track: Track): PublicTrack {
@@ -133,17 +167,19 @@ function topArtists(stats: Stats | null | undefined): PublicArtist[] {
 export function buildPublicProfile(src: ProfileSource): PublicProfile {
   const username = cleanUsername(src.username)
   const privacy = src.privacy ?? OPEN_PRIVACY
-  const favorites = privacy.likes ? (src.favorites ?? []) : []
-  const playlists =
-    privacy.playlists === 'none' ? [] : (src.playlists ?? []).filter((p) => privacy.playlists === 'all' || !p.hidden)
-  const stats = privacy.stats ? src.stats : null
+  const viewer = src.viewer ?? 'guest'
+  const see = (a: Audience) => canSee(a, viewer)
+  const favorites = see(privacy.likes) ? (src.favorites ?? []) : []
+  const hidden = new Set(privacy.hidden_playlists)
+  const playlists = see(privacy.playlists) ? (src.playlists ?? []).filter((p) => !hidden.has(p.id)) : []
+  const stats = see(privacy.stats) ? src.stats : null
   return {
     username: USERNAME_RE.test(username) ? username : null,
     display_name: src.name.trim(),
     number: null,
     avatar_url: src.avatar || null,
     created_at: null,
-    now_playing: privacy.now_playing && src.playing && src.current ? toPublicTrack(src.current) : null,
+    now_playing: see(privacy.now_playing) && src.playing && src.current ? toPublicTrack(src.current) : null,
     stats: publicStats(stats),
     top_artists: topArtists(stats),
     likes: { count: favorites.length, tracks: favorites.slice(0, PROFILE_LIKES_SHOWN).map(toPublicTrack) },

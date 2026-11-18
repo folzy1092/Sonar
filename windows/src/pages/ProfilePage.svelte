@@ -8,7 +8,8 @@
   import ProfileView from './profile/ProfileView.svelte'
   import { api, type ListTrack, type Playlist, type Stats } from '../lib/api'
   import { t } from '../lib/i18n.svelte'
-  import { buildPublicProfile, profileUrl } from '../lib/public-profile'
+  import { audienceOf, buildPublicProfile, profileUrl, type Viewer } from '../lib/public-profile'
+  import { indicator } from '../lib/indicator'
   import { settings } from '../lib/settings.svelte'
   import { player } from '../player/player.svelte'
   import { settingsPanel } from './settings-section.svelte'
@@ -17,6 +18,8 @@
   let playlists = $state<Playlist[] | null>(null)
   let stats = $state<Stats | null>(null)
   let loading = $state(true)
+  /** Чьими глазами смотреть: гость по ссылке или друг. */
+  let viewer = $state<Viewer>('guest')
 
   const username = $derived(settings.get('profile.username'))
   const url = $derived(profileUrl(username))
@@ -31,11 +34,13 @@
       current: player.current,
       playing: player.playing,
       privacy: {
-        now_playing: settings.get('privacy.now_playing'),
-        stats: settings.get('privacy.stats'),
-        likes: settings.get('privacy.likes'),
-        playlists: settings.get('privacy.playlists'),
+        now_playing: audienceOf(settings.get('privacy.now_playing')),
+        stats: audienceOf(settings.get('privacy.stats')),
+        likes: audienceOf(settings.get('privacy.likes')),
+        playlists: audienceOf(settings.get('privacy.playlists')),
+        hidden_playlists: settings.get('privacy.hidden_playlists') ?? [],
       },
+      viewer,
     }),
   )
 
@@ -54,7 +59,7 @@
   <div class="bar">
     <span class="badge"><Icon name="eye" size={18} /></span>
     <span class="text">
-      <b>{t('Так твой профиль увидят по ссылке')}</b>
+      <b>{viewer === 'friend' ? t('Так твой профиль увидят друзья') : t('Так твой профиль увидят по ссылке')}</b>
       <small>{url ?? t('Задай @username в Аккаунт → Профиль — тогда появится ссылка')}</small>
       <small>{t('Страница по ссылке заработает, когда у Sonar появится сервер.')}</small>
     </span>
@@ -66,10 +71,46 @@
     </span>
   </div>
 
+  <div class="chips" role="radiogroup" aria-label={t('Чьими глазами')} use:indicator={{ key: viewer, kind: 'pill' }}>
+    {#each [['guest', 'Гость'], ['friend', 'Друг']] as const as [id, label] (id)}
+      <button class="chip" class:on={viewer === id} role="radio" aria-checked={viewer === id} onclick={() => (viewer = id)}>{t(label)}</button>
+    {/each}
+  </div>
+
   <ProfileView {profile} {loading} />
 </div>
 
 <style>
+  .chips {
+    display: flex;
+    gap: 8px;
+    margin-bottom: -12px;
+  }
+  .chip {
+    height: 34px;
+    padding: 0 16px;
+    border-radius: 999px;
+    background: var(--plate);
+    border: 1px solid var(--card-line);
+    box-shadow: var(--sheen);
+    color: var(--text-2);
+    font-weight: 600;
+    transition:
+      color var(--fast) var(--ease),
+      background var(--fast) var(--ease);
+  }
+  .chip:hover {
+    color: var(--text);
+    background: var(--hover);
+  }
+  .chip.on {
+    background: transparent;
+    border-color: transparent;
+    color: var(--accent-ink);
+  }
+  .chips :global(.tab-ind.pill) {
+    background: var(--accent);
+  }
   .preview {
     display: flex;
     flex-direction: column;

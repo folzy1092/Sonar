@@ -12,7 +12,4 @@ export default {
   'Трек, который звучит прямо сейчас': 'The track playing right now',
   'Прослушивания, часы и любимые артисты': 'Plays, hours and top artists',
   'Треки с лайком': 'Liked tracks',
-  'Какие плейлисты Sonar видно': 'Which Sonar playlists are visible',
-  'Кроме скрытых': 'Except hidden',
-  'Никакие': 'None',
 }

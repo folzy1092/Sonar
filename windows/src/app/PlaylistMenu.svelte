@@ -5,6 +5,7 @@
   // (решение владельца 2026-11-17). Любимые — те же действия и «Очистить Любимые» с двойным подтверждением
   // окном по центру (второй раз — «Да» через 3 с). Треки сервиса грузятся один раз и запоминаются.
   // «Экспорт ›» у всех трёх — подменю M3U8 / CSV / JSON (ExportItems, export.ts), файл — в окне «Сохранить как».
+  import { settings } from '../lib/settings.svelte'
   import Cover from '../components/Cover.svelte'
   import Icon from '../components/Icon.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
@@ -133,6 +134,17 @@
       delay: 3,
     })
     if (sure) await library.clearFavorites()
+  }
+
+  /** Приватность: этот плейлист не виден никому в профиле (Аккаунт → Приватность). */
+  const privateIds = $derived(settings.get('privacy.hidden_playlists') ?? [])
+  function togglePrivate() {
+    const pl = own
+    if (!pl) return
+    playlistMenu.close()
+    const was = privateIds.includes(pl.id)
+    settings.set('privacy.hidden_playlists', was ? privateIds.filter((id) => id !== pl.id) : [...privateIds, pl.id])
+    toast.show(was ? t('Плейлист снова виден в профиле') : t('Плейлист скрыт от других'))
   }
 
   async function toggleHidden() {
@@ -344,6 +356,7 @@
         {@render exportEntry()}
         <hr />
         {@render item(own.hidden ? 'eye' : 'eyeOff', own.hidden ? t('Показать плейлист') : t('Скрыть плейлист'), toggleHidden)}
+        {@render item(privateIds.includes(own.id) ? 'eye' : 'lock', privateIds.includes(own.id) ? t('Показать другим') : t('Скрыть от других'), togglePrivate)}
         <button class="item danger" class:sure={confirmDelete} role="menuitem" onclick={removeOwn}>
           <Icon name="trash" size={17} />
           <span>{confirmDelete ? t('Точно удалить?') : t('Удалить плейлист')}</span>

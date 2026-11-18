@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { ArtistStat, ListTrack, Playlist, Stats, Track } from './api'
 import {
+  audienceOf,
   buildPublicProfile,
+  canRequestFriend,
+  OPEN_PRIVACY,
+  type ProfilePrivacy,
   formatHours,
   hoursPluralCount,
   profileInitial,
@@ -200,11 +204,12 @@ describe('приватность профиля', () => {
     username: 'folzy',
     avatar: '',
     favorites: [liked(1), liked(2)],
-    playlists: [playlist(1), playlist(2, { hidden: true })],
+    playlists: [playlist(1), playlist(2)],
     stats: stats(),
     current: track(9),
     playing: true,
   }
+  const priv = (extra: Partial<ProfilePrivacy>): ProfilePrivacy => ({ ...OPEN_PRIVACY, ...extra })
 
   it('без настроек видно всё', () => {
     const p = buildPublicProfile(base)
@@ -213,19 +218,43 @@ describe('приватность профиля', () => {
     expect(p.now_playing?.ref).toBe('sc:9')
   })
 
-  it('скрытое гостю не уходит', () => {
-    const p = buildPublicProfile({ ...base, privacy: { now_playing: false, stats: false, likes: false, playlists: 'none' } })
-    expect(p.now_playing).toBeNull()
-    expect(p.stats).toBeNull()
-    expect(p.top_artists).toEqual([])
-    expect(p.likes).toEqual({ count: 0, tracks: [] })
-    expect(p.playlists).toEqual([])
-    expect(p.playlist_count).toBe(0)
+  it('«Никто» — гостю и другу не уходит ничего', () => {
+    const all = priv({ now_playing: 'nobody', stats: 'nobody', likes: 'nobody', playlists: 'nobody' })
+    for (const viewer of ['guest', 'friend'] as const) {
+      const p = buildPublicProfile({ ...base, privacy: all, viewer })
+      expect(p.now_playing).toBeNull()
+      expect(p.stats).toBeNull()
+      expect(p.top_artists).toEqual([])
+      expect(p.likes).toEqual({ count: 0, tracks: [] })
+      expect(p.playlist_count).toBe(0)
+    }
   })
 
-  it('«Кроме скрытых» прячет плейлисты, скрытые из «Все»', () => {
-    const p = buildPublicProfile({ ...base, privacy: { now_playing: true, stats: true, likes: true, playlists: 'visible' } })
+  it('«Друзья» — другу видно, гостю нет', () => {
+    const privacy = priv({ playlists: 'friends', likes: 'friends' })
+    expect(buildPublicProfile({ ...base, privacy }).playlist_count).toBe(0)
+    expect(buildPublicProfile({ ...base, privacy }).likes.count).toBe(0)
+    expect(buildPublicProfile({ ...base, privacy, viewer: 'friend' }).playlist_count).toBe(2)
+    expect(buildPublicProfile({ ...base, privacy, viewer: 'friend' }).likes.count).toBe(2)
+  })
+
+  it('отдельный плейлист скрыт ото всех, даже от друзей', () => {
+    const p = buildPublicProfile({ ...base, privacy: priv({ hidden_playlists: ['pl_2'] }), viewer: 'friend' })
     expect(p.playlists.map((x) => x.id)).toEqual(['pl_1'])
     expect(p.playlist_count).toBe(1)
+  })
+
+  it('прежние значения настроек понимаются', () => {
+    expect(audienceOf(true)).toBe('everyone')
+    expect(audienceOf(false)).toBe('nobody')
+    expect(audienceOf('visible')).toBe('everyone')
+    expect(audienceOf('friends')).toBe('friends')
+  })
+
+  it('заявки в друзья', () => {
+    expect(canRequestFriend('everyone', false)).toBe(true)
+    expect(canRequestFriend('fof', false)).toBe(false)
+    expect(canRequestFriend('fof', true)).toBe(true)
+    expect(canRequestFriend('nobody', true)).toBe(false)
   })
 })

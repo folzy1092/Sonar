@@ -1,13 +1,27 @@
 <script lang="ts">
   // Аккаунт → Приватность (решение владельца 2026-11-18): что гость видит по ссылке на профиль.
   // Скрытое не попадает в `PublicProfile` вовсе (lib/public-profile.ts); сервер потом — по тем же ключам.
-  import Switch from '../../components/settings/Switch.svelte'
+  import Group from '../../components/settings/Group.svelte'
   import Choice from '../../components/settings/Choice.svelte'
   import Icon from '../../components/Icon.svelte'
   import { settings } from '../../lib/settings.svelte'
-  import { t } from '../../lib/i18n.svelte'
+  import { t, tn } from '../../lib/i18n.svelte'
+  import { audienceOf } from '../../lib/public-profile'
   import { router } from '../../app/router.svelte'
   import { settingsPanel } from '../settings-section.svelte'
+
+  const audiences = $derived([
+    { id: 'everyone' as const, label: t('Все') },
+    { id: 'friends' as const, label: t('Друзья') },
+    { id: 'nobody' as const, label: t('Никто') },
+  ])
+  const rows = [
+    { key: 'privacy.playlists', title: 'Плейлисты', hint: 'Все плейлисты разом; один — «Скрыть от других» в его меню' },
+    { key: 'privacy.likes', title: 'Любимые', hint: 'Треки с лайком' },
+    { key: 'privacy.now_playing', title: 'Что играет сейчас', hint: 'Трек, который звучит прямо сейчас' },
+    { key: 'privacy.stats', title: 'Статистика', hint: 'Прослушивания, часы и любимые артисты' },
+  ] as const
+  const hiddenCount = $derived((settings.get('privacy.hidden_playlists') ?? []).length)
 
   function preview() {
     settingsPanel.close()
@@ -15,41 +29,56 @@
   }
 </script>
 
-<Switch
-  title={t('Что играет сейчас')}
-  hint={t('Трек, который звучит прямо сейчас')}
-  on={settings.get('privacy.now_playing')}
-  onchange={(v) => settings.set('privacy.now_playing', v)}
-/>
-<Switch
-  title={t('Статистика')}
-  hint={t('Прослушивания, часы и любимые артисты')}
-  on={settings.get('privacy.stats')}
-  onchange={(v) => settings.set('privacy.stats', v)}
-/>
-<Switch
-  title={t('Любимые')}
-  hint={t('Треки с лайком')}
-  on={settings.get('privacy.likes')}
-  onchange={(v) => settings.set('privacy.likes', v)}
-/>
-<Choice
-  title={t('Плейлисты')}
-  hint={t('Какие плейлисты Sonar видно')}
-  value={settings.get('privacy.playlists')}
-  options={[
-    { id: 'all' as const, label: t('Все') },
-    { id: 'visible' as const, label: t('Кроме скрытых') },
-    { id: 'none' as const, label: t('Никакие') },
-  ]}
-  onchange={(v) => settings.set('privacy.playlists', v)}
-/>
+<Group title={t('Друзья')} hint={t('Друзья и заявки заработают вместе с сервером')}>
+  <Choice
+    title={t('Кто может добавить в друзья')}
+    hint={t('Остальные не смогут отправить заявку')}
+    value={settings.get('privacy.friend_requests')}
+    options={[
+      { id: 'everyone' as const, label: t('Все') },
+      { id: 'fof' as const, label: t('Друзья друзей') },
+      { id: 'nobody' as const, label: t('Никто') },
+    ]}
+    onchange={(v) => settings.set('privacy.friend_requests', v)}
+  />
+</Group>
+
+<Group title={t('Профиль')} hint={t('Кто что видит по ссылке на твой профиль')}>
+  {#each rows as r (r.key)}
+    <Choice
+      title={t(r.title)}
+      hint={t(r.hint)}
+      value={audienceOf(settings.get(r.key))}
+      options={audiences}
+      onchange={(v) => settings.set(r.key, v)}
+    />
+  {/each}
+  {#if hiddenCount}
+    <p class="note">
+      {tn(hiddenCount, ['{n} плейлист скрыт ото всех', '{n} плейлиста скрыты ото всех', '{n} плейлистов скрыты ото всех']).replace('{n}', String(hiddenCount))}
+      <button class="link" onclick={() => settings.set('privacy.hidden_playlists', [])}>{t('Открыть все')}</button>
+    </p>
+  {/if}
+</Group>
 
 <button class="see press" onclick={preview}>
   <Icon name="eye" size={16} />{t('Как видят мой профиль')}
 </button>
 
 <style>
+  .note {
+    margin: 4px 0 0;
+    color: var(--text-2);
+    font-size: calc(13px * var(--fs, 1));
+  }
+  .link {
+    margin-left: 6px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .link:hover {
+    text-decoration: underline;
+  }
   .see {
     display: inline-flex;
     align-items: center;
