@@ -483,7 +483,7 @@ def status(items: dict[str, Item], online: int, users: int, uptime: float | None
     bad = [k for k in infra_keys if g(k) and g(k).state == DOWN and k not in ("site", "proxy")]
     partial = any(i.state != OK for k, i in items.items() if k in infra_keys + ["soundcloud", "yandex"])
     names = {"main": "Основной", "media": "Медиа", "proxy": "Прокси", "bot": "Бот", "site": "Сайт", "storage": "Хранилище"}
-    icons = {"main": "desktop", "media": "track", "proxy": "proxy", "bot": "bot", "site": "web", "storage": "storage"}
+    icons = {"main": "server", "media": "track", "proxy": "proxy", "bot": "bot", "site": "web", "storage": "storage"}
     if bad:
         head = f"{e('status_down')} <b>Сбой: {', '.join(names[k] for k in bad)}</b>"
     elif partial:
