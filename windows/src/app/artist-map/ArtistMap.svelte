@@ -144,7 +144,7 @@
   }
 
   function fitAll() {
-    cam = fit(lay.bounds, vp)
+    cam = fit(lay.bounds, vp, lay.clusters[0])
     fitted = true
   }
 
@@ -400,7 +400,7 @@
       <div class="zoom">
         <button aria-label={t('Приблизить')} title={t('Приблизить')} onclick={() => zoomBy(ZOOM_STEP)}><Icon name="plus" size={16} /></button>
         <button aria-label={t('Отдалить')} title={t('Отдалить')} onclick={() => zoomBy(1 / ZOOM_STEP)}><Icon name="minus" size={16} /></button>
-        <button aria-label={t('Показать всё')} title={t('Показать всё')} onclick={() => flyTo(fit(lay.bounds, vp))}><Icon name="maximize" size={15} /></button>
+        <button aria-label={t('Показать всё')} title={t('Показать всё')} onclick={() => flyTo(fit(lay.bounds, vp, lay.clusters[0]))}><Icon name="maximize" size={15} /></button>
       </div>
 
       {#if selectedNode && graph}
