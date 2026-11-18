@@ -29,6 +29,11 @@ export const DEFAULTS = {
   'profile.name': '' as string,
   'profile.username': '' as string,
   'profile.avatar': '' as string,
+  /** Приватность профиля (Аккаунт → Приватность, lib/public-profile.ts): что видит гость по ссылке. */
+  'privacy.now_playing': true,
+  'privacy.stats': true,
+  'privacy.likes': true,
+  'privacy.playlists': 'visible' as 'all' | 'visible' | 'none',
   'appearance.cover_theme': true,
   /** Насколько тема идёт за обложкой: поверхности темнее / светлее (palette.ts COVER_STRENGTH). */
   'appearance.cover_strength': 'medium' as CoverStrength,
@@ -100,6 +105,8 @@ export const DEFAULTS = {
   'audio.fallback': true,
   /** Порядок резервных сервисов (id реестра); пусто — порядок реестра (lib/fallback.ts). */
   'audio.fallback_order': [] as ServiceId[],
+  /** Единый поиск: чей результат сверху (lib/unified-search.ts); дальше — порядок `audio.fallback_order`. */
+  'search.preferred': 'sc' as ServiceId,
   'player.cover_position': 'left' as 'left' | 'right',
   'queue.show': true,
   /** Предпросмотр следующего трека: карточка «Дальше» за 10 с до конца трека. */

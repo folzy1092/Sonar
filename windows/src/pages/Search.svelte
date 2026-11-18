@@ -18,13 +18,14 @@
   import { settings } from '../lib/settings.svelte'
   import { searchHistory } from '../lib/search-history.svelte'
   import { t } from '../lib/i18n.svelte'
-  import { byId } from '../lib/services'
+  import { byId, type ServiceId } from '../lib/services'
+  import { mergeMore, mergeTracks, searchOrder } from '../lib/unified-search'
 
   /** Сколько файлов с компьютера показать в поиске. */
   const LOCAL_LIMIT = 20
   const tabs = ['Все', 'Треки', 'Артисты', 'Альбомы', 'Плейлисты'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
-  const sourceName = $derived(t(byId(search.source)?.nameIn ?? 'Яндекс Музыке'))
+  const sourceName = $derived(search.source === 'all' ? t('подключённых сервисах') : t(byId(search.source)?.nameIn ?? 'Яндекс Музыке'))
 
   let results = $state<Track[]>([])
   /** Совпадения среди файлов «Папок с музыкой» — отдельным блоком над результатами сервиса. */
@@ -67,6 +68,10 @@
         .localSearch(q, LOCAL_LIMIT)
         .then((found) => my === seq && (localHits = found))
         .catch(() => my === seq && (localHits = []))
+      if (src === 'all') {
+        await searchAll(q, my)
+        return
+      }
       api
         .searchMore(q, src)
         .then((m) => my === seq && (more = m))
@@ -90,6 +95,40 @@
     }, 350)
     return () => clearTimeout(timer)
   })
+
+  /** Единый поиск: все сервисы параллельно, выдача пересобирается по мере ответов — предпочтительный
+   *  сервис всегда сверху, повторы склеиваются (lib/unified-search.ts). Не подключён — молча пропуск. */
+  async function searchAll(q: string, my: number) {
+    const order = searchOrder(settings.get('search.preferred'), settings.get('audio.fallback_order'))
+    const tracks: Partial<Record<ServiceId, Track[]>> = {}
+    const extra: Partial<Record<ServiceId, SearchMore>> = {}
+    let failed = 0
+    let lastError: unknown = null
+    const one = async (id: ServiceId) => {
+      api
+        .searchMore(q, id)
+        .then((m) => {
+          extra[id] = m
+          if (my === seq) more = mergeMore(extra, order)
+        })
+        .catch(() => {})
+      try {
+        tracks[id] = await api.search(q, id)
+        if (my === seq) results = mergeTracks(tracks, order)
+      } catch (e) {
+        failed++
+        lastError = e
+      }
+    }
+    await Promise.all(order.map(one))
+    if (my !== seq) return
+    results = mergeTracks(tracks, order)
+    if (failed === order.length && lastError) {
+      error = errorText(lastError)
+      notConnected = true
+    } else if (results.length) setTimeout(() => my === seq && searchHistory.add({ kind: 'query', query: q }), 1200)
+    loading = false
+  }
 
   function playLocal(i: number) {
     void player.playList(localHits, i, 'search')
