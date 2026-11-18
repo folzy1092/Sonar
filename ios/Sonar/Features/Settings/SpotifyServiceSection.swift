@@ -92,7 +92,7 @@ struct SpotifyServiceSection: View {
             Button(t("Отключить"), role: .destructive) {
                 Task {
                     await SpotifyCore.shared.disconnect()
-                    account = nil
+                    self.account = nil
                 }
             }
             .font(.system(size: 14, weight: .semibold))

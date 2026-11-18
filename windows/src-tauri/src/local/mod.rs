@@ -31,9 +31,11 @@ const COVER_PREFIX: &str = "local-";
 const COVER_EXTS: &[&str] = &["jpg", "png", "gif", "bmp", "tiff"];
 
 /// `local:<sha1 пути>` — один и тот же файл всегда даёт один ref (лайки и плейлисты не теряются
-/// при пересканировании).
+/// при пересканировании). Путь сначала собирается заново из частей: на Windows `C:\m/a.mp3` и
+/// `C:\m\a.mp3` — один файл и один ref.
 pub fn local_ref(path: &Path) -> String {
-  format!("{PREFIX}:{}", sha1_hex(path.to_string_lossy().as_bytes()))
+  let normalized: PathBuf = path.components().collect();
+  format!("{PREFIX}:{}", sha1_hex(normalized.to_string_lossy().as_bytes()))
 }
 
 pub fn is_local_ref(r: &str) -> bool {
