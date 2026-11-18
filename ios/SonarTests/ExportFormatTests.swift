@@ -117,6 +117,12 @@ final class ExportFormatTests: XCTestCase {
         XCTAssertEqual(PlaylistExport.csvCell("-x"), "-x")
     }
 
+    func testCSVCellChecksFirstScalarNotCharacter() {
+        // «\r\n» и «=» с ударением — по одному Character, но начало-формула; итог — как на ПК
+        XCTAssertEqual(PlaylistExport.csvCell("\r\n=1", text: true), "\"'\r\n=1\"")
+        XCTAssertEqual(PlaylistExport.csvCell("=\u{0301}x", text: true), "'=\u{0301}x")
+    }
+
     func testCSVWritesBOMHeaderAndCRLFRows() {
         let added = Int64(Date(timeIntervalSince1970: 1_794_918_605.999).timeIntervalSince1970 * 1000)
         let out = PlaylistExport.csv(items: [

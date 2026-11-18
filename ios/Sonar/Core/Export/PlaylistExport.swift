@@ -31,8 +31,9 @@ enum PlaylistExport {
     private static let reserved: Set<String> = Set(
         ["con", "prn", "aux", "nul"] + (1...9).flatMap { ["com\($0)", "lpt\($0)"] }
     )
-    /// Начало ячейки, которое Excel и Таблицы считают формулой.
-    private static let formulaStart: Set<Character> = ["=", "+", "-", "@", "\t", "\r"]
+    /// Начало ячейки, которое Excel и Таблицы считают формулой. Сверяем первый Unicode scalar, а не
+    /// `Character`: «\r\n» и «=» с комбинируемым знаком — один `Character`, но формула (как на ПК).
+    private static let formulaStart = Set("=+-@\t\r".unicodeScalars)
     /// Что `encodeURIComponent` оставляет как есть.
     private static let uriComponent = CharacterSet(charactersIn:
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.!~*'()")
@@ -104,7 +105,7 @@ enum PlaylistExport {
     /// Ячейка CSV по RFC 4180: в кавычках, если есть запятая, кавычка или перенос строки; кавычки
     /// удваиваются. `text` — пользовательский текст: начало-формулу гасим апострофом.
     static func csvCell(_ value: String, text: Bool = false) -> String {
-        let safe = text && value.first.map(formulaStart.contains) == true ? "'" + value : value
+        let safe = text && value.unicodeScalars.first.map(formulaStart.contains) == true ? "'" + value : value
         let needsQuotes = safe.unicodeScalars.contains { $0 == "," || $0 == "\"" || $0 == "\r" || $0 == "\n" }
         guard needsQuotes else { return safe }
         return "\"" + safe.replacingOccurrences(of: "\"", with: "\"\"") + "\""

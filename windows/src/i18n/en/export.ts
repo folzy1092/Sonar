@@ -11,4 +11,5 @@ export default {
   'Плейлист слишком большой для экспорта': 'The playlist is too large to export',
   'Окно сохранения закрылось': 'The save window closed',
   'Не удалось сохранить файл': "Couldn't save the file",
+  'Файл с таким именем уже есть': 'There is already a file with this name',
 } satisfies Record<string, string>
