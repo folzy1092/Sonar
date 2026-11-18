@@ -13,7 +13,7 @@ import { player } from '../player/player.svelte'
 import { wave } from '../player/my-wave.svelte'
 import { lyrics } from '../lyrics/lyrics.svelte'
 import { router } from '../app/router.svelte'
-import { sidePane } from '../app/side-pane.svelte'
+import { lyricsAvail, sidePane } from '../app/side-pane.svelte'
 import { settingsPanel } from '../pages/settings-section.svelte'
 import { actionFor, comboFrom, globalMap, hasCommandMod, withCombo, withoutCombo, type HotkeyAction } from './hotkeys-core'
 
@@ -109,7 +109,7 @@ class Hotkeys {
         return this.focusSearch()
       case 'lyrics':
       case 'queue':
-        return sidePane.toggle(action, lyrics.status === 'ready')
+        return sidePane.toggle(action, lyricsAvail(lyrics.status, lyrics.ref, player.current?.ref ?? null) === 'yes')
       case 'settings':
         return settingsPanel.toggle()
       case 'wave':
