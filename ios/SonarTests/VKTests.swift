@@ -201,4 +201,45 @@ final class VKTests: XCTestCase {
         XCTAssertEqual(Service.yandex.mark, "Я")
         XCTAssertNil(Service.soundcloud.mark)
     }
+
+    /// Ответ без `count` не обрывает страницы на первой: идём дальше, пока страница полная.
+    func testPagesWithoutCount() {
+        XCTAssertFalse(VK.lastPage(got: 200, asked: 200, offset: 200, total: nil))
+        XCTAssertTrue(VK.lastPage(got: 37, asked: 200, offset: 237, total: nil))
+        XCTAssertTrue(VK.lastPage(got: 0, asked: 200, offset: 400, total: nil))
+        // с count — по нему, даже если страница короче
+        XCTAssertFalse(VK.lastPage(got: 150, asked: 200, offset: 150, total: 500))
+        XCTAssertTrue(VK.lastPage(got: 200, asked: 200, offset: 500, total: 500))
+        XCTAssertTrue(VK.lastPage(got: 0, asked: 200, offset: 0, total: 10))
+    }
+
+    /// access_key трека переживает перезапуск: новый `VKKeyStore` читает тот же файл.
+    func testKeyStoreSurvivesReopen() {
+        let file = tempDirectory().appendingPathComponent("vk-keys.json")
+        var before = VKKeyStore(file: file)
+        before.remember([(ref: "vk:-1_2", key: "k1"), (ref: "vk:5_6", key: "k2")])
+        let after = VKKeyStore(file: file)
+        XCTAssertEqual(after.key(for: "vk:-1_2"), "k1")
+        XCTAssertEqual(after.key(for: "vk:5_6"), "k2")
+        XCTAssertNil(after.key(for: "vk:7_8"))
+    }
+
+    func testKeyStoreBrokenFileIsEmpty() throws {
+        let file = tempDirectory().appendingPathComponent("vk-keys.json")
+        try Data("{not json".utf8).write(to: file)
+        XCTAssertEqual(VKKeyStore(file: file).count, 0)
+    }
+
+    /// Переполнение выкидывает самые давние, свежие и недавно виденные остаются.
+    func testKeyStoreOverflowDropsOldestOnly() {
+        var store = VKKeyStore()
+        store.remember((0..<VKKeyStore.maxKeys).map { (ref: "vk:1_\($0)", key: "k") })
+        store.remember([(ref: "vk:1_0", key: "k")])
+        store.remember([(ref: "vk:2_1", key: "new")])
+        XCTAssertEqual(store.count, VKKeyStore.keepAfterTrim)
+        XCTAssertEqual(store.key(for: "vk:2_1"), "new")
+        XCTAssertEqual(store.key(for: "vk:1_0"), "k")
+        XCTAssertNil(store.key(for: "vk:1_1"))
+        XCTAssertEqual(store.key(for: "vk:1_\(VKKeyStore.maxKeys - 1)"), "k")
+    }
 }

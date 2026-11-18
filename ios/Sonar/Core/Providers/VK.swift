@@ -9,7 +9,7 @@ import FoundationNetworking // тесты логики на Linux
 /// каждого запроса — User-Agent Kate Mobile. Запросы — POST с формой: токен в теле, не в адресе, и не
 /// попадает ни в ошибку, ни в журнал.
 ///
-/// ref: трек `vk:<owner>_<id>` (access_key трека — в памяти ядра, `MusicCore+VK.swift`), альбом
+/// ref: трек `vk:<owner>_<id>` (access_key трека — на диске, `VKKeyStore`), альбом
 /// `vkalb:<owner>_<id>[_<access_key>]`, плейлист `vkpl:<owner>_<id>[_<access_key>]` и `vkpl:likes`,
 /// исполнитель `vka:<id>` (docs/API.md «Префиксы ref»).
 struct VK: Sendable {
@@ -102,16 +102,31 @@ struct VK: Sendable {
         return Self.audios(data["items"])
     }
 
+    /// Исполнители, альбомы и плейлисты. Каждый из трёх запросов необязателен: упал один — остальные всё
+    /// равно показываем; общей ошибкой — только протухший ключ.
     func searchMore(_ query: String, limit: Int) async throws -> (artists: [Artist], albums: [Album], playlists: [ServicePlaylist]) {
-        let count = String(min(limit, 100))
-        let artists = try await call("audio.searchArtists", [("q", query), ("count", count)])
-        let albums = try await call("audio.searchAlbums", [("q", query), ("count", count)])
-        let playlists = try await call("audio.searchPlaylists", [("q", query), ("count", count)])
+        let params = [("q", query), ("count", String(min(limit, 100)))]
+        let artists = try await optionalItems("audio.searchArtists", params)
+        let albums = try await optionalItems("audio.searchAlbums", params)
+        let playlists = try await optionalItems("audio.searchPlaylists", params)
         return (
-            Self.items(artists).compactMap(Self.parseArtist),
-            Self.items(albums).compactMap(Self.parseAlbum),
-            Self.items(playlists).compactMap(Self.parsePlaylist)
+            artists.compactMap(Self.parseArtist),
+            albums.compactMap(Self.parseAlbum),
+            playlists.compactMap(Self.parsePlaylist)
         )
+    }
+
+    /// `items` метода; ошибка (кроме протухшего ключа) — пустой список.
+    private func optionalItems(_ method: String, _ params: [(String, String)]) async throws -> [JSONValue] {
+        do {
+            return Self.items(try await call(method, params))
+        } catch let error as ServiceError where error.message == Self.authExpired {
+            throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            return []
+        }
     }
 
     /// Треки по `owner_id_id[_access_key]` (до 100 за раз).
@@ -162,13 +177,24 @@ struct VK: Sendable {
     /// Метод со страницами `count`/`offset`: до max треков.
     private func pages(_ method: String, _ params: [(String, String)], max: Int) async throws -> [VKAudio] {
         var out: [VKAudio] = []
+        var offset = 0
         while out.count < max {
-            let data = try await call(method, params + [("count", String(min(Self.page, max - out.count))), ("offset", String(out.count))])
+            let asked = min(Self.page, max - out.count)
+            let data = try await call(method, params + [("count", String(asked)), ("offset", String(offset))])
             let raw = Self.items(data)
+            offset += raw.count
             out += raw.compactMap(Self.parseAudio)
-            if raw.isEmpty || out.count >= (data["count"].int ?? 0) { break }
+            if Self.lastPage(got: raw.count, asked: asked, offset: offset, total: data["count"].int) { break }
         }
         return Array(out.prefix(max))
+    }
+
+    /// Страниц больше нет: пустая страница; есть `count` — дошли до него; нет `count` (так бывает у
+    /// `audio.getAudiosByArtist`) — VK отдал меньше, чем просили.
+    static func lastPage(got: Int, asked: Int, offset: Int, total: Int?) -> Bool {
+        if got == 0 { return true }
+        guard let total else { return got < asked }
+        return offset >= total
     }
 }
 

@@ -5,18 +5,13 @@ struct VKCreds: Codable, Sendable, Equatable {
     var token: String
 }
 
-/// Что VK отдал вместе с треком: access_key и ссылка на поток — чтобы не спрашивать второй раз.
-struct VKSeen: Sendable, Equatable {
-    var accessKey: String?
-    var streamURL: String?
-}
-
 /// VK Музыка в ядре — порт `windows/src-tauri/src/services/vk.rs`: `vk` / `vka` / `vkalb` / `vkpl`.
-/// access_key и ссылку трека ядро держит в памяти (`vkSeen`); ссылка протухла (`fresh`) — `audio.getById`.
+/// Ссылку на поток ядро держит в памяти (`vkSeen`) до `streamTTL`, access_key трека — на диске (`vkKeys`):
+/// ссылка протухла (`fresh`) или трек после перезапуска — `audio.getById` с ключом.
 extension MusicCore {
     static let vkNotConnected = "VK Музыка не подключена — открой Профиль → Сервисы"
     static let vkLikesTitle = "Моя музыка"
-    /// Сколько треков помнить с их access_key и ссылкой.
+    /// Сколько ссылок на поток держать в памяти; сверх — выкидываем протухшие.
     static let vkSeenMax = 5000
     /// Треки альбома или плейлиста.
     static let vkListMax = 1000
@@ -42,13 +37,28 @@ extension MusicCore {
         return VK(token: vk.creds.token)
     }
 
-    /// Треки VK → модели; access_key и ссылку запоминаем для потока.
+    /// Треки VK → модели; ссылку запоминаем в памяти, access_key — на диске.
     func vkKeep(_ list: [VKAudio]) -> [Track] {
-        if vkSeen.count > Self.vkSeenMax { vkSeen.removeAll() }
-        for audio in list {
-            vkSeen[audio.track.ref] = VKSeen(accessKey: audio.accessKey, streamURL: audio.streamURL)
+        let now = Date()
+        if vkSeen.count > Self.vkSeenMax {
+            vkSeen = vkSeen.filter { now.timeIntervalSince($0.value.at) < Self.streamTTL }
         }
+        for audio in list {
+            if let link = audio.streamURL { vkSeen[audio.track.ref] = (link, now) }
+        }
+        vkKeys.remember(list.compactMap { audio in audio.accessKey.map { (ref: audio.track.ref, key: $0) } })
         return list.map(\.track)
+    }
+
+    /// Ссылка, которую VK отдал вместе с треком, пока она не протухла.
+    func vkSeenURL(_ ref: String) -> String? {
+        guard let seen = vkSeen[ref], Date().timeIntervalSince(seen.at) < Self.streamTTL else { return nil }
+        return seen.url
+    }
+
+    /// id для `audio.getById`: `owner_id_id` и запомненный access_key, если он есть.
+    func vkFullID(_ id: String) -> String {
+        vkKeys.key(for: "vk:\(id)").map { "\(id)_\($0)" } ?? id
     }
 
     /// id своего аккаунта VK: из сохранённого, иначе спросить у VK.
@@ -106,12 +116,12 @@ extension MusicCore {
         return (playlist, vkKeep(list))
     }
 
-    /// Ссылка из поиска, пока она свежая; иначе (fresh или трек не видели) — `audio.getById` с access_key.
+    /// Ссылка из поиска, пока она свежая; иначе (fresh, протухла или трек не видели) — `audio.getById`
+    /// с access_key с диска.
     func vkStream(_ id: String, fresh: Bool) async throws -> StreamSource {
         guard VK.isAudioID(id) else { throw ServiceError(message: "Неверный трек vk:\(id)") }
-        let seen = vkSeen["vk:\(id)"]
-        if !fresh, let link = seen?.streamURL { return try VK.source(link) }
-        let full = seen?.accessKey.map { "\(id)_\($0)" } ?? id
+        if !fresh, let link = vkSeenURL("vk:\(id)") { return try VK.source(link) }
+        let full = vkFullID(id)
         guard let audio = try await vkClient().byId([full]).first else { throw ServiceError(message: "VK Музыка: трек не найден") }
         _ = vkKeep([audio])
         return try VK.source(audio.streamURL ?? "")

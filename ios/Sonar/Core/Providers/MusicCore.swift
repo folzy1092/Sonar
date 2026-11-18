@@ -41,7 +41,10 @@ actor MusicCore {
     private var yandex: StoredService<YandexCreds>?
     /// VK и что он отдал вместе с треками — в `MusicCore+VK.swift` (поэтому не private).
     var vk: StoredService<VKCreds>?
-    var vkSeen: [String: VKSeen] = [:]
+    /// Ссылки на поток, которые VK отдал вместе с треками, и когда (живут `streamTTL`).
+    var vkSeen: [String: (url: String, at: Date)] = [:]
+    /// access_key треков VK — на диске, переживают перезапуск (`VKKeyStore`).
+    var vkKeys = VKKeyStore(file: VKKeyStore.defaultFile)
     /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
     private var publicClientId: String?
     /// Сырой JSON треков SoundCloud — в нём варианты потока.
