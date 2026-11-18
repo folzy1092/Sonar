@@ -137,8 +137,6 @@ final class ServiceRegistryTests: XCTestCase {
         XCTAssertEqual(track.mainArtistRef, "yma:5")
         track.artists = [ArtistRef(ref: "yta:1", name: "A")]
         XCTAssertEqual(track.mainArtistRef, "yta:1")
-        track.artists = [ArtistRef(ref: "vka:1", name: "A")]
-        XCTAssertNil(track.mainArtistRef)
         track.artists = [ArtistRef(ref: "vka:9", name: "A")]
         XCTAssertEqual(track.mainArtistRef, "vka:9")
     }
@@ -156,7 +154,8 @@ final class ServiceRegistryTests: XCTestCase {
     func testSearchSourceCycles() {
         XCTAssertEqual(Service.soundcloud.next, .yandex)
         XCTAssertEqual(Service.yandex.next, .youtube)
-        XCTAssertEqual(Service.youtube.next, .soundcloud)
+        XCTAssertEqual(Service.youtube.next, .vk)
+        XCTAssertEqual(Service.vk.next, .soundcloud)
     }
 
     func testServiceAccountDecodesWithoutPremium() throws {
