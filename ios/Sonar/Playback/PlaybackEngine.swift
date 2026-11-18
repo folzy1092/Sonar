@@ -98,6 +98,8 @@ final class PlaybackEngine {
         var onStandby: Bool
         var quality: String
         var hls: Bool
+        /// Играет из резервного сервиса — тост при переходе.
+        var via: FallbackVia?
     }
     @ObservationIgnored private var preloaded: Preloaded?
     @ObservationIgnored private var preloading = false
@@ -109,6 +111,9 @@ final class PlaybackEngine {
     /// Третья попытка: поток не открылся и со свежей ссылкой — берём попроще (mp3 вместо FLAC, SC без двойника).
     @ObservationIgnored private var safeRetried = false
     @ObservationIgnored private var safeNext = false
+    /// Четвёртая попытка: свой поток не открылся и попроще — тот же трек из резервного сервиса.
+    @ObservationIgnored private var brokenTried = false
+    @ObservationIgnored private var brokenNext = false
     /// Сколько треков подряд не открылось: прошли всю очередь — стоп, а не круг мгновенных сбоев
     /// (очередь из одних треков Spotify при «повторять всё»).
     @ObservationIgnored private var failStreak = 0
@@ -147,7 +152,7 @@ final class PlaybackEngine {
     @ObservationIgnored private let snapshotFile = PlaybackSnapshotFile()
     @ObservationIgnored private var lastSnapshot = Date.distantPast
     /// Последние применённые качество и «SoundCloud через Яндекс» — чтобы не дёргать MusicCore зря.
-    @ObservationIgnored private var appliedQuality: (kbps: Int, viaYandex: Bool, youTubeHigh: Bool)?
+    @ObservationIgnored private var appliedQuality: (kbps: Int, viaYandex: Bool, youTubeHigh: Bool, fallback: FallbackSettings)?
 
     init() {
         waveMode = WaveMode(rawValue: SettingsStore.shared.string("wave.mode")) ?? .own
@@ -357,14 +362,16 @@ final class PlaybackEngine {
 
     /// Скачанный (или из офлайн-кэша волны) — из файла, без сети; fresh (файл не открылся или ссылка
     /// протухла) — из сети.
-    private static func source(for track: Track, fresh: Bool, safe: Bool = false) async throws -> StreamSource {
+    /// Не играет со своего сервиса — тот же трек из резервного (`MusicCore.playable`), broken — свой
+    /// поток уже не открылся в плеере.
+    private static func source(for track: Track, fresh: Bool, safe: Bool = false, broken: Bool = false) async throws -> MusicCore.Playable {
         if !fresh, !safe, let local = DownloadStore.shared.localURL(track.ref) {
-            return .file(url: local, quality: DownloadStore.shared.quality(track.ref) ?? "Скачан")
+            return .init(source: .file(url: local, quality: DownloadStore.shared.quality(track.ref) ?? "Скачан"), via: nil)
         }
         if !fresh, !safe, let cached = WaveCache.shared.localURL(track.ref) {
-            return .file(url: cached, quality: WaveCache.shared.quality(track.ref) ?? "Офлайн")
+            return .init(source: .file(url: cached, quality: WaveCache.shared.quality(track.ref) ?? "Офлайн"), via: nil)
         }
-        return try await MusicCore.shared.stream(track.ref, fresh: fresh, safe: safe)
+        return try await MusicCore.shared.playable(track, fresh: fresh, safe: safe, broken: broken)
     }
 
     /// Трек есть на телефоне — сыграет без сети.
@@ -398,10 +405,13 @@ final class PlaybackEngine {
         if !fresh {
             retried = false
             safeRetried = false
+            brokenTried = false
             resetListening()
         }
         let safe = safeNext
         safeNext = false
+        let broken = brokenNext
+        brokenNext = false
         // откуда начать: свежая ссылка — с того же места, восстановленный трек — с запомненной секунды
         let start = fresh ? position : (pendingStart?.ref == track.ref ? pendingStart?.seconds ?? 0 : 0)
         pendingStart = nil
@@ -421,8 +431,10 @@ final class PlaybackEngine {
         nowPlaying.update()
         Task {
             do {
-                let source = try await Self.source(for: track, fresh: fresh, safe: safe)
+                let playable = try await Self.source(for: track, fresh: fresh, safe: safe, broken: broken)
                 guard token == self.loadToken else { return }
+                let source = playable.source
+                if let toast = FallbackPlan.toast(playable.via) { self.message = toast }
                 let item = self.makeItem(source)
                 self.quality = Self.label(source)
                 self.isHLS = Self.streamsHLS(source)
@@ -474,6 +486,10 @@ final class PlaybackEngine {
                         } else if !self.safeRetried {
                             self.safeRetried = true
                             self.safeNext = true
+                            self.load(autoplay: true, fresh: true)
+                        } else if !self.brokenTried {
+                            self.brokenTried = true
+                            self.brokenNext = true
                             self.load(autoplay: true, fresh: true)
                         } else {
                             self.failed(track, item.error ?? ServiceError(message: "поток не открылся"))
@@ -551,8 +567,9 @@ final class PlaybackEngine {
         preloading = true
         Task {
             defer { if token == self.loadToken { self.preloading = false } }
-            guard let source = try? await Self.source(for: track, fresh: false),
+            guard let playable = try? await Self.source(for: track, fresh: false),
                   token == self.loadToken, self.currentItem === currentItem, self.preloaded == nil, self.outgoing == nil else { return }
+            let source = playable.source
             let item = self.makeItem(source)
             if overlap {
                 let deck = self.standby
@@ -564,7 +581,7 @@ final class PlaybackEngine {
                 self.player.insert(item, after: currentItem)
             }
             let hls = Self.streamsHLS(source)
-            self.preloaded = Preloaded(pos: target, item: item, onStandby: overlap, quality: Self.label(source), hls: hls)
+            self.preloaded = Preloaded(pos: target, item: item, onStandby: overlap, quality: Self.label(source), hls: hls, via: playable.via)
             if !hls {
                 let leveler = track.loudness == nil
                 self.preloadStatus = item.publisher(for: \.status)
@@ -605,9 +622,11 @@ final class PlaybackEngine {
         loadToken += 1
         retried = false
         safeRetried = false
+        brokenTried = false
         resetListening()
         position = 0
         quality = next.quality
+        if let toast = FallbackPlan.toast(next.via) { message = toast }
         isHLS = next.hls
         if let track = current {
             duration = Double(track.durationMs) / 1000
@@ -904,9 +923,11 @@ final class PlaybackEngine {
         let kbps = MusicCore.qualityKbps(AudioQuality.current(settings).rawValue)
         let viaYandex = settings.bool("audio.sc_via_yandex")
         let youTubeHigh = YouTubeQuality.current(settings) == .high
-        if appliedQuality?.kbps != kbps || appliedQuality?.viaYandex != viaYandex || appliedQuality?.youTubeHigh != youTubeHigh {
-            appliedQuality = (kbps, viaYandex, youTubeHigh)
-            Task { await MusicCore.shared.configure(maxKbps: kbps, soundCloudViaYandex: viaYandex, youTubeHigh: youTubeHigh) }
+        let fallback = FallbackSettings(enabled: settings.bool(FallbackPlan.enabledKey), saved: settings.string(FallbackPlan.orderKey))
+        if appliedQuality?.kbps != kbps || appliedQuality?.viaYandex != viaYandex || appliedQuality?.youTubeHigh != youTubeHigh
+            || appliedQuality?.fallback != fallback {
+            appliedQuality = (kbps, viaYandex, youTubeHigh, fallback)
+            Task { await MusicCore.shared.configure(maxKbps: kbps, soundCloudViaYandex: viaYandex, youTubeHigh: youTubeHigh, fallback: fallback) }
         }
     }
 

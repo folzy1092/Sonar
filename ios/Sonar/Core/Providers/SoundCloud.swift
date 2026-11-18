@@ -119,7 +119,7 @@ struct SoundCloud: Sendable {
     /// JSON трека → ссылка на поток (вариант выбирает `pickTranscoding`).
     func stream(_ track: JSONValue) async throws -> StreamSource {
         guard let transcoding = Self.pickTranscoding(track) else {
-            throw ServiceError(message: "SoundCloud: у трека нет доступного потока")
+            throw Unplayable(reason: .unavailable, message: "SoundCloud: у трека нет доступного потока")
         }
         return try await stream(track, transcoding: transcoding)
     }
@@ -213,6 +213,11 @@ struct SoundCloud: Sendable {
         return track["media"]["transcodings"].items
             .compactMap { t in score(t).map { (score: $0, t: t) } }
             .max { $0.score < $1.score }?.t
+    }
+
+    /// Играть можно только отрывок: `policy: SNIP` (без Go+) или лучший вариант потока — обрезанный.
+    static func isSnippet(_ track: JSONValue) -> Bool {
+        track["policy"].string == "SNIP" || pickTranscoding(track)?["snipped"].bool == true
     }
 
     /// Прямой mp3 файлом (`progressive`, не превью) — его можно скачать; у многих треков его нет, только HLS.

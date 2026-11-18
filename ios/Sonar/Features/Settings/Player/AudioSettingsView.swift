@@ -51,6 +51,9 @@ struct AudioSettingsView: View {
             }
             .cascade(1)
 
+            FallbackSettingsCard()
+                .cascade(2)
+
             PlayerCard(title: "YouTube Music", footer: t("Качество треков YouTube Music: обычное бережёт трафик, высокое звучит лучше")
                 + " " + t("На iPhone — AAC: высокое — 256 кбит/с, если YouTube его отдаёт, иначе 128.")) {
                 let items = YouTubeQuality.allCases.map { ChoiceItem(id: $0.rawValue, icon: $0.icon, title: t($0.title), subtitle: t($0.subtitle)) }
@@ -60,7 +63,7 @@ struct AudioSettingsView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
             }
-            .cascade(2)
+            .cascade(3)
 
             PlayerCard(title: "Громкость и переходы", footer: transitionsFooter) {
                 PlayerToggleRow(icon: .volume, title: "Нормализация громкости",
@@ -80,7 +83,7 @@ struct AudioSettingsView: View {
                 }
             }
             .animation(Motion.spring, value: crossfade > 0)
-            .cascade(3)
+            .cascade(4)
 
             PlayerCard(title: "Звук") {
                 PlayerPickRow(title: "Эквалайзер", value: equalizerSummary, icon: .sliders) { showEqualizer = true }
@@ -88,13 +91,13 @@ struct AudioSettingsView: View {
                 PlayerPickRow(title: "После звонка и Siri", value: InterruptionMode.current(settings).title,
                               icon: InterruptionMode.current(settings).icon) { picker = .interruption }
             }
-            .cascade(4)
+            .cascade(5)
 
             Text("Звонок, Siri и будильник ставят музыку на паузу сами — так устроен iPhone. Здесь — что делать, когда они закончатся.")
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.textTertiary)
                 .padding(.horizontal, 6)
-                .cascade(5)
+                .cascade(6)
         }
         .choiceSheet(item: $picker, height: { _ in ChoiceSheet.height(InterruptionMode.allCases.count, subtitles: true) }) { _ in
             ChoiceSheet(title: "После звонка и Siri",

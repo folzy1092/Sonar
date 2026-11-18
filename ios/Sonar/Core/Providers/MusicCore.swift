@@ -29,7 +29,8 @@ enum LinkItem: Sendable {
 }
 
 /// Общее ядро сервисов (порт `windows/src-tauri/src/services.rs`): ключи (Keychain), поиск, ссылки на
-/// поток с кэшем, трек SoundCloud → тот же на Яндексе ради FLAC / 320. Экраны и плеер ходят в сервисы
+/// поток с кэшем, резервный сервис (`MusicCore+Fallback.swift`): трек не играет — тот же из другого,
+/// трек SoundCloud → тот же на Яндексе ради FLAC / 320. Экраны и плеер ходят в сервисы
 /// только через него. Сервера пока нет — всё прямо с телефона (SPEC §9).
 actor MusicCore {
     static let shared = MusicCore()
@@ -38,7 +39,8 @@ actor MusicCore {
     static let streamTTL: TimeInterval = 240
 
     private var soundCloud: StoredService<SoundCloudCreds>?
-    private var yandex: StoredService<YandexCreds>?
+    /// Яндекс, сырой JSON SoundCloud, `withSoundCloud` — ещё и для резерва в `MusicCore+Fallback.swift` (не private).
+    var yandex: StoredService<YandexCreds>?
     /// VK и что он отдал вместе с треками — в `MusicCore+VK.swift` (поэтому не private).
     var vk: StoredService<VKCreds>?
     /// Ссылки на поток, которые VK отдал вместе с треками, и когда (живут `streamTTL`).
@@ -48,14 +50,18 @@ actor MusicCore {
     /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
     private var publicClientId: String?
     /// Сырой JSON треков SoundCloud — в нём варианты потока.
-    private var soundCloudRaw: [String: JSONValue] = [:]
+    var soundCloudRaw: [String: JSONValue] = [:]
     var streams: [String: (source: StreamSource, at: Date)] = [:]
-    /// Найденные пары `sc:…` → id Яндекса (nil — на Яндексе нет), чтобы не искать каждый раз.
-    private var yandexTwins: [String: String?] = [:]
+    /// Резерв: найденные пары ref → (сервис → ref того же трека; nil — искали, нет), на сеанс.
+    var aliases: [String: [ServiceID: String?]] = [:]
+    /// Что сейчас играет вместо исходного трека (повтор и свежая ссылка берут ту же замену).
+    var routed: [String: FallbackVia] = [:]
+    /// `audio.fallback` и `audio.fallback_order`.
+    var fallback = FallbackSettings()
     /// Потолок битрейта Яндекса (`audio.quality`): 192 / 256 / 320 / 1411 (FLAC).
     private var maxKbps = Yandex.losslessKbps
     /// Трек SoundCloud играть с Яндекса, если там есть тот же (`audio.sc_via_yandex`).
-    private var soundCloudViaYandex = false
+    var soundCloudViaYandex = false
     /// Cookie YouTube Music: без него каталог и поток работают гостем, нужен для «Лайков» и плейлистов.
     private var youtube: StoredService<YouTubeCreds>?
     /// `visitorData` гостя YouTube на сеанс (без неё `player` чаще просит «подтверди, что ты не бот»).
@@ -83,12 +89,16 @@ actor MusicCore {
         Status(soundCloud: soundCloud?.account, yandex: yandex?.account, youtube: youtube?.account, vk: vk?.account)
     }
 
-    func configure(maxKbps: Int, soundCloudViaYandex: Bool, youTubeHigh: Bool? = nil) {
+    func configure(maxKbps: Int, soundCloudViaYandex: Bool, youTubeHigh: Bool? = nil, fallback: FallbackSettings? = nil) {
         let youTubeHigh = youTubeHigh ?? self.youTubeHigh
+        let fallback = fallback ?? self.fallback
         if maxKbps != self.maxKbps || youTubeHigh != self.youTubeHigh { streams.removeAll() }
+        // замены выбраны по старым правилам — следующий трек решит заново
+        if soundCloudViaYandex != self.soundCloudViaYandex || fallback != self.fallback { routed.removeAll() }
         self.maxKbps = maxKbps
         self.soundCloudViaYandex = soundCloudViaYandex
         self.youTubeHigh = youTubeHigh
+        self.fallback = fallback
     }
 
     /// `audio.yt_quality` → брать ли AAC 256. По умолчанию — да («Высокое»).
@@ -139,7 +149,8 @@ actor MusicCore {
         }
         ServiceVault.delete(service.info.key)
         streams.removeAll()
-        yandexTwins.removeAll()
+        aliases.removeAll()
+        routed.removeAll()
     }
 
     // MARK: - Клиенты
@@ -158,7 +169,7 @@ actor MusicCore {
     }
 
     /// Вызов SoundCloud с повтором на свежем публичном client_id при 401/403.
-    private func withSoundCloud<T: Sendable>(_ call: @Sendable (SoundCloud) async throws -> T) async throws -> T {
+    func withSoundCloud<T: Sendable>(_ call: @Sendable (SoundCloud) async throws -> T) async throws -> T {
         let (client, isPublic) = try await soundCloudClient()
         do {
             return try await call(client)
@@ -167,7 +178,7 @@ actor MusicCore {
         }
     }
 
-    private func yandexClient() throws -> Yandex {
+    func yandexClient() throws -> Yandex {
         guard let yandex else { throw ServiceError(message: "Яндекс Музыка не подключена — открой Профиль → Сервисы") }
         return Yandex(token: yandex.creds.token)
     }
@@ -462,7 +473,7 @@ actor MusicCore {
         let cannot = ServiceError(message: "Этот трек нельзя скачать")
         switch kind {
         case "sp":
-            throw ServiceError(message: Spotify.needsFallback)
+            throw Unplayable(reason: .premium, message: Spotify.needsFallback)
         case "ym":
             guard let source = DownloadSource.from(try await yandexClient().stream(id, maxKbps: maxKbps)) else { throw cannot }
             return source
@@ -494,21 +505,22 @@ actor MusicCore {
         }
     }
 
+    /// Тот же трек на Яндексе файлом (сверка и память пар — общие с резервом).
     private func twinDownload(_ ref: String, id: String) async -> DownloadSource? {
-        guard yandex != nil, let stream = await yandexTwin(ref, id: id) else { return nil }
+        guard yandex != nil, let wanted = await fallbackMatch(ref: ref, meta: nil),
+              let alias = await aliasRef(ref, wanted: wanted, in: .ym),
+              let stream = try? await stream(alias) else { return nil }
         return DownloadSource.from(stream)
     }
 
     // MARK: - Поток
 
-    /// Ссылка на поток для `sc:123` / `ym:456` / `yt:<videoId>`. fresh — не брать из кэша (ссылка протухла).
-    /// safe — запасной путь, если поток не открылся: без FLAC (Яндекс — mp3 до 320), SoundCloud — сам, без
-    /// двойника, YouTube — с новой visitorData.
-    /// Ссылка на поток для `sc:123` / `ym:456` / `vk:<owner>_<id>`. fresh — не брать из кэша (ссылка протухла).
-    /// safe — запасной путь, если поток не открылся: без FLAC (Яндекс — mp3 до 320), SoundCloud — сам, без двойника.
+    /// Свой поток трека `sc:123` / `ym:456` / `yt:<videoId>` / `vk:<owner>_<id>` — без резерва (его даёт
+    /// `playable`). fresh — не брать из кэша (ссылка протухла). safe — запасной путь, если поток не открылся:
+    /// без FLAC (Яндекс — mp3 до 320), YouTube — с новой visitorData. Не играет — `Unplayable` с причиной.
     func stream(_ ref: String, fresh: Bool = false, safe: Bool = false) async throws -> StreamSource {
-        // Spotify на iPhone не играет — трек отметить для резервного сервиса (этап 4), не падать
-        if ServiceRegistry.service(of: ref) == .sp { throw ServiceError(message: Spotify.needsFallback) }
+        // Spotify на iPhone не играет — трек сыграет резервный сервис
+        if ServiceRegistry.service(of: ref) == .sp { throw Unplayable(reason: .premium, message: Spotify.needsFallback) }
         if safe {
             let parts = ref.split(separator: ":", maxSplits: 1).map(String.init)
             guard parts.count == 2 else { throw ServiceError(message: "Неверный трек \(ref)") }
@@ -529,11 +541,7 @@ actor MusicCore {
         let source: StreamSource
         switch parts[0] {
         case "sc":
-            if soundCloudViaYandex, yandex != nil, let twin = await yandexTwin(ref, id: parts[1]) {
-                source = twin
-            } else {
-                source = try await soundCloudStream(ref, id: parts[1], fresh: fresh)
-            }
+            source = try await soundCloudStream(ref, id: parts[1], fresh: fresh)
         case "ym":
             source = try await yandexClient().stream(parts[1], maxKbps: maxKbps)
         case "yt":
@@ -547,19 +555,26 @@ actor MusicCore {
         return source
     }
 
+    /// Поток SoundCloud. Только отрывок (`policy: SNIP`, обрезанный вариант) — `Unplayable` с превью:
+    /// резерв найдёт полный трек, а нет — сыграет отрывок.
     private func soundCloudStream(_ ref: String, id: String, fresh: Bool) async throws -> StreamSource {
         let cached = fresh ? nil : soundCloudRaw[ref]
+        let played: (json: JSONValue, source: StreamSource)
         do {
-            return try await withSoundCloud { client in
+            played = try await withSoundCloud { client in
                 let json = if let cached { cached } else { try await client.trackJSON(id) }
-                return try await client.stream(json)
+                return (json, try await client.stream(json))
             }
         } catch _ where cached != nil {
             // в сохранённом JSON могла протухнуть track_authorization — берём трек заново
             let json = try await withSoundCloud { try await $0.trackJSON(id) }
-            soundCloudRaw[ref] = json
-            return try await withSoundCloud { try await $0.stream(json) }
+            played = (json, try await withSoundCloud { try await $0.stream(json) })
         }
+        soundCloudRaw[ref] = played.json
+        if SoundCloud.isSnippet(played.json) {
+            throw Unplayable(reason: .preview, message: "SoundCloud: доступен только отрывок", preview: played.source)
+        }
+        return played.source
     }
 
     /// Поток YouTube Music берётся гостем (клиент VISIONOS cookie не принимает). Не открылся — ещё
@@ -578,45 +593,6 @@ actor MusicCore {
         let visitor = try await YouTube.visitorData()
         youTubeVisitor = visitor
         return visitor
-    }
-
-    /// Тот же трек на Яндексе. Любая ошибка — nil, и играет SoundCloud. Пара запоминается на сеанс.
-    private func yandexTwin(_ ref: String, id: String) async -> StreamSource? {
-        let yandexId: String
-        if let known = yandexTwins[ref] {
-            guard let known else { return nil }
-            yandexId = known
-        } else {
-            let found: String? = (try? await findYandexTwin(ref, id: id)) ?? nil
-            yandexTwins[ref] = .some(found)
-            guard let found else { return nil }
-            yandexId = found
-        }
-        guard let client = try? yandexClient(), let source = try? await client.stream(yandexId, maxKbps: maxKbps) else { return nil }
-        if case let .file(url, quality) = source { return .file(url: url, quality: "\(quality) · Яндекс") }
-        return source
-    }
-
-    private func findYandexTwin(_ ref: String, id: String) async throws -> String? {
-        let json: JSONValue
-        if let cached = soundCloudRaw[ref] {
-            json = cached
-        } else {
-            json = try await withSoundCloud { try await $0.trackJSON(id) }
-        }
-        let wanted = TrackMatch.soundCloud(
-            uploader: json["user"]["username"].string ?? "",
-            metaArtist: json["publisher_metadata"]["artist"].string,
-            title: json["title"].string ?? "",
-            durationMs: json["full_duration"].int ?? json["duration"].int ?? 0
-        )
-        let client = try yandexClient()
-        for query in wanted.queries {
-            if let match = wanted.best(try await client.search(query, limit: 8)) {
-                return String(match.ref.dropFirst("ym:".count))
-            }
-        }
-        return nil
     }
 }
 
