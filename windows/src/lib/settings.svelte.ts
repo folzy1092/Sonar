@@ -142,6 +142,10 @@ export const DEFAULTS = {
   'audio.fallback_order': [] as ServiceId[],
   /** Единый поиск: чей результат сверху (lib/unified-search.ts); дальше — порядок `audio.fallback_order`. */
   'search.preferred': 'sc' as ServiceId,
+  /** Медиатека → Исполнители: список плиток или карта (app/artist-map/ArtistMap.svelte). */
+  'library.artists_view': 'list' as 'list' | 'map',
+  /** Баннер «Вот твоя музыкальная карта» уже показан и закрыт (или по нему перешли). */
+  'library.map_banner_done': false,
   'player.cover_position': 'left' as 'left' | 'right',
   'queue.show': true,
   /** Предпросмотр следующего трека: карточка «Дальше» за 10 с до конца трека. */

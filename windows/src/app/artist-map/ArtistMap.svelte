@@ -6,7 +6,7 @@
   import Icon from '../../components/Icon.svelte'
   import EmptyState from '../../components/EmptyState.svelte'
   import { t } from '../../lib/i18n.svelte'
-  import { easeOutQuint, pop, reducedMotion, xfade } from '../../lib/motion'
+  import { easeOutQuint, pop, reducedMotion, rise, xfade } from '../../lib/motion'
   import { rawError } from '../../lib/api'
   import { mapApi, onMapEvents, type FollowProgress, type MapGraph } from '../../lib/artist-map/api'
   import { findNode, hitTest, layout } from '../../lib/artist-map/layout'
@@ -339,7 +339,7 @@
   })
 </script>
 
-<section class="map-view">
+<section class="map-view" in:rise={{ y: 8 }}>
   {#if status === 'error'}
     <div class="state" in:xfade>
       <p>{errorMsg}</p>
