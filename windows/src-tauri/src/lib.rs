@@ -125,9 +125,17 @@ pub fn run() {
       // «Тише во время звонков»: следим, занят ли микрофон другим приложением
       calls::start(app.handle().clone());
       if std::env::args().any(|a| a == "--autostart") {
+        tray::START_HIDDEN.store(true, std::sync::atomic::Ordering::Relaxed);
         if let Some(w) = app.get_webview_window("main") {
           let _ = w.hide();
         }
+      } else {
+        // страховка: заставка не дала знать о первом кадре — всё равно показать окно
+        let handle = app.handle().clone();
+        std::thread::spawn(move || {
+          std::thread::sleep(std::time::Duration::from_secs(3));
+          tray::show_first(&handle);
+        });
       }
 
       // Discord RPC
@@ -297,6 +305,7 @@ pub fn run() {
       commands::reveal_start_shortcut,
       commands::set_zoom,
       commands::set_autostart,
+      commands::first_paint,
       commands::autostart_enabled,
       commands::set_tray_mode,
       local::commands::local_pick_folder,

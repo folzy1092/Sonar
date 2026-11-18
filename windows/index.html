@@ -95,6 +95,13 @@
           if (ms < DUR + 200) requestAnimationFrame(frame)
         }
         requestAnimationFrame(frame)
+        // окно создаётся скрытым — показываем, когда заставка уже нарисована (tray.rs `show_first`);
+        // мини-окно и оверлей открывают этот же файл, им главное окно не трогать
+        if (!location.hash) {
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => window.__TAURI_INTERNALS__?.invoke('first_paint').catch(() => {})),
+          )
+        }
       })()
     </script>
     <div id="app"></div>
