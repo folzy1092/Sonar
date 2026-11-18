@@ -116,6 +116,12 @@
     onchange={(v) => settings.set('audio.normalize', v)}
   />
   <Switch
+    title={t('Бесшовное воспроизведение')}
+    hint={t('Следующий трек начинается без паузы — заранее подгружается')}
+    on={settings.get('audio.gapless')}
+    onchange={(v) => settings.set('audio.gapless', v)}
+  />
+  <Switch
     title={t('Кроссфейд')}
     hint={t('Плавное затухание в конце трека и нарастание в начале следующего')}
     on={settings.get('audio.crossfade') > 0}
@@ -129,23 +135,15 @@
 </Group>
 
 <More>
-  <Group title={t('Переходы и звонки')} hint={t('Паузы между треками и музыка во время разговора')}>
-    <Switch
-      title={t('Бесшовное воспроизведение')}
-      hint={t('Следующий трек начинается без паузы — заранее подгружается')}
-      on={settings.get('audio.gapless')}
-      onchange={(v) => settings.set('audio.gapless', v)}
-    />
-    <Switch
-      title={t('Тише во время звонков')}
-      hint={t('Музыка стихает до 20 %, пока другое приложение занимает микрофон: звонок, голосовой чат Discord или Telegram')}
-      on={settings.get('audio.duck_calls')}
-      onchange={(v) => {
-        settings.set('audio.duck_calls', v)
-        player.setCall(player.inCall)
-      }}
-    />
-  </Group>
+  <Switch
+    title={t('Тише во время звонков')}
+    hint={t('Музыка стихает до 20 %, пока другое приложение занимает микрофон: звонок, голосовой чат Discord или Telegram')}
+    on={settings.get('audio.duck_calls')}
+    onchange={(v) => {
+      settings.set('audio.duck_calls', v)
+      player.setCall(player.inCall)
+    }}
+  />
 
   <Group title="SoundCloud" hint={t('Откуда брать звук для треков SoundCloud')}>
     <Switch

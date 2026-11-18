@@ -29,6 +29,12 @@
   onchange={(v) => settings.set('general.restore', v)}
 />
 <Switch title={t('Показывать очередь')} hint={t('Отображать панель очереди')} on={settings.get('queue.show')} onchange={(v) => settings.set('queue.show', v)} />
+<Switch
+  title={t('Предпросмотр следующего трека')}
+  hint={t('За 10 секунд до конца — карточка «Дальше» с названием следующего')}
+  on={settings.get('queue.preview')}
+  onchange={(v) => settings.set('queue.preview', v)}
+/>
 <Tiles
   title={t('Положение очереди')}
   hint={t('Где открывается панель очереди')}
@@ -52,12 +58,6 @@
   onchange={(v) => settings.set('queue.view', v)}
 />
 <More>
-<Switch
-  title={t('Предпросмотр следующего трека')}
-  hint={t('За 10 секунд до конца — карточка «Дальше» с названием следующего')}
-  on={settings.get('queue.preview')}
-  onchange={(v) => settings.set('queue.preview', v)}
-/>
 <Switch
   title={t('Авто похожие')}
   hint={t('Как в SoundCloud: после любой очереди — поиска, Любимых, плейлиста — играют похожие треки')}

@@ -130,6 +130,7 @@
   style:--shutter-t="{SHUTTER_MS}ms"
   style:--shutter-ease={easing}
   inert={!settingsPanel.open}
+  data-fx-skip={settingsPanel.open ? undefined : ''}
   aria-label={t('Настройки')}
 >
   <div class="find-row" data-tauri-drag-region>

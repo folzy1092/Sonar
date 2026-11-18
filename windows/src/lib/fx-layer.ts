@@ -12,9 +12,19 @@ function host(): HTMLDivElement {
   return layer
 }
 
-/** Виден ли элемент (есть размер, попадает в окно и не закрыт полноэкранным слоем `data-fx-overlay` —
- *  иначе дуга мини-плеера рисовалась бы поверх полноэкранного плеера). */
+/** Поддерево без эффектов в слое: живые примеры в настройках (`MiniPreview.svelte`) и закрытая
+ *  шторка настроек — она прозрачна, но лежит поверх окна, и кольца рисовались бы «из ниоткуда». */
+export const FX_SKIP = '[data-fx-skip]'
+
+/** Элемент внутри поддерева, помеченного `data-fx-skip`? */
+export function skipped(el: Pick<Element, 'closest'>): boolean {
+  return el.closest(FX_SKIP) !== null
+}
+
+/** Виден ли элемент (есть размер, попадает в окно, не в `data-fx-skip` и не закрыт полноэкранным
+ *  слоем `data-fx-overlay` — иначе дуга мини-плеера рисовалась бы поверх полноэкранного плеера). */
 export function visible(el: Element): DOMRect | null {
+  if (skipped(el)) return null
   const overlay = document.querySelector('[data-fx-overlay]')
   if (overlay && !overlay.contains(el)) return null
   const r = el.getBoundingClientRect()
