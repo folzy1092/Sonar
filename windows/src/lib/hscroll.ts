@@ -88,3 +88,65 @@ export function hscroll(node: HTMLElement, opts: { wheel?: boolean; trap?: boole
     },
   }
 }
+
+/** Допуск в пикселях: дробная ширина и масштаб окна дают «лишние» 1–2 px прокрутки — это не край. */
+export const EDGE_TOLERANCE = 2
+
+export interface ScrollBox {
+  scrollLeft: number
+  clientWidth: number
+  scrollWidth: number
+}
+
+/** Есть ли куда листать влево и вправо. Ряд влез целиком (с допуском) — стрелок нет вовсе. */
+export function arrowsFor(box: ScrollBox, tol = EDGE_TOLERANCE): { left: boolean; right: boolean } {
+  const max = box.scrollWidth - box.clientWidth
+  if (!(max > tol)) return { left: false, right: false }
+  const pos = Math.min(Math.max(box.scrollLeft, 0), max)
+  return { left: pos > tol, right: max - pos > tol }
+}
+
+/** Шаг стрелки — видимая ширина ряда, округлённая до целых карточек (следующая страница начинается
+ *  с карточки, а не с её обрезка); хотя бы одна карточка. */
+export function pageDelta(clientWidth: number, cardWidth: number, gap = 0): number {
+  const step = cardWidth + gap
+  if (!(step > 0) || !(clientWidth > 0)) return Math.max(0, clientWidth)
+  const fit = Math.floor((clientWidth + gap + EDGE_TOLERANCE) / step)
+  return Math.max(1, fit) * step
+}
+
+/** Следит, есть ли у ряда что-то слева / справа: размер ряда и каждой карточки (ResizeObserver),
+ *  новые карточки (MutationObserver), прокрутка. Возвращает отписку. */
+export function watchOverflow(node: HTMLElement, onchange: (left: boolean, right: boolean) => void): () => void {
+  let last = ''
+  const update = () => {
+    const { left, right } = arrowsFor(node)
+    const key = `${left}${right}`
+    if (key === last) return
+    last = key
+    onchange(left, right)
+  }
+  const ro = new ResizeObserver(update)
+  const watch = () => {
+    ro.disconnect()
+    ro.observe(node)
+    for (const c of Array.from(node.children)) ro.observe(c)
+  }
+  watch()
+  // карточки догружаются позже (главная, поиск) — следим и за ними
+  const mo = new MutationObserver(() => {
+    watch()
+    update()
+  })
+  mo.observe(node, { childList: true })
+  node.addEventListener('scroll', update, { passive: true })
+  node.addEventListener('scrollend', update, { passive: true })
+  const raf = requestAnimationFrame(update)
+  return () => {
+    cancelAnimationFrame(raf)
+    ro.disconnect()
+    mo.disconnect()
+    node.removeEventListener('scroll', update)
+    node.removeEventListener('scrollend', update)
+  }
+}

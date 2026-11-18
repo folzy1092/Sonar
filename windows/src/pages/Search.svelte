@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { hscroll } from '../lib/hscroll'
-  import { edges } from '../lib/edges'
+  import type { Snippet } from 'svelte'
+  import Shelf from '../components/Shelf.svelte'
   import { cascade } from '../lib/cascade'
   import { indicator } from '../lib/indicator'
   import EmptyState from '../components/EmptyState.svelte'
@@ -190,40 +190,55 @@
   {/if}
   {#if (all || tab === 'Артисты') && more.artists.length}
     <h2>{t('Артисты')}</h2>
-    <div class:row={all} class:grid={!all} use:cascade={more} use:hscroll use:edges>
-      {#each more.artists as a (a.ref)}
-        <Tile
-          title={a.name}
-          subtitle={a.followers != null ? t('{n} подп.', { n: compact(a.followers) }) : undefined}
-          image={a.avatar_url}
-          icon="user"
-          round
-          onclick={() => (searchHistory.add({ kind: 'artist', query: search.query, ref: a.ref, title: a.name, cover_url: a.avatar_url }), openRef(a.ref))}
-        />
-      {/each}
-    </div>
+    {@render rowOrGrid(all, artistsTiles)}
   {/if}
   {#if (all || tab === 'Альбомы') && more.albums.length}
     <h2>{t('Альбомы')}</h2>
-    <div class:row={all} class:grid={!all} use:cascade={more} use:hscroll use:edges>
-      {#each more.albums as a (a.ref)}
-        <Tile title={a.title} subtitle={a.artist} meta={a.year ? String(a.year) : undefined} image={a.cover_url} icon="disc" onclick={() => (searchHistory.add({ kind: 'album', query: search.query, ref: a.ref, title: a.title, subtitle: a.artist, cover_url: a.cover_url }), openRef(a.ref))} />
-      {/each}
-    </div>
+    {@render rowOrGrid(all, albumsTiles)}
   {/if}
   {#if (all || tab === 'Плейлисты') && more.playlists.length}
     <h2>{t('Плейлисты')}</h2>
-    <div class:row={all} class:grid={!all} use:cascade={more} use:hscroll use:edges>
-      {#each more.playlists as p (p.ref)}
-        <Tile title={p.title} subtitle={p.owner} meta={p.track_count ? tracksText(p.track_count) : undefined} image={p.cover_url} onclick={() => (searchHistory.add({ kind: 'playlist', query: search.query, ref: p.ref, title: p.title, subtitle: p.owner, cover_url: p.cover_url }), openRef(p.ref))} />
-      {/each}
-    </div>
+    {@render rowOrGrid(all, playlistsTiles)}
   {/if}
   {#if !all && ((tab === 'Треки' && !results.length && !localHits.length) || (tab === 'Артисты' && !more.artists.length) || (tab === 'Альбомы' && !more.albums.length) || (tab === 'Плейлисты' && !more.playlists.length))}
     <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('{what} по запросу «{query}» не нашлись.', { what: t(tab), query: search.query.trim() })} />
   {/if}
   </div>{/key}
 {/if}
+
+<!-- «Все»: ряд — полка со стрелками (общая логика стрелок, Shelf); вкладка раздела — сетка -->
+{#snippet rowOrGrid(all: boolean, items: Snippet)}
+  {#if all}
+    <Shelf key={more}>{@render items()}</Shelf>
+  {:else}
+    <div class="grid" use:cascade={more}>{@render items()}</div>
+  {/if}
+{/snippet}
+
+{#snippet artistsTiles()}
+  {#each more.artists as a (a.ref)}
+    <Tile
+      title={a.name}
+      subtitle={a.followers != null ? t('{n} подп.', { n: compact(a.followers) }) : undefined}
+      image={a.avatar_url}
+      icon="user"
+      round
+      onclick={() => (searchHistory.add({ kind: 'artist', query: search.query, ref: a.ref, title: a.name, cover_url: a.avatar_url }), openRef(a.ref))}
+    />
+  {/each}
+{/snippet}
+
+{#snippet albumsTiles()}
+  {#each more.albums as a (a.ref)}
+    <Tile title={a.title} subtitle={a.artist} meta={a.year ? String(a.year) : undefined} image={a.cover_url} icon="disc" onclick={() => (searchHistory.add({ kind: 'album', query: search.query, ref: a.ref, title: a.title, subtitle: a.artist, cover_url: a.cover_url }), openRef(a.ref))} />
+  {/each}
+{/snippet}
+
+{#snippet playlistsTiles()}
+  {#each more.playlists as p (p.ref)}
+    <Tile title={p.title} subtitle={p.owner} meta={p.track_count ? tracksText(p.track_count) : undefined} image={p.cover_url} onclick={() => (searchHistory.add({ kind: 'playlist', query: search.query, ref: p.ref, title: p.title, subtitle: p.owner, cover_url: p.cover_url }), openRef(p.ref))} />
+  {/each}
+{/snippet}
 
 <style>
   .chips {
@@ -272,17 +287,6 @@
   }
   .more:hover {
     color: var(--text);
-  }
-  .row {
-    --fade: 64px;
-    display: flex;
-    gap: 18px;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: none;
-  }
-  .row::-webkit-scrollbar {
-    display: none;
   }
   .grid {
     display: grid;

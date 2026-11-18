@@ -1,40 +1,24 @@
 // Подсказка «там ещё есть» у горизонтального ряда (как у Dotify): край, за которым есть пункты,
-// мягко затухает. Класс `.edges` + `data-l` / `data-r` — стили в app.css. Следит за прокруткой и размером
-// (и за новыми карточками). `onchange` — узнать, есть ли что-то слева / справа (стрелки у полок).
+// мягко затухает. Класс `.edges` + `data-l` / `data-r` — стили в app.css. Когда есть что-то слева /
+// справа, решает общая логика стрелок `lib/hscroll.ts` (`arrowsFor` + `watchOverflow`: размер ряда и
+// карточек, новые карточки, прокрутка). `onchange` — то же для стрелок у полок.
+import { watchOverflow } from './hscroll'
+
 export function edges(node: HTMLElement, onchange?: (left: boolean, right: boolean) => void) {
   node.classList.add('edges')
   let cb = onchange
-  const update = () => {
-    const max = node.scrollWidth - node.clientWidth
-    const l = node.scrollLeft > 2
-    const r = max - node.scrollLeft > 2
+  let state: [boolean, boolean] = [false, false]
+  const stop = watchOverflow(node, (l, r) => {
+    state = [l, r]
     node.toggleAttribute('data-l', l)
     node.toggleAttribute('data-r', r)
     cb?.(l, r)
-  }
-  const ro = new ResizeObserver(update)
-  const watch = () => {
-    ro.disconnect()
-    ro.observe(node)
-    for (const c of Array.from(node.children)) ro.observe(c)
-  }
-  watch()
-  // карточки догружаются позже (главная, поиск) — следим и за ними
-  const mo = new MutationObserver(() => {
-    watch()
-    update()
   })
-  mo.observe(node, { childList: true })
-  node.addEventListener('scroll', update, { passive: true })
-  requestAnimationFrame(update)
   return {
     update(next?: (left: boolean, right: boolean) => void) {
       cb = next
+      cb?.(...state)
     },
-    destroy() {
-      ro.disconnect()
-      mo.disconnect()
-      node.removeEventListener('scroll', update)
-    },
+    destroy: stop,
   }
 }
