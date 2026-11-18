@@ -1211,6 +1211,19 @@ pub fn stats(db: State<'_, Db>, period: String, tz_min: Option<i64>) -> Res<crat
   db.0.lock().unwrap().stats(&period, tz_min.unwrap_or(0)).map_err(err)
 }
 
+/// Итоги месяца (`kind` = `month`, `month` 1–12) или года (`year`) — карточки итогов (этап 11).
+#[tauri::command]
+pub fn recap(db: State<'_, Db>, kind: String, year: i64, month: Option<u32>, tz_min: Option<i64>) -> Res<crate::store::Recap> {
+  let span = crate::store::RecapSpan::parse(&kind, year, month).map_err(err)?;
+  db.0.lock().unwrap().recap(span, tz_min.unwrap_or(0)).map_err(err)
+}
+
+/// Месяцы и годы с прослушиваниями — список итогов и приглашение на Главной.
+#[tauri::command]
+pub fn recap_periods(db: State<'_, Db>, tz_min: Option<i64>) -> Res<crate::store::RecapPeriods> {
+  db.0.lock().unwrap().recap_periods(tz_min.unwrap_or(0)).map_err(err)
+}
+
 /// Порт локального сервера — для `/cover` (цвет темы из обложки).
 #[tauri::command]
 pub fn stream_port(port: State<'_, StreamPort>) -> u16 {
