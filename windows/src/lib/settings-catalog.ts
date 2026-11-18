@@ -27,6 +27,12 @@ const rows = (tab: SettingsTab, sub: string, list: Row[]): CatalogEntry[] =>
 
 export const CATALOG: readonly CatalogEntry[] = [
   ...rows('account', 'profile', [['Профиль', 'Имя, @username и аватар', undefined, 'аватар имя username ник']]),
+  ...rows('account', 'privacy', [
+    ['Что играет сейчас', 'Трек, который звучит прямо сейчас', 'privacy.now_playing', 'приватность скрыть профиль'],
+    ['Статистика', 'Прослушивания, часы и любимые артисты', 'privacy.stats', 'приватность скрыть профиль'],
+    ['Любимые', 'Треки с лайком', 'privacy.likes', 'приватность скрыть лайки'],
+    ['Плейлисты', 'Какие плейлисты Sonar видно', 'privacy.playlists', 'приватность скрыть плейлисты'],
+  ]),
   ...rows('account', 'stats', [['Статистика', 'Сколько и что ты слушаешь', undefined, 'итоги прослушивания минуты']]),
   ...rows('interface', 'style', [
     ['Готовые стили', undefined, 'appearance.style', 'стиль оформление style'],
@@ -121,6 +127,7 @@ export const CATALOG: readonly CatalogEntry[] = [
   ...rows('system', 'general', [
     ['Язык', 'Язык интерфейса', 'general.language', 'language english українська'],
     ['Платформа', 'Откуда главная берёт волну и рекомендации', 'general.platform', 'моя волна soundcloud яндекс'],
+    ['Поиск сначала в', 'Чьи результаты единого поиска стоят сверху', 'search.preferred', 'единый поиск предпочтительный сервис'],
     ['Добавление', 'Куда добавлять новые треки в плейлистах', 'general.add_position', 'плейлист начало конец'],
     ['Автозапуск', 'Открывать Sonar при входе в систему', 'system.autostart', 'запуск windows'],
     ['Сворачивать в трей', 'Крестик прячет окно, музыка играет дальше', 'system.tray', 'tray закрыть крестик'],
@@ -153,7 +160,7 @@ export const CATALOG: readonly CatalogEntry[] = [
 export const SUB_LEADS: Readonly<Record<string, string>> = {
   profile: 'Имя, @username и аватар — как тебя видят друзья',
   login: 'Вход в аккаунт Sonar — появится вместе с сервером',
-  privacy: 'Кто видит твою музыку — в разработке',
+  privacy: 'Что видят другие в твоём профиле по ссылке',
   stats: 'Сколько и что ты слушаешь на этом компьютере',
   style: 'Характер интерфейса: поверхности, шрифты и анимации — целиком или по частям',
   look: 'Цвета, прозрачность, шрифт и масштаб окна',

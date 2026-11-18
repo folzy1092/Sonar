@@ -193,3 +193,39 @@ describe('profileInitial', () => {
     expect(profileInitial({ display_name: '', username: null })).toBe('S')
   })
 })
+
+describe('приватность профиля', () => {
+  const base = {
+    name: 'Folzy',
+    username: 'folzy',
+    avatar: '',
+    favorites: [liked(1), liked(2)],
+    playlists: [playlist(1), playlist(2, { hidden: true })],
+    stats: stats(),
+    current: track(9),
+    playing: true,
+  }
+
+  it('без настроек видно всё', () => {
+    const p = buildPublicProfile(base)
+    expect(p.likes.count).toBe(2)
+    expect(p.playlist_count).toBe(2)
+    expect(p.now_playing?.ref).toBe('sc:9')
+  })
+
+  it('скрытое гостю не уходит', () => {
+    const p = buildPublicProfile({ ...base, privacy: { now_playing: false, stats: false, likes: false, playlists: 'none' } })
+    expect(p.now_playing).toBeNull()
+    expect(p.stats).toBeNull()
+    expect(p.top_artists).toEqual([])
+    expect(p.likes).toEqual({ count: 0, tracks: [] })
+    expect(p.playlists).toEqual([])
+    expect(p.playlist_count).toBe(0)
+  })
+
+  it('«Кроме скрытых» прячет плейлисты, скрытые из «Все»', () => {
+    const p = buildPublicProfile({ ...base, privacy: { now_playing: true, stats: true, likes: true, playlists: 'visible' } })
+    expect(p.playlists.map((x) => x.id)).toEqual(['pl_1'])
+    expect(p.playlist_count).toBe(1)
+  })
+})

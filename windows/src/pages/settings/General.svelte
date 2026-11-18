@@ -13,7 +13,8 @@
   import AboutBlock from './AboutBlock.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { api } from '../../lib/api'
-  import { ACCOUNT_SERVICES, type ServiceKey } from '../../lib/services'
+  import { ACCOUNT_SERVICES, byId, type ServiceKey } from '../../lib/services'
+  import { searchableServices } from '../../lib/unified-search'
   import { wave } from '../../player/my-wave.svelte'
 
   // автозапуск — реальное состояние из реестра Windows, а не только настройка
@@ -64,6 +65,13 @@
   value={settings.get('general.platform')}
   options={ACCOUNT_SERVICES.filter((s) => s.caps.similar).map((s) => ({ id: s.key, label: s.id === 'ym' ? t('Яндекс') : t(s.name) }))}
   onchange={setPlatform}
+/>
+<Choice
+  title={t('Поиск сначала в')}
+  hint={t('Чьи результаты единого поиска стоят сверху')}
+  value={settings.get('search.preferred')}
+  options={searchableServices().map((id) => ({ id, label: id === 'ym' ? t('Яндекс') : t(byId(id)?.name ?? id) }))}
+  onchange={(v) => settings.set('search.preferred', v)}
 />
 
 <Group title={t('Медиатека')} hint={t('Плейлисты и лайки на этом компьютере')}>

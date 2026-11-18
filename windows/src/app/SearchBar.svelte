@@ -93,6 +93,16 @@
   {/if}
 
   <div class="sources" role="radiogroup" aria-label={t('Источник поиска')}>
+    <button
+      class="src all"
+      class:on={search.source === 'all'}
+      role="radio"
+      aria-checked={search.source === 'all'}
+      title={t('Все сервисы сразу')}
+      onclick={() => (search.source = 'all')}
+    >
+      {t('поиск::Все')}
+    </button>
     {#each sources as s (s.id)}
       <button
         class="src"

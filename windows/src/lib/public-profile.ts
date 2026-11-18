@@ -2,8 +2,8 @@
 // увидит гость. `PublicProfile` — тот же объект, что потом отдаст `GET /public/users/{username}`
 // (docs/API.md) и нарисует страница сайта `site/`. До сервера предпросмотр «Как видят мой профиль»
 // собирает его здесь, на компьютере: профиль из настроек (`profile.*`), Любимые, плейлисты Sonar,
-// статистика из `plays` и то, что играет сейчас. Приватности пока нет (вопрос владельцу, NEXT_PROMPT
-// этап 0 п. 9) — предпросмотр показывает всё как открытое, в том числе плейлисты, скрытые из «Все».
+// статистика из `plays` и то, что играет сейчас. Приватность (решение владельца 2026-11-18,
+// Аккаунт → Приватность): что скрыто — гостю не уходит вовсе (то же правило потом у сервера).
 // Имя и аватар — только профиля Sonar: аккаунт SoundCloud / Яндекса сервер гостю не покажет.
 import type { ListTrack, Playlist, Stats, Track } from './api'
 import { cleanUsername, USERNAME_RE } from './avatar'
@@ -70,6 +70,18 @@ export interface PublicProfile {
   playlist_count: number
 }
 
+/** Что гость видит в профиле (`privacy.*` в настройках). */
+export interface ProfilePrivacy {
+  now_playing: boolean
+  /** Статистика и любимые артисты. */
+  stats: boolean
+  likes: boolean
+  /** all — все плейлисты Sonar; visible — кроме скрытых из «Все»; none — ни одного. */
+  playlists: 'all' | 'visible' | 'none'
+}
+
+export const OPEN_PRIVACY: ProfilePrivacy = { now_playing: true, stats: true, likes: true, playlists: 'all' }
+
 /** Из чего собирается профиль. Не загрузилось (вне приложения, ошибка) — null, раздел просто пуст. */
 export interface ProfileSource {
   name: string
@@ -81,6 +93,8 @@ export interface ProfileSource {
   current?: Track | null
   /** Играет ли `current` сейчас: на паузе или восстановленный при запуске трек гостю не виден. */
   playing?: boolean
+  /** Нет — всё открыто. */
+  privacy?: ProfilePrivacy
 }
 
 export function toPublicTrack(track: Track): PublicTrack {
@@ -118,17 +132,20 @@ function topArtists(stats: Stats | null | undefined): PublicArtist[] {
 
 export function buildPublicProfile(src: ProfileSource): PublicProfile {
   const username = cleanUsername(src.username)
-  const favorites = src.favorites ?? []
-  const playlists = src.playlists ?? []
+  const privacy = src.privacy ?? OPEN_PRIVACY
+  const favorites = privacy.likes ? (src.favorites ?? []) : []
+  const playlists =
+    privacy.playlists === 'none' ? [] : (src.playlists ?? []).filter((p) => privacy.playlists === 'all' || !p.hidden)
+  const stats = privacy.stats ? src.stats : null
   return {
     username: USERNAME_RE.test(username) ? username : null,
     display_name: src.name.trim(),
     number: null,
     avatar_url: src.avatar || null,
     created_at: null,
-    now_playing: src.playing && src.current ? toPublicTrack(src.current) : null,
-    stats: publicStats(src.stats),
-    top_artists: topArtists(src.stats),
+    now_playing: privacy.now_playing && src.playing && src.current ? toPublicTrack(src.current) : null,
+    stats: publicStats(stats),
+    top_artists: topArtists(stats),
     likes: { count: favorites.length, tracks: favorites.slice(0, PROFILE_LIKES_SHOWN).map(toPublicTrack) },
     playlists: playlists.slice(0, PROFILE_PLAYLISTS_SHOWN).map(toPublicPlaylist),
     playlist_count: playlists.length,

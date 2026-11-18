@@ -38,7 +38,6 @@ export default {
   'Следующие 15 треков «Моей волны» заранее скачиваются в кэш': 'The next 15 “My Wave” tracks are downloaded to the cache in advance',
   'Имя, @username и аватар — как тебя видят друзья': 'Name, @username and avatar — how friends see you',
   'Вход в аккаунт Sonar — появится вместе с сервером': 'Signing in to your Sonar account — coming with the server',
-  'Кто видит твою музыку — в разработке': 'Who can see your music — in development',
   'Сколько и что ты слушаешь на этом компьютере': 'How much and what you listen to on this computer',
   'Характер интерфейса: поверхности, шрифты и анимации — целиком или по частям': 'The character of the interface: surfaces, fonts and animations — all at once or piece by piece',
   'Цвета, прозрачность, шрифт и масштаб окна': 'Colors, transparency, font and window scale',

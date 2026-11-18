@@ -2,7 +2,7 @@
   // «Как видят мой профиль» (Аккаунт → Профиль): предпросмотр публичной страницы прямо в Sonar.
   // Сверху — плашка предпросмотра (ссылка, «Копировать ссылку на профиль», «Изменить профиль»),
   // ниже — сама страница `ProfileView`, как её нарисует сайт. До сервера профиль собирается здесь из
-  // настроек, Любимых, плейлистов и статистики (`buildPublicProfile`); приватности пока нет — видно всё.
+  // настроек, Любимых, плейлистов и статистики (`buildPublicProfile`) с учётом Аккаунт → Приватность.
   import CopyProfileLink from '../components/CopyProfileLink.svelte'
   import Icon from '../components/Icon.svelte'
   import ProfileView from './profile/ProfileView.svelte'
@@ -30,6 +30,12 @@
       stats,
       current: player.current,
       playing: player.playing,
+      privacy: {
+        now_playing: settings.get('privacy.now_playing'),
+        stats: settings.get('privacy.stats'),
+        likes: settings.get('privacy.likes'),
+        playlists: settings.get('privacy.playlists'),
+      },
     }),
   )
 
