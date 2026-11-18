@@ -372,7 +372,6 @@
         bind:this={canvas}
         class:over={!!tip}
         class:dragging
-        role="img"
         aria-label={t('Карта исполнителей')}
         onpointerdown={onDown}
         onpointermove={onMove}
