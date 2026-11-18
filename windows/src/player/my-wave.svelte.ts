@@ -226,11 +226,17 @@ class Wave {
    *  заранее подбирается порция под него (обложки на главной). */
   async nextMode() {
     const i = WAVE_MODES.findIndex((m) => m.id === this.mode)
-    settings.set('wave.mode', WAVE_MODES[(i + 1) % WAVE_MODES.length].id)
+    await this.setMode(WAVE_MODES[(i + 1) % WAVE_MODES.length].id)
+  }
+
+  /** Режим волны (настроение). Волна играет или `play` — сразу включается в новом режиме,
+   *  иначе заранее подбирается порция под него. Быстрое окно (Ctrl+K) включает сразу. */
+  async setMode(mode: WaveMode, play = false) {
+    settings.set('wave.mode', mode)
     this.preview = []
     this.seed = null
     this.covers = []
-    if (this.active) await this.start()
+    if (this.active || play) await this.start()
     else await this.prefetch(true)
   }
 
