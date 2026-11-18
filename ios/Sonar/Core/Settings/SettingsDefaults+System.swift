@@ -10,9 +10,6 @@ extension SettingsDefaults {
         "general.add_position": .string("start"),
         // тактильный отклик на нажатия (настройки, вкладки, Sonar Mix) — почти незаметный
         "general.haptics": .bool(true),
-        // Last.fm: скробблить прослушанное и показывать «сейчас играет»
-        "integrations.lastfm.scrobble": .bool(true),
-        "integrations.lastfm.now_playing": .bool(true),
         // Хранилище (iOS): потолок кэша обложек на диске, МБ — 128 / 256 / 512 / 1024
         "storage.covers_limit_mb": .int(256),
         // Статистика: открытый период — week / month / year / all

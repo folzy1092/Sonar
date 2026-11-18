@@ -1,33 +1,28 @@
 <script lang="ts">
   // Интеграции → Приложения (переделано по референсу владельца 2026-11-16): у каждой группы — знак
   // сервиса. Discord: состояние (подключён / ожидание Discord), главный переключатель, параметры
-  // отображения вместе с кнопками профиля «Слушать в Sonar» и «Скачать Sonar». Last.fm — вход в
-  // один клик (lastfm.rs), карточка с аватаром и крестиком. OBS — ссылка с токеном: скопировать,
-  // новая ссылка, выключить плашку.
+  // отображения вместе с кнопками профиля «Слушать в Sonar» и «Скачать Sonar». OBS — ссылка с токеном:
+  // скопировать, новая ссылка, выключить плашку.
   import Icon from '../../components/Icon.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Choice from '../../components/settings/Choice.svelte'
   import Select from '../../components/settings/Select.svelte'
   import Group from '../../components/settings/Group.svelte'
   import { settings } from '../../lib/settings.svelte'
-  import { api, errorText, type LastfmStatus } from '../../lib/api'
+  import { api, errorText } from '../../lib/api'
   import { toast } from '../../lib/toast.svelte'
-  import { isTauri } from '../../lib/tauri'
   import { onMount } from 'svelte'
   import { t } from '../../lib/i18n.svelte'
 
   let obs = $state<{ url: string; ok: boolean }>({ url: '', ok: true })
   let copied = $state(false)
   let discord = $state<{ enabled: boolean; connected: boolean } | null>(null)
-  let lastfm = $state<LastfmStatus | null>(null)
-  let lfBusy = $state(false)
   let tokenSpin = $state(0)
 
   const discordOn = $derived(settings.get('integrations.discord.enabled'))
 
   onMount(() => {
     api.obsStatus().then((s) => (obs = s)).catch(() => {})
-    api.lastfmStatus().then((s) => (lastfm = s)).catch(() => {})
     // состояние Discord — раз в 2 с, пока открыт раздел (Discord могут запустить прямо сейчас)
     const poll = () => api.discordStatus().then((s) => (discord = s)).catch(() => {})
     void poll()
@@ -60,30 +55,9 @@
     obs = { ...obs, url: '' }
     toast.show(t('Плашка выключена — нажми ↻, чтобы получить новую ссылку'))
   }
-
-  async function lastfmLogin() {
-    lfBusy = true
-    try {
-      lastfm = await api.lastfmLogin()
-      toast.show(t('Last.fm подключён: {name}', { name: String(lastfm.name) }))
-    } catch (e) {
-      toast.show(errorText(e))
-    } finally {
-      lfBusy = false
-    }
-  }
-
-  async function lastfmLogout() {
-    try {
-      lastfm = await api.lastfmLogout()
-    } catch (e) {
-      toast.show(errorText(e))
-    }
-  }
 </script>
 
 {#snippet discordIcon()}<span class="brand discord"><Icon name="discord" size={18} filled /></span>{/snippet}
-{#snippet lastfmIcon()}<span class="brand lastfm"><Icon name="brandLastfm" size={18} stroke={2.2} /></span>{/snippet}
 {#snippet obsIcon()}<span class="brand obs"><Icon name="obs" size={18} /></span>{/snippet}
 
 <Group title="Discord RPC" icon={discordIcon}>
@@ -126,28 +100,6 @@
     </div>
   </Group>
 </div>
-
-<Group title="Last.fm" icon={lastfmIcon}>
-  {#if lastfm?.name}
-    <div class="account">
-      <button class="x" aria-label={t('Отключить Last.fm')} title={t('Отключить')} onclick={lastfmLogout}><Icon name="x" size={16} /></button>
-      <span class="av">{#if lastfm.avatar_url}<img src={lastfm.avatar_url} alt="" />{:else}{lastfm.name.slice(0, 1).toUpperCase()}{/if}</span>
-      <b>{lastfm.name}</b>
-    </div>
-    <Switch title={t('История прослушиваний')} hint={t('Скробблить прослушанные треки')} on={settings.get('integrations.lastfm.scrobble')} onchange={(v) => settings.set('integrations.lastfm.scrobble', v)} />
-    <Switch title={t('Сейчас играет')} hint={t('Показывать текущий трек в профиле')} on={settings.get('integrations.lastfm.now_playing')} onchange={(v) => settings.set('integrations.lastfm.now_playing', v)} />
-  {:else}
-    <button class="connect" disabled={lfBusy || !isTauri} onclick={lastfmLogin}>
-      <span class="lf-big"><Icon name="brandLastfm" size={40} stroke={2.2} /></span>
-      <b>{lfBusy ? t('Подтверди вход в браузере…') : t('Войти через Last.fm')}</b>
-      <small>{lastfm && !lastfm.available ? t('Появится в ближайшем обновлении') : t('Подключи в один клик — история и «сейчас играет» в твоём профиле')}</small>
-    </button>
-    {#if lfBusy}
-      <!-- страница Last.fm открыта в браузере по умолчанию; Sonar ждёт «Yes, allow access» -->
-      <button class="lf-cancel" onclick={() => void api.cancelLogin().catch(() => {})}>{t('Отмена')}</button>
-    {/if}
-  {/if}
-</Group>
 
 <Group title="OBS Studio" icon={obsIcon}>
   {#if obs.url}
@@ -203,10 +155,6 @@
   }
   .brand.discord {
     color: #5865f2;
-  }
-  .brand.lastfm,
-  .lf-big {
-    color: #d51007;
   }
   .brand.obs {
     color: var(--text-2);
@@ -271,64 +219,6 @@
     border: 1px solid var(--card-line);
     box-shadow: var(--sheen);
   }
-  .account {
-    position: relative;
-  }
-  .account .x {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    background: var(--surface-3);
-    color: var(--text-2);
-    transition:
-      color var(--fast) var(--ease),
-      background var(--fast) var(--ease);
-  }
-  .account .x:hover {
-    color: var(--text);
-    background: var(--hover);
-  }
-  .av img {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-  }
-  .connect {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    padding: 26px 16px 22px;
-    border-radius: 16px;
-    background: var(--plate);
-    border: 1px solid var(--card-line);
-    box-shadow: var(--sheen);
-    text-align: center;
-    transition:
-      background var(--fast) var(--ease),
-      transform var(--fast) var(--ease);
-  }
-  .connect:hover:not(:disabled) {
-    background: var(--hover);
-  }
-  .connect:active:not(:disabled) {
-    transform: scale(0.98);
-  }
-  .connect b {
-    font-size: calc(15px * var(--fs, 1));
-  }
-  .connect small {
-    max-width: 280px;
-    font-size: calc(12px * var(--fs, 1));
-    color: var(--text-3);
-  }
   .link.off {
     color: var(--text-3);
     font-style: italic;
@@ -336,30 +226,6 @@
   .spin {
     display: grid;
     transition: rotate 0.6s var(--ease);
-  }
-  .account {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: 22px 12px 18px;
-    margin-bottom: 6px;
-    border-radius: 16px;
-    background: linear-gradient(180deg, var(--surface-2) 50%, var(--plate) 50%);
-    text-align: center;
-  }
-  .av {
-    display: grid;
-    place-items: center;
-    width: 64px;
-    height: 64px;
-    margin-bottom: 6px;
-    border-radius: 50%;
-    background: var(--surface-3);
-    color: #d51007;
-  }
-  .account b {
-    font-size: calc(14px * var(--fs, 1));
   }
   .link {
     padding: 11px 14px;
@@ -451,19 +317,5 @@
     font-style: normal;
     font-size: calc(11px * var(--fs, 1));
     font-weight: 600;
-  }
-  .lf-cancel {
-    margin-top: 8px;
-    padding: 6px 12px;
-    border-radius: var(--radius-m);
-    color: var(--text-2);
-    font-size: calc(13px * var(--fs, 1));
-    transition:
-      color var(--fast) var(--ease),
-      background var(--fast) var(--ease);
-  }
-  .lf-cancel:hover {
-    color: var(--text);
-    background: var(--hover);
   }
 </style>

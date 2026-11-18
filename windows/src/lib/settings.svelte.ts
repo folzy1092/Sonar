@@ -170,8 +170,6 @@ export const DEFAULTS = {
   'integrations.discord.show_paused': false,
   'integrations.discord.button_listen': true,
   'integrations.discord.button_download': true,
-  'integrations.lastfm.scrobble': true,
-  'integrations.lastfm.now_playing': true,
   'system.autostart': true,
   /** Где действуют сочетания (`HotkeyScope`): только в окне · ещё и пока открыто мини-окно / оверлей · везде,
    *  даже из трея (hotkeys.rs). Старое `hotkeys.enabled = true` читается как `global` — `settings-migrate.ts`. */

@@ -27,9 +27,6 @@ settings:
     CODE_SIGNING_ALLOWED: NO
     CODE_SIGNING_REQUIRED: NO
     CODE_SIGN_IDENTITY: ""
-    # Last.fm: ключ и секрет подставляет CI из секретов (ios.yml); пусто — «появится в сборке с ключом»
-    SONAR_LASTFM_KEY: ""
-    SONAR_LASTFM_SECRET: ""
     # бот отчётов о сбоях — подставляет CI из секретов SONAR_REPORT_*; в репо пусто
     SONAR_REPORT_BOT_TOKEN: ""
     SONAR_REPORT_CHAT: ""
@@ -79,9 +76,6 @@ targets:
               - sonar
         # адрес API не зашит в код (SPEC §3.2); до сервера не используется
         SonarAPIBaseURL: https://sonar-api.folzy.ru
-        # Last.fm (Core/Integrations/Lastfm.swift) — из настроек сборки выше
-        SonarLastfmKey: $(SONAR_LASTFM_KEY)
-        SonarLastfmSecret: $(SONAR_LASTFM_SECRET)
         # бот отчётов о сбоях (Core/Diagnostics/ReportBot.swift); пусто — «Отправить лог» = «Поделиться»
         SonarReportBotToken: $(SONAR_REPORT_BOT_TOKEN)
         SonarReportChat: $(SONAR_REPORT_CHAT)
