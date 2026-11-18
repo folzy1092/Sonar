@@ -1,24 +1,29 @@
 <script lang="ts">
-  import { sidePane } from '../app/side-pane.svelte'
   // «Дальше» (Плеер → Очередь → Предпросмотр следующего трека, queue.preview): за 10 с до конца
-  // трека выезжает карточка со следующим треком — над мини-плеером (`float`) или на странице плеера.
-  // Открыта правая панель (очередь / текст) — над мини-плеером не показывается: следующий трек и так виден.
+  // трека выезжает карточка со следующим треком — у мини-плеера (`float`) или на странице плеера.
+  // У мини-плеера карточка — прямой ребёнок его подложки: правый край вровень с капсулой кнопок,
+  // зазор до плеера — var(--gap), в узком окне не шире плеера. Сверху окна / в верхней половине
+  // (плавающий) — под плеером, иначе над ним (next-up.ts).
+  // Открыта правая панель (очередь / текст) — у мини-плеера не показывается: следующий трек и так виден.
   import Cover from './Cover.svelte'
+  import { sidePane } from '../app/side-pane.svelte'
   import { player } from '../player/player.svelte'
   import { settings } from '../lib/settings.svelte'
-  import { fly } from 'svelte/transition'
-  import { reducedMotion } from '../lib/motion'
+  import { pop } from '../lib/motion'
   import { t } from '../lib/i18n.svelte'
+  import { nextUpRise, nextUpSide } from './next-up'
 
   let { float = false }: { float?: boolean } = $props()
 
   const next = $derived(player.upNext[0] ?? null)
   const left = $derived((player.durationMs || player.current?.duration_ms || 0) - player.positionMs)
   const shown = $derived(settings.get('queue.preview') && !(float && sidePane.open) && !!next && player.playing && left > 0 && left <= 10_000)
+  const side = $derived(float ? nextUpSide(settings.get('mini.position'), settings.get('mini.float_y')) : 'above')
+  const rise = $derived(nextUpRise(side))
 </script>
 
 {#if shown && next}
-  <div class="next" class:float transition:fly={{ y: reducedMotion() ? 0 : 8, duration: 240 }}>
+  <div class="next" data-no-seek class:float class:below={side === 'below'} in:pop={{ y: rise, duration: 240 }} out:pop={{ y: rise, duration: 240 }}>
     <Cover url={next.cover_url} size={32} radius="8px" />
     <span class="meta">
       <small>{t('Дальше')}</small>
@@ -34,6 +39,7 @@
     align-items: center;
     gap: 10px;
     max-width: 320px;
+    min-width: 0;
     padding: 6px 12px 6px 6px;
     border-radius: 14px;
     background: var(--surface-2);
@@ -41,14 +47,22 @@
     box-shadow: var(--sheen);
   }
   .next.float {
+    /* у мини-плеера: отступы от его подложки (border 1px + var(--gap)), правый край — по капсуле кнопок
+       (её отступ — --mini-pad-r в MiniPlayer.svelte), не шире самого плеера */
     position: absolute;
-    /* в самый угол над мини-плеером, с зазором — не налезает на капсулу кнопок */
-    right: -4px;
-    bottom: calc(100% + 18px);
+    right: var(--mini-pad-r, 12px);
+    bottom: calc(100% + 1px + var(--gap));
+    max-width: min(320px, calc(100% - 2 * var(--mini-pad-r, 12px)));
     z-index: 5;
+    transform-origin: right bottom;
     box-shadow:
       0 12px 30px oklch(0 0 0 / 0.4),
       var(--sheen);
+  }
+  .next.float.below {
+    top: calc(100% + 1px + var(--gap));
+    bottom: auto;
+    transform-origin: right top;
   }
   .meta {
     display: flex;
