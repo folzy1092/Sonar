@@ -214,3 +214,18 @@ describe('Моя волна: пропущенное уходит в минус �
     expect(api.wavePortion.mock.calls[1][0].skipped_tracks).toEqual([])
   })
 })
+
+describe('Моя волна: режим из быстрого окна', () => {
+  it('setMode с play — волна сразу играет', async () => {
+    api.wavePortion.mockResolvedValue(batch('m'))
+    await wave.setMode('sad', true)
+    expect(player.context).toBe('wave')
+    expect(refs()[0]).toBe('m0')
+  })
+  it('setMode без play, волна не играет — только подбирается порция', async () => {
+    api.wavePortion.mockResolvedValue(batch('p'))
+    await wave.setMode('calm')
+    expect(player.context).toBeNull()
+    expect(api.wavePortion).toHaveBeenCalledTimes(1)
+  })
+})

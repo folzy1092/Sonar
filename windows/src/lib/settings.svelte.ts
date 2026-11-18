@@ -152,6 +152,8 @@ export const DEFAULTS = {
     volume_down: 'Ctrl+Alt+ArrowDown',
     window: 'Ctrl+Alt+KeyS',
   } as Record<string, string>,
+  /** Быстрое окно (Ctrl+K) — только внутри окна Sonar, от `hotkeys.enabled` не зависит; пусто — выключено. */
+  'hotkeys.quick': 'Ctrl+KeyK',
   'system.tray': true,
   'system.power_saving': 'background' as 'off' | 'minimized' | 'background',
   'wave.mode': 'own' as 'own' | 'hard' | 'calm' | 'sad' | 'fun' | 'new',
