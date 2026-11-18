@@ -26,4 +26,6 @@ export default {
   'Похожее на «{title}» — {artist}': 'Similar to “{title}” by {artist}',
   'Найти в Любимых и недавнем': 'Search Favorites and recent',
   'Послушай или лайкни что-нибудь — и выбери отсюда.': 'Play or like something, then pick it here.',
+  'Похоже на': 'Similar to',
+  'Открыть исполнителя': 'Open artist',
 }

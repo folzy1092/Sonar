@@ -190,6 +190,14 @@ export function seedArtists(recent: readonly Track[], n = PREVIEW_ARTISTS): { ar
   return out
 }
 
+/** Ряд «Похоже на» на Главной: пулы похожего по затравкам вперемешку, без дублей, без уже слышанного
+ *  (`exclude`), не больше `MAX_PER_ARTIST` на исполнителя. */
+export function similarRow(pools: readonly (readonly Track[])[], exclude: Iterable<string> = [], limit = MIX_LIMIT): Track[] {
+  const skip = new Set(exclude)
+  const list = interleave(pools).filter((t) => !skip.has(t.ref) && t.available !== false)
+  return limitPerArtist(dedupe(list)).slice(0, limit)
+}
+
 /** Выбор трека для «Похоже на трек»: без повторов, по запросу в названии или исполнителе. */
 export function matchTracks(tracks: readonly Track[], query: string, limit = 40): Track[] {
   const q = normName(query)
