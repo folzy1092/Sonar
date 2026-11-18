@@ -8,7 +8,8 @@ use crate::providers::{Artist, ArtistRef, Track};
 use anyhow::Result;
 use rusqlite::{params, OptionalExtension};
 
-/// Потолок треков для графа — чтобы огромная история не подвесила построение.
+/// Потолок треков для графа — чтобы огромная история не подвесила построение. Под потолок
+/// попадают сначала треки медиатеки, потом самые прослушанные — не по алфавиту ссылок.
 const MAX_GRAPH_TRACKS: i64 = 20_000;
 
 /// Медиатека (лайки, свои плейлисты, фантомные лайки сервисов) и всё прослушанное, по одному на трек.
@@ -21,9 +22,9 @@ WITH lib AS (
 ),
 pl AS (SELECT ref, COUNT(*) AS n, MAX(artist) AS artist FROM plays WHERE user_id = ?1 GROUP BY ref),
 refs AS (SELECT ref FROM lib UNION SELECT ref FROM pl)
-SELECT r.ref, t.title, t.artist, t.artists_json, r.ref IN (SELECT ref FROM lib), COALESCE(pl.n, 0), pl.artist
+SELECT r.ref, t.title, t.artist, t.artists_json, r.ref IN (SELECT ref FROM lib) AS in_lib, COALESCE(pl.n, 0) AS n, pl.artist
 FROM refs r LEFT JOIN tracks t ON t.ref = r.ref LEFT JOIN pl ON pl.ref = r.ref
-ORDER BY r.ref
+ORDER BY in_lib DESC, n DESC, r.ref
 LIMIT ?2";
 
 type Row = (String, Option<String>, Option<String>, Option<String>, bool, i64, Option<String>);
