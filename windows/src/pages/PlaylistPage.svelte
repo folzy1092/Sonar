@@ -174,6 +174,7 @@
   {covers}
   icon={kind === 'favorites' ? 'heart' : 'music'}
   meta={loading ? '' : `${tracksText(items.length)}${items.length ? `, ${durationText(total)}` : ''}`}
+  {context}
   disabled={!visible.length}
   onplay={() => play(0)}
   onshuffle={() => player.playShuffled(visible, context, heading)}

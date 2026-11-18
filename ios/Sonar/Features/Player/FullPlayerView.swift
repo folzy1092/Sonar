@@ -822,7 +822,7 @@ struct SpeedSheet: View {
     }
 }
 
-/// Очередь (`photo_2, 3`): контекст сверху, разделы Предыдущие · Сейчас играет · Далее, открыт на текущем.
+/// Очередь (`photo_2, 3`): контекст сверху, разделы Ранее · Сейчас играет · Далее, открыт на текущем.
 /// Вид строк — `queue.view` (обычный — без обложек), свайпы по «Далее» — Профиль → Жесты → Очередь.
 struct QueueSheet: View {
     @Environment(PlaybackEngine.self) private var engine
@@ -833,10 +833,13 @@ struct QueueSheet: View {
             ScrollViewReader { proxy in
                 List {
                     if !engine.history.isEmpty {
-                        Section("Предыдущие") {
+                        // «Ранее» — как раздел очереди на странице плеера ПК (одно название на обеих платформах)
+                        Section {
                             ForEach(Array(engine.history.enumerated()), id: \.offset) { _, track in
                                 row(track).opacity(0.55)
                             }
+                        } header: {
+                            Text(t("Ранее"))
                         }
                     }
                     if let current = engine.current {

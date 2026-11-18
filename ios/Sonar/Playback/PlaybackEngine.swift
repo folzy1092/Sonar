@@ -39,6 +39,9 @@ final class PlaybackEngine {
     /// Откуда играем: «Любимые», «Поиск», название плейлиста.
     private(set) var contextTitle = ""
     private(set) var isPlaying = false
+    /// Очередь доиграла до конца (стоит на последнем треке, пауза): «Слушать» на экране подборки начинает
+    /// её заново (`ListenAction`), а не повторяет последний трек. Снимается при загрузке трека и при игре.
+    private(set) var queueEnded = false
     private(set) var isLoading = false
     /// Секунды.
     private(set) var position: Double = 0
@@ -72,7 +75,7 @@ final class PlaybackEngine {
         order.indices.contains(pos) ? tracks[order[pos]] : nil
     }
 
-    /// Предыдущие · сейчас · далее — для листа очереди.
+    /// Ранее · сейчас · далее — для листа очереди.
     var upNext: [Track] {
         order.indices.contains(pos) ? order[(pos + 1)...].map { tracks[$0] } : []
     }
@@ -159,6 +162,7 @@ final class PlaybackEngine {
                     MainActor.assumeIsolated {
                         guard let self, index == self.active else { return }
                         self.isPlaying = status != .paused
+                        if status != .paused { self.queueEnded = false }
                         self.nowPlaying.update()
                         self.updateFades()
                         if status == .paused { self.saveSnapshot(force: true) }
@@ -376,6 +380,7 @@ final class PlaybackEngine {
 
     /// Загрузить трек на позиции pos. fresh — ссылка протухла, взять новую.
     private func load(autoplay: Bool, fresh: Bool = false) {
+        queueEnded = false
         guard let wanted = current else { return }
         // волна без сети: этого трека на телефоне нет — сразу к ближайшему подкачанному
         if isWave, !fresh, !WaveCache.shared.isOnline, !Self.isLocal(wanted.ref),
@@ -627,6 +632,7 @@ final class PlaybackEngine {
             } else {
                 player.pause()
                 seek(to: 0)
+                queueEnded = true
             }
             return
         }
@@ -652,6 +658,7 @@ final class PlaybackEngine {
             // очередь кончилась
             player.pause()
             seek(to: 0)
+            queueEnded = true
             return
         }
         pos = target
