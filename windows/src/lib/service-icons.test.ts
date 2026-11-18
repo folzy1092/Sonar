@@ -16,6 +16,8 @@ const SOURCES: Record<string, string> = {
   'sc-mono.svg': 'soundcloud-mono.svg',
   'yt.svg': 'youtube-music.svg',
   'yt-mono.svg': 'youtube-music-mono.svg',
+  // на обложке 12–18 px — крупнее кольцо и треугольник, белая обводка
+  'yt-badge.svg': 'youtube-music-badge.svg',
   'vk.svg': 'vk.svg',
   'vk-mono.svg': 'vk-mono.svg',
   'sp.svg': 'spotify.svg',
