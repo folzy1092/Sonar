@@ -9,6 +9,7 @@
   import Shelf from '../components/Shelf.svelte'
   import Cover from '../components/Cover.svelte'
   import LoadFx from '../components/LoadFx.svelte'
+  import RecapInvite from '../components/RecapInvite.svelte'
   import PlayPause from '../components/PlayPause.svelte'
   import { api, type Album, type Track } from '../lib/api'
   import { tracksText } from '../lib/format'
@@ -169,6 +170,8 @@
     </button>
   </div>
 </section>
+
+<RecapInvite />
 
 <section class="block">
   <h2>{t(hello)}{#if me.name},

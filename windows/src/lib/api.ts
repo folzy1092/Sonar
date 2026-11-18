@@ -211,6 +211,42 @@ export interface Stats {
   fav_weekday: number | null
 }
 
+/** Месяц (`month` 1–12) или год (`month` = null), за который есть прослушивания (store/recap.rs). */
+export interface RecapPeriod {
+  kind: 'month' | 'year'
+  year: number
+  month: number | null
+  total_ms: number
+}
+
+export interface RecapPeriods {
+  months: RecapPeriod[]
+  years: RecapPeriod[]
+}
+
+/** Итоги месяца или года — карточки «Итогов» (docs/API.md §5 `GET /stats/recap`). */
+export interface Recap {
+  kind: 'month' | 'year'
+  year: number
+  month: number | null
+  total_ms: number
+  plays: number
+  tracks: number
+  artists: number
+  active_days: number
+  delta_pct: number | null
+  top_tracks: TrackStat[]
+  top_artists: ArtistStat[]
+  new_artist: { artist: ArtistStat; first_played: string } | null
+  /** Время по часам суток, 24 значения в мс. */
+  hours: number[]
+  peak_hour: number | null
+  longest_day: { date: string; ms: number; plays: number } | null
+  repeat: { track: TrackStat; count: number; date: string } | null
+  /** Доли сервисов: id из реестра, проценты в сумме 100. */
+  services: { service: string; ms: number; pct: number }[]
+}
+
 export interface StorageUsage {
   covers: number
   covers_bytes: number
@@ -326,6 +362,9 @@ export const api = {
    *  закрыли, иначе имя сохранённого файла. */
   exportPlaylist: (name: string, format: 'm3u8' | 'csv' | 'json', title: string, contents: string) =>
     call<string | null>('export_playlist', { name, format, title, contents }),
+  /** Карточка итогов картинкой (export.rs `save_image`): PNG в base64 → окно «Сохранить как». */
+  saveImage: (name: string, title: string, pngBase64: string) =>
+    call<string | null>('save_image', { name, title, pngBase64 }),
   savePlayerState: (state: PlayerState) => call<void>('save_player_state', { state }),
   loadPlayerState: () => call<{ state: PlayerState; tracks: Track[] } | null>('load_player_state'),
   recordPlay: (play: { ref: string; artist: string; context: string | null; played_at: number; listened_ms: number }) =>
@@ -405,6 +444,9 @@ export const api = {
   /** Подборка под время суток на главной: что слушаешь в эти часы + лайки. */
   daypartMix: (limit = 24) => call<Track[]>('daypart_mix', { tzMin: new Date().getTimezoneOffset(), limit }),
   stats: (period: StatsPeriod) => call<Stats>('stats', { period, tzMin: -new Date().getTimezoneOffset() }),
+  recap: (kind: 'month' | 'year', year: number, month: number | null) =>
+    call<Recap>('recap', { kind, year, month, tzMin: -new Date().getTimezoneOffset() }),
+  recapPeriods: () => call<RecapPeriods>('recap_periods', { tzMin: -new Date().getTimezoneOffset() }),
 
   streamPort: () => call<number>('stream_port'),
   allSettings: () => call<Record<string, unknown>>('all_settings'),
