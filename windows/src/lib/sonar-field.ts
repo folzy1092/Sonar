@@ -42,6 +42,9 @@ export function phaseAt(t: number): { index: number; k: number } {
   return { index, k: local < HOLD ? 0 : smooth((local - HOLD) / MORPH) }
 }
 
+/** Насколько низы музыки надувают капли слизи (на полном басе радиус ×1.4 — капли заметно сливаются). */
+export const SLIME_SWELL = 0.4
+
 /** «Слизь»: четыре капли плавают по своим орбитам и сливаются, когда сходятся (метаболы). */
 /** `swell` 0…1 — низы музыки: капли надуваются. */
 export function slime(x: number, y: number, t: number, halfW: number, swell = 0): number {
@@ -51,7 +54,7 @@ export function slime(x: number, y: number, t: number, halfW: number, swell = 0)
     const a = t * (0.21 + i * 0.07) + i * 1.7
     const cx = Math.sin(a) * halfW * 0.42 + Math.sin(a * 0.53 + i) * 0.18
     const cy = Math.cos(a * 0.83 + i * 2.1) * 0.38
-    const r = (0.34 + 0.08 * Math.sin(t * 0.6 + i * 1.3)) * (1 + 0.22 * swell)
+    const r = (0.34 + 0.08 * Math.sin(t * 0.6 + i * 1.3)) * (1 + SLIME_SWELL * swell)
     const dx = x - cx
     const dy = y - cy
     f += (r * r) / (dx * dx + dy * dy + 1e-4)
@@ -109,17 +112,24 @@ export function fieldValue(
     v *= 1 + breath * Math.sin(t * (playing ? 3.2 : 1.4))
     if (playing) v *= 0.86 + 0.14 * Math.sin(Math.hypot(x, y) * 7 - t * 4.5)
   }
-  // края поля растворяются
-  const ex = Math.max(0, 1 - Math.pow(Math.abs(x) / halfW, 6))
-  const ey = Math.max(0, 1 - Math.pow(Math.abs(y), 6))
-  return Math.min(1, Math.max(0, v * ex * ey))
+  return Math.min(1, Math.max(0, v * edgeFade(col, row, g)))
 }
 
-/** Течение без музыки: точка плавает на ~1.5 px и чуть меняет размер. */
-export function drift(col: number, row: number, t: number): { dx: number; dy: number; scale: number } {
+/** Края поля растворяются: 1 в середине, 0 у самой кромки. */
+export function edgeFade(col: number, row: number, g: Grid): number {
+  if (!g.rows) return 0
+  const x = (col + 0.5 - g.cols / 2) / (g.rows / 2)
+  const y = (row + 0.5 - g.rows / 2) / (g.rows / 2)
+  const ex = Math.max(0, 1 - Math.pow(Math.abs(x) / (g.cols / g.rows), 6))
+  const ey = Math.max(0, 1 - Math.pow(Math.abs(y), 6))
+  return ex * ey
+}
+
+/** Течение: точка плавает на ~1.5 px и чуть меняет размер; `amp` — размах (середина спектра раскачивает). */
+export function drift(col: number, row: number, t: number, amp = 1): { dx: number; dy: number; scale: number } {
   return {
-    dx: 1.5 * Math.sin(t * 0.9 + row * 0.32 + col * 0.07),
-    dy: 1.5 * Math.cos(t * 0.75 + col * 0.28 - row * 0.05),
+    dx: 1.5 * amp * Math.sin(t * 0.9 + row * 0.32 + col * 0.07),
+    dy: 1.5 * amp * Math.cos(t * 0.75 + col * 0.28 - row * 0.05),
     scale: 0.9 + 0.1 * Math.sin(t * 1.1 + col * 0.45 + row * 0.6),
   }
 }
