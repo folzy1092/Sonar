@@ -39,7 +39,6 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
   interface: [
     { id: 'style', title: 'Стиль', icon: 'sparkles' },
     { id: 'look', title: 'Вид', icon: 'palette' },
-    { id: 'tabs', title: 'Вкладки', icon: 'grid' },
   ],
   player: [
     { id: 'audio', title: 'Аудио', icon: 'volume' },
@@ -96,7 +95,6 @@ export const NAV: NavGroup[] = [
     items: [
       { tab: 'interface', sub: 'style' },
       { tab: 'interface', sub: 'look' },
-      { tab: 'interface', sub: 'tabs' },
       { tab: 'player', sub: 'view' },
       { tab: 'player', sub: 'mini' },
     ],
@@ -125,7 +123,8 @@ class SettingsPanel {
       this.tab = tab
       this.sub = firstSub(tab)
     }
-    if (sub) this.sub = sub
+    // «Вкладки» влились в «Вид» (2026-11-18) — старые ссылки ведут туда
+    if (sub) this.sub = sub === 'tabs' ? 'look' : sub
     this.open = true
   }
 

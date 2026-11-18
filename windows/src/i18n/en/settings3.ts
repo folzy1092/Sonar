@@ -58,4 +58,13 @@ export default {
   'Клавиши': 'Keys',
   'Только внутри окна Sonar': 'Only inside the Sonar window',
   'Работает поверх окон или везде': 'Works over windows or everywhere',
+  "Цвет": "Color",
+  "Текст": "Text",
+  "Ещё {n} шрифт|Ещё {n} шрифта|Ещё {n} шрифтов": "{n} more font|{n} more fonts",
+  "Показывать площадки": "Show sources",
+  "Значок сервиса рядом с длительностью трека": "Service icon next to the track length",
+  "Кнопки окна": "Window buttons",
+  "Свернуть, развернуть и закрыть — в духе Windows или macOS": "Minimize, maximize and close — Windows or macOS style",
+  "Когда окно развёрнуто; «Авто» — как в окне": "When the window is maximized; “Auto” — same as windowed",
+  "Цвета, прозрачность, шрифт, форма, масштаб и вкладки": "Colors, transparency, font, shape, scale and tabs",
 }
