@@ -2,7 +2,8 @@
 // playlist: 'favorites' | 'pl_…' (свой) | 'scpl:…' / 'ympl:…' (плейлист сервиса);
 // artist: 'sca:…' / 'yma:…'; album: 'scalb:…' / 'ymalb:…' (префиксы — lib/services).
 import { refKind } from '../lib/services'
-export type Page = 'home' | 'player' | 'search' | 'library' | 'playlist' | 'artist' | 'album'
+// profile — предпросмотр своего публичного профиля («Как видят мой профиль»).
+export type Page = 'home' | 'player' | 'search' | 'library' | 'playlist' | 'artist' | 'album' | 'profile'
 
 interface Route {
   page: Page

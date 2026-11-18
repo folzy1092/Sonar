@@ -1,0 +1,23 @@
+// Публичный профиль: «Копировать ссылку на профиль» и предпросмотр «Как видят мой профиль».
+export default {
+  'Публичный профиль': 'Public profile',
+  'Копировать ссылку на профиль': 'Copy profile link',
+  'Сначала задай @username': 'Set a @username first',
+  'Задай @username — тогда появится ссылка': 'Set a @username to get a link',
+  'Задай @username в Аккаунт → Профиль — тогда появится ссылка': 'Set a @username in Account → Profile to get a link',
+  'Как видят мой профиль': 'How others see my profile',
+  'Страница по ссылке заработает, когда у Sonar появится сервер.': 'The page at this link will work once Sonar has a server.',
+  'Так твой профиль увидят по ссылке': 'This is how people will see your profile via the link',
+  'Изменить профиль': 'Edit profile',
+  'Профиль Sonar': 'Sonar profile',
+  'в Sonar с {date}': 'on Sonar since {date}',
+  'Открыть в Sonar': 'Open in Sonar',
+  'Кнопка для гостей на сайте: открывает профиль в приложении': 'A button for visitors on the site: opens the profile in the app',
+  'Профиль пока пуст': 'The profile is empty for now',
+  'Лайкни треки и собери плейлисты — они появятся здесь': 'Like some tracks and build playlists — they will show up here',
+  'Сейчас слушает': 'Listening now',
+  'час музыки|часа музыки|часов музыки': 'hour of music|hours of music',
+  'и ещё {n}': 'and {n} more',
+  'плейлист|плейлиста|плейлистов': 'playlist|playlists',
+  'Чаще всего слушает': 'Listens to most',
+} satisfies Record<string, string>
