@@ -17,6 +17,7 @@ mod track_cache;
 mod mini;
 mod obs;
 mod providers;
+mod remote;
 mod secrets;
 mod services;
 mod smart;
@@ -170,6 +171,8 @@ pub fn run() {
       app.manage(Db(Mutex::new(db)));
       app.manage(StreamPort(port));
       app.manage(media::Media(Mutex::new(controls)));
+      // пульт с iPhone: сервер стартует, когда интерфейс включит `remote.enabled`
+      app.manage(remote::Remote::new(app.handle().clone()));
       // папки с музыкой: индекс из базы, фоновый скан и слежка
       local::commands::init(app.handle());
       // синхронизация аккаунта: молчит, пока не подключён сервер Sonar
@@ -179,6 +182,12 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       glass::set_glass,
       hotkeys::set_hotkeys,
+      remote::remote_set_enabled,
+      remote::remote_status,
+      remote::remote_pair_start,
+      remote::remote_pair_cancel,
+      remote::remote_unpair,
+      remote::remote_state,
       export::export_playlist,
       export::save_image,
       commands::prefetch_tracks,

@@ -3,12 +3,14 @@ import Foundation
 /// Ссылки `sonar://` (BOT.md, SPEC §4.5а):
 /// - `sonar://play/liked|wave|quick` — кнопки виджета: включить Любимые, «Мою волну», быстрый плейлист;
 /// - `sonar://auth/<code>` — вход с другого устройства (окно подтверждения, с сервером);
+/// - `sonar://remote/pair?pc=…&code=…` — QR пульта с экрана ПК (Система → Пульт), `RemotePairLink`;
 /// - `sonar://track/<ref>`, `sonar://user/<username>` — пока только узнаём вид ссылки.
 enum DeepLink: Equatable {
     case track(String)
     case auth(String)
     case user(String)
     case play(PlayTarget)
+    case remotePair(RemotePairLink)
 
     init?(_ url: URL) {
         guard url.scheme?.lowercased() == "sonar", let host = url.host()?.lowercased() else { return nil }
@@ -18,6 +20,9 @@ enum DeepLink: Equatable {
         case "track": self = .track(value)
         case "auth": self = .auth(value)
         case "user": self = .user(value)
+        case "remote":
+            guard let link = RemotePairLink(url) else { return nil }
+            self = .remotePair(link)
         case "play":
             guard let target = PlayTarget(rawValue: value.lowercased()) else { return nil }
             self = .play(target)
@@ -34,6 +39,8 @@ enum DeepLink: Equatable {
             AccountStore.shared.handleAuthLink(code)
         case let .play(target):
             Task { await QuickPlay.start(target) }
+        case let .remotePair(link):
+            RemoteControl.shared.pair(link)
         default:
             break
         }

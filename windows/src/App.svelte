@@ -46,6 +46,7 @@
   import { settings } from './lib/settings.svelte'
   import { isShutter, openMode } from './lib/settings-open'
   import { hotkeys } from './lib/hotkeys.svelte'
+  import { remote } from './lib/remote.svelte'
   import { slide } from 'svelte/transition'
   import { notch } from './lib/notch'
   import { floating } from './lib/floating'
@@ -88,6 +89,7 @@
     void library.load()
     updater.init()
     hotkeys.init()
+    remote.init()
     mini.start()
     // «Тише во время звонков» (calls.rs): микрофон занят другим приложением — музыка стихает
     if (isTauri) void listen<boolean>('call:active', (e) => player.setCall(e.payload))
