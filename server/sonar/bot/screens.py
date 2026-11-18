@@ -480,7 +480,7 @@ STATUS_PLATFORMS = [("soundcloud", "SoundCloud", "logo_soundcloud"), ("yandex", 
 
 
 def status(items: dict[str, Item], online: int, users: int, uptime: float | None, owner: bool,
-           unset: set[str] = frozenset(), today: int | None = None) -> Screen:
+           unset: set[str] = frozenset(), day: int | None = None) -> Screen:
     """unset — пункты, которые ещё ни разу не работали (сайт, туннель до запуска): «не настроен», шапку не портят."""
     items = {k: v for k, v in items.items() if k not in unset}
     g = items.get
@@ -506,8 +506,8 @@ def status(items: dict[str, Item], online: int, users: int, uptime: float | None
         infra.append(f"{e(icons[k])} {names[k]}: {_st(g(k), ms=k == 'main' or (owner and k != 'storage'), extra=extra)}")
     up = "—" if uptime is None else f"{uptime:.2f}%"
     people = [f"{e('listening')} Слушают онлайн: <b>{online}</b>"]
-    if today is not None:
-        people.append(f"{e('profile')} Слушателей за сегодня: <b>{today}</b>")
+    if day is not None:
+        people.append(f"{e('profile')} Слушателей за 24 часа: <b>{day}</b>")
     people += [f"{e('users')} Пользователей: <b>{users}</b>", f"{e('time')} Аптайм: <b>{up}</b>"]
     # SoundCloud и Яндекс — с чем Sonar работает; остальные — видит ли их сервер (подключатся позже).
     platforms = [f"{e(icon_key)} {name}: {_mark(g(k))}" for k, name, icon_key in STATUS_PLATFORMS if k in ("soundcloud", "yandex") or g(k)]

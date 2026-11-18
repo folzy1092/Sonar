@@ -10,10 +10,10 @@ export interface StatusItem {
   readonly ms: number | null
 }
 
-/** Люди: слушают сейчас, разных аккаунтов за сегодня, всего аккаунтов; чего сервер не прислал — null. */
+/** Люди: слушают сейчас, разных аккаунтов за 24 часа, всего аккаунтов; чего сервер не прислал — null. */
 export interface StatusPeople {
   readonly online: number | null
-  readonly today: number | null
+  readonly day: number | null
   readonly users: number | null
 }
 
@@ -116,7 +116,7 @@ export function parseStatus(json: unknown): StatusReport | null {
   )
   const people = {
     online: finiteOrNull(json.listening_now),
-    today: finiteOrNull(json.listeners_today),
+    day: finiteOrNull(json.listeners_24h),
     users: finiteOrNull(json.users),
   }
   return { state: json.state, uptime30d: finiteOrNull(json.uptime_30d), people, checkedAt, items }

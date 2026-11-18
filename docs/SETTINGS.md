@@ -41,7 +41,7 @@
 | `general.restore` | `none` / `track` / `queue` | `queue` | да |
 | `general.similar_autoplay` | bool | `true` | да |
 | `general.add_position` | `start` / `end` | `start` | да |
-| `general.language` | `ru` / `en` / `uk` — язык интерфейса, меняется на лету (Windows: `lib/i18n.svelte.ts`, ключ перевода — русская строка, словари `src/i18n/{en,uk}/*.ts`) | `ru` (iOS: язык системы, если ru / en / uk, иначе `ru`) | нет |
+| `general.language` | `ru` / `en` / `uk` (дальше `es` / `de` / `pl`, SPEC §7) — язык интерфейса, меняется на лету (Windows: `lib/i18n.svelte.ts`, ключ перевода — русская строка, словари `src/i18n/{en,uk}/*.ts`). До пяти языков — строка-переключатель, больше — раскрывающийся по клику список | `ru` (iOS: язык системы, если ru / en / uk, иначе `ru`) | нет |
 
 Кнопки «Отправить на сервер» / «Получить с сервера» — действия, не настройки.
 `general.platform` — откуда главная берёт волну и рекомендации. Значение — `key` сервиса (не короткий id);
