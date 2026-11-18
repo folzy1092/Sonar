@@ -3,6 +3,7 @@
 // Echo (ты + 1) · Pod (ты + 2, «стая») · Fleet (ты + 3, «флотилия»).
 // Платно — только функции Sonar, не доступ к музыке (CLAUDE.md). Цены — ЧЕРНОВИК: владелец их ещё не
 // утверждал; с сервером придут из `GET /config`, тогда эта таблица — запасная.
+// Помесячные цены утвердил владелец 2026-11-18; скидки за срок — черновик.
 import { SITE_URL } from './site'
 
 export type PlanId = 'ping' | 'echo' | 'pod' | 'fleet'
@@ -28,10 +29,11 @@ export interface Period {
 }
 
 export const PLANS: readonly Plan[] = [
-  { id: 'ping', name: 'Ping', seats: 1, monthly: 149 },
-  { id: 'echo', name: 'Echo', seats: 2, monthly: 249 },
-  { id: 'pod', name: 'Pod', seats: 3, monthly: 329 },
-  { id: 'fleet', name: 'Fleet', seats: 4, monthly: 399 },
+  // Цены владельца (2026-11-18): одно место — 100 ₽, за каждое место столько же, но на 10 / 15 / 20 ₽ дешевле.
+  { id: 'ping', name: 'Ping', seats: 1, monthly: 100 },
+  { id: 'echo', name: 'Echo', seats: 2, monthly: 190 },
+  { id: 'pod', name: 'Pod', seats: 3, monthly: 285 },
+  { id: 'fleet', name: 'Fleet', seats: 4, monthly: 380 },
 ]
 
 export const PERIODS: readonly Period[] = [
@@ -83,11 +85,11 @@ export const PERKS: readonly string[] = [
   'Доступ к бета-версиям',
 ]
 
-/** Цена за весь срок, ₽, округлено вниз до «…9». */
+/** Цена за весь срок, ₽: месяц — как есть, дольше — со скидкой, округлено вниз до 5 ₽. */
 export function price(plan: Plan, period: Period): number {
   const raw = plan.monthly * period.months * (1 - period.discount)
   if (period.months === 1) return plan.monthly
-  return Math.max(9, Math.floor((raw + 1) / 10) * 10 - 1)
+  return Math.max(5, Math.floor(raw / 5) * 5)
 }
 
 /** Скидка в процентах от помесячной оплаты — по итоговой цене (как её увидят). */
