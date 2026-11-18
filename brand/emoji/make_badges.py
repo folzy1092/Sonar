@@ -111,6 +111,27 @@ def desktop(d):
     d.rounded_rectangle([C - 70, top + h + 34, C + 70, top + h + 54], 10, fill=0)    # подставка
 
 
+def refresh(d):
+    """Обновить: две дуги по кругу, у каждой уголок-стрелка по часовой."""
+    r, w = 118, 24
+    rc = r - w / 2                                          # середина линии дуги
+    for a0, a1 in ((-165, -25), (15, 155)):
+        d.arc([C - r, C - r, C + r, C + r], a0, a1, fill=0, width=w)
+        for a in (a0, a1):                                  # скруглённые концы
+            x, y = C + rc * math.cos(math.radians(a)), C + rc * math.sin(math.radians(a))
+            d.ellipse([x - w / 2, y - w / 2, x + w / 2, y + w / 2], fill=0)
+        a = math.radians(a1)
+        ex, ey = C + rc * math.cos(a), C + rc * math.sin(a)
+        tx, ty = -math.sin(a), math.cos(a)                  # вперёд по часовой
+        nx, ny = math.cos(a), math.sin(a)
+        L = 58
+        for s in (1, -1):                                   # уголок: две линии назад от конца
+            bx = ex - tx * L * 0.7 + s * nx * L * 0.7
+            by = ey - ty * L * 0.7 + s * ny * L * 0.7
+            d.line([(ex, ey), (bx, by)], fill=0, width=w)
+            d.ellipse([bx - w / 2, by - w / 2, bx + w / 2, by + w / 2], fill=0)
+
+
 def logo_polys(size, box, cx=None, cy=None):
     """Контуры знака Sonar из brand/logo.svg (только M/C/L/Z), вписанные в квадрат box с центром (cx, cy)."""
     import re
@@ -166,7 +187,7 @@ def sonar(d):
 
 
 BADGES = {"windows": windows, "iphone": iphone, "android": android, "music": music,
-          "diamond": diamond, "heart": heart, "bug": bug, "wave": wave, "server": server, "desktop": desktop, "sonar": sonar}
+          "diamond": diamond, "heart": heart, "bug": bug, "wave": wave, "server": server, "desktop": desktop, "refresh": refresh, "sonar": sonar}
 
 def plain(glyph, size=100, pad=0.06):
     """Просто знак без розетки (решение владельца 2026-11-15): белый на прозрачном, вписан в квадрат."""

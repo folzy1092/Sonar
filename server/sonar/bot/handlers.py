@@ -54,6 +54,10 @@ class Post(StatesGroup):
     button_url = State()
 
 
+class PackAdd(StatesGroup):
+    wait = State()
+
+
 class RelAdd(StatesGroup):
     """Владелец закрепляет проверенную версию (BOT.md §2.12)."""
     url = State()
@@ -787,6 +791,71 @@ async def report_first(msg: Message, state: FSMContext, ctx: Ctx):
     await ctx.logs.event("🔧" if kind == "bug" else "💡", "Новое обращение", msg.from_user,
                          [f"<code>#{tid}</code> · {S.PLATFORMS.get(data.get('platform', 'windows'))}"])
     await ctx.shower.send(msg.chat.id, S.ticket_opened(tid))
+
+
+# ---- /pack: владелец сам докидывает значки в свои паки ----
+
+PACK_HELP = ("Пришли значок — по одному сообщением:\n"
+             "• картинку (фото или файлом PNG) — впишу в 100×100; белая/серая → пак «Sonar» (красится под текст),"
+             " цветная → «Sonar Logos»;\n"
+             "• премиум-эмодзи или стикер — скопирую.\n"
+             "Подпись к картинке — обычный эмодзи-заменитель (иначе ⭐). Закончить — /done.")
+
+
+@router.message(Command("pack"))
+async def cmd_pack(msg: Message, state: FSMContext, ctx: Ctx):
+    if not ctx.is_owner(msg.from_user.id):
+        return
+    await state.set_state(PackAdd.wait)
+    await msg.answer(f"{e('success')} " + PACK_HELP, parse_mode="HTML")
+
+
+@router.message(PackAdd.wait, Command("done"))
+async def pack_done(msg: Message, state: FSMContext, ctx: Ctx):
+    await state.clear()
+    await msg.answer(f"{e('confirm')} Готово. Паки: https://t.me/addemoji/sonar_icons_by_{ctx.bot_username}"
+                     f" · https://t.me/addemoji/sonar_logos_by_{ctx.bot_username}", parse_mode="HTML",
+                     link_preview_options={"is_disabled": True})
+
+
+def _placeholder(text: str | None) -> str:
+    """Эмодзи-заменитель из подписи: первый символ не буква и не цифра, иначе ⭐."""
+    s = (text or "").strip()
+    return s.split()[0][:8] if s and not s[0].isalnum() else "⭐"
+
+
+@router.message(PackAdd.wait)
+async def pack_add(msg: Message, ctx: Ctx):
+    from html import escape
+
+    from aiogram.types import BufferedInputFile, InputSticker
+    from .packimg import to_badge
+    if not ctx.is_owner(msg.from_user.id):
+        return
+    icons, logos = f"sonar_icons_by_{ctx.bot_username}", f"sonar_logos_by_{ctx.bot_username}"
+    custom = next((x.custom_emoji_id for x in (msg.entities or []) if x.type == "custom_emoji"), None)
+    try:
+        if custom or msg.sticker:
+            st = (await ctx.bot.get_custom_emoji_stickers(custom_emoji_ids=[custom]))[0] if custom else msg.sticker
+            fmt = "video" if st.is_video else "animated" if st.is_animated else "static"
+            inp = InputSticker(sticker=st.file_id, format=fmt, emoji_list=[st.emoji or "⭐"])
+            target = icons if (custom and st.needs_repainting) else logos
+        else:
+            file = msg.photo[-1] if msg.photo else msg.document if (msg.document and (msg.document.mime_type or "").startswith("image/")) else None
+            if file is None:
+                return await msg.answer("Нужна картинка, стикер или премиум-эмодзи. Закончить — /done.")
+            raw = (await ctx.bot.download(file)).read()
+            png, mono = to_badge(raw)
+            inp = InputSticker(sticker=BufferedInputFile(png, "badge.png"), format="static",
+                               emoji_list=[_placeholder(msg.caption)])
+            target = icons if mono else logos
+        await patient(ctx.bot.add_sticker_to_set, user_id=msg.from_user.id, name=target, sticker=inp)
+        new = (await ctx.bot.get_sticker_set(target)).stickers[-1]
+    except TelegramBadRequest as err:
+        return await msg.answer(f"{e('cancel')} Не добавилось: <code>{escape(err.message)}</code>", parse_mode="HTML")
+    pack = "Sonar" if target == icons else "Sonar Logos"
+    await msg.answer(f'<tg-emoji emoji-id="{new.custom_emoji_id}">{new.emoji or "⭐"}</tg-emoji> в «{pack}» — '
+                     f"<code>{new.custom_emoji_id}</code>\nСледующий или /done.", parse_mode="HTML")
 
 
 @router.message(F.chat.type == "private")

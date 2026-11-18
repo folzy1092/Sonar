@@ -456,7 +456,7 @@ def _st(i: Item | None, ms: bool = False, extra: str = "") -> str:
     icon = {OK: "ok", PARTIAL: "partial", DOWN: "down"}[i.state]
     parts = [STATE_TEXT[i.state]]
     if ms and i.ms is not None and i.state != DOWN:
-        parts.append(f"{i.ms} мс" if i.ms else "< 1 мс")
+        parts.append(f"{i.ms} мс" if i.ms else "&lt; 1 мс")
     if extra:
         parts.append(extra)
     return f"{e(icon)} " + " · ".join(parts)
@@ -520,4 +520,4 @@ def status(items: dict[str, Item], online: int, users: int, uptime: float | None
         tail = f"{e('logo_telegram')} Telegram: {_mark(g('telegram'))}"
         other.append((f"{e('logo_lastfm')} {LASTFM}: {_mark(g('lastfm'))} · " if g("lastfm") else "") + tail)
         html += quote(_tree(other), "Тексты и прочее:")
-    return Screen(html=html, kb=[[Btn("Обновить", "refresh", "status"), Btn("Страница статуса", "web", url="https://sonar.folzy.ru/status")]])
+    return Screen(html=html, kb=[[Btn("Обновить", "refresh", "status")], [Btn("Страница статуса", "web", url="https://sonar.folzy.ru/status")]])

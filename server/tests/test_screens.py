@@ -87,3 +87,29 @@ def test_status_public_numbers_and_platforms():
     items["spotify"] = Item("spotify", DOWN)
     assert "штатно" in S.status(items, 0, 0, None, owner=False).html  # будущие платформы шапку не портят
     assert "Слушателей за 24 часа" not in S.status(items, 0, 0, None, owner=False).html
+
+
+def test_status_page_button_in_own_row():
+    kb = S.status({}, 0, 0, None, owner=False).kb
+    assert [len(r) for r in kb] == [1, 1] and kb[1][0].url
+
+
+def test_pack_badge_fits_100_and_detects_color():
+    import io
+    from PIL import Image
+    from sonar.bot.packimg import to_badge
+    def png(color, size=(300, 120)):
+        b = io.BytesIO(); Image.new("RGBA", size, color).save(b, "PNG"); return b.getvalue()
+    out, mono = to_badge(png((255, 255, 255, 255)))
+    assert Image.open(io.BytesIO(out)).size == (100, 100) and mono
+    assert to_badge(png((230, 40, 40, 255)))[1] is False
+
+
+def test_pack_placeholder():
+    from sonar.bot.handlers import _placeholder
+    assert _placeholder("🔄 обновить") == "🔄" and _placeholder("просто текст") == "⭐" and _placeholder(None) == "⭐"
+
+
+def test_status_zero_ms_is_valid_html():
+    html = S.status({"main": Item("main", OK, 0)}, 0, 0, None, owner=False).html
+    assert "&lt; 1 мс" in html and "< 1" not in html
