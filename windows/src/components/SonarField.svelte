@@ -153,6 +153,8 @@
       hoverAmt = approach(hoverAmt, hovering && !calm ? 1 : 0, dt, HOVER_TAU)
       const shakeAge = calm || lite ? Infinity : t - audio.beatAt
       const moving = !calm
+      // «Меньше движения» — только прозрачность: форма и размер точек замирают на одном кадре
+      const ft = calm ? 0 : t
 
       ctx.clearRect(0, 0, w, h)
       ctx.globalAlpha = calm ? 1 - CALM_FADE * fadePulse(t - flashAt) : 1
@@ -161,8 +163,8 @@
       const maxR = grid.step * 0.5
       for (let row = 0; row < grid.rows; row++)
         for (let col = 0; col < grid.cols; col++) {
-          const d = drift(col, row, t)
-          let v = fieldValue(col, row, grid, logo, t, playing, music) * d.scale
+          const d = drift(col, row, ft)
+          let v = fieldValue(col, row, grid, logo, ft, playing, music) * d.scale
           let x = grid.ox + (col + 0.5) * grid.step
           let y = grid.oy + (row + 0.5) * grid.step
           if (moving) {
