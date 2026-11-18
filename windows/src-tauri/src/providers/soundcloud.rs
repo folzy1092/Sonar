@@ -96,6 +96,20 @@ impl SoundCloud<'_> {
     Ok(out)
   }
 
+  /// На кого подписан пользователь (до `max`), постранично — связи карты исполнителей.
+  pub async fn followings(&self, id: &str, max: usize) -> Result<Vec<Artist>> {
+    let mut out: Vec<Artist> = Vec::new();
+    let mut v =
+      self.get(&format!("{API}/users/{id}/followings"), &[("limit", "200"), ("linked_partitioning", "true")]).await?;
+    loop {
+      out.extend(v["collection"].as_array().into_iter().flatten().filter_map(artist_from_json));
+      let Some(next) = v["next_href"].as_str().filter(|_| out.len() < max).map(str::to_owned) else { break };
+      v = self.get(&next, &[]).await?;
+    }
+    out.truncate(max);
+    Ok(out)
+  }
+
   pub async fn top_tracks(&self, id: &str, limit: u32) -> Result<Vec<Value>> {
     let limit = limit.to_string();
     let v = self.get(&format!("{API}/users/{id}/toptracks"), &[("limit", &limit)]).await?;

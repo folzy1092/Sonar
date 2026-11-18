@@ -181,6 +181,8 @@ pub fn run() {
       local::commands::init(app.handle());
       // синхронизация аккаунта: молчит, пока не подключён сервер Sonar
       tauri::async_runtime::spawn(sync::background(app.handle().clone()));
+      // карта исполнителей: лайки сервисов и подписки SoundCloud — в фоне, пачками
+      tauri::async_runtime::spawn(artist_graph::follows::background(app.handle().clone()));
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
@@ -265,6 +267,7 @@ pub fn run() {
       artist_graph::artist_graph,
       artist_graph::artist_neighbors,
       artist_graph::artist_cluster_tracks,
+      artist_graph::follows::artist_graph_refresh,
       commands::lyrics,
       commands::lyrics_offset,
       commands::lyrics_annotations,
