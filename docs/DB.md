@@ -159,14 +159,6 @@ CREATE TABLE plays (
 );
 CREATE INDEX plays_user_time ON plays(user_id, played_at);
 
-CREATE TABLE lastfm (
-  user_id       TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  session_key   BLOB NOT NULL,                  -- Fernet
-  name          TEXT NOT NULL,
-  scrobble      INTEGER NOT NULL DEFAULT 1,
-  now_playing   INTEGER NOT NULL DEFAULT 1
-);
-
 CREATE TABLE api_keys (
   user_id       TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   key_hash      TEXT UNIQUE NOT NULL,           -- sha256, для поиска по запросу
@@ -333,7 +325,7 @@ CREATE INDEX smart_playlists_user ON smart_playlists(user_id, deleted);
 -- Статус (SPEC §3.11), только на сервере
 CREATE TABLE status_checks (                    -- сырые проверки раз в 5 мин, хранятся 7 дней
   at            INTEGER NOT NULL,               -- мс
-  item          TEXT NOT NULL,                  -- api | bot | storage | site | soundcloud | yandex | lrclib | genius | lastfm | telegram
+  item          TEXT NOT NULL,                  -- api | bot | storage | site | soundcloud | yandex | lrclib | genius | telegram
   ok            INTEGER NOT NULL,
   ms            INTEGER,
   note          TEXT,                           -- текст ошибки

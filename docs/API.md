@@ -97,8 +97,7 @@ PublicTrack = {ref, title, artist, cover_url, duration_ms}
  "number": 104633, "avatar_url": null, "created_at": 1791590400000,
  "telegram": {"id": 123, "username": "cocainemodel"}, "has_password": true,
  "services": {"soundcloud": {"connected": true, "name": "Folzy", "premium": null},
-              "yandex": {"connected": false}},
- "lastfm": {"connected": true, "name": "wxnna_cry"}}
+              "yandex": {"connected": false}}}
 ```
 
 ## 2. Сервисы
@@ -575,10 +574,6 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 
 | Метод | Путь | Тело → ответ |
 |---|---|---|
-| GET | `/integrations/lastfm/auth-url` | → `{url}` |
-| GET | `/integrations/lastfm/callback?token=` (без авт.) | Last.fm возвращает сюда |
-| PATCH | `/integrations/lastfm` | `{scrobble?, now_playing?}` |
-| DELETE | `/integrations/lastfm` | → `204` |
 | POST | `/integrations/api-key` | создать/перевыпустить → `{key: "sk_...", created_at}` (показывается **один раз**) |
 | DELETE | `/integrations/api-key` | → `204` |
 | GET | `/me/integration` | → `{key: "sk_…" \| null, created_at}` — тот же токен, что в боте (BOT.md §2.6а); клиенты подставляют его в ссылку плашки OBS. Изменение токена в боте или приложении приходит остальным синком (`type: "integration_key"`) |
@@ -644,7 +639,6 @@ selfbot переключился сменой адреса:
     {"id": "yandex", "name": "Яндекс Музыка", "icon": "🌐", "state": "degraded", "ms": 2900},
     {"id": "lrclib", "name": "lrclib", "icon": "📝", "state": "ok", "ms": 410},
     {"id": "genius", "name": "Genius", "icon": "📝", "state": "ok", "ms": 520},
-    {"id": "lastfm", "name": "Last.fm", "icon": "🎧", "state": "ok", "ms": 190},
     {"id": "telegram", "name": "Telegram", "icon": "✈️", "state": "ok", "ms": 95}
   ]
 }

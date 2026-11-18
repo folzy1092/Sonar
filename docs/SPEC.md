@@ -18,10 +18,9 @@
    │   routers/  ──►  services/  ──►  SQLite       │
    │                   │ soundcloud.py             │
    │                   │ yandex.py  (yandex-music) │
-   │                   │ lastfm.py                  │
    └───────────────────┼───────────────────────────┘
                        ▼
-        api-v2.soundcloud.com · api.music.yandex.net · Last.fm
+        api-v2.soundcloud.com · api.music.yandex.net
  Тексты: клиент ◄── lrclib, Genius напрямую (сервер не участвует)
 
  Аудио: клиент ◄── CDN SoundCloud / Яндекса напрямую (сервер аудио не трогает)
@@ -99,7 +98,7 @@
 ### 3.3. Env
 
 `SONAR_FERNET_KEY`, `SONAR_BOT_TOKEN`, `SONAR_OWNER_TG_ID`, `SONAR_PUBLIC_URL`,
-`LASTFM_API_KEY`, `LASTFM_API_SECRET`, `YANDEX_OAUTH_CLIENT_ID`, `CF_TUNNEL_TOKEN`, `PORT`,
+`YANDEX_OAUTH_CLIENT_ID`, `CF_TUNNEL_TOKEN`, `PORT`,
 `YANDEX_PROXY` (необязательный, см. §3.7а), `SUPPORT_GROUP_ID`, `SONAR_LOG_CHAT_ID`, `SONAR_DATA_THREAD_ID`. Пример с пояснениями — `server/env.example`.
 
 ### 3.4. Аутентификация
@@ -250,7 +249,7 @@ Windows — `windows/src/lyrics/` (`mod.rs`, `lrclib.rs`, `genius.rs`) — од�
 
 - Клиент шлёт `POST /plays` на каждое засчитанное прослушивание
   (`listened_ms ≥ min(30 000, duration/2)`), пачкой, с `played_at`.
-- Сервер пишет в `plays`, скробблит в Last.fm (если включено), отдаёт агрегаты
+- Сервер пишет в `plays` (Last.fm не скробблим — `docs/LASTFM_EXIT.md`), отдаёт агрегаты
   `GET /stats?period=day|week|month|half_year|year|all` (бот `/stats` берёт те же агрегаты напрямую из `domain/stats.py`) — считаются SQL-запросами на лету (объёмы
   крошечные: ~100 строк/день/пользователь).
 
@@ -258,8 +257,8 @@ Windows — `windows/src/lyrics/` (`mod.rs`, `lrclib.rs`, `genius.rs`) — од�
 
 - Клиент шлёт `PUT /player/state` при: старте трека, паузе/плее, перемотке, смене очереди,
   и раз в 30 с во время игры (heartbeat).
-- Сервер хранит последнее состояние на пользователя (`player_state`), Last.fm
-  `updateNowPlaying` — при смене трека.
+- Сервер хранит последнее состояние на пользователя (`player_state`) — из него
+  `GET /oauth/now` (Last.fm больше не нужен, `docs/LASTFM_EXIT.md`).
 - `/oauth/now`: если heartbeat старше 90 с, `is_playing=false`, `state="paused"`.
   `position_ms` экстраполируется: `position + (now - updated_at)`, если играет.
 
@@ -300,7 +299,6 @@ Windows — `windows/src/lyrics/` (`mod.rs`, `lrclib.rs`, `genius.rs`) — од�
 | | 🌐 Яндекс Музыка | `GET /search?text=…` с сервера → 200 (из Германии может быть ⚠️ — SPEC §3.7а) |
 | | 📝 lrclib | `GET /api/search?q=…` → 200 |
 | | 📝 Genius | `search/multi` → 200 (капча Cloudflare = ⚠️) |
-| | 🎧 Last.fm | `chart.getTopTracks` с ключом → 200 |
 | | ✈️ Telegram | `getMe` → 200 |
 
 Плееры, которых у нас нет (Spotify, YouTube, VK, Deezer, Apple Music, МТС, Звук) — **не
@@ -308,7 +306,7 @@ Windows — `windows/src/lyrics/` (`mod.rs`, `lrclib.rs`, `genius.rs`) — од�
 владелец планирует до 5 сервисов — новые появятся, когда их подключат).
 **Для всех** — Основной, Хранилище, платформы, «Слушают онлайн», «Пользователей», аптайм.
 **Только владельцу** (решение 2026-11-15) — ещё 🎵 Медиа (ссылки на поток SC/Яндекса выдаются),
-🔀 Прокси (Cloudflare Tunnel отвечает снаружи), Бот, Сайт, тексты (lrclib, Genius), Last.fm,
+🔀 Прокси (Cloudflare Tunnel отвечает снаружи), Бот, Сайт, тексты (lrclib, Genius),
 Telegram и задержки в мс. Формат — BOT.md §4.
 
 **Состояние пункта:** ✅ работает — последняя проверка прошла быстрее 2 с; ⚠️ с перебоями —

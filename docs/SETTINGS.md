@@ -25,7 +25,7 @@
 Интерфейс:   Вид (на ПК с 2026-11-18 — вместе с вкладками) · Вкладки (iOS)
 Плеер:       Аудио · Вид плеера · Очередь (на ПК с 2026-11-18 — внутри «Плеера») · Мини-плеер · Жесты
 Сервисы:     SoundCloud · Яндекс Музыка · VK Музыка   (PC: карточки — из реестра сервисов, только работающие; iOS — прежний ServicesView)
-Интеграции:  Last.fm · Ключ API
+Интеграции:  Ключ API
 Система:     Общее (язык, платформа, медиатека, синхронизация; внизу — о приложении) · Клавиши (PC) · Обновления · Хранилище
 О приложении (низ «Общего»): знак, название, версия (двойной клик по знаку — проверка обновлений) ·
              Сайт (`sonar.folzy.ru`) · Телеграм (t.me/SonarUpdates) · Соглашение · Конфиденциальность ·
@@ -404,8 +404,6 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 
 | Ключ | Значения | По умолч. | sync |
 |---|---|---|---|
-| `integrations.lastfm.scrobble` | bool | `true` | сервер |
-| `integrations.lastfm.now_playing` | bool | `true` | сервер |
 | `integrations.discord.enabled` (PC) | bool | `true` | да |
 | `integrations.discord.cover` (PC) | bool | `true` | да |
 | `integrations.discord.progress` (PC) | bool | `true` | да |
@@ -413,11 +411,8 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 ID приложения Discord — **не настройка**: пользователь ничего не вписывает. До сервера он вшит
 в сборку (`windows/src-tauri/src/discord.rs` `APP_ID`), потом приходит с сервера (`GET /config`).
 
-iOS Last.fm (2026-11-17, `LastfmSettingsView`, `Core/Integrations/`): вход в один клик — `auth.getToken` →
-страница «Разрешить доступ» в окне входа iOS (`ASWebAuthenticationSession`, возврат `sonar://lastfm` + опрос
-`auth.getSession`), ключ сессии — Keychain. Скроббл — трек > 30 с, прослушана половина или 4 мин; «Сейчас
-играет» — на старт трека; не ушло — очередь до 14 дней. Ключ приложения — Info.plist `SonarLastfmKey` /
-`SonarLastfmSecret` из секретов CI; нет — «Last.fm появится в сборке с ключом».
+Last.fm убран из ПК и iPhone 2026-11-18 (`docs/LASTFM_EXIT.md`): ключей `integrations.lastfm.*` больше нет,
+сохранённый вход стирается при запуске один раз.
 
 Ключ API (для selfbot и `GET /oauth/now`) — создать / перевыпустить / удалить, показывается
 один раз. iOS: Безопасность, Приватность и Ключ API до сервера — честная заглушка `ServerOnlyView`. OBS-плашка (`pc/15`) — после MVP, тем же ключом.
