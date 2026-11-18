@@ -51,9 +51,11 @@ extension Palette {
 
     /// Сдвиг светлоты не больше 20 % — и ниже порога контраста не опускаемся.
     static let maxCoverShift = 0.2
-    /// Средняя светлота обложки: L ≤ .3 — «тёмная», L ≥ .9 — «светлая».
+    /// Средняя светлота обложки: L ≤ .35 — «тёмная», L ≥ .85 — «светлая» (полный сдвиг). Между ними
+    /// кривая — корень: обычная обложка (L .4–.8) уже даёт 10–15 % на «Средне», у серой (L .6) — ноль.
     static let pivotLightness = 0.6
-    private static let spanLightness = 0.3
+    private static let spanLightness = 0.25
+    private static let biasCurve = 0.5
     /// Тёмная тема не уходит в чёрный, светлая — в белый.
     private static let darkFloor = 0.075
     private static let lightCeil = 0.992
@@ -78,7 +80,8 @@ extension Palette {
 
     /// Насколько и куда сдвигать (−shift…shift): тёмная обложка — минус, светлая — плюс.
     static func coverBias(_ cover: CoverShift) -> Double {
-        let bias = max(-1, min(1, (cover.lightness - pivotLightness) / spanLightness))
+        let d = max(-1, min(1, (cover.lightness - pivotLightness) / spanLightness))
+        let bias = (d < 0 ? -1 : 1) * pow(abs(d), biasCurve)
         return max(-maxCoverShift, min(maxCoverShift, bias * cover.strength.params.shift))
     }
 

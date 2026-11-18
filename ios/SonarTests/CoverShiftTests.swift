@@ -47,6 +47,16 @@ final class CoverShiftTests: XCTestCase {
         XCTAssertLessThanOrEqual(bias(.medium), 0.15)
     }
 
+    /// Обычная обложка средней светлоты (L .4 / .8) на «Средне» уже сдвигает на 10–15 %, как ПК.
+    func testMidCoversShiftNoticeably() {
+        for l in [0.4, 0.8] {
+            let bias = abs(Palette.coverBias(CoverShift(strength: .medium, lightness: l)))
+            XCTAssertGreaterThanOrEqual(bias, 0.1)
+            XCTAssertLessThanOrEqual(bias, 0.15)
+        }
+        XCTAssertLessThan(Palette.coverBias(CoverShift(strength: .medium, lightness: 0.5)), Palette.coverBias(CoverShift(strength: .medium, lightness: 0.55)))
+    }
+
     func testStrengthFromSetting() {
         XCTAssertEqual(CoverStrength(setting: "weak"), .weak)
         XCTAssertEqual(CoverStrength(setting: "strong"), .strong)
