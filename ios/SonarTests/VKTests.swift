@@ -174,6 +174,7 @@ final class VKTests: XCTestCase {
         XCTAssertEqual(VKLogin.outcome(URL(string: "https://oauth.vk.com/blank.html#error=access_denied&error_reason=user_denied")!),
                        .denied)
         XCTAssertEqual(VKLogin.outcome(URL(string: "https://oauth.vk.com/blank.html?error=invalid_request")!), .denied)
+        XCTAssertEqual(VKLogin.outcome(URL(string: "https://oauth.vk.ru/blank.html#access_token=vk1.a.Ru&expires_in=0")!), .token("vk1.a.Ru"))
         // вход ещё идёт или адрес чужой
         for link in ["https://oauth.vk.com/authorize?client_id=1", "https://id.vk.com/auth?x=1",
                      "https://evil.example/blank.html#access_token=x", "https://oauth.vk.com/blank.html",

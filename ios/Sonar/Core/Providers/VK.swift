@@ -402,9 +402,14 @@ enum VKLogin {
         return components.url!
     }
 
+    /// VK переезжает на домены .ru (id.vk.ru, oauth.vk.ru): возврат может прийти на любой из двух.
+    static func isOAuthHost(_ host: String?) -> Bool {
+        host == "oauth.vk.com" || host == "oauth.vk.ru"
+    }
+
     /// Адрес окна → чем кончился вход; nil — вход ещё идёт (страница входа, двухфакторка, капча, чужой адрес).
     static func outcome(_ url: URL) -> Outcome? {
-        guard url.scheme == "https", url.host == "oauth.vk.com", url.path == "/blank.html" else { return nil }
+        guard url.scheme == "https", isOAuthHost(url.host), url.path == "/blank.html" else { return nil }
         let fragment = url.fragment ?? ""
         let pairs = fragment.split(separator: "&").map(String.init)
         if let raw = pairs.first(where: { $0.hasPrefix("access_token=") })?.dropFirst("access_token=".count), !raw.isEmpty {

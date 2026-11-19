@@ -156,7 +156,8 @@ fn vk_auth_url() -> String {
 /// Адрес окна VK → чем кончился вход: `Some(Some(токен))` — вошёл, `Some(None)` — VK вернул ошибку
 /// (отказ, отмена), `None` — вход ещё идёт.
 pub fn vk_outcome(url: &Url) -> Option<Option<String>> {
-  if url.host_str() != Some("oauth.vk.com") || url.path() != "/blank.html" {
+  // VK переезжает на .ru (id.vk.ru, oauth.vk.ru) — возврат может прийти на любой из двух
+  if !matches!(url.host_str(), Some("oauth.vk.com" | "oauth.vk.ru")) || url.path() != "/blank.html" {
     return None;
   }
   if let Some(t) = token_from_url(url) {
@@ -486,6 +487,8 @@ mod tests {
   fn vk_login_outcome() {
     let ok = Url::parse("https://oauth.vk.com/blank.html#access_token=vk1.a.Xy-Z&expires_in=0&user_id=1").unwrap();
     assert_eq!(vk_outcome(&ok), Some(Some("vk1.a.Xy-Z".to_owned())));
+    let ru = Url::parse("https://oauth.vk.ru/blank.html#access_token=vk1.a.Ru&expires_in=0").unwrap();
+    assert_eq!(vk_outcome(&ru), Some(Some("vk1.a.Ru".to_owned())));
     let denied = Url::parse("https://oauth.vk.com/blank.html#error=access_denied&error_reason=user_denied").unwrap();
     assert_eq!(vk_outcome(&denied), Some(None));
     let q = Url::parse("https://oauth.vk.com/blank.html?error=invalid_request").unwrap();
