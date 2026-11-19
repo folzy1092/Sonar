@@ -11,6 +11,12 @@ enum InstallLinks {
     /// Пока своего сервера нет. С сервером манифест переедет на `GET /updates/manifest.plist?ipa=…`
     /// (SPEC §4.6) — достаточно поменять эту константу и `externalManifestURL`.
     static let externalManifestBase = "https://api.palera.in/genPlist"
+    /// Запасной манифест, когда api.palera.in лежит (2026-11-19 — Cloudflare 521): статичные plist в репо
+    /// `updates/ios-install/<порт>.plist`, отдаёт raw.githubusercontent.com (https, доверенный сертификат).
+    /// Статичный — значит, порт постоянный и bundle id только наш.
+    static let fixedPorts: [UInt16] = [47231, 47232, 47233]
+    static let fallbackBundleId = "com.folzy.sonar"
+    static let fallbackManifestBase = "https://raw.githubusercontent.com/folzy1092/Sonar/main/updates/ios-install/"
     static let payloadPath = "/sonar.ipa"
     static let pagePath = "/install"
 
@@ -52,6 +58,12 @@ enum InstallLinks {
             ("fetchurl", payload.absoluteString),
         ].map { "\($0.0)=\(encode($0.1))" }.joined(separator: "&")
         return URL(string: externalManifestBase + "?" + query)
+    }
+
+    /// Манифест из репо для этого порта; nil — порт не постоянный или bundle id не наш.
+    static func fallbackManifestURL(bundleId: String, port: UInt16) -> URL? {
+        guard bundleId == fallbackBundleId, fixedPorts.contains(port) else { return nil }
+        return URL(string: fallbackManifestBase + "\(port).plist")
     }
 
     static func itmsURL(manifest: URL) -> URL? {

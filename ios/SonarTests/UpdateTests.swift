@@ -255,6 +255,21 @@ final class SelfUpdateCoreTests: XCTestCase {
         XCTAssertTrue(page.contains("window.location=\"itms-services://?action=download-manifest&url="))
     }
 
+    /// Запасной манифест из репо — только для постоянных портов и нашего bundle id.
+    func testFallbackManifest() {
+        XCTAssertEqual(InstallLinks.fallbackManifestURL(bundleId: "com.folzy.sonar", port: 47231)?.absoluteString,
+                       "https://raw.githubusercontent.com/folzy1092/Sonar/main/updates/ios-install/47231.plist")
+        XCTAssertNil(InstallLinks.fallbackManifestURL(bundleId: "com.folzy.sonar", port: 50000))
+        XCTAssertNil(InstallLinks.fallbackManifestURL(bundleId: "com.other.sonar", port: 47231))
+        var diagnostics = InstallDiagnostics()
+        diagnostics.server.isReady = true
+        diagnostics.externalManifest = .failed("HTTP 521")
+        XCTAssertTrue(diagnostics.cause.contains("api.palera.in"))
+        diagnostics.fallbackManifest = .ok
+        XCTAssertFalse(diagnostics.cause.contains("api.palera.in"))
+        XCTAssertTrue(diagnostics.line.contains("репо ✓"))
+    }
+
     /// Лист «выйди на рабочий стол» — только когда iOS уже забирает IPA, не поверх окна «Открыть в iTunes?».
     func testHomeHintOnlyAfterInstallStarted() {
         XCTAssertNil(HomeScreenHint.text(for: .startingServer))

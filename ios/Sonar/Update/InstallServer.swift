@@ -78,21 +78,29 @@ final class InstallServer: @unchecked Sendable {
 
     // MARK: - Слушатель
 
+    /// Порты по очереди: сначала постоянные (под них в репо лежат запасные манифесты,
+    /// `InstallLinks.fixedPorts`), последним — любой свободный.
+    private var portsToTry: [NWEndpoint.Port] = InstallLinks.fixedPorts.compactMap { NWEndpoint.Port(rawValue: $0) } + [.any]
+
     private func startListener() {
+        let port = portsToTry.isEmpty ? NWEndpoint.Port.any : portsToTry.removeFirst()
         let parameters = NWParameters.tcp
         // только петля: IPA не видна в локальной сети
-        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: .any)
+        parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: port)
         parameters.allowLocalEndpointReuse = true
         let listener: NWListener
         do {
             listener = try NWListener(using: parameters)
         } catch {
+            if !portsToTry.isEmpty { return startListener() }
             finishStart(.failure(error))
             return
         }
         self.listener = listener
-        listener.stateUpdateHandler = { [weak self] state in
-            self?.listenerChanged(state)
+        listener.stateUpdateHandler = { [weak self, weak listener] state in
+            // события прежнего слушателя (порт был занят) не трогают состояние нового
+            guard let self, let listener, self.listener == nil || self.listener === listener else { return }
+            self.listenerChanged(state)
         }
         listener.newConnectionHandler = { [weak self] connection in
             self?.accept(connection)
@@ -117,6 +125,12 @@ final class InstallServer: @unchecked Sendable {
             activity.listener = "ошибка: \(Self.describe(error))"
             activity.isReady = false
             listener?.cancel()
+            listener = nil
+            // порт занят — следующий; пока не ответили на start()
+            if startCompletion != nil, !portsToTry.isEmpty {
+                startListener()
+                return
+            }
             finishStart(.failure(error))
         case .cancelled:
             if activity.isReady { activity.listener = "остановлен" }

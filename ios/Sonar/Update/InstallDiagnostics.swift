@@ -34,12 +34,15 @@ struct InstallDiagnostics: Equatable, Sendable {
     var openResult: Bool?
     /// Свой GET манифеста с api.palera.in — до того, как его запросит iOS.
     var externalManifest: Check = .pending
+    /// Запасной манифест из репо (raw.githubusercontent.com); nil — не понадобился.
+    var fallbackManifest: Check?
     var server = InstallActivity()
     /// После ссылки приложение ушло в неактивное — значит, системное окно его закрыло.
     var promptSeen = false
 
     var line: String {
         var parts = ["HTTP 127.0.0.1", "манифест palera \(Self.mark(externalManifest))"]
+        if let fallbackManifest { parts.append("репо \(Self.mark(fallbackManifest))") }
         switch opener {
         case .safariPage: parts.append("Safari \(server.pageRequested ? "✓" : "—")")
         case .openURL: parts.append("open \(openResult.map { $0 ? "✓" : "✗" } ?? "…")")
@@ -69,7 +72,7 @@ struct InstallDiagnostics: Equatable, Sendable {
             return "iOS отказалась открыть ссылку itms-services."
         }
         // без манифеста iOS нечего показать: если что-то и закрыло приложение — это было не окно установки
-        if case let .failed(error) = externalManifest {
+        if case let .failed(error) = externalManifest, fallbackManifest != .ok {
             return "Не удалось получить манифест с api.palera.in (\(error)): без него iOS не покажет окно. Проверь интернет и VPN."
         }
         if promptSeen {

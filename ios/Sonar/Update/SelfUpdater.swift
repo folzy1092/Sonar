@@ -237,6 +237,7 @@ final class SelfUpdater {
         diagnostics?.openResult = nil
         diagnostics?.promptSeen = false
         diagnostics?.externalManifest = .pending
+        diagnostics?.fallbackManifest = nil
 
         server.onActivity = { [weak self, weak server] activity in
             Task { @MainActor in
@@ -300,20 +301,36 @@ final class SelfUpdater {
         server?.setPageTarget(link)
         // iOS сама возьмёт манифест с api.palera.in; спрашиваем первыми — тогда мёртвый сервис или VPN
         // видны как причина
-        var request = URLRequest(url: manifest, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8)
-        request.setValue("Sonar", forHTTPHeaderField: "User-Agent")
-        let problem: String?
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            problem = InstallLinks.externalManifestProblem(data: data, statusCode: (response as? HTTPURLResponse)?.statusCode,
-                                                           error: nil, payload: payload)
-        } catch {
-            problem = InstallLinks.externalManifestProblem(data: nil, statusCode: nil, error: error, payload: payload)
-        }
+        let problem = await Self.manifestProblem(manifest, payload: payload, timeout: 5)
         guard runId == run else { return }
         diagnostics?.externalManifest = problem.map { .failed($0) } ?? .ok
+        // palera лежит (так было 2026-11-19, Cloudflare 521) — запасной манифест из репо под постоянный порт
+        if problem != nil, let fallback = InstallLinks.fallbackManifestURL(bundleId: item.bundleId, port: port),
+           let fallbackLink = InstallLinks.itmsURL(manifest: fallback) {
+            diagnostics?.fallbackManifest = .pending
+            let fallbackProblem = await Self.manifestProblem(fallback, payload: payload, timeout: 8)
+            guard runId == run else { return }
+            diagnostics?.fallbackManifest = fallbackProblem.map { .failed($0) } ?? .ok
+            if fallbackProblem == nil {
+                installLink = fallbackLink
+                server?.setPageTarget(fallbackLink)
+            }
+        }
         // без манифеста всё равно показываем ссылку: iOS может его получить, а причина будет в подсказке
         present(run: run)
+    }
+
+    /// Свой GET манифеста: nil — это plist для нашей IPA, иначе коротко, что не так.
+    private nonisolated static func manifestProblem(_ url: URL, payload: URL, timeout: TimeInterval) async -> String? {
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
+        request.setValue("Sonar", forHTTPHeaderField: "User-Agent")
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            return InstallLinks.externalManifestProblem(data: data, statusCode: (response as? HTTPURLResponse)?.statusCode,
+                                                        error: nil, payload: payload)
+        } catch {
+            return InstallLinks.externalManifestProblem(data: nil, statusCode: nil, error: error, payload: payload)
+        }
     }
 
     /// Показывает ссылку установки: страницу в Safari или `UIApplication.open`.
