@@ -44,10 +44,11 @@ struct ProfileView: View {
                 section("Сервисы", 4) {
                     link("SoundCloud", .soundcloud) { ServicesView(only: .soundcloud) }
                     divider
-                    link("Яндекс Музыка", .music) { ServicesView(only: .yandex) }
+                    link("Яндекс Музыка", Service.yandex.icon) { ServicesView(only: .yandex) }
                     divider
-                    link("YouTube Music", .youtubeMusic) { ServicesView(only: .youtube) }
-                    link(Service.vk.title, .music) { ServicesView(only: .vk) }
+                    link("YouTube Music", Service.youtube.icon) { ServicesView(only: .youtube) }
+                    divider
+                    link(Service.vk.title, Service.vk.icon) { ServicesView(only: .vk) }
                 }
                 section("Интеграции", 5) {
                     link("Ключ API", .link) {

@@ -29,12 +29,6 @@ struct SearchView: View {
 
         var title: String { service?.title ?? ServiceRegistry.info(.sp).name }
 
-        /// Буква поверх круга, если своего значка нет.
-        var badge: String? {
-            guard let service else { return "S" }
-            return service.mark
-        }
-
         /// Следующий по кругу (SoundCloud → Яндекс → YouTube Music → VK → Spotify); Spotify — только подключённый.
         func next(spotifyConnected: Bool) -> Source {
             switch self {
@@ -79,14 +73,9 @@ struct SearchView: View {
 
     private var source: Source { Source(rawValue: sourceRaw) ?? .soundcloud }
 
-    /// Значок круга сервиса: у Яндекса и VK своего нет — поверх рисуется буква.
+    /// Значок круга сервиса — знак выбранного сервиса.
     private var sourceIcon: IconName {
-        switch source {
-        case .soundcloud: .soundcloud
-        case .yandex: .music
-        case .youtube: .youtubeMusic
-        case .vk, .spotify: .music
-        }
+        source.service?.icon ?? .spotify
     }
 
     private var history: [String] {
@@ -102,16 +91,6 @@ struct SearchView: View {
                         let connected = await SpotifyCore.shared.account != nil
                         sourceRaw = source.next(spotifyConnected: connected).rawValue
                         router.say("Ищу в \(source.title)")
-                    }
-                }
-                .overlay {
-                    if let badge = source.badge {
-                        Text(badge)
-                            .font(.system(size: 20, weight: .heavy))
-                            .foregroundStyle(Theme.text)
-                            .frame(width: 52, height: 52)
-                            .background(Theme.raised, in: Circle())
-                            .allowsHitTesting(false)
                     }
                 }
                 CircleButton(icon: .link, label: "Вставить ссылку") { pasteLink() }

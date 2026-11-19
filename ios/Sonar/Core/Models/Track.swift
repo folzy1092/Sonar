@@ -160,13 +160,13 @@ enum Service: String, Codable, Sendable, CaseIterable {
         return all[(index + 1) % all.count]
     }
 
-    /// Буква сервиса на круглом значке, где своего контура нет (у SoundCloud и YouTube Music — значок).
-    var mark: String? {
+    /// Знак сервиса (бейдж источника, кнопка сервиса в Поиске) — у каждого свой контур, без букв.
+    var icon: IconName {
         switch self {
-        case .soundcloud: nil
-        case .yandex: "Я"
-        case .youtube: nil
-        case .vk: "VK"
+        case .soundcloud: .soundcloud
+        case .yandex: .yandexMusic
+        case .youtube: .youtubeMusic
+        case .vk: .vk
         }
     }
 }

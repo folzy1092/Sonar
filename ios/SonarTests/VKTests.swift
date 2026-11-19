@@ -199,9 +199,10 @@ final class VKTests: XCTestCase {
         let data = try JSONEncoder().encode(VKCreds(token: "vk1.a.test"))
         XCTAssertEqual(try JSONDecoder().decode(VKCreds.self, from: data), VKCreds(token: "vk1.a.test"))
         XCTAssertEqual(Service.vk.info.key, "vk")
-        XCTAssertEqual(Service.vk.mark, "VK")
-        XCTAssertEqual(Service.yandex.mark, "Я")
-        XCTAssertNil(Service.soundcloud.mark)
+        XCTAssertEqual(Service.vk.icon, .vk)
+        XCTAssertEqual(Service.yandex.icon, .yandexMusic)
+        XCTAssertEqual(Service.soundcloud.icon, .soundcloud)
+        XCTAssertEqual(Service.youtube.icon, .youtubeMusic)
     }
 
     /// Ответ без `count` не обрывает страницы на первой: идём дальше, пока страница полная.

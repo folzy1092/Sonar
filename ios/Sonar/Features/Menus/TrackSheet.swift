@@ -115,18 +115,10 @@ struct TrackSheet: View {
                         .textSelection(.enabled)
                 }
                 Spacer(minLength: 12)
-                if track.service == .soundcloud {
-                    SonarIcon(.soundcloud, size: 30).foregroundStyle(Theme.text)
-                } else if track.service == .youtube {
-                    SonarIcon(.youtubeMusic, size: 30).foregroundStyle(Theme.text)
-                } else if let mark = track.service?.mark {
-                    Text(mark)
-                        .font(.system(size: 16, weight: .heavy))
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
-                        .foregroundStyle(Theme.background)
-                        .frame(width: 26, height: 26)
-                        .background(Theme.text, in: Circle())
+                if let id = ServiceRegistry.service(of: track.ref), id != .local {
+                    SonarIcon(LibraryServices.icon(id), size: 30)
+                        .foregroundStyle(Theme.text)
+                        .accessibilityLabel(t(ServiceRegistry.info(id).name))
                 }
             }
             .padding(.horizontal, Theme.gutter)
