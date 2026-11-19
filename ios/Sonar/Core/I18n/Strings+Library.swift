@@ -3,6 +3,14 @@
 
 extension I18n {
     static let libraryEN: [String: String] = [
+        "Плейлисты {service}, следующий сервис": "{service} playlists, next service",
+        "{service}: не подключено — нажми, чтобы войти": "{service}: not connected — tap to sign in",
+        "Свой плейлист Sonar из плейлиста сервиса: треки разных сервисов потом можно смешивать.": "Your own Sonar playlist from a service playlist: you can mix tracks from different services later.",
+        "Импорт": "Import",
+        "Не подключено — войти": "Not connected — sign in",
+        "Уже в Sonar": "Already in Sonar",
+        "Плейлист пуст": "Playlist is empty",
+        "Импорт из сервисов": "Import from services",
         "Альбом в медиатеке": "Album saved to library",
         "Альбом убран из медиатеки": "Album removed from library",
         "В Любимых: {count}": "Added to Liked: {count}",
@@ -27,6 +35,14 @@ extension I18n {
     ]
 
     static let libraryUK: [String: String] = [
+        "Плейлисты {service}, следующий сервис": "Плейлисти {service}, наступний сервіс",
+        "{service}: не подключено — нажми, чтобы войти": "{service}: не підключено — натисни, щоб увійти",
+        "Свой плейлист Sonar из плейлиста сервиса: треки разных сервисов потом можно смешивать.": "Свій плейлист Sonar з плейлиста сервісу: треки різних сервісів потім можна змішувати.",
+        "Импорт": "Імпорт",
+        "Не подключено — войти": "Не підключено — увійти",
+        "Уже в Sonar": "Вже в Sonar",
+        "Плейлист пуст": "Плейлист порожній",
+        "Импорт из сервисов": "Імпорт із сервісів",
         "Альбом в медиатеке": "Альбом у медіатеці",
         "Альбом убран из медиатеки": "Альбом прибрано з медіатеки",
         "В Любимых: {count}": "В Улюблених: {count}",

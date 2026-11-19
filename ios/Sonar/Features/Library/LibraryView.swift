@@ -52,6 +52,13 @@ struct LibraryView: View {
     @State private var playlists: [ServicePlaylist] = []
     @State private var creating = false
     @State private var smartEditor: SmartDraft?
+    @State private var loadingPlaylists = false
+    /// Какие сервисы были подключены при последней загрузке плейлистов (подключил новый — перезагрузить).
+    @State private var loadedFor: String?
+    @State private var loadedAt = Date.distantPast
+    @State private var showImport = false
+    /// Вход в сервис из Медиатеки («не подключено — нажми»).
+    @State private var connectService: ServiceSheetItem?
     @FocusState private var searchFocused: Bool
     private var downloads: DownloadStore { DownloadStore.shared }
     private var store: PlaylistStore { PlaylistStore.shared }
@@ -78,6 +85,18 @@ struct LibraryView: View {
                     .padding(.top, 14)
                     .id(section)
                     .transition(.opacity.combined(with: .offset(y: 10)))
+                if section == .all || section == .playlists {
+                    ServicePlaylistsBlock(
+                        playlists: playlists.filter { matches($0.title) || matches($0.owner) },
+                        moved: Set(store.playlists.compactMap(\.sourceRef)),
+                        loading: loadingPlaylists,
+                        grid: section == .playlists,
+                        open: { router.push(.playlist($0), on: .library, chrome: chrome) },
+                        connect: { connectService = ServiceSheetItem(id: $0) }
+                    )
+                    .padding(.top, 30)
+                    .transition(.opacity.combined(with: .offset(y: 10)))
+                }
             }
             .padding(.bottom, 170)
         }
@@ -101,8 +120,23 @@ struct LibraryView: View {
             .presentationCornerRadius(30)
             .presentationBackground(Theme.background)
         }
-        .task { playlists = await MusicCore.shared.myPlaylists() }
-        .refreshable { playlists = await MusicCore.shared.myPlaylists() }
+        // вкладка живёт всё время: подключил сервис в Профиле — при возвращении плейлисты подтянутся
+        .onAppear { Task { await reloadPlaylists(force: false) } }
+        .refreshable { await reloadPlaylists(force: true) }
+        .sheet(isPresented: $showImport) {
+            ImportPlaylistsSheet(playlists: playlists) { id in
+                connectService = ServiceSheetItem(id: id)
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(30)
+            .presentationBackground(Theme.background)
+        }
+        .sheet(item: $connectService, onDismiss: { Task { await reloadPlaylists(force: true) } }) { item in
+            NavigationStack { ServicesView(only: LibraryServices.settingsService(item.id)) }
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Theme.background)
+        }
     }
 
     // MARK: - Шапка
@@ -142,6 +176,7 @@ struct LibraryView: View {
             Menu {
                 Button(t("Новый плейлист")) { creating = true }
                 Button(t("Умный плейлист — по правилам")) { smartEditor = .blank }
+                Button(t("Импорт из сервисов")) { showImport = true }
             } label: {
                 SonarIcon(.plus, size: 22)
                     .foregroundStyle(Theme.text)
@@ -198,11 +233,18 @@ struct LibraryView: View {
         return q.isEmpty || text.localizedCaseInsensitiveContains(q)
     }
 
-    private var shownPlaylists: [ServicePlaylist] {
-        // перенесённые в Sonar — уже среди своих, второй раз не показываем
-        let moved = Set(store.playlists.compactMap(\.sourceRef))
-        let list = playlists.filter { !moved.contains($0.ref) && source.keeps($0.ref) && (matches($0.title) || matches($0.owner)) }
-        return sort == .title ? list.sorted { $0.title.localizedCompare($1.title) == .orderedAscending } : list
+    /// Плейлисты сервисов: при первом показе, после подключения сервиса (другой набор аккаунтов) и не чаще
+    /// раза в 5 минут; потянул вниз — сразу.
+    private func reloadPlaylists(force: Bool) async {
+        let status = await MusicCore.shared.status()
+        let key = [status.soundCloud, status.yandex, status.youtube, status.vk].map { $0?.uid ?? $0?.name ?? "-" }.joined(separator: "|")
+        guard force || key != loadedFor || Date().timeIntervalSince(loadedAt) > 300, !loadingPlaylists else { return }
+        loadingPlaylists = true
+        defer { loadingPlaylists = false }
+        let list = await MusicCore.shared.myPlaylists()
+        withAnimation(Motion.spring) { playlists = list }
+        loadedFor = key
+        loadedAt = Date()
     }
 
     /// Свои плейлисты: во «Все» — без скрытых. Фильтр сервиса — по происхождению (перенесённые) или по
@@ -312,12 +354,6 @@ struct LibraryView: View {
                     }
                     .cascade(index + 2 + own.count)
                 }
-                ForEach(Array(shownPlaylists.enumerated()), id: \.element.ref) { index, playlist in
-                    LibraryTile(title: playlist.title, subtitle: playlist.owner, cover: playlist.coverURL) {
-                        router.push(.playlist(playlist), on: .library, chrome: chrome)
-                    }
-                    .cascade(index + 2 + own.count + smartLists.count)
-                }
             }
             if section == .all || section == .albums {
                 ForEach(Array(albums.prefix(section == .all ? 6 : 200).enumerated()), id: \.element.ref) { index, album in
@@ -358,6 +394,11 @@ struct LibraryView: View {
             ? t("Здесь появятся артисты из Любимых и те, на кого ты подписан")
             : t("Здесь появятся сохранённые альбомы и альбомы треков из Любимых")
     }
+}
+
+/// Сервис для листа входа из Медиатеки.
+struct ServiceSheetItem: Identifiable {
+    let id: ServiceID
 }
 
 struct LibraryAlbum: Hashable {
