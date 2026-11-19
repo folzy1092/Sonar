@@ -178,6 +178,7 @@ prefix = текст до ПЕРВОГО ':'   (нет ':' или пустой п
 | PUT | `/services/yandex` | `{token}` → `{connected, name, avatar_url, premium}` (по-прежнему работает) |
 | GET | `/services/yandex/oauth-url` | → `{url}` (для входа в один клик) |
 | PUT | `/services/vk/key` | `{fields: {token: "vk1.a.…"}}` → как выше; ключ — токен Kate Mobile (ПК: `connect_service_key {service: "vk", fields}`) |
+| GET | `/services/credentials` | → `{soundcloud: {client_id, oauth_token}, yandex: {token}, vk: {token}, …}` — входы для **этого** устройства пользователя (синк аккаунтов, решение 2026-11-19): клиент кладёт их в keyring / Keychain и играет сам. Только по сессии устройства; в логах и ответах ошибок не повторяется |
 | DELETE | `/services/{svc}` | → `204` |
 | GET | `/services/{svc}/playlists` | фантомные плейлисты → `[ServicePlaylist]` |
 | GET | `/services/{svc}/playlists/{id}/tracks` | → `[Track]` |
@@ -266,7 +267,7 @@ Sonar, после возврата на `music.youtube.com` забираются
 |---|---|---|
 | GET | `/search?q=&src=all\|sc\|ym\|vk&kind=track\|album\|artist\|playlist&limit=30` | `{tracks:[], albums:[], artists:[], playlists:[]}`; `src` — короткий id работающего сервиса (§2 «Префиксы ref») |
 | GET | `/tracks/{ref}` | `Track` |
-| GET | `/tracks/{ref}/stream?quality=low\|medium\|high\|max` | `StreamInfo` |
+| GET | `/tracks/{ref}/stream?quality=low\|medium\|high\|max` | `StreamInfo` — **клиенты не используют** (2026-11-19: поток берёт устройство само, через аккаунт пользователя); оставлен для селфбота / отладки |
 | GET | `/tracks/{ref}/related` | `[Track]` |
 | GET | `/albums/{ref}` · `/artists/{ref}` | альбом с треками · артист с топом |
 | GET | `/home` | `{greeting, blocks: [Block]}` |
