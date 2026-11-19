@@ -404,7 +404,8 @@ actor MusicCore {
             out.append(ServicePlaylist(ref: "ympl:likes", title: "Мне нравится", owner: yandex.account.name ?? "", coverURL: nil, trackCount: 0))
             // «Мне нравится» в Яндексе — kind 3, он уже есть строкой выше
             let lists = (try? await Yandex(token: yandex.creds.token).userPlaylists(uid)) ?? []
-            out += lists.filter { !$0.ref.hasSuffix(":3") }
+            // «Мне нравится» бывает и под другим kind — второй раз не показываем
+            out += lists.filter { !$0.ref.hasSuffix(":3") && $0.title != "Мне нравится" }
         }
         if let youtube {
             out.append(ServicePlaylist(ref: Self.youTubeLikesRef, title: YouTube.likesTitle, owner: youtube.account.name ?? "", coverURL: nil, trackCount: 0))

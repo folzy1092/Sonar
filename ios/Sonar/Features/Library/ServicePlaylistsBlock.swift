@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// Сервисы с плейлистами, по порядку реестра: SoundCloud, Яндекс, YouTube Music, VK, Spotify.
+@MainActor
 enum LibraryServices {
     static var all: [ServiceInfo] {
         ServiceRegistry.all.filter { $0.implemented && $0.caps.playlists }
@@ -10,8 +11,11 @@ enum LibraryServices {
     static func icon(_ id: ServiceID) -> IconName {
         switch id {
         case .sc: .soundcloud
+        case .ym: .yandexMusic
         case .yt: .youtubeMusic
-        default: .music
+        case .vk: .vk
+        case .sp: .spotify
+        case .local: .music
         }
     }
 
@@ -137,10 +141,13 @@ struct ServicePlaylistsBlock: View {
 
     private func tile(_ playlist: ServicePlaylist) -> some View {
         let likes = playlist.ref.hasSuffix(":likes")
+        // «Мне нравится» и «Лайки» — подписью сервис, а не владелец: иначе не понять, чьи лайки
+        let subtitle = likes ? t(current.name) : (playlist.trackCount > 0 ? tracksCount(playlist.trackCount) : playlist.owner)
         return LibraryTile(title: playlist.title,
-                           subtitle: playlist.trackCount > 0 ? tracksCount(playlist.trackCount) : playlist.owner,
+                           subtitle: subtitle,
                            icon: likes && playlist.coverURL == nil ? .heart : nil,
-                           cover: playlist.coverURL) {
+                           cover: playlist.coverURL,
+                           badge: current.id) {
             open(playlist)
         }
     }
@@ -235,6 +242,11 @@ struct ImportPlaylistsSheet: View {
             }
             .frame(width: 52, height: 52)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(alignment: .bottomTrailing) {
+                if let id = ServiceRegistry.service(of: playlist.ref) {
+                    ServiceBadge(id: id, size: 20).offset(x: 4, y: 4)
+                }
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(playlist.title)
                     .font(.system(size: 16, weight: .medium))
@@ -288,5 +300,21 @@ struct ImportPlaylistsSheet: View {
                 failed[playlist.ref] = error.localizedDescription
             }
         }
+    }
+}
+
+/// Знак сервиса в цветном круге — в углу обложки плейлиста сервиса.
+struct ServiceBadge: View {
+    let id: ServiceID
+    var size: CGFloat = 28
+
+    var body: some View {
+        SonarIcon(LibraryServices.icon(id), size: size * 0.56)
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(LibraryServices.tint(ServiceRegistry.info(id)), in: Circle())
+            .overlay(Circle().strokeBorder(.black.opacity(0.25), lineWidth: 1))
+            .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+            .accessibilityLabel(t(ServiceRegistry.info(id).name))
     }
 }

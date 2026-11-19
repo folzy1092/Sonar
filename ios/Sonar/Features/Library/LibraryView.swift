@@ -427,6 +427,8 @@ struct LibraryTile: View {
     /// Коллаж своего плейлиста (`PlaylistCollage`) вместо одной обложки.
     var covers: [String]?
     var round = false
+    /// Знак сервиса в углу обложки (плейлисты сервисов).
+    var badge: ServiceID?
     let action: @MainActor () -> Void
 
     var body: some View {
@@ -449,6 +451,9 @@ struct LibraryTile: View {
                         }
                     }
                     .clipShape(round ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 20, style: .continuous)))
+                    .overlay(alignment: .bottomTrailing) {
+                        if let badge { ServiceBadge(id: badge).padding(10) }
+                    }
                     .padding(.bottom, 9)
                 Text(title)
                     .font(.system(size: 17, weight: .medium))

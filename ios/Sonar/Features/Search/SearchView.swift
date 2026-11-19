@@ -445,7 +445,7 @@ struct SearchView: View {
             ScrollView(.horizontal) {
                 HStack(alignment: .top, spacing: 16) {
                     ForEach(more.playlists, id: \.ref) { playlist in
-                        LibraryTile(title: playlist.title, subtitle: playlist.owner, cover: playlist.coverURL) {
+                        LibraryTile(title: playlist.title, subtitle: playlist.owner, cover: playlist.coverURL, badge: ServiceRegistry.service(of: playlist.ref)) {
                             remember(query)
                             router.push(.playlist(playlist), on: .search, chrome: chrome)
                         }

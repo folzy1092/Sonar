@@ -48,6 +48,10 @@ const MAP = {
 const BRANDS = { soundcloud: 'soundcloud' }
 // Сервисы: знак YouTube Music
 BRANDS.youtubeMusic = 'youtubemusic'
+// значки сервисов на обложках Медиатеки (2026-11-19): VK и Spotify — Simple Icons; Яндекса там нет — знак из brand/
+BRANDS.vk = 'vk'
+BRANDS.spotify = 'spotify'
+const BRAND_FILES = { yandexMusic: ['yandex-music-mono.svg', 48] }
 
 const paths = (body) => [...body.matchAll(/<path[^>]*\sd="([^"]+)"/g)].map((m) => m[1])
 
@@ -85,6 +89,11 @@ for (const [k, v] of Object.entries(MAP)) {
 for (const [k, v] of Object.entries(BRANDS)) {
   const d = paths(brands.icons[v].body).map(absolute).join(' ')
   entries.push({ name: k, line: d, fill: d, size: 24 })
+}
+for (const [k, [file, size]] of Object.entries(BRAND_FILES)) {
+  const svg = readFileSync(new URL(`../../brand/icon/${file}`, import.meta.url), 'utf8')
+  const d = paths(svg).map(absolute).join(' ')
+  entries.push({ name: k, line: d, fill: d, size })
 }
 
 // знак Sonar: viewBox логотипа сдвинут, приводим к квадрату 0…S с центровкой
