@@ -4,8 +4,9 @@ import WebKit
 
 /// Вход в сервис обычной страницей сайта внутри Sonar (как `login.rs` на ПК): после входа сайт ставит
 /// cookie — забираем её и закрываем окно. Так входим в SoundCloud (`oauth_token`) и Spotify (`sp_dc`):
-/// своего OAuth-приложения с адресом возврата у них нет. Хранилище cookie — временное (не путается со
-/// старым входом), значение cookie никуда, кроме `done`, не уходит.
+/// своего OAuth-приложения с адресом возврата у них нет. Значение cookie никуда, кроме `done`, не уходит.
+/// Хранилище: у Spotify — временное (не путается со старым входом); у SoundCloud — постоянное своё
+/// (`SoundCloudWebStore`), чтобы при 401 скрытое окно тихо взяло свежий `oauth_token` (п. 8 POLISH_PROMPT).
 struct CookieLoginSheet: View {
     /// Заголовок уже переведён (`t(...)`).
     let title: String
@@ -13,6 +14,10 @@ struct CookieLoginSheet: View {
     /// Имя cookie и домен, на котором её ждём (`soundcloud.com`, `spotify.com`).
     let cookie: String
     let domain: String
+    /// Постоянное хранилище входа — nil: временное.
+    var store: WKWebsiteDataStore? = nil
+    /// Старое значение cookie (устаревший вход) — его не принимаем, ждём новое.
+    var ignore: String? = nil
     let done: @MainActor (String) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -28,7 +33,7 @@ struct CookieLoginSheet: View {
             }
             .padding(.horizontal, 18)
             .frame(height: 52)
-            CookieLoginWebView(url: url, cookie: cookie, domain: domain, done: done)
+            CookieLoginWebView(url: url, cookie: cookie, domain: domain, store: store, ignore: ignore, done: done)
         }
         .background(Theme.background.ignoresSafeArea())
     }
@@ -36,11 +41,31 @@ struct CookieLoginSheet: View {
 
 /// Вход в SoundCloud: cookie `oauth_token` с soundcloud.com.
 struct SoundCloudLoginSheet: View {
+    /// Токен, который SoundCloud уже не принимает (вход заново по плашке).
+    var ignore: String? = nil
     let done: @MainActor (String) -> Void
 
     var body: some View {
         CookieLoginSheet(title: t("Вход в SoundCloud"), url: URL(string: "https://soundcloud.com/signin")!,
-                         cookie: "oauth_token", domain: "soundcloud.com", done: done)
+                         cookie: SoundCloudWebStore.cookie, domain: SoundCloudWebStore.domain,
+                         store: SoundCloudWebStore.shared, ignore: ignore, done: done)
+    }
+}
+
+/// Постоянное хранилище страниц входа SoundCloud — одно на окно входа и скрытый тихий вход.
+@MainActor
+enum SoundCloudWebStore {
+    static let cookie = "oauth_token"
+    static let domain = "soundcloud.com"
+    /// Своё хранилище (не общее с другими сервисами), id постоянный — переживает перезапуск.
+    static let shared = WKWebsiteDataStore(forIdentifier: UUID(uuidString: "6F1C2E8A-5B0D-4C3E-9A7F-2D41B8C6E903")!)
+
+    /// Свежая cookie входа, если она не `ignore`.
+    static func token(in store: WKWebsiteDataStore, ignore: String?) async -> String? {
+        let cookies = await store.httpCookieStore.allCookies()
+        return cookies.first {
+            $0.name == cookie && $0.domain.hasSuffix(domain) && !$0.value.isEmpty && $0.value != ignore
+        }?.value
     }
 }
 
@@ -48,13 +73,15 @@ private struct CookieLoginWebView: UIViewRepresentable {
     let url: URL
     let cookie: String
     let domain: String
+    let store: WKWebsiteDataStore?
+    let ignore: String?
     let done: @MainActor (String) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(cookie: cookie, domain: domain, done: done) }
+    func makeCoordinator() -> Coordinator { Coordinator(cookie: cookie, domain: domain, ignore: ignore, done: done) }
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
-        config.websiteDataStore = .nonPersistent()
+        config.websiteDataStore = store ?? .nonPersistent()
         // Google / Apple / Facebook открывают вход всплывающим окном — разрешаем
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
         let view = WKWebView(frame: .zero, configuration: config)
@@ -77,6 +104,7 @@ private struct CookieLoginWebView: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         let cookie: String
         let domain: String
+        let ignore: String?
         let done: @MainActor (String) -> Void
         /// Всплывающее окно входа (Google / Apple / Facebook) — поверх страницы сервиса.
         private var popup: WKWebView?
@@ -84,9 +112,10 @@ private struct CookieLoginWebView: UIViewRepresentable {
         private weak var view: WKWebView?
         private var finished = false
 
-        init(cookie: String, domain: String, done: @escaping @MainActor (String) -> Void) {
+        init(cookie: String, domain: String, ignore: String?, done: @escaping @MainActor (String) -> Void) {
             self.cookie = cookie
             self.domain = domain
+            self.ignore = ignore
             self.done = done
         }
 
@@ -132,8 +161,11 @@ private struct CookieLoginWebView: UIViewRepresentable {
             guard !finished, let store = view?.configuration.websiteDataStore.httpCookieStore else { return }
             let name = cookie
             let domain = domain
+            let ignore = ignore
             store.getAllCookies { [weak self] cookies in
-                let value = cookies.first { $0.name == name && $0.domain.hasSuffix(domain) && !$0.value.isEmpty }?.value
+                let value = cookies.first {
+                    $0.name == name && $0.domain.hasSuffix(domain) && !$0.value.isEmpty && $0.value != ignore
+                }?.value
                 guard let value else { return }
                 MainActor.assumeIsolated {
                     guard let self, !self.finished else { return }

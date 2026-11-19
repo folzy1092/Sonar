@@ -625,6 +625,13 @@ export function onRemoteChanged(cb: () => void): () => void {
   return () => void off.then((fn) => fn())
 }
 
+/** SoundCloud: свои ключи не починились (services/sc_repair.rs) — нужен вход заново. */
+export function onSoundCloudRelogin(cb: () => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen('soundcloud:relogin', () => cb())
+  return () => void off.then((fn) => fn())
+}
+
 /** Пульт: телефон привязан (имя телефона). */
 export function onRemotePaired(cb: (name: string) => void): () => void {
   if (!isTauri) return () => {}

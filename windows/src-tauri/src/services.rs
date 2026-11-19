@@ -11,7 +11,7 @@ use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU32};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
@@ -21,6 +21,7 @@ pub mod import;
 mod local;
 mod provider;
 mod sc;
+mod sc_repair;
 mod sp;
 mod vk;
 mod vk_keys;
@@ -109,6 +110,13 @@ pub struct Core {
   sc_raw: Mutex<HashMap<String, Value>>,
   /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
   sc_auto: RwLock<Option<String>>,
+  /// Тихий вход SoundCloud (скрытое окно, `login::soundcloud_silent`) и плашка «Войди заново» —
+  /// ставит `lib.rs`, у ядра нет окна (services/sc_repair.rs).
+  pub sc_hooks: std::sync::OnceLock<ScHooks>,
+  /// Чинится один запрос за раз: остальные 401 ждут и берут уже новые ключи.
+  sc_repair: tokio::sync::Mutex<()>,
+  /// Починить не вышло — до нового входа плашку не повторяем и окно не открываем.
+  sc_stale: AtomicBool,
   streams: Mutex<HashMap<String, (Source, Instant)>>,
   /// Потолок битрейта Яндекса (`audio.quality`): 192 / 256 / 320 / 1411 (FLAC без потерь).
   pub max_kbps: AtomicU32,
@@ -118,6 +126,15 @@ pub struct Core {
   pub fallback: fallback::Fallback,
   /// Локальные файлы: ref → путь (Хранилище → «Папки с музыкой»).
   pub local: crate::local::Index,
+}
+
+/// Тихий вход SoundCloud: на вход — прежний `oauth_token`, на выход — новый или None.
+pub type ScRelogin = Box<dyn Fn(Option<String>) -> futures_util::future::BoxFuture<'static, Option<String>> + Send + Sync>;
+
+pub struct ScHooks {
+  pub relogin: ScRelogin,
+  /// Показать плашку «Войди в SoundCloud заново».
+  pub notice: Box<dyn Fn() + Send + Sync>,
 }
 
 fn status<C>(s: &Option<Stored<C>>) -> ServiceStatus {
@@ -154,6 +171,9 @@ impl Core {
       sp_totp: spotify::default_totp(),
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
+      sc_hooks: std::sync::OnceLock::new(),
+      sc_repair: tokio::sync::Mutex::new(()),
+      sc_stale: AtomicBool::new(false),
       streams: Mutex::new(HashMap::new()),
       max_kbps: AtomicU32::new(crate::providers::yandex::LOSSLESS_KBPS),
       // по умолчанию выключено (решение владельца 2026-11-17): на Яндексе треки бывают заблюрены
@@ -239,6 +259,9 @@ impl Core {
       sp_totp: spotify::default_totp(),
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
+      sc_hooks: std::sync::OnceLock::new(),
+      sc_repair: tokio::sync::Mutex::new(()),
+      sc_stale: AtomicBool::new(false),
       streams: Mutex::new(HashMap::new()),
       max_kbps: AtomicU32::new(crate::providers::yandex::LOSSLESS_KBPS),
       sc_via_yandex: AtomicBool::new(false),
@@ -284,6 +307,7 @@ impl Core {
     let stored = Stored { creds, account };
     secrets::save(ServiceId::Sc.key(), &stored)?;
     *self.sc.write().await = Some(stored.clone());
+    self.sc_stale.store(false, Ordering::Relaxed);
     self.streams.lock().unwrap().clear();
     Ok(status(&Some(stored)))
   }
@@ -394,17 +418,72 @@ impl Core {
       .collect()
   }
 
-  /// Вызов SoundCloud с повтором на свежем публичном client_id при 401/403.
+  /// Вызов SoundCloud с починкой ключей при 401/403: публичный client_id — берём свежий; свои
+  /// ключи — свежий client_id, тихий вход, иначе плашка (services/sc_repair.rs).
   async fn with_sc<T, F, Fut>(&self, f: F) -> Result<T>
   where
     F: Fn(soundcloud::Creds) -> Fut,
     Fut: std::future::Future<Output = Result<T>>,
   {
     let (creds, public) = self.sc_creds(false).await?;
-    match f(creds).await {
-      Err(e) if public && is_auth_error(&e) => f(self.sc_creds(true).await?.0).await,
-      r => r,
+    let err = match f(creds.clone()).await {
+      Err(e) if is_auth_error(&e) => e,
+      r => return r,
+    };
+    if public {
+      return f(self.sc_creds(true).await?.0).await;
     }
+    self.sc_fix(creds, err, &f).await
+  }
+
+  async fn sc_fix<T, F, Fut>(&self, failed: soundcloud::Creds, err: anyhow::Error, f: &F) -> Result<T>
+  where
+    F: Fn(soundcloud::Creds) -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+  {
+    let _one = self.sc_repair.lock().await;
+    let Some(current) = self.sc.read().await.as_ref().map(|s| s.creds.clone()) else { return Err(err) };
+    // пока ждали очереди, ключи уже починил другой запрос
+    if current.client_id != failed.client_id || current.oauth_token != failed.oauth_token {
+      return f(current).await;
+    }
+    if self.sc_stale.load(Ordering::Relaxed) {
+      return Err(sc_repair::relogin_error());
+    }
+    let hooks = self.sc_hooks.get();
+    let old_token = failed.oauth_token.clone();
+    let out = sc_repair::repair(&failed, err, f, || soundcloud::public_client_id(&self.http), || async move {
+      match hooks {
+        Some(h) => (h.relogin)(old_token).await,
+        None => None,
+      }
+    })
+    .await;
+    if let Some((creds, fix)) = out.save {
+      crate::crashlog::write("info", fix.journal());
+      if let Err(e) = self.save_sc_creds(creds).await {
+        log::warn!("SoundCloud: новые ключи не сохранились: {e}");
+      }
+    }
+    if out.relogin {
+      crate::crashlog::write("warn", sc_repair::JOURNAL_RELOGIN);
+      self.sc_stale.store(true, Ordering::Relaxed);
+      if let Some(h) = hooks {
+        (h.notice)();
+      }
+    }
+    out.result
+  }
+
+  /// Обновлённые ключи SoundCloud — в keyring и в ядро (аккаунт прежний).
+  async fn save_sc_creds(&self, creds: soundcloud::Creds) -> Result<()> {
+    let mut guard = self.sc.write().await;
+    let Some(stored) = guard.as_mut() else { return Ok(()) };
+    let next = Stored { creds, account: stored.account.clone() };
+    secrets::save(ServiceId::Sc.key(), &next)?;
+    *guard = Some(next);
+    self.streams.lock().unwrap().clear();
+    Ok(())
   }
 
   async fn ym_creds(&self) -> Result<Stored<yandex::Creds>> {
@@ -611,11 +690,14 @@ impl Core {
 
   /// Поток SoundCloud как есть (публичный client_id обновляется при 401/403).
   async fn sc_resolve(&self, track_ref: &str, id: &str, fresh: bool) -> Result<Source> {
-    let (creds, public) = self.sc_creds(false).await?;
-    match self.sc_stream(&creds, track_ref, id, fresh).await {
-      Err(e) if public && is_auth_error(&e) => self.sc_stream(&self.sc_creds(true).await?.0, track_ref, id, true).await,
-      r => r,
-    }
+    // повтор после 401 — с только что взятым JSON трека (в старом — подпись прежних ключей)
+    let again = AtomicBool::new(false);
+    self
+      .with_sc(|c| {
+        let fresh = fresh || again.swap(true, Ordering::Relaxed);
+        async move { self.sc_stream(&c, track_ref, id, fresh).await }
+      })
+      .await
   }
 }
 

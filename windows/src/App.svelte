@@ -39,6 +39,7 @@
   import { startThumbbar } from './lib/thumbbar.svelte'
   import { library } from './lib/library.svelte'
   import { onMount } from 'svelte'
+  import { initScRelogin } from './lib/sc-relogin'
   import { player } from './player/player.svelte'
   import FullPlayer from './player/FullPlayer.svelte'
   import { lyrics } from './lyrics/lyrics.svelte'
@@ -95,6 +96,8 @@
     hotkeys.init()
     remote.init()
     mini.start()
+    // SoundCloud: ключи не починились — плашка «Войди в SoundCloud заново»
+    initScRelogin()
     // «Тише во время звонков» (calls.rs): микрофон занят другим приложением — музыка стихает
     if (isTauri) void listen<boolean>('call:active', (e) => player.setCall(e.payload))
     // кнопки в превью на панели задач — когда окно уже показано

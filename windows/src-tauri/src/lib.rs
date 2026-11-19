@@ -85,6 +85,7 @@ pub fn run() {
       }
 
       let core = Arc::new(Core::new());
+      set_sc_hooks(&core, app.handle());
       // access_key треков VK: без него чужой трек VK после перезапуска не играет
       core.open_vk_keys(dir.join("vk-keys.json"));
       if let Ok(Some(v)) = db.setting("audio.sc_via_yandex") {
@@ -333,4 +334,17 @@ fn local_cover_response(path: &str) -> tauri::http::Response<Vec<u8>> {
     None => builder.status(404).body(Vec::new()),
   };
   res.unwrap_or_else(|_| tauri::http::Response::new(Vec::new()))
+}
+
+/// Починка входа SoundCloud (services/sc_repair.rs): тихий вход — скрытое окно, плашка «Войди
+/// заново» — событие `soundcloud:relogin` в главное окно.
+fn set_sc_hooks(core: &Core, app: &tauri::AppHandle) {
+  let relogin_app = app.clone();
+  let notice_app = app.clone();
+  let _ = core.sc_hooks.set(services::ScHooks {
+    relogin: Box::new(move |old| Box::pin(login::soundcloud_silent(relogin_app.clone(), old))),
+    notice: Box::new(move || {
+      let _ = tauri::Emitter::emit(&notice_app, "soundcloud:relogin", ());
+    }),
+  });
 }

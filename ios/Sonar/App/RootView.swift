@@ -30,6 +30,7 @@ struct RootView: View {
     @ViewBuilder
     private var app: some View {
         @Bindable var router = router
+        @Bindable var relogin = SoundCloudRelogin.shared
         let animationsOn = settings.bool(LookKey.animations)
         ZStack(alignment: .bottom) {
             // фон приложения (Интерфейс → Вид → Фон): тема, цвет обложки, сама обложка или своя картинка
@@ -62,13 +63,27 @@ struct RootView: View {
                 .animation(Motion.spring, value: chrome.barHidden)
         }
         .overlay(alignment: .top) {
-            if let toast = router.toast {
-                Toast(text: toast)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 6)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .onTapGesture { router.hideToast() }
+            VStack(spacing: 8) {
+                // SoundCloud не принял ключи и починить их не вышло (POLISH_PROMPT п. 8)
+                if relogin.needed {
+                    SoundCloudReloginBanner(relogin: relogin)
+                        .padding(.horizontal, 16)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                if let toast = router.toast {
+                    Toast(text: toast)
+                        .padding(.horizontal, 24)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .onTapGesture { router.hideToast() }
+                }
             }
+            .padding(.top, 6)
+        }
+        .sheet(isPresented: $relogin.signingIn) {
+            SoundCloudLoginSheet(ignore: relogin.staleToken) { token in
+                relogin.connect(token: token, router: router)
+            }
+            .presentationDragIndicator(.visible)
         }
         .background {
             GeometryReader { proxy in

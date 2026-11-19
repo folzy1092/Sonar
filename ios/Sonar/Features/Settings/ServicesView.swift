@@ -352,6 +352,7 @@ struct ServicesView: View {
             Button("Отключить", role: .destructive) {
                 Task {
                     await MusicCore.shared.disconnect(service)
+                    if service == .soundcloud { await SoundCloudWebStore.forget() }
                     status = await MusicCore.shared.status()
                 }
             }

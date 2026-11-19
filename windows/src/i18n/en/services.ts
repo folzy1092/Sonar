@@ -10,6 +10,8 @@ export default {
   'Войти через VK': 'Sign in with VK',
   'Войти через Spotify': 'Sign in with Spotify',
   'Премиум': 'Premium',
+  'Войди в SoundCloud заново': 'Sign in to SoundCloud again',
+  'SoundCloud снова подключён': 'SoundCloud is connected again',
   // короткая метка Яндекс Музыки в переключателе поиска — та же буква на всех языках
   Я: 'Я',
 } satisfies Record<string, string>

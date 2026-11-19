@@ -362,6 +362,39 @@ pub async fn soundcloud(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus
   core.connect_soundcloud(soundcloud::Creds { client_id, oauth_token: Some(token) }).await
 }
 
+/// Сколько скрытое окно ждёт обновлённую cookie входа SoundCloud.
+const SC_SILENT_WAIT: Duration = Duration::from_secs(20);
+
+/// Тихий вход SoundCloud (services/sc_repair.rs): скрытое окно soundcloud.com с той же папкой
+/// WebView, где живёт вход, — сайт сам обновляет `oauth_token`. Ждём значение, отличное от
+/// прежнего; нет — None (тогда плашка «Войди заново»).
+pub async fn soundcloud_silent(app: AppHandle, old: Option<String>) -> Option<String> {
+  let (tx, _rx) = mpsc::unbounded_channel::<Option<String>>();
+  let built = window(&app, "login-soundcloud-silent", "SoundCloud", "https://soundcloud.com/", tx, None)
+    .and_then(|b| Ok(b.visible(false).focused(false).skip_taskbar(true).build()?));
+  let w = match built {
+    Ok(w) => w,
+    Err(e) => {
+      log::warn!("SoundCloud: скрытое окно входа не открылось: {e}");
+      return None;
+    }
+  };
+  let site = Url::parse("https://soundcloud.com/").ok()?;
+  let deadline = tokio::time::Instant::now() + SC_SILENT_WAIT;
+  let mut token = None;
+  while tokio::time::Instant::now() < deadline {
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let Ok(cookies) = w.cookies_for_url(site.clone()) else { break };
+    let fresh = cookies.iter().find(|c| c.name() == "oauth_token" && !c.value().is_empty() && Some(c.value()) != old.as_deref());
+    if let Some(c) = fresh {
+      token = Some(c.value().to_owned());
+      break;
+    }
+  }
+  let _ = w.close();
+  token
+}
+
 /// Страница входа Google, после неё — music.youtube.com.
 const YT_LOGIN_URL: &str = "https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fmusic.youtube.com%2F";
 

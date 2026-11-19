@@ -49,6 +49,13 @@ actor MusicCore {
     var vkKeys = VKKeyStore(file: VKKeyStore.defaultFile)
     /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
     private var publicClientId: String?
+    /// Тихий вход SoundCloud (скрытый WKWebView, `SoundCloudSilentLogin`) — ставит приложение, у ядра
+    /// нет WebView. Прежний `oauth_token` → новый или nil.
+    private var soundCloudRelogin: (@Sendable (String?) async -> String?)?
+    /// Тихий вход уже идёт — остальные 401 ждут его же, второе окно не открываем.
+    private var soundCloudReloginTask: Task<String?, Never>?
+    /// Починить не вышло — до нового входа плашку не повторяем и тихий вход не зовём.
+    private var soundCloudStale = false
     /// Сырой JSON треков SoundCloud — в нём варианты потока.
     var soundCloudRaw: [String: JSONValue] = [:]
     var streams: [String: (source: StreamSource, at: Date)] = [:]
@@ -112,9 +119,17 @@ actor MusicCore {
         let stored = StoredService(creds: creds, account: account)
         ServiceVault.save("soundcloud", stored)
         soundCloud = stored
+        soundCloudStale = false
         streams.removeAll()
         return account
     }
+
+    func setSoundCloudRelogin(_ hook: @escaping @Sendable (String?) async -> String?) {
+        soundCloudRelogin = hook
+    }
+
+    /// Токен входа SoundCloud, который сейчас сохранён (окно входа не берёт эту же устаревшую cookie).
+    func soundCloudToken() -> String? { soundCloud?.creds.oauthToken }
 
     func connectYandex(token: String) async throws -> ServiceAccount {
         let token = token.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -168,14 +183,56 @@ actor MusicCore {
         return (SoundCloud(clientId: id), true)
     }
 
-    /// Вызов SoundCloud с повтором на свежем публичном client_id при 401/403.
+    /// Вызов SoundCloud с починкой ключей при 401/403: публичный client_id — берём свежий; свои ключи —
+    /// свежий client_id, тихий вход, иначе плашка «Войди заново» (`SoundCloudRepair`).
     func withSoundCloud<T: Sendable>(_ call: @Sendable (SoundCloud) async throws -> T) async throws -> T {
+        let stored = soundCloud?.creds
         let (client, isPublic) = try await soundCloudClient()
         do {
             return try await call(client)
-        } catch let error where isPublic && Self.isAuthError(error) {
-            return try await call(try await soundCloudClient(renew: true).client)
+        } catch let error where Self.isAuthError(error) {
+            guard !isPublic, let stored else {
+                return try await call(try await soundCloudClient(renew: true).client)
+            }
+            return try await repairSoundCloud(stored, error: error, call)
         }
+    }
+
+    private func repairSoundCloud<T: Sendable>(_ failed: SoundCloudCreds, error: any Error,
+                                               _ call: @Sendable (SoundCloud) async throws -> T) async throws -> T {
+        // пока ждали, ключи уже починил другой запрос
+        if let current = soundCloud?.creds, current != failed {
+            return try await call(SoundCloud(clientId: current.clientId, oauthToken: current.oauthToken))
+        }
+        if soundCloudStale { throw ServiceError(message: SoundCloudRepair.reloginMessage) }
+        let out = await SoundCloudRepair.repair(
+            old: failed, error: error,
+            call: { try await call(SoundCloud(clientId: $0.clientId, oauthToken: $0.oauthToken)) },
+            freshId: { try await SoundCloud.publicClientId() },
+            relogin: { await self.silentSoundCloudLogin($0) })
+        if let save = out.save, let account = soundCloud?.account {
+            CrashLog.note(save.fix.journal)
+            let stored = StoredService(creds: save.creds, account: account)
+            ServiceVault.save("soundcloud", stored)
+            soundCloud = stored
+            streams.removeAll()
+        }
+        if out.relogin, !soundCloudStale {
+            CrashLog.warn(SoundCloudRepair.journalRelogin)
+            soundCloudStale = true
+            NotificationCenter.default.post(name: SoundCloudRepair.reloginNeeded, object: nil)
+        }
+        return try out.result.get()
+    }
+
+    private func silentSoundCloudLogin(_ old: String?) async -> String? {
+        if let running = soundCloudReloginTask { return await running.value }
+        guard let hook = soundCloudRelogin else { return nil }
+        let task = Task { await hook(old) }
+        soundCloudReloginTask = task
+        let token = await task.value
+        soundCloudReloginTask = nil
+        return token
     }
 
     func yandexClient() throws -> Yandex {

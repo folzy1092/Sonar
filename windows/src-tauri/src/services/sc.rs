@@ -22,11 +22,7 @@ impl Provider for ScProvider<'_> {
 
   async fn search(&self, q: &str, limit: u32) -> Result<Vec<Track>> {
     let core = self.core;
-    let (creds, public) = core.sc_creds(false).await?;
-    let found = match core.sc_search(&creds, q, limit).await {
-      Err(e) if public && super::is_auth_error(&e) => core.sc_search(&core.sc_creds(true).await?.0, q, limit).await?,
-      r => r?,
-    };
+    let found = core.with_sc(|c| async move { core.sc_search(&c, q, limit).await }).await?;
     let mut raw = core.sc_raw.lock().unwrap();
     if raw.len() > 2000 {
       raw.clear();

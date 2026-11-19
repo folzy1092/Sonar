@@ -39,6 +39,8 @@ struct SonarApp: App {
                     StorageUsage.applyCoverLimit(settings)
                     // Last.fm убран (docs/LASTFM_EXIT.md): прежний вход и очередь стираются один раз
                     RetiredIntegrations.forgetOnDevice()
+                    // SoundCloud: тихий вход и плашка «Войди заново», если ключи перестали работать
+                    await SoundCloudRelogin.shared.start()
                     // сервер: синхронизация и версия устройства — без включённого сервера ничего не делают
                     SyncService.shared.start()
                     await AccountStore.shared.reportLaunch()
