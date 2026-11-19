@@ -23,7 +23,6 @@ export default {
   'В Любимые': 'Add to Favorites',
   'Повтор: выкл': 'Repeat: off',
   'Повтор: всё': 'Repeat: all',
-  'Повтор: трек': 'Repeat: track',
   'Назад': 'Previous',
   'Пауза': 'Pause',
   'Играть': 'Play',

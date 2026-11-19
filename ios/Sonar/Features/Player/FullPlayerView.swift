@@ -693,9 +693,14 @@ struct FullPlayerView: View {
     private var controls: some View {
         HStack {
             Button { engine.cycleRepeat() } label: {
-                SonarIcon(engine.repeatMode == .one ? .repeatOne : .repeatAll, size: 26)
-                    .foregroundStyle(engine.repeatMode == .off ? Theme.textSecondary : Theme.accent)
+                PlayerToggleIcon(
+                    icon: RepeatUI.icon(engine.repeatMode),
+                    active: engine.repeatMode != .off,
+                    stateKey: engine.repeatMode.rawValue
+                )
             }
+            .accessibilityLabel(t("Повтор"))
+            .accessibilityValue(RepeatUI.value(of: t(RepeatUI.labelKey(engine.repeatMode))))
             Spacer()
             Button { engine.previous() } label: { SonarIcon(.prev, filled: true, size: 30) }
             Spacer()
@@ -704,9 +709,10 @@ struct FullPlayerView: View {
             Button { engine.next() } label: { SonarIcon(.next, filled: true, size: 30) }
             Spacer()
             Button { engine.toggleShuffle() } label: {
-                SonarIcon(.shuffle, size: 26)
-                    .foregroundStyle(engine.shuffle ? Theme.accent : Theme.textSecondary)
+                PlayerToggleIcon(icon: .shuffle, active: engine.shuffle, stateKey: "\(engine.shuffle)")
             }
+            .accessibilityLabel(t("Перемешивание"))
+            .accessibilityValue(RepeatUI.value(of: t(RepeatUI.shuffleKey(engine.shuffle))))
         }
         .font(.system(size: 22))
         .foregroundStyle(Theme.text)
@@ -955,8 +961,10 @@ struct QueueSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { engine.toggleShuffle() } label: {
-                        SonarIcon(.shuffle, size: 22).foregroundStyle(engine.shuffle ? Theme.accent : Theme.textSecondary)
+                        PlayerToggleIcon(icon: .shuffle, active: engine.shuffle, stateKey: "\(engine.shuffle)", size: 20)
                     }
+                    .accessibilityLabel(t("Перемешивание"))
+                    .accessibilityValue(RepeatUI.value(of: t(RepeatUI.shuffleKey(engine.shuffle))))
                 }
             }
         }

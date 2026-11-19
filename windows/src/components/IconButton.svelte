@@ -2,6 +2,7 @@
   import Icon from './Icon.svelte'
   import type { IconName } from './icons'
   import { pulse as pulseOn } from '../lib/pulse'
+  import { togglePop } from '../lib/toggle-pop'
 
   interface Props {
     icon: IconName
@@ -12,14 +13,26 @@
     disabled?: boolean
     /** «Пульс», когда становится true (лайк). */
     pulse?: boolean
+    /** Переключатель (повтор, перемешивание): вкл — акцент, кружок-подложка и точка под значком. */
+    toggle?: boolean
     onclick?: () => void
   }
 
-  let { icon, label, size = 20, filled = false, active = false, disabled = false, pulse, onclick }: Props = $props()
+  let { icon, label, size = 20, filled = false, active = false, disabled = false, pulse, toggle = false, onclick }: Props = $props()
 </script>
 
-<button class="icon-btn" class:active class:bare={icon === 'heart'} aria-label={label} title={label} {disabled} {onclick}>
-  <span class="ic" use:pulseOn={pulse}><Icon name={icon} {size} {filled} /></span>
+<button
+  class="icon-btn"
+  class:active
+  class:toggle
+  class:bare={icon === 'heart'}
+  aria-label={label}
+  aria-pressed={toggle ? active : undefined}
+  title={label}
+  {disabled}
+  {onclick}
+>
+  <span class="ic" use:pulseOn={pulse} use:togglePop={toggle ? `${icon}:${active}` : ''}><Icon name={icon} {size} {filled} /></span>
 </button>
 
 <style>
@@ -57,6 +70,39 @@
   }
   .icon-btn.active {
     color: var(--accent);
+  }
+  /* Переключатель (docs/POLISH_PROMPT.md п. 5): выкл — серый значок без подложки; вкл — акцент, кружок
+     акцента 15 % и точка 4 px под значком. Цвет и подложка меняются плавно, значок — .toggle-pop (app.css). */
+  .icon-btn.toggle {
+    position: relative;
+    border-radius: 50%;
+  }
+  .icon-btn.toggle.active {
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+  }
+  .icon-btn.toggle.active:hover:not(:disabled) {
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  .icon-btn.toggle::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 2px;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0;
+    transform: scale(0.4);
+    transition:
+      opacity var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .icon-btn.toggle.active::after {
+    opacity: 1;
+    transform: none;
   }
   .ic {
     display: grid;

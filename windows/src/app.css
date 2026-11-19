@@ -202,6 +202,19 @@ button:active:not(:disabled) > .ic > svg.i-heart {
   }
 }
 
+/* Смена состояния переключателя (повтор, перемешивание) — lib/toggle-pop.ts */
+.toggle-pop {
+  animation: toggle-pop 0.22s var(--ease);
+}
+@keyframes toggle-pop {
+  from {
+    transform: scale(0.9);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { repeatIcon, repeatLabel, shuffleLabel } from '../player/repeat-ui'
   import { cascade } from '../lib/cascade'
   // Страница «Сейчас играет» по Dotify (reference/pc/Screenshot_22): обложка слева, справа название
   // по центру, ползунок на всю ширину, волна по звуку, блок кнопок, строка громкости; ниже — очередь.
@@ -166,9 +167,10 @@
       </button>
       <div class="main">
         <IconButton
-          icon={player.repeat === 'one' ? 'repeatOnce' : player.repeat === 'all' ? 'repeat' : 'repeatOff'}
-          label={player.repeat === 'off' ? t('Повтор: выкл') : player.repeat === 'all' ? t('Повтор: всё') : t('Повтор: трек')}
+          icon={repeatIcon(player.repeat)}
+          label={repeatLabel(player.repeat)}
           active={player.repeat !== 'off'}
+      toggle
           disabled={!track}
           onclick={() => player.cycleRepeat()}
         />
@@ -177,7 +179,7 @@
           <PlayPause playing={player.playing} size={26} />
         </button>
         <IconButton icon="next" label={t('Вперёд')} filled disabled={!track} onclick={() => player.next()} />
-        <IconButton icon="shuffle" label={t('Перемешать')} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
+        <IconButton icon="shuffle" label={shuffleLabel(player.shuffle)} toggle active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
       </div>
       <!-- лайк под рукой, рядом с управлением (дизлайк — на обложке) -->
       <IconButton

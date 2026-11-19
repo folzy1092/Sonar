@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { repeatIcon, repeatLabel, shuffleLabel } from '../player/repeat-ui'
   import { knownLyrics, lyricsAvail, sidePane } from './side-pane.svelte'
   import { untrack } from 'svelte'
   // Мини-плеер в стиле «Гибрид» (reference/pc/гибрид.png, mini.style = hybrid): прогресс — фоном,
@@ -165,10 +166,11 @@
 
   <div class="center">
     <IconButton
-      icon={player.repeat === 'one' ? 'repeatOnce' : player.repeat === 'all' ? 'repeat' : 'repeatOff'}
-      label={player.repeat === 'off' ? t('Повтор: выкл') : player.repeat === 'all' ? t('Повтор: всё') : t('Повтор: трек')}
+      icon={repeatIcon(player.repeat)}
+      label={repeatLabel(player.repeat)}
       size={18}
       active={player.repeat !== 'off'}
+      toggle
       disabled={!track}
       onclick={() => player.cycleRepeat()}
     />
@@ -184,7 +186,7 @@
       <PlayPause playing={player.playing} size={22} />
     </button>
     <IconButton icon="next" label={t('Вперёд')} size={18} filled disabled={!track} onclick={() => player.next()} />
-    <IconButton icon="shuffle" label={t('Перемешать')} size={18} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
+    <IconButton icon="shuffle" label={shuffleLabel(player.shuffle)} toggle size={18} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
   </div>
 
   <div class="right">

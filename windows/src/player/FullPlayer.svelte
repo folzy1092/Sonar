@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { repeatIcon, repeatLabel, shuffleLabel } from './repeat-ui'
   // Полноэкранный плеер (reference/pc/fullscreen_player.webp, PLATFORMS.md): фон — «текущая»
   // обложка в WebGL (ArtBackdrop, как у Dotify, движется только во время игры); колонкой обложка (❤ и 👎 на ней), название, исполнитель с аватаром,
   // ползунок, кнопки; громкость — тонкая полоска внизу. Нашёлся текст — колонка уходит влево,
@@ -168,9 +169,10 @@
 
       <div class="controls">
         <IconButton
-          icon={player.repeat === 'one' ? 'repeatOnce' : player.repeat === 'all' ? 'repeat' : 'repeatOff'}
-          label={player.repeat === 'off' ? t('Повтор: выкл') : player.repeat === 'all' ? t('Повтор: всё') : t('Повтор: трек')}
+          icon={repeatIcon(player.repeat)}
+          label={repeatLabel(player.repeat)}
           active={player.repeat !== 'off'}
+      toggle
           disabled={!track}
           onclick={() => player.cycleRepeat()}
         />
@@ -186,7 +188,7 @@
           <PlayPause playing={player.playing} size={30} />
         </button>
         <IconButton icon="next" label={t('Вперёд')} filled disabled={!track} onclick={() => player.next()} />
-        <IconButton icon="shuffle" label={t('Перемешать')} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
+        <IconButton icon="shuffle" label={shuffleLabel(player.shuffle)} toggle active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
       </div>
       {#if player.error}<p class="err">{player.error}</p>{/if}
     </section>
@@ -531,6 +533,13 @@
   }
   .controls :global(.icon-btn) {
     color: rgba(255, 255, 255, 0.85);
+  }
+  /* повтор и перемешивание: выкл — заметно тусклее, вкл — акцент с кружком и точкой (IconButton toggle) */
+  .controls :global(.icon-btn.toggle:not(.active)) {
+    color: rgba(255, 255, 255, 0.5);
+  }
+  .controls :global(.icon-btn.toggle.active) {
+    color: var(--accent);
   }
   .play {
     display: grid;

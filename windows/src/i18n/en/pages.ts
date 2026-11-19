@@ -145,7 +145,6 @@ export default {
   'по твоим лайкам': 'based on your likes',
   'Повтор: всё': 'Repeat: all',
   'Повтор: выкл': 'Repeat: off',
-  'Повтор: трек': 'Repeat: track',
   'Подбираю похожие…': 'Finding similar tracks…',
   'подбираю…': 'picking…',
   'подборка · {tracks}': 'mix · {tracks}',
