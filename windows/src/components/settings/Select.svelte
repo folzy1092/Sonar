@@ -1,11 +1,13 @@
 <script lang="ts" generics="T extends string">
   // Выпадающий список настройки (как «Формат статуса» у Discord): название и подсказка слева,
-  // справа кнопка с выбранным; список открывается и закрывается только кликом. Узкое окно — кнопка
+  // справа кнопка с выбранным; список открывается и закрывается только кликом (пункт, снова кнопка или
+  // мимо), пункты появляются каскадом, у выбранного — галочка. Узкое окно — кнопка
   // уходит под название во всю ширину (общая раскладка settings-row.css).
   import { onMount } from 'svelte'
   import './settings-row.css'
   import Icon from '../Icon.svelte'
   import { pop } from '../../lib/motion'
+  import { cascade } from '../../lib/cascade'
   import Flag from '../Flag.svelte'
   import { t } from '../../lib/i18n.svelte'
 
@@ -44,7 +46,7 @@
       <span class="chev"><Icon name="chevronDown" size={15} /></span>
     </button>
     {#if open}
-      <div class="list" role="listbox" in:pop={{ y: -6 }} out:pop={{ y: -6 }}>
+      <div class="list" role="listbox" use:cascade in:pop={{ y: -6 }} out:pop={{ y: -6 }}>
         {#each options as o (o.id)}
           <button
             class="opt"
@@ -57,7 +59,7 @@
               onchange(o.id)
               open = false
             }}
-            >{#if o.flag}<Flag lang={o.flag} size={18} />{/if}<span>{o.label}</span>{#if o.soon}<i class="soon">{t('скоро')}</i>{/if}</button
+            >{#if o.flag}<Flag lang={o.flag} size={18} />{/if}<span>{o.label}</span>{#if o.soon}<i class="soon">{t('скоро')}</i>{:else if o.id === value}<span class="tick"><Icon name="check" size={15} /></span>{/if}</button
           >
         {/each}
       </div>
@@ -159,6 +161,11 @@
     font-style: normal;
     font-size: calc(11px * var(--fs, 1));
     color: var(--text-3);
+  }
+  .tick {
+    display: grid;
+    margin-left: auto;
+    color: var(--accent, var(--text));
   }
   .opt.on {
     background: var(--surface-3);

@@ -17,7 +17,7 @@ import {
 import { tweenNumber } from './count'
 
 interface PayStrings {
-  plans: Record<PlanId, { name: string; seats: string }>
+  plans: Record<PlanId, { name: string }>
   periods: Record<PeriodId, { short: string; title: string }>
   payTo: string
   noUser: string
@@ -66,7 +66,6 @@ export function initPay(root: HTMLElement): void {
     }
 
     setText(root, '[data-sum-name]', strings.plans[plan.id].name)
-    setText(root, '[data-sum-seats]', strings.plans[plan.id].seats)
     setText(root, '[data-sum-title]', strings.periods[period.id].title)
     setText(root, '[data-sum-short]', strings.periods[period.id].short)
     root.querySelectorAll<HTMLElement>('[data-sum-total]').forEach((el) => tweenNumber(el, price(plan, period), rub))

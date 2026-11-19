@@ -33,6 +33,23 @@ enum SonarDeep {
         Plan(id: "fleet", name: "Fleet", seats: 4, monthly: 380),
     ]
 
+    /// Строка под тарифами: кому достаётся Deep — «только для тебя» / «для тебя и ещё одного друга…» (как ПК
+    /// `seatsNote` в `Subscription.svelte`); друзья — с аккаунтом Sonar.
+    static func seatsNote(seats: Int, lang: Lang) -> String {
+        let friends = seats - 1
+        switch friends {
+        case ...0: return I18n.translate("Deep только для тебя", lang: lang)
+        case 1: return I18n.translate("Deep для тебя и ещё одного друга, у которого есть аккаунт Sonar", lang: lang)
+        case 2: return I18n.translate("Deep для тебя и ещё двух друзей, у которых есть аккаунт Sonar", lang: lang)
+        case 3: return I18n.translate("Deep для тебя и ещё трёх друзей, у которых есть аккаунт Sonar", lang: lang)
+        default:
+            let forms = ["Deep для тебя и ещё {n} друга, у которого есть аккаунт Sonar",
+                         "Deep для тебя и ещё {n} друзей, у которых есть аккаунт Sonar",
+                         "Deep для тебя и ещё {n} друзей, у которых есть аккаунт Sonar"]
+            return I18n.fill(I18n.plural(friends, forms, lang: lang), ["n": String(friends)])
+        }
+    }
+
     static let periods: [Period] = [
         Period(id: "1m", months: 1, discount: 0),
         Period(id: "3m", months: 3, discount: 0.1),

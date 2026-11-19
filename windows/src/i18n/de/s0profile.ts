@@ -1,0 +1,23 @@
+// Немецкий словарь (s0profile): ключ — русская строка интерфейса (lib/i18n.svelte.ts).
+export default {
+  'Публичный профиль': 'Öffentliches Profil',
+  'Копировать ссылку на профиль': 'Profil-Link kopieren',
+  'Сначала задай @username': 'Lege zuerst einen @username fest',
+  'Задай @username — тогда появится ссылка': 'Lege einen @username fest, dann gibt es einen Link',
+  'Задай @username в Аккаунт → Профиль — тогда появится ссылка': 'Lege unter Konto → Profil einen @username fest, dann gibt es einen Link',
+  'Как видят мой профиль': 'So sehen andere mein Profil',
+  'Страница по ссылке заработает, когда у Sonar появится сервер.': 'Die Seite unter diesem Link funktioniert, sobald Sonar einen Server hat.',
+  'Так твой профиль увидят по ссылке': 'So sehen andere dein Profil über den Link',
+  'Изменить профиль': 'Profil bearbeiten',
+  'Профиль Sonar': 'Sonar-Profil',
+  'в Sonar с {date}': 'auf Sonar seit {date}',
+  'Открыть в Sonar': 'In Sonar öffnen',
+  'Кнопка для гостей на сайте: открывает профиль в приложении': 'Eine Schaltfläche für Besucher der Website: öffnet das Profil in der App',
+  'Профиль пока пуст': 'Das Profil ist noch leer',
+  'Лайкни треки и собери плейлисты — они появятся здесь': 'Like ein paar Titel und erstelle Playlists – sie erscheinen hier',
+  'Сейчас слушает': 'Hört gerade',
+  'час музыки|часа музыки|часов музыки': 'Stunde Musik|Stunden Musik',
+  'и ещё {n}': 'und {n} weitere',
+  'плейлист|плейлиста|плейлистов': 'Playlist|Playlists',
+  'Чаще всего слушает': 'Hört am meisten',
+} satisfies Record<string, string>

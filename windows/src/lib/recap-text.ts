@@ -17,7 +17,7 @@ export function periodTitle(ref: RecapRef): string {
 /** «Итоги месяца» / «Итоги года». */
 export const recapKindTitle = (ref: RecapRef) => (ref.kind === 'year' ? t('Итоги года') : t('Итоги месяца'))
 
-const LOCALES = { ru: 'ru-RU', en: 'en-US', uk: 'uk-UA' } as const
+const LOCALES = { ru: 'ru-RU', en: 'en-US', uk: 'uk-UA', es: 'es-ES', de: 'de-DE', pl: 'pl-PL' } as const
 
 /** Число с разделителями разрядов языка интерфейса. */
 export function numberText(n: number): string {

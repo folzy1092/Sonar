@@ -23,8 +23,19 @@
 
   const periodLabel = (months: number) =>
     months === 12 ? t('1 год') : tn(months, ['{n} месяц', '{n} месяца', '{n} месяцев']).replace('{n}', String(months))
-  const seatsLabel = (seats: number) =>
-    seats === 1 ? t('Только ты') : tn(seats - 1, ['Ты и ещё {n} человек', 'Ты и ещё {n} человека', 'Ты и ещё {n} человек']).replace('{n}', String(seats - 1))
+  /** Строка под тарифами: на скольких Deep. 1–3 друга — словами, больше (если тарифы вырастут) — числом. */
+  const seatsNote = (seats: number): string => {
+    const friends = seats - 1
+    if (friends <= 0) return t('Deep только для тебя')
+    if (friends === 1) return t('Deep для тебя и ещё одного друга, у которого есть аккаунт Sonar')
+    if (friends === 2) return t('Deep для тебя и ещё двух друзей, у которых есть аккаунт Sonar')
+    if (friends === 3) return t('Deep для тебя и ещё трёх друзей, у которых есть аккаунт Sonar')
+    return tn(friends, [
+      'Deep для тебя и ещё {n} друга, у которого есть аккаунт Sonar',
+      'Deep для тебя и ещё {n} друзей, у которых есть аккаунт Sonar',
+      'Deep для тебя и ещё {n} друзей, у которых есть аккаунт Sonar',
+    ]).replace('{n}', String(friends))
+  }
 
   function pay() {
     const url = payUrl(plan.id, period.id, cleanUsername(settings.get('profile.username')) || null)
@@ -55,6 +66,12 @@
         </button>
       {/each}
     </div>
+    <!-- все строки тарифов в одной клетке сетки: высота — по самой длинной, смена — только прозрачностью -->
+    <div class="seats">
+      {#each PLANS as p (p.id)}
+        <small class="seat" class:on={planId === p.id} aria-hidden={planId !== p.id}>{seatsNote(p.seats)}</small>
+      {/each}
+    </div>
 
     <b class="label">{t('Срок')}</b>
     <div class="periods" role="radiogroup" aria-label={t('Срок')}>
@@ -78,7 +95,6 @@
     {#key planId}
       <h3 class="name">{SUB_NAME} {plan.name}</h3>
     {/key}
-    <small class="muted">{seatsLabel(plan.seats)}</small>
     <ul class="perks" use:cascade={planId}>
       {#each PERKS as perk (perk)}
         <li><Icon name="check" size={15} />{t(perk)}</li>
@@ -184,8 +200,23 @@
   .seg :global(.tab-ind.pill) {
     background: var(--accent);
   }
+  .seats {
+    display: grid;
+    margin: -2px 4px 0;
+  }
+  .seat {
+    grid-area: 1 / 1;
+    color: var(--text-3);
+    font-size: calc(12px * var(--fs, 1));
+    line-height: 1.4;
+    opacity: 0;
+    transition: opacity var(--normal, 0.26s) var(--ease);
+  }
+  .seat.on {
+    opacity: 1;
+  }
   .label {
-    margin-top: 8px;
+    margin-top: 4px;
     color: var(--text-2);
     font-size: calc(13px * var(--fs, 1));
     font-weight: 600;
@@ -272,12 +303,9 @@
     display: flex;
     flex-direction: column;
     gap: 9px;
-    max-height: 300px;
     margin: 14px 0 6px;
-    padding: 0 6px 0 0;
-    overflow-y: auto;
+    padding: 0;
     list-style: none;
-    scrollbar-width: thin;
   }
   .perks li {
     display: flex;

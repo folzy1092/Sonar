@@ -21,7 +21,7 @@ struct GeneralSettingsView: View {
         SystemScreen(title: t("Общее")) {
             SystemSection(title: t("Язык")) {
                 Button { languageSheet = true } label: {
-                    SystemRow(icon: .translate, title: t("Язык интерфейса"), value: lang.nativeName, chevron: true)
+                    SystemRow(icon: .translate, title: t("Язык интерфейса"), value: "\(lang.flag) \(lang.nativeName)", chevron: true)
                 }
                 .buttonStyle(PressableStyle(scale: 0.99))
             }
@@ -71,7 +71,7 @@ struct GeneralSettingsView: View {
         }
         .sheet(isPresented: $languageSheet) {
             LanguageSheet()
-                .presentationDetents([.height(330)])
+                .presentationDetents([.height(LanguageSheet.height)])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(30)
                 .presentationBackground(Theme.background)
@@ -86,8 +86,13 @@ struct GeneralSettingsView: View {
     }
 }
 
-/// Лист выбора языка: три пункта, отмеченный — галочкой; язык меняется сразу.
+/// Лист выбора языка: флаг, название на самом языке, текущий — галочкой; пункты появляются каскадом
+/// («Меньше движения» — только прозрачность, это делает `cascade`), язык меняется сразу.
 private struct LanguageSheet: View {
+    private static let rowHeight: CGFloat = 56
+    /// Заголовок, пункты, подпись и отступы — лист ровно по содержимому.
+    static let height: CGFloat = 26 + 24 + 14 + rowHeight * CGFloat(Lang.allCases.count) + 14 + 18 + 40
+
     @Environment(SettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
 
@@ -105,7 +110,10 @@ private struct LanguageSheet: View {
                         withAnimation(Motion.spring) { settings.set(Lang.settingKey, .string(lang.rawValue)) }
                         UISelectionFeedbackGenerator().selectionChanged()
                     } label: {
-                        HStack {
+                        HStack(spacing: 12) {
+                            Text(lang.flag)
+                                .font(.system(size: 22))
+                                .accessibilityHidden(true)
                             Text(lang.nativeName)
                                 .font(.system(size: 17, weight: on ? .semibold : .regular))
                                 .foregroundStyle(Theme.text)
@@ -116,11 +124,12 @@ private struct LanguageSheet: View {
                                 .scaleEffect(on ? 1 : 0.6)
                         }
                         .padding(.horizontal, 18)
-                        .frame(height: 56)
+                        .frame(height: Self.rowHeight)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(PressableStyle(scale: 0.99))
                     .animation(Motion.spring, value: on)
+                    .cascade(index)
                 }
             }
             .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))

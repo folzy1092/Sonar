@@ -25,6 +25,7 @@ struct SonarDeepView: View {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel(t("Тариф"))
                 SystemSegments(options: SonarDeep.plans.map { .init(id: $0.id, title: $0.name) }, selection: $planID)
+                seatsNote
             }
             .cascade(0)
             VStack(alignment: .leading, spacing: 8) {
@@ -134,10 +135,6 @@ struct SonarDeepView: View {
                             .font(.system(size: 20, weight: .bold))
                             .foregroundStyle(Theme.text)
                             .contentTransition(.opacity)
-                        Text(seatsLabel(plan.seats))
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.textSecondary)
-                            .contentTransition(.opacity)
                     }
                 }
             }
@@ -183,11 +180,22 @@ struct SonarDeepView: View {
         months == 12 ? t("1 год") : tn(months, "{n} месяц", "{n} месяца", "{n} месяцев").replacingOccurrences(of: "{n}", with: String(months))
     }
 
-    private func seatsLabel(_ seats: Int) -> String {
-        guard seats > 1 else { return t("Только ты") }
-        let more = seats - 1
-        return tn(more, "Ты и ещё {n} человек", "Ты и ещё {n} человека", "Ты и ещё {n} человек")
-            .replacingOccurrences(of: "{n}", with: String(more))
+    /// Кому достаётся Deep у выбранного тарифа. Все четыре строки лежат друг на друге, видна одна: высота —
+    /// по самой длинной, поэтому при смене тарифа строки сменяются наплывом без скачка.
+    private var seatsNote: some View {
+        let lang = currentLang()
+        return ZStack(alignment: .topLeading) {
+            ForEach(SonarDeep.plans) { option in
+                Text(SonarDeep.seatsNote(seats: option.seats, lang: lang))
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .opacity(option.id == planID ? 1 : 0)
+                    .accessibilityHidden(option.id != planID)
+            }
+        }
+        .padding(.horizontal, 4)
     }
 
     private func pay() {

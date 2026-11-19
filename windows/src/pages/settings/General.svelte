@@ -7,6 +7,7 @@
   import Icon from '../../components/Icon.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Choice from '../../components/settings/Choice.svelte'
+  import Select from '../../components/settings/Select.svelte'
   import Card from '../../components/settings/Card.svelte'
   import Soon from '../../components/settings/Soon.svelte'
   import { settings } from '../../lib/settings.svelte'
@@ -20,6 +21,9 @@
     { id: 'ru' as const, label: 'Русский', flag: 'ru' },
     { id: 'en' as const, label: 'English', flag: 'en' },
     { id: 'uk' as const, label: 'Українська', flag: 'uk' },
+    { id: 'es' as const, label: 'Español', flag: 'es' },
+    { id: 'de' as const, label: 'Deutsch', flag: 'de' },
+    { id: 'pl' as const, label: 'Polski', flag: 'pl' },
   ]
 
   const serviceName = (id: ServiceId) => (id === 'ym' ? t('Яндекс') : t(byId(id)?.name ?? id))
@@ -61,7 +65,7 @@
 </script>
 
 <Card>
-  <Choice
+  <Select
     title={t('Язык')}
     hint={t('Язык интерфейса')}
     value={settings.get('general.language')}

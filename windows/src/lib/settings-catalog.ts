@@ -154,7 +154,7 @@ export const CATALOG: readonly CatalogEntry[] = [
     ['Скрывать при паузе', 'Плавно убирать плашку со стрима, когда трек остановлен', undefined, 'obs стрим'],
   ]),
   ...rows('system', 'general', [
-    ['Язык', 'Язык интерфейса', 'general.language', 'language english українська'],
+    ['Язык', 'Язык интерфейса', 'general.language', 'language english українська español deutsch polski idioma sprache język'],
     ['Платформа', 'Откуда главная берёт Sonar Mix и рекомендации', 'general.platform', 'моя волна sonar mix микс soundcloud яндекс'],
     ['Поиск сначала в', 'Чьи результаты единого поиска стоят сверху', 'search.preferred', 'единый поиск предпочтительный сервис'],
     ['Добавление', 'Куда добавлять новые треки в плейлистах', 'general.add_position', 'плейлист начало конец'],

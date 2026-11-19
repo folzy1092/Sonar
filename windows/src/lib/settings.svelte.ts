@@ -2,6 +2,7 @@
 // меняются сразу в интерфейсе и пишутся в локальную базу. Значения по умолчанию — из каталога.
 import { api } from './api'
 import { migrateSettings } from './settings-migrate'
+import { preferredLanguages, systemLang, type Lang } from './system-lang'
 import type { CoverStrength, Surface } from '../theme/palette'
 import type { ServiceId, ServiceKey } from './services'
 import type { NickEffect, NickFont, ProfileColor, ProfileLayout, ProfileLink, ShowcaseItem } from './profile-look'
@@ -32,7 +33,8 @@ export const MINI_SHAPE_ROUND = { default: 0, capsule: 100 } as const
 export const DEFAULTS = {
   'general.platform': 'soundcloud' as ServiceKey,
   /** Язык интерфейса (lib/i18n.svelte.ts), меняется на лету. */
-  'general.language': 'ru' as 'ru' | 'en' | 'uk',
+  // не выбран — язык системы, если он есть в Sonar, иначе русский
+  'general.language': systemLang(preferredLanguages()) as Lang,
   'general.restore': 'queue' as 'none' | 'track' | 'queue',
   'general.similar_autoplay': true,
   'general.add_position': 'start' as 'start' | 'end',

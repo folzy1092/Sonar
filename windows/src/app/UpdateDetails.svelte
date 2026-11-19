@@ -20,7 +20,7 @@
   const p = $derived(updater.phase)
   const entries = $derived(updater.changelog ? pendingEntries(updater.changelog, updater.current, updater.version) : [])
 
-  const LOCALES = { ru: 'ru-RU', en: 'en-GB', uk: 'uk-UA' } as const
+  const LOCALES = { ru: 'ru-RU', en: 'en-GB', uk: 'uk-UA', es: 'es-ES', de: 'de-DE', pl: 'pl-PL' } as const
   const dateText = (d: string) => {
     const ms = Date.parse(d)
     return Number.isNaN(ms) ? '' : new Date(ms).toLocaleDateString(LOCALES[lang()], { day: 'numeric', month: 'long', year: 'numeric' })

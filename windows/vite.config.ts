@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import { defineConfig } from 'vite'
 
@@ -15,4 +16,6 @@ export default defineConfig({
     target: 'chrome120',
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
   },
+  // тесты пишутся под русский интерфейс: «язык системы» в них — русский (lib/system-lang.ts)
+  test: { setupFiles: ['src/test-setup.ts'] },
 })

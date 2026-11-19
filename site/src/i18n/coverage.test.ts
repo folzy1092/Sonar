@@ -1,4 +1,4 @@
-// Каждая строка интерфейса сайта переведена на en и uk: тест собирает ключи из `t('…')` / `tn(n, '…')` в
+// Каждая строка интерфейса сайта переведена на en, uk, es, de и pl: тест собирает ключи из `t('…')` / `tn(n, '…')` в
 // исходниках и из данных (FAQ, документы, тарифы, скриншоты, статус) и сверяет со словарями.
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -15,7 +15,7 @@ import shots from '../../data/shots.json'
 const SRC = join(__dirname, '..')
 const CYRILLIC = /[А-Яа-яЁёІіЇїЄєҐґ]/
 const PLACEHOLDER = /\{(\w+)\}/g
-const FORMS = { en: 2, uk: 3 } as const
+const FORMS = { en: 2, uk: 3, es: 2, de: 2, pl: 3 } as const
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -60,7 +60,7 @@ const KEYS = [
 
 const placeholders = (s: string) => [...new Set([...s.matchAll(PLACEHOLDER)].map((m) => m[1]))].sort()
 
-describe.each(['en', 'uk'] as const)('словарь %s', (lang) => {
+describe.each(['en', 'uk', 'es', 'de', 'pl'] as const)('словарь %s', (lang) => {
   const dict = DICTS[lang]
 
   test('сборщик нашёл строки', () => {
@@ -88,8 +88,8 @@ describe.each(['en', 'uk'] as const)('словарь %s', (lang) => {
     expect(plural.filter((k) => dict[k].split('|').length !== FORMS[lang])).toEqual([])
   })
 
-  test('перевод не пустой и без кириллицы для en', () => {
-    const bad = Object.entries(dict).filter(([, v]) => !v.trim() || (lang === 'en' && /[А-Яа-яЁё]/.test(v)))
+  test('перевод не пустой и без кириллицы (кроме uk)', () => {
+    const bad = Object.entries(dict).filter(([, v]) => !v.trim() || (lang !== 'uk' && CYRILLIC.test(v)))
     expect(bad).toEqual([])
   })
 })

@@ -40,12 +40,55 @@ final class I18nTests: XCTestCase {
 
     func testLanguageFromSystem() {
         XCTAssertEqual(Lang.system(preferred: ["en-US", "ru"]), .en)
-        XCTAssertEqual(Lang.system(preferred: ["de-DE", "uk-UA"]), .uk)
+        XCTAssertEqual(Lang.system(preferred: ["de-DE", "uk-UA"]), .de)
+        XCTAssertEqual(Lang.system(preferred: ["fr-FR", "pl-PL"]), .pl)
+        XCTAssertEqual(Lang.system(preferred: ["es-MX"]), .es)
         XCTAssertEqual(Lang.system(preferred: ["lv-LV"]), .ru)
         XCTAssertEqual(Lang.system(preferred: []), .ru)
         XCTAssertEqual(Lang.resolve("uk", preferred: ["en"]), .uk)
         XCTAssertEqual(Lang.resolve(nil, preferred: ["en"]), .en)
-        XCTAssertEqual(Lang.resolve("de", preferred: ["ru"]), .ru)
+        XCTAssertEqual(Lang.resolve("de", preferred: ["ru"]), .de)
+        XCTAssertEqual(Lang.resolve("fr", preferred: ["ru"]), .ru)
+    }
+
+    /// Порядок списка и флаги — как в ТЗ (флаг только рядом с названием).
+    func testLanguageListOrderAndFlags() {
+        XCTAssertEqual(Lang.allCases, [.ru, .en, .uk, .es, .de, .pl])
+        XCTAssertEqual(Lang.allCases.map(\.nativeName), ["Русский", "English", "Українська", "Español", "Deutsch", "Polski"])
+        XCTAssertEqual(Lang.allCases.map(\.flag), ["🇷🇺", "🇬🇧", "🇺🇦", "🇪🇸", "🇩🇪", "🇵🇱"])
+    }
+
+    func testPolishPluralRule() {
+        XCTAssertEqual([1, 2, 4, 5, 12, 14, 22, 25, 101, 102].map(I18n.plPlural), [0, 1, 1, 2, 2, 2, 1, 2, 2, 1])
+    }
+
+    /// Нет строки в es / de / pl — английская; нет и её — русская.
+    func testNewLanguagesFallBackToEnglish() {
+        XCTAssertEqual(I18n.translate("Общее", lang: .de), I18n.dictionaries[.de]?["Общее"])
+        XCTAssertNotEqual(I18n.translate("Общее", lang: .de), "General")
+        XCTAssertEqual(I18n.translate("Строки нет ни в одном словаре", lang: .pl), "Строки нет ни в одном словаре")
+        let forms = ["минута", "минуты", "минут"]
+        let pl = (I18n.dictionaries[.pl]?[forms.joined(separator: "|")] ?? "").components(separatedBy: "|")
+        XCTAssertEqual(pl.count, 3)
+        XCTAssertEqual(I18n.plural(1, forms, lang: .pl), pl[0])
+        XCTAssertEqual(I18n.plural(3, forms, lang: .pl), pl[1])
+        XCTAssertEqual(I18n.plural(22, forms, lang: .pl), pl[1])
+        XCTAssertEqual(I18n.plural(21, forms, lang: .pl), pl[2])
+        let de = (I18n.dictionaries[.de]?[forms.joined(separator: "|")] ?? "").components(separatedBy: "|")
+        XCTAssertEqual(I18n.plural(1, forms, lang: .de), de.first)
+        XCTAssertEqual(I18n.plural(5, forms, lang: .de), de.last)
+    }
+
+    /// Словари es / de / pl — все ключи английского, те же подстановки, нужное число форм.
+    func testNewLanguageDictionariesAreComplete() {
+        let en = I18n.dictionaries[.en] ?? [:]
+        for (lang, formCount) in [(Lang.es, 2), (.de, 2), (.pl, 3)] {
+            let dict = I18n.dictionaries[lang] ?? [:]
+            XCTAssertEqual(Set(en.keys).subtracting(dict.keys), [], "\(lang): нет перевода")
+            for (key, value) in en where key.split(separator: "|").count == 3 {
+                XCTAssertEqual(dict[key]?.split(separator: "|", omittingEmptySubsequences: false).count, formCount, "\(lang): \(key) (\(value))")
+            }
+        }
     }
 
     /// Словари en и uk — одни ключи; во всех переводах те же подстановки `{…}`, у множественного —

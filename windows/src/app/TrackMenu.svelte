@@ -22,7 +22,7 @@
   let newName = $state('')
   let pos = $state({ left: 0, top: 0 })
 
-  const LOCALES = { ru: 'ru-RU', en: 'en-GB', uk: 'uk-UA' } as const
+  const LOCALES = { ru: 'ru-RU', en: 'en-GB', uk: 'uk-UA', es: 'es-ES', de: 'de-DE', pl: 'pl-PL' } as const
   const target = $derived(trackMenu.target)
   const liked = $derived(target ? library.isLiked(target.track.ref) : false)
   const added = $derived(

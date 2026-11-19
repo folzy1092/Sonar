@@ -1,0 +1,23 @@
+// Испанский словарь (s0profile): ключ — русская строка интерфейса (lib/i18n.svelte.ts).
+export default {
+  'Публичный профиль': 'Perfil público',
+  'Копировать ссылку на профиль': 'Copiar enlace del perfil',
+  'Сначала задай @username': 'Primero define un @username',
+  'Задай @username — тогда появится ссылка': 'Define un @username para obtener un enlace',
+  'Задай @username в Аккаунт → Профиль — тогда появится ссылка': 'Define un @username en Cuenta → Perfil para obtener un enlace',
+  'Как видят мой профиль': 'Cómo ven mi perfil',
+  'Страница по ссылке заработает, когда у Sonar появится сервер.': 'La página de este enlace funcionará cuando Sonar tenga servidor.',
+  'Так твой профиль увидят по ссылке': 'Así verán tu perfil con el enlace',
+  'Изменить профиль': 'Editar perfil',
+  'Профиль Sonar': 'Perfil de Sonar',
+  'в Sonar с {date}': 'en Sonar desde {date}',
+  'Открыть в Sonar': 'Abrir en Sonar',
+  'Кнопка для гостей на сайте: открывает профиль в приложении': 'Un botón para visitantes del sitio: abre el perfil en la app',
+  'Профиль пока пуст': 'El perfil está vacío por ahora',
+  'Лайкни треки и собери плейлисты — они появятся здесь': 'Dale me gusta a canciones y crea listas: aparecerán aquí',
+  'Сейчас слушает': 'Escuchando ahora',
+  'час музыки|часа музыки|часов музыки': 'hora de música|horas de música',
+  'и ещё {n}': 'y {n} más',
+  'плейлист|плейлиста|плейлистов': 'lista|listas',
+  'Чаще всего слушает': 'Lo que más escucha',
+} satisfies Record<string, string>

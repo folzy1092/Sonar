@@ -7,12 +7,16 @@ import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const set = JSON.parse(readFileSync(require.resolve('@iconify-json/flag/icons.json'), 'utf8'))
 /** Код языка → флаг. */
-const LANGS = { ru: 'ru', en: 'gb', uk: 'ua' }
+const LANGS = { ru: 'ru', en: 'gb', uk: 'ua', es: 'es', de: 'de', pl: 'pl' }
+/** Испания — только полосы, без герба: в 18 px его не видно, а весит он 80 КБ. */
+const STRIPES_ONLY = new Set(['es'])
+const stripes = (body) => body.match(/<path [^>]*\/>/g).slice(0, 2).join('')
 const lines = Object.entries(LANGS).map(([lang, f]) => {
   const icon = set.icons[`${f}-4x3`]
   const w = icon.width ?? set.width
   const h = icon.height ?? set.height
-  return `  ${lang}: { body: ${JSON.stringify(icon.body)}, view: '0 0 ${w} ${h}' },`
+  const body = STRIPES_ONLY.has(lang) ? stripes(icon.body) : icon.body
+  return `  ${lang}: { body: ${JSON.stringify(body)}, view: '0 0 ${w} ${h}' },`
 })
 writeFileSync(
   new URL('../src/components/flags.ts', import.meta.url),

@@ -1,0 +1,23 @@
+// Польский словарь (s0profile): ключ — русская строка интерфейса (lib/i18n.svelte.ts).
+export default {
+  'Публичный профиль': 'Profil publiczny',
+  'Копировать ссылку на профиль': 'Kopiuj link do profilu',
+  'Сначала задай @username': 'Najpierw ustaw @username',
+  'Задай @username — тогда появится ссылка': 'Ustaw @username, a pojawi się link',
+  'Задай @username в Аккаунт → Профиль — тогда появится ссылка': 'Ustaw @username w Konto → Profil, a pojawi się link',
+  'Как видят мой профиль': 'Tak inni widzą mój profil',
+  'Страница по ссылке заработает, когда у Sonar появится сервер.': 'Strona pod tym linkiem zadziała, gdy Sonar będzie miał serwer.',
+  'Так твой профиль увидят по ссылке': 'Tak twój profil zobaczą pod linkiem',
+  'Изменить профиль': 'Edytuj profil',
+  'Профиль Sonar': 'Profil Sonar',
+  'в Sonar с {date}': 'w Sonar od {date}',
+  'Открыть в Sonar': 'Otwórz w Sonar',
+  'Кнопка для гостей на сайте: открывает профиль в приложении': 'Przycisk dla gości na stronie: otwiera profil w aplikacji',
+  'Профиль пока пуст': 'Profil jest na razie pusty',
+  'Лайкни треки и собери плейлисты — они появятся здесь': 'Polub utwory i zbuduj playlisty – pojawią się tutaj',
+  'Сейчас слушает': 'Teraz słucha',
+  'час музыки|часа музыки|часов музыки': 'godzina muzyki|godziny muzyki|godzin muzyki',
+  'и ещё {n}': 'i jeszcze {n}',
+  'плейлист|плейлиста|плейлистов': 'playlista|playlisty|playlist',
+  'Чаще всего слушает': 'Najczęściej słucha',
+} satisfies Record<string, string>

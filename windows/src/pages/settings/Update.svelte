@@ -34,7 +34,7 @@
     return updater.checkedAt ? t('Проверено {ago}', { ago: agoText(updater.checkedAt, now) }) : t('Ещё не проверяли')
   })
   const fresh = $derived(p === 'available' || p === 'downloading' || p === 'ready' || p === 'installing')
-  const LOCALES = { ru: 'ru-RU', en: 'en-US', uk: 'uk-UA' } as const
+  const LOCALES = { ru: 'ru-RU', en: 'en-US', uk: 'uk-UA', es: 'es-ES', de: 'de-DE', pl: 'pl-PL' } as const
   const dateText = (d: string) => {
     const ms = Date.parse(d)
     return Number.isNaN(ms) ? d : new Date(ms).toLocaleDateString(LOCALES[lang()], { day: 'numeric', month: 'long', year: 'numeric' })

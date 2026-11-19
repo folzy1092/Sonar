@@ -1,6 +1,7 @@
-// Генератор ios/Sonar/Core/I18n/Strings+Windows.swift: словари en / uk из Windows-клиента
-// (windows/src/i18n/{en,uk}/*.ts) — те же ключи (русская строка), те же переводы. Строки, которых
-// на Windows нет, — руками в ios/Sonar/Core/I18n/Strings+iOS.swift (они главнее).
+// Генератор словарей Windows для iOS: Strings+Windows.swift (en / uk) и Strings+Windows{ES,DE,PL}.swift
+// из windows/src/i18n/<язык>/*.ts — те же ключи (русская строка), те же переводы. Строки, которых
+// на Windows нет, — руками в ios/Sonar/Core/I18n/Strings+iOS.swift и словари экранов (они главнее),
+// для es / de / pl — в Strings+App{ES,DE,PL}.swift.
 // Запуск: cd ios/scripts && node gen-i18n.mjs
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 
@@ -42,3 +43,14 @@ ${dict('windowsUK', uk)}
 `
 writeFileSync(new URL('../Sonar/Core/I18n/Strings+Windows.swift', import.meta.url), swift)
 console.log(`en: ${Object.keys(en).length}, uk: ${Object.keys(uk).length}`)
+
+// es / de / pl — по файлу на язык (словари большие, так компилятору легче)
+for (const lang of ['es', 'de', 'pl']) {
+  const d = load(lang)
+  const U = lang.toUpperCase()
+  writeFileSync(
+    new URL(`../Sonar/Core/I18n/Strings+Windows${U}.swift`, import.meta.url),
+    `// Сгенерировано ios/scripts/gen-i18n.mjs из windows/src/i18n/${lang}/*.ts. Руками не править.\n\nextension I18n {\n${dict(`windows${U}`, d)}\n}\n`,
+  )
+  console.log(`${lang}: ${Object.keys(d).length}`)
+}

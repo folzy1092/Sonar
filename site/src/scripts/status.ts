@@ -31,7 +31,7 @@ interface Strings {
 
 const REFRESH_MS = 60_000
 const TIMEOUT_MS = 8_000
-const LOCALES: Record<Lang, string> = { ru: 'ru-RU', en: 'en-GB', uk: 'uk-UA' }
+const LOCALES: Record<Lang, string> = { ru: 'ru-RU', en: 'en-GB', uk: 'uk-UA', es: 'es-ES', de: 'de-DE', pl: 'pl-PL' }
 
 function fill(text: string, vars: Record<string, string | number>): string {
   return text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m))

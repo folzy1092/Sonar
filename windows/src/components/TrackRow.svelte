@@ -40,7 +40,7 @@
   const target = $derived({ track, addedAt, playlistId, itemId, queueAt })
   /** Файл с этого компьютера пропал — серая строка «Файл не найден» и «Найти в сервисах». */
   const missing = $derived(isMissingLocal(track))
-  const LOCALES = { ru: 'ru-RU', en: 'en-US', uk: 'uk-UA' } as const
+  const LOCALES = { ru: 'ru-RU', en: 'en-US', uk: 'uk-UA', es: 'es-ES', de: 'de-DE', pl: 'pl-PL' } as const
 
   /** Пропавший файл — тот же трек в сервисах: запрос «исполнитель название» в поиске. */
   function findInServices(e?: Event) {

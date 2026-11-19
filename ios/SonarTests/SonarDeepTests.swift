@@ -89,14 +89,35 @@ final class SonarDeepTests: XCTestCase {
 
     func testScreenStringsTranslated() {
         let keys = SonarDeep.perks + [
-            "Подписка", "Тариф", "Срок", "Итого", "1 год", "Только ты", "Подписка на {period}", "Перейти к оплате",
-            "{n} месяц|{n} месяца|{n} месяцев", "Ты и ещё {n} человек|Ты и ещё {n} человека|Ты и ещё {n} человек",
+            "Подписка", "Тариф", "Срок", "Итого", "1 год", "Подписка на {period}", "Перейти к оплате",
+            "{n} месяц|{n} месяца|{n} месяцев", "Deep только для тебя",
+            "Deep для тебя и ещё одного друга, у которого есть аккаунт Sonar",
+            "Deep для тебя и ещё двух друзей, у которых есть аккаунт Sonar",
+            "Deep для тебя и ещё трёх друзей, у которых есть аккаунт Sonar",
             "Музыка, лайки, плейлисты, синхронизация и скачивание треков — бесплатно.",
             "Оплата откроется на сайте Sonar. Подписка придёт на аккаунт, с которого ты её оформил.",
         ]
-        for lang in [Lang.en, .uk] {
+        for lang in Lang.allCases where lang != .ru {
             let dict = I18n.dictionaries[lang] ?? [:]
             for key in keys { XCTAssertNotNil(dict[key], "\(lang): \(key)") }
+        }
+    }
+
+    /// Строка под тарифами: Ping — только ты, Echo / Pod / Fleet — ты и ещё 1 / 2 / 3 друга.
+    func testSeatsNote() {
+        XCTAssertEqual(SonarDeep.plans.map { SonarDeep.seatsNote(seats: $0.seats, lang: .ru) }, [
+            "Deep только для тебя",
+            "Deep для тебя и ещё одного друга, у которого есть аккаунт Sonar",
+            "Deep для тебя и ещё двух друзей, у которых есть аккаунт Sonar",
+            "Deep для тебя и ещё трёх друзей, у которых есть аккаунт Sonar",
+        ])
+        XCTAssertEqual(SonarDeep.seatsNote(seats: 1, lang: .en), "Deep just for you")
+        XCTAssertEqual(SonarDeep.seatsNote(seats: 6, lang: .ru), "Deep для тебя и ещё 5 друзей, у которых есть аккаунт Sonar")
+        XCTAssertEqual(SonarDeep.seatsNote(seats: 6, lang: .en), "Deep for you and 5 more friends who have a Sonar account")
+        for lang in Lang.allCases {
+            let notes = SonarDeep.plans.map { SonarDeep.seatsNote(seats: $0.seats, lang: lang) }
+            XCTAssertEqual(Set(notes).count, 4, "\(lang)")
+            XCTAssertFalse(notes.contains { $0.contains("{n}") }, "\(lang)")
         }
     }
 }
