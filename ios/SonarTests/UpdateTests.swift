@@ -255,6 +255,15 @@ final class SelfUpdateCoreTests: XCTestCase {
         XCTAssertTrue(page.contains("window.location=\"itms-services://?action=download-manifest&url="))
     }
 
+    /// Лист «выйди на рабочий стол» — только когда iOS уже забирает IPA, не поверх окна «Открыть в iTunes?».
+    func testHomeHintOnlyAfterInstallStarted() {
+        XCTAssertNil(HomeScreenHint.text(for: .startingServer))
+        XCTAssertNil(HomeScreenHint.text(for: .waitingForConfirmation(hint: false)))
+        XCTAssertNil(HomeScreenHint.text(for: .waitingForConfirmation(hint: true)))
+        XCTAssertNotNil(HomeScreenHint.text(for: .sending(sent: 1, total: 2)))
+        XCTAssertNotNil(HomeScreenHint.text(for: .installing))
+    }
+
     func testExternalManifestProblem() {
         let payload = InstallLinks.payloadURL(port: 1)
         XCTAssertEqual(InstallLinks.externalManifestProblem(data: nil, statusCode: nil, error: URLError(.timedOut), payload: payload), "нет ответа")

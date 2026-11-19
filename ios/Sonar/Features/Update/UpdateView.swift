@@ -36,7 +36,7 @@ enum SelfUpdateText {
                 let title = updater.diagnostics?.promptSeen == true ? "Установка не началась" : "Окно установки не появилось"
                 return (title, updater.diagnostics?.cause ?? "Нажми «Показать окно установки» или поделись IPA и поставь её через ESign.")
             }
-            return ("Подтверди установку в окне iOS", "Нажми «Установить» в системном окне.")
+            return ("Подтверди установку в окне iOS", "Нажми «Открыть», потом «Установить». Не сворачивай Sonar, пока не нажмёшь «Установить».")
         case let .sending(sent, total):
             let fraction = total > 0 ? Double(sent) / Double(total) : 0
             return ("Установка: передача в iOS · \(percent(fraction))", "Не закрывай Sonar до конца передачи.")
@@ -392,18 +392,17 @@ struct VersionArchiveView: View {
     }
 }
 
-/// На пол экрана после подписи (владелец, 2026-11-17): iOS начинает ставить обновление, только когда
-/// Sonar свёрнут — поэтому прямо говорим «выйди на рабочий стол».
+/// На пол экрана (владелец, 2026-11-17): iOS ставит обновление, только когда Sonar свёрнут — поэтому прямо
+/// говорим «выйди на рабочий стол». Только когда iOS уже забирает IPA (нажато «Открыть» → «Установить»):
+/// раньше лист закрывал окно Safari «Открыть в iTunes?» и звал на рабочий стол до установки, а там
+/// ничего не происходило (владелец, 2026-11-19).
 struct HomeScreenHint: View {
     let title: String
     let text: String
     @State private var bounce = false
 
-    static func text(for stage: SelfUpdateStage) -> (title: String, text: String)? {
+    nonisolated static func text(for stage: SelfUpdateStage) -> (title: String, text: String)? {
         switch stage {
-        case .startingServer, .waitingForConfirmation(hint: false):
-            return ("Нажми «Установить», потом выйди на рабочий стол",
-                    "Sonar подписал обновление. iOS начнёт его ставить, когда ты свернёшь Sonar — смахни вверх от нижнего края.")
         case .sending, .installing:
             return ("Sonar ждёт, пока ты выйдешь на рабочий стол",
                     "Обновление уже у iOS. Сверни Sonar — смахни вверх от нижнего края, установка начнётся сама. Любимые и настройки сохранятся.")

@@ -92,8 +92,10 @@ enum InstallLinks {
         <html lang="ru"><head><meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Sonar</title>
-        <style>body{margin:0;padding:30vh 24px 0;background:#09090a;color:#fff;font:17px -apple-system,sans-serif;text-align:center}div{opacity:.6}a{display:inline-block;margin-top:18px;padding:14px 28px;border-radius:999px;background:#f58c9e;color:#09090a;text-decoration:none;font-weight:600}</style>
+        <style>body{margin:0;padding:24vh 24px 0;background:#09090a;color:#fff;font:17px -apple-system,sans-serif;text-align:center}h1{font-size:24px;margin:0 0 12px}p{margin:0 0 28px;opacity:.6}div{opacity:.6}a{display:inline-block;margin-top:18px;padding:14px 28px;border-radius:999px;background:#f58c9e;color:#09090a;text-decoration:none;font-weight:600}</style>
         </head><body>
+        <h1>Нажми «Открыть», потом «Установить»</h1>
+        <p>Сначала окно «Открыть в iTunes?», за ним — системное «Установить Sonar?». Не сворачивай Sonar, пока не нажмёшь «Установить».</p>
         <div>Если окно установки не появилось:</div>
         <a href="\(attribute)">Установить Sonar</a>
         <script>window.location="\(link)"</script>
