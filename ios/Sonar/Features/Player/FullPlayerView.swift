@@ -551,17 +551,23 @@ struct FullPlayerView: View {
         }
     }
 
+    private static let titleLines = 4
+    private static let titleMinScale: CGFloat = 0.74
+
     private func titleBlock(_ track: Track) -> some View {
         let align = TitleAlign.current(settings)
         let horizontal: HorizontalAlignment = align == .left ? .leading : align == .right ? .trailing : .center
         let frameAlign: Alignment = align == .left ? .leading : align == .right ? .trailing : .center
         let text: TextAlignment = align == .left ? .leading : align == .right ? .trailing : .center
         return VStack(alignment: horizontal, spacing: 6) {
+            // до 4 строк; не влезло — шрифт мельче (до ~18 pt), многоточие только после этого
+            // (POLISH_PROMPT п. 6). С открытым текстом песни блока нет — там своя строка трека
             Text(track.title)
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(Theme.text)
                 .multilineTextAlignment(text)
-                .lineLimit(2)
+                .lineLimit(Self.titleLines)
+                .minimumScaleFactor(Self.titleMinScale)
                 .textSelection(.enabled)
             artistLink(track)
             // «Почему этот трек» — у треков волны, одной строкой

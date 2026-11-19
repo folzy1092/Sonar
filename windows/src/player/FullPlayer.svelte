@@ -11,6 +11,7 @@
   import PlayPause from '../components/PlayPause.svelte'
   import { pulse } from '../lib/pulse'
   import { replay } from '../lib/replay'
+  import { fitTitle, FULL_LINES, COMPACT_LINES } from '../lib/fit-title'
   import { wave } from './my-wave.svelte'
   import { settings } from '../lib/settings.svelte'
   import IconButton from '../components/IconButton.svelte'
@@ -143,7 +144,12 @@
         {/if}
       </div>
 
-      <h1 class="selectable" title={track?.title} use:replay={track?.ref}>{track?.title ?? ''}</h1>
+      <h1
+        class="selectable"
+        title={track?.title}
+        use:replay={track?.ref}
+        use:fitTitle={{ lines: withText ? COMPACT_LINES : FULL_LINES, text: track?.title ?? '' }}
+      >{track?.title ?? ''}</h1>
       <p class="artist selectable" use:replay={track?.ref}>
         {#if avatar}<img src={avatar} alt="" />{/if}
         {#if track}
@@ -468,15 +474,15 @@
   h1 {
     max-width: 100%;
     margin: 22px 0 0;
-    font-size: calc(22px * var(--fs, 1));
+    font-size: calc(22px * var(--fs, 1) * var(--title-scale, 1));
     font-weight: 800;
     line-height: 1.2;
     text-align: center;
-    /* длинное название — во вторую строку, троеточие только после неё */
+    /* до 4 строк со ступенями шрифта (lib/fit-title.ts), с текстом песни — 2; троеточие только после них */
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
+    -webkit-line-clamp: var(--title-lines, 2);
+    line-clamp: var(--title-lines, 2);
     overflow: hidden;
     overflow-wrap: anywhere;
   }
