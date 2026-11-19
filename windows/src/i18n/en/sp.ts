@@ -8,7 +8,7 @@ export default {
   'Spotify не подключён — открой Настройки → Сервисы': 'Spotify is not connected — open Settings → Services',
   'Вставь значение cookie sp_dc с open.spotify.com': 'Paste the sp_dc cookie value from open.spotify.com',
   'Spotify: ключ sp_dc не подошёл — войди заново': 'Spotify: the sp_dc key did not work — sign in again',
-  'Spotify: ключ веб-плеера устарел — нужно обновление Sonar': 'Spotify: the web player key is outdated — Sonar needs an update',
+  'Spotify сменил защиту — Sonar подтянет новый ключ сам, попробуй через минуту': 'Spotify changed its protection — Sonar will fetch the new key itself, try again in a minute',
   'Spotify: непонятный ответ веб-плеера': 'Spotify: unexpected web player response',
   'Spotify: open.spotify.com недоступен': 'Spotify: open.spotify.com is unreachable',
   'Spotify: альбом не найден': 'Spotify: album not found',

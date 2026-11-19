@@ -23,15 +23,40 @@ final class SpotifyTests: XCTestCase {
 
     func testTotpKeyFromCipher() {
         let key = Spotify.totpKey(Spotify.TotpSecret.default.cipher)
-        XCTAssertEqual(String(decoding: key, as: UTF8.self), "5507145853487499592248630329347")
-        XCTAssertEqual(Spotify.totp(key: key, unixSeconds: 1_700_000_000), "863172")
+        XCTAssertEqual(String(decoding: key, as: UTF8.self), "376136387538459893883312310911992847112448894410210511297108")
+        XCTAssertEqual(Spotify.totp(key: key, unixSeconds: 1_700_000_000), "371599")
+    }
+
+    func testRemoteTotpOnlyNewerAndSane() {
+        func parse(_ text: String) -> Spotify.TotpSecret? { SpotifyTotp.parseRemote(Data(text.utf8), current: 61) }
+        XCTAssertEqual(parse(#"{"version":62,"cipher":[1,2,3]}"#), Spotify.TotpSecret(version: 62, cipher: [1, 2, 3]))
+        XCTAssertNil(parse(#"{"version":61,"cipher":[1]}"#), "та же версия — мимо")
+        XCTAssertNil(parse(#"{"version":5,"cipher":[1]}"#), "старая — мимо")
+        XCTAssertNil(parse(#"{"version":70,"cipher":[]}"#), "пустой шифр")
+        XCTAssertNil(parse(#"{"version":70,"cipher":[300]}"#), "не байт")
+        XCTAssertNil(parse("<html>404</html>"))
+        XCTAssertNil(parse(#"{"version":70,"cipher":[\#(Array(repeating: "1", count: 200).joined(separator: ","))]}"#), "слишком длинный")
+    }
+
+    func testTotpStoreAdoptsNewerFile() async {
+        let store = SpotifyTotp()
+        let builtin = await store.current
+        XCTAssertEqual(builtin, .default)
+        let same = await store.adopt(Data(#"{"version":61,"cipher":[9]}"#.utf8))
+        XCTAssertFalse(same)
+        let newer = await store.adopt(Data(#"{"version":64,"cipher":[9,8]}"#.utf8))
+        XCTAssertTrue(newer)
+        let adopted = await store.current.version
+        XCTAssertEqual(adopted, 64)
+        let older = await store.adopt(Data(#"{"version":63,"cipher":[7]}"#.utf8))
+        XCTAssertFalse(older, "назад не откатываемся")
     }
 
     func testTokenQueryShape() {
         let query = Dictionary(uniqueKeysWithValues: Spotify.tokenQuery(.default, unixSeconds: 1_700_000_000))
-        XCTAssertEqual(query["totp"], "863172")
-        XCTAssertEqual(query["totpServer"], "863172")
-        XCTAssertEqual(query["totpVer"], "5")
+        XCTAssertEqual(query["totp"], "371599")
+        XCTAssertEqual(query["totpServer"], "371599")
+        XCTAssertEqual(query["totpVer"], "61")
         XCTAssertEqual(query["productType"], "web-player")
         XCTAssertEqual(query["reason"], "init")
     }

@@ -4,8 +4,9 @@
 //! «Spotify»); без неё трек Spotify — «нужен резервный сервис» (резерв — этап 4).
 //!
 //! Токен: `GET open.spotify.com/api/token` с `totp`/`totpVer`. TOTP — HMAC-SHA1 от «шифра»
-//! веб-плеера; шифр Spotify меняет — тогда ошибка «устарел», а позже шифр будет приходить с
-//! сервера (`GET /config`, поле `spotify_totp`). `sp_dc` не попадает ни в ошибки, ни в лог.
+//! веб-плеера. Шифр Spotify меняет: свежий лежит в репо (`updates/spotify-totp.json`), Sonar читает
+//! его при первом токене после запуска и при отказе «ключ устарел» (`TotpStore`), вшитый —
+//! запасной. `sp_dc` не попадает ни в ошибки, ни в лог.
 
 use super::{http_error, Account, Album, AlbumRef, Artist, ArtistRef, ServicePlaylist, Track, UA};
 use anyhow::{anyhow, bail, Result};
@@ -27,8 +28,14 @@ const TOTP_STEP: u64 = 30;
 
 /// Трек Spotify без Premium (и всегда на iPhone) сам не играет — нужен резервный сервис (этап 4).
 pub const NEEDS_FALLBACK: &str = "Spotify: нужен резервный сервис";
-/// Шифр TOTP веб-плеера сменился — ждём обновление Sonar (потом — с сервера).
-pub const TOTP_STALE: &str = "Spotify: ключ веб-плеера устарел — нужно обновление Sonar";
+/// Шифр TOTP веб-плеера сменился, а свежего в репо ещё нет — Sonar перечитает его сам.
+pub const TOTP_STALE: &str = "Spotify сменил защиту — Sonar подтянет новый ключ сам, попробуй через минуту";
+/// Свежий шифр (docs/POLISH_PROMPT.md п. 3) — файл в репо, как `ios-update.json`.
+const TOTP_REMOTE: &str = "https://raw.githubusercontent.com/folzy1092/Sonar/main/updates/spotify-totp.json";
+/// Перечитывать файл шифра не чаще раза в минуту.
+const TOTP_RECHECK: std::time::Duration = std::time::Duration::from_secs(60);
+/// Байтов в шифре — с запасом: у Spotify их 17–32.
+const TOTP_MAX_LEN: usize = 128;
 /// Токен выдан анонимно: cookie `sp_dc` протух или чужой.
 pub const SP_DC_BAD: &str = "Spotify: ключ sp_dc не подошёл — войди заново";
 pub const NOT_CONNECTED: &str = "Spotify не подключён — открой Настройки → Сервисы";
@@ -38,16 +45,84 @@ pub struct Creds {
   pub sp_dc: String,
 }
 
-/// Шифр TOTP веб-плеера: версия (`totpVer`) и байты. До сервера — вшитый `DEFAULT_TOTP`.
-#[derive(Debug, Clone, PartialEq)]
+/// Шифр TOTP веб-плеера: версия (`totpVer`) и байты — формат `updates/spotify-totp.json`.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct TotpSecret {
   pub version: u32,
   pub cipher: Vec<u8>,
 }
 
-/// Версия 5 — последняя проверенная. Сменится — правка здесь (а с сервером — `GET /config`).
+/// Вшитый запасной шифр: версия 61, проверена 2026-11-19 (v5 Spotify отвергает: `totpVerExpired`).
+/// Сменится — сначала `updates/spotify-totp.json` (доходит без обновления), потом здесь.
 pub fn default_totp() -> TotpSecret {
-  TotpSecret { version: 5, cipher: vec![12, 56, 76, 33, 88, 44, 88, 33, 78, 78, 11, 66, 22, 22, 55, 69, 54] }
+  TotpSecret {
+    version: 61,
+    cipher: vec![44, 55, 47, 42, 70, 40, 34, 114, 76, 74, 50, 111, 120, 97, 75, 76, 94, 102, 43, 69, 49, 120, 118, 80, 64, 78],
+  }
+}
+
+/// Файл шифра из репо → шифр, если он годный и новее `current`. Чужое и битое — мимо.
+pub fn parse_remote_totp(body: &str, current: u32) -> Option<TotpSecret> {
+  let s: TotpSecret = serde_json::from_str(body).ok()?;
+  let ok = s.version > current && !s.cipher.is_empty() && s.cipher.len() <= TOTP_MAX_LEN;
+  ok.then_some(s)
+}
+
+/// Шифр ядра: вшитый, пока файл из репо не дал версию новее.
+pub struct TotpStore {
+  current: std::sync::RwLock<TotpSecret>,
+  /// Когда последний раз читали файл; `None` — ещё ни разу после запуска.
+  checked: Mutex<Option<std::time::Instant>>,
+}
+
+impl Default for TotpStore {
+  fn default() -> Self {
+    Self::new(default_totp())
+  }
+}
+
+impl TotpStore {
+  pub fn new(secret: TotpSecret) -> Self {
+    Self { current: std::sync::RwLock::new(secret), checked: Mutex::new(None) }
+  }
+
+  pub fn current(&self) -> TotpSecret {
+    self.current.read().unwrap_or_else(|e| e.into_inner()).clone()
+  }
+
+  fn adopt(&self, body: &str) -> bool {
+    let mut cur = self.current.write().unwrap_or_else(|e| e.into_inner());
+    let Some(fresh) = parse_remote_totp(body, cur.version) else { return false };
+    crate::crashlog::write("info", &format!("Spotify: шифр веб-плеера из репо — версия {} (была {})", fresh.version, cur.version));
+    *cur = fresh;
+    true
+  }
+
+  /// Перечитать файл шифра (не чаще `TOTP_RECHECK`, а `force=false` — только первый раз после
+  /// запуска). `true` — шифр сменился, токен стоит запросить снова.
+  pub async fn refresh(&self, http: &reqwest::Client, force: bool) -> bool {
+    let mut checked = self.checked.lock().await;
+    let due = match *checked {
+      None => true,
+      Some(at) => force && at.elapsed() >= TOTP_RECHECK,
+    };
+    if !due {
+      return false;
+    }
+    *checked = Some(std::time::Instant::now());
+    let body = match http.get(TOTP_REMOTE).header("User-Agent", UA).send().await {
+      Ok(r) if r.status().is_success() => r.text().await.unwrap_or_default(),
+      Ok(r) => {
+        crate::crashlog::write("warn", &format!("Spotify: файл шифра недоступен (HTTP {})", r.status().as_u16()));
+        return false;
+      }
+      Err(_) => {
+        crate::crashlog::write("warn", "Spotify: файл шифра недоступен (сеть)");
+        return false;
+      }
+    };
+    self.adopt(&body)
+  }
 }
 
 /// Ключ HMAC из шифра: каждый байт XOR ((i % 33) + 9), числа подряд десятичной строкой.
@@ -300,7 +375,7 @@ fn list<T>(v: &Value, f: impl Fn(&Value) -> Option<T>) -> Vec<T> {
 pub struct Spotify<'a> {
   pub http: &'a reqwest::Client,
   pub creds: &'a Creds,
-  pub secret: &'a TotpSecret,
+  pub secret: &'a TotpStore,
   pub cache: &'a Mutex<Option<WebToken>>,
 }
 
@@ -312,10 +387,21 @@ impl Spotify<'_> {
         return Ok(t.access_token.clone());
       }
     }
-    let t = fetch_token(self.http, self.creds, self.secret).await?;
+    let t = self.fresh_token().await?;
     let access = t.access_token.clone();
     *cache = Some(t);
     Ok(access)
+  }
+
+  /// Токен с текущим шифром; шифр устарел — перечитать файл из репо и попробовать ещё раз.
+  async fn fresh_token(&self) -> Result<WebToken> {
+    self.secret.refresh(self.http, false).await;
+    match fetch_token(self.http, self.creds, &self.secret.current()).await {
+      Err(e) if e.to_string() == TOTP_STALE && self.secret.refresh(self.http, true).await => {
+        fetch_token(self.http, self.creds, &self.secret.current()).await
+      }
+      other => other,
+    }
   }
 
   async fn send(&self, url: &str, query: &[(&str, String)], token: &str) -> Result<reqwest::Response> {
@@ -448,17 +534,46 @@ mod tests {
   #[test]
   fn totp_key_from_cipher() {
     let key = totp_key(&default_totp().cipher);
-    assert_eq!(String::from_utf8(key.clone()).unwrap(), "5507145853487499592248630329347");
-    assert_eq!(totp(&key, 1_700_000_000), "863172");
+    assert_eq!(String::from_utf8(key.clone()).unwrap(), "376136387538459893883312310911992847112448894410210511297108");
+    assert_eq!(totp(&key, 1_700_000_000), "371599");
+  }
+
+  #[test]
+  fn remote_totp_only_newer_and_sane() {
+    let fresh = parse_remote_totp(r#"{"version":62,"cipher":[1,2,3]}"#, 61).unwrap();
+    assert_eq!(fresh, TotpSecret { version: 62, cipher: vec![1, 2, 3] });
+    assert_eq!(parse_remote_totp(r#"{"version":61,"cipher":[1]}"#, 61), None, "та же версия — мимо");
+    assert_eq!(parse_remote_totp(r#"{"version":5,"cipher":[1]}"#, 61), None, "старая — мимо");
+    assert_eq!(parse_remote_totp(r#"{"version":70,"cipher":[]}"#, 61), None, "пустой шифр");
+    assert_eq!(parse_remote_totp(r#"{"version":70,"cipher":[300]}"#, 61), None, "не байт");
+    assert_eq!(parse_remote_totp("<html>404</html>", 61), None);
+    let long = format!(r#"{{"version":70,"cipher":{:?}}}"#, vec![1u8; 200]);
+    assert_eq!(parse_remote_totp(&long, 61), None, "слишком длинный");
+  }
+
+  #[test]
+  fn totp_store_adopts_newer_file() {
+    let store = TotpStore::default();
+    assert_eq!(store.current(), default_totp());
+    assert!(!store.adopt(r#"{"version":61,"cipher":[9]}"#));
+    assert!(store.adopt(r#"{"version":64,"cipher":[9,8]}"#));
+    assert_eq!(store.current().version, 64);
+    assert!(!store.adopt(r#"{"version":63,"cipher":[7]}"#), "назад не откатываемся");
+  }
+
+  #[test]
+  fn repo_totp_file_matches_builtin() {
+    let file: TotpSecret = serde_json::from_str(include_str!("../../../../updates/spotify-totp.json")).unwrap();
+    assert!(file.version >= default_totp().version, "файл в репо не старше вшитого шифра");
   }
 
   #[test]
   fn token_query_shape() {
     let q = token_query(&default_totp(), 1_700_000_000);
     let get = |k: &str| q.iter().find(|(n, _)| *n == k).map(|(_, v)| v.as_str());
-    assert_eq!(get("totp"), Some("863172"));
-    assert_eq!(get("totpServer"), Some("863172"));
-    assert_eq!(get("totpVer"), Some("5"));
+    assert_eq!(get("totp"), Some("371599"));
+    assert_eq!(get("totpServer"), Some("371599"));
+    assert_eq!(get("totpVer"), Some("61"));
     assert_eq!(get("productType"), Some("web-player"));
   }
 
@@ -577,7 +692,7 @@ mod live {
   async fn live_token_search_account() {
     let Some(creds) = creds() else { return eprintln!("SP_DC не задан — пропуск") };
     let http = reqwest::Client::new();
-    let secret = default_totp();
+    let secret = TotpStore::default();
     let cache = Mutex::new(None);
     let sp = Spotify { http: &http, creds: &creds, secret: &secret, cache: &cache };
     let me = sp.account().await.unwrap();

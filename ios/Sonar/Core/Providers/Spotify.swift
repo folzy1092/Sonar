@@ -38,18 +38,19 @@ struct Spotify: Sendable {
     static let maxPlaylists = 500
 
     static let needsFallback = "Spotify: нужен резервный сервис"
-    static let totpStale = "Spotify: ключ веб-плеера устарел — нужно обновление Sonar"
+    static let totpStale = "Spotify сменил защиту — Sonar подтянет новый ключ сам, попробуй через минуту"
     static let spDcBad = "Spotify: ключ sp_dc не подошёл — войди заново"
     static let notConnected = "Spotify не подключён — открой Настройки → Сервисы"
     static let unreachable = "Spotify: open.spotify.com недоступен"
 
-    /// Шифр TOTP веб-плеера: версия (`totpVer`) и байты. До сервера — вшитый; потом — `GET /config`.
-    struct TotpSecret: Sendable, Equatable {
+    /// Шифр TOTP веб-плеера: версия (`totpVer`) и байты — формат `updates/spotify-totp.json` (`SpotifyTotp`).
+    struct TotpSecret: Sendable, Equatable, Decodable {
         var version: Int
         var cipher: [UInt8]
 
-        /// Версия 5 — последняя проверенная (как `default_totp()` в Rust).
-        static let `default` = TotpSecret(version: 5, cipher: [12, 56, 76, 33, 88, 44, 88, 33, 78, 78, 11, 66, 22, 22, 55, 69, 54])
+        /// Вшитый запасной — версия 61, проверена 2026-11-19 (как `default_totp()` в Rust; v5 Spotify отвергает).
+        static let `default` = TotpSecret(version: 61, cipher: [44, 55, 47, 42, 70, 40, 34, 114, 76, 74, 50, 111, 120, 97,
+                                                                75, 76, 94, 102, 43, 69, 49, 120, 118, 80, 64, 78])
     }
 
     /// Токен веб-плеера и когда он кончается.
@@ -62,7 +63,7 @@ struct Spotify: Sendable {
 
     var creds: SpotifyCreds
     var tokens: SpotifyTokens
-    var secret: TotpSecret = .default
+    var totp: SpotifyTotp = .shared
     var session: URLSession = .shared
 
     // MARK: - TOTP и ключ
@@ -204,7 +205,7 @@ struct Spotify: Sendable {
 
     // MARK: - Сеть
 
-    private func fetchToken() async throws -> WebToken {
+    private func fetchToken(_ secret: TotpSecret) async throws -> WebToken {
         let url = try HTTP.url(Self.tokenURL, query: Self.tokenQuery(secret, unixSeconds: UInt64(Self.nowMs / 1000)))
         var request = URLRequest(url: url)
         request.setValue("sp_dc=\(creds.spDc)", forHTTPHeaderField: "Cookie")
@@ -222,7 +223,18 @@ struct Spotify: Sendable {
 
     /// Токен из общего кэша; renew — взять заново (401 от Web API).
     func token(renew: Bool = false) async throws -> String {
-        try await tokens.token(renew: renew) { try await fetchToken() }
+        try await tokens.token(renew: renew) { try await freshToken() }
+    }
+
+    /// Токен с текущим шифром; шифр устарел — перечитать файл из репо и попробовать ещё раз.
+    private func freshToken() async throws -> WebToken {
+        _ = await totp.refresh(force: false, session: session)
+        do {
+            return try await fetchToken(await totp.current)
+        } catch let error as ServiceError where error.message == Self.totpStale {
+            guard await totp.refresh(force: true, session: session) else { throw error }
+            return try await fetchToken(await totp.current)
+        }
     }
 
     private func send(_ url: URL, token: String) async throws -> (Data, Int) {

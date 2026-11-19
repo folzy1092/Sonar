@@ -105,10 +105,10 @@ mod tests {
   #[tokio::test]
   #[ignore = "живой Spotify Premium: нужен SP_DC (и по желанию SP_TRACK) в окружении"]
   async fn live_premium_ogg() {
-    use crate::providers::spotify::{default_totp, normalize_sp_dc, Creds, Spotify};
+    use crate::providers::spotify::{normalize_sp_dc, Creds, Spotify, TotpStore};
     let Some(sp_dc) = std::env::var("SP_DC").ok().and_then(|v| normalize_sp_dc(&v)) else { return eprintln!("SP_DC не задан — пропуск") };
     let id = std::env::var("SP_TRACK").unwrap_or_else(|_| "0DiWol3AO6WpXZgp0goxAV".into());
-    let (http, creds, secret, cache) = (reqwest::Client::new(), Creds { sp_dc }, default_totp(), tokio::sync::Mutex::new(None));
+    let (http, creds, secret, cache) = (reqwest::Client::new(), Creds { sp_dc }, TotpStore::default(), tokio::sync::Mutex::new(None));
     let token = Spotify { http: &http, creds: &creds, secret: &secret, cache: &cache }.token(false).await.unwrap();
     let (bytes, quality) = ogg(&token, &id, 320).await.unwrap();
     assert_eq!(&bytes[..4], b"OggS", "после заголовка Spotify — Ogg");

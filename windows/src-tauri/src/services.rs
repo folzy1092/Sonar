@@ -105,7 +105,7 @@ pub struct Core {
   /// Токен веб-плеера Spotify (живёт около часа) — общий для всех запросов.
   sp_token: tokio::sync::Mutex<Option<spotify::WebToken>>,
   /// Шифр TOTP для токена Spotify; потом — с сервера (`GET /config`).
-  sp_totp: spotify::TotpSecret,
+  sp_totp: spotify::TotpStore,
   /// Сырой JSON треков SoundCloud из поиска — в нём `transcodings` для потока.
   sc_raw: Mutex<HashMap<String, Value>>,
   /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
@@ -168,7 +168,7 @@ impl Core {
       vk_keys: Mutex::new(vk_keys::VkKeys::memory()),
       sp: RwLock::new(secrets::load(ServiceId::Sp.key())),
       sp_token: tokio::sync::Mutex::new(None),
-      sp_totp: spotify::default_totp(),
+      sp_totp: spotify::TotpStore::default(),
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
       sc_hooks: std::sync::OnceLock::new(),
@@ -256,7 +256,7 @@ impl Core {
       vk_keys: Mutex::new(vk_keys::VkKeys::memory()),
       sp: RwLock::new(None),
       sp_token: tokio::sync::Mutex::new(None),
-      sp_totp: spotify::default_totp(),
+      sp_totp: spotify::TotpStore::default(),
       sc_raw: Mutex::new(HashMap::new()),
       sc_auto: RwLock::new(None),
       sc_hooks: std::sync::OnceLock::new(),
