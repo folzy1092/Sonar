@@ -45,6 +45,8 @@ final class Router {
 
     /// Открыть страницу во вкладке; из Профиля — в Медиатеке.
     func push(_ route: Route, on tab: Tab, chrome: ChromeState) {
+        // из полного плеера (артист, меню трека) — страница под ним, плеер уезжает
+        playerOpen = false
         switch tab {
         case .home: home.append(route)
         case .search: search.append(route)

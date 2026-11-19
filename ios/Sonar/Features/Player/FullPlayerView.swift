@@ -37,6 +37,9 @@ struct FullPlayerView: View {
     @State private var chromeHidden = false
     @State private var lastTouch = Date()
     @State private var showLyricsMenu = false
+    /// Меню трека (⋮). Своё: общий лист в RootView не показывается поверх полноэкранного плеера.
+    @State private var trackMenu: TrackMenuItem?
+    @Environment(ChromeState.self) private var chrome
 
     private var lyricsStore: LyricsStore { LyricsStore.shared }
     /// «Где играть»: этот iPhone или Sonar на ПК (пульт).
@@ -172,6 +175,13 @@ struct FullPlayerView: View {
             }
         }
         .animation(Motion.spring, value: engine.current?.ref)
+        .sheet(item: $trackMenu) { item in
+            TrackSheet(item: item)
+                .presentationDetents([.fraction(0.86), .large])
+                .presentationDragIndicator(.hidden)
+                .presentationCornerRadius(30)
+                .presentationBackground(Theme.background)
+        }
         .sheet(isPresented: $showQueue) {
             QueueSheet()
                 .presentationDetents([.large])
@@ -527,12 +537,17 @@ struct FullPlayerView: View {
             .buttonStyle(PressableStyle())
             .animation(Motion.spring, value: engine.shuffle)
             Spacer()
-            Button { showQueue = true } label: {
+            Button {
+                if let track = engine.current { trackMenu = TrackMenuItem(track: track) }
+            } label: {
                 SonarIcon(.more, size: 26)
                     .foregroundStyle(Theme.text)
                     .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PressableStyle(scale: 0.88))
+            .disabled(engine.current == nil)
+            .accessibilityLabel("Меню трека")
         }
     }
 
@@ -548,17 +563,7 @@ struct FullPlayerView: View {
                 .multilineTextAlignment(text)
                 .lineLimit(2)
                 .textSelection(.enabled)
-            HStack(spacing: 6) {
-                if settings.bool("player.artist_avatars"), let avatar = track.artists.first?.avatarURL {
-                    CoverImage(url: avatar, cornerRadius: 10)
-                        .frame(width: 20, height: 20)
-                }
-                Text(track.artist)
-                    .font(.system(size: 16))
-                    .foregroundStyle(Theme.textSecondary)
-                    .lineLimit(1)
-                    .textSelection(.enabled)
-            }
+            artistLink(track)
             // «Почему этот трек» — у треков волны, одной строкой
             if let reason = engine.waveReason(for: track) {
                 HStack(spacing: 5) {
@@ -585,6 +590,45 @@ struct FullPlayerView: View {
         .frame(maxWidth: .infinity, alignment: frameAlign)
         .animation(Motion.spring, value: engine.quality)
         .animation(Motion.spring, value: align)
+    }
+
+    /// Исполнитель — тап открывает его страницу (плеер уезжает вниз); несколько — список на выбор.
+    /// Долгое нажатие — «Скопировать».
+    @ViewBuilder
+    private func artistLink(_ track: Track) -> some View {
+        let label = HStack(spacing: 6) {
+            if settings.bool("player.artist_avatars"), let avatar = track.artists.first?.avatarURL {
+                CoverImage(url: avatar, cornerRadius: 10)
+                    .frame(width: 20, height: 20)
+            }
+            Text(track.artist)
+                .font(.system(size: 16))
+                .foregroundStyle(Theme.textSecondary)
+                .lineLimit(1)
+        }
+        .contentShape(Rectangle())
+        Group {
+            if track.artists.filter({ !$0.ref.isEmpty }).count > 1 {
+                Menu {
+                    ForEach(track.artists.filter { !$0.ref.isEmpty }, id: \.self) { artist in
+                        Button(artist.name) { openArtist(artist) }
+                    }
+                } label: { label }
+            } else if let artist = track.artists.first(where: { !$0.ref.isEmpty }) {
+                Button { openArtist(artist) } label: { label }
+                    .buttonStyle(PressableStyle())
+            } else {
+                label
+            }
+        }
+        .contextMenu {
+            Button { UIPasteboard.general.string = track.artist } label: { Text("Скопировать") }
+        }
+        .accessibilityLabel("Исполнитель: \(track.artist)")
+    }
+
+    private func openArtist(_ artist: ArtistRef) {
+        router.push(.artist(ref: artist.ref, name: artist.name), on: chrome.tab, chrome: chrome)
     }
 
     private var slider: some View {

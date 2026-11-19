@@ -78,8 +78,10 @@ struct TrackSheet: View {
         .background(Theme.background)
         .sheet(isPresented: $addToPlaylist) {
             AddToPlaylistSheet(tracks: [track]) { message in
-                // закрыть оба листа разом (вложенный и лист трека) и показать плашку
-                router.trackMenu = nil
+                // закрыть оба листа разом (вложенный и лист трека) и показать плашку; dismiss, а не
+                // router.trackMenu — лист открывается и из полного плеера, своим `sheet`
+                addToPlaylist = false
+                dismiss()
                 router.say(message)
             }
             .presentationDetents([.medium, .large])
