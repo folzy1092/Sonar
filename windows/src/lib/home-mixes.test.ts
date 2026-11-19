@@ -9,7 +9,6 @@ import {
   isMixId,
   limitPerArtist,
   matchTracks,
-  mosaic,
   normName,
   parseSeed,
   pickFromPools,
@@ -115,13 +114,6 @@ describe('artistsPreview', () => {
     const p = artistsPreview([a, b, bare])
     expect(p.shown[0].avatar_url).toBe('img')
     expect(p.shown[1].name).toBe('Solo')
-  })
-})
-
-describe('mosaic', () => {
-  it('до четырёх разных обложек', () => {
-    const list = [tr('1', 'A'), tr('1b', 'A', { cover_url: 'c-1' }), tr('2', 'A', { cover_url: null }), tr('3', 'A'), tr('4', 'A'), tr('5', 'A')]
-    expect(mosaic(list)).toEqual(['c-1', 'c-3', 'c-4', 'c-5'])
   })
 })
 

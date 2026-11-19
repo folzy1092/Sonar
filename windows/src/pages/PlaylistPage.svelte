@@ -20,6 +20,7 @@
   import { byId, serviceOf } from '../lib/services'
   import { settingsPanel } from './settings-section.svelte'
   import { onDestroy } from 'svelte'
+  import { collage } from '../lib/covers'
 
   const id = router.param ?? 'favorites'
   const kind: 'favorites' | 'own' | 'service' | 'local' =
@@ -70,7 +71,7 @@
         covers = []
       } else if (kind === 'local') {
         items = await api.localTracks()
-        covers = [...new Set(items.flatMap((x) => (x.cover_url ? [x.cover_url] : [])))].slice(0, 4)
+        covers = collage(items)
       } else if (kind === 'own') {
         const p = await api.playlist(id)
         title = p.name

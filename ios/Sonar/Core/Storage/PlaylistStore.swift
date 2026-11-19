@@ -24,21 +24,11 @@ struct SonarPlaylist: Codable, Hashable, Sendable, Identifiable {
 
     var durationMs: Int { tracks.reduce(0) { $0 + $1.durationMs } }
 
-    /// До четырёх разных обложек — коллаж, как на ПК (`cover_path` NULL → коллаж из 4 обложек).
+    /// Коллаж без повторов (`Covers`): 4 разные обложки или одна первая, как на ПК.
     var covers: [String] { Self.covers(of: tracks) }
 
     /// Коллаж из списка треков — и для умного плейлиста.
-    static func covers(of tracks: [Track]) -> [String] {
-        var seen = Set<String>()
-        var out: [String] = []
-        for track in tracks {
-            guard let url = track.coverURL, !url.isEmpty, !seen.contains(url) else { continue }
-            seen.insert(url)
-            out.append(url)
-            if out.count == 4 { break }
-        }
-        return out
-    }
+    static func covers(of tracks: [Track]) -> [String] { Covers.collage(tracks) }
 }
 
 /// Сохранённый альбом и исполнитель, на которого подписан, — `likes` с `kind = album | artist` (DB.md).

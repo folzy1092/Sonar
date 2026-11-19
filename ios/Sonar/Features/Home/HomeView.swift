@@ -244,35 +244,12 @@ struct MosaicCard: View {
 
     static let side: CGFloat = 158
 
-    private var covers: [String?] {
-        var seen = Set<String>()
-        var out: [String?] = []
-        for track in tracks {
-            guard let cover = track.coverURL, !seen.contains(cover) else { continue }
-            seen.insert(cover)
-            out.append(cover)
-            if out.count == 4 { break }
-        }
-        while out.count < 4 { out.append(nil) }
-        return out
-    }
-
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 6) {
-                let half = Self.side / 2
-                VStack(spacing: 0) {
-                    HStack(spacing: 0) {
-                        CoverImage(url: covers[0], cornerRadius: 0).frame(width: half, height: half)
-                        CoverImage(url: covers[1], cornerRadius: 0).frame(width: half, height: half)
-                    }
-                    HStack(spacing: 0) {
-                        CoverImage(url: covers[2], cornerRadius: 0).frame(width: half, height: half)
-                        CoverImage(url: covers[3], cornerRadius: 0).frame(width: half, height: half)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .padding(.bottom, 8)
+                PlaylistCollage(covers: Covers.collage(tracks), cornerRadius: 18)
+                    .frame(width: Self.side, height: Self.side)
+                    .padding(.bottom, 8)
                 Text(title)
                     .font(.system(size: 19, weight: .heavy).width(.expanded))
                     .foregroundStyle(Theme.text)

@@ -4,7 +4,8 @@
   import Icon from './Icon.svelte'
   import type { IconName } from './icons'
   import type { Track } from '../lib/api'
-  import { artistsPreview, mosaic } from '../lib/home-mixes'
+  import { artistsPreview } from '../lib/home-mixes'
+  import { collage } from '../lib/covers'
   import { t } from '../lib/i18n.svelte'
 
   interface Props {
@@ -18,7 +19,7 @@
   }
   let { title, tracks, loading = false, hint, icon = 'sparkles', onclick }: Props = $props()
 
-  const covers = $derived(mosaic(tracks))
+  const covers = $derived(collage(tracks))
   const preview = $derived(artistsPreview(tracks))
   const names = $derived(preview.shown.map((a) => a.name).join(', '))
 </script>

@@ -16,7 +16,8 @@
   import { router } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
   import { t } from '../lib/i18n.svelte'
-  import { isMixId, mosaic, type MixId } from '../lib/home-mixes'
+  import { isMixId, type MixId } from '../lib/home-mixes'
+  import { collage } from '../lib/covers'
   import { home } from './home-data.svelte'
   import { mixes } from './mixes.svelte'
 
@@ -67,7 +68,7 @@
 <CollectionHeader
   {title}
   titleIcon="sparkles"
-  covers={mosaic(items)}
+  covers={collage(items)}
   icon="sparkles"
   meta={loading ? '' : `${tracksText(items.length)}${items.length ? `, ${durationText(total)}` : ''}`}
   {context}

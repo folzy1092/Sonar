@@ -10,6 +10,7 @@ use std::path::Path;
 
 mod alias;
 mod artist_graph;
+pub mod covers;
 mod dupes;
 mod local_files;
 mod recap;
@@ -576,14 +577,34 @@ impl Store {
       [&p.id],
       |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
-    let mut st = self.db.prepare(
-      "SELECT t.cover_url FROM playlist_items i JOIN tracks t ON t.ref = i.ref
-       WHERE i.playlist_id = ?1 AND i.deleted = 0 AND t.cover_url IS NOT NULL ORDER BY i.position LIMIT 4",
-    )?;
-    p.covers = st.query_map([&p.id], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+    p.covers = self.playlist_collage(&p.id)?;
     p.track_count = count;
     p.duration_ms = dur;
     Ok(())
+  }
+
+  /// Обложки коллажа плейлиста без повторов (`covers.rs`): идём по трекам по порядку, пока не наберём 4 разные.
+  fn playlist_collage(&self, id: &str) -> Result<Vec<String>> {
+    let mut st = self.db.prepare(
+      "SELECT t.cover_url, t.artist, t.album_json FROM playlist_items i JOIN tracks t ON t.ref = i.ref
+       WHERE i.playlist_id = ?1 AND i.deleted = 0 AND t.cover_url IS NOT NULL ORDER BY i.position",
+    )?;
+    let mut rows = st.query([id])?;
+    let mut items: Vec<(String, String, Option<String>)> = Vec::new();
+    while let Some(r) = rows.next()? {
+      let album: Option<String> = r.get(2)?;
+      let album_ref = album.and_then(|j| serde_json::from_str::<crate::providers::AlbumRef>(&j).ok()).map(|a| a.ref_);
+      items.push((r.get(0)?, r.get(1)?, album_ref));
+      // хватит читать, как только набралось 4 разные (проверяем пачками, длинный плейлист не читаем целиком)
+      if items.len() % 8 == 0 && covers::distinct(Self::cover_sources(&items), covers::COLLAGE_SIZE).len() >= covers::COLLAGE_SIZE {
+        break;
+      }
+    }
+    Ok(covers::collage(Self::cover_sources(&items)))
+  }
+
+  fn cover_sources(items: &[(String, String, Option<String>)]) -> impl Iterator<Item = covers::CoverSource<'_>> {
+    items.iter().map(|(url, artist, album)| covers::CoverSource { cover_url: url, artist, album_ref: album.as_deref() })
   }
 
   /// Все плейлисты без треков, новые сверху.

@@ -30,6 +30,7 @@
   import { indicator } from '../lib/indicator'
   import ArtistMap from '../app/artist-map/ArtistMap.svelte'
   import MapBanner from '../app/artist-map/MapBanner.svelte'
+  import { collage } from '../lib/covers'
 
   const tabs = ['Все', 'Плейлисты', 'Альбомы', 'Исполнители'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
@@ -150,7 +151,7 @@
     try {
       const list = await api.localTracks()
       localCount = list.length
-      localCovers = list.flatMap((x) => (x.cover_url ? [x.cover_url] : [])).filter((c, i, a) => a.indexOf(c) === i).slice(0, 4)
+      localCovers = collage(list)
     } catch {
       // вне приложения
     }

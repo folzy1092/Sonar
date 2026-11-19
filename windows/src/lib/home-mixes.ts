@@ -157,16 +157,6 @@ export function artistsPreview(tracks: readonly Track[], n = PREVIEW_ARTISTS): {
   return { shown, more: all.length - shown.length }
 }
 
-/** До четырёх разных обложек для мозаики карточки и шапки страницы. */
-export function mosaic(tracks: readonly Track[], n = 4): string[] {
-  const out: string[] = []
-  for (const t of tracks) {
-    if (t.cover_url && !out.includes(t.cover_url)) out.push(t.cover_url)
-    if (out.length >= n) break
-  }
-  return out
-}
-
 /** Чередует пулы по одному треку («похоже на» сразу нескольких исполнителей, а не первый целиком). */
 export function interleave<T>(pools: readonly (readonly T[])[]): T[] {
   const out: T[] = []

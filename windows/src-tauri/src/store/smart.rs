@@ -9,7 +9,6 @@ use serde::Serialize;
 
 /// Сколько треков отдаёт предпросмотр в конструкторе (остальное — только счётчик).
 const PREVIEW_TRACKS: usize = 5;
-const COVERS: usize = 4;
 
 /// Почему плейлист не посчитался: правила не читаются или исходного плейлиста больше нет.
 #[derive(Debug, Clone, Copy, Serialize, PartialEq)]
@@ -225,7 +224,13 @@ fn total_ms(tracks: &[ListTrack]) -> i64 {
 }
 
 fn covers(tracks: &[ListTrack]) -> Vec<String> {
-  tracks.iter().filter_map(|t| t.track.cover_url.clone()).take(COVERS).collect()
+  super::covers::collage(tracks.iter().filter_map(|t| {
+    Some(super::covers::CoverSource {
+      cover_url: t.track.cover_url.as_deref()?,
+      artist: &t.track.artist,
+      album_ref: t.track.album.as_ref().map(|a| a.ref_.as_str()),
+    })
+  }))
 }
 
 #[cfg(test)]
