@@ -12,7 +12,6 @@ enum TrackText {
     static let featSplit = Pattern(#"(?i)\s+(?:\+|&|w/|feat\.?|ft\.?)\s*"#)
     static let featHead = Pattern(#"(?i)^(?:\+|&|w/|feat\.?|ft\.?)\s*(\S+)\s+"#)
     static let emoticon = Pattern(#"^(?:[:;=8][-'^]?[()\[\]DdPpOo3|/*]+|<3+|x[Dd]+|\^[_.-]?\^|T_T)$"#)
-    static let dash = Pattern(#"\s+[-–—]\s+"#)
 
     static func cleanTitle(_ title: String) -> String {
         titleNoise.replaceAll(title, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -68,15 +67,6 @@ enum TrackText {
         core = core.trimmingCharacters(in: CharacterSet(charactersIn: "+&").union(.whitespacesAndNewlines))
         let keywords = words.filter { !["+", "&", "w/"].contains($0) }.joined(separator: " ")
         return (keywords, core, feats)
-    }
-
-    /// Перезалив: «исполнитель» — залившего, настоящий артист в названии «АРТИСТ - ТРЕК».
-    static func reuploadVariant(_ title: String) -> (artist: String, title: String)? {
-        let parts = dash.split(title, limit: 2)
-        guard parts.count == 2 else { return nil }
-        let artist = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
-        let rest = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
-        return artist.isEmpty || rest.isEmpty ? nil : (artist, rest)
     }
 
     /// Для сравнения: нижний регистр, без знаков, ё → е.

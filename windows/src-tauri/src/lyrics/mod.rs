@@ -5,6 +5,9 @@
 pub mod genius;
 pub mod lrclib;
 pub mod netease;
+pub mod rules;
+mod search;
+pub mod title_split;
 pub mod translate;
 
 use crate::providers::Track;
@@ -230,7 +233,6 @@ static FEAT_SPLIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\s+(?:\+|
 static FEAT_HEAD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)^(?:\+|&|w/|feat\.?|ft\.?)\s*(\S+)\s+").unwrap());
 static EMOTICON: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(r"^(?:[:;=8][-'^]?[()\[\]DdPpOo3|/*]+|<3+|x[Dd]+|\^[_.-]?\^|T_T)$").unwrap());
-static DASH: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+[-–—]\s+").unwrap());
 
 pub fn clean_title(title: &str) -> String {
   TITLE_NOISE.replace_all(title, "").trim().to_string()
@@ -284,14 +286,6 @@ pub fn keyword_title(title: &str) -> (String, String, Vec<String>) {
   (keywords, core, feats)
 }
 
-/// Перезалив: «исполнитель» — залившего, настоящий артист в названии «АРТИСТ - ТРЕК».
-pub fn reupload_variant(title: &str) -> Option<(String, String)> {
-  let mut parts = DASH.splitn(title, 2);
-  let a = parts.next()?.trim();
-  let t = parts.next()?.trim();
-  (!a.is_empty() && !t.is_empty()).then(|| (a.to_string(), t.to_string()))
-}
-
 /// Для сравнения: нижний регистр, без знаков, ё → е.
 pub fn norm(s: &str) -> String {
   s.to_lowercase().replace('ё', "е").chars().filter(|c| c.is_alphanumeric()).collect()
@@ -317,78 +311,25 @@ pub fn similarity(a: &str, b: &str) -> f64 {
 
 // ——— поиск ———
 
-/// Найти текст: lrclib (как есть → упрощённо → перезалив) → Genius → plain из lrclib.
+/// Найти текст без правил на трек (ref неизвестен) — для живой проверки; порядок — `search.rs`.
 /// `Ok(None)` — текста нигде нет; `Err` — сеть не ответила (не кэшировать как «нет»).
+#[cfg(test)]
 pub async fn fetch_any(http: &reqwest::Client, meta: &Meta) -> Result<Option<Lyrics>> {
-  let mut plain: Option<String> = None;
-  let mut failed = None;
+  let rules = rules::current();
+  search::search(&search::Net(http), search::Query { meta, key: "" }, &rules, &rules::MISSES, std::time::Instant::now()).await
+}
 
-  let mut attempts: Vec<(String, String)> = vec![(meta.artist.clone(), meta.title.clone())];
-  let (keywords, core, _) = keyword_title(&meta.title);
-  for t in [core, keywords] {
-    if !t.is_empty() {
-      attempts.push((meta.artist.clone(), t));
-    }
+/// Найти текст трека: правила из `updates/lyrics-rules.json` (ручная пара, игнор, перезаливщики) и память
+/// промахов по вариантам перезалива. `recheck` — ручная перепроверка: промах забывается.
+pub async fn fetch_track(http: &reqwest::Client, track: &Track, recheck: bool) -> Result<Option<Lyrics>> {
+  rules::refresh_in_background(http);
+  if recheck {
+    rules::MISSES.lock().unwrap().forget(&track.ref_);
   }
-  if let Some((a, t)) = reupload_variant(&meta.title) {
-    attempts.push((a, t));
-  }
-  attempts.dedup_by(|b, a| a.0.eq_ignore_ascii_case(&b.0) && a.1.eq_ignore_ascii_case(&b.1));
-
-  for (artist, title) in &attempts {
-    match lrclib::fetch(http, artist, title, meta.duration).await {
-      Ok(found) => {
-        if let Some(synced) = found.synced {
-          let lines = parse_lrc(&synced, meta.duration);
-          if !lines.is_empty() {
-            return Ok(Some(Lyrics { is_synced: true, source: "lrclib".into(), lines }));
-          }
-        }
-        if plain.is_none() {
-          plain = found.plain;
-        }
-      }
-      Err(e) => {
-        log::warn!("[lyrics] lrclib: {e}");
-        failed = Some(e);
-        break; // lrclib лежит — дальше спрашивать бесполезно
-      }
-    }
-  }
-
-  // lrclib синхронного не нашёл — NetEase (пословный YRC или построчный LRC); не ответил — дальше Genius
-  match netease::fetch(http, &first_artist(&meta.artist), &clean_title(&meta.title), meta.duration).await {
-    Ok(Some(l)) => return Ok(Some(l)),
-    Ok(None) => {}
-    Err(e) => log::warn!("[lyrics] NetEase: {e}"),
-  }
-
-  match genius::genius_text(http, &meta.artist, &meta.title).await {
-    Ok(Some(text)) => {
-      let lines = plain_lines(&genius::strip_sections(&text));
-      if !lines.is_empty() {
-        return Ok(Some(Lyrics { is_synced: false, source: "genius".into(), lines }));
-      }
-    }
-    Ok(None) => {}
-    Err(e) => {
-      log::warn!("[lyrics] Genius: {e}");
-      if failed.is_none() && plain.is_none() {
-        failed = Some(e);
-      }
-    }
-  }
-
-  if let Some(p) = plain {
-    let lines = plain_lines(&p);
-    if !lines.is_empty() {
-      return Ok(Some(Lyrics { is_synced: false, source: "lrclib".into(), lines }));
-    }
-  }
-  match failed {
-    Some(e) => Err(e),
-    None => Ok(None),
-  }
+  let rules = rules::current();
+  let meta = Meta::of(track);
+  let q = search::Query { meta: &meta, key: &track.ref_ };
+  search::search(&search::Net(http), q, &rules, &rules::MISSES, std::time::Instant::now()).await
 }
 
 #[cfg(test)]
@@ -448,8 +389,6 @@ mod tests {
     assert_eq!(kw, "elox1m PAGER");
     assert_eq!(core, "PAGER");
     assert_eq!(feats, vec!["elox1m"]);
-    assert_eq!(reupload_variant("Кизару - Дежавю"), Some(("Кизару".into(), "Дежавю".into())));
-    assert_eq!(reupload_variant("no dash"), None);
   }
 
   #[test]

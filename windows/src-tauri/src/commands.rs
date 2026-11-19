@@ -533,7 +533,7 @@ pub async fn lyrics(core: State<'_, Arc<Core>>, db: State<'_, Db>, track: Track,
       None => {}
     }
   }
-  let found = lyrics::fetch_any(&core.http, &lyrics::Meta::of(&track)).await.map_err(err)?;
+  let found = lyrics::fetch_track(&core.http, &track, refresh == Some(true)).await.map_err(err)?;
   let json = found.as_ref().map(|l| serde_json::to_string(l)).transpose().map_err(err)?;
   db.0
     .lock()

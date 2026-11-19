@@ -24,6 +24,12 @@ final class Pattern: @unchecked Sendable {
         regex.stringByReplacingMatches(in: s, range: NSRange(s.startIndex..., in: s), withTemplate: NSRegularExpression.escapedTemplate(for: template))
     }
 
+    /// Первое совпадение заменить строкой как есть (как `Regex::replace`); нет совпадения — строка без изменений.
+    func replaceFirst(_ s: String, with literal: String = "") -> String {
+        guard let match = regex.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) else { return s }
+        return (s as NSString).replacingCharacters(in: match.range, with: literal)
+    }
+
     /// Куски между совпадениями, как `Regex::split` (пустые края сохраняются). limit — не больше кусков.
     func split(_ s: String, limit: Int = .max) -> [String] {
         let text = s as NSString

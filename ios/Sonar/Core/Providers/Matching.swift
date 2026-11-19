@@ -35,11 +35,13 @@ struct TrackMatch: Sendable {
     static func soundCloud(uploader: String, metaArtist: String?, title: String, durationMs: Int) -> TrackMatch {
         var artists: [String] = []
         var titles: [String] = []
-        if let reupload = TrackText.reuploadVariant(title) {
+        let named = [metaArtist ?? "", uploader].map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        // перезалив «АРТИСТ - ТРЕК»: первый вариант разбора (docs/TITLE_SPLIT.md)
+        if let reupload = TitleSplit.reuploadVariants(artist: named.first ?? "", title: title).first {
             artists.append(reupload.artist)
             titles.append(TrackText.cleanTitle(reupload.title))
         }
-        for artist in [metaArtist ?? "", uploader] where !artist.trimmingCharacters(in: .whitespaces).isEmpty {
+        for artist in named where !artists.contains(artist) {
             artists.append(artist)
         }
         let keyword = TrackText.keywordTitle(title)
@@ -101,7 +103,7 @@ struct TrackMatch: Sendable {
         if durationMs > 0, candidate.durationMs > 0, abs(durationMs - candidate.durationMs) > Self.maxDurationDiffMs { return nil }
         var names = candidate.artists.map { TrackText.norm($0.name) } + Self.artistNames(candidate.artist)
         var foundTitles = [TrackText.norm(TrackText.cleanTitle(candidate.title))]
-        if reuploads, let reupload = TrackText.reuploadVariant(candidate.title) {
+        if reuploads, let reupload = TitleSplit.reuploadVariants(artist: candidate.artist, title: candidate.title).first {
             names += Self.artistNames(reupload.artist)
             foundTitles.append(TrackText.norm(TrackText.cleanTitle(reupload.title)))
         }

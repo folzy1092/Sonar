@@ -12,15 +12,18 @@ struct LyricsQuery: Sendable, Equatable {
     var artist: String
     var title: String
     var duration: Double
+    /// Ключ трека (`ref`) — для правил и памяти промахов (`LyricsRules`); пустой — без них.
+    var key: String = ""
 
-    init(artist: String, title: String, duration: Double) {
+    init(artist: String, title: String, duration: Double, key: String = "") {
         self.artist = artist
         self.title = title
         self.duration = duration
+        self.key = key
     }
 
     init(_ track: Track) {
-        self.init(artist: track.artist, title: track.title, duration: Double(track.durationMs) / 1000)
+        self.init(artist: track.artist, title: track.title, duration: Double(track.durationMs) / 1000, key: track.ref)
     }
 }
 
@@ -68,64 +71,18 @@ protocol LyricsProviding: Sendable {
     func annotations(_ query: LyricsQuery) async throws -> [LyricsAnnotation]
     /// Перевод строк (той же длины, пустые — пустые) и язык оригинала (`en`, `ja`…).
     func translate(_ lines: [String], to language: String) async throws -> (lines: [String], source: String)
+    /// «Найти заново»: забыть промахи по треку (варианты перезалива пробовать снова).
+    func recheck(_ key: String) async
 }
 
-/// Поиск текста: порт `fetch_any` из `mod.rs`.
+extension LyricsProviding {
+    func recheck(_ key: String) async {}
+}
+
+/// Поиск текста: порт `lyrics/search.rs`, сам порядок — `LyricsSearch.swift`.
 struct LyricsFinder: LyricsProviding {
     var transport: LyricsTransport = URLSessionLyricsTransport()
-
-    func find(_ query: LyricsQuery) async throws -> Lyrics? {
-        var plain: String?
-        var failed: Error?
-
-        // lrclib: как есть → ядро названия без мусора → ключевые слова → «АРТИСТ - ТРЕК» из перезалива
-        var attempts: [(String, String)] = [(query.artist, query.title)]
-        let keyword = TrackText.keywordTitle(query.title)
-        for t in [keyword.core, keyword.keywords] where !t.isEmpty { attempts.append((query.artist, t)) }
-        if let re = TrackText.reuploadVariant(query.title) { attempts.append((re.artist, re.title)) }
-        var unique: [(String, String)] = []
-        for a in attempts {
-            if let last = unique.last, last.0.lowercased() == a.0.lowercased(), last.1.lowercased() == a.1.lowercased() { continue }
-            unique.append(a)
-        }
-
-        let lrclib = Lrclib(transport: transport)
-        for (artist, title) in unique {
-            do {
-                let found = try await lrclib.fetch(artist: artist, title: title, duration: query.duration)
-                if let synced = found.synced {
-                    let lines = LyricsParser.parseLRC(synced, trackLength: query.duration)
-                    if !lines.isEmpty { return Lyrics(lines: lines, synced: true, source: Lyrics.lrclib) }
-                }
-                if plain == nil { plain = found.plain }
-            } catch {
-                failed = error
-                break // lrclib лежит — дальше спрашивать бесполезно
-            }
-        }
-
-        // lrclib синхронного не нашёл — NetEase (пословный YRC или построчный LRC); не ответил — дальше Genius
-        if let found = try? await NetEase(transport: transport)
-            .fetch(artist: TrackText.firstArtist(query.artist), title: TrackText.cleanTitle(query.title), duration: query.duration) {
-            return found
-        }
-
-        do {
-            if let text = try await Genius(transport: transport).text(artist: query.artist, title: query.title) {
-                let lines = LyricsParser.plainLines(Genius.stripSections(text))
-                if !lines.isEmpty { return Lyrics(lines: lines, synced: false, source: Lyrics.genius) }
-            }
-        } catch {
-            if failed == nil, plain == nil { failed = error }
-        }
-
-        if let plain {
-            let lines = LyricsParser.plainLines(plain)
-            if !lines.isEmpty { return Lyrics(lines: lines, synced: false, source: Lyrics.lrclib) }
-        }
-        if let failed { throw failed }
-        return nil
-    }
+    var rules: LyricsRules = .shared
 
     func annotations(_ query: LyricsQuery) async throws -> [LyricsAnnotation] {
         try await Genius(transport: transport).annotations(artist: query.artist, title: query.title)

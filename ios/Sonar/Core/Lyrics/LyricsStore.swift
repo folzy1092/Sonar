@@ -78,6 +78,7 @@ final class LyricsStore {
         forget(track.ref)
         inflight[track.ref]?.cancel()
         inflight[track.ref] = nil
+        await provider.recheck(track.ref)
         await show(track, refresh: true)
     }
 

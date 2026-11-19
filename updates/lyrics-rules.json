@@ -1,0 +1,7 @@
+{
+  "about": "Правила поиска текста (docs/POLISH_PROMPT.md п. 7, docs/TITLE_SPLIT.md). dash_artists — имена, у которых «артист-трек» без пробелов режется; reuploaders — ники залививших, у которых исполнитель всегда не настоящий: разбор «артист - трек» идёт первым; pairs — ref трека → {artist, title, display}: искать текст только по этой паре (display — пока только на будущее показа); ignore — ref треков без текста (инструменталы): не искать.",
+  "dash_artists": ["cowboyclicker"],
+  "reuploaders": [],
+  "pairs": {},
+  "ignore": []
+}

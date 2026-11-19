@@ -12,7 +12,8 @@
 //! - `artist_keys(&Track, &Wanted)` — имена исполнителей для отбора пар без сравнения всех со всеми.
 
 use super::Track;
-use crate::lyrics::{clean_title, first_artist, keyword_title, norm, reupload_variant, similarity};
+use crate::lyrics::title_split::reupload_variants;
+use crate::lyrics::{clean_title, first_artist, keyword_title, norm, rules, similarity};
 use regex::Regex;
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -52,13 +53,16 @@ impl Wanted {
   /// Что ищем по исполнителям (`artists`, по порядку важности), названию и длительности
   /// (0 — неизвестна, тогда не сверяется). «АРТИСТ - ТРЕК» в названии (перезалив) тоже учитывается.
   pub fn new<S: AsRef<str>>(artists: impl IntoIterator<Item = S>, title: &str, duration_ms: u64) -> Self {
+    let artists: Vec<S> = artists.into_iter().collect();
+    let uploader = artists.iter().map(|a| a.as_ref().trim()).find(|a| !a.is_empty()).unwrap_or("");
     let mut names = Vec::new();
     let mut titles = Vec::new();
-    if let Some((a, t)) = reupload_variant(title) {
+    // перезалив «АРТИСТ - ТРЕК»: первый вариант разбора (docs/TITLE_SPLIT.md)
+    if let Some((a, t)) = reupload_variants(uploader, title, &rules::current().dash).into_iter().next() {
       names.push(a);
       titles.push(clean_title(&t));
     }
-    for a in artists {
+    for a in &artists {
       let a = a.as_ref().trim();
       if !a.is_empty() && !names.iter().any(|n: &String| n == a) {
         names.push(a.to_string());

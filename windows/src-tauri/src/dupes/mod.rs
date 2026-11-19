@@ -273,13 +273,14 @@ mod tests {
   #[test]
   fn numbered_parts_are_not_dupes() {
     let list = [
-      item("a", "ym:1", "A", "Part 1", 100_000, 1),
-      item("b", "ym:2", "A", "Part 2", 100_000, 2),
-      item("c", "sc:3", "uploader", "A - Part 01", 101_000, 3),
+      // артист в «АРТИСТ - ТРЕК» — от двух букв (docs/TITLE_SPLIT.md), поэтому не «A»
+      item("a", "ym:1", "Ab", "Part 1", 100_000, 1),
+      item("b", "ym:2", "Ab", "Part 2", 100_000, 2),
+      item("c", "sc:3", "uploader", "Ab - Part 01", 101_000, 3),
     ];
     let g = find_groups(&list);
     assert_eq!(g.len(), 1);
-    assert_eq!(ids(&g[0]), ["a", "c"], "перезалив «A - Part 01» — та же первая часть");
+    assert_eq!(ids(&g[0]), ["a", "c"], "перезалив «Ab - Part 01» — та же первая часть");
   }
 
   #[test]
