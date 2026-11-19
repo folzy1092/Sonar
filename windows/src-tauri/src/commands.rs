@@ -1383,18 +1383,15 @@ pub fn first_paint(app: tauri::AppHandle) {
   crate::tray::show_first(&app);
 }
 
-/// Автозапуск с Windows (`system.autostart`): запись в HKCU…Run через tauri-plugin-autostart.
+/// Автозапуск с Windows (`system.autostart`): `HKCU…\Run\Sonar` = `"<exe>" --autostart` (autostart.rs).
 #[tauri::command]
-pub fn set_autostart(app: tauri::AppHandle, on: bool) -> Res<()> {
-  use tauri_plugin_autostart::ManagerExt;
-  let al = app.autolaunch();
-  if on { al.enable() } else { al.disable() }.map_err(err)
+pub fn set_autostart(on: bool) -> Res<()> {
+  crate::autostart::set(on).map_err(err)
 }
 
 #[tauri::command]
-pub fn autostart_enabled(app: tauri::AppHandle) -> Res<bool> {
-  use tauri_plugin_autostart::ManagerExt;
-  app.autolaunch().is_enabled().map_err(err)
+pub fn autostart_enabled() -> Res<bool> {
+  crate::autostart::enabled().map_err(err)
 }
 
 /// `system.tray`: крестик прячет в трей (true) или закрывает Sonar (false).

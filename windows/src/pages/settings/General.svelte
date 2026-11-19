@@ -109,7 +109,7 @@
 </Card>
 
 <Card title={t('Запуск')}>
-  <Switch title={t('Автозапуск')} hint={t('Открывать Sonar при входе в систему')} on={autostart} onchange={setAutostart} />
+  <Switch title={t('Автозапуск')} hint={t('При входе в Windows — Sonar запустится в трее')} on={autostart} onchange={setAutostart} />
   <Switch title={t('Сворачивать в трей')} hint={t('Крестик прячет окно, музыка играет дальше')} on={settings.get('system.tray')} onchange={setTray} />
   <Choice
     title={t('Экономия ресурсов')}

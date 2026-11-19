@@ -1,4 +1,5 @@
 mod artist_graph;
+mod autostart;
 mod commands;
 mod crashlog;
 mod discord;
@@ -44,8 +45,6 @@ pub fn run() {
     // Только одно окно Sonar: повторный запуск сразу завершается, а уже открытое окно
     // разворачивается и выходит вперёд. Плагин должен стоять первым.
     .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)))
-    // автозапуск с Windows; `--autostart` — стартовать сразу в трее, без окна
-    .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--autostart"])))
     // автообновление из GitHub Releases (ROADMAP W6): проверка и установка — из интерфейса
     .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(tauri_plugin_process::init())
@@ -124,7 +123,12 @@ pub fn run() {
       }
       // «Тише во время звонков»: следим, занят ли микрофон другим приложением
       calls::start(app.handle().clone());
-      if std::env::args().any(|a| a == "--autostart") {
+      // автозапуск: метка установщика → настройка, реестр → по настройке (один раз за запуск)
+      let autostart_setting = db.setting(autostart::SETTING).ok().flatten().and_then(|v| v.as_bool());
+      if let Some(on) = autostart::reconcile(autostart_setting) {
+        let _ = db.set_setting(autostart::SETTING, &serde_json::json!(on));
+      }
+      if std::env::args().any(|a| a == autostart::ARG) {
         tray::START_HIDDEN.store(true, std::sync::atomic::Ordering::Relaxed);
         if let Some(w) = app.get_webview_window("main") {
           let _ = w.hide();

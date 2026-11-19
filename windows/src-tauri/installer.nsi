@@ -85,6 +85,10 @@ Var CreateStartMenu
 Var CreateDesktop
 Var StartMenuCheckbox
 Var DesktopCheckbox
+; Sonar: «Запускать вместе с Windows» (1 — да); ShortcutsShown — страницу видели, выбор есть
+Var CreateAutostart
+Var AutostartCheckbox
+Var ShortcutsShown
 
 Name "${PRODUCTNAME}"
 BrandingText "${COPYRIGHT}"
@@ -523,6 +527,8 @@ LangString shortcutsTitle ${LANG_RUSSIAN} "Ярлыки"
 LangString shortcutsTitle ${LANG_ENGLISH} "Shortcuts"
 LangString shortcutsSubtitle ${LANG_RUSSIAN} "Где создать ярлыки для запуска ${PRODUCTNAME}."
 LangString shortcutsSubtitle ${LANG_ENGLISH} "Where to create shortcuts to launch ${PRODUCTNAME}."
+LangString createAutostart ${LANG_RUSSIAN} "Запускать вместе с Windows (в трее, без окна)"
+LangString createAutostart ${LANG_ENGLISH} "Launch with Windows (in the tray, no window)"
 
 Function ShortcutsPageCreate
   ; обновление (/UPDATE), тихая и пассивная установки, /NS — ярлыки не спрашиваем
@@ -552,6 +558,12 @@ Function ShortcutsPageCreate
     ${NSD_Check} $DesktopCheckbox
   ${EndIf}
 
+  ${NSD_CreateCheckbox} 0 52u 100% 12u "$(createAutostart)"
+  Pop $AutostartCheckbox
+  ${If} $CreateAutostart = 1
+    ${NSD_Check} $AutostartCheckbox
+  ${EndIf}
+
   nsDialogs::Show
 FunctionEnd
 
@@ -559,6 +571,8 @@ Function ShortcutsPageLeave
   ; BST_CHECKED = 1, BST_UNCHECKED = 0 — ровно то, что ждут $CreateStartMenu / $CreateDesktop
   ${NSD_GetState} $StartMenuCheckbox $CreateStartMenu
   ${NSD_GetState} $DesktopCheckbox $CreateDesktop
+  ${NSD_GetState} $AutostartCheckbox $CreateAutostart
+  StrCpy $ShortcutsShown 1
 FunctionEnd
 
 Function .onInit
@@ -580,6 +594,8 @@ Function .onInit
   ; Sonar: по умолчанию — ярлык в меню «Пуск» есть, на рабочем столе нет
   StrCpy $CreateStartMenu 1
   StrCpy $CreateDesktop 0
+  StrCpy $CreateAutostart 1
+  StrCpy $ShortcutsShown 0
 
   !if "${DISPLAYLANGUAGESELECTOR}" == "true"
     !insertmacro MUI_LANGDLL_DISPLAY
@@ -835,6 +851,18 @@ Section Install
   ${OrIf} ${Silent}
   ${OrIf} $CreateDesktop = 1
     Call CreateOrUpdateDesktopShortcut
+  ${EndIf}
+
+  ; Sonar: «Запускать вместе с Windows» — запись Run сразу (exe в кавычках + --autostart) и метка
+  ; HKCU\Software\Folzy\Sonar\Autostart: при первом запуске Sonar переносит её в `system.autostart`
+  ; (autostart.rs). Обновление и тихая установка страницу не видят — выбор пользователя не трогаем.
+  ${If} $ShortcutsShown = 1
+    WriteRegDWORD HKCU "Software\${MANUFACTURER}\${PRODUCTNAME}" "Autostart" $CreateAutostart
+    ${If} $CreateAutostart = 1
+      WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\" --autostart"
+    ${Else}
+      DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
+    ${EndIf}
   ${EndIf}
 
   !ifmacrodef NSIS_HOOK_POSTINSTALL

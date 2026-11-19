@@ -55,7 +55,7 @@ export default {
   'Заменит лайки и плейлисты здесь': 'Replaces likes and playlists here',
   'Запуск': 'Startup',
   'Автозапуск': 'Launch at startup',
-  'Открывать Sonar при входе в систему': 'Open Sonar when you sign in',
+  'При входе в Windows — Sonar запустится в трее': 'On Windows sign-in — Sonar starts in the tray',
   'Сворачивать в трей': 'Minimize to tray',
   'Крестик прячет окно, музыка играет дальше': 'The close button hides the window, music keeps playing',
   'Экономия ресурсов': 'Power saving',
