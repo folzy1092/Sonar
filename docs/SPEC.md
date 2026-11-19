@@ -534,7 +534,7 @@ SoundCloud после английского), **немецкий** (`de`: Ге�
 - Фронтенд: **Svelte 5 + TypeScript + Vite**, свои компоненты, иконки Tabler.
 - Rust-крейты: `reqwest` (rustls), `tokio`, `serde`, `rusqlite` (локальная база),
   `keyring` (токены в Диспетчере учётных данных Windows), `souvlaki` (медиа-клавиши и
-  системная плашка Windows), `discord-rich-presence`, `tauri-plugin-autostart`, трей Tauri,
+  системная плашка Windows), `discord-rich-presence`, свой автозапуск `autostart.rs` (`HKCU…\Run`, `windows-registry`), трей Tauri,
   `tauri-plugin-updater` (автообновление из GitHub Releases).
 - Флаги WebView2 (как у Dotify): autoplay без жеста, без троттлинга фоновых таймеров,
   GPU-растеризация; системные медиа-клавиши WebView отключены — их ведёт Rust.
