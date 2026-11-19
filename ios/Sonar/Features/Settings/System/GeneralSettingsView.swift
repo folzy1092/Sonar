@@ -3,7 +3,7 @@ import UIKit
 
 /// Система → «Общее» (SETTINGS.md «Основные — general.*», как Windows `General.svelte`): язык
 /// (`general.language`, сразу), платформа главной (`general.platform`), медиатека (куда добавлять треки —
-/// `general.add_position`; облако — с сервером), «Виджет и Siri» (быстрый плейлист — `widget.quick_playlist`),
+/// `general.add_position`; облако — с сервером), «Виджет и Siri» (быстрый плейлист — `widget.quick_playlist`; скрыт, пока `Features.widgetsVisible = false`),
 /// синхронизация (с сервером), внизу — «О приложении».
 /// «Авто похожие» — в Очереди.
 struct GeneralSettingsView: View {
@@ -47,13 +47,15 @@ struct GeneralSettingsView: View {
             }
             .cascade(2)
 
-            SystemSection(title: t("Виджет и Siri"), footer: t("Его играют кнопка «Быстрый плейлист» в виджете и команда «Быстрый плейлист» в Siri и «Командах»")) {
-                Button { quickSheet = true } label: {
-                    SystemRow(icon: .bolt, title: t("Быстрый плейлист"), value: QuickPlaylistSheet.title(of: settings), chevron: true)
+            if Features.widgetsVisible {
+                SystemSection(title: t("Виджет и Siri"), footer: t("Его играют кнопка «Быстрый плейлист» в виджете и команда «Быстрый плейлист» в Siri и «Командах»")) {
+                    Button { quickSheet = true } label: {
+                        SystemRow(icon: .bolt, title: t("Быстрый плейлист"), value: QuickPlaylistSheet.title(of: settings), chevron: true)
+                    }
+                    .buttonStyle(PressableStyle(scale: 0.99))
                 }
-                .buttonStyle(PressableStyle(scale: 0.99))
+                .cascade(2)
             }
-            .cascade(2)
 
             SystemSection(title: t("Синхронизация"), footer: t("Лайки, плейлисты и настройки будут общими на iPhone и компьютере, когда появится сервер Sonar. Пока всё хранится на этом телефоне.")) {
                 SystemRow(icon: .cloudSync, title: t("Сохранить в облако"), subtitle: t("Лайки и плейлисты с этого устройства"), value: t("С сервером"))

@@ -69,10 +69,12 @@ struct QuickPlaylistSheet: View {
                     .background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
                     .transition(.opacity)
                 }
-                Text(t("Играет кнопка «Быстрый плейлист» в виджете и команда Siri"))
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.textTertiary)
-                    .padding(.horizontal, 4)
+                if Features.widgetsVisible {
+                    Text(t("Играет кнопка «Быстрый плейлист» в виджете и команда Siri"))
+                        .font(.system(size: 13))
+                        .foregroundStyle(Theme.textTertiary)
+                        .padding(.horizontal, 4)
+                }
             }
             .padding(.horizontal, Theme.gutter)
             .padding(.bottom, 24)

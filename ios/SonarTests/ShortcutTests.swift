@@ -4,6 +4,11 @@ import XCTest
 /// Виджет и Siri: ссылки `sonar://play/…` (`App/DeepLink.swift`), настройка быстрого плейлиста
 /// (`Core/Shortcuts/PlayTarget.swift`) и новые расширения при автообновлении (`BundlePreparer`).
 final class ShortcutTests: XCTestCase {
+    /// Со сторонней подписью виджета и команд Siri нет — в интерфейсе их не показываем (POLISH_PROMPT п. 10).
+    func testWidgetsHiddenInInterface() {
+        XCTAssertFalse(Features.widgetsVisible)
+    }
+
     func testPlayLinks() {
         XCTAssertEqual(DeepLink(URL(string: "sonar://play/liked")!), .play(.liked))
         XCTAssertEqual(DeepLink(URL(string: "sonar://play/wave")!), .play(.wave))
