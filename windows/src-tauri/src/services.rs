@@ -506,6 +506,16 @@ impl Core {
     p.artist_tracks(id).await
   }
 
+  /// Репосты исполнителя (раздел «Репосты»): у SoundCloud — что он репостнул, у остальных сервисов
+  /// репостов нет — пусто.
+  pub async fn artist_reposts(&self, artist_ref: &str, limit: u32) -> Result<Vec<Track>> {
+    let (p, id) = self.route(artist_ref, RefKind::Artist, "неизвестный исполнитель")?;
+    match p {
+      AnyProvider::Sc(sc) => sc.artist_reposts(id, limit).await,
+      _ => Ok(Vec::new()),
+    }
+  }
+
   pub async fn album_page(&self, album_ref: &str) -> Result<AlbumPage> {
     let (p, id) = self.route(album_ref, RefKind::Album, "неизвестный альбом")?;
     p.album_page(id).await
@@ -803,6 +813,7 @@ mod tests {
     assert_eq!(err_text(core.artist_page("nocolon").await), "плохой ref nocolon");
     assert_eq!(err_text(core.artist_page("xx:1").await), "неизвестный исполнитель xx:1");
     assert_eq!(err_text(core.artist_tracks("sc:1").await), "неизвестный исполнитель sc:1");
+    assert_eq!(err_text(core.artist_reposts("scalb:1", 20).await), "неизвестный исполнитель scalb:1");
     assert_eq!(err_text(core.artist_top("spalb:1", 5).await), "неизвестный исполнитель spalb:1");
     assert_eq!(err_text(core.artist_albums("scalb:1").await), "неизвестный исполнитель scalb:1");
     assert_eq!(err_text(core.album_page("sca:1").await), "неизвестный альбом sca:1");

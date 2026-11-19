@@ -82,6 +82,22 @@ final class ProviderTests: XCTestCase {
         XCTAssertEqual(phantom.trackCount, 9)
     }
 
+    func testSoundCloudRepostsKeepOnlyTracksOnce() throws {
+        // лента репостов: репост плейлиста мимо, повтор того же трека и пустой трек — тоже
+        let page = try json(#"""
+        {"collection": [
+            {"type": "track-repost", "track": {"id": 1, "title": "секундант"}},
+            {"type": "playlist-repost", "playlist": {"id": 9}, "track": {"id": 9}},
+            {"type": "track-repost", "track": {"id": 2, "title": "330"}},
+            {"type": "track-repost", "track": {"id": 1, "title": "секундант"}},
+            {"type": "track-repost", "track": null},
+            {"track": {"id": 3, "title": "high"}}
+        ]}
+        """#)
+        XCTAssertEqual(SoundCloud.repostTracks(page).compactMap { $0["id"].int }, [1, 2, 3])
+        XCTAssertTrue(SoundCloud.repostTracks(try json("{}")).isEmpty)
+    }
+
     func testSoundCloudTrack() throws {
         let track = try XCTUnwrap(SoundCloud.parseTrack(json(#"""
         {"id": 2296053116, "title": "море стало моим домом.", "duration": 123000, "genre": "Hip-hop", "tag_list": "Rap Sad",

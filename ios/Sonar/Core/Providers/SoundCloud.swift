@@ -63,6 +63,20 @@ struct SoundCloud: Sendable {
         try await get("\(Self.api)/users/\(id)/albums", [("limit", "30")])["collection"].items.compactMap(Self.parseAlbum)
     }
 
+    /// Что пользователь репостнул (`/stream/users/{id}/reposts`) — раздел «Репосты» на странице исполнителя.
+    func userReposts(_ id: String, limit: Int) async throws -> [JSONValue] {
+        Self.repostTracks(try await get("\(Self.api)/stream/users/\(id)/reposts", [("limit", "\(limit)")]))
+    }
+
+    /// Из ленты репостов — только треки (репосты плейлистов мимо), каждый один раз, по порядку. Как Rust `repost_tracks`.
+    static func repostTracks(_ page: JSONValue) -> [JSONValue] {
+        var seen = Set<Int>()
+        return page["collection"].items
+            .filter { $0["type"].string.map { $0.hasPrefix("track") } ?? true }
+            .map { $0["track"] }
+            .filter { track in track.isObject && (track["id"].int.map { seen.insert($0).inserted } ?? false) }
+    }
+
     /// Свои плейлисты пользователя (без альбомов) — фантомные плейлисты в медиатеке.
     func userPlaylists(_ id: String) async throws -> [ServicePlaylist] {
         try await get("\(Self.api)/users/\(id)/playlists_without_albums", [("limit", "50")])["collection"].items.compactMap(Self.parsePlaylist)

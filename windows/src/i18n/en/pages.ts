@@ -221,4 +221,6 @@ export default {
   'Яндекс Музыке': 'Yandex Music',
   'список::Обновить': 'Refresh',
   'список::Свернуть': 'Show less',
+  'Репосты': 'Reposts',
+  'Репосты {name}': 'Reposts by {name}',
 } satisfies Record<string, string>

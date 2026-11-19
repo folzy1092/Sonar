@@ -106,6 +106,9 @@ struct ArtistScreen: View {
     @Environment(Router.self) private var router
     @State private var page: (artist: Artist, tracks: [Track], albums: [Album])?
     @State private var failed: String?
+    /// Что исполнитель репостнул (только SoundCloud) — раздел под альбомами.
+    @State private var reposts: [Track] = []
+    private static let repostsLimit = 50
     private var collections: PlaylistStore { PlaylistStore.shared }
 
     var body: some View {
@@ -166,6 +169,9 @@ struct ArtistScreen: View {
                         .scrollClipDisabled()
                         .scrollTargetBehavior(.viewAligned)
                     }
+                    if !reposts.isEmpty {
+                        repostsSection(artist: page.artist)
+                    }
                 } else if let failed {
                     HintCard(icon: .info, text: failed).padding(.top, 30)
                 } else {
@@ -181,6 +187,7 @@ struct ArtistScreen: View {
         }
         .pageBackground()
         .animation(Motion.spring, value: page?.tracks.count)
+        .animation(Motion.spring, value: reposts.count)
         .task(id: ref) {
             do {
                 page = try await MusicCore.shared.artist(ref)
@@ -189,6 +196,41 @@ struct ArtistScreen: View {
                 failed = error.localizedDescription
             }
         }
+        .task(id: ref) {
+            // репосты — дополнение: не открылись — раздела просто нет
+            reposts = (try? await MusicCore.shared.artistReposts(ref, limit: Self.repostsLimit)) ?? []
+        }
+    }
+
+    /// «Репосты» и рядом значок репоста с ником исполнителя, ниже — обычные строки треков.
+    private func repostsSection(artist: Artist) -> some View {
+        let title = t("Репосты {name}", ["name": artist.name])
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(t("Репосты"))
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                Label {
+                    Text(artist.name).lineLimit(1)
+                } icon: {
+                    SonarIcon(.repeatAll, size: 13)
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .accessibilityLabel(title)
+            }
+            .padding(.top, 30)
+            .padding(.bottom, 8)
+            LazyVStack(spacing: 4) {
+                ForEach(Array(reposts.enumerated()), id: \.element.ref) { index, track in
+                    TrackRow(track: track, playing: engine.current?.ref == track.ref) {
+                        engine.play(reposts, at: index, context: title, tapped: true)
+                    }
+                    .cascade(index)
+                }
+            }
+        }
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
     private var followers: String {

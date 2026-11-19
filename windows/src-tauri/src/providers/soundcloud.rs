@@ -121,6 +121,13 @@ impl SoundCloud<'_> {
     Ok(v["collection"].as_array().map(|a| a.iter().filter_map(album_from_json).collect()).unwrap_or_default())
   }
 
+  /// Репосты пользователя (как вкладка «Reposts» в профиле SoundCloud) — сырой JSON треков, новые первыми.
+  pub async fn user_reposts(&self, id: &str, limit: u32) -> Result<Vec<Value>> {
+    let limit = limit.to_string();
+    let v = self.get(&format!("{API}/stream/users/{id}/reposts"), &[("limit", &limit)]).await?;
+    Ok(repost_tracks(&v))
+  }
+
   /// Свои плейлисты пользователя (без альбомов) — фантомные плейлисты в медиатеке.
   pub async fn user_playlists(&self, id: &str) -> Result<Vec<ServicePlaylist>> {
     let v = self.get(&format!("{API}/users/{id}/playlists_without_albums"), &[("limit", "50")]).await?;
@@ -298,6 +305,21 @@ pub fn is_snippet(track: &Value) -> bool {
   track["policy"] == "SNIP" || pick_transcoding(track).is_some_and(|t| t["snipped"].as_bool() == Some(true))
 }
 
+/// Ответ `/stream/users/{id}/reposts` → треки: только репосты треков (`track-repost`, у старых ответов —
+/// просто `track`), репосты плейлистов и альбомов пропускаем. Повторный репост одного трека — один раз.
+pub fn repost_tracks(page: &Value) -> Vec<Value> {
+  let mut seen = std::collections::HashSet::new();
+  page["collection"]
+    .as_array()
+    .into_iter()
+    .flatten()
+    .filter(|it| it["type"].as_str().is_none_or(|t| t.starts_with("track")))
+    .map(|it| &it["track"])
+    .filter(|t| t.is_object() && t["id"].as_u64().is_some_and(|id| seen.insert(id)))
+    .cloned()
+    .collect()
+}
+
 pub fn track_from_json(j: &Value) -> Option<Track> {
   let id = j["id"].as_u64()?;
   let user = &j["user"];
@@ -417,6 +439,21 @@ mod tests {
     let e = sc_err(&format!("http://127.0.0.1:{port}/search/tracks")).await;
     assert!(!e.contains(SECRET), "{e}");
     assert!(!e.contains("client_id"), "{e}");
+  }
+
+  #[test]
+  fn reposts_keep_only_tracks_once() {
+    let page = json!({"collection": [
+      {"type": "track-repost", "track": {"id": 1, "title": "секундант"}},
+      {"type": "playlist-repost", "playlist": {"id": 9, "title": "альбом"}},
+      {"type": "track-repost", "track": {"id": 2, "title": "330"}},
+      {"type": "track-repost", "track": {"id": 1, "title": "секундант"}},
+      {"type": "track-repost", "track": null},
+      {"track": {"id": 3, "title": "high"}}
+    ]});
+    let ids: Vec<u64> = repost_tracks(&page).iter().filter_map(|t| t["id"].as_u64()).collect();
+    assert_eq!(ids, vec![1, 2, 3]);
+    assert!(repost_tracks(&json!({})).is_empty());
   }
 
   fn tc(proto: &str, mime: &str, preset: &str, snipped: bool) -> Value {

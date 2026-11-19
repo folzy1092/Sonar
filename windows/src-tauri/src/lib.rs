@@ -219,6 +219,7 @@ pub fn run() {
       commands::services_list,
       commands::sync_now,
       commands::artist_tracks,
+      commands::artist_reposts,
       commands::mini_window,
       commands::overlay_window,
       commands::list_monitors,

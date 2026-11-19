@@ -452,6 +452,8 @@ export const api = {
   artistPage: (artistRef: string) => call<{ artist: Artist; top: Track[]; albums: Album[] }>('artist_page', { artistRef }),
   /** Все треки исполнителя (до 1000) — сначала самые прослушиваемые; лайки есть только у SoundCloud. */
   artistTracks: (artistRef: string) => call<ArtistTrack[]>('artist_tracks', { artistRef }),
+  /** Репосты исполнителя SoundCloud; у других сервисов — пусто. */
+  artistReposts: (artistRef: string) => call<Track[]>('artist_reposts', { artistRef }),
   albumPage: (albumRef: string) => call<{ album: Album; tracks: Track[] }>('album_page', { albumRef }),
   servicePlaylists: (service: Service) => call<ServicePlaylist[]>('service_playlists', { service }),
   servicePlaylist: (plRef: string) => call<{ playlist: ServicePlaylist; tracks: Track[] }>('service_playlist', { plRef }),

@@ -422,6 +422,13 @@ actor MusicCore {
         }
     }
 
+    /// Репосты исполнителя — есть только у SoundCloud, у остальных сервисов пусто.
+    func artistReposts(_ ref: String, limit: Int) async throws -> [Track] {
+        let (kind, id) = try Self.split(ref)
+        guard kind == "sca" else { return [] }
+        return keep(try await withSoundCloud { try await $0.userReposts(id, limit: limit) })
+    }
+
     /// Альбомы и синглы исполнителя — для «Релизов».
     func artistAlbums(_ ref: String) async throws -> [Album] {
         let (kind, id) = try Self.split(ref)

@@ -2,7 +2,7 @@
   import { cascade } from '../lib/cascade'
   import { indicator } from '../lib/indicator'
   // Исполнитель (pc/Screenshot_19): круглый аватар, имя, подписчики; Слушать · Подписаться ·
-  // перемешать · в очередь; «Треки» (все, с сортировкой) и «Альбомы». «Подписаться» = лайк исполнителя (вкладка
+  // перемешать · в очередь; «Треки» (все, с сортировкой), «Альбомы» и у SoundCloud — «Репосты». «Подписаться» = лайк исполнителя (вкладка
   // «Исполнители» в медиатеке). Шапка окрашивается в цвет аватара (как тема под обложку).
   import CollectionHeader from '../components/CollectionHeader.svelte'
   import EmptyState from '../components/EmptyState.svelte'
@@ -29,6 +29,11 @@
   let all = $state.raw<ArtistTrack[] | null>(null)
   let allFailed = $state(false)
   let albums = $state<Album[]>([])
+  /** Что исполнитель репостнул (только SoundCloud): свёрнуто — первые REPOSTS_FOLD, по кнопке — все. */
+  let reposts = $state.raw<Track[]>([])
+  const REPOSTS_FOLD = 5
+  let repostsOpen = $state(false)
+  const repostsShown = $derived(repostsOpen ? reposts : reposts.slice(0, REPOSTS_FOLD))
   let error = $state<string | null>(null)
   let tint = $state<string | null>(null)
 
@@ -115,6 +120,11 @@
     .artistTracks(ref)
     .then((l) => (all = l))
     .catch(() => (allFailed = true))
+  if (svc.id === 'sc')
+    api
+      .artistReposts(ref)
+      .then((l) => (reposts = l))
+      .catch(() => (reposts = [])) // репосты — дополнение: не открылись — раздела просто нет
   void library.load()
 </script>
 
@@ -191,6 +201,27 @@
           <Tile title={al.title} subtitle={al.year ? String(al.year) : al.artist} image={al.cover_url} icon="disc" onclick={() => openRef(al.ref)} />
         {/each}
       </div>
+    </section>
+  {/if}
+
+  {#if reposts.length}
+    {@const repostCtx = `${context}:reposts`}
+    {@const repostTitle = t('Репосты {name}', { name: a.name })}
+    <section class="reposts">
+      <div class="rh">
+        <h2>{t('Репосты')}</h2>
+        <span class="by" title={repostTitle}><Icon name="repeat" size={13} />{a.name}</span>
+      </div>
+      <div use:cascade>
+        {#each repostsShown as tr, i (tr.ref)}
+          <TrackRow track={tr} onplay={() => player.playList(reposts, i, repostCtx, repostTitle)} />
+        {/each}
+      </div>
+      {#if reposts.length > REPOSTS_FOLD}
+        <button class="all" onclick={() => (repostsOpen = !repostsOpen)}>
+          {repostsOpen ? t('список::Свернуть') : t('Показать все {n}', { n: reposts.length })}
+        </button>
+      {/if}
     </section>
   {/if}
 {/if}
@@ -317,6 +348,42 @@
   }
   .none {
     color: var(--text-3);
+  }
+  /* «Репосты» и рядом значок репоста с ником исполнителя (как вкладка Reposts в SoundCloud) */
+  .rh {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .by {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    font-size: calc(13px * var(--fs, 1));
+    font-weight: 600;
+    color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    animation: by-in 0.4s var(--ease) 0.1s backwards;
+  }
+  .by :global(svg) {
+    flex: none;
+    align-self: center;
+  }
+  @keyframes by-in {
+    from {
+      opacity: 0;
+      translate: -6px 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    @keyframes by-in {
+      from {
+        opacity: 0;
+      }
+    }
   }
   .loading {
     display: flex;

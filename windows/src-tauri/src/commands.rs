@@ -683,6 +683,17 @@ pub async fn artist_tracks(core: State<'_, Arc<Core>>, db: State<'_, Db>, artist
   Ok(list)
 }
 
+/// Репосты исполнителя SoundCloud (раздел «Репосты» на его странице); у других сервисов — пусто.
+#[tauri::command]
+pub async fn artist_reposts(core: State<'_, Arc<Core>>, db: State<'_, Db>, artist_ref: String) -> Res<Vec<Track>> {
+  let list = core.artist_reposts(&artist_ref, REPOSTS_LIMIT).await.map_err(err)?;
+  db.0.lock().unwrap().upsert_tracks(&list).map_err(err)?;
+  Ok(list)
+}
+
+/// Сколько репостов берём для страницы исполнителя (свёрнуто видно 5, остальное — «Показать все»).
+const REPOSTS_LIMIT: u32 = 50;
+
 /// Синхронизация сейчас (API.md §6): отправить своё, забрать с других устройств. До сервера — ошибка
 /// «ещё не подключён».
 #[tauri::command]

@@ -15,6 +15,16 @@ pub struct ScProvider<'a> {
   pub(super) core: &'a Core,
 }
 
+impl ScProvider<'_> {
+  /// Что исполнитель репостнул — раздел «Репосты» на его странице. Есть только у SoundCloud.
+  pub(super) async fn artist_reposts(&self, id: &str, limit: u32) -> Result<Vec<Track>> {
+    let http = &self.core.http;
+    let raw =
+      self.core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.user_reposts(id, limit).await }).await?;
+    Ok(self.core.sc_keep(raw))
+  }
+}
+
 impl Provider for ScProvider<'_> {
   fn id(&self) -> ServiceId {
     ServiceId::Sc

@@ -8,6 +8,7 @@
   import { Clock } from './core/clock'
   import { findLine } from './core/find'
   import { progress } from './core/progress'
+  import { shouldAutoScroll, shouldPaint } from './core/follow'
   import { holdLook, lineLook, synthWords, wordLook, type TextAnim, type TextStyle } from './core/motion'
   import { reducedMotion } from '../lib/motion'
   import { lyrics, sizeRem } from './lyrics.svelte'
@@ -36,7 +37,6 @@
   const els: HTMLElement[] = $state([])
   /** Пользователь крутил колесо — автопрокрутка ждёт пару секунд. */
   let userScrollAt = 0
-  const USER_SCROLL_PAUSE = 2500
 
   const clock = new Clock()
   const reduced = reducedMotion()
@@ -80,10 +80,10 @@
     const i = active
     const prev = lastActive
     lastActive = i
-    if (!synced || !scroller) return
-    if (performance.now() - userScrollAt < USER_SCROLL_PAUSE) return
-    // открыт свиток аннотации — текст не уезжает из-под курсора
-    if (noteOpen !== null) return
+    // открыт свиток аннотации — текст не уезжает из-под курсора; свиток закрыли — эффект перезапустится
+    // (noteOpen читается всегда) и прокрутка «примагнитится» к текущей строке
+    const follow = shouldAutoScroll({ synced, sinceUserScroll: performance.now() - userScrollAt, noteOpen })
+    if (!follow || !scroller) return
     const el = i >= 0 ? els[i] : null
     // конец песни (владелец 2026-11-18): прокрутка упирается, последняя строка встаёт на 80 % высоты,
     // а подсветка спускается по строкам вниз — под текстом не остаётся пустой полэкрана
@@ -271,10 +271,8 @@
 
     const frame = (ts: number) => {
       raf = requestAnimationFrame(frame)
-      if (!synced || !lines.length || document.hidden) return
-      // читают аннотацию Genius — текст замирает целиком (строка, слова, прокрутка); убрали курсор —
-      // следующий кадр найдёт текущую строку, и текст «примагнитится» к ней (решение владельца 2026-11-16)
-      if (noteOpen !== null) return
+      // аннотацию Genius читают — подсветка строк и слов идёт дальше, стоит только прокрутка (core/follow.ts)
+      if (!shouldPaint({ synced, lineCount: lines.length, hidden: document.hidden })) return
       const t = clock.read(ts) + lyrics.offset
       const i = findLine(lines, t, active)
       if (i !== active) active = i
