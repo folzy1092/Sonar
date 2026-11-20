@@ -82,11 +82,11 @@ struct FullPlayerView: View {
                     .transition(.opacity)
             }
             VStack(spacing: 0) {
+                // шапка не прячется вместе с кнопками: ⌄ и ⋮ над текстом нажимаются всегда,
+                // а тап по ней не проваливается в строку текста (раньше — перемотка вместо меню)
                 Group {
                     if showLyrics { lyricsTopBar } else { topBar }
                 }
-                .opacity(chromeHidden ? 0 : 1)
-                .allowsHitTesting(!chromeHidden)
                 if showLyrics {
                     Spacer(minLength: 20)
                 } else {
@@ -116,6 +116,7 @@ struct FullPlayerView: View {
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 10)
+            .zIndex(1)
         }
         .coordinateSpace(.named(Self.space))
         .offset(y: max(0, dragDown))
@@ -401,7 +402,7 @@ struct FullPlayerView: View {
                         look: LyricsLook.current(),
                         translation: lyricsStore.translation,
                         topInset: 110,
-                        bottomInset: chromeHidden ? 120 : 280,
+                        bottomInset: chromeHidden ? 120 : 250,
                         onSeek: { engine.seek(to: $0) },
                         onTouch: touched,
                         onLineChange: { _ in lineChanged() }
@@ -422,6 +423,16 @@ struct FullPlayerView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
+            // строки, ушедшие под шапку, гаснут — шапка читается и не спорит с текстом
+            .mask {
+                VStack(spacing: 0) {
+                    LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .clear, location: 0.35),
+                                           .init(color: .black, location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                        .frame(height: Self.lyricsFade)
+                    Color.black
+                }
+            }
             .contentShape(Rectangle())
             .onTapGesture { touched() }
             .onLongPressGesture(minimumDuration: 0.45) {
@@ -430,6 +441,9 @@ struct FullPlayerView: View {
             }
         }
     }
+
+    /// Высота затухания текста под шапкой (шапка — 52 pt).
+    private static let lyricsFade: CGFloat = 110
 
     /// Шапка в тексте: ⌄ · капсула с треком (тап — обратно к обложке) · ⋮ (меню текста).
     private var lyricsTopBar: some View {
@@ -474,6 +488,9 @@ struct FullPlayerView: View {
             .buttonStyle(PressableStyle(scale: 0.88))
             .accessibilityLabel("Меню текста")
         }
+        // промежутки между кнопками тоже шапка: тап — показать кнопки, а не перемотать строку под ней
+        .contentShape(Rectangle())
+        .onTapGesture { touched() }
     }
 
     /// Касание экрана — кнопки возвращаются, отсчёт простоя сначала.
@@ -690,36 +707,93 @@ struct FullPlayerView: View {
         .foregroundStyle(Theme.textSecondary)
     }
 
+    /// Ряд кнопок. С открытым текстом — компактный (`PlayerControlsLayout.compact`): капсула мельче,
+    /// слева ♥, справа T — закрыть текст.
     private var controls: some View {
-        HStack {
+        let layout = PlayerControlsLayout.current(lyricsOpen: showLyrics)
+        return HStack(spacing: layout.gap) {
+            if layout.hasSideButtons, let track = engine.current {
+                likeCircle(track, side: layout.sideButton)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+            transport(layout)
+            if layout.hasSideButtons {
+                lyricsCircle(side: layout.sideButton)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+        }
+        .foregroundStyle(Theme.text)
+        .buttonStyle(PressableStyle(scale: 0.88))
+    }
+
+    /// Капсула ⟲ ⏮ ▶ ⏭ ⤨.
+    private func transport(_ layout: PlayerControlsLayout) -> some View {
+        HStack(spacing: 0) {
             Button { engine.cycleRepeat() } label: {
                 PlayerToggleIcon(
                     icon: RepeatUI.icon(engine.repeatMode),
                     active: engine.repeatMode != .off,
-                    stateKey: engine.repeatMode.rawValue
+                    stateKey: engine.repeatMode.rawValue,
+                    size: layout.toggleIcon
                 )
             }
             .accessibilityLabel(t("Повтор"))
             .accessibilityValue(RepeatUI.value(of: t(RepeatUI.labelKey(engine.repeatMode))))
-            Spacer()
-            Button { engine.previous() } label: { SonarIcon(.prev, filled: true, size: 30) }
-            Spacer()
-            Button { engine.toggle() } label: { playButton }
-            Spacer()
-            Button { engine.next() } label: { SonarIcon(.next, filled: true, size: 30) }
-            Spacer()
+            Spacer(minLength: PlayerControlsLayout.minSpacing)
+            Button { engine.previous() } label: { skipIcon(.prev, layout) }
+            Spacer(minLength: PlayerControlsLayout.minSpacing)
+            Button { engine.toggle() } label: {
+                playButton
+                    .scaleEffect(layout.playScale)
+                    .frame(width: layout.playSide, height: layout.playSide)
+            }
+            Spacer(minLength: PlayerControlsLayout.minSpacing)
+            Button { engine.next() } label: { skipIcon(.next, layout) }
+            Spacer(minLength: PlayerControlsLayout.minSpacing)
             Button { engine.toggleShuffle() } label: {
-                PlayerToggleIcon(icon: .shuffle, active: engine.shuffle, stateKey: "\(engine.shuffle)")
+                PlayerToggleIcon(icon: .shuffle, active: engine.shuffle, stateKey: "\(engine.shuffle)",
+                                 size: layout.toggleIcon)
             }
             .accessibilityLabel(t("Перемешивание"))
             .accessibilityValue(RepeatUI.value(of: t(RepeatUI.shuffleKey(engine.shuffle))))
         }
         .font(.system(size: 22))
-        .foregroundStyle(Theme.text)
-        .buttonStyle(PressableStyle(scale: 0.88))
-        .padding(.horizontal, 22)
-        .frame(height: 88)
+        .padding(.horizontal, layout.capsulePadding)
+        .frame(height: layout.rowHeight)
+        .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial, in: Capsule())
+    }
+
+    private func skipIcon(_ icon: IconName, _ layout: PlayerControlsLayout) -> some View {
+        SonarIcon(icon, filled: true, size: layout.skipIcon)
+            .frame(width: layout.skipIcon + PlayerControlsLayout.skipPad,
+                   height: layout.skipIcon + PlayerControlsLayout.skipPad)
+            .contentShape(Rectangle())
+    }
+
+    /// ♥ слева от капсулы, когда открыт текст.
+    private func likeCircle(_ track: Track, side: CGFloat) -> some View {
+        let liked = library.isLiked(track)
+        return Button { withAnimation(Motion.spring) { library.toggleLike(track) } } label: {
+            SonarIcon(.heart, filled: liked, size: 22)
+                .foregroundStyle(liked ? Theme.accent : Theme.text)
+                .scaleEffect(liked ? 1.08 : 1)
+                .frame(width: side, height: side)
+                .background(.ultraThinMaterial, in: Circle())
+        }
+        .accessibilityLabel(t(liked ? "Убрать из Любимых" : "В Любимые"))
+    }
+
+    /// T справа от капсулы, когда открыт текст: подсвечена, тап — обратно к обложке.
+    private func lyricsCircle(side: CGFloat) -> some View {
+        Button { showLyrics = false } label: {
+            SonarIcon(.letterT, size: 22)
+                .foregroundStyle(Theme.accentInk)
+                .frame(width: side, height: side)
+                .background(Theme.accent, in: Circle())
+        }
+        .accessibilityLabel(t("Текст песни"))
+        .accessibilityAddTraits(.isSelected)
     }
 
     /// «Играть» в стиле `player.play_button`: круг, квадрат со скруглением или просто значок.
