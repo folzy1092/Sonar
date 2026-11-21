@@ -88,11 +88,11 @@ enum LyricsTextStyle: String, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .normal: "Обычный"
-        case .scale: "Масштаб"
-        case .blur: "Размытие"
-        case .cinema: "Кино"
-        case .shift: "Сдвиг"
+        case .normal: "Ровно"
+        case .scale: "Крупный план"
+        case .blur: "Фокус"
+        case .cinema: "Титры"
+        case .shift: "Выступ"
         }
     }
 }
@@ -106,14 +106,14 @@ enum LyricsAnimation: String, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .normal: "Обычная"
-        case .fade: "Фейд"
-        case .blur: "Размытие"
-        case .flip3d: "3D Переворот"
-        case .bounce: "Отскок"
+        case .normal: "Мягко"
+        case .fade: "Проявление"
+        case .blur: "Дымка"
+        case .flip3d: "Кувырок"
+        case .bounce: "Пружина"
         case .wave: "Волна"
         case .float: "Всплытие"
-        case .drift: "Дрифт"
+        case .drift: "Скольжение"
         case .zoom: "Глубина"
         case .ladder: "Лесенка"
         }
