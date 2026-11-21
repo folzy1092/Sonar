@@ -1,0 +1,128 @@
+/* ПК: полноэкранный плеер (обложка + управление слева, текст или очередь справа),
+   караоке по словам, пояснения к строкам и очередь (выдвижная панель, вкладка плеера, iPhone). */
+
+/* ── Полноэкранный плеер ──────────────────────────────── */
+.full {
+  /* Плеер всегда тёмный: свои токены поверх темы, акцент — по тёмной формуле */
+  --text-1: var(--player-ink);
+  --text-2: oklch(from var(--player-ink) l c h / .74);
+  --text-3: oklch(from var(--player-ink) l c h / .52);
+  --hover: oklch(1 0 0 / .08);
+  --press: oklch(1 0 0 / .12);
+  --surface-1: oklch(1 0 0 / .07);
+  --surface-2: oklch(1 0 0 / .12);
+  --border: oklch(1 0 0 / .1);
+  --accent: oklch(from var(--cover) clamp(0.74, l, 0.86) min(calc(c * 1.5), 0.2) h);
+  --on-accent: oklch(from var(--accent) 0.18 c h);
+  position: absolute; inset: 0; overflow: hidden; color: var(--text-1);
+  display: grid; grid-template-columns: minmax(360px, 5fr) minmax(0, 6fr); grid-template-rows: 64px minmax(0, 1fr);
+  column-gap: 56px; padding: 0 56px 40px;
+  background: var(--player-b);
+}
+.full-bg { position: absolute; inset: 0; pointer-events: none; }
+.full-bg i {
+  position: absolute; border-radius: 50%; filter: blur(90px); opacity: .7;
+  background: var(--player-a); transition: background-color var(--dur-4) var(--ease-std);
+  animation: drift calc(240s / var(--bpm, 90)) var(--ease-std) infinite alternate;
+}
+.full-bg i:nth-child(1) { width: 62%; height: 70%; left: -12%; top: -14%; }
+.full-bg i:nth-child(2) { width: 48%; height: 56%; right: -10%; bottom: -18%; opacity: .5; animation-delay: -6s; }
+.full-bg i:nth-child(3) { width: 34%; height: 40%; left: 38%; top: 30%; opacity: .32; background: var(--accent); animation-delay: -12s; }
+@keyframes drift { to { transform: translate(6%, 4%) scale(1.08); } }
+.full > :not(.full-bg) { position: relative; }
+
+.full-top { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; }
+.full-src { flex: 1; text-align: center; font-size: var(--fs-small); color: var(--text-3); }
+.full-src b { color: var(--text-1); font-weight: 700; }
+.full .seg { background: var(--surface-1); }
+
+.full-left { display: flex; flex-direction: column; justify-content: center; gap: 22px; min-height: 0; padding-bottom: 12px; }
+.full-cv-wrap { width: min(100%, 52vh); aspect-ratio: 1; align-self: center; }
+.full-cv { width: 100%; height: 100%; border-radius: var(--r-xl); box-shadow: 0 40px 80px -30px oklch(0 0 0 / .7); }
+.sonar:not(.is-playing) .full-cv { transform: scale(.94); }
+.full-cv { transition: transform var(--dur-4) var(--ease-out); }
+.full-meta { display: flex; align-items: center; gap: 16px; }
+.full-titles { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.full-title { font-size: 30px; font-weight: 800; letter-spacing: -.03em; line-height: 1.1; color: var(--text-1); }
+.full-artist { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; font-size: 16px; font-weight: 600; color: var(--text-2); }
+.full-artist:hover { color: var(--text-1); text-decoration: underline; text-underline-offset: 3px; }
+.full .ctrls.lg { justify-content: center; }
+.full-tools { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.full-tools .slider { width: 140px; }
+
+.full-right { min-height: 0; display: flex; flex-direction: column; }
+
+/* ── Текст и караоке ──────────────────────────────────── */
+.ly-scroll {
+  position: relative; flex: 1; min-height: 0; overflow: hidden;
+  mask-image: linear-gradient(transparent, #000 14%, #000 72%, transparent);
+}
+.ly-track { display: flex; flex-direction: column; gap: 6px; transition: transform var(--dur-4) var(--ease-out); will-change: transform; }
+.ly-line {
+  display: flex; align-items: flex-start; gap: 10px; padding: 6px 0;
+  opacity: .42; transform-origin: 0 50%;
+  transition: opacity var(--dur-3) var(--ease-std), transform var(--dur-3) var(--ease-out), filter var(--dur-3) var(--ease-std);
+}
+.ly-line.past { opacity: .3; }
+.ly-line.on { opacity: 1; transform: scale(1.02); }
+.ly-text {
+  text-align: left; font-size: 32px; line-height: 1.22; font-weight: 800; letter-spacing: -.025em;
+  color: var(--text-1); border-radius: var(--r-s);
+}
+.ly-text:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; text-decoration-color: oklch(1 0 0 / .25); }
+/* Слово заливается слева направо по --k (0…1); --k ставит караоке кадр за кадром */
+.ly-line.on .w {
+  --k: 0;
+  color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(90deg, var(--text-1) calc(var(--k) * 100%), oklch(from var(--text-1) l c h / .38) calc(var(--k) * 100%));
+}
+.ly-gap { padding: 14px 0; }
+.dots { display: inline-flex; gap: 8px; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--text-1); opacity: .35; }
+.ly-gap.on .dots i { animation: dot calc(120s / var(--bpm, 90)) var(--ease-std) infinite; }
+.ly-gap.on .dots i:nth-child(2) { animation-delay: calc(40s / var(--bpm, 90)); }
+.ly-gap.on .dots i:nth-child(3) { animation-delay: calc(80s / var(--bpm, 90)); }
+@keyframes dot { 50% { opacity: 1; transform: scale(1.2); } }
+.ann-btn {
+  flex: none; width: 28px; height: 28px; margin-top: 7px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--text-2); background: var(--surface-1);
+  transition: background-color var(--dur-1) var(--ease-std), color var(--dur-1) var(--ease-std), transform var(--dur-1) var(--ease-std);
+}
+.ann-btn:hover { background: var(--surface-2); color: var(--text-1); }
+.ann-btn:active { transform: scale(.92); }
+.ann-btn .i { width: 16px; height: 16px; }
+.ly-src { padding-top: 12px; font-size: 12px; color: var(--text-3); }
+.ly-none { flex: 1; display: grid; place-items: center; }
+
+.ann {
+  position: absolute; right: 56px; bottom: 40px; width: 380px; padding: 18px 20px; border-radius: var(--r-l);
+  background: oklch(from var(--player-b) calc(l + .06) c h / .92); backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--border); color: var(--text-1);
+  animation: ov-in var(--dur-3) var(--ease-out) both; transform-origin: 100% 100%;
+}
+.ann-q { font-weight: 800; margin-bottom: 8px; }
+.ann p { color: var(--text-2); line-height: 1.5; }
+.ann-src { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 12px; color: var(--text-3); }
+.ann-src .i { width: 14px; height: 14px; }
+
+/* ── Очередь ──────────────────────────────────────────── */
+.queue { display: flex; flex-direction: column; gap: 2px; }
+.queue-full { overflow-y: auto; padding-right: 6px; }
+.queue-drawer { padding: 4px 4px 24px; }
+.q-top { display: flex; align-items: center; justify-content: space-between; padding: 6px 6px 10px; }
+.q-top h2 { font-size: var(--fs-h2); font-weight: var(--fw-h2); letter-spacing: var(--track-tight); }
+.q-label {
+  display: flex; align-items: center; gap: 6px; padding: 16px 8px 6px;
+  font-size: 12px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em;
+}
+.q-label .tlink { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 600; }
+.q-label b { color: var(--text-1); text-transform: none; letter-spacing: 0; }
+.q-ic { width: 14px; height: 14px; }
+.q-row.trow { grid-template-columns: 44px minmax(0, 1fr) auto; }
+.q-cv { width: 44px; height: 44px; border-radius: var(--r-xs); }
+.q-row .icon-btn.sm { opacity: 0; transition: opacity var(--dur-1) var(--ease-std); }
+.q-row:hover .icon-btn.sm { opacity: 1; }
+.q-empty { padding: 8px 8px 4px; font-size: var(--fs-small); color: var(--text-3); }
+
+.pc.narrow .full { grid-template-columns: minmax(300px, 1fr) minmax(0, 1fr); column-gap: 32px; padding: 0 32px 32px; }
+.pc.narrow .ly-text { font-size: 26px; }

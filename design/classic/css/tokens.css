@@ -25,23 +25,23 @@
   transition: --cover var(--dur-4) var(--ease-std);
 
   /* ── Типографика ──────────────────────────────────────── */
-  --font: 'Onest', system-ui, sans-serif;
-  --fs-page: 40px;   --fw-page: 750;
-  --fs-h2: 22px;     --fw-h2: 700;
-  --fs-body: 14px;
+  --font: 'Manrope', system-ui, sans-serif;
+  --fs-page: 30px;   --fw-page: 800;
+  --fs-h2: 19px;     --fw-h2: 800;
+  --fs-body: 13.5px;
   --fs-small: 12.5px;
   --track-tight: -0.022em;
 
   /* ── Форма и ритм ─────────────────────────────────────── */
-  --r-xs: 6px;  --r-s: 10px;  --r-m: 14px;  --r-l: 20px;  --r-xl: 28px;  --r-pill: 999px;
-  --gap: 16px;
-  --pad-page: 40px;
-  --card: 184px;
-  --side-w: 248px;
-  --bar-h: 84px;
+  --r-xs: 6px;  --r-s: 8px;  --r-m: 10px;  --r-l: 16px;  --r-xl: 22px;  --r-pill: 999px;
+  --gap: 14px;
+  --pad-page: 28px;
+  --card: 164px;
+  --side-w: 232px;
+  --bar-h: 76px;
 
   /* Насколько поверхности подкрашены обложкой (0 — нейтрально) */
-  --tint: 0.2;
+  --tint: 0.42;
 
   /* ── Цвет: тёмная тема (основная) ─────────────────────── */
   --bg:        oklch(from var(--cover) 0.165 min(calc(c * var(--tint)), 0.035) h);
@@ -99,42 +99,6 @@
   --shadow-pop:   0 16px 40px -12px oklch(0 0 0 / 0.22), 0 0 0 1px var(--border);
 }
 
-/* ── Вариант A · «Плотнее и ярче» ───────────────────────── */
-.sonar[data-variant='vivid'] {
-  --font: 'Manrope', system-ui, sans-serif;
-  --fs-page: 30px;  --fw-page: 800;
-  --fs-h2: 19px;    --fw-h2: 800;
-  --fs-body: 13.5px;
-  --r-s: 8px;  --r-m: 10px;  --r-l: 16px;  --r-xl: 22px;
-  --gap: 14px;
-  --pad-page: 28px;
-  --card: 164px;
-  --side-w: 232px;
-  --bar-h: 76px;
-  --tint: 0.42;
-}
-
-/* ── Вариант B · «Больше воздуха и тише» ────────────────── */
-.sonar[data-variant='calm'] {
-  --tint: 0.12;
-  /* Герой тише: цвет обложки — только намёком */
-  --hero-a: oklch(from var(--cover) 0.27 min(calc(c * 0.55), 0.075) h);
-  --hero-b: oklch(from var(--cover) 0.19 min(calc(c * 0.2), 0.03) h);
-  /* Плеер тише: окрашен только верх, остальное — почти фон */
-  --player-a: oklch(from var(--cover) 0.3 min(calc(c * 0.6), 0.09) h);
-  --player-b: oklch(from var(--cover) 0.155 min(calc(c * 0.15), 0.02) h);
-}
-.sonar[data-variant='calm'][data-theme='light'] {
-  --player-a: oklch(from var(--cover) 0.9 min(calc(c * 0.5), 0.06) h);
-  --player-b: oklch(from var(--cover) 0.985 min(calc(c * 0.1), 0.01) h);
-  --player-ink: oklch(0.19 0 0);
-  --hero-a: oklch(from var(--cover) 0.92 min(calc(c * 0.4), 0.05) h);
-  --hero-b: oklch(from var(--cover) 0.965 min(calc(c * 0.15), 0.02) h);
-  --hero-ink: oklch(0.19 0 0);
-  --hero-on-ink: oklch(0.98 0 0);
-  --ring: var(--accent);
-}
-
 /* «Меньше движения» — только прозрачность */
 @media (prefers-reduced-motion: reduce) {
   .sonar { --dur-4: 0ms; }
@@ -143,3 +107,25 @@
     animation: none !important;
   }
 }
+
+/* Переключатель «Движение» в настройках — то же, что системное «Меньше движения» */
+.sonar[data-motion='reduced'] { --dur-4: 0ms; }
+.sonar[data-motion='reduced'] *, .sonar[data-motion='reduced'] *::before, .sonar[data-motion='reduced'] *::after {
+  transition-property: opacity !important;
+  animation: none !important;
+}
+.pc[data-motion='reduced'][data-overlay='settings'] .pc-app { transform: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .pc[data-overlay='settings'] .pc-app { transform: none !important; }
+}
+
+/* ── Стиль (Интерфейс → Стиль) ─────────────────────────── */
+.sonar[data-style='round'] { --r-xs: 10px; --r-s: 12px; --r-m: 16px; --r-l: 22px; --r-xl: 30px; --gap: 18px; --card: 172px; }
+.sonar[data-style='sharp'] { --r-xs: 2px; --r-s: 3px; --r-m: 4px; --r-l: 6px; --r-xl: 8px; --gap: 10px; --card: 156px; --fs-body: 13px; }
+
+/* ── Шрифт ────────────────────────────────────────────── */
+.sonar[data-font='golos'] { --font: 'Golos Text', system-ui, sans-serif; --track-tight: -0.015em; }
+.sonar[data-font='onest'] { --font: 'Onest', system-ui, sans-serif; --track-tight: -0.02em; }
+
+/* ── «Тема под обложку» выключена — свой цвет Sonar вместо обложки (перебивает --cover из плеера) ── */
+.sonar[data-cover='off'] { --cover: oklch(0.6 0.12 250) !important; --tint: 0.2; }

@@ -1,0 +1,49 @@
+/* ПК: эквалайзер — карточка над нижней панелью. 12 полос ±12 дБ, кривая — SVG.
+   Положение ручки: --db от −12 до 12 → 0…100 % высоты рельса. */
+.eqp {
+  width: 640px; padding: 20px 22px 16px; border-radius: var(--r-xl);
+  background: var(--surface-2); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--border);
+}
+.eqp-head { display: flex; align-items: center; gap: 14px; }
+.eqp-head > div { flex: 1; min-width: 0; }
+.eqp-head h2 { font-size: var(--fs-h2); font-weight: var(--fw-h2); letter-spacing: var(--track-tight); }
+.eqp-head p { font-size: var(--fs-small); color: var(--text-3); }
+.eq-presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 14px; }
+.eq-presets .chip:disabled { opacity: 1; cursor: default; }
+.eq-presets .chip:disabled:not(.on) { opacity: .45; }
+
+.eq-curve { display: block; width: 100%; height: 96px; margin-bottom: 6px; overflow: visible; }
+.eq-mid { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.eq-line {
+  fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; vector-effect: non-scaling-stroke;
+  transition: stroke var(--dur-3) var(--ease-std), opacity var(--dur-3) var(--ease-std);
+}
+.eq-area { fill: oklch(from var(--accent) l c h / .14); transition: opacity var(--dur-3) var(--ease-std); }
+
+.eq-bands { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; }
+.eq-band { --pos: calc((var(--db) + 12) / 24 * 100%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.eq-val { font-size: 11px; font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.eq-rail { position: relative; width: 26px; height: 150px; cursor: ns-resize; touch-action: none; }
+.eq-rail::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--surface-1); }
+.eq-zero { position: absolute; left: 4px; right: 4px; top: 50%; height: 1px; background: var(--border); }
+.eq-fill {
+  /* Заливка от нуля до ручки: вверх при плюсе, вниз при минусе */
+  position: absolute; left: 50%; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--accent);
+  top: min(50%, calc(100% - var(--pos))); bottom: min(50%, var(--pos));
+}
+.eq-knob {
+  position: absolute; left: 50%; bottom: var(--pos); width: 18px; height: 18px; margin: 0 0 -9px -9px; border-radius: 50%;
+  background: var(--text-1); box-shadow: 0 2px 8px oklch(0 0 0 / .35);
+  transition: transform var(--dur-1) var(--ease-out);
+}
+.eq-band:hover .eq-knob { transform: scale(1.12); }
+.eq-band.drag .eq-knob { transform: scale(1.25); }
+.eq-band:not(.drag) .eq-knob, .eq-band:not(.drag) .eq-fill { transition-property: transform, bottom, top; transition-duration: var(--dur-2); }
+.eq-hz { font-size: 11px; color: var(--text-3); }
+.eqp-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 12px; box-shadow: inset 0 1px var(--border); }
+.eqp-foot > span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-3); }
+.eqp-foot .i { width: 14px; height: 14px; }
+
+.eqp.off .eq-line, .eqp.off .eq-area { opacity: .25; }
+.eqp.off .eq-fill { background: var(--text-3); }
+.eqp.off .eq-knob { background: var(--text-3); }

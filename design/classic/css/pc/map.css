@@ -1,0 +1,49 @@
+/* ПК: карта исполнителей — поле 1000×640, двигается и масштабируется через --mx/--my/--mk. */
+.map-page { display: flex; flex-direction: column; height: 100%; }
+.map-tools { margin-left: auto; display: flex; gap: 4px; padding: 4px; border-radius: var(--r-pill); background: var(--surface-1); }
+.map-wrap { flex: 1; min-height: 620px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; }
+.map-stage {
+  position: relative; overflow: hidden; border-radius: var(--r-xl); cursor: grab; touch-action: none;
+  background:
+    radial-gradient(circle at 50% 50%, oklch(from var(--accent) l c h / .08), transparent 60%),
+    radial-gradient(circle, var(--border) 1px, transparent 1.5px) 0 0 / 22px 22px,
+    var(--surface-1);
+}
+.map-stage.grab { cursor: grabbing; }
+.map-world {
+  position: absolute; left: 0; top: 0; width: 1000px; height: 640px;
+  transform: translate(var(--mx, 0), var(--my, 0)) scale(var(--mk, 1)); transform-origin: 0 0;
+}
+.map-edges { position: absolute; inset: 0; width: 1000px; height: 640px; overflow: visible; }
+.medge { stroke: var(--text-3); stroke-opacity: .35; stroke-width: 1; vector-effect: non-scaling-stroke; transition: stroke var(--dur-2) var(--ease-std), stroke-opacity var(--dur-2) var(--ease-std); }
+.map-stage.has-sel .medge { stroke-opacity: .1; }
+.map-stage.has-sel .medge.on { stroke: var(--accent); stroke-opacity: .9; stroke-width: 2; }
+
+.mnode {
+  position: absolute; left: var(--x); top: var(--y); width: var(--d); height: var(--d); transform: translate(-50%, -50%);
+  border-radius: 50%; transition: opacity var(--dur-2) var(--ease-std), transform var(--dur-2) var(--ease-out);
+}
+.mnode .cv { width: 100%; height: 100%; border-radius: 50%; display: block; box-shadow: 0 0 0 2px var(--bg), 0 8px 20px -8px oklch(0 0 0 / .6); transition: box-shadow var(--dur-2) var(--ease-std); }
+.mnode-name {
+  position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); white-space: nowrap;
+  font-size: 12px; font-weight: 700; color: var(--text-2); pointer-events: none;
+}
+.mnode:hover { transform: translate(-50%, -50%) scale(1.08); }
+.mnode:hover .mnode-name { color: var(--text-1); }
+.map-stage.has-sel .mnode:not(.sel, .near) { opacity: .22; }
+.mnode.sel { transform: translate(-50%, -50%) scale(1.15); z-index: 2; }
+.mnode.sel .cv { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent), 0 12px 28px -8px oklch(0 0 0 / .6); }
+.mnode.sel .mnode-name, .mnode.near .mnode-name { color: var(--text-1); }
+
+.map-side { min-width: 0; }
+.map-card { display: flex; flex-direction: column; gap: 6px; padding: 20px; border-radius: var(--r-xl); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border); }
+.map-card.hint .i { width: 28px; height: 28px; color: var(--accent); margin-bottom: 6px; }
+.map-card.hint b, .map-card > b { font-size: 17px; font-weight: 800; letter-spacing: var(--track-tight); }
+.map-card p { color: var(--text-2); line-height: 1.5; }
+.map-card > span { color: var(--text-3); font-size: var(--fs-small); }
+.map-card-cv { width: 96px; height: 96px; border-radius: 50%; margin-bottom: 8px; box-shadow: var(--shadow-cover); }
+.map-card-btns { display: flex; gap: 8px; margin: 10px 0 8px; }
+.map-card h3 { font-size: 13px; font-weight: 800; color: var(--text-2); margin-top: 6px; }
+.map-near { display: flex; flex-wrap: wrap; gap: 6px; }
+.pc.narrow .map-wrap { grid-template-columns: 1fr; }
+.pc.narrow .map-side { display: none; }

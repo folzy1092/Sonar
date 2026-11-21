@@ -33,7 +33,7 @@
 /* ── Иконки ───────────────────────────────────────────── */
 .i {
   width: 20px; height: 20px; flex: none; display: block;
-  fill: none; stroke: currentColor; stroke-width: 1.75;
+  fill: none; stroke: currentColor; stroke-width: var(--stroke, 1.75);
   stroke-linecap: round; stroke-linejoin: round;
 }
 .i .fill { fill: currentColor; stroke: none; }
@@ -89,9 +89,8 @@
 .like.on .ic-fill { opacity: 1; transform: scale(1); }
 .like.pop .ic-fill { animation: like-pop var(--dur-4) var(--ease-out); }
 @keyframes like-pop {
-  0% { transform: scale(.4); }
-  45% { transform: scale(1.18); }
-  100% { transform: scale(1); }
+  from { transform: scale(.55); opacity: .4; }
+  to { transform: scale(1); opacity: 1; }
 }
 
 /* ── Ползунки ─────────────────────────────────────────── */

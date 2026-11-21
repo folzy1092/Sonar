@@ -3,25 +3,30 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sonar · классика — два варианта</title>
+  <title>Sonar · классика — прототип</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=Onest:wght@400..800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=Golos+Text:wght@400..800&family=Onest:wght@400..800&display=swap">
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/controls.css">
   <link rel="stylesheet" href="css/stage.css">
-  <link rel="stylesheet" href="css/desktop.css">
-  <link rel="stylesheet" href="css/phone.css">
+  <link rel="stylesheet" href="css/pc/shell.css">
+  <link rel="stylesheet" href="css/pc/home.css">
+  <link rel="stylesheet" href="css/pc/pages.css">
+  <link rel="stylesheet" href="css/pc/search.css">
+  <link rel="stylesheet" href="css/pc/player.css">
+  <link rel="stylesheet" href="css/pc/eq.css">
+  <link rel="stylesheet" href="css/pc/settings.css">
+  <link rel="stylesheet" href="css/pc/stats.css">
+  <link rel="stylesheet" href="css/pc/map.css">
+  <link rel="stylesheet" href="css/pc/scenes.css">
+  <link rel="stylesheet" href="css/ph/shell.css">
+  <link rel="stylesheet" href="css/ph/screens.css">
+  <link rel="stylesheet" href="css/ph/player.css">
 </head>
 <body data-theme="dark">
   <header class="toolbar">
-    <div class="tb-group">
-      <span class="tb-label">Вариант</span>
-      <div class="seg">
-        <button data-tb="variant" data-val="vivid">A · Плотнее и ярче</button>
-        <button data-tb="variant" data-val="calm">B · Больше воздуха и тише</button>
-      </div>
-    </div>
     <div class="tb-group">
       <span class="tb-label">Тема</span>
       <div class="seg">
@@ -43,7 +48,40 @@
         <button data-tb="view" data-val="phone">iPhone</button>
       </div>
     </div>
-    <span class="tb-hint">Пробел — пауза · ← → — треки · ⌄ / мини-плеер — свернуть/развернуть</span>
+    <div class="tb-group">
+      <span class="tb-label">Ширина</span>
+      <div class="seg">
+        <button data-tb="width" data-val="960">960</button>
+        <button data-tb="width" data-val="1280">1280</button>
+        <button data-tb="width" data-val="1440">1440</button>
+        <button data-tb="width" data-val="1920">1920</button>
+        <button data-tb="width" data-val="2560">2560</button>
+      </div>
+    </div>
+    <div class="tb-group">
+      <span class="tb-label">Состояние</span>
+      <div class="seg">
+        <button data-tb="load" data-val="normal">Данные</button>
+        <button data-tb="load" data-val="loading">Загрузка</button>
+        <button data-tb="load" data-val="empty">Пусто</button>
+      </div>
+    </div>
+    <div class="tb-group">
+      <span class="tb-label">Движение</span>
+      <div class="seg">
+        <button data-tb="motion" data-val="full">Всё</button>
+        <button data-tb="motion" data-val="reduced">Меньше</button>
+      </div>
+    </div>
+    <div class="tb-group">
+      <span class="tb-label">Сцены</span>
+      <div class="seg">
+        <button data-tb="scene" data-val="splash">Заставка</button>
+        <button data-tb="scene" data-val="mini">Мини-окно</button>
+        <button data-tb="scene" data-val="update">Обновление</button>
+        <button data-tb="scene" data-val="toast">Тост</button>
+      </div>
+    </div>
   </header>
 
   <main class="stage">
@@ -60,10 +98,26 @@
   </main>
 
   <script src="js/data.js"></script>
+  <script src="js/data-more.js"></script>
   <script src="js/art.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/player.js"></script>
   <script src="js/parts.js"></script>
-  <script src="js/desktop.js"></script>
-  <script src="js/phone.js"></script>
+  <script src="js/pc/shell.js"></script>
+  <script src="js/pc/home.js"></script>
+  <script src="js/pc/library.js"></script>
+  <script src="js/pc/search.js"></script>
+  <script src="js/pc/menu.js"></script>
+  <script src="js/pc/full.js"></script>
+  <script src="js/pc/eq.js"></script>
+  <script src="js/pc/settings.js"></script>
+  <script src="js/pc/stats.js"></script>
+  <script src="js/pc/map.js"></script>
+  <script src="js/pc/scenes.js"></script>
+  <script src="js/ph/morph.js"></script>
+  <script src="js/ph/shell.js"></script>
+  <script src="js/ph/player.js"></script>
+  <script src="js/ph/screens.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

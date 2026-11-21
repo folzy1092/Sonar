@@ -1,0 +1,76 @@
+/* ПК: сцены поверх окна — заставка, мини-окно на «рабочем столе», путь обновления. */
+.scene { position: absolute; inset: 0; animation: fade-in var(--dur-3) var(--ease-std) both; }
+.scene.leaving { animation: fade-out 220ms var(--ease-in) both; pointer-events: none; }
+
+/* ── Заставка ─────────────────────────────────────────── */
+.scene-splash { background: var(--bg); display: grid; place-items: center; }
+.sc-splash { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.splash-mark { position: relative; width: 140px; height: 140px; display: grid; place-items: center; margin-bottom: 14px; }
+.splash-mark .rings { width: 320px; height: 320px; margin: -160px 0 0 -160px; }
+.splash-mark .ring { animation-play-state: running !important; }
+.splash-logo { width: 72px; height: 94px; color: var(--text-1); animation: splash-in var(--dur-4) var(--ease-out) both; }
+.splash-name { font-size: 26px; font-weight: 800; letter-spacing: -.03em; animation: pane-in var(--dur-4) var(--ease-out) 120ms both; }
+.splash-line { color: var(--text-3); animation: fade-in var(--dur-4) var(--ease-std) 240ms both; }
+@keyframes splash-in { from { opacity: 0; transform: scale(.86); } }
+
+/* ── Мини-окно на рабочем столе ───────────────────────── */
+.scene-mini { background: linear-gradient(160deg, oklch(from var(--cover) .32 min(c, .06) h), oklch(from var(--cover) .14 min(c, .03) h)); }
+.sc-desk { position: absolute; inset: 0; }
+.desk-win {
+  position: absolute; left: 12%; top: 10%; width: 56%; height: 66%; border-radius: 10px; overflow: hidden;
+  background: oklch(.97 0 0); box-shadow: 0 30px 80px -20px oklch(0 0 0 / .6);
+}
+.desk-bar { display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; background: oklch(.92 0 0); color: oklch(.4 0 0); font-size: 12px; }
+.desk-bar i { width: 10px; height: 10px; border-radius: 50%; background: oklch(.8 0 0); }
+.desk-bar span { margin-left: 8px; }
+.desk-lines { display: flex; flex-direction: column; gap: 14px; padding: 36px 48px; }
+.desk-lines i { height: 9px; width: var(--w); border-radius: 5px; background: oklch(.87 0 0); }
+.mini {
+  position: absolute; right: 36px; bottom: 76px; width: 340px; height: 96px; overflow: hidden;
+  display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; grid-template-rows: 1fr auto; align-items: center; column-gap: 12px;
+  padding: 12px 10px 12px 12px; border-radius: 14px; color: var(--text-1);
+  background: oklch(from var(--surface-1) l c h / .86); backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow: var(--shadow-pop); animation: ov-in var(--dur-4) var(--ease-out) both;
+}
+.mini-cv { width: 72px; height: 72px; border-radius: 10px; grid-row: 1 / 3; }
+.mini-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mini-meta b { font-weight: 800; }
+.mini-meta span { color: var(--text-2); font-size: var(--fs-small); }
+.mini-ctrls { display: flex; align-items: center; gap: 2px; grid-column: 2; grid-row: 2; }
+.mini-side { grid-column: 3; grid-row: 1 / 3; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.mini-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--border); }
+.mini-prog i { display: block; height: 100%; width: calc(var(--p, 0) * 100%); background: var(--accent); }
+.desk-task {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 48px; display: flex; align-items: center; justify-content: center; gap: 6px;
+  background: oklch(.16 0 0 / .82); backdrop-filter: blur(20px);
+}
+.task-start, .task-app { width: 38px; height: 38px; border-radius: 6px; display: grid; place-items: center; }
+.task-start { background: radial-gradient(circle, oklch(.75 .12 240) 30%, transparent 32%) 0 0 / 19px 19px; }
+.task-app { position: relative; background: oklch(1 0 0 / .06); }
+.task-app .logo { width: 18px; height: 24px; color: #fff; }
+.task-app.on::after { content: ''; position: absolute; bottom: 2px; left: 13px; right: 13px; height: 3px; border-radius: 2px; background: var(--accent); }
+.task-clock { position: absolute; right: 18px; color: #fff; font-size: 12px; }
+
+/* ── Обновление ───────────────────────────────────────── */
+.scene-update { pointer-events: none; }
+.upd {
+  position: absolute; right: 24px; bottom: calc(var(--bar-h) + 20px); width: 360px; padding: 16px; pointer-events: auto;
+  border-radius: var(--r-l); background: var(--surface-2); box-shadow: var(--shadow-pop);
+  animation: ov-in var(--dur-3) var(--ease-out) both;
+}
+.upd-head { display: flex; align-items: center; gap: 12px; }
+.upd-head > div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.upd-head b { font-weight: 800; }
+.upd-head span { color: var(--text-3); font-size: var(--fs-small); }
+.upd-mark { width: 40px; height: 40px; flex: none; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.upd-mark.spin .i { animation: spin 1.4s linear infinite; }
+.upd-run .upd-mark:not(.spin) .i { animation: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.upd-notes { list-style: none; display: flex; flex-direction: column; gap: 6px; margin: 14px 0; padding: 12px 14px; border-radius: var(--r-m); background: var(--surface-1); }
+.upd-notes li { position: relative; padding-left: 14px; color: var(--text-2); animation: pane-in var(--dur-3) var(--ease-out) both; animation-delay: calc(80ms + var(--i) * 40ms); }
+.upd-notes li::before { content: ''; position: absolute; left: 0; top: .55em; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.upd-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.upd-bar { display: block; height: 4px; margin-top: 14px; border-radius: 2px; background: var(--surface-1); overflow: hidden; }
+.upd-bar i { display: block; height: 100%; width: 0; background: var(--accent); animation: upd-fill var(--ms) var(--ease-std) both; }
+.upd-bar.full i { width: 100%; animation: none; }
+@keyframes upd-fill { to { width: 100%; } }

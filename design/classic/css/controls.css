@@ -1,0 +1,159 @@
+/* Sonar · классика — общие контролы ПК и iPhone: кнопки, переключатели, сегменты, метки, скелеты. */
+
+/* ── Кнопки с текстом ─────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 40px; padding: 0 18px; border-radius: var(--r-pill); white-space: nowrap; flex: none;
+  font-weight: 700; font-size: 13.5px;
+  transition: background-color var(--dur-1) var(--ease-std), color var(--dur-2) var(--ease-std),
+              transform var(--dur-1) var(--ease-out), box-shadow var(--dur-2) var(--ease-std);
+}
+.btn .i { width: 18px; height: 18px; }
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .45; transform: none; }
+.btn.sm { height: 32px; padding: 0 14px; font-size: 12.5px; }
+.btn.sm .i { width: 16px; height: 16px; }
+.btn-accent { background: var(--accent); color: var(--on-accent); }
+.btn-accent:hover { box-shadow: 0 8px 20px -10px var(--accent); }
+.btn-soft { background: var(--surface-1); color: var(--text-1); }
+.btn-soft:hover { background: var(--surface-2); }
+.btn-soft.on { background: var(--accent-soft); color: var(--accent); }
+
+.tlink {
+  color: inherit; font: inherit; text-align: left; border-radius: 3px;
+  text-decoration: underline transparent; text-underline-offset: 3px;
+  transition: text-decoration-color var(--dur-1) var(--ease-std), color var(--dur-1) var(--ease-std);
+}
+.tlink:hover { color: var(--text-1); text-decoration-color: currentColor; }
+
+/* ── Иконка-кнопка: размеры ───────────────────────────── */
+.icon-btn.sm { width: 28px; height: 28px; }
+.icon-btn.sm .i { width: 16px; height: 16px; }
+.icon-btn.big .i { width: 22px; height: 22px; }
+.icon-btn.ghost { background: var(--surface-1); color: var(--text-1); width: 40px; height: 40px; }
+.icon-btn.ghost:hover { background: var(--surface-2); }
+.like.lg { width: 44px; height: 44px; }
+.like.lg .i { width: 26px; height: 26px; }
+.like.sm { width: 28px; height: 28px; }
+.like.sm .i { width: 16px; height: 16px; }
+
+.play-btn.xl { width: 64px; height: 64px; }
+.play-btn.xl .i { width: 28px; height: 28px; }
+.play-btn.sm { width: 32px; height: 32px; }
+.play-btn.sm .i { width: 16px; height: 16px; }
+.ctrls.lg { gap: 22px; }
+.ctrls.lg .icon-btn { width: 44px; height: 44px; }
+.ctrls.lg .icon-btn .i { width: 24px; height: 24px; }
+
+/* ── Метки ────────────────────────────────────────────── */
+.tag {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 5px; flex: none;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .01em;
+  color: var(--text-2); background: var(--surface-2);
+}
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: var(--r-pill);
+  font-size: 11.5px; font-weight: 700; white-space: nowrap; flex: none;
+  color: var(--text-2); background: var(--surface-2);
+}
+.pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill-on { color: oklch(0.72 0.17 150); background: oklch(0.72 0.17 150 / .14); }
+.pill-error { color: oklch(0.7 0.19 30); background: oklch(0.7 0.19 30 / .14); }
+.pill-off::before { background: var(--text-off); }
+.sonar kbd {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 5px;
+  font: 650 10.5px/1 var(--font); color: var(--text-3);
+  border: 1px solid var(--border); white-space: nowrap;
+}
+
+/* ── Переключатель ────────────────────────────────────── */
+.tgl {
+  position: relative; width: 40px; height: 24px; border-radius: var(--r-pill); flex: none;
+  background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border);
+  transition: background-color var(--dur-2) var(--ease-std), box-shadow var(--dur-2) var(--ease-std);
+}
+.tgl i {
+  position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text-1); box-shadow: 0 1px 3px oklch(0 0 0 / .3);
+  transition: transform var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-std);
+}
+.tgl:hover { box-shadow: inset 0 0 0 1px var(--text-off); }
+.tgl.on { background: var(--accent); box-shadow: none; }
+.tgl.on i { transform: translateX(16px); background: var(--on-accent); }
+.tgl:disabled { opacity: .4; }
+
+/* ── Сегменты ─────────────────────────────────────────── */
+.sonar .seg {
+  display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--r-pill); flex: none;
+  background: var(--surface-1);
+}
+.seg-b {
+  height: 28px; padding: 0 14px; border-radius: var(--r-pill); white-space: nowrap;
+  font-size: 12.5px; font-weight: 650; color: var(--text-2);
+  transition: background-color var(--dur-2) var(--ease-std), color var(--dur-2) var(--ease-std), box-shadow var(--dur-2) var(--ease-std);
+}
+.seg-b:hover { color: var(--text-1); }
+.seg-b.on { background: var(--surface-2); color: var(--text-1); box-shadow: 0 1px 3px oklch(0 0 0 / .18); }
+.seg-b em { font-style: normal; font-size: 10.5px; color: var(--accent); margin-left: 4px; }
+
+/* ── Скелет загрузки ──────────────────────────────────── */
+.skel { padding-top: 6px; }
+.sk {
+  display: block; border-radius: var(--r-xs);
+  background: linear-gradient(90deg, var(--surface-1) 0%, var(--surface-2) 50%, var(--surface-1) 100%) 0 0 / 300% 100%;
+  animation: shimmer 1.4s linear infinite;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+.sk-h { width: 220px; height: 30px; margin-bottom: 26px; }
+.sk-l1 { width: 70%; height: 12px; }
+.sk-l2 { width: 44%; height: 10px; margin-top: 7px; }
+.sk-cards { display: flex; gap: var(--gap); overflow: hidden; margin-bottom: 34px; }
+.sk-card { width: var(--card); flex: none; }
+.sk-card .sk-l1 { margin-top: 10px; }
+.sk-sq { width: 100%; aspect-ratio: 1; border-radius: var(--r-m); }
+.sk-rows { display: grid; gap: 6px; }
+.sk-row { display: grid; grid-template-columns: 44px 1fr 40px; align-items: center; gap: 12px; padding: 6px; }
+.sk-cv { width: 44px; height: 44px; }
+.sk-d { width: 32px; height: 10px; }
+.sk-coll { display: flex; align-items: flex-end; gap: 26px; margin-bottom: 30px; }
+.sk-big { width: 220px; height: 220px; border-radius: var(--r-l); flex: none; }
+.sk-coll > span { flex: 1; display: grid; gap: 12px; }
+.sk-coll .sk-h { width: 60%; height: 44px; margin: 0; }
+
+/* ── Перерисовка того же экрана — без анимации входа ──── */
+.page.still { animation: none; }
+
+/* ── Появление панели после переключения вкладки ──────── */
+.pane-in, .res-in { animation: pane-in var(--dur-3) var(--ease-out); }
+@keyframes pane-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ── Карточка-панель (статистика, настройки) ──────────── */
+.panel {
+  padding: 20px 22px 22px; border-radius: var(--r-l);
+  background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border);
+}
+
+/* ── Круглая обложка (исполнитель) ────────────────────── */
+.cv.round, .card-round .card-cv { border-radius: 50%; }
+.card-round .card-title, .card-round .card-sub { text-align: center; }
+
+/* ── Чип на обычном фоне (не на герое) ────────────────── */
+.chip-plain, .eq-presets .chip, .map-near .chip {
+  background: var(--surface-1); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--border);
+}
+.chip-plain:hover, .eq-presets .chip:hover, .map-near .chip:hover { background: var(--surface-2); color: var(--text-1); }
+.chip-plain.on, .eq-presets .chip.on { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+
+/* ── Кнопки плеера (панель ПК, полный плеер, iPhone) ── */
+.ctrls { display: flex; align-items: center; gap: 14px; }
+.ctrls .i-prev, .ctrls .i-next { width: 22px; height: 22px; }
+.icon-btn.big { color: var(--text-1); }
+.play-btn {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent); color: var(--on-accent);
+  transition: transform var(--dur-1) var(--ease-out), background-color var(--dur-4) var(--ease-std), color var(--dur-4) var(--ease-std);
+}
+.play-btn:hover { transform: scale(1.05); }
+.play-btn:active { transform: scale(.94); }
+.play-btn .i { width: 20px; height: 20px; }

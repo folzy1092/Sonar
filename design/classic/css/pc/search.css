@@ -1,0 +1,113 @@
+/* ПК: поиск (поле, фильтры по сервисам, лучшее совпадение, ссылка → перенос) и быстрый переход Ctrl+K. */
+
+/* ── Поле и фильтры ───────────────────────────────────── */
+.search-head {
+  position: sticky; top: 0; z-index: 3; display: flex; flex-direction: column; gap: 12px;
+  padding: 4px 0 16px; margin-bottom: 8px; background: var(--bg);
+}
+.search-field {
+  display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 10px 0 18px;
+  border-radius: var(--r-pill); background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border);
+  transition: box-shadow var(--dur-2) var(--ease-std), background-color var(--dur-2) var(--ease-std);
+}
+.search-field:focus-within { background: var(--surface-2); box-shadow: inset 0 0 0 2px var(--accent); }
+.search-field > .i { width: 20px; height: 20px; color: var(--text-3); flex: none; }
+.search-field input {
+  flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none;
+  font: inherit; font-size: 16px; font-weight: 600; color: var(--text-1);
+}
+.search-field input::placeholder { color: var(--text-3); font-weight: 500; }
+.search-field .clear { opacity: 0; pointer-events: none; transition: opacity var(--dur-1) var(--ease-std); }
+.search-field:has(input:not(:placeholder-shown)) .clear, .search-field.has-text .clear { opacity: 1; pointer-events: auto; }
+.fchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.fchip {
+  height: 32px; padding: 0 14px; display: inline-flex; align-items: center; gap: 7px; border-radius: var(--r-pill);
+  font-size: var(--fs-small); font-weight: 700; color: var(--text-2); background: var(--surface-1);
+  transition: background-color var(--dur-1) var(--ease-std), color var(--dur-1) var(--ease-std), transform var(--dur-1) var(--ease-std);
+}
+.fchip:hover { background: var(--surface-2); color: var(--text-1); }
+.fchip:active { transform: scale(.96); }
+.fchip.on { background: var(--text-1); color: var(--bg); }
+
+/* ── Результаты ───────────────────────────────────────── */
+.mini-h { margin: 0 0 12px; font-size: var(--fs-h2); font-weight: var(--fw-h2); letter-spacing: var(--track-tight); color: var(--text-1); }
+.search-top { display: grid; grid-template-columns: minmax(280px, .8fr) minmax(0, 1.2fr); gap: 28px; margin-bottom: 36px; }
+.best {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px; width: 100%; padding: 22px;
+  border-radius: var(--r-l); background: var(--surface-1); text-align: left;
+  transition: background-color var(--dur-2) var(--ease-std), transform var(--dur-1) var(--ease-std);
+}
+.best:hover { background: var(--surface-2); }
+.best:active { transform: scale(.99); }
+.best-cv { width: 96px; height: 96px; margin-bottom: 14px; border-radius: var(--r-m); box-shadow: var(--shadow-cover); }
+.best-cv.round { border-radius: 50%; }
+.best-title { font-size: 28px; font-weight: 800; letter-spacing: -.03em; color: var(--text-1); }
+.best-sub { display: flex; align-items: center; gap: 6px; font-size: var(--fs-small); color: var(--text-3); }
+
+.recent-q { display: flex; flex-wrap: wrap; gap: 8px; }
+.rq {
+  max-width: 340px; height: 36px; padding: 0 14px 0 12px; display: inline-flex; align-items: center; gap: 8px;
+  border-radius: var(--r-pill); background: var(--surface-1); color: var(--text-2); font-weight: 600;
+  transition: background-color var(--dur-1) var(--ease-std), color var(--dur-1) var(--ease-std);
+}
+.rq:hover { background: var(--surface-2); color: var(--text-1); }
+.rq .i { width: 16px; height: 16px; color: var(--text-3); flex: none; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.tile {
+  /* Цвет плитки — свой оттенок --h, но та же светлота и насыщенность: ряд спокойный */
+  position: relative; min-height: 104px; padding: 16px; border-radius: var(--r-l); overflow: hidden; text-align: left;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 4px;
+  background: linear-gradient(140deg, oklch(.56 .13 var(--h)), oklch(.38 .1 calc(var(--h) + 30)));
+  color: #fff; transition: transform var(--dur-2) var(--ease-out), filter var(--dur-2) var(--ease-std);
+}
+.tile:hover { transform: translateY(-2px); filter: brightness(1.06); }
+.tile:active { transform: scale(.98); }
+.tile b { font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+.tile span { font-size: 12.5px; opacity: .82; }
+
+/* ── Ссылка → перенос ─────────────────────────────────── */
+.link-card {
+  display: flex; align-items: flex-end; gap: 28px; padding: 24px; border-radius: var(--r-xl);
+  background: var(--surface-1); box-shadow: inset 0 0 0 1px var(--border); animation: pane-in var(--dur-3) var(--ease-out);
+}
+.link-cv { position: relative; width: 180px; height: 180px; flex: none; border-radius: var(--r-l); box-shadow: var(--shadow-cover); }
+.link-badge { position: absolute; left: 10px; top: 10px; transform: scale(1.3); transform-origin: 0 0; }
+.link-info { min-width: 0; }
+.link-info .coll-kind { display: flex; align-items: center; gap: 6px; }
+.link-info .coll-kind .i { width: 15px; height: 15px; }
+.link-title { margin: 8px 0 6px; font-size: 34px; font-weight: 800; letter-spacing: -.03em; color: var(--text-1); }
+.link-line { color: var(--text-2); }
+.link-line b { color: var(--text-1); }
+
+/* ── Ctrl+K ───────────────────────────────────────────── */
+.quick {
+  width: 620px; max-width: calc(100% - 48px); border-radius: var(--r-xl); overflow: hidden;
+  background: var(--surface-2); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--border);
+}
+.q-field { display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 16px 0 20px; box-shadow: inset 0 -1px var(--border); }
+.q-field > .i { width: 20px; height: 20px; color: var(--text-3); }
+.q-field input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; font-size: 17px; font-weight: 600; color: var(--text-1); }
+.q-field input::placeholder { color: var(--text-3); font-weight: 500; }
+.q-list { display: flex; flex-direction: column; padding: 8px; max-height: 420px; overflow-y: auto; }
+.q-item {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  width: 100%; padding: 8px 10px; border-radius: var(--r-m); text-align: left;
+  transition: background-color var(--dur-1) var(--ease-std);
+}
+.q-item:hover { background: var(--hover); }
+.q-item.on { background: var(--accent-soft); }
+.quick .q-cv { width: 40px; height: 40px; border-radius: var(--r-xs); }
+.quick .q-cv.round { border-radius: 50%; }
+.quick .q-ic { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--r-s); background: var(--surface-1); color: var(--text-2); }
+.quick .q-ic .i { width: 20px; height: 20px; }
+.q-item.on .q-ic { color: var(--accent); }
+.q-meta { min-width: 0; display: flex; flex-direction: column; }
+.q-meta b { font-weight: 700; color: var(--text-1); }
+.q-meta span { display: flex; align-items: center; gap: 6px; font-size: var(--fs-small); color: var(--text-3); }
+.q-none { padding: 28px; text-align: center; color: var(--text-3); }
+.q-foot { display: flex; gap: 18px; padding: 10px 20px; font-size: 12px; color: var(--text-3); box-shadow: inset 0 1px var(--border); }
+.q-foot span { display: inline-flex; align-items: center; gap: 4px; }
+
+.pc.narrow .search-top { grid-template-columns: minmax(0, 1fr); }
+/* Кольцо фокуса рисует само поле — у input своего нет */
+.sonar .search-field input:focus-visible { outline: none; }
