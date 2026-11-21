@@ -110,10 +110,13 @@
     let w = 0
     let h = 0
     let color = '#fff'
-    let colorAt = 0
+    let colorAt = -Infinity
     let raf = 0
     let last = 0
     let lastT = Number.NaN
+    // свои часы поля, с: идут только в нарисованных кадрах. Окно в фоне, свёрнуто, поле вне экрана —
+    // время стоит, и после возврата фигура продолжает с того же места, а не перескакивает вперёд
+    let clock = 0
     let visible = true
     // игра: клики, курсор, музыка (lib/sonar-field.ts — чистые функции, здесь только состояние кадров)
     let pokes: Poke[] = []
@@ -146,9 +149,9 @@
     }
 
     /** Кадр музыки: спектр общего анализатора (нет анализатора или пауза — тишина, уровни мягко гаснут). */
-    const listen = (t: number, dt: number) => {
-      // отметка кадра в мс — та же, что у волны под ползунком: в одном кадре снимок общий
-      const spectrum = readSpectrum(t * 1000)
+    const listen = (real: number, t: number, dt: number) => {
+      // отметка кадра в мс — та же, что у волны под ползунком (реальные часы): в одном кадре снимок общий
+      const spectrum = readSpectrum(real * 1000)
       audio = stepAudio(audio, spectrum ? bandLevels(spectrum.data, spectrum.binHz) : SILENT, t, dt)
       return spectrum || !isQuiet(audio.levels) ? audio.levels : null
     }
@@ -166,14 +169,16 @@
       else if (beat && Number.isFinite(audio.beatAt)) pings = addPing(pings, t, BEAT_PING)
     }
 
-    const draw = (t: number, calm: boolean, lite: boolean) => {
-      const dt = Number.isFinite(lastT) ? Math.min(MAX_DT, Math.max(0, t - lastT)) : 0
-      lastT = t
+    const draw = (real: number, calm: boolean, lite: boolean) => {
+      const dt = Number.isFinite(lastT) ? Math.min(MAX_DT, Math.max(0, real - lastT)) : 0
+      lastT = real
+      clock += dt
+      const t = clock
       if (t - colorAt > 1) {
         color = getComputedStyle(el).getPropertyValue('--accent').trim() || '#fff'
         colorAt = t
       }
-      const levels = listen(t, dt)
+      const levels = listen(real, t, dt)
       // «Меньше движения»: спектр — сплошь движение, его не показываем (как волна под ползунком)
       const music = calm ? null : levels
       ring(t, lite)
@@ -263,7 +268,7 @@
     const onDown = (e: PointerEvent) => {
       if (e.button !== 0 || !e.isPrimary) return
       const p = local(e)
-      const t = e.timeStamp / 1000
+      const t = clock
       if (reducedMotion()) flashAt = t
       else pokes = addPoke(pokes, p.x, p.y, t, pokeCount++, Math.hypot(w, h))
     }

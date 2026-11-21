@@ -5,7 +5,7 @@
   import type { IconName } from './icons'
   import type { Track } from '../lib/api'
   import { artistsPreview } from '../lib/home-mixes'
-  import { collage } from '../lib/covers'
+  import { PixelCollage } from '../lib/pixel-collage.svelte'
   import { t } from '../lib/i18n.svelte'
 
   interface Props {
@@ -19,7 +19,10 @@
   }
   let { title, tracks, loading = false, hint, icon = 'sparkles', onclick }: Props = $props()
 
-  const covers = $derived(collage(tracks))
+  // одинаковые картинки под разными адресами (SoundCloud) — тоже повтор: сверяем по пикселям
+  const pc = new PixelCollage()
+  $effect(() => pc.set(tracks))
+  const covers = $derived(pc.covers)
   const preview = $derived(artistsPreview(tracks))
   const names = $derived(preview.shown.map((a) => a.name).join(', '))
 </script>

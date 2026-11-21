@@ -17,7 +17,7 @@
   import { player } from '../player/player.svelte'
   import { t } from '../lib/i18n.svelte'
   import { isMixId, type MixId } from '../lib/home-mixes'
-  import { collage } from '../lib/covers'
+  import { PixelCollage } from '../lib/pixel-collage.svelte'
   import { home } from './home-data.svelte'
   import { mixes } from './mixes.svelte'
 
@@ -30,6 +30,8 @@
   let tracksEl: HTMLDivElement | undefined = $state()
 
   const items = $derived(mixes.tracks(id))
+  const pc = new PixelCollage()
+  $effect(() => pc.set(items))
   const title = $derived(mixes.title(id))
   const loading = $derived(mixes.isLoading(id) && !items.length)
   const visible = $derived.by(() => {
@@ -68,7 +70,7 @@
 <CollectionHeader
   {title}
   titleIcon="sparkles"
-  covers={collage(items)}
+  covers={pc.covers}
   icon="sparkles"
   meta={loading ? '' : `${tracksText(items.length)}${items.length ? `, ${durationText(total)}` : ''}`}
   {context}

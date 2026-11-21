@@ -132,7 +132,15 @@
     document.addEventListener('scroll', off, opts)
     document.addEventListener('keydown', off, opts)
     window.addEventListener('blur', off)
+    // title, выставленный заново без движения мыши (клик по повтору меняет подпись), браузер показал бы
+    // системной подсказкой — забираем его сразу, где бы он ни появился
+    const titles = new MutationObserver((list) => {
+      for (const m of list) if (m.target instanceof HTMLElement && m.target.hasAttribute('title')) adopt(m.target)
+    })
+    titles.observe(document.body, { attributes: true, attributeFilter: ['title'], subtree: true })
+    for (const el of document.body.querySelectorAll<HTMLElement>('[title]')) adopt(el)
     return () => {
+      titles.disconnect()
       document.removeEventListener('pointerover', onOver, opts)
       document.removeEventListener('pointerout', onOut, opts)
       document.removeEventListener('pointerdown', off, opts)

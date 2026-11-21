@@ -20,7 +20,7 @@
   import { byId, serviceOf } from '../lib/services'
   import { settingsPanel } from './settings-section.svelte'
   import { onDestroy } from 'svelte'
-  import { collage } from '../lib/covers'
+  import { PixelCollage } from '../lib/pixel-collage.svelte'
 
   const id = router.param ?? 'favorites'
   const kind: 'favorites' | 'own' | 'service' | 'local' =
@@ -30,7 +30,8 @@
   /** Заголовок на экране: «Любимые» и «На этом компьютере» переводятся на лету, остальное — как есть. */
   const heading = $derived(kind === 'favorites' ? t('Любимые') : kind === 'local' ? t('На этом компьютере') : title)
   let owner = $state('')
-  let covers = $state<string[]>([])
+  const pc = new PixelCollage()
+  const covers = $derived(pc.covers)
   let image = $state<string | null>(null)
   let hidden = $state(false)
   let items = $state<(Track & Partial<ListTrack>)[]>([])
@@ -68,16 +69,17 @@
     try {
       if (kind === 'favorites') {
         items = await api.favorites()
-        covers = []
+        pc.set([], [])
       } else if (kind === 'local') {
         items = await api.localTracks()
-        covers = collage(items)
+        pc.set(items)
       } else if (kind === 'own') {
         const p = await api.playlist(id)
         title = p.name
         hidden = p.hidden
-        covers = p.covers
         items = p.tracks ?? []
+        // обложки с сервера — сразу, потом сверка по картинкам, если треки пришли
+        pc.set(items, p.covers)
       } else {
         const page = await api.servicePlaylist(id)
         title = page.playlist.title
