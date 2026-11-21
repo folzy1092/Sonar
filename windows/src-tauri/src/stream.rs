@@ -33,6 +33,59 @@ static COVER_DIR: OnceLock<PathBuf> = OnceLock::new();
 pub fn set_cover_dir(dir: PathBuf) {
   let _ = std::fs::create_dir_all(&dir);
   let _ = COVER_DIR.set(dir);
+  // при запуске — в фоне: папка может быть большой, окно ждать не должно
+  std::thread::spawn(|| {
+    if let Some(d) = cover_dir() {
+      prune_covers(d, COVER_CACHE_LIMIT);
+    }
+  });
+}
+
+/// Предел кэша обложек с CDN, байт (docs/AUDIT.md п. 2). Обложка — 50–200 КБ, это тысячи обложек.
+pub const COVER_CACHE_LIMIT: u64 = 300 * 1024 * 1024;
+/// Раз в сколько новых обложек проверять предел.
+const COVER_PRUNE_EVERY: u32 = 200;
+static COVER_WRITES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// Обложка с CDN — имя `md5(адрес)`, 32 hex. Обложки локальных файлов (`local-….png`) не трогаем:
+/// без сканирования папок их не вернуть.
+fn is_remote_cover(name: &str) -> bool {
+  name.len() == 32 && name.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// Убрать давно не открывавшиеся обложки с CDN, пока кэш больше `limit`. Вернёт, сколько удалено.
+pub fn prune_covers(dir: &std::path::Path, limit: u64) -> usize {
+  let mut list: Vec<(PathBuf, u64, std::time::SystemTime)> = std::fs::read_dir(dir)
+    .map(|rd| {
+      rd.flatten()
+        .filter(|e| e.file_name().to_str().is_some_and(is_remote_cover))
+        .filter_map(|e| {
+          let m = e.metadata().ok()?;
+          Some((e.path(), m.len(), m.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH)))
+        })
+        .collect()
+    })
+    .unwrap_or_default();
+  let mut total: u64 = list.iter().map(|e| e.1).sum();
+  list.sort_by_key(|e| e.2);
+  let mut removed = 0;
+  for (p, len, _) in list {
+    if total <= limit {
+      break;
+    }
+    if std::fs::remove_file(&p).is_ok() {
+      total = total.saturating_sub(len);
+      removed += 1;
+    }
+  }
+  removed
+}
+
+/// Обложку открыли — она «свежая»: вытеснение идёт от давно не открывавшихся, а не от старых.
+fn touch(p: &std::path::Path) {
+  if let Ok(f) = std::fs::File::options().write(true).open(p) {
+    let _ = f.set_modified(std::time::SystemTime::now());
+  }
 }
 
 pub fn cover_dir() -> Option<&'static PathBuf> {
@@ -611,6 +664,8 @@ async fn cover(State(core): State<Arc<Core>>, Query(q): Query<CoverQuery>, heade
   };
   if let Some(p) = &path {
     if let Ok(bytes) = tokio::fs::read(p).await {
+      let p = p.clone();
+      tokio::task::spawn_blocking(move || touch(&p));
       return image(bytes);
     }
   }
@@ -622,7 +677,13 @@ async fn cover(State(core): State<Arc<Core>>, Query(q): Query<CoverQuery>, heade
   match res.bytes().await {
     Ok(b) => {
       if let Some(p) = &path {
-        let _ = tokio::fs::write(p, &b).await;
+        if tokio::fs::write(p, &b).await.is_ok()
+          && COVER_WRITES.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % COVER_PRUNE_EVERY == COVER_PRUNE_EVERY - 1
+        {
+          if let Some(d) = cover_dir() {
+            tokio::task::spawn_blocking(move || prune_covers(d, COVER_CACHE_LIMIT));
+          }
+        }
       }
       image(b.to_vec())
     }
@@ -802,6 +863,32 @@ mod tests {
     let whole = http.get(&url).send().await.unwrap().bytes().await.unwrap();
     println!("весь файл: {} байт за {:?}", whole.len(), t.elapsed());
     assert!(whole.len() > 2_000_000);
+  }
+
+  #[test]
+  fn prune_covers_keeps_local_and_fresh() {
+    use std::time::{Duration, SystemTime};
+    let dir = crate::local::fixtures::temp_dir("cover-prune");
+    let put = |name: &str, len: usize, age_s: u64| {
+      let p = dir.join(name);
+      std::fs::write(&p, vec![0u8; len]).unwrap();
+      let f = std::fs::File::options().write(true).open(&p).unwrap();
+      f.set_modified(SystemTime::now() - Duration::from_secs(age_s)).unwrap();
+    };
+    let old = "a".repeat(32);
+    let mid = "b".repeat(32);
+    let new = "c".repeat(32);
+    let local = format!("local-{}.png", "d".repeat(40));
+    put(&old, 100, 300);
+    put(&mid, 100, 200);
+    put(&new, 100, 100);
+    put(&local, 1000, 400);
+    // предел 150 байт: уходят две самые старые обложки CDN, локальная (хоть и старше и больше) остаётся
+    assert_eq!(prune_covers(&dir, 150), 2);
+    assert!(!dir.join(&old).exists() && !dir.join(&mid).exists());
+    assert!(dir.join(&new).exists() && dir.join(&local).exists());
+    // уже в пределе — ничего не трогаем
+    assert_eq!(prune_covers(&dir, 150), 0);
   }
 
   #[test]
