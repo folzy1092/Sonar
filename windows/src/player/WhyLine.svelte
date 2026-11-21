@@ -4,6 +4,7 @@
   import type { Track } from '../lib/api'
   import { settings } from '../lib/settings.svelte'
   import { t } from '../lib/i18n.svelte'
+  import { waveWhyText } from '../lib/wave-why'
   import { WAVE_CONTEXT } from './my-wave.svelte'
   import { player } from './player.svelte'
 
@@ -12,21 +13,7 @@
   const text = $derived.by(() => {
     const w = track?.why
     if (!w || player.context !== WAVE_CONTEXT || !settings.get('player.wave_why')) return ''
-    const seed = w.title ? (w.artist ? `«${w.title}» — ${w.artist}` : `«${w.title}»`) : ''
-    switch (w.kind) {
-      case 'liked':
-        return t('Из твоих Любимых — давно не звучал')
-      case 'artist':
-        return w.artist ? t('Ты часто слушаешь {artist}', { artist: w.artist }) : t('Популярное у любимого артиста')
-      case 'explore':
-        return t('Разведка: новое рядом с твоим вкусом')
-      case 'session':
-        return seed ? t('Похоже на {seed} — он зашёл сейчас', { seed }) : t('Похоже на то, что зашло сейчас')
-      case 'seed':
-        return seed ? t('Sonar Mix по {seed}', { seed }) : t('Похоже на трек, с которого начался Sonar Mix')
-      default:
-        return seed ? t('Похоже на {seed}', { seed }) : t('Похоже на твои лайки')
-    }
+    return waveWhyText(w)
   })
 </script>
 

@@ -1040,6 +1040,13 @@ final class PlaybackEngine {
         return waveReasons[track.ref]
     }
 
+    /// «Почему этот трек» для меню трека «⋮»: у трека волны — всегда, тумблер строки в плеере не важен
+    /// (в меню человек спрашивает сам).
+    func waveWhy(for track: Track) -> String? {
+        guard isWave else { return nil }
+        return waveReasons[track.ref]
+    }
+
     /// Волна без сети: следующие треки волны — в кэш (на Wi‑Fi), сыгранное — из кэша вон.
     private func refreshWaveCache() {
         WaveCache.shared.update(upcoming: upNext, current: current, isWave: isWave,

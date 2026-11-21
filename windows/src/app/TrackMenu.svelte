@@ -14,6 +14,7 @@
   import { isMissingLocal, servicesQuery } from '../lib/local'
   import { pop } from '../lib/motion'
   import { wave } from '../player/my-wave.svelte'
+  import { waveWhyText } from '../lib/wave-why'
   import { t, lang } from '../lib/i18n.svelte'
 
   const W = 280
@@ -30,6 +31,8 @@
   )
   /** «Волна по треку» — только у сервисов с похожими (у файла с компьютера похожих нет). */
   const canWave = $derived(target ? !!byId(serviceOf(target.track.ref))?.caps.similar : false)
+  /** «Почему этот трек» — у треков Sonar Mix: откуда он пришёл (не зависит от тумблера строки в плеере). */
+  const why = $derived(target ? waveWhyText(target.track.why) : '')
   const playlists = $derived(library.playlists.filter((p) => p.id !== target?.playlistId))
 
   $effect(() => {
@@ -114,6 +117,12 @@
         {#if added}<small>{t('Добавлен')} <b>{added}</b></small>{/if}
       </div>
     </div>
+    {#if why && view === 'main'}
+      <div class="why" role="note" aria-label={t('Почему этот трек')}>
+        <Icon name="sparkles" size={15} />
+        <span><small>{t('Почему этот трек')}</small>{why}</span>
+      </div>
+    {/if}
 
     {#if view === 'main'}
       {@render item('playNext', t('Следующим'), () => player.addToQueue([target.track], true))}
@@ -196,6 +205,32 @@
     gap: 10px;
     align-items: center;
     padding: 6px 8px 10px;
+  }
+  .why {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin: 2px 4px 6px;
+    padding: 8px 10px;
+    border-radius: var(--radius-s);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--text-2);
+    font-size: calc(12px * var(--fs, 1));
+    line-height: 1.4;
+  }
+  .why :global(svg) {
+    flex: none;
+    margin-top: 1px;
+    color: var(--accent);
+  }
+  .why span {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+  }
+  .why small {
+    color: var(--text-3);
+    font-size: calc(11px * var(--fs, 1));
   }
   .meta {
     display: flex;

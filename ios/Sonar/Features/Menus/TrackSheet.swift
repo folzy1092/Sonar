@@ -24,6 +24,10 @@ struct TrackSheet: View {
                 VStack(alignment: .leading, spacing: 0) {
                     capsule
                         .padding(.top, 22)
+                    if let reason = engine.waveWhy(for: track) {
+                        whyNote(reason)
+                            .padding(.top, 12)
+                    }
                     VStack(spacing: 4) {
                         SheetMenuRow(icon: .next, title: "Следующим", subtitle: "Сыграет после текущего") {
                             engine.enqueue(track, next: true)
@@ -124,6 +128,27 @@ struct TrackSheet: View {
             .padding(.horizontal, Theme.gutter)
             .padding(.bottom, 4)
         }
+    }
+
+    /// «Почему этот трек» — у треков Sonar Mix: откуда он пришёл.
+    private func whyNote(_ reason: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            SonarIcon(.sparkles, size: 16)
+                .foregroundStyle(Theme.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(t("Почему этот трек"))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Theme.textSecondary)
+                Text(reason)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(Theme.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     private var capsule: some View {
