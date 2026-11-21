@@ -165,9 +165,18 @@
   const shutter = $derived(isShutter(openMode(settings.get('tabs.position'), settings.get('tabs.style'))))
   const away = $derived(settingsPanel.open && !shutter)
   const veiled = $derived(settingsPanel.open && shutter)
-  function slotAlive(_node: HTMLElement) {
+  function slotAlive(node: HTMLElement) {
     slotUp = true
-    return { destroy: () => (slotUp = false) }
+    // высота мини-плеера — для «Скрытия элементов»: карточка растягивается ровно на его место
+    const root = document.documentElement
+    const ro = new ResizeObserver(() => root.style.setProperty('--mini-h', `${node.offsetHeight}px`))
+    ro.observe(node)
+    return {
+      destroy: () => {
+        slotUp = false
+        ro.disconnect()
+      },
+    }
   }
 
   function onKey(e: KeyboardEvent) {
@@ -613,5 +622,58 @@
   }
   .tabs-bottom .player-slot {
     grid-row: 2;
+  }
+  /* Скрытие элементов (tabs.autohide): мышь замерла — панель и мини-плеер гаснут, а карточка страницы
+     плавно занимает их место, чтобы не оставалось пустых полей (владелец 2026-11-22). Отрицательные
+     поля, а не сетка: длины анимируются, а «auto» у строки мини-плеера — нет. Плавающие панель и
+     мини-плеер места в сетке не занимают — для них ничего не надо. */
+  .card {
+    transition:
+      margin 0.45s var(--ease),
+      border-radius 0.45s var(--ease);
+  }
+  /* панель (не плавающая): слева / справа — по ширине панели (она прижата к краю окна, зазор остаётся) */
+  :global(:root.tabs-autohide.ui-still) .shell.tabs-left:not(.tstyle-floating) .card {
+    margin-left: calc(-1 * var(--rail-w));
+  }
+  :global(:root.tabs-autohide.ui-still) .shell.tabs-right:not(.tstyle-floating) .card {
+    margin-right: calc(-1 * var(--rail-w));
+  }
+  /* сверху: полоса вкладок (и мини-плеер под ней, если он сверху); обычный отступ сверху — var(--gap) */
+  :global(:root.tabs-autohide.ui-still) .shell.tabs-top:not(.tstyle-floating) .card {
+    margin-top: calc(var(--gap) - var(--rail-w));
+  }
+  /* с мини-плеером в сетке между полосой и карточкой ещё зазор строк */
+  :global(:root.tabs-autohide.ui-still) .shell.tabs-top:not(.tstyle-floating, .solo) .card {
+    margin-top: calc(-1 * var(--rail-w));
+  }
+  :global(:root.tabs-autohide.ui-still) .shell:not(.tabs-top, .solo).mini-top .card,
+  :global(:root.tabs-autohide.ui-still) .shell.tabs-top.tstyle-floating:not(.solo).mini-top .card {
+    margin-top: calc(-1 * var(--mini-h, 0px));
+  }
+  :global(:root.tabs-autohide.ui-still) .shell.tabs-top:not(.tstyle-floating, .solo).mini-top .card {
+    margin-top: calc(-1 * (var(--rail-w) + var(--mini-h, 0px) + var(--gap)));
+  }
+  /* снизу: мини-плеер, полоса вкладок или оба — каждый со своим зазором */
+  :global(:root.tabs-autohide.ui-still) .shell:not(.solo):is(.mini-bottom, .mini-bottom_full) .card {
+    margin-bottom: calc(-1 * (var(--mini-h, 0px) + var(--gap)));
+  }
+  :global(:root.tabs-autohide.ui-still) .shell.tabs-bottom:not(.tstyle-floating) .card {
+    margin-bottom: calc(-1 * (var(--rail-w) + var(--gap)));
+  }
+  :global(:root.tabs-autohide.ui-still) .shell.tabs-bottom.solo:not(.tstyle-floating) .card {
+    margin-bottom: calc(-1 * var(--rail-w));
+  }
+  :global(:root.tabs-autohide.ui-still) .shell.tabs-bottom:not(.tstyle-floating, .solo):is(.mini-bottom, .mini-bottom_full) .card {
+    margin-bottom: calc(-1 * (var(--rail-w) + var(--mini-h, 0px) + 2 * var(--gap)));
+  }
+  /* карточка поверх погасших панели и мини-плеера */
+  :global(:root.tabs-autohide.ui-still) .card {
+    z-index: 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card {
+      transition: none;
+    }
   }
 </style>
