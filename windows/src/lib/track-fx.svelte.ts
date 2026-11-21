@@ -7,6 +7,7 @@
 //   edge     — световая дуга один раз обегает рамку, обложка проявляется .2→1;
 //   tactile  — огонёк бежит по 5 светодиодам, обложка «встаёт в слот» сверху;
 //   monolith — свечение за обложкой «разливается», заголовок поднимается на 8 px;
+//   classic  — обложка проявляется .96→1, заголовок поднимается на 6 px (design/classic, dur-4 450 мс);
 //   fade     — только обычный кроссфейд.
 // Перезапуск — снятием и постановкой класса `fx-run` (см. fx-layer.ts `restart`). «Меньше движения» —
 // только прозрачность: обложка проявляется, колец и дуги нет.
@@ -19,7 +20,7 @@ import { restart, spawn, visible } from './fx-layer'
 export const fx = $state({ barsStartedAt: 0 })
 
 /** Длительность анимации смены трека по стилю (для снятия класса). */
-const DURATION: Record<string, number> = { echo: 620, signal: 520, edge: 640, tactile: 520, monolith: 600, fade: 0 }
+const DURATION: Record<string, number> = { classic: 450, echo: 620, signal: 520, edge: 640, tactile: 520, monolith: 600, fade: 0 }
 
 export function trackChange(root: ParentNode = document) {
   const kind = settings.get('appearance.anim_track')

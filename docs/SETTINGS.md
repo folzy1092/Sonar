@@ -262,23 +262,25 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 
 | Ключ | Значения | По умолчанию | Синк |
 |---|---|---|---|
-| `appearance.style` | `sonar` / `echo` / `signal` / `edge` / `tactile` / `monolith` / `custom:<id>` (сохранённый) / `custom` (несохранённый «Свой») | `sonar` | да |
-| `appearance.surface` | `echo` / `signal` / `edge` / `tactile` / `monolith` — формулы фона, поверхностей, границ (OKLCH), тени и блики, вид кнопок | `monolith` | да |
-| `appearance.font_display` | имя шрифта — заголовки («Моя волна», страницы, разделы) со своей шириной / жирностью | `Unbounded Variable` | да |
+| `appearance.style` | `classic` / `sonar` / `echo` / `signal` / `edge` / `tactile` / `monolith` / `custom:<id>` (сохранённый) / `custom` (несохранённый «Свой») | `classic` | да |
+| `appearance.surface` | `classic` / `echo` / `signal` / `edge` / `tactile` / `monolith` — формулы фона, поверхностей, границ (OKLCH), тени и блики, вид кнопок | `classic` | да |
+| `appearance.font_display` | имя шрифта — заголовки («Моя волна», страницы, разделы) со своей шириной / жирностью | `Manrope Variable` | да |
 | `appearance.title_style` | `plain` / `editorial` (капсом, крупно, номера разделов «02», линейка над разделом) | `plain` | да |
-| `appearance.icon_stroke` | `1.5` / `1.75` / `2` — толщина линий иконок панели и кнопок плеера | `2` | да |
-| `appearance.anim_track` | `echo` / `signal` / `edge` / `tactile` / `monolith` / `fade` — анимация смены трека | `edge` | да |
-| `appearance.anim_like` | `echo` / `signal` / `edge` / `tactile` / `monolith` / `pop` — анимация лайка | `signal` | да |
-| `appearance.anim_nav` | `dot` / `capsule` / `plate` / `inset` — как отмечен выбранный раздел | `dot` | да |
+| `appearance.icon_stroke` | `1.5` / `1.75` / `2` — толщина линий иконок панели и кнопок плеера | `1.75` | да |
+| `appearance.anim_track` | `classic` / `echo` / `signal` / `edge` / `tactile` / `monolith` / `fade` — анимация смены трека | `classic` | да |
+| `appearance.anim_like` | `classic` / `echo` / `signal` / `edge` / `tactile` / `monolith` / `pop` — анимация лайка | `classic` | да |
+| `appearance.anim_nav` | `dot` / `capsule` / `plate` / `inset` — как отмечен выбранный раздел | `plate` | да |
 | `appearance.progress_look` | `line` / `wave` / `groove` — как нарисован прогресс (место — `mini.progress`; вид из «Плеер → Вид» главнее) | `line` | да |
 | `appearance.loading` | `color` (обложка из ч/б в цвет полосой) / `ring` (сектор в круге) — загрузка трека | `color` | да |
+| `appearance.classic_switched` | `true` / `false` — «Классика» уже поставлена один раз при обновлении (2026-11-22), дальше стиль не трогаем (заодно один раз ставит скругления `soft`) | `false` | да |
 | `appearance.custom_styles` | список `{ id, name, axes }` — свои сохранённые стили | `[]` | да |
 
 Готовые стили:
 
 | Стиль | surface | шрифт / заголовки | линия | смена трека | лайк | раздел | прогресс | загрузка |
 |---|---|---|---|---|---|---|---|---|
-| **Sonar** | monolith | Golos Text / Unbounded | 2 | edge | signal | dot | line | color |
+| **Классика** | classic | Manrope / Manrope 800 | 1.75 | classic | classic | plate | line | color |
+| Sonar | monolith | Golos Text / Unbounded | 2 | edge | signal | dot | line | color |
 | Эхо | echo | Onest / Science Gothic (wdth 165) | 1.75 | echo | echo | dot | line | ring |
 | Сигнал | signal | Golos Text / Unbounded | 2 | signal | signal | capsule | wave | ring |
 | Грань | edge | Geist / Geist | 1.75 | edge | edge | plate | line | color |

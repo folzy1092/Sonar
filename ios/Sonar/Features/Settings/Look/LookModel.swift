@@ -155,6 +155,8 @@ struct StylePreset: Identifiable, Sendable {
     let loading: String
 
     static let all: [StylePreset] = [
+        StylePreset(id: "classic", title: "Классика", surface: .classic, font: "Manrope Variable", fontDisplay: "Manrope Variable",
+                    iconStroke: 1.75, animTrack: "classic", animLike: "classic", animNav: "plate", progressLook: "line", loading: "color"),
         StylePreset(id: "sonar", title: "Sonar", surface: .monolith, font: "Golos Text Variable", fontDisplay: "Unbounded Variable",
                     iconStroke: 2, animTrack: "edge", animLike: "signal", animNav: "dot", progressLook: "line", loading: "color"),
         StylePreset(id: "echo", title: "Эхо", surface: .echo, font: "Onest Variable", fontDisplay: "Science Gothic Variable",
@@ -190,12 +192,26 @@ struct StylePreset: Identifiable, Sendable {
     }
 }
 
+/// «Классика» стала основным видом (2026-11-22): один раз ставим её и тем, у кого был прежний стиль,
+/// потом выбор в «Виде» остаётся за человеком. Как ПК `theme.switchToClassic`.
+enum ClassicSwitch {
+    static let key = "appearance.classic_switched"
+
+    @MainActor
+    static func applyOnce(_ settings: SettingsStore) {
+        guard !settings.bool(key), let classic = StylePreset.named("classic") else { return }
+        for (axis, value) in classic.axes { settings.set(axis, value) }
+        settings.set(LookKey.style, .string(classic.id))
+        settings.set(key, true)
+    }
+}
+
 /// Всё, от чего зависит тема, одним значением: меняется — `ThemeStore` пересчитывает токены.
 struct LookInputs: Equatable, Sendable {
     var mode: AppearanceMode = .dark
     var coverTheme = true
     var preset = "neutral"
-    var surface: Surface = .monolith
+    var surface: Surface = .classic
     /// Насколько тема идёт за обложкой (`appearance.cover_strength`).
     var coverStrength: CoverStrength = .medium
 
@@ -204,11 +220,11 @@ struct LookInputs: Equatable, Sendable {
         mode = AppearanceMode(rawValue: settings.string(LookKey.mode)) ?? .dark
         coverTheme = settings.bool(LookKey.coverTheme)
         preset = settings.string(LookKey.preset)
-        surface = Surface(rawValue: settings.string(LookKey.surface)) ?? .monolith
+        surface = Surface(rawValue: settings.string(LookKey.surface)) ?? .classic
         coverStrength = CoverStrength(setting: settings.string(LookKey.coverStrength))
     }
 
-    init(mode: AppearanceMode = .dark, coverTheme: Bool = true, preset: String = "neutral", surface: Surface = .monolith,
+    init(mode: AppearanceMode = .dark, coverTheme: Bool = true, preset: String = "neutral", surface: Surface = .classic,
          coverStrength: CoverStrength = .medium) {
         self.mode = mode
         self.coverTheme = coverTheme

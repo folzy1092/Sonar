@@ -48,7 +48,7 @@ extension Color {
 
 /// Тема. Следит за текущим треком (обложка → картинка 48×48 → `Palette.pickAccent`, цвета кэшируются) и
 /// за настройками Вида (`LookInputs`: тёмная / светлая / как в системе, под обложку или готовая тема,
-/// поверхность стиля). Смена плавная (0.6 с) — меняются фон, акцент, мини-плеер, кнопки.
+/// поверхность стиля). Смена плавная (450 мс, `Motion.settle`) — меняются фон, акцент, мини-плеер, кнопки.
 @MainActor
 @Observable
 final class ThemeStore {
@@ -117,7 +117,7 @@ final class ThemeStore {
     private func recompute() {
         let next = LookTheme.tokens(inputs, coverAccent: coverAccent, coverLightness: coverLightness, systemDark: systemDark)
         guard next != tokens else { return }
-        withAnimation(.easeInOut(duration: 0.6)) { tokens = next }
+        withAnimation(Motion.settle) { tokens = next }
     }
 
     /// Пиксели уменьшенной обложки → акцент и светлота. Сеть и разбор — вне главного потока. Ещё — цвета

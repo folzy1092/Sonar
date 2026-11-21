@@ -40,6 +40,7 @@
   const fontOptions = allFonts.map((f) => ({ id: f, label: fontLabel(f) }))
 
   const ANIMS = $derived([
+    { id: 'classic' as const, label: t('стиль::Классика') },
     { id: 'echo' as const, label: t('Эхо') },
     { id: 'signal' as const, label: t('Сигнал') },
     { id: 'edge' as const, label: t('Грань') },

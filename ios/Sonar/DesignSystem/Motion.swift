@@ -6,6 +6,12 @@ enum Motion {
     static let spring = Animation.spring(response: 0.35, dampingFraction: 0.86)
     static let quick = Animation.easeOut(duration: 0.18)
     static let progress = Animation.easeInOut(duration: 0.35)
+
+    // «Классика» (design/classic/HANDOFF.md): 140 / 220 / 320 / 450 мс; выход — ease-in и на ступень короче
+    static let enter = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.32)
+    static let exit = Animation.timingCurve(0.4, 0, 1, 1, duration: 0.22)
+    /// Смена темы под обложку и обложки трека — 450 мс.
+    static let settle = Animation.timingCurve(0.4, 0, 0.2, 1, duration: 0.45)
 }
 
 /// Каскад: элементы списка проявляются по очереди с небольшим подъёмом.

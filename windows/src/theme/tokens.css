@@ -152,6 +152,14 @@
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --fast: 140ms;
   --normal: 240ms;
+  /* движение «Классики» (design/classic/HANDOFF.md): выход — ease-in и на ступень короче входа */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --dur-1: 140ms;
+  --dur-2: 220ms;
+  --dur-3: 320ms;
+  --dur-4: 450ms;
 }
 
 /* AMOLED: чистый чёрный фон */

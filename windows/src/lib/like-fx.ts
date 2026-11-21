@@ -5,6 +5,7 @@
 //   edge     — сердце обводится по контуру, потом заливается;
 //   tactile  — над сердцем вспыхивает светодиод с послесвечением;
 //   monolith — кольцо .7→1.9;
+//   classic  — спокойный подскок сердца .84→1.1→1, без колец;
 //   pop      — прежний подскок (.like-pop).
 // «Меньше движения» — только прозрачность: заливка сердца проявляется, без колец и подскоков.
 import { settings } from './settings.svelte'
@@ -20,7 +21,7 @@ export function likeFx(node: HTMLElement): boolean {
   if (reducedMotion()) return true
   const r = visible(node)
   if (!r) return true
-  if (kind === 'echo' || kind === 'signal') restart(node, 'fx-heart-bounce', 400)
+  if (kind === 'echo' || kind === 'signal' || kind === 'classic') restart(node, 'fx-heart-bounce', 400)
   if (kind === 'echo') spawn(r, '', 'fx-like-ring echo', 520)
   if (kind === 'monolith') spawn(r, '', 'fx-like-ring mono', 500)
   if (kind === 'signal') {

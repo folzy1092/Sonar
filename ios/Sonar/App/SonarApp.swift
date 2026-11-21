@@ -32,6 +32,8 @@ struct SonarApp: App {
                 .environment(router)
                 .tint(Theme.accent)
                 .task {
+                    // «Классика» — основной вид: один раз переключаем и прежних пользователей
+                    ClassicSwitch.applyOnce(settings)
                     // при запуске и раз в 6 часов (update.auto_check)
                     checker.startAutomatic(settings: settings)
                     // кэш текстов чистится при создании хранилища (неделя / две у Любимых)

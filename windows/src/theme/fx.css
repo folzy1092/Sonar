@@ -61,6 +61,25 @@
     opacity: 0.3;
   }
 }
+/* «Классика»: обложка мягко проявляется из .96, заголовок поднимается на 6 px */
+:root[data-fx-track='classic'] [data-fx-cover].fx-run {
+  animation: fx-settle 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes fx-settle {
+  from {
+    scale: 0.96;
+    opacity: 0.5;
+  }
+}
+:root[data-fx-track='classic'] [data-fx-title].fx-run {
+  animation: fx-rise6 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes fx-rise6 {
+  from {
+    translate: 0 6px;
+    opacity: 0.4;
+  }
+}
 /* «Монолит»: свечение за обложкой разливается и оседает */
 :root[data-fx-track='monolith'] [data-fx-cover].fx-run {
   animation: fx-pour 0.56s cubic-bezier(0.22, 1, 0.36, 1);

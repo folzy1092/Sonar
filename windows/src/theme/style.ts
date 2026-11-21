@@ -43,6 +43,12 @@ export interface StylePreset {
 /** Готовые стили (таблица в STYLE_PROMPT.md). Шрифты — имена из theme/look.ts. */
 export const STYLES: StylePreset[] = [
   {
+    // основной вид с 2026-11-22 (design/classic): спокойный графит, Manrope, тонкие линии, мягкие анимации
+    id: 'classic',
+    title: 'стиль::Классика',
+    axes: { surface: 'classic', font: 'Manrope Variable', font_display: 'Manrope Variable', title_style: 'plain', icon_stroke: 1.75, anim_track: 'classic', anim_like: 'classic', anim_nav: 'plate', progress_look: 'line', loading: 'color' },
+  },
+  {
     id: 'sonar',
     title: 'Sonar',
     axes: { surface: 'monolith', font: 'Golos Text Variable', font_display: 'Unbounded Variable', title_style: 'plain', icon_stroke: 2, anim_track: 'edge', anim_like: 'signal', anim_nav: 'dot', progress_look: 'line', loading: 'color' },
@@ -87,6 +93,7 @@ export const CUSTOM_STYLE_PREFIX = 'custom:'
 
 /** Особые настройки шрифта заголовков у стилей: ширина (ось wdth) и жирность. */
 export const DISPLAY_TUNING: Record<string, { wdth?: number; weight?: number; tracking?: string }> = {
+  'Manrope Variable': { weight: 800, tracking: '-0.02em' },
   'Science Gothic Variable': { wdth: 165, weight: 800 },
   'IBM Plex Sans Variable': { wdth: 78, weight: 700 },
   'Inter Tight Variable': { weight: 900, tracking: '-0.05em' },
@@ -103,6 +110,7 @@ export function sameAxes(a: StyleAxes, b: StyleAxes): boolean {
 }
 
 export const SURFACE_LABELS: Record<Surface, string> = {
+  classic: 'стиль::Классика',
   echo: 'Эхо',
   signal: 'Сигнал',
   edge: 'Грань',

@@ -55,12 +55,13 @@ struct ThemeTokens: Equatable, Sendable {
 /// Поверхность стиля Sonar (`appearance.surface`, SETTINGS.md «Стиль»): формулы фона, поверхностей и
 /// текста. Цвет берётся из обложки или готовой темы, формулы — отсюда.
 enum Surface: String, CaseIterable, Identifiable, Sendable {
-    case echo, signal, edge, tactile, monolith
+    case classic, echo, signal, edge, tactile, monolith
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .classic: "Классика"
         case .echo: "Эхо"
         case .signal: "Сигнал"
         case .edge: "Грань"
@@ -255,6 +256,9 @@ enum Palette {
 
     /// Формулы тёмной темы — `SURFACES` из `palette.ts`.
     static let surfaces: [Surface: SurfaceFormula] = [
+        // «Классика» (design/classic/HANDOFF.md) — основной вид с 2026-11-22: графит с лёгким оттенком обложки
+        .classic: SurfaceFormula(bgL: 0.165, bgC: 0.42, bgMax: 0.035, sL: (0.205, 0.25, 0.29), sC: 0.42, sMax: 0.04,
+                                 bdL: 0.27, bdC: 0.42, bdMax: 0.035, txL: 0.97, t2L: 0.76, t3L: 0.66, accL: 0.8, accMax: 0.2, softA: 0.16),
         .echo: SurfaceFormula(bgL: 0.135, bgC: 0.22, bgMax: 0.028, sL: (0.178, 0.218, 0.262), sC: 0.28, sMax: 0.034,
                               bdL: 0.31, bdC: 0.32, bdMax: 0.05, txL: 0.97, t2L: 0.8, t3L: 0.65, accL: 0.79, accMax: 0.19, softA: 0.22),
         .signal: SurfaceFormula(bgL: 0.15, bgC: 0.4, bgMax: 0.06, sL: (0.195, 0.24, 0.285), sC: 0.45, sMax: 0.065,
@@ -271,6 +275,8 @@ enum Palette {
     /// Светлая тема — `SURFACES_LIGHT`: фон ≈ .97–.985, поверхности темнее фона, текст .18 / .40 / .52,
     /// акцент темнее (≥ 3:1 к поверхности), текст на акценте светлый.
     static let surfacesLight: [Surface: SurfaceFormula] = [
+        .classic: SurfaceFormula(bgL: 0.985, bgC: 0.17, bgMax: 0.012, sL: (0.952, 0.915, 0.88), sC: 0.21, sMax: 0.02,
+                                 bdL: 0.87, bdC: 0.2, bdMax: 0.02, txL: 0.19, t2L: 0.42, t3L: 0.5, accL: 0.5, accMax: 0.2, softA: 0.14),
         .echo: SurfaceFormula(bgL: 0.975, bgC: 0.1, bgMax: 0.012, sL: (0.955, 0.93, 0.905), sC: 0.12, sMax: 0.016,
                               bdL: 0.86, bdC: 0.15, bdMax: 0.02, txL: 0.18, t2L: 0.4, t3L: 0.52, accL: 0.55, accMax: 0.18, softA: 0.16),
         .signal: SurfaceFormula(bgL: 0.965, bgC: 0.2, bgMax: 0.03, sL: (0.945, 0.915, 0.885), sC: 0.22, sMax: 0.032,

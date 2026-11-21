@@ -120,6 +120,7 @@ export default {
   'Сигнал': 'Signal',
   'Грань': 'Kante',
   'Тактиль': 'Haptik',
+  'стиль::Классика': 'Klassisch',
   'Монолит': 'Monolith',
   'Стиль сохранён': 'Stil gespeichert',
   'Переименовать': 'Umbenennen',

@@ -23,7 +23,7 @@ struct LookSettingsView: View {
     private var mode: AppearanceMode { AppearanceMode(rawValue: settings.string(LookKey.mode)) ?? .dark }
     private var backdrop: BackdropMode { BackdropMode(rawValue: settings.string(LookKey.background)) ?? .coverColor }
     private var glassType: GlassType { GlassType(rawValue: settings.string(LookKey.glassType)) ?? .ultra }
-    private var surface: Surface { Surface(rawValue: settings.string(LookKey.surface)) ?? .monolith }
+    private var surface: Surface { Surface(rawValue: settings.string(LookKey.surface)) ?? .classic }
     private var opacity: Int { Int(settings.number(LookKey.opacity, fallback: 80).rounded()) }
     private var corners: MiniStyle.Corners { MiniStyle.current(settings).corners }
     private var strength: CoverStrength { CoverStrength(setting: settings.string(LookKey.coverStrength)) }

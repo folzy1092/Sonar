@@ -47,7 +47,7 @@ Discord RPC: ID приложения Discord пользователь **не в�
 `cargo test` в `src-tauri`; живые проверки SC — `SC_CLIENT_ID=… cargo test -- --ignored`.
 Запуск без команд — батники в корне: «Собрать и запустить.bat» (`tauri build --no-bundle` + запуск),
 «Запустить.bat». Окно Sonar только одно (single-instance), при запуске и Ctrl+R — заставка с лого.
-Вид — **свой стиль Sonar** (Интерфейс → Стиль: готовые стили и «Свой», оси — `theme/style.ts`,
+Вид — **«Классика»** (основной с 2026-11-22: прототип и передача — `design/classic/` + `HANDOFF.md`, поверхность `classic` — `theme/palette.ts` / `DesignSystem/Palette.swift`, разовый переход — `appearance.classic_switched`), это первый из готовых стилей Sonar (Интерфейс → Стиль: готовые стили и «Свой», оси — `theme/style.ts`,
 `docs/SETTINGS.md` «Стиль»); макеты — `reference/design/` (локально), Dotify — только ориентир по
 ясности. Владелец просит «не слопно»; всплывашки открываются и закрываются **только кликом**.
 Крестик окна прячет Sonar в трей (музыка играет), «Выход» — из меню трея. Окно Sonar одно, поэтому

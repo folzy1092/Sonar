@@ -9,9 +9,10 @@ extension SettingsDefaults {
         "appearance.cover_theme": .bool(true),
         "appearance.cover_strength": .string("medium"),
         "appearance.preset": .string("neutral"),
-        // iPhone — «Эхо»: поверхности в оттенке обложки, как на скринах владельца (ПК — «Sonar» = Монолит)
-        "appearance.style": .string("echo"),
-        "appearance.surface": .string("echo"),
+        // «Классика» — основной вид ПК и iPhone с 2026-11-22 (design/classic)
+        "appearance.style": .string("classic"),
+        "appearance.surface": .string("classic"),
+        "appearance.classic_switched": .bool(false),
         "appearance.background": .string("cover_color"),
         "appearance.bg_dim": .int(0),
         "appearance.bg_blur": .int(0),

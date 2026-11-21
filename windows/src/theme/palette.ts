@@ -200,9 +200,11 @@ export interface SurfaceFormula {
   grayText?: boolean
 }
 
-export type Surface = 'echo' | 'signal' | 'edge' | 'tactile' | 'monolith'
+export type Surface = 'classic' | 'echo' | 'signal' | 'edge' | 'tactile' | 'monolith'
 
 export const SURFACES: Record<Surface, SurfaceFormula> = {
+  // «Классика» (design/classic/HANDOFF.md): тёплый графит с лёгким оттенком обложки, без рамок у карточек
+  classic: { bgL: 0.165, bgC: 0.42, bgMax: 0.035, sL: [0.205, 0.25, 0.29], sC: 0.42, sMax: 0.04, bdL: 0.27, bdC: 0.42, bdMax: 0.035, txL: 0.97, t2L: 0.76, t3L: 0.66, accL: 0.8, accMax: 0.2, softA: 0.16 },
   echo: { bgL: 0.135, bgC: 0.22, bgMax: 0.028, sL: [0.178, 0.218, 0.262], sC: 0.28, sMax: 0.034, bdL: 0.31, bdC: 0.32, bdMax: 0.05, txL: 0.97, t2L: 0.8, t3L: 0.65, accL: 0.79, accMax: 0.19, softA: 0.22 },
   signal: { bgL: 0.15, bgC: 0.4, bgMax: 0.06, sL: [0.195, 0.24, 0.285], sC: 0.45, sMax: 0.065, bdL: 0.3, bdC: 0.45, bdMax: 0.07, txL: 0.97, t2L: 0.82, t3L: 0.68, accL: 0.8, accMax: 0.2, softA: 0.18 },
   edge: { bgL: 0.12, bgC: 0.2, bgMax: 0.025, sL: [0.165, 0.205, 0.25], sC: 0.25, sMax: 0.03, bdL: 0.36, bdC: 0.35, bdMax: 0.06, txL: 0.975, t2L: 0.8, t3L: 0.65, accL: 0.8, accMax: 0.2, softA: 0.16 },
@@ -214,12 +216,14 @@ export const SURFACES: Record<Surface, SurfaceFormula> = {
  * Особенности поверхности, которые не цвет: рамка карточек, блик, выпуклые кнопки и утопленные
  * дорожки, фон мини-плеера, тень обложки. Компоненты берут их переменными (по умолчанию —
  * tokens.css), поэтому смена поверхности не трогает вёрстку.
+ * - Классика: у карточек нет рамки, обложка — с мягкой тенью снизу;
  * - Сигнал: у карточек и мини-плеера нет рамки, мини-плеер — поверхность 2;
  * - Грань: у каждой поверхности блик сверху;
  * - Тактиль: кнопки выпуклые (при нажатии −2 px), дорожки и выбранное утоплены;
  * - Монолит: цвет обложки — только свечение за обложкой (blur 28 px) и прогресс.
  */
 export const SURFACE_DECOR: Record<Surface, Record<string, string>> = {
+  classic: { '--card-line': 'transparent', '--cover-glow': '0 22px 48px -18px oklch(0 0 0 / 0.55), 0 2px 8px oklch(0 0 0 / 0.2)' },
   echo: {},
   signal: { '--card-line': 'transparent', '--mini-bg': 'var(--surface-2)' },
   edge: { '--sheen': 'inset 0 1px 0 oklch(1 0 0 / 0.07)' },
@@ -241,6 +245,7 @@ export const DECOR_VARS = ['--card-line', '--mini-bg', '--sheen', '--key', '--ke
  * акценте — светлый. Особенности поверхностей (рамки, блики, выпуклость) — те же.
  */
 export const SURFACES_LIGHT: Record<Surface, SurfaceFormula> = {
+  classic: { bgL: 0.985, bgC: 0.17, bgMax: 0.012, sL: [0.952, 0.915, 0.88], sC: 0.21, sMax: 0.02, bdL: 0.87, bdC: 0.2, bdMax: 0.02, txL: 0.19, t2L: 0.42, t3L: 0.5, accL: 0.5, accMax: 0.2, softA: 0.14 },
   echo: { bgL: 0.975, bgC: 0.1, bgMax: 0.012, sL: [0.955, 0.93, 0.905], sC: 0.12, sMax: 0.016, bdL: 0.86, bdC: 0.15, bdMax: 0.02, txL: 0.18, t2L: 0.4, t3L: 0.52, accL: 0.55, accMax: 0.18, softA: 0.16 },
   signal: { bgL: 0.965, bgC: 0.2, bgMax: 0.03, sL: [0.945, 0.915, 0.885], sC: 0.22, sMax: 0.032, bdL: 0.86, bdC: 0.25, bdMax: 0.035, txL: 0.18, t2L: 0.4, t3L: 0.52, accL: 0.55, accMax: 0.19, softA: 0.14 },
   edge: { bgL: 0.985, bgC: 0.08, bgMax: 0.01, sL: [0.965, 0.94, 0.91], sC: 0.1, sMax: 0.012, bdL: 0.82, bdC: 0.15, bdMax: 0.02, txL: 0.17, t2L: 0.4, t3L: 0.52, accL: 0.55, accMax: 0.19, softA: 0.14 },

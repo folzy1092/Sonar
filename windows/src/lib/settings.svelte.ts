@@ -85,30 +85,32 @@ export const DEFAULTS = {
   /** Значок сервиса рядом с длительностью трека в списках («Показывать площадки»). */
   'appearance.show_sources': false,
   /** Шрифт интерфейса; по умолчанию — как в стиле Sonar (theme/style.ts). */
-  'appearance.font': 'Golos Text Variable' as string,
+  'appearance.font': 'Manrope Variable' as string,
   /** Размер шрифта: 16 — как задумано, остальные — множитель n / 16 ко всему тексту. */
   'appearance.font_size': 16 as number,
   /** Жирность обычного текста; заголовки и выделенное — как в вёрстке. */
   'appearance.font_weight': 'auto' as 'auto' | '400' | '500' | '600' | '700',
-  'appearance.corner_radius': 'rounded' as 'none' | 'soft' | 'rounded' | 'pill',
+  'appearance.corner_radius': 'soft' as 'none' | 'soft' | 'rounded' | 'pill',
   // ---- Стиль (Интерфейс → Стиль, theme/style.ts): готовый стиль ставит оси ниже ----
   /** `sonar` / `echo` / `signal` / `edge` / `tactile` / `monolith` / `custom:<id>`. */
-  'appearance.style': 'sonar' as string,
+  'appearance.style': 'classic' as string,
   /** Формулы фона, поверхностей, границ, теней и бликов (palette.ts SURFACES). */
-  'appearance.surface': 'monolith' as Surface,
+  'appearance.surface': 'classic' as Surface,
   /** Шрифт заголовков (Sonar Mix, названия страниц и разделов). */
-  'appearance.font_display': 'Unbounded Variable' as string,
+  'appearance.font_display': 'Manrope Variable' as string,
   'appearance.title_style': 'plain' as TitleStyle,
   /** Толщина линий иконок левой панели и мини-плеера. */
-  'appearance.icon_stroke': 2 as IconStroke,
-  'appearance.anim_track': 'edge' as AnimTrack,
-  'appearance.anim_like': 'signal' as AnimLike,
-  'appearance.anim_nav': 'dot' as AnimNav,
+  'appearance.icon_stroke': 1.75 as IconStroke,
+  'appearance.anim_track': 'classic' as AnimTrack,
+  'appearance.anim_like': 'classic' as AnimLike,
+  'appearance.anim_nav': 'plate' as AnimNav,
   /** Как нарисован прогресс (место — `mini.progress`). */
   'appearance.progress_look': 'line' as ProgressLook,
   /** Как показана загрузка трека: обложка из ч/б в цвет или кольцо-сектор. */
   'appearance.loading': 'color' as LoadingLook,
   'appearance.custom_styles': [] as CustomStyle[],
+  /** «Классика» стала основным видом (2026-11-22): один раз переключаем на неё и тех, у кого был прежний стиль. */
+  'appearance.classic_switched': false as boolean,
   /** Панель вкладок (Интерфейс → Вкладки): где она, какая, подстраивается ли под страницу. */
   'tabs.position': 'left' as 'left' | 'top' | 'bottom' | 'right',
   'tabs.style': 'default' as 'default' | 'compact' | 'full' | 'round' | 'floating',

@@ -14,7 +14,7 @@ import { loadCustomFont } from './custom-font'
 
 let port: number | null = null
 
-const SURFACE_IDS = { echo: 1, signal: 1, edge: 1, tactile: 1, monolith: 1 }
+const SURFACE_IDS = { classic: 1, echo: 1, signal: 1, edge: 1, tactile: 1, monolith: 1 }
 
 /** Адрес обложки через локальный сервер (для canvas нужен CORS). */
 export async function proxied(url: string): Promise<string> {
@@ -111,7 +111,7 @@ class Theme {
       const mq = matchMedia('(prefers-color-scheme: light)')
       mq.addEventListener('change', (e) => (this.systemLight = e.matches))
     }
-    void settings.load()
+    void settings.load().then(() => this.switchToClassic())
     $effect.root(() => {
       $effect(() => {
         const on = settings.get('appearance.cover_theme')
@@ -215,6 +215,14 @@ class Theme {
     return Object.fromEntries(AXES.map((a) => [a, settings.get(axisKey(a))])) as unknown as StyleAxes
   }
 
+  /** Один раз ставит «Классику» (новый основной вид) — потом выбор в «Стиле» остаётся за человеком. */
+  private switchToClassic() {
+    if (settings.get('appearance.classic_switched')) return
+    this.applyStyle('classic')
+    settings.set('appearance.corner_radius', 'soft')
+    settings.set('appearance.classic_switched', true)
+  }
+
   /** Выбрать готовый или свой стиль — ставит все оси. */
   applyStyle(id: string) {
     const axes = styleAxes(id, settings.get('appearance.custom_styles'))
@@ -286,7 +294,7 @@ class Theme {
     // дают оттенок, серая — монохром
     // под обложку поверхности ещё и уходят за её светлотой (Интерфейс → Тема → Сила)
     const shift = info ? { strength: strength in COVER_STRENGTH ? strength : 'medium', lightness: info.lightness } : null
-    const t = themeFrom(c, surface in SURFACE_IDS ? surface : 'monolith', light, shift)
+    const t = themeFrom(c, surface in SURFACE_IDS ? surface : 'classic', light, shift)
     root.dataset.surface = surface
     for (const k of DECOR_VARS) if (!(k in t.vars)) st.removeProperty(k)
     // прозрачность: фон окна — с альфой непрозрачности, карточки чуть плотнее (текст читается)

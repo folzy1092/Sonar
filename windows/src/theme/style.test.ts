@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { CUSTOM_STYLE_PREFIX, DEFAULT_STYLE, matchStyle, nearestPreset, newCustom, STYLES, UNSAVED, type StyleAxes } from './style'
 import { DEFAULTS } from '../lib/settings.svelte'
 
-const sonar = DEFAULT_STYLE.axes
+const classic = DEFAULT_STYLE.axes
 
 describe('стили', () => {
-  it('значения по умолчанию — ровно стиль Sonar', () => {
+  it('значения по умолчанию — ровно «Классика»', () => {
     const axes = {
       surface: DEFAULTS['appearance.surface'],
       font: DEFAULTS['appearance.font'],
@@ -18,17 +18,18 @@ describe('стили', () => {
       progress_look: DEFAULTS['appearance.progress_look'],
       loading: DEFAULTS['appearance.loading'],
     } as StyleAxes
-    expect(matchStyle('sonar', axes, [])).toBe('sonar')
+    expect(DEFAULT_STYLE.id).toBe('classic')
+    expect(matchStyle('classic', axes, [])).toBe('classic')
   })
 
   it('правка оси — «Свой», возврат к значениям — снова стиль', () => {
-    const changed = { ...sonar, anim_like: 'echo' as const }
-    expect(matchStyle('sonar', changed, [])).toBe(UNSAVED)
-    expect(matchStyle(UNSAVED, sonar, [])).toBe('sonar')
+    const changed = { ...classic, anim_like: 'echo' as const }
+    expect(matchStyle('classic', changed, [])).toBe(UNSAVED)
+    expect(matchStyle(UNSAVED, classic, [])).toBe('classic')
   })
 
   it('собранный из частей и сохранённый — узнаётся как свой', () => {
-    const mix: StyleAxes = { ...STYLES[5].axes, font: 'Golos Text Variable', anim_track: 'edge', anim_like: 'signal', surface: 'monolith' }
+    const mix: StyleAxes = { ...STYLES[6].axes, font: 'Golos Text Variable', anim_track: 'edge', anim_like: 'signal', surface: 'monolith' }
     const own = newCustom('  Мой  ', mix, [], () => 0.5)
     expect(own.name).toBe('Мой')
     expect(matchStyle(UNSAVED, mix, [own])).toBe(CUSTOM_STYLE_PREFIX + own.id)
@@ -36,7 +37,7 @@ describe('стили', () => {
   })
 
   it('ближайший готовый стиль', () => {
-    expect(nearestPreset({ ...STYLES[3].axes, anim_like: 'pop' }).id).toBe('edge')
+    expect(nearestPreset({ ...STYLES[4].axes, anim_like: 'pop' }).id).toBe('edge')
   })
 
   it('у готовых стилей разные оси', () => {

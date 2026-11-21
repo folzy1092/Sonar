@@ -117,7 +117,9 @@ final class LookThemeTests: XCTestCase {
     }
 
     func testStylesMatchWindows() {
-        XCTAssertEqual(StylePreset.all.map(\.id), ["sonar", "echo", "signal", "edge", "tactile", "monolith"])
+        XCTAssertEqual(StylePreset.all.map(\.id), ["classic", "sonar", "echo", "signal", "edge", "tactile", "monolith"])
+        XCTAssertEqual(StylePreset.named("classic")?.surface, .classic)
+        XCTAssertEqual(StylePreset.named("classic")?.axes["appearance.anim_nav"], .string("plate"))
         XCTAssertEqual(StylePreset.named("sonar")?.surface, .monolith)
         XCTAssertEqual(StylePreset.named("tactile")?.surface, .tactile)
         let axes = StylePreset.named("echo")!.axes
@@ -152,7 +154,7 @@ final class LookThemeTests: XCTestCase {
         let suite = "look-tests-\(UUID().uuidString)"
         let settings = SettingsStore(storage: UserDefaults(suiteName: suite)!)
         let inputs = LookInputs(settings)
-        XCTAssertEqual(inputs, LookInputs(mode: .dark, coverTheme: true, preset: "neutral", surface: .echo))  // iPhone по умолчанию — «Эхо»
+        XCTAssertEqual(inputs, LookInputs(mode: .dark, coverTheme: true, preset: "neutral", surface: .classic))  // по умолчанию — «Классика»
         XCTAssertEqual(settings.string("appearance.tab_style"), "floating")
         XCTAssertEqual(settings.string("appearance.background"), "cover_color")
         XCTAssertEqual(settings.number("appearance.opacity", fallback: 0), 80)
@@ -162,6 +164,27 @@ final class LookThemeTests: XCTestCase {
         settings.set("appearance.mode", .string("light"))
         settings.set("appearance.surface", .string("edge"))
         XCTAssertEqual(LookInputs(settings).mode, .light)
+        XCTAssertEqual(LookInputs(settings).surface, .edge)
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+    }
+
+    @MainActor
+    func testClassicSwitchRunsOnce() {
+        let suite = "look-classic-\(UUID().uuidString)"
+        let settings = SettingsStore(storage: UserDefaults(suiteName: suite)!)
+        // прежний пользователь со своим стилем — один раз переходит на «Классику»
+        settings.set(LookKey.style, .string("echo"))
+        settings.set("appearance.surface", .string("echo"))
+        ClassicSwitch.applyOnce(settings)
+        XCTAssertEqual(settings.string(LookKey.style), "classic")
+        XCTAssertEqual(LookInputs(settings).surface, .classic)
+        XCTAssertEqual(settings.string("appearance.font"), "Manrope Variable")
+        XCTAssertTrue(settings.bool(ClassicSwitch.key))
+        // потом выбор остаётся за человеком
+        settings.set(LookKey.style, .string("edge"))
+        settings.set("appearance.surface", .string("edge"))
+        ClassicSwitch.applyOnce(settings)
+        XCTAssertEqual(settings.string(LookKey.style), "edge")
         XCTAssertEqual(LookInputs(settings).surface, .edge)
         UserDefaults.standard.removePersistentDomain(forName: suite)
     }

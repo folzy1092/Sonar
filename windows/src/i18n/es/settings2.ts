@@ -120,6 +120,7 @@ export default {
   'Сигнал': 'Señal',
   'Грань': 'Arista',
   'Тактиль': 'Táctil',
+  'стиль::Классика': 'Clásico',
   'Монолит': 'Monolito',
   'Стиль сохранён': 'Estilo guardado',
   'Переименовать': 'Renombrar',
