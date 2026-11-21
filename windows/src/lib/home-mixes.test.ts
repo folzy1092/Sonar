@@ -95,6 +95,30 @@ describe('pickFromPools', () => {
   })
 })
 
+describe('pickFromPools: случайные советы', () => {
+  it('исполнителя, которого советует одна затравка, нет, если надёжных хватает', () => {
+    // 6 затравок, у каждой — 8 общих исполнителей и свой «случайный»
+    const shared = Array.from({ length: 8 }, (_, i) => `Shared${i}`)
+    const pools = Array.from({ length: 6 }, (_, p) => [
+      tr(`odd${p}`, `Odd${p}`),
+      ...shared.map((a) => tr(`${a}-${p}`, a)),
+    ])
+    const out = pickFromPools(pools)
+    expect(out.some((t) => t.artist.startsWith('Odd'))).toBe(false)
+    expect(out.length).toBeGreaterThanOrEqual(12)
+  })
+
+  it('надёжных мало — одиночки идут добором после надёжных', () => {
+    const pools = [
+      [tr('x', 'Once'), tr('s1', 'Shared')],
+      [tr('s2', 'Shared'), tr('y', 'Twice')],
+    ]
+    const out = pickFromPools(pools)
+    expect(out.slice(0, 2).map((t) => t.artist)).toEqual(['Shared', 'Shared'])
+    expect(out.map((t) => t.ref)).toContain('x')
+  })
+})
+
 describe('artistsPreview', () => {
   it('2–3 исполнителя по частоте и «и ещё N»', () => {
     const list = [tr('1', 'A'), tr('2', 'B'), tr('3', 'B'), tr('4', 'C'), tr('5', 'D'), tr('6', 'E')]

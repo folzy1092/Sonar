@@ -10,6 +10,8 @@ export const R_MAX = 46
 /** Зазор между кругами и между кучками. */
 const GAP = 6
 const CLUSTER_GAP = 110
+/** Поле вокруг кучки, куда не встают одиночки без связей. */
+const LOOSE_MARGIN = 40
 const LABEL_ROUNDS = 25
 /** Касательные места вокруг соседа: 12 направлений — соты при равных кругах. */
 const ANGLES = 12
@@ -160,43 +162,76 @@ class Grid {
 const dist2 = (a: Point, b: Point) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2
 
 /** Жадная упаковка кругов: первый — в начале координат, каждый следующий касается одного из
- *  стоящих, ближе всего к своей цели (`goal`), без наложений. Порядок входа — порядок установки. */
-export function pack(radii: readonly number[], goal: (i: number, placed: readonly (Disc | undefined)[]) => Point, gap: number): Disc[] {
-  const maxR = radii.reduce((m, r) => Math.max(m, r), 0)
+ *  стоящих, ближе всего к своей цели (`goal`), без наложений. Порядок входа — порядок установки.
+ *  Опору ищем среди «открытых» кругов: у кого вокруг ещё есть место хотя бы для самого маленького.
+ *  Если у ближайших к цели всё занято — идём дальше от цели, пока не найдём место; так плотная
+ *  середина не выталкивает новые круги в линию за краем. */
+export function pack(
+  radii: readonly number[],
+  goal: (i: number, placed: readonly (Disc | undefined)[]) => Point,
+  gap: number,
+  /** Уже стоящие круги: новые обходят их и цепляются к ним. */
+  fixed: readonly Disc[] = [],
+): Disc[] {
+  const maxR = [...radii, ...fixed.map((d) => d.r)].reduce((m, r) => Math.max(m, r), 0)
+  const minR = radii.reduce((m, r) => Math.min(m, r), Infinity)
   const grid = new Grid(2 * maxR + gap)
+  for (const d of fixed) grid.add(d)
   const placed: (Disc | undefined)[] = new Array(radii.length).fill(undefined)
-  const list: Disc[] = []
+  let open: Disc[] = [...fixed]
   for (let i = 0; i < radii.length; i++) {
     const r = radii[i]
-    const d = list.length === 0 ? { x: 0, y: 0, r } : bestSpot(r, goal(i, placed), list, grid, gap)
+    let d: Disc
+    if (open.length === 0) d = { x: 0, y: 0, r }
+    else {
+      const spot = bestSpot(r, goal(i, placed), open, grid, gap, minR)
+      d = spot.disc
+      if (spot.full.size) open = open.filter((o) => !spot.full.has(o))
+    }
     placed[i] = d
-    list.push(d)
+    open.push(d)
     grid.add(d)
   }
   return placed as Disc[]
 }
 
-function bestSpot(r: number, target: Point, list: readonly Disc[], grid: Grid, gap: number): Disc {
-  const near = [...list].sort((a, b) => dist2(a, target) - dist2(b, target)).slice(0, NEAREST)
+function bestSpot(
+  r: number,
+  target: Point,
+  open: readonly Disc[],
+  grid: Grid,
+  gap: number,
+  minR: number,
+): { disc: Disc; full: Set<Disc> } {
+  const near = [...open].sort((a, b) => dist2(a, target) - dist2(b, target))
+  const full = new Set<Disc>()
   let best: Disc | undefined
   let bestCost = Infinity
+  let tried = 0
   for (const p of near) {
+    // ближайшие к цели опоры с местом перебраны — дальше только хуже
+    if (best && tried >= NEAREST) break
     const dist = p.r + r + gap
+    let free = false
     for (let a = 0; a < ANGLES; a++) {
       const ang = (a * 2 * Math.PI) / ANGLES
       const c = { x: p.x + dist * Math.cos(ang), y: p.y + dist * Math.sin(ang), r }
       if (grid.hits(c, gap)) continue
+      free = true
       const cost = dist2(c, target) + CENTER_PULL * (c.x * c.x + c.y * c.y)
       if (cost < bestCost - EPS) {
         best = c
         bestCost = cost
       }
     }
+    if (free) tried++
+    // не влез даже самый маленький — у этого круга места больше не будет
+    else if (r <= minR + EPS) full.add(p)
   }
-  return best ?? outside(r, list, gap)
+  return { disc: best ?? outside(r, open, gap), full }
 }
 
-/** Места у ближайших не нашлось — ставим за краем всего, что уже стоит. */
+/** Места ни у кого не нашлось (не бывает: у крайнего круга снаружи всегда свободно) — за краем. */
 function outside(r: number, list: readonly Disc[], gap: number): Disc {
   const edge = list.reduce((m, d) => Math.max(m, d.x + d.r), 0)
   return { x: edge + gap + r, y: 0, r }
@@ -259,14 +294,21 @@ function packCluster(keys: readonly string[], adj: Adjacency, weight: Map<string
   return new Map(order.map((k, i) => [k, discs[i]]))
 }
 
-/** Вся раскладка: кучки сотами, потом кучки рядом друг с другом (связанные — ближе). */
+/** Вся раскладка: кучки сотами, потом кучки рядом друг с другом (связанные — ближе). Одиночки
+ *  без связей не лепятся отдельным пятном сбоку, а обступают кучки кольцом — карта получается
+ *  круглой. */
 export function layout(nodes: readonly MapNode[], edges: readonly MapEdge[]): Layout {
   if (!nodes.length) return { nodes: [], byKey: new Map(), clusters: [], bounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 } }
   const known = new Set(nodes.map((n) => n.key))
   const adj = adjacency(edges, known)
   const weight = new Map(nodes.map((n) => [n.key, n.weight]))
   const maxWeight = nodes.reduce((m, n) => Math.max(m, n.weight), 0)
-  const groups = clusters(nodes, adj)
+  const all = clusters(nodes, adj)
+  const last = all[all.length - 1]
+  const hasLoose = !adj.get(last[0])?.size
+  const groups = hasLoose ? all.slice(0, -1) : all
+  const loose = hasLoose ? last : []
+
   const inner = groups.map((keys) => packCluster(keys, adj, weight, maxWeight))
   const extent = inner.map((m) => [...m.values()].reduce((e, d) => Math.max(e, Math.hypot(d.x, d.y) + d.r), 0))
 
@@ -275,9 +317,9 @@ export function layout(nodes: readonly MapNode[], edges: readonly MapEdge[]): La
   const between = groups.map(() => new Map<number, number>())
   for (const [a, m] of adj) {
     for (const [b, w] of m) {
-      const ga = groupOf.get(a)!
-      const gb = groupOf.get(b)!
-      if (ga !== gb) between[ga].set(gb, (between[ga].get(gb) ?? 0) + w)
+      const ga = groupOf.get(a)
+      const gb = groupOf.get(b)
+      if (ga !== undefined && gb !== undefined && ga !== gb) between[ga].set(gb, (between[ga].get(gb) ?? 0) + w)
     }
   }
   const centers = pack(extent, (i, placed) => pull(between[i], placed), CLUSTER_GAP)
@@ -291,6 +333,23 @@ export function layout(nodes: readonly MapNode[], edges: readonly MapEdge[]): La
     }
     return { id: ci, x: c.x, y: c.y, r: extent[ci], keys }
   })
+
+  if (loose.length) {
+    // центр масс кучек — чтобы кольцо одиночек легло вокруг карты, а не вокруг первой кучки
+    const mass = placed.reduce((m, p) => m + p.r * p.r, 0)
+    const mid = mass > 0 ? { x: placed.reduce((s, p) => s + p.x * p.r * p.r, 0) / mass, y: placed.reduce((s, p) => s + p.y * p.r * p.r, 0) / mass } : { x: 0, y: 0 }
+    const discs = pack(
+      loose.map((k) => radius(weight.get(k) ?? 0, maxWeight)),
+      () => mid,
+      GAP,
+      // кучки — целиком, с полем: одиночки обступают их, но не влезают в щели и не размывают границы
+      boxes.map((b) => ({ x: b.x, y: b.y, r: b.r + LOOSE_MARGIN })),
+    )
+    const id = boxes.length
+    loose.forEach((k, i) => placed.push({ key: k, ...discs[i], cluster: id }))
+    const r = discs.reduce((e, d) => Math.max(e, Math.hypot(d.x - mid.x, d.y - mid.y) + d.r), 0)
+    boxes.push({ id, x: mid.x, y: mid.y, r, keys: loose })
+  }
   return { nodes: placed, byKey: new Map(placed.map((p) => [p.key, p])), clusters: boxes, bounds: boundsOf(placed) }
 }
 

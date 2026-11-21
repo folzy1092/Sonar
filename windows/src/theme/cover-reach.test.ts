@@ -53,8 +53,8 @@ describe('cover colour reaches the interface', () => {
     expect(rule(iconButton, '.icon-btn.active')).toContain('var(--accent)')
     for (const icon of ['heart', 'shuffle']) expect(mini).toMatch(new RegExp(`icon="${icon}"[^>]*active=`))
     expect(mini).toMatch(/active=\{player\.repeat !== 'off'\}/)
-    // вкл — кружок акцента 15 % и точка под значком (docs/POLISH_PROMPT.md п. 5)
-    expect(rule(iconButton, '.icon-btn.toggle.active')).toContain('var(--accent) 15%')
+    // вкл — точка акцента под значком, без кружка-подложки (просьба владельца 2026-11-21)
+    expect(iconButton).not.toMatch(/\.icon-btn\.toggle\.active\s*\{[^}]*background/)
     expect(rule(iconButton, '.icon-btn.toggle::after')).toContain('var(--accent)')
   })
 

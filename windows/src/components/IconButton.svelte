@@ -25,7 +25,7 @@
   class="icon-btn"
   class:active
   class:toggle
-  class:bare={icon === 'heart'}
+  class:bare={icon === 'heart' || toggle}
   aria-label={label}
   aria-pressed={toggle ? active : undefined}
   title={label}
@@ -71,18 +71,14 @@
   .icon-btn.active {
     color: var(--accent);
   }
-  /* Переключатель (docs/POLISH_PROMPT.md п. 5): выкл — серый значок без подложки; вкл — акцент, кружок
-     акцента 15 % и точка 4 px под значком. Цвет и подложка меняются плавно, значок — .toggle-pop (app.css). */
+  /* Переключатель (docs/POLISH_PROMPT.md п. 5; без кружка — просьба владельца 2026-11-21): выкл — серый
+     значок; вкл — значок акцентом и точка 4 px под ним. Подложки нет ни при наведении, ни при нажатии
+     (.toggle входит в .bare), значок — .toggle-pop (app.css). */
   .icon-btn.toggle {
     position: relative;
-    border-radius: 50%;
-  }
-  .icon-btn.toggle.active {
-    background: color-mix(in srgb, var(--accent) 15%, transparent);
   }
   .icon-btn.toggle.active:hover:not(:disabled) {
     color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 22%, transparent);
   }
   .icon-btn.toggle::after {
     content: '';

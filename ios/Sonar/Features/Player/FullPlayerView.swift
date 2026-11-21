@@ -81,12 +81,26 @@ struct FullPlayerView: View {
                 backdrop
                     .transition(.opacity)
             }
+            // верх экрана — смахнуть вниз, чтобы свернуть (и в тексте, где вертикаль листает строки);
+            // тап сюда, пока шапка спрятана, только возвращает кнопки — в строку не проваливается
+            Color.clear
+                .frame(height: Self.closeZone)
+                .contentShape(Rectangle())
+                .onTapGesture { touched() }
+                .highPriorityGesture(closeDrag)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .ignoresSafeArea(edges: .top)
+                .zIndex(1)
             VStack(spacing: 0) {
-                // шапка не прячется вместе с кнопками: ⌄ и ⋮ над текстом нажимаются всегда,
-                // а тап по ней не проваливается в строку текста (раньше — перемотка вместо меню)
+                // в тексте при простое шапка уходит вместе с кнопками — остаётся только текст
+                // (просьба владельца 2026-11-21); первый тап возвращает всё, тап по шапке не перематывает строку
                 Group {
                     if showLyrics { lyricsTopBar } else { topBar }
                 }
+                .highPriorityGesture(closeDrag)
+                .opacity(chromeHidden ? 0 : 1)
+                .offset(y: chromeHidden ? -16 : 0)
+                .allowsHitTesting(!chromeHidden)
                 if showLyrics {
                     Spacer(minLength: 20)
                 } else {
@@ -116,7 +130,7 @@ struct FullPlayerView: View {
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 10)
-            .zIndex(1)
+            .zIndex(2)
         }
         .coordinateSpace(.named(Self.space))
         .offset(y: max(0, dragDown))
@@ -166,6 +180,17 @@ struct FullPlayerView: View {
             if !open { chromeHidden = false }
             lastTouch = Date()
         }
+        // простой ~2,5 с в тексте — по таймеру, а не только по смене строки: в проигрыше и у текста
+        // без времени строки не меняются
+        .task(id: showLyrics) {
+            guard showLyrics else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                idleCheck()
+            }
+        }
+        .statusBarHidden(showLyrics && chromeHidden)
+        .persistentSystemOverlays(showLyrics && chromeHidden ? .hidden : .automatic)
         .sheet(isPresented: $showLyricsMenu) {
             if let track = engine.current {
                 LyricsMenuSheet(track: track)
@@ -477,16 +502,18 @@ struct FullPlayerView: View {
             }
             .buttonStyle(PressableStyle())
             .accessibilityLabel("Вернуться к обложке")
+            // ⋮ — то же меню трека, что и без текста; меню текста — зажать текст или кнопку T
             Button {
                 touched()
-                showLyricsMenu = true
+                if let track = engine.current { trackMenu = TrackMenuItem(track: track) }
             } label: {
                 SonarIcon(.more, size: 26)
                     .foregroundStyle(Theme.text)
                     .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PressableStyle(scale: 0.88))
-            .accessibilityLabel("Меню текста")
+            .accessibilityLabel("Меню трека")
         }
         // промежутки между кнопками тоже шапка: тап — показать кнопки, а не перемотать строку под ней
         .contentShape(Rectangle())
@@ -501,8 +528,34 @@ struct FullPlayerView: View {
 
     /// Новая строка: если ~2,5 с не трогали и музыка играет — кнопки плавно уходят.
     private func lineChanged() {
-        guard showLyrics, !chromeHidden, engine.isPlaying, !showLyricsMenu else { return }
+        idleCheck()
+    }
+
+    /// Простой в тексте: ~2,5 с без касаний, музыка играет, никаких листов и жестов — прячем всё, кроме текста.
+    private func idleCheck() {
+        guard showLyrics, !chromeHidden, engine.isPlaying, !showLyricsMenu, trackMenu == nil, !showQueue,
+              !showSpeed, !showDevices, dragDown == 0, scrubbing == nil else { return }
         if Date().timeIntervalSince(lastTouch) > 2.5 { chromeHidden = true }
+    }
+
+    /// Высота полосы сверху, за которую плеер смахивается вниз.
+    private static let closeZone: CGFloat = 150
+
+    /// Смахнуть вниз за верх экрана — свернуть плеер.
+    private var closeDrag: some Gesture {
+        DragGesture(minimumDistance: 12, coordinateSpace: .global)
+            .onChanged { value in
+                let dy = value.translation.height
+                if dy > 0, dy > abs(value.translation.width) { dragDown = dy }
+            }
+            .onEnded { value in
+                let dy = value.translation.height
+                if dy > 0, dy > abs(value.translation.width), dy > 120 || value.predictedEndTranslation.height > 320 {
+                    close()
+                }
+                withAnimation(Motion.spring) { dragDown = 0 }
+                touched()
+            }
     }
 
     /// Обложка на весь экран, к низу — в чёрный.
@@ -784,9 +837,13 @@ struct FullPlayerView: View {
         .accessibilityLabel(t(liked ? "Убрать из Любимых" : "В Любимые"))
     }
 
-    /// T справа от капсулы, когда открыт текст: подсвечена, тап — обратно к обложке.
+    /// T справа от капсулы, когда открыт текст: подсвечена, тап — меню текста
+    /// (обратно к обложке — капсула с треком в шапке).
     private func lyricsCircle(side: CGFloat) -> some View {
-        Button { showLyrics = false } label: {
+        Button {
+            touched()
+            showLyricsMenu = true
+        } label: {
             SonarIcon(.letterT, size: 22)
                 .foregroundStyle(Theme.accentInk)
                 .frame(width: side, height: side)
@@ -852,12 +909,21 @@ struct FullPlayerView: View {
                         .foregroundStyle(Theme.text)
                 }
                 .accessibilityLabel(t("Где играть"))
-                Button { showLyrics = true } label: {
-                    SonarIcon(.letterT, size: 26)
-                        .foregroundStyle(lyricsStore.lyrics != nil && lyricsStore.trackRef == engine.current?.ref
-                            ? Theme.text : Theme.textTertiary)
-                }
-                .accessibilityLabel("Текст песни")
+                // T: тап — текст, зажать — меню текста
+                SonarIcon(.letterT, size: 26)
+                    .foregroundStyle(lyricsStore.lyrics != nil && lyricsStore.trackRef == engine.current?.ref
+                        ? Theme.text : Theme.textTertiary)
+                    .frame(width: 26, height: 44)
+                    .contentShape(Rectangle())
+                    .onTapGesture { showLyrics = true }
+                    .onLongPressGesture(minimumDuration: 0.45) {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        showLyricsMenu = true
+                    }
+                    .accessibilityElement()
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("Текст песни")
+                    .accessibilityAction(named: "Меню текста") { showLyricsMenu = true }
                 Button { showSpeed = true } label: {
                     SonarIcon(.sliders, size: 26)
                         .foregroundStyle(engine.rate == 1 && engine.sleep == nil ? Theme.text : Theme.accent)

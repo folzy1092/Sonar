@@ -23,6 +23,12 @@ export const MIX_LIMIT = 40
 export const PREVIEW_ARTISTS = 3
 /** Прибавка к весу трека, если его исполнитель — сосед по графу кого-то из любимых. */
 const RELATED_BOOST = 2
+/** Прибавка за каждую ещё одну затравку, которая советует того же исполнителя. */
+const ARTIST_SUPPORT_BOOST = 1.5
+/** Исполнителей, которых советует лишь одна затравка и которые не соседи любимых, берём только
+ *  добором — если «надёжных» треков меньше этого. Один похожий трек от одной песни — случайность
+ *  (так в «Новое» попадали CUPSIZE и Юпи), два независимых совета — уже вкус. */
+const MIN_BEFORE_FILL = 12
 
 /** Имя для сравнения: без регистра, лишних пробелов и «ё». */
 export function normName(name: string): string {
@@ -123,14 +129,38 @@ export function pickFromPools(pools: readonly (readonly Track[])[], opts: PickOp
   const known = new Set([...(opts.known ?? [])].map(normName).filter(Boolean))
   const exclude = new Set(opts.exclude ?? [])
   const near = neighbours(opts.taste ?? [], opts.related ?? noRelated, known)
+  // сколько разных затравок советуют исполнителя (а не трек — у Яндекса и SC треки разные)
+  const artistPools = new Map<string, Set<number>>()
+  pools.forEach((pool, i) => {
+    for (const t of pool) {
+      for (const a of trackArtists(t)) {
+        const key = normName(a.name)
+        if (!key) continue
+        const set = artistPools.get(key) ?? new Set<number>()
+        set.add(i)
+        artistPools.set(key, set)
+      }
+    }
+  })
+  const support = (t: Track) => trackArtists(t).reduce((m, a) => Math.max(m, artistPools.get(normName(a.name))?.size ?? 0), 0)
+  const isNear = (t: Track) => trackArtists(t).some((a) => near.has(normName(a.name)))
   const candidates = [...scorePools(pools).values()]
     .filter(({ track }) => !exclude.has(track.ref) && track.available !== false)
     .filter(({ track }) => !trackArtists(track).some((a) => known.has(normName(a.name))))
     .filter(({ track }) => (opts.filter ? opts.filter(track) : true))
-    .map((c) => ({ ...c, score: c.score + (trackArtists(c.track).some((a) => near.has(normName(a.name))) ? RELATED_BOOST : 0) }))
+    .map((c) => {
+      const s = support(c.track)
+      const nearBoost = isNear(c.track) ? RELATED_BOOST : 0
+      return { ...c, strong: s >= 2 || nearBoost > 0, score: c.score + nearBoost + Math.max(0, s - 1) * ARTIST_SUPPORT_BOOST }
+    })
     .sort((a, b) => b.score - a.score || a.first - b.first)
-    .map((c) => c.track)
-  return limitPerArtist(dedupe(candidates), opts.maxPerArtist ?? MAX_PER_ARTIST).slice(0, opts.limit ?? MIX_LIMIT)
+  const limit = opts.limit ?? MIX_LIMIT
+  const max = opts.maxPerArtist ?? MAX_PER_ARTIST
+  const strong = limitPerArtist(dedupe(candidates.filter((c) => c.strong).map((c) => c.track)), max)
+  if (strong.length >= Math.min(limit, MIN_BEFORE_FILL)) return strong.slice(0, limit)
+  // надёжных мало — добираем случайными советами, но после надёжных
+  const all = limitPerArtist(dedupe([...strong, ...candidates.filter((c) => !c.strong).map((c) => c.track)]), max)
+  return all.slice(0, Math.min(limit, Math.max(strong.length, MIN_BEFORE_FILL)))
 }
 
 /** Разные исполнители подборки по частоте (кого больше — тот первым), с аватаркой — выше при равенстве. */

@@ -130,6 +130,32 @@ describe('раскладка', () => {
   })
 })
 
+describe('форма карты', () => {
+  const aspect = (l: ReturnType<typeof layout>) => {
+    const w = l.bounds.maxX - l.bounds.minX
+    const h = l.bounds.maxY - l.bounds.minY
+    return Math.max(w, h) / Math.min(w, h)
+  }
+
+  it('большая связная кучка с хвостом одиночек — круглая, а не луч вправо', () => {
+    // как настоящая медиатека: плотный центр (фиты) и сотни исполнителей без связей
+    const nodes = Array.from({ length: 500 }, (_, i) => node(`n${i}`, 1 + (i % 23)))
+    const edges: MapEdge[] = []
+    for (let i = 0; i < 200; i++) for (const k of [1, 7, 31]) edges.push(edge(`n${i}`, `n${(i + k) % 200}`, 1 + (i % 3)))
+    const l = layout(nodes, edges)
+    expect(overlaps(l.nodes)).toEqual([])
+    expect(aspect(l)).toBeLessThan(1.6)
+  })
+
+  it('много маленьких кучек ложатся пятном', () => {
+    const nodes = Array.from({ length: 240 }, (_, i) => node(`m${i}`, 1 + (i % 5)))
+    const edges = Array.from({ length: 120 }, (_, i) => edge(`m${2 * i}`, `m${2 * i + 1}`))
+    const l = layout(nodes, edges)
+    expect(overlaps(l.nodes)).toEqual([])
+    expect(aspect(l)).toBeLessThan(1.6)
+  })
+})
+
 describe('поиск и попадание', () => {
   it('находит по точному имени, потом по началу, потом по вхождению', () => {
     const nodes = [node('cowboyclicker', 1), node('cowboy', 0.5), node('yungcowboy', 2)]
