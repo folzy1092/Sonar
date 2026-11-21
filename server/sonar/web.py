@@ -86,6 +86,8 @@ def main() -> None:
     if args.demo:
         from .admin.demo import seed
         seed(con)
+        # Демо всегда с заводским входом: пароль, сменённый при прошлом просмотре, не мешает зайти снова.
+        con.execute("DELETE FROM admins")
     port = args.port or s.port
     print(f"Админка: http://127.0.0.1:{port}{BASE}/  (база {path})")
     uvicorn.run(create_app(con, s), host="127.0.0.1", port=port, log_level="warning")
