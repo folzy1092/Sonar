@@ -9,21 +9,75 @@
   import { cascade } from '../../lib/cascade'
   import { glide } from '../../lib/motion'
   import { fallbackOrder, moveItem } from '../../lib/fallback'
-  import { byId } from '../../lib/services'
+  import { byId, type ServiceId } from '../../lib/services'
   import { settings } from '../../lib/settings.svelte'
   import { t } from '../../lib/i18n.svelte'
 
   const enabled = $derived(settings.get('audio.fallback'))
   const order = $derived(fallbackOrder(settings.get('audio.fallback_order')))
 
-  let dragFrom = $state<number | null>(null)
-  let dragOver = $state<number | null>(null)
+  // Перетаскивание — на pointer-событиях: HTML5 drag-n-drop в WebView2 под Tauri не работает
+  // (окно перехватывает перетаскивание файлов). Строка едет за курсором, остальные расступаются,
+  // порядок сохраняется при отпускании.
+  let live = $state<ServiceId[] | null>(null)
+  let dragId = $state<ServiceId | null>(null)
+  let shift = $state(0)
+  let slots: { top: number; h: number }[] = []
+  let grab = 0
+  let listEl: HTMLDivElement | undefined = $state()
 
-  function drop(to: number) {
-    const from = dragFrom
-    dragFrom = dragOver = null
-    if (from === null || from === to) return
-    settings.set('audio.fallback_order', moveItem(order, from, to))
+  const shown = $derived(live ?? order)
+
+  function start(e: PointerEvent, id: ServiceId) {
+    if (!enabled || e.button !== 0 || !listEl) return
+    const rows = [...listEl.querySelectorAll<HTMLElement>('.row')]
+    slots = rows.map((r) => {
+      const b = r.getBoundingClientRect()
+      return { top: b.top, h: b.height }
+    })
+    const i = order.indexOf(id)
+    grab = e.clientY - slots[i].top
+    live = [...order]
+    dragId = id
+    shift = 0
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    e.preventDefault()
+  }
+
+  function move(e: PointerEvent) {
+    if (!dragId || !live) return
+    const top = e.clientY - grab
+    const centre = top + slots[0].h / 2
+    let to = 0
+    for (let k = 0; k < slots.length; k++) if (centre > slots[k].top + slots[k].h / 2) to = k
+    // за край списка не уезжаем дальше половины строки
+    to = Math.max(0, Math.min(slots.length - 1, to))
+    const cur = live.indexOf(dragId)
+    if (to !== cur) live = moveItem(live, cur, to)
+    const min = slots[0].top - slots[0].h / 2
+    const max = slots[slots.length - 1].top + slots[slots.length - 1].h / 2
+    shift = Math.max(min, Math.min(max, top)) - slots[live.indexOf(dragId)].top
+  }
+
+  function end() {
+    if (!dragId || !live) return
+    const next = live
+    const changed = next.some((id, i) => id !== order[i])
+    dragId = null
+    shift = 0
+    live = null
+    if (changed) settings.set('audio.fallback_order', next)
+  }
+
+  /** С клавиатуры: Alt+↑ / Alt+↓ двигают сервис. */
+  function key(e: KeyboardEvent, i: number) {
+    if (!enabled || !e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
+    const to = e.key === 'ArrowUp' ? i - 1 : i + 1
+    if (to < 0 || to >= order.length) return
+    e.preventDefault()
+    settings.set('audio.fallback_order', moveItem(order, i, to))
+    const target = e.currentTarget as HTMLElement
+    requestAnimationFrame(() => (listEl?.querySelectorAll<HTMLElement>('.row')[to] ?? target).focus())
   }
 </script>
 
@@ -36,27 +90,24 @@
   />
   <div class="order" class:off={!enabled}>
     <p class="hint">{t('Где искать трек сначала — перетащи сервисы. Яндекс Музыка и VK Музыка ищутся, только если подключены.')}</p>
-    <div class="list" role="list" aria-label={t('Порядок резервных сервисов')} use:cascade={'fallback'}>
-      {#each order as id, i (id)}
+    <div class="list" role="listbox" aria-label={t('Порядок резервных сервисов')} bind:this={listEl} use:cascade={'fallback'}>
+      {#each shown as id, i (id)}
         {@const info = byId(id)}
         <div
           class="row"
-          class:over={dragOver === i && dragFrom !== i}
-          class:dragging={dragFrom === i}
-          role="listitem"
-          draggable={enabled}
-          animate:glide
-          ondragstart={(e) => {
-            dragFrom = i
-            e.dataTransfer?.setData('text/plain', id)
-          }}
-          ondragover={(e) => {
-            if (dragFrom === null) return
-            e.preventDefault()
-            dragOver = i
-          }}
-          ondragend={() => (dragFrom = dragOver = null)}
-          ondrop={(e) => (e.preventDefault(), drop(i))}
+          class:dragging={dragId === id}
+          style:transform={dragId === id ? `translateY(${shift}px) scale(1.02)` : null}
+          role="option"
+          aria-selected={dragId === id}
+          tabindex={enabled ? 0 : -1}
+          aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+          animate:glide={{ duration: dragId === id ? 0 : 220 }}
+          onpointerdown={(e) => start(e, id)}
+          onpointermove={move}
+          onpointerup={end}
+          onpointercancel={end}
+          onlostpointercapture={end}
+          onkeydown={(e) => key(e, i)}
         >
           <span class="n">{i + 1}</span>
           <SourceIcon service={id} size={18} />
@@ -96,8 +147,9 @@
     border-radius: var(--radius-m);
     background: var(--plate);
     border: 1px solid var(--card-line);
-    border-top: 2px solid transparent;
     cursor: grab;
+    user-select: none;
+    touch-action: none;
     transition:
       background var(--fast) var(--ease),
       border-color var(--fast) var(--ease),
@@ -111,11 +163,21 @@
     cursor: grabbing;
     transform: scale(0.99);
   }
-  .row.over {
-    border-top-color: var(--accent);
-  }
   .row.dragging {
-    opacity: 0.5;
+    position: relative;
+    z-index: 2;
+    cursor: grabbing;
+    background: var(--hover);
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--card-line));
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+    transition:
+      background var(--fast) var(--ease),
+      border-color var(--fast) var(--ease),
+      box-shadow var(--fast) var(--ease);
+  }
+  .row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .n {
     width: 14px;
