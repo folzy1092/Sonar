@@ -202,6 +202,8 @@ export const DEFAULTS = {
   'player.slider': 'normal' as 'normal' | 'thin' | 'smooth' | 'wavy' | 'wave_bars',
   /** Маленькая копия обложки в углу большой. */
   'player.pip_cover': false,
+  /** Кнопка таймера сна в плеере. По умолчанию нет: нужна немногим и бросается в глаза (владелец 2026-11-22). */
+  'player.sleep_button': false,
   'integrations.discord.enabled': true,
   'integrations.discord.cover': true,
   'integrations.discord.progress': true,

@@ -266,4 +266,6 @@ export default {
   'Спектр в полноэкранном плеере': 'Spektrum im Vollbild-Player',
   'Тихая волна звука на дне экрана, за текстом. С «Меньше движения» не рисуется': 'Eine ruhige Klangwelle am unteren Bildschirmrand, hinter dem Text. Bei „Bewegung reduzieren“ wird sie nicht gezeichnet',
   'Под артистом у треков Sonar Mix — откуда трек: похож на твой лайк, разведка, забытый любимый': 'Unter dem Künstler bei Sonar-Mix-Titeln – woher der Titel stammt: ähnlich wie dein Like, Entdecken, vergessener Favorit',
+  'Таймер сна в плеере': 'Sleep-Timer im Player',
+  'Кнопка с луной рядом со скоростью: выключить музыку через время или в конце трека': 'Ein Mond-Knopf neben der Geschwindigkeit: Musik nach einer Weile oder am Ende des Titels stoppen',
 } satisfies Record<string, string>

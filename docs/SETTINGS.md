@@ -331,6 +331,7 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 | `player.visualizer_style` (PC) | `wave` / `bars` | `wave` | да |
 | `player.visualizer_full` (PC) | bool — спектр (AnalyserNode после эквалайзера) тихо на дне полноэкранного плеера, ≤30 кадров/с; с «Меньше движения» и в фоне не рисуется | `false` | да |
 | `player.wave_why` (PC) | bool — строка «Почему этот трек» под артистом у треков «Моей волны» (`wave.rs` `why`: похож на лайк / на зашедшее сейчас / волна по треку / любимый артист / разведка / забытый лайк) | `true` | да |
+| `player.sleep_button` (PC) | bool — кнопка таймера сна в плеере; выключено — кнопки нет, но уже запущенный таймер видно, чтобы отменить (владелец 2026-11-22: нужна немногим, бросается в глаза) | `false` | да |
 | `player.cover_position` (PC) | `left` / `right` | `left` | да |
 | `player.cover_in_cover` (PC) | bool | `false` | да |
 | `player.volume` (PC) | 0…1 | `0.8` | нет |

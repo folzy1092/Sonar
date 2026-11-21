@@ -267,4 +267,6 @@ export default {
   'Спектр в полноэкранном плеере': 'Spectrum in the full-screen player',
   'Тихая волна звука на дне экрана, за текстом. С «Меньше движения» не рисуется': 'A quiet sound wave at the bottom of the screen, behind the lyrics. Not drawn with “Reduce motion”',
   'Под артистом у треков Sonar Mix — откуда трек: похож на твой лайк, разведка, забытый любимый': 'Under the artist for Sonar Mix tracks — where the track came from: similar to your like, exploration, a forgotten favorite',
+  'Таймер сна в плеере': 'Sleep timer in the player',
+  'Кнопка с луной рядом со скоростью: выключить музыку через время или в конце трека': 'A moon button next to speed: stop the music after a while or at the end of the track',
 } satisfies Record<string, string>

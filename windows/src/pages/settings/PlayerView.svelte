@@ -37,6 +37,12 @@
     on={settings.get('player.wave_why')}
     onchange={(v) => settings.set('player.wave_why', v)}
   />
+  <Switch
+    title={t('Таймер сна в плеере')}
+    hint={t('Кнопка с луной рядом со скоростью: выключить музыку через время или в конце трека')}
+    on={settings.get('player.sleep_button')}
+    onchange={(v) => settings.set('player.sleep_button', v)}
+  />
 </Card>
 
 <Card title={t('Визуализатор')}>
