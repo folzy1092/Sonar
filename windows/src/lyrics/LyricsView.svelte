@@ -405,7 +405,7 @@
     width: 100%;
     margin: 0;
     /* справа запас как у Dotify: текущая строка увеличивается до 108 % и не должна обрезаться */
-    padding: 0.32em 9% 0.32em 0.25em;
+    padding: 0.4em 9% 0.4em 0.25em;
     text-align: left;
     font: inherit;
     font-weight: 600;
@@ -530,14 +530,15 @@
     padding: 0 0.25em 40vh;
     font-size: 0.72em;
     font-weight: 650;
-    line-height: 1.45;
+    /* строки текста без времени — с воздухом между ними (владелец 2026-11-22: «вплотную») */
+    line-height: 1.6;
     color: rgba(var(--ink), 0.82);
   }
   .plain p {
-    margin: 0;
+    margin: 0 0 0.28em;
   }
   .plain .gap {
-    height: 0.9em;
+    height: 1.1em;
   }
   .plain .bg {
     color: rgba(var(--ink), 0.5);
