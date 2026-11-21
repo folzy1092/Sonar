@@ -18,6 +18,14 @@ use std::sync::LazyLock;
 
 /// «Текста нет» перепроверяется не чаще раза в 30 мин (как в selfbot).
 pub const RECHECK_TTL_MS: i64 = 30 * 60 * 1000;
+/// Текст без времени (обычно Genius) раз в столько перепроверяем: вдруг на lrclib появился
+/// синхронный. Иначе однажды найденный Genius остаётся в кэше навсегда.
+pub const UPGRADE_TTL_MS: i64 = 3 * 24 * 3600 * 1000;
+
+/// Пора ли искать синхронную замену тексту из кэша, которому `age_ms`.
+pub fn wants_synced_upgrade(l: &Lyrics, age_ms: i64) -> bool {
+  !l.is_synced && age_ms >= UPGRADE_TTL_MS
+}
 /// Последняя строка длится до конца трека, но не дольше 10 с.
 const LAST_LINE_MAX: f64 = 10.0;
 
@@ -335,6 +343,16 @@ pub async fn fetch_track(http: &reqwest::Client, track: &Track, recheck: bool) -
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn plain_lyrics_recheck_for_synced() {
+    let plain = Lyrics { is_synced: false, source: "genius".into(), lines: vec![] };
+    let synced = Lyrics { is_synced: true, source: "lrclib".into(), lines: vec![] };
+    assert!(!wants_synced_upgrade(&plain, UPGRADE_TTL_MS - 1));
+    assert!(wants_synced_upgrade(&plain, UPGRADE_TTL_MS));
+    // синхронный не трогаем никогда
+    assert!(!wants_synced_upgrade(&synced, UPGRADE_TTL_MS * 10));
+  }
 
   #[test]
   fn lrc_lines_durations_and_pauses() {

@@ -517,16 +517,33 @@ pub fn discord_status(discord: State<'_, Arc<crate::discord::Discord>>) -> serde
 // ——— тексты песен (SPEC §3.7б, docs/LYRICS.md) ———
 
 /// Текст трека: кэш в базе → lrclib → Genius. `None` — «Текст не найден»
-/// («нет» перепроверяется через 30 мин). `refresh` — выбросить кэш и искать заново.
+/// («нет» перепроверяется через 30 мин, текст без времени — раз в 3 дня ищет синхронный). `refresh` — выбросить кэш и искать заново.
 #[tauri::command]
 pub async fn lyrics(core: State<'_, Arc<Core>>, db: State<'_, Db>, track: Track, refresh: Option<bool>) -> Res<Option<Lyrics>> {
-  if refresh == Some(true) {
+  // кэш читаем отдельно: блокировка базы не должна дожить до `await` ниже
+  let cached = if refresh == Some(true) {
     db.0.lock().unwrap().clear_lyrics(&track.ref_).map_err(err)?;
-  } else if let Some((json, at)) = db.0.lock().unwrap().lyrics_cached(&track.ref_).map_err(err)? {
+    None
+  } else {
+    db.0.lock().unwrap().lyrics_cached(&track.ref_).map_err(err)?
+  };
+  if let Some((json, at)) = cached {
     match json {
       Some(j) => {
         if let Ok(l) = serde_json::from_str::<Lyrics>(&j) {
-          return Ok(Some(l));
+          if !lyrics::wants_synced_upgrade(&l, crate::store::now_ms() - at) {
+            return Ok(Some(l));
+          }
+          // текст без времени и давно — вдруг на lrclib появился синхронный; нет — оставляем прежний
+          // и откладываем следующую проверку (fetched_at обновится)
+          let fresh = lyrics::fetch_track(&core.http, &track, false).await.ok().flatten();
+          let keep = match fresh {
+            Some(n) if n.is_synced => n,
+            _ => l,
+          };
+          let json = serde_json::to_string(&keep).map_err(err)?;
+          db.0.lock().unwrap().put_lyrics(&track.ref_, Some(&json), Some(keep.source.as_str())).map_err(err)?;
+          return Ok(Some(keep));
         }
       }
       None if crate::store::now_ms() - at < lyrics::RECHECK_TTL_MS => return Ok(None),
