@@ -14,25 +14,25 @@ export type LyricsSize = (typeof lyricsSizes)[number]
 export const sizeRem: Record<LyricsSize, number> = { S: 1.25, M: 1.6, L: 2, XL: 2.5 }
 
 export const lyricsStyles = {
-  normal: 'Ровно',
-  scale: 'Крупный план',
-  blur: 'Фокус',
-  cinema: 'Титры',
-  shift: 'Выступ',
+  normal: 'Без эффектов',
+  scale: 'Текущая крупнее',
+  blur: 'Размытие вокруг',
+  cinema: 'Разреженные буквы',
+  shift: 'Текущая со сдвигом',
 } as const
 export type LyricsStyle = keyof typeof lyricsStyles
 
 /** Все анимации Dotify (LYRICS.md §6): смена строки и проявление слов в караоке. */
 export const lyricsAnimations = {
-  normal: 'Мягко',
-  fade: 'Проявление',
-  blur: 'Дымка',
-  flip3d: 'Кувырок',
-  bounce: 'Пружина',
+  normal: 'Простая',
+  fade: 'Затухание',
+  blur: 'Размытие',
+  flip3d: 'Поворот в 3D',
+  bounce: 'С отскоком',
   wave: 'Волна',
   float: 'Всплытие',
-  drift: 'Скольжение',
-  zoom: 'Глубина',
+  drift: 'Наклон',
+  zoom: 'Приближение',
   /** Строки подтягиваются вверх лесенкой — каждая следующая чуть позже («магнит», как в Liner). */
   ladder: 'Лесенка',
 } as const

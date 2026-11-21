@@ -122,7 +122,7 @@
     {#if withCover}
     <section class="col" transition:fade={{ duration: 220 }}>
       <div class="art">
-        <Cover url={track?.cover_url} size={560} radius="14px" />
+        <Cover url={track?.cover_url} size={640} radius="14px" />
         {#if track}
           <button
             class="on-cover left"
@@ -396,7 +396,7 @@
     max-width: none;
   }
   .col {
-    --art: min(56vh, 560px, 70vw);
+    --art: min(62vh, 616px, 77vw); /* +10 % (владелец 2026-11-22) */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -405,7 +405,7 @@
     animation: col-in 0.45s var(--ease);
   }
   .body.text .col {
-    --art: min(52vh, 480px, 37vw); /* +~8 % (владелец 2026-11-18) */
+    --art: min(57vh, 528px, 41vw); /* +~8 % (2026-11-18) и ещё +10 % (2026-11-22) — владелец */
     justify-self: end;
   }
   @keyframes col-in {

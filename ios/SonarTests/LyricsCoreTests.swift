@@ -257,8 +257,8 @@ final class LyricsCoreTests: XCTestCase {
         XCTAssertEqual(LyricsSize.m.points, 25.6, accuracy: 1e-6)
         XCTAssertEqual(LyricsSize(rawValue: "XL"), .xl)
         XCTAssertEqual(LyricsAnimation.allCases.count, 10)
-        XCTAssertEqual(LyricsTextStyle.cinema.title, "Титры")
-        XCTAssertEqual(LyricsAnimation.zoom.title, "Глубина")
+        XCTAssertEqual(LyricsTextStyle.cinema.title, "Разреженные буквы")
+        XCTAssertEqual(LyricsAnimation.zoom.title, "Приближение")
     }
 
     // MARK: аннотации (annotations.ts)
