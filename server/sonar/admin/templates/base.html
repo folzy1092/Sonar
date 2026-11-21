@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{% block title %}Админка{% endblock %} · Sonar</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="{{ BASE }}/static/admin.css">
+</head>
+<body>
+{% block body %}
+<div class="shell">
+  <aside class="side">
+    <a class="brand" href="{{ BASE }}/">{% include "_logo.svg" %}Sonar<small>админка</small></a>
+    <nav class="nav">
+      <a href="{{ BASE }}/" class="{{ 'on' if nav == 'dash' }}">Дашборд</a>
+      <a href="{{ BASE }}/users" class="{{ 'on' if nav == 'users' }}">Пользователи</a>
+      <a href="{{ BASE }}/settings" class="{{ 'on' if nav == 'settings' }}">Настройки</a>
+      <a href="{{ BASE }}/audit" class="{{ 'on' if nav == 'audit' }}">Журнал</a>
+    </nav>
+    <div class="who">
+      <span>{{ admin.login }}</span>
+      <div class="row">
+        <a class="btn ghost" href="{{ BASE }}/password">Пароль</a>
+        <form class="inline" method="post" action="{{ BASE }}/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn ghost">Выйти</button></form>
+      </div>
+    </div>
+  </aside>
+  <main class="main">
+    {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
+    {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+    {% block main %}{% endblock %}
+  </main>
+</div>
+{% endblock %}
+</body>
+</html>

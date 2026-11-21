@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Вход{% endblock %}
+{% block body %}
+<div class="gate"><div class="card">
+  <div class="brand">{% include "_logo.svg" %}Sonar</div>
+  <h1>Вход в админку</h1>
+  <p>Только для администратора</p>
+  {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+  <form method="post" action="{{ BASE }}/login">
+    <input type="hidden" name="csrf" value="{{ pre }}">
+    <div class="field"><label for="login">Логин</label><input id="login" name="login" type="text" autocomplete="username" required autofocus></div>
+    <div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+    <button class="btn primary">Войти</button>
+  </form>
+</div></div>
+{% endblock %}

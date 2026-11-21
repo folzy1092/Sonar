@@ -1,0 +1,15 @@
+{# Рейтинг со шкалой: items — список dict, label_key — подпись, val_key — значение (по нему шкала). #}
+{% macro rank(items, label_key, val_key, val_unit, sub_key=None, names=None, extra_key=None, extra_unit='') %}
+{% set top = (items | map(attribute=val_key) | max) if items else 0 %}
+{% if items and top %}
+<ol class="rank">
+{% for i in items %}
+  <li>
+    <span class="t">{{ (names[i[label_key]] if names and i[label_key] in names else i[label_key]) or '—' }}{% if sub_key and i[sub_key] %}<small>{{ i[sub_key] }}</small>{% endif %}</span>
+    <span class="v">{{ i[val_key] | num }} {{ val_unit }}{% if extra_key %} · {{ i[extra_key] | num }} {{ extra_unit }}{% endif %}</span>
+    <span class="bar"><i style="width: {{ (i[val_key] * 100 / top) | round(1) }}%"></i></span>
+  </li>
+{% endfor %}
+</ol>
+{% else %}<div class="empty">Нет данных</div>{% endif %}
+{% endmacro %}

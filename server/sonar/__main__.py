@@ -1,8 +1,10 @@
-"""python -m sonar — запуск бота (polling). API (FastAPI) добавится сюда же, когда будет сервер."""
+"""python -m sonar — бот (polling) и в том же процессе HTTP: админка `/admin` и API (`sonar/web.py`)."""
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+import os
 import sys
 
 from aiogram import Bot, Dispatcher
@@ -20,6 +22,20 @@ from .releases import Releases
 from .status import Status
 
 log = logging.getLogger("sonar")
+
+
+async def serve_web(con, settings) -> None:
+    """Админка и API на PORT. Слушаем 127.0.0.1: снаружи — только через Cloudflare Tunnel (SONAR_HTTP_HOST — иначе)."""
+    import uvicorn
+
+    from .web import create_app
+    host = os.getenv("SONAR_HTTP_HOST", "127.0.0.1")
+    server = uvicorn.Server(uvicorn.Config(create_app(con, settings), host=host, port=settings.port,
+                                           log_level="warning", proxy_headers=True))
+    # Сигналы (Ctrl+C) ловит бот; uvicorn свои обработчики не ставит.
+    server.capture_signals = contextlib.nullcontext
+    log.info("HTTP: http://%s:%s/admin/", host, settings.port)
+    await server.serve()
 
 
 async def main() -> None:
@@ -58,6 +74,7 @@ async def main() -> None:
     await bot.set_my_commands([BotCommand(command="start", description="Главное меню"),
                                BotCommand(command="status", description="Состояние Sonar")])
     log.info("бот @%s запущен, база %s", me.username, settings.db_path)
+    web = asyncio.create_task(serve_web(con, settings))
     checks = asyncio.create_task(status.loop())
     backups = asyncio.create_task(logs.backup_loop(str(settings.db_path)))
     await logs.start_icons()
@@ -67,6 +84,7 @@ async def main() -> None:
     finally:
         checks.cancel()
         backups.cancel()
+        web.cancel()
         await bot.session.close()
 
 

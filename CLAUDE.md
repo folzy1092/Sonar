@@ -41,7 +41,7 @@ CI `ios.yml` → неподписанная `Sonar.ipa`, подписывает 
 окна — `glass.rs`, раскладки вкладок и мини-плеера — сетка в `App.svelte`. Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`),
 новые экраны собирать на них; настройки — `lib/settings.svelte.ts` (ключи и значения по умолчанию).
 Журнал ошибок — `windows/src-tauri/src/crashlog.rs` (плашка после сбоя, «Отправить лог» ботом отчётов из
-секретов CI `SONAR_REPORT_*`, токен в репо не класть). Синк на стороне клиента готов (`store/sync.rs`, `sync.rs`).
+секретов CI `SONAR_REPORT_*`, токен в репо не класть). Синк на стороне клиента готов (`store/sync.rs`, `sync.rs`). **Админка на сервере** (2026-11-22) — `server/sonar/admin/` (FastAPI + Jinja без JS, `docs/ADMIN.md` §0): вход `folzy` с обязательной сменой заводского пароля (в коде только хэш, сброс — `python -m sonar.admin passwd`), пользователи, дашборд из таблицы `events` (`POST /events`, клиенты пока не шлют), подписки — `subs.py`, настройки без деплоя — `admin/prefs.py` → `GET /config`; HTTP поднимается в процессе бота (`sonar/web.py`), локально на выдуманных данных — `python server/tools/admin_demo.py`.
 Discord RPC: ID приложения Discord пользователь **не вводит** — до сервера он вшит в сборку
 (`discord.rs` `APP_ID` = 1571615944449466510, с 2026-11-15), потом приходит с сервера (`GET /config`). Тесты Windows: `npm test` (vitest),
 `cargo test` в `src-tauri`; живые проверки SC — `SC_CLIENT_ID=… cargo test -- --ignored`.

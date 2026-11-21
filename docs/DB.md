@@ -33,6 +33,8 @@ CREATE TABLE users (
   tg_username   TEXT,
   is_admin      INTEGER NOT NULL DEFAULT 0,
   banned        INTEGER NOT NULL DEFAULT 0,
+  ban_reason    TEXT,                           -- причина бана из админки (миграция в server/sonar/db.py COLUMNS)
+  banned_at     INTEGER,
   created_at    INTEGER NOT NULL
 );
 
@@ -376,3 +378,73 @@ CREATE TABLE status_daily (                     -- свёртка по дням,
 | `active` | INTEGER | 1 — закреплена, 0 — снята |
 | `created_at` | INTEGER | мс |
 | `alerted_at` | INTEGER NULL | когда разослан алерт |
+
+## Админка и дашборд (сервер, 2026-11-22)
+
+Таблицы в `server/sonar/db.py`; новые колонки старой базы добавляет `_migrate` (`COLUMNS`). Таблица `sessions` (выше)
+на сервере уже создаётся — из неё карточка пользователя берёт устройства, а `POST /events` — пользователя и платформу.
+
+```sql
+CREATE TABLE events (                           -- события клиентов (API.md «POST /events»)
+  id            INTEGER PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device_id     TEXT NOT NULL,                  -- из сессии
+  platform      TEXT NOT NULL,                  -- windows | ios | android | other — из сессии
+  kind          TEXT NOT NULL,                  -- open — открыл плеер, play — начал трек
+  service       TEXT,                           -- soundcloud | yandex | youtube | vk | spotify | local — из префикса ref
+  ref           TEXT, artist TEXT, title TEXT,  -- только у play
+  at            INTEGER NOT NULL,               -- мс, время устройства
+  day           TEXT NOT NULL,                  -- YYYY-MM-DD в поясе SONAR_ADMIN_TZ (Europe/Riga) — группировка без вычислений
+  UNIQUE (device_id, kind, at)                  -- повтор пачки не удваивает
+);
+CREATE INDEX events_kind_day ON events(kind, day, user_id);   -- «слушали», топы
+CREATE INDEX events_day_user ON events(day, user_id);         -- «открыли», DAU/WAU/MAU
+CREATE INDEX events_user_at ON events(user_id, at);           -- карточка, последний заход
+
+CREATE TABLE subscriptions (                    -- Sonar Deep: одна строка — один период
+  id            INTEGER PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan          TEXT NOT NULL,                  -- ping | echo | pod | fleet (server/sonar/subs.py, зеркало lib/subscription.ts)
+  kind          TEXT NOT NULL,                  -- new — первая у человека, renew — была раньше
+  source        TEXT NOT NULL,                  -- manual (админка) | pay (платёжка, потом)
+  started_at    INTEGER NOT NULL,               -- продление встаёт в конец текущего периода
+  ends_at       INTEGER NOT NULL,
+  amount        INTEGER NOT NULL DEFAULT 0,     -- ₽ целыми; 0 — подарок, в выручку не идёт
+  currency      TEXT NOT NULL DEFAULT 'RUB',
+  note          TEXT,
+  created_at    INTEGER NOT NULL
+);
+CREATE INDEX subscriptions_user ON subscriptions(user_id, ends_at);
+CREATE INDEX subscriptions_created ON subscriptions(created_at);
+CREATE INDEX subscriptions_ends ON subscriptions(ends_at);
+
+CREATE TABLE admins (                           -- свой вход админки, не аккаунт Sonar
+  id            INTEGER PRIMARY KEY,
+  login         TEXT UNIQUE NOT NULL COLLATE NOCASE,
+  password_hash TEXT NOT NULL,                  -- argon2id; заводской folzy — только хэш в коде
+  must_change   INTEGER NOT NULL DEFAULT 1,     -- 1 — до смены пароля видна только форма смены
+  created_at    INTEGER NOT NULL,
+  changed_at    INTEGER
+);
+CREATE TABLE admin_sessions (
+  token_hash    TEXT PRIMARY KEY,               -- sha256 cookie sonar_admin
+  admin_id      INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+  csrf          TEXT NOT NULL,                  -- токен форм этой сессии
+  ip TEXT, user_agent TEXT,
+  created_at    INTEGER NOT NULL,
+  expires_at    INTEGER NOT NULL                -- 12 ч
+);
+CREATE TABLE admin_audit (                      -- журнал действий админки
+  id            INTEGER PRIMARY KEY,
+  at            INTEGER NOT NULL,
+  admin         TEXT NOT NULL,
+  action        TEXT NOT NULL,                  -- login | password | ban | unban | set_login | grant_sub | settings
+  target        TEXT,                           -- users.id, если про пользователя
+  detail        TEXT                            -- JSON
+);
+-- Настройки без деплоя — в kv под ключами setting:<ключ> (admin/prefs.py), умолчания — в коде.
+```
+
+Объём `events`: ~30 открытий и ~1 000 треков в день на 10 человек ≈ 370 тыс. строк в год ≈ 60 МБ с индексами —
+в 2 ГБ Velt помещается; когда станет тесно — сворачивать старше года в дневные агрегаты.
+

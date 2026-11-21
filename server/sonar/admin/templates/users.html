@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Пользователи{% endblock %}
+{% block main %}
+<div class="head">
+  <div><h1>Пользователи</h1><p>Найдено: {{ total | num }}</p></div>
+</div>
+<form class="filters" method="get" action="{{ BASE }}/users">
+  <input type="search" name="q" value="{{ q }}" placeholder="Логин, @username, #номер, Telegram" aria-label="Поиск" size="32">
+  <select name="f" aria-label="Фильтр">
+    {% for k, name in [('all', 'Все'), ('active7', 'Заходили за 7 дней'), ('subscribed', 'С подпиской'), ('no_sub', 'Без подписки'), ('tg', 'С Telegram'), ('no_tg', 'Без Telegram'), ('banned', 'Заблокированные')] %}
+    <option value="{{ k }}" {{ 'selected' if f == k }}>{{ name }}</option>
+    {% endfor %}
+  </select>
+  <select name="sort" aria-label="Порядок">
+    {% for k, name in [('new', 'Сначала новые'), ('old', 'Сначала старые'), ('seen', 'По последнему заходу'), ('number', 'По номеру')] %}
+    <option value="{{ k }}" {{ 'selected' if sort == k }}>{{ name }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn">Найти</button>
+  {% if q or f != 'all' %}<a class="btn ghost" href="{{ BASE }}/users">Сбросить</a>{% endif %}
+</form>
+{% if rows %}
+<div class="table-wrap">
+<table>
+  <thead><tr><th class="n">#</th><th>Логин</th><th>@username</th><th>Регистрация</th><th>Последний заход</th><th>Telegram</th><th>Подписка</th><th></th></tr></thead>
+  <tbody>
+  {% for u in rows %}
+  <tr>
+    <td class="n muted">{{ u.number }}</td>
+    <td><a class="row-link" href="{{ BASE }}/users/{{ u.id }}">{{ u.login }}</a></td>
+    <td class="sub">@{{ u.username }}</td>
+    <td class="num">{{ u.created_at | dt(False) }}</td>
+    <td class="num">{{ u.last_seen | dt }}</td>
+    <td class="sub">{% if u.tg_id %}{{ '@' ~ u.tg_username if u.tg_username else u.tg_id }}{% else %}—{% endif %}</td>
+    <td>{% if u.sub_plan %}<span class="tag deep">{{ PLAN_NAMES[u.sub_plan] }}</span> <span class="muted num">до {{ u.sub_end | dt(False) }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+    <td>{% if u.banned %}<span class="tag bad">бан</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if pages > 1 %}
+<div class="pager">
+  {% if page > 1 %}<a class="btn" href="{{ link(page - 1) }}">Назад</a>{% endif %}
+  <span class="num">{{ page }} из {{ pages }}</span>
+  {% if page < pages %}<a class="btn" href="{{ link(page + 1) }}">Дальше</a>{% endif %}
+</div>
+{% endif %}
+{% else %}
+<div class="panel empty">{{ 'Никого не нашли' if q or f != 'all' else 'Пользователей пока нет' }}</div>
+{% endif %}
+{% endblock %}

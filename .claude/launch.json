@@ -53,6 +53,17 @@
         "4322"
       ],
       "port": 4322
+    },
+    {
+      "name": "admin-demo",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "server/tools/admin_demo.py",
+        "--port",
+        "8765"
+      ],
+      "port": 8765,
+      "url": "http://127.0.0.1:8765"
     }
   ]
 }

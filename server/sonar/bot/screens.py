@@ -31,11 +31,16 @@ def date_ru(ms: int) -> str:
 
 # ---- без аккаунта, вход, регистрация ----
 
-def guest() -> Screen:
+def notice(s: Settings | None) -> str:
+    """Объявление из админки (Настройки → Тексты бота) цитатой; пусто — ничего."""
+    return "\n" + quote(h(s.bot_notice)) if s and s.bot_notice.strip() else ""
+
+
+def guest(s: Settings | None = None) -> Screen:
     return Screen(
         banner="main",
         html=f"Привет! Это <b>Sonar</b> — твой музыкальный плеер.\n"
-             + quote("Аккаунт не привязан к Sonar\nВойди или зарегистрируйся, чтобы продолжить"),
+             + quote("Аккаунт не привязан к Sonar\nВойди или зарегистрируйся, чтобы продолжить") + notice(s),
         kb=[[Btn("Войти", "login", "login"), Btn("Регистрация", "register", "register")]],
     )
 
@@ -98,6 +103,7 @@ def bye() -> Screen:
 
 
 ERRORS = {
+    "registration_closed": f"{e('cancel')} Регистрация сейчас закрыта. Загляни позже.",
     "login_format": f"{e('cancel')} Логин — 3–24 символа: <code>a-z 0-9 _ .</code>",
     "login_taken": f"{e('cancel')} Такой логин уже занят. Придумай другой:",
     "password_short": f"{e('cancel')} Пароль — от 8 символов",
@@ -115,7 +121,7 @@ def main(user: User, s: Settings) -> Screen:
     return Screen(
         banner="main",
         html=f"Привет, <b>{h(user.display_name)}</b>! {e('profile')}\n\nЧем я могу помочь?\n"
-             + quote(f"Поддержка — кнопка {e('bug')} Баг / Идея ниже"),
+             + quote(f"Поддержка — кнопка {e('bug')} Баг / Идея ниже") + notice(s),
         kb=[[Btn("Профиль", "profile", "profile"), Btn("Статистика", "stats", "stats:week")],
             [Btn("Сервисы", "services", "services"), Btn("Баг / Идея", "bug", "report")],
             [Btn("Скачать Sonar", "download", "versions")]],

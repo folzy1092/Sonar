@@ -38,6 +38,12 @@ class Settings:
     data_thread_id: int | None = None   # тема «Data» лог-группы (бэкапы), создана другим ботом
     lastfm_api_key: str = ""
     port: int = 8080
+    # Правятся в админке без деплоя (admin/prefs.py, kv `setting:*`), здесь — умолчания до первого чтения базы.
+    registration_open: bool = True
+    maintenance: bool = False
+    maintenance_text: str = ""
+    yandex_enabled: bool = True
+    bot_notice: str = ""
     data_dir: Path = field(default_factory=lambda: SERVER_DIR / "data")
 
     @property

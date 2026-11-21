@@ -505,6 +505,25 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 // времени клиента.
 ```
 
+### События для дашборда админки (сделано на сервере 2026-11-22, клиенты пока не шлют)
+
+| Метод | Путь | Тело → ответ |
+|---|---|---|
+| POST | `/events` | `{events: [Event]}` (до 200 за раз) → `{accepted: n}` — сколько записано новых |
+
+```json
+// Event
+{"kind": "open", "at": 1795294859621}
+{"kind": "play", "at": 1795294861000, "ref": "sc:2296053116", "artist": "cowboyclicker", "title": "zombie"}
+```
+- `open` — плеер открыт (запуск или возврат из фона спустя ≥ 30 мин), `play` — трек **начал играть** (не каждые
+  N секунд; длительность — по-прежнему `POST /plays`). Клиент копит события и шлёт пачкой при запуске и раз в 5 мин;
+  офлайн — пусть копит, старше 7 дней сервер отбросит.
+- Пользователь, устройство (`device_id`) и платформа берутся **из сессии**, а не из тела; сервис — из префикса `ref`
+  (`sc`, `ym`, `yt`, `vk`, `sp`, `local`). Время в будущем больше чем на 5 мин — отбрасывается.
+- Повтор той же пачки не удваивает счёт (уникальность — устройство + тип + `at`). Неверные события молча пропускаются.
+- Ошибки: `401 unauthorized`, `400 bad_json` / `bad_events` / `too_many`.
+
 ## 5а. Главная: тренды, плейлисты пользователей, чарты (SPEC §4.7)
 
 Всё считается на сервере по `plays` и сохранениям **всех пользователей Sonar**. Клиент Windows до
@@ -579,7 +598,7 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 | DELETE | `/integrations/api-key` | → `204` |
 | GET | `/me/integration` | → `{key: "sk_…" \| null, created_at}` — тот же токен, что в боте (BOT.md §2.6а); клиенты подставляют его в ссылку плашки OBS. Изменение токена в боте или приложении приходит остальным синком (`type: "integration_key"`) |
 | GET | `/obs?token=sk_…` (без авт., токен в адресе) | страница плашки OBS с сервера — та же, что локальная в Windows (`obs.html`) |
-| GET | `/config` (без авт.) | → `{discord_app_id, site_url, telegram_url}` — общие настройки клиентов: ID приложения Discord для RPC пользователь не вводит, клиент берёт отсюда (до сервера — вшит в сборку) |
+| GET | `/config` (без авт.) | → `Config` (ниже) — общие настройки клиентов: ID приложения Discord для RPC пользователь не вводит, клиент берёт отсюда (до сервера — вшит в сборку); флаги и ссылки правятся в админке без деплоя (`server/sonar/admin/prefs.py`). Сделано 2026-11-22 |
 | GET | `/oauth/profile?token=sk_…` (ключ API) | → `{username, display_name, avatar_url}` — для selfbot и «Интеграции» в боте (BOT.md §2.6а) |
 
 ### `GET /oauth/now` — формат Dotify
@@ -613,6 +632,15 @@ selfbot переключился сменой адреса:
 - `state`: `playing` / `paused` / `stopped` (`track: null`, если ничего ещё не играло).
 - `source`: key сервиса из §2 «Префиксы ref» (`soundcloud` / `yandex` / `vk` / `spotify`; позже `youtube`). `id` и `track_id` — id без префикса трека (`sc:`/`ym:`/`vk:`/`sp:`).
 - `duration` — секунды (целое), `duration_ms` — миллисекунды.
+
+```json
+// Config — GET /config
+{"discord_app_id": "1571615944449466510", "site_url": "https://sonar.folzy.ru", "telegram_url": "https://t.me/SonarUpdates",
+ "registration_open": true, "maintenance": {"on": false, "text": "Sonar обновляется, вернёмся через несколько минут"},
+ "services": {"yandex": true},
+ "links": {"site": "https://sonar.folzy.ru", "channel": "@SonarUpdates", "windows": "https://…", "ios": "https://…"}}
+// maintenance.on — клиент показывает text вместо ошибок; services.yandex = false — «Яндекс временно недоступен».
+```
 
 ## 9. Статус (SPEC §3.11)
 
@@ -764,3 +792,13 @@ Sonar). Телефон шлёт `pair` с кодом → ПК отвечает `
 **Потом — через сервер.** Конверт не зависит от транспорта: сервер Sonar будет пересылать те же сообщения
 между устройствами одного аккаунта (добавит в конверт `from` / `to` — id устройств), поэтому телефон сможет
 управлять ПК и не из той же сети. Привязка тогда не нужна — устройства уже знают друг друга по аккаунту.
+
+## 11. Админка (`/admin`, сделано 2026-11-22)
+
+Серверные HTML-страницы (FastAPI + Jinja, без JS), не JSON API: `GET /admin/` — дашборд (`?p=today|7|30|90` или
+`?p=custom&from=YYYY-MM-DD&to=YYYY-MM-DD`, не больше 367 дней), `GET /admin/users` (`?q=&f=all|active7|subscribed|no_sub|tg|no_tg|banned&sort=new|old|seen|number&page=`),
+`GET /admin/users/{id}`, `POST /admin/users/{id}/{ban|unban|login|sub}`, `GET|POST /admin/settings`, `GET /admin/audit`,
+`GET|POST /admin/login`, `POST /admin/logout`, `GET|POST /admin/password`. На поддомене `admin.*` корень ведёт в
+`/admin/`. Все POST — с CSRF-токеном формы; сессия — cookie `sonar_admin` (httpOnly, SameSite=Strict, Secure за
+HTTPS, 12 ч). Подробно — `docs/ADMIN.md` §0.
+

@@ -103,6 +103,84 @@ CREATE TABLE IF NOT EXISTS status_checks (
 );
 CREATE INDEX IF NOT EXISTS status_checks_item ON status_checks(item, ts);
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- Устройства (DB.md «sessions»): одна строка = одно устройство; сессия клиента — Bearer в API.
+CREATE TABLE IF NOT EXISTS sessions (
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash    TEXT UNIQUE NOT NULL,
+  device_id     TEXT NOT NULL,
+  device_name   TEXT NOT NULL,
+  platform      TEXT NOT NULL,
+  os            TEXT,
+  app_version   TEXT,
+  build         INTEGER,
+  created_at    INTEGER NOT NULL,
+  last_seen_at  INTEGER NOT NULL,
+  UNIQUE (user_id, device_id)
+);
+CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id, last_seen_at);
+-- События клиентов для дашборда (API.md «POST /events», DB.md «events»): open — открыл плеер, play — включил трек.
+CREATE TABLE IF NOT EXISTS events (
+  id            INTEGER PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device_id     TEXT NOT NULL,
+  platform      TEXT NOT NULL,
+  kind          TEXT NOT NULL,
+  service       TEXT,
+  ref           TEXT,
+  artist        TEXT,
+  title         TEXT,
+  at            INTEGER NOT NULL,
+  day           TEXT NOT NULL,
+  UNIQUE (device_id, kind, at)
+);
+CREATE INDEX IF NOT EXISTS events_kind_day ON events(kind, day, user_id);
+CREATE INDEX IF NOT EXISTS events_day_user ON events(day, user_id);
+CREATE INDEX IF NOT EXISTS events_user_at ON events(user_id, at);
+-- Подписка Sonar Deep: одна строка = один оплаченный (или выданный) период.
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id            INTEGER PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  plan          TEXT NOT NULL,
+  kind          TEXT NOT NULL,
+  source        TEXT NOT NULL,
+  started_at    INTEGER NOT NULL,
+  ends_at       INTEGER NOT NULL,
+  amount        INTEGER NOT NULL DEFAULT 0,
+  currency      TEXT NOT NULL DEFAULT 'RUB',
+  note          TEXT,
+  created_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS subscriptions_user ON subscriptions(user_id, ends_at);
+CREATE INDEX IF NOT EXISTS subscriptions_created ON subscriptions(created_at);
+CREATE INDEX IF NOT EXISTS subscriptions_ends ON subscriptions(ends_at);
+-- Админка (ADMIN.md): свой вход, отдельно от аккаунтов Sonar.
+CREATE TABLE IF NOT EXISTS admins (
+  id            INTEGER PRIMARY KEY,
+  login         TEXT UNIQUE NOT NULL COLLATE NOCASE,
+  password_hash TEXT NOT NULL,
+  must_change   INTEGER NOT NULL DEFAULT 1,
+  created_at    INTEGER NOT NULL,
+  changed_at    INTEGER
+);
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  token_hash    TEXT PRIMARY KEY,
+  admin_id      INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+  csrf          TEXT NOT NULL,
+  ip            TEXT,
+  user_agent    TEXT,
+  created_at    INTEGER NOT NULL,
+  expires_at    INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS admin_audit (
+  id            INTEGER PRIMARY KEY,
+  at            INTEGER NOT NULL,
+  admin         TEXT NOT NULL,
+  action        TEXT NOT NULL,
+  target        TEXT,
+  detail        TEXT
+);
+CREATE INDEX IF NOT EXISTS admin_audit_target ON admin_audit(target, at);
 """
 
 
@@ -117,7 +195,22 @@ def connect(path: Path | str) -> sqlite3.Connection:
     if str(path) != ":memory:":
         con.execute("PRAGMA journal_mode = WAL")
     con.executescript(SCHEMA)
+    _migrate(con)
     return con
+
+
+# Колонки, добавленные после первого запуска: CREATE TABLE IF NOT EXISTS их в старую базу не добавит.
+COLUMNS = [
+    ("users", "ban_reason", "TEXT"),
+    ("users", "banned_at", "INTEGER"),
+]
+
+
+def _migrate(con: sqlite3.Connection) -> None:
+    for table, col, decl in COLUMNS:
+        have = {r["name"] for r in con.execute(f"PRAGMA table_info({table})")}
+        if col not in have:
+            con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
 
 
 def kv_get(con: sqlite3.Connection, key: str) -> str | None:

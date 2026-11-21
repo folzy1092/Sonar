@@ -1,0 +1,354 @@
+"""Страницы админки (`/admin/*`): FastAPI + Jinja, формы без JS.
+
+Защита: сессия — httpOnly cookie (SameSite=Strict, Secure за HTTPS), CSRF-токен в каждой форме
+(до входа — парный cookie), лимит попыток входа на IP и логин, пока не сменён заводской пароль —
+доступна только форма смены. Заголовки: CSP без скриптов, no-store, запрет фреймов.
+"""
+from __future__ import annotations
+
+import secrets
+from datetime import date, datetime
+from pathlib import Path
+from urllib.parse import urlencode
+
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.templating import Jinja2Templates
+
+from .. import subs
+from ..events import tz
+from . import charts, dashboard, prefs, users
+from .auth import PASSWORD_MIN, AdminAuth, AuthError, Session
+
+HERE = Path(__file__).resolve().parent
+COOKIE = "sonar_admin"
+PRE_COOKIE = "sonar_admin_pre"
+BASE = "/admin"
+
+templates = Jinja2Templates(directory=str(HERE / "templates"))
+
+SERVICE_NAMES = {"soundcloud": "SoundCloud", "yandex": "Яндекс Музыка", "youtube": "YouTube Music", "vk": "VK Музыка",
+                 "spotify": "Spotify", "local": "Локальные файлы", None: "Без сервиса"}
+PLATFORM_NAMES = {"windows": "Windows", "ios": "iPhone", "android": "Android", "other": "Другое"}
+MESSAGES = {
+    "bad": "Неверный логин или пароль", "too_many": "Слишком много попыток. Подожди 15 минут",
+    "csrf": "Форма устарела — открой страницу заново", "bad_old": "Текущий пароль неверный",
+    "mismatch": "Новые пароли не совпадают", "short": f"Новый пароль — от {PASSWORD_MIN} символов",
+    "weak": "Этот пароль не подойдёт: он совпадает с логином, старым или заводским",
+    "login_format": "Логин — 3–24 символа: a-z 0-9 _ .", "login_taken": "Такой логин или @username уже занят",
+    "no_change": "Ничего не изменилось", "no_user": "Пользователь не найден", "bad_plan": "Нет такого тарифа",
+    "bad_days": "Срок — от 1 до 3660 дней", "bad_amount": "Сумма не может быть меньше нуля",
+    "banned": "Пользователь заблокирован, все его сессии закрыты", "unbanned": "Блокировка снята",
+    "login_set": "Логин изменён", "sub_granted": "Подписка выдана", "saved": "Сохранено",
+    "password_changed": "Пароль изменён, остальные сессии закрыты", "too_long": "Слишком длинно",
+    "not_https": "Ссылка должна начинаться с https://", "bad_period": "Неверный период",
+}
+ACTIONS = {"login": "Вход в админку", "password": "Смена пароля", "ban": "Блокировка", "unban": "Разблокировка",
+           "set_login": "Смена логина", "grant_sub": "Подписка вручную", "settings": "Настройки"}
+PERIODS = {"today": 1, "7": 7, "30": 30, "90": 90}
+
+router = APIRouter(prefix=BASE)
+
+
+# ---- общее ----
+
+def _fmt_num(n) -> str:
+    if n is None:
+        return "—"
+    if isinstance(n, float) and not n.is_integer():
+        return f"{n:.1f}".replace(".", ",")
+    return f"{int(n):,}".replace(",", " ")
+
+
+def _fmt_dt(ms, with_time: bool = True) -> str:
+    if not ms:
+        return "—"
+    d = datetime.fromtimestamp(ms / 1000, tz())
+    return d.strftime("%d.%m.%Y %H:%M" if with_time else "%d.%m.%Y")
+
+
+def _fmt_day(day: str) -> str:
+    return date.fromisoformat(day).strftime("%d.%m.%Y")
+
+
+templates.env.filters.update(num=_fmt_num, dt=_fmt_dt, day=_fmt_day)
+templates.env.globals.update(BASE=BASE, SERVICE_NAMES=SERVICE_NAMES, PLATFORM_NAMES=PLATFORM_NAMES, PLANS=subs.PLANS,
+                             PLAN_NAMES={k: v[0] for k, v in subs.PLANS.items()},
+                             MESSAGES=MESSAGES, ACTIONS=ACTIONS)
+
+
+def _state(request: Request):
+    return request.app.state
+
+
+def _ip(request: Request) -> str:
+    # За Cloudflare Tunnel настоящий адрес — в CF-Connecting-IP; без туннеля — адрес соединения.
+    return request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "?")
+
+
+def _https(request: Request) -> bool:
+    return request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+
+
+def _secure(resp: Response) -> Response:
+    resp.headers.update({
+        "Content-Security-Policy": "default-src 'none'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; form-action 'self';"
+                                   " frame-ancestors 'none'; base-uri 'none'",
+        "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "Cache-Control": "no-store",
+        "X-Frame-Options": "DENY",
+    })
+    return resp
+
+
+def _go(path: str, **q) -> RedirectResponse:
+    q = {k: v for k, v in q.items() if v not in (None, "")}
+    return _secure(RedirectResponse(BASE + path + ("?" + urlencode(q) if q else ""), status_code=303))
+
+
+def _page(request: Request, name: str, s: Session | None, status: int = 200, **ctx) -> HTMLResponse:
+    msg = request.query_params.get("m")
+    err = request.query_params.get("e")
+    ctx.update(admin=s.admin if s else None, csrf=s.csrf if s else "", msg=MESSAGES.get(msg), err=MESSAGES.get(err))
+    return _secure(templates.TemplateResponse(request, name, ctx, status_code=status))
+
+
+def _set_session_cookie(request: Request, resp: Response, token: str) -> None:
+    resp.set_cookie(COOKIE, token, max_age=12 * 3600, httponly=True, samesite="strict", secure=_https(request),
+                    path=BASE)
+
+
+def _auth(request: Request) -> AdminAuth:
+    return _state(request).admin_auth
+
+
+def _session(request: Request) -> Session | None:
+    return _auth(request).session(request.cookies.get(COOKIE))
+
+
+async def _form(request: Request) -> dict[str, str]:
+    return {k: v for k, v in (await request.form()).items() if isinstance(v, str)}
+
+
+def _csrf_ok(s: Session, form: dict) -> bool:
+    return secrets.compare_digest(form.get("csrf", ""), s.csrf)
+
+
+def _guard(request: Request) -> Session | Response:
+    """Вошёл и сменил заводской пароль — сессия; иначе — куда отправить."""
+    s = _session(request)
+    if s is None:
+        return _go("/login")
+    if s.admin.must_change:
+        return _go("/password")
+    return s
+
+
+# ---- вход ----
+
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    if _session(request):
+        return _go("/")
+    pre = secrets.token_urlsafe(24)
+    resp = _page(request, "login.html", None, pre=pre)
+    resp.set_cookie(PRE_COOKIE, pre, max_age=3600, httponly=True, samesite="strict", secure=_https(request), path=BASE)
+    return resp
+
+
+@router.post("/login")
+async def login_submit(request: Request):
+    form = await _form(request)
+    pre = request.cookies.get(PRE_COOKIE, "")
+    if not pre or not secrets.compare_digest(form.get("csrf", ""), pre):
+        return _go("/login", e="csrf")
+    try:
+        token, s = _auth(request).login(form.get("login", ""), form.get("password", ""), _ip(request),
+                                        request.headers.get("user-agent", ""))
+    except AuthError as err:
+        return _go("/login", e=err.code)
+    users.audit(_state(request).con, s.admin.login, "login", None, ip=_ip(request))
+    resp = _go("/password" if s.admin.must_change else "/")
+    _set_session_cookie(request, resp, token)
+    resp.delete_cookie(PRE_COOKIE, path=BASE)
+    return resp
+
+
+@router.post("/logout")
+async def logout(request: Request):
+    s = _session(request)
+    form = await _form(request)
+    if s and _csrf_ok(s, form):
+        _auth(request).logout(s)
+    resp = _go("/login")
+    resp.delete_cookie(COOKIE, path=BASE)
+    return resp
+
+
+@router.get("/password", response_class=HTMLResponse)
+async def password_page(request: Request):
+    s = _session(request)
+    if s is None:
+        return _go("/login")
+    return _page(request, "password.html", s, forced=s.admin.must_change, min_len=PASSWORD_MIN)
+
+
+@router.post("/password")
+async def password_submit(request: Request):
+    s = _session(request)
+    if s is None:
+        return _go("/login")
+    form = await _form(request)
+    if not _csrf_ok(s, form):
+        return _go("/password", e="csrf")
+    try:
+        token, new = _auth(request).change_password(s, form.get("old", ""), form.get("new", ""), form.get("again", ""),
+                                                    _ip(request), request.headers.get("user-agent", ""))
+    except AuthError as err:
+        return _go("/password", e=err.code)
+    users.audit(_state(request).con, new.admin.login, "password", None)
+    resp = _go("/", m="password_changed")
+    _set_session_cookie(request, resp, token)
+    return resp
+
+
+# ---- дашборд ----
+
+def _period(request: Request) -> tuple[str, str, str]:
+    """?p=today|7|30|90 или ?p=custom&from=YYYY-MM-DD&to=YYYY-MM-DD → (ключ, начало, конец)."""
+    today = dashboard.today()
+    p = request.query_params.get("p", "30")
+    if p == "custom":
+        try:
+            a = date.fromisoformat(request.query_params.get("from", ""))
+            b = date.fromisoformat(request.query_params.get("to", ""))
+        except ValueError:
+            return "30", dashboard.shift(today, -29), today
+        a, b = min(a, b), max(a, b)
+        b = min(b, date.fromisoformat(today))
+        if (b - a).days > 366:
+            a = date.fromordinal(b.toordinal() - 366)
+        return "custom", a.isoformat(), b.isoformat()
+    n = PERIODS.get(p, 30)
+    return (p if p in PERIODS else "30"), dashboard.shift(today, 1 - n), today
+
+
+@router.get("/", response_class=HTMLResponse)
+async def dashboard_page(request: Request):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    key, start, end = _period(request)
+    d = dashboard.build(_state(request).con, start, end)
+    return _page(request, "dashboard.html", s, d=d, period=key, nav="dash",
+                 main_chart=charts.lines(d["series"], [("openers", "открыли", "muted"), ("listeners", "слушали", "accent")]),
+                 plays_chart=charts.bars(d["series"], "plays", "треков"),
+                 regs_chart=charts.bars(d["series"], "registrations", "регистраций"),
+                 subs_chart=charts.bars(d["series"], "subs", "подписок"))
+
+
+# ---- пользователи ----
+
+@router.get("/users", response_class=HTMLResponse)
+async def users_page(request: Request):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    qp = request.query_params
+    q, flt, sort = qp.get("q", "")[:64], qp.get("f", "all"), qp.get("sort", "new")
+    flt = flt if flt in users.FILTERS else "all"
+    try:
+        page = max(1, int(qp.get("page", "1")))
+    except ValueError:
+        page = 1
+    rows, total = users.listing(_state(request).con, q, flt, sort, page)
+    pages = max(1, (total + users.PAGE - 1) // users.PAGE)
+    link = lambda n: BASE + "/users?" + urlencode({"q": q, "f": flt, "sort": sort, "page": n})  # noqa: E731
+    return _page(request, "users.html", s, rows=rows, total=total, q=q, f=flt, sort=sort, page=page, pages=pages,
+                 link=link, nav="users")
+
+
+@router.get("/users/{user_id}", response_class=HTMLResponse)
+async def user_page(request: Request, user_id: str):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    c = users.card(_state(request).con, user_id)
+    if c is None:
+        return _page(request, "404.html", s, status=404, nav="users")
+    return _page(request, "user.html", s, c=c, nav="users")
+
+
+@router.post("/users/{user_id}/{action}")
+async def user_action(request: Request, user_id: str, action: str):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    form = await _form(request)
+    path = f"/users/{user_id}"
+    if not _csrf_ok(s, form):
+        return _go(path, e="csrf")
+    con, who = _state(request).con, s.admin.login
+    try:
+        if action == "ban":
+            users.ban(con, who, user_id, form.get("reason", ""))
+            msg = "banned"
+        elif action == "unban":
+            users.unban(con, who, user_id)
+            msg = "unbanned"
+        elif action == "login":
+            users.set_login(con, who, user_id, form.get("login", ""))
+            msg = "login_set"
+        elif action == "sub":
+            try:
+                days, amount = int(form.get("days", "")), int(form.get("amount", "0") or 0)
+            except ValueError:
+                return _go(path, e="bad_days")
+            users.grant_sub(con, who, user_id, form.get("plan", ""), days, amount, form.get("note", ""))
+            msg = "sub_granted"
+        else:
+            return _go(path)
+    except users.UserError as err:
+        return _go(path, e=err.code)
+    return _go(path, m=msg)
+
+
+# ---- настройки и журнал ----
+
+@router.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    return _page(request, "settings.html", s, sections=prefs.SECTIONS, values=prefs.values(_state(request).con),
+                 bad=request.query_params.get("k"), nav="settings")
+
+
+@router.post("/settings")
+async def settings_submit(request: Request):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    form = await _form(request)
+    if not _csrf_ok(s, form):
+        return _go("/settings", e="csrf")
+    st = _state(request)
+    try:
+        new = prefs.parse(form)
+    except prefs.PrefError as err:
+        return _go("/settings", e=err.code, k=err.key)
+    changed = prefs.save(st.con, new)
+    if changed:
+        prefs.apply(st.con, st.settings)
+        users.audit(st.con, s.admin.login, "settings", None, changed=changed)
+    return _go("/settings", m="saved" if changed else "no_change")
+
+
+@router.get("/audit", response_class=HTMLResponse)
+async def audit_page(request: Request):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    rows = _state(request).con.execute(
+        "SELECT a.*, u.login AS user_login FROM admin_audit a LEFT JOIN users u ON u.id = a.target"
+        " ORDER BY a.at DESC LIMIT 200").fetchall()
+    return _page(request, "audit.html", s, rows=rows, nav="audit")

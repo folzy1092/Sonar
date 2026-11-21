@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Настройки{% endblock %}
+{% block main %}
+<div class="head">
+  <div><h1>Настройки</h1><p>Меняются без выпуска: бот подхватывает сразу, клиенты — через <span class="mono">GET /config</span></p></div>
+</div>
+<form method="post" action="{{ BASE }}/settings" class="stack">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  {% for title, items in sections %}
+  <div class="panel">
+    <h2>{{ title }}</h2>
+    <div class="form-grid">
+    {% for p in items %}
+      {% if p.kind == 'toggle' %}
+      <label class="toggle"><input type="checkbox" name="{{ p.key }}" value="1" {{ 'checked' if values[p.key] == '1' }}><span><span>{{ p.label }}</span><br><span class="hint muted">{{ p.hint }}</span></span></label>
+      {% else %}
+      <div class="field {{ 'bad' if bad == p.key }}">
+        <label for="{{ p.key }}">{{ p.label }}</label>
+        {% if p.kind == 'textarea' %}<textarea id="{{ p.key }}" name="{{ p.key }}" maxlength="1000">{{ values[p.key] }}</textarea>
+        {% else %}<input id="{{ p.key }}" name="{{ p.key }}" type="text" value="{{ values[p.key] }}" maxlength="300">{% endif %}
+        {% if p.hint %}<span class="hint">{{ p.hint }}</span>{% endif %}
+        {% if p.default and values[p.key] != p.default %}<span class="hint">По умолчанию: {{ p.default }}</span>{% endif %}
+      </div>
+      {% endif %}
+    {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+  <div><button class="btn primary">Сохранить</button></div>
+</form>
+{% endblock %}

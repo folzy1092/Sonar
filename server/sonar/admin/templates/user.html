@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "_rank.html" import rank %}
+{% block title %}{{ c.user.login }}{% endblock %}
+{% block main %}
+{% set u = c.user %}{% set st = c.stats %}
+<div class="head">
+  <div>
+    <h1>{{ u.display_name }} {% if u.banned %}<span class="tag bad">бан</span>{% endif %}{% if c.sub %}<span class="tag deep">{{ PLAN_NAMES[c.sub.plan] }}</span>{% endif %}</h1>
+    <p>{{ u.login }} · @{{ u.username }} · #{{ u.number }}</p>
+  </div>
+  <a class="btn ghost" href="{{ BASE }}/users">К списку</a>
+</div>
+
+<div class="grid g-stats">
+  <div class="stat"><div class="label">Треков всего</div><div class="figure">{{ st.plays_total | num }}</div><div class="cmp">{{ st.plays_30d | num }} за 30 дней</div></div>
+  <div class="stat"><div class="label">Дней с заходом</div><div class="figure">{{ st.days_30d | num }}</div><div class="cmp">из 30, слушал в {{ st.listen_days_30d | num }}</div></div>
+  <div class="stat"><div class="label">Минут прослушано</div><div class="figure">{{ st.minutes_total | num }}</div><div class="cmp">по истории прослушиваний</div></div>
+  <div class="stat"><div class="label">Последний заход</div><div class="figure num" style="font-size: 20px">{{ st.last_at | dt }}</div><div class="cmp">первый — {{ st.first_at | dt(False) }}</div></div>
+</div>
+
+<div class="grid g-main gap-top">
+  <div class="stack">
+    <div class="panel">
+      <h2>Профиль</h2>
+      <dl class="facts">
+        <dt>Логин</dt><dd>{{ u.login }}</dd>
+        <dt>@username</dt><dd>@{{ u.username }}</dd>
+        <dt>Регистрация</dt><dd class="num">{{ u.created_at | dt }}</dd>
+        <dt>Telegram</dt><dd>{% if u.tg_id %}{{ '@' ~ u.tg_username if u.tg_username else '' }} <span class="mono muted">{{ u.tg_id }}</span>{% else %}не привязан{% endif %}</dd>
+        <dt>Пароль</dt><dd>{{ 'есть' if u.password_hash else 'нет, вход через Telegram' }}</dd>
+        <dt>Сервисы</dt><dd>{% if c.linked %}{% for l in c.linked %}{{ SERVICE_NAMES.get(l.service, l.service) }}{% if l.ext_name %} ({{ l.ext_name }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}не подключены{% endif %}</dd>
+        {% if u.banned %}<dt>Бан</dt><dd>{{ u.banned_at | dt }}{% if u.ban_reason %} — {{ u.ban_reason }}{% endif %}</dd>{% endif %}
+        <dt>Подписка</dt><dd>{% if c.sub %}{{ PLAN_NAMES[c.sub.plan] }} до {{ c.sub.ends_at | dt(False) }}{% else %}нет{% endif %}</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h2>Устройства</h2>
+      {% if c.devices %}
+      <div class="table-wrap"><table>
+        <thead><tr><th>Устройство</th><th>Платформа</th><th>Версия</th><th>Последний раз</th></tr></thead>
+        <tbody>{% for d in c.devices %}
+        <tr><td>{{ d.device_name or 'Сессия завершена' }} <span class="mono muted">{{ d.device_id[:12] }}</span></td>
+            <td>{{ PLATFORM_NAMES.get(d.platform, d.platform) }}</td>
+            <td class="num sub">{{ d.app_version or '—' }}{% if d.build %} ({{ d.build }}){% endif %}</td>
+            <td class="num">{{ d.last_seen_at | dt }}</td></tr>
+        {% endfor %}</tbody>
+      </table></div>
+      {% else %}<div class="empty">Устройств нет: в приложение ещё не входил</div>{% endif %}
+    </div>
+    <div class="panel">
+      <h2>История подписки</h2>
+      {% if c.history %}
+      <div class="table-wrap"><table>
+        <thead><tr><th>Тариф</th><th>Период</th><th>Как</th><th class="n">Сумма</th><th>Заметка</th></tr></thead>
+        <tbody>{% for h in c.history %}
+        <tr><td>{{ PLAN_NAMES.get(h.plan, h.plan) }}</td>
+            <td class="num">{{ h.started_at | dt(False) }} — {{ h.ends_at | dt(False) }}</td>
+            <td class="sub">{{ 'новая' if h.kind == 'new' else 'продление' }} · {{ {'manual': 'вручную', 'pay': 'оплата', 'demo': 'демо'}.get(h.source, h.source) }}</td>
+            <td class="n">{{ h.amount | num }} ₽</td>
+            <td class="sub">{{ h.note or '' }}</td></tr>
+        {% endfor %}</tbody>
+      </table></div>
+      {% else %}<div class="empty">Подписок не было</div>{% endif %}
+    </div>
+  </div>
+  <div class="stack">
+    <div class="panel"><h2>Сервисы в прослушиваниях</h2>{{ rank(c.services, 'service', 'plays', 'треков', names=SERVICE_NAMES) }}</div>
+    <div class="panel"><h2>Любимые исполнители</h2>{{ rank(c.artists, 'artist', 'plays', 'раз') }}</div>
+    <div class="panel">
+      <h2>Журнал по пользователю</h2>
+      {% if c.journal %}<ol class="rank">{% for j in c.journal %}<li><span class="t">{{ ACTIONS.get(j.action, j.action) }}{% if j.detail %}<small>{{ j.detail }}</small>{% endif %}</span><span class="v">{{ j.at | dt }}</span></li>{% endfor %}</ol>
+      {% else %}<div class="empty">Действий ещё не было</div>{% endif %}
+    </div>
+  </div>
+</div>
+
+<h2 class="section-title">Действия</h2>
+<div class="actions">
+  <div class="panel">
+    <h2>Подписка вручную</h2>
+    <form method="post" action="{{ BASE }}/users/{{ u.id }}/sub">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="plan">Тариф</label><select id="plan" name="plan">{% for k, v in PLANS.items() %}<option value="{{ k }}" {{ 'selected' if c.sub and c.sub.plan == k }}>{{ v[0] }} · мест {{ v[1] }} · {{ v[2] }} ₽/мес</option>{% endfor %}</select></div>
+      <div class="field"><label for="days">Дней</label><input id="days" name="days" type="number" min="1" max="3660" value="30" required><span class="hint">{{ 'Продлится с ' ~ (c.sub.ends_at | dt(False)) if c.sub else 'Начнётся сегодня' }}</span></div>
+      <div class="field"><label for="amount">Сумма, ₽</label><input id="amount" name="amount" type="number" min="0" value="0"><span class="hint">0 — подарок, в выручку не идёт</span></div>
+      <div class="field"><label for="note">Заметка</label><input id="note" name="note" type="text" maxlength="200"></div>
+      <button class="btn primary">{{ 'Продлить' if c.sub else 'Выдать' }}</button>
+    </form>
+  </div>
+  <div class="panel">
+    <h2>Сменить логин</h2>
+    <form method="post" action="{{ BASE }}/users/{{ u.id }}/login">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="login">Новый логин</label><input id="login" name="login" type="text" value="{{ u.login }}" pattern="[a-z0-9_.]{3,24}" required><span class="hint">Логин меняет только админ; @username остаётся прежним</span></div>
+      <button class="btn">Сменить</button>
+    </form>
+  </div>
+  <div class="panel">
+    {% if u.banned %}
+    <h2>Блокировка</h2>
+    <p class="note">Заблокирован {{ u.banned_at | dt }}{% if u.ban_reason %}: {{ u.ban_reason }}{% endif %}</p>
+    <form method="post" action="{{ BASE }}/users/{{ u.id }}/unban"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Разблокировать</button></form>
+    {% else %}
+    <h2>Заблокировать</h2>
+    <form method="post" action="{{ BASE }}/users/{{ u.id }}/ban">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="reason">Причина</label><input id="reason" name="reason" type="text" maxlength="200"><span class="hint">Все сессии на устройствах закроются, вход — закрыт</span></div>
+      <button class="btn danger">Заблокировать</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

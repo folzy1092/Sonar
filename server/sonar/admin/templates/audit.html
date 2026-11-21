@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Журнал{% endblock %}
+{% block main %}
+<div class="head"><div><h1>Журнал</h1><p>Последние 200 действий в админке</p></div></div>
+{% if rows %}
+<div class="table-wrap"><table>
+  <thead><tr><th>Когда</th><th>Кто</th><th>Что</th><th>Пользователь</th><th>Подробности</th></tr></thead>
+  <tbody>{% for r in rows %}
+  <tr><td class="num">{{ r.at | dt }}</td><td>{{ r.admin }}</td><td>{{ ACTIONS.get(r.action, r.action) }}</td>
+      <td>{% if r.user_login %}<a href="{{ BASE }}/users/{{ r.target }}">{{ r.user_login }}</a>{% else %}—{% endif %}</td>
+      <td class="mono muted">{{ r.detail or '' }}</td></tr>
+  {% endfor %}</tbody>
+</table></div>
+{% else %}<div class="panel empty">Действий ещё не было</div>{% endif %}
+{% endblock %}

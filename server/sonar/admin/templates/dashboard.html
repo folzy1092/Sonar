@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% from "_rank.html" import rank %}
+{% block title %}Дашборд{% endblock %}
+{% block main %}
+{% set t = d.today_summary %}{% set p = d.period %}
+<div class="head">
+  <div>
+    <h1>Дашборд</h1>
+    <p>{% if d.start == d.end %}{{ d.end | day }}{% else %}{{ d.start | day }} — {{ d.end | day }} · {{ d.days }} дн.{% endif %} · считаем людей, а не события</p>
+  </div>
+  <div class="row">
+    <nav class="seg" aria-label="Период">
+      {% for k, name in [('today', 'Сегодня'), ('7', '7 дней'), ('30', '30 дней'), ('90', '90 дней')] %}
+      <a href="{{ BASE }}/?p={{ k }}" class="{{ 'on' if period == k }}">{{ name }}</a>
+      {% endfor %}
+    </nav>
+    <form class="row" method="get" action="{{ BASE }}/">
+      <input type="hidden" name="p" value="custom">
+      <input type="date" name="from" value="{{ d.start }}" aria-label="С">
+      <input type="date" name="to" value="{{ d.end }}" max="{{ d.today }}" aria-label="По">
+      <button class="btn">Показать</button>
+    </form>
+  </div>
+</div>
+
+{% if not d.has_events %}
+<div class="flash">Событий ещё нет: клиенты начнут слать их в <span class="mono">POST /events</span>, когда появится API. Пока здесь честные нули</div>
+{% endif %}
+
+<h2 class="section-title live"><span class="echo" aria-hidden="true"></span>Сегодня, {{ d.today | day }}</h2>
+<div class="grid g-stats">
+  <div class="stat"><div class="label">Открыли плеер</div><div class="figure">{{ t.openers | num }}</div><div class="cmp">человек</div></div>
+  <div class="stat"><div class="label">Из них слушали</div><div class="figure key">{{ t.listeners | num }}</div><div class="cmp">{% if t.listen_share is not none %}{{ t.listen_share }}% от открывших{% else %}никто не открывал{% endif %}</div></div>
+  <div class="stat"><div class="label">Зашли просто так</div><div class="figure">{{ t.idle | num }}</div><div class="cmp">открыли, но ни одного трека</div></div>
+  <div class="stat"><div class="label">Треков прослушано</div><div class="figure">{{ t.plays | num }}</div><div class="cmp">{% if t.per_listener %}{{ t.per_listener | num }} на слушателя{% else %}—{% endif %}</div></div>
+  <div class="stat"><div class="label">Новых регистраций</div><div class="figure">{{ t.registrations | num }}</div><div class="cmp">за сегодня</div></div>
+</div>
+
+<h2 class="section-title">За период</h2>
+<div class="grid g-main">
+  <div class="panel">
+    <h2>Открыли и слушали по дням</h2>
+    <div class="legend"><span><i class="sw"></i>открыли плеер</span><span><i class="sw accent"></i>включили хотя бы один трек</span></div>
+    {{ main_chart }}
+  </div>
+  <div class="stack">
+    <div class="panel">
+      <h2>Открыли → слушали</h2>
+      <div class="split" role="img" aria-label="Доля слушавших"><i style="width: {{ p.listen_share or 0 }}%"></i></div>
+      <div class="legend">
+        <span>открыли <b>{{ p.openers | num }}</b></span><span>слушали <b>{{ p.listeners | num }}</b></span><span>просто так <b>{{ p.idle | num }}</b></span>
+      </div>
+      <p class="note">Уникальные люди за весь период: кто открывал в разные дни, считается один раз</p>
+    </div>
+    <div class="panel">
+      <h2>Активные</h2>
+      <dl class="facts">
+        <dt>DAU</dt><dd class="num">{{ d.active.dau | num }} <span class="muted">за {{ d.end | day }}</span></dd>
+        <dt>WAU</dt><dd class="num">{{ d.active.wau | num }} <span class="muted">7 дней</span></dd>
+        <dt>MAU</dt><dd class="num">{{ d.active.mau | num }} <span class="muted">30 дней</span></dd>
+        <dt>DAU / MAU</dt><dd class="num">{{ d.active.stickiness ~ '%' if d.active.stickiness is not none else '—' }}</dd>
+      </dl>
+    </div>
+    <div class="panel">
+      <h2>Итого за период</h2>
+      <dl class="facts">
+        <dt>Треков</dt><dd class="num">{{ p.plays | num }}{% if p.per_listener %} <span class="muted">· {{ p.per_listener | num }} на слушателя</span>{% endif %}</dd>
+        <dt>Регистраций</dt><dd class="num">{{ p.registrations | num }}</dd>
+      </dl>
+    </div>
+  </div>
+</div>
+
+<div class="grid g-3 gap-top">
+  <div class="panel"><h2>Треков по дням</h2>{{ plays_chart }}</div>
+  <div class="panel"><h2>Регистрации по дням</h2>{{ regs_chart }}</div>
+  <div class="panel"><h2>Подписки по дням</h2>{{ subs_chart }}<p class="note">Новые и продления</p></div>
+</div>
+
+<div class="grid g-2 gap-top">
+  <div class="panel"><h2>Сервисы</h2>{{ rank(d.services, 'key', 'users', 'чел.', names=SERVICE_NAMES, extra_key='plays', extra_unit='треков') }}<p class="note">Кто слушал через сервис за период</p></div>
+  <div class="panel"><h2>Платформы</h2>{{ rank(d.platforms, 'key', 'users', 'чел.', names=PLATFORM_NAMES, extra_key='listeners', extra_unit='слушали') }}<p class="note">Кто открывал Sonar на платформе; один человек может быть на двух</p></div>
+</div>
+
+<div class="grid g-3 gap-top">
+  <div class="panel"><h2>Треки дня</h2>{{ rank(d.top_tracks, 'title', 'users', 'чел.', sub_key='artist', extra_key='plays', extra_unit='раз') }}</div>
+  <div class="panel"><h2>Исполнители дня</h2>{{ rank(d.top_artists, 'artist', 'users', 'чел.', extra_key='plays', extra_unit='раз') }}</div>
+  <div class="panel"><h2>Треки периода</h2>{{ rank(d.period_tracks, 'title', 'users', 'чел.', sub_key='artist', extra_key='plays', extra_unit='раз') }}</div>
+</div>
+
+{% set s = d.subs %}{% set f = d.forecast %}
+<h2 class="section-title">Sonar Deep</h2>
+<div class="grid g-stats">
+  <div class="stat"><div class="label">Действуют сейчас</div><div class="figure">{{ s.active | num }}</div><div class="cmp">человек</div></div>
+  <div class="stat"><div class="label">Новые за период</div><div class="figure">{{ s.new | num }}</div><div class="cmp">первая подписка</div></div>
+  <div class="stat"><div class="label">Продления за период</div><div class="figure">{{ s.renew | num }}</div><div class="cmp">человек</div></div>
+  <div class="stat"><div class="label">Кончатся за 7 дней</div><div class="figure">{{ s.expiring_7d | num }}</div><div class="cmp">без оплаченного продления</div></div>
+  <div class="stat"><div class="label">Выручка за период</div><div class="figure">{% if s.revenue %}{% for cur, v in s.revenue.items() %}{{ v | num }} {{ '₽' if cur == 'RUB' else cur }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}0 ₽{% endif %}</div><div class="cmp">ручные выдачи без суммы не в счёт</div></div>
+</div>
+<div class="grid g-main gap-top">
+  <div class="panel">
+    <h2>Прогноз на {{ f.horizon_days if f else 30 }} дней · оценка</h2>
+    {% if f %}
+    <div class="forecast">
+      <span class="figure big">≈ {{ f.estimate | num }}</span>
+      <span class="sub">подписок через {{ f.horizon_days }} дней · вилка {{ f.low | num }}–{{ f.high | num }}</span>
+    </div>
+    <dl class="facts">
+      <dt>Сейчас</dt><dd class="num">{{ f.active | num }}, из них кончатся за {{ f.horizon_days }} дней — {{ f.expiring | num }}</dd>
+      <dt>Доля продлений</dt><dd class="num">{% if f.renew_rate is not none %}{{ f.renew_rate }}% <span class="muted">({{ f.renewed }} из {{ f.due }} за 90 дней)</span>{% else %}неизвестна — продлевать ещё было некому, взято 50%{% endif %}</dd>
+      <dt>Новые</dt><dd class="num">{{ f.new_last | num }} за последние 30 дней, {{ f.new_prev | num }} за прошлые · по тренду ≈ {{ f.new_next | num }}</dd>
+      {% if f.revenue %}<dt>Выручка</dt><dd class="num">≈ {{ f.revenue | num }} ₽ <span class="muted">по средней оплате за 90 дней</span></dd>{% endif %}
+    </dl>
+    <p class="note">Простая модель: остаются те, у кого не кончается; из кончающихся продлит прежняя доля; новых — по тренду двух последних месяцев. Это оценка, а не обещание: пока подписчиков мало, вилка широкая</p>
+    {% else %}<div class="empty">Нет данных для оценки: подписок ещё не было</div>{% endif %}
+  </div>
+  <div class="panel"><h2>По тарифам</h2>{% if s.active %}{{ rank(s.by_plan, 'plan', 'users', 'чел.', names=PLAN_NAMES) }}{% else %}<div class="empty">Нет действующих подписок</div>{% endif %}</div>
+</div>
+{% endblock %}

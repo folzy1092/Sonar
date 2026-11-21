@@ -86,7 +86,7 @@ class Ctx:
 
 async def home(ctx: Ctx, tg_id: int) -> Screen:
     user = ctx.accounts.by_tg(tg_id)
-    return S.main(user, ctx.settings) if user else S.guest()
+    return S.main(user, ctx.settings) if user else S.guest(ctx.settings)
 
 
 async def say(ctx: Ctx, chat_id: int, html: str, reply_to: int | None = None) -> Message:
@@ -141,7 +141,7 @@ async def on_button(q: CallbackQuery, state: FSMContext, ctx: Ctx):
     head, _, rest = data.partition(":")
     if user is None and head not in GUEST_OK:
         await q.answer("Сначала войди в Sonar", show_alert=True)
-        return await ctx.shower.edit(msg, S.guest())
+        return await ctx.shower.edit(msg, S.guest(ctx.settings))
     edit = lambda s: ctx.shower.edit(msg, s)  # noqa: E731
 
     if head == "noop":
@@ -154,6 +154,8 @@ async def on_button(q: CallbackQuery, state: FSMContext, ctx: Ctx):
         await state.set_state(Login.login)
         return await edit(S.login_ask())
     if head == "register":
+        if not ctx.settings.registration_open:
+            return await say(ctx, q.message.chat.id, S.ERRORS["registration_closed"])
         await state.set_state(Reg.login)
         return await edit(S.register_ask())
     if head == "cancel":
@@ -200,7 +202,7 @@ async def on_button(q: CallbackQuery, state: FSMContext, ctx: Ctx):
         except AccountError as err:
             return await say(ctx, msg.chat.id, S.ERRORS[err.code])
         await ctx.logs.event("🔚", "Выход из бота", q.from_user, [f"Аккаунт: <code>@{user.username}</code>"])
-        return await edit(S.guest())
+        return await edit(S.guest(ctx.settings))
     if head == "stats":
         period = rest if rest in S.PERIODS else "week"
         return await edit(S.stats(period, ctx.accounts.stats(user, S.PERIODS[period][1])))
@@ -573,6 +575,9 @@ async def reg_again(msg: Message, state: FSMContext, ctx: Ctx):
     if msg.text != data.get("password"):
         await state.set_state(Reg.password)
         return await say(ctx, msg.chat.id, S.ERRORS["password_mismatch"])
+    if not ctx.settings.registration_open:
+        await state.clear()
+        return await say(ctx, msg.chat.id, S.ERRORS["registration_closed"])
     try:
         user = ctx.accounts.register(data["login"], msg.text, referred_code=data.get("ref"))
     except AccountError as err:
