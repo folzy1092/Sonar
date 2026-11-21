@@ -1,0 +1,145 @@
+/* Sonar · классика — токены.
+   Единственный вход — цвет обложки --cover. Всё остальное считается из него формулами
+   oklch(from var(--cover) L C H): светлоту задаём сами, насыщенность берём у обложки и
+   ограничиваем, оттенок — как есть. Поэтому одинаково держатся почти чёрная, кислотная,
+   бежевая обложка и монохром (у серой C = 0 — интерфейс просто становится нейтральным). */
+
+@property --cover {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #6b6b73;
+}
+
+.sonar {
+  --cover: #6b6b73;
+
+  /* ── Движение ─────────────────────────────────────────── */
+  --dur-1: 140ms;   /* наведение, нажатие */
+  --dur-2: 220ms;   /* переключатели, чипы, иконки */
+  --dur-3: 320ms;   /* смена текста, появление меню */
+  --dur-4: 450ms;   /* смена цвета, мини-плеер ⇄ полноэкранный */
+  --ease-out: cubic-bezier(.16, 1, .3, 1);  /* быстрый старт, мягкая посадка, без перелёта */
+  --ease-std: cubic-bezier(.4, 0, .2, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
+
+  transition: --cover var(--dur-4) var(--ease-std);
+
+  /* ── Типографика ──────────────────────────────────────── */
+  --font: 'Onest', system-ui, sans-serif;
+  --fs-page: 40px;   --fw-page: 750;
+  --fs-h2: 22px;     --fw-h2: 700;
+  --fs-body: 14px;
+  --fs-small: 12.5px;
+  --track-tight: -0.022em;
+
+  /* ── Форма и ритм ─────────────────────────────────────── */
+  --r-xs: 6px;  --r-s: 10px;  --r-m: 14px;  --r-l: 20px;  --r-xl: 28px;  --r-pill: 999px;
+  --gap: 16px;
+  --pad-page: 40px;
+  --card: 184px;
+  --side-w: 248px;
+  --bar-h: 84px;
+
+  /* Насколько поверхности подкрашены обложкой (0 — нейтрально) */
+  --tint: 0.2;
+
+  /* ── Цвет: тёмная тема (основная) ─────────────────────── */
+  --bg:        oklch(from var(--cover) 0.165 min(calc(c * var(--tint)), 0.035) h);
+  --bg-side:   oklch(from var(--cover) 0.145 min(calc(c * var(--tint)), 0.035) h);
+  --surface-1: oklch(from var(--cover) 0.205 min(calc(c * var(--tint)), 0.04) h);
+  --surface-2: oklch(from var(--cover) 0.25  min(calc(c * var(--tint)), 0.045) h);
+  --hover:     oklch(1 0 0 / 0.06);
+  --press:     oklch(1 0 0 / 0.1);
+  --text-1:    oklch(0.97 0 0);
+  --text-2:    oklch(0.97 0 0 / 0.64);
+  --text-3:    oklch(0.97 0 0 / 0.42);
+  --text-off:  oklch(0.97 0 0 / 0.26);
+  --border:    oklch(1 0 0 / 0.08);
+  --accent:    oklch(from var(--cover) clamp(0.74, l, 0.86) min(calc(c * 1.5), 0.2) h);
+  --accent-soft: oklch(from var(--accent) l c h / 0.16);
+  --on-accent: oklch(0.17 0 0);
+
+  /* Герой Sonar Mix и полноэкранный плеер — «окрашены» сильнее остального */
+  --hero-a:    oklch(from var(--cover) clamp(0.38, l, 0.5) min(calc(c * 1.1), 0.17) h);
+  --hero-b:    oklch(from var(--cover) 0.22 min(c, 0.07) h);
+  --hero-ink:  oklch(0.98 0 0);
+  --hero-on-ink: oklch(from var(--hero-a) 0.2 c h);
+  --player-a:  oklch(from var(--cover) clamp(0.34, calc(l * 0.8), 0.48) min(c, 0.15) h);
+  --player-b:  oklch(from var(--cover) 0.15 min(calc(c * 0.5), 0.05) h);
+  --player-ink: oklch(0.98 0 0);
+  /* Кольца Sonar Mix и подсветка на окрашенном герое — всегда светлые, чтобы читались */
+  --ring:      oklch(from var(--cover) clamp(0.8, l, 0.92) min(calc(c * 1.3), 0.18) h);
+  /* Нижняя панель плеера на ПК */
+  --bar-bg:    oklch(from var(--cover) 0.185 min(calc(c * var(--tint) * 0.8), 0.04) h);
+  --danger:    oklch(0.58 0.21 25);
+
+  --shadow-cover: 0 24px 48px -18px oklch(from var(--cover) 0.08 c h / 0.7),
+                  0 2px 8px oklch(0 0 0 / 0.28);
+  --shadow-pop:   0 16px 40px -12px oklch(0 0 0 / 0.6), 0 0 0 1px var(--border);
+}
+
+/* ── Светлая тема ───────────────────────────────────────── */
+.sonar[data-theme='light'] {
+  --bg:        oklch(from var(--cover) 0.985 min(calc(c * var(--tint) * 0.4), 0.012) h);
+  --bg-side:   oklch(from var(--cover) 0.962 min(calc(c * var(--tint) * 0.5), 0.016) h);
+  --surface-1: oklch(from var(--cover) 0.952 min(calc(c * var(--tint) * 0.5), 0.016) h);
+  --surface-2: oklch(from var(--cover) 0.915 min(calc(c * var(--tint) * 0.5), 0.02) h);
+  --hover:     oklch(0 0 0 / 0.045);
+  --press:     oklch(0 0 0 / 0.08);
+  --text-1:    oklch(0.19 0 0);
+  --text-2:    oklch(0.19 0 0 / 0.62);
+  --text-3:    oklch(0.19 0 0 / 0.45);
+  --text-off:  oklch(0.19 0 0 / 0.28);
+  --border:    oklch(0 0 0 / 0.08);
+  --accent:    oklch(from var(--cover) clamp(0.44, l, 0.56) min(calc(c * 1.5), 0.2) h);
+  --on-accent: oklch(0.99 0 0);
+  --bar-bg:    oklch(from var(--cover) 0.975 min(calc(c * var(--tint) * 0.4), 0.014) h);
+  --shadow-cover: 0 22px 44px -20px oklch(from var(--cover) 0.3 c h / 0.55),
+                  0 2px 6px oklch(0 0 0 / 0.12);
+  --shadow-pop:   0 16px 40px -12px oklch(0 0 0 / 0.22), 0 0 0 1px var(--border);
+}
+
+/* ── Вариант A · «Плотнее и ярче» ───────────────────────── */
+.sonar[data-variant='vivid'] {
+  --font: 'Manrope', system-ui, sans-serif;
+  --fs-page: 30px;  --fw-page: 800;
+  --fs-h2: 19px;    --fw-h2: 800;
+  --fs-body: 13.5px;
+  --r-s: 8px;  --r-m: 10px;  --r-l: 16px;  --r-xl: 22px;
+  --gap: 14px;
+  --pad-page: 28px;
+  --card: 164px;
+  --side-w: 232px;
+  --bar-h: 76px;
+  --tint: 0.42;
+}
+
+/* ── Вариант B · «Больше воздуха и тише» ────────────────── */
+.sonar[data-variant='calm'] {
+  --tint: 0.12;
+  /* Герой тише: цвет обложки — только намёком */
+  --hero-a: oklch(from var(--cover) 0.27 min(calc(c * 0.55), 0.075) h);
+  --hero-b: oklch(from var(--cover) 0.19 min(calc(c * 0.2), 0.03) h);
+  /* Плеер тише: окрашен только верх, остальное — почти фон */
+  --player-a: oklch(from var(--cover) 0.3 min(calc(c * 0.6), 0.09) h);
+  --player-b: oklch(from var(--cover) 0.155 min(calc(c * 0.15), 0.02) h);
+}
+.sonar[data-variant='calm'][data-theme='light'] {
+  --player-a: oklch(from var(--cover) 0.9 min(calc(c * 0.5), 0.06) h);
+  --player-b: oklch(from var(--cover) 0.985 min(calc(c * 0.1), 0.01) h);
+  --player-ink: oklch(0.19 0 0);
+  --hero-a: oklch(from var(--cover) 0.92 min(calc(c * 0.4), 0.05) h);
+  --hero-b: oklch(from var(--cover) 0.965 min(calc(c * 0.15), 0.02) h);
+  --hero-ink: oklch(0.19 0 0);
+  --hero-on-ink: oklch(0.98 0 0);
+  --ring: var(--accent);
+}
+
+/* «Меньше движения» — только прозрачность */
+@media (prefers-reduced-motion: reduce) {
+  .sonar { --dur-4: 0ms; }
+  .sonar *, .sonar *::before, .sonar *::after {
+    transition-property: opacity !important;
+    animation: none !important;
+  }
+}

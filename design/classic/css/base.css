@@ -1,0 +1,210 @@
+/* Sonar · классика — общие части обоих фреймов (ПК и iPhone). */
+
+.sonar {
+  position: relative;
+  overflow: hidden;
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: 1.4;
+  color: var(--text-1);
+  background-color: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  transition: --cover var(--dur-4) var(--ease-std),
+              background-color var(--dur-4) var(--ease-std),
+              color var(--dur-4) var(--ease-std);
+}
+.sonar *, .sonar *::before, .sonar *::after { box-sizing: border-box; }
+:where(.sonar) button {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+:where(.sonar) button:disabled { cursor: default; }
+:where(.sonar) :is(h1, h2, h3, p) { margin: 0; }
+.sonar :focus { outline: none; }
+.sonar :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-xs); }
+
+/* Название и исполнитель — выделяются и копируются */
+.sonar .sel { user-select: text; cursor: text; }
+.sonar ::selection { background: oklch(from var(--accent) l c h / 0.35); color: inherit; }
+
+.ellipsis { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
+
+/* ── Иконки ───────────────────────────────────────────── */
+.i {
+  width: 20px; height: 20px; flex: none; display: block;
+  fill: none; stroke: currentColor; stroke-width: 1.75;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.i .fill { fill: currentColor; stroke: none; }
+
+/* ── Обложки (слои для плавной смены) ─────────────────── */
+.cv { position: relative; overflow: hidden; background: var(--surface-2); flex: none; }
+.cv > .art, .cv-layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.cv-layer { opacity: 1; transition: opacity var(--dur-4) var(--ease-std); }
+.cv-layer.entering { opacity: 0; }
+.cv-layer > .art { width: 100%; height: 100%; display: block; }
+
+/* ── Значок сервиса ───────────────────────────────────── */
+.svc {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  height: 15px; min-width: 15px; padding: 0 4px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in oklch, currentColor 35%, transparent);
+  color: var(--text-2);
+  font-size: 9.5px; font-weight: 700; letter-spacing: .02em; line-height: 1;
+}
+.svc .i { width: 10px; height: 10px; stroke-width: 2.2; }
+
+/* ── Кнопка-иконка ────────────────────────────────────── */
+.icon-btn {
+  position: relative; width: 34px; height: 34px; flex: none;
+  display: grid; place-items: center; border-radius: 50%;
+  color: var(--text-2);
+  transition: background-color var(--dur-1) var(--ease-std), color var(--dur-2) var(--ease-std),
+              transform var(--dur-1) var(--ease-out);
+}
+.icon-btn:hover { background: var(--hover); color: var(--text-1); }
+.icon-btn:active { background: var(--press); transform: scale(.94); }
+.icon-btn:disabled { color: var(--text-off); background: none; transform: none; }
+.icon-btn.on { color: var(--accent); }
+.icon-btn::after {
+  content: ''; position: absolute; left: 50%; bottom: 1px; width: 4px; height: 4px;
+  margin-left: -2px; border-radius: 50%; background: var(--accent);
+  opacity: 0; transform: scale(0);
+  transition: opacity var(--dur-2) var(--ease-std), transform var(--dur-2) var(--ease-out);
+}
+.icon-btn.on::after { opacity: 1; transform: scale(1); }
+.icon-btn.like::after { display: none; }
+
+/* Иконки, которые сменяются друг другом (пуск/пауза, лайк) */
+.swap { display: grid; place-items: center; }
+.swap > .i { grid-area: 1 / 1; transition: opacity var(--dur-2) var(--ease-std), transform var(--dur-2) var(--ease-out); }
+.sonar.is-playing .ic-play,
+.sonar:not(.is-playing) .ic-pause { opacity: 0; transform: scale(.6); }
+
+.like .ic-fill { opacity: 0; transform: scale(.4); color: var(--accent); }
+.like.on { color: var(--accent); }
+.like.on .ic-line { opacity: 0; }
+.like.on .ic-fill { opacity: 1; transform: scale(1); }
+.like.pop .ic-fill { animation: like-pop var(--dur-4) var(--ease-out); }
+@keyframes like-pop {
+  0% { transform: scale(.4); }
+  45% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+/* ── Ползунки ─────────────────────────────────────────── */
+.slider {
+  --track-bg: var(--border); --fill-bg: var(--text-1); --knob-bg: var(--text-1);
+  position: relative; height: 16px; flex: 1; display: flex; align-items: center; cursor: pointer;
+}
+.slider::before {
+  content: ''; position: absolute; left: 0; right: 0; height: 4px; border-radius: 4px;
+  background: var(--track-bg);
+  transition: height var(--dur-1) var(--ease-std);
+}
+.slider-fill {
+  position: absolute; left: 0; right: 0; height: 4px; border-radius: 4px;
+  background: var(--fill-bg); transform-origin: 0 50%;
+  transform: scaleX(var(--f, 0));
+  transition: transform 250ms linear, height var(--dur-1) var(--ease-std), background-color var(--dur-2) var(--ease-std);
+}
+.slider-knob {
+  position: absolute; left: calc(var(--f, 0) * 100%); width: 12px; height: 12px; margin-left: -6px;
+  border-radius: 50%; background: var(--knob-bg); box-shadow: 0 1px 4px oklch(0 0 0 / .3);
+  opacity: 0; transform: scale(.5);
+  transition: left 250ms linear, opacity var(--dur-1) var(--ease-std), transform var(--dur-1) var(--ease-out);
+}
+.slider:hover::before, .slider:hover .slider-fill { height: 6px; }
+.slider:hover .slider-knob { opacity: 1; transform: scale(1); }
+.slider:hover .slider-fill { background: var(--accent); }
+.prog { --f: var(--p); }
+.vol { --f: var(--v); flex: none; width: 92px; }
+
+/* ── Чипы настроений ──────────────────────────────────── */
+.chip, .chip-plain {
+  height: 32px; padding: 0 14px; border-radius: var(--r-pill); white-space: nowrap; flex: none;
+  font-size: 13px; font-weight: 600;
+  transition: background-color var(--dur-2) var(--ease-std), color var(--dur-2) var(--ease-std),
+              border-color var(--dur-2) var(--ease-std), transform var(--dur-1) var(--ease-out);
+}
+.chip:active, .chip-plain:active { transform: scale(.96); }
+/* На окрашенном герое */
+.chip { color: oklch(from var(--hero-ink) l c h / .78); background: oklch(from var(--hero-ink) l c h / .1); }
+.chip:hover { background: oklch(from var(--hero-ink) l c h / .18); color: var(--hero-ink); }
+.chip.on { background: var(--hero-ink); color: var(--hero-on-ink); }
+/* На обычном фоне */
+.chip-plain { color: var(--text-2); background: var(--surface-1); }
+.chip-plain:hover { background: var(--surface-2); color: var(--text-1); }
+.chip-plain.on { background: var(--accent); color: var(--on-accent); }
+
+/* ── Карточки ─────────────────────────────────────────── */
+.card { width: var(--card); flex: none; text-align: left; display: block; }
+.card-cv {
+  position: relative; width: 100%; aspect-ratio: 1; border-radius: var(--r-m);
+  box-shadow: var(--shadow-cover);
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.card:hover .card-cv { transform: translateY(-2px); }
+.card:active .card-cv { transform: scale(.98); }
+.card-play {
+  position: absolute; right: 10px; bottom: 10px; width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--accent); color: var(--on-accent);
+  box-shadow: 0 6px 16px oklch(0 0 0 / .35);
+  opacity: 0; transform: translateY(6px) scale(.9);
+  transition: opacity var(--dur-2) var(--ease-std), transform var(--dur-2) var(--ease-out);
+}
+.card-play .i { width: 18px; height: 18px; }
+.card:hover .card-play { opacity: 1; transform: none; }
+.card-title { margin-top: 10px; font-weight: 600; color: var(--text-1); }
+.card-sub { margin-top: 2px; font-size: var(--fs-small); color: var(--text-3); }
+
+/* ── Строка трека ─────────────────────────────────────── */
+.trow {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center;
+  gap: 12px; width: 100%; padding: 6px 10px 6px 6px; border-radius: var(--r-s); text-align: left;
+  transition: background-color var(--dur-1) var(--ease-std);
+}
+.trow:hover { background: var(--hover); }
+.trow:active { background: var(--press); }
+.trow-cv { position: relative; width: 44px; height: 44px; border-radius: var(--r-xs); }
+.trow-meta { min-width: 0; }
+.trow-title { display: block; font-weight: 600; color: var(--text-1); transition: color var(--dur-2) var(--ease-std); }
+.trow-artist { display: flex; align-items: center; gap: 6px; margin-top: 1px; font-size: var(--fs-small); color: var(--text-3); }
+.trow-dur { font-size: var(--fs-small); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.trow.is-current .trow-title { color: var(--accent); }
+.eq {
+  position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; gap: 2px;
+  padding-bottom: 12px; background: oklch(0 0 0 / .45); opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-std);
+}
+.eq i { width: 3px; height: 14px; border-radius: 2px; background: #fff; transform-origin: 50% 100%; transform: scaleY(.3); }
+.trow.is-current .eq { opacity: 1; }
+.sonar.is-playing .trow.is-current .eq i { animation: eq calc(60s / var(--bpm, 90)) var(--ease-std) infinite alternate; }
+.sonar.is-playing .trow.is-current .eq i:nth-child(2) { animation-delay: calc(-20s / var(--bpm, 90)); }
+.sonar.is-playing .trow.is-current .eq i:nth-child(3) { animation-delay: calc(-40s / var(--bpm, 90)); }
+@keyframes eq { from { transform: scaleY(.25); } to { transform: scaleY(1); } }
+
+/* ── Пустое состояние ─────────────────────────────────── */
+.empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  gap: 10px; min-height: 360px; color: var(--text-3);
+}
+.empty-icon {
+  width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface-1); color: var(--text-2);
+}
+.empty-icon .i { width: 28px; height: 28px; }
+.empty-title { font-size: var(--fs-h2); font-weight: var(--fw-h2); color: var(--text-1); letter-spacing: var(--track-tight); }
+.empty-line { max-width: 320px; }
+.empty-hint { font-size: var(--fs-small); color: var(--text-off); }
+
+/* Смена страницы */
+.page { animation: page-in var(--dur-3) var(--ease-out); }
+.page[hidden] { display: none; }
+@keyframes page-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Плавная смена текста (название/исполнитель) */
+.fade-swap { transition: opacity var(--dur-2) var(--ease-std), transform var(--dur-2) var(--ease-out); }
+.fade-swap.out { opacity: 0; transform: translateY(4px); }

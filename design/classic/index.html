@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sonar · классика — два варианта</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=Onest:wght@400..800&display=swap">
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/stage.css">
+  <link rel="stylesheet" href="css/desktop.css">
+  <link rel="stylesheet" href="css/phone.css">
+</head>
+<body data-theme="dark">
+  <header class="toolbar">
+    <div class="tb-group">
+      <span class="tb-label">Вариант</span>
+      <div class="seg">
+        <button data-tb="variant" data-val="vivid">A · Плотнее и ярче</button>
+        <button data-tb="variant" data-val="calm">B · Больше воздуха и тише</button>
+      </div>
+    </div>
+    <div class="tb-group">
+      <span class="tb-label">Тема</span>
+      <div class="seg">
+        <button data-tb="theme" data-val="dark">Тёмная</button>
+        <button data-tb="theme" data-val="light">Светлая</button>
+      </div>
+    </div>
+    <div class="tb-group">
+      <span class="tb-label">Обложка</span>
+      <div class="sws">
+        <button class="sw sw-auto" data-tb="cover" data-val="auto" title="Из трека"></button>
+      </div>
+    </div>
+    <div class="tb-group">
+      <span class="tb-label">Показать</span>
+      <div class="seg">
+        <button data-tb="view" data-val="both">Оба</button>
+        <button data-tb="view" data-val="pc">ПК</button>
+        <button data-tb="view" data-val="phone">iPhone</button>
+      </div>
+    </div>
+    <span class="tb-hint">Пробел — пауза · ← → — треки · ⌄ / мини-плеер — свернуть/развернуть</span>
+  </header>
+
+  <main class="stage">
+    <div class="stage-inner">
+      <div class="frame frame-pc">
+        <div class="frame-cap"><b>Windows</b> · 1440 × 900, окно без рамки</div>
+        <div class="sonar pc" id="pc"></div>
+      </div>
+      <div class="frame frame-phone">
+        <div class="frame-cap"><b>iPhone</b> · 393 × 852</div>
+        <div class="sonar ph" id="ph"></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/data.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/parts.js"></script>
+  <script src="js/desktop.js"></script>
+  <script src="js/phone.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
