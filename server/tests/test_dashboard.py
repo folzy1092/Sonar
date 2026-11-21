@@ -159,3 +159,37 @@ def test_forecast_unknown_rate_gives_wide_range(con):
     assert f["renew_rate"] is None and f["revenue"] is None
     # 1 действует и кончится; новых 1 и 0 → тренд 2. Вилка: никто не продлит и 1 новый … все продлят и 2 новых.
     assert (f["low"], f["estimate"], f["high"]) == (1, 2, 3)
+
+
+# ---- динамика ----
+
+def test_compare_with_previous_period(con):
+    for u in ("a", "b", "c"):
+        user(con, u)
+    end = day_of(NOW)
+    ev(con, "a", "play", NOW - 10 * DAY, ref="sc:1")          # прошлые 7 дней: 1 слушатель
+    for u in ("a", "b", "c"):
+        ev(con, u, "play", NOW - DAY, ref="sc:1")             # эти 7 дней: 3
+    rows = {r["key"]: r for r in D.compare(con, D.shift(end, -6), end)["rows"]}
+    assert (rows["listeners"]["now"], rows["listeners"]["before"], rows["listeners"]["delta"]) == (3, 1, 200)
+    assert rows["registrations"]["delta"] is None             # прошлого не было — не «+∞%»
+
+
+def test_pace_linear_trend():
+    series = [{"listeners": v} for v in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)]
+    p = D.pace(series, "listeners", ahead=30)
+    assert p["now"] == 7.0 and p["per_week"] == 7.0 and p["later"] == 37.0
+    assert D.pace(series[:5], "listeners") is None            # меньше недели — тренд не строим
+    assert D.pace([{"listeners": 0}] * 10, "listeners") is None
+    assert D.pace([{"listeners": v} for v in (9, 8, 7, 6, 5, 4, 3, 2, 1, 0)], "listeners")["later"] == 0  # не ниже нуля
+
+
+def test_milestone_date_and_progress(con):
+    for i in range(20):
+        user(con, f"u{i}", created=NOW - (i % 10) * DAY)       # 20 человек, все за последние 10 дней
+    end = day_of(NOW)
+    m = D.milestone(con, D.shift(end, -9), end, now=NOW)
+    assert (m["total"], m["target"], m["progress"]) == (20, 25, 67)
+    assert m["per_day"] == 2.0 and m["days"] == 3 and m["date"] == day_of(NOW + 3 * DAY)
+    quiet = D.milestone(con, D.shift(end, -40), D.shift(end, -30), now=NOW)
+    assert quiet["date"] is None

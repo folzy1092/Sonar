@@ -200,3 +200,22 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
 .pager { display: flex; gap: 8px; align-items: center; margin-top: 16px; color: var(--text-3); }
 .g-main { align-items: start; }
 @media (max-width: 1200px) { .g-main { grid-template-columns: 1fr; } }
+
+/* подсказка к термину: наведение или фокус с клавиатуры, без JS */
+.tip { position: relative; cursor: help; text-decoration: underline dotted var(--text-3); text-underline-offset: 3px; }
+.tip::after { content: attr(data-tip); position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 10; width: 280px;
+  padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-3); border: 1px solid var(--border-strong);
+  color: var(--text); font-size: 13px; line-height: 1.45; white-space: normal; pointer-events: none;
+  opacity: 0; transform: translateY(4px); transition: opacity var(--t-fast) var(--ease), transform var(--t-fast) var(--ease); }
+.tip:hover::after, .tip:focus-visible::after { opacity: 1; transform: none; }
+.g-dyn { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 4px; }
+.g-dyn .note:first-child { margin: 0 0 8px; }
+table.plain th, table.plain td { padding: 6px 0; }
+table.plain th:not(:first-child), table.plain td:not(:first-child) { padding-left: 12px; }
+table.plain tbody tr:hover { background: none; }
+.up { color: var(--ok); font-variant-numeric: tabular-nums; }
+.down { color: var(--down); font-variant-numeric: tabular-nums; }
+.facts b { font-weight: 500; }
+.milestone { margin-top: 16px; }
+.milestone .split { margin-top: 8px; }
+.row.between { justify-content: space-between; }

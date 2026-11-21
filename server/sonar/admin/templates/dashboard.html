@@ -38,10 +38,52 @@
 
 <h2 class="section-title">За период</h2>
 <div class="grid g-main">
+  <div class="stack">
   <div class="panel">
     <h2>Открыли и слушали по дням</h2>
     <div class="legend"><span><i class="sw"></i>открыли плеер</span><span><i class="sw accent"></i>включили хотя бы один трек</span></div>
     {{ main_chart }}
+  </div>
+  {% set cmp = d.compare %}{% set ms = d.milestone %}
+  <div class="panel">
+    <h2>Динамика</h2>
+    <div class="g-dyn">
+      <div>
+        <p class="note">К прошлому периоду, {{ cmp.prev_start | day }} — {{ cmp.prev_end | day }}</p>
+        <table class="plain">
+          <thead><tr><th></th><th class="n">сейчас</th><th class="n">было</th><th class="n">изменение</th></tr></thead>
+          <tbody>
+          {% for r in cmp.rows %}
+          <tr><td>{{ {'openers': 'Открыли плеер', 'listeners': 'Слушали', 'plays': 'Треков', 'per_listener': 'Треков на слушателя', 'registrations': 'Регистраций'}[r.key] }}</td>
+              <td class="n">{{ r.now | num }}</td><td class="n muted">{{ r.before | num }}</td>
+              <td class="n">{% if r.delta is none %}<span class="muted">{{ 'новое' if r.now else '—' }}</span>{% elif r.delta > 0 %}<span class="up">+{{ r.delta }}%</span>{% elif r.delta < 0 %}<span class="down">−{{ -r.delta }}%</span>{% else %}<span class="muted">0%</span>{% endif %}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <p class="note">Если темп сохранится: сейчас → через 30 дней · оценка</p>
+        {% set names = {'openers': 'Открывают в день', 'listeners': 'Слушают в день', 'plays': 'Треков в день'} %}
+        {% set any_pace = d.pace.values() | select | list %}
+        {% if any_pace %}
+        <dl class="facts">
+          {% for k, v in d.pace.items() %}{% if v %}
+          <dt>{{ names[k] }}</dt>
+          <dd class="num">{{ v.now | num }} → <b>{{ v.later | num }}</b>{% if v.delta is not none %} <span class="{{ 'up' if v.delta > 0 else ('down' if v.delta < 0 else 'muted') }}">{{ '+' if v.delta > 0 else ('−' if v.delta < 0 else '') }}{{ v.delta | abs }}%</span>{% endif %}</dd>
+          {% endif %}{% endfor %}
+        </dl>
+        {% else %}<div class="empty">Нужно хотя бы 7 дней с данными</div>{% endif %}
+        {% if ms %}
+        <div class="milestone">
+          <div class="row between"><span>{{ ms.target | num }} пользователей</span><span class="num sub">{{ ms.total | num }} · {{ ms.progress }}%</span></div>
+          <div class="split"><i style="width: {{ ms.progress }}%"></i></div>
+          <p class="note">{% if ms.date %}Примерно к {{ ms.date | day }} — через {{ ms.days | num }} дн. при {{ ms.per_day | num }} регистрации в день, как за период{% else %}За период регистраций не было — дату не угадать{% endif %}</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <p class="note">Прогноз — продолжение прямой по дням периода: чем короче период и меньше людей, тем грубее</p>
+  </div>
   </div>
   <div class="stack">
     <div class="panel">
@@ -55,10 +97,10 @@
     <div class="panel">
       <h2>Активные</h2>
       <dl class="facts">
-        <dt>DAU</dt><dd class="num">{{ d.active.dau | num }} <span class="muted">за {{ d.end | day }}</span></dd>
-        <dt>WAU</dt><dd class="num">{{ d.active.wau | num }} <span class="muted">7 дней</span></dd>
-        <dt>MAU</dt><dd class="num">{{ d.active.mau | num }} <span class="muted">30 дней</span></dd>
-        <dt>DAU / MAU</dt><dd class="num">{{ d.active.stickiness ~ '%' if d.active.stickiness is not none else '—' }}</dd>
+        <dt><span class="tip" tabindex="0" data-tip="Daily active users — сколько разных людей открывали Sonar за один день ({{ d.end | day }})">DAU</span></dt><dd class="num">{{ d.active.dau | num }} <span class="muted">за {{ d.end | day }}</span></dd>
+        <dt><span class="tip" tabindex="0" data-tip="Weekly active users — сколько разных людей открывали Sonar хотя бы раз за 7 дней по {{ d.end | day }}">WAU</span></dt><dd class="num">{{ d.active.wau | num }} <span class="muted">7 дней</span></dd>
+        <dt><span class="tip" tabindex="0" data-tip="Monthly active users — сколько разных людей открывали Sonar хотя бы раз за 30 дней по {{ d.end | day }}">MAU</span></dt><dd class="num">{{ d.active.mau | num }} <span class="muted">30 дней</span></dd>
+        <dt><span class="tip" tabindex="0" data-tip="Какая доля месячной аудитории заходит каждый день. 100% — все заходят ежедневно, 10% — в среднем раз в 10 дней. Выше — лучше">DAU / MAU</span></dt><dd class="num">{{ d.active.stickiness ~ '%' if d.active.stickiness is not none else '—' }}</dd>
       </dl>
     </div>
     <div class="panel">

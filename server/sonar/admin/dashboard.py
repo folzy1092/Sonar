@@ -118,6 +118,66 @@ def top_artists(con: sqlite3.Connection, start: str, end: str, n: int = 10) -> l
         " ORDER BY users DESC, plays DESC LIMIT ?", (start, end, n))]
 
 
+# ---- динамика: к прошлому периоду, темп, ближайший рубеж ----
+
+MILESTONES = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000]
+
+
+def pct(now: float, before: float) -> int | None:
+    """Изменение в процентах; прошлого не было — None (не «+∞%»)."""
+    return round((now - before) * 100 / before) if before else None
+
+
+def compare(con: sqlite3.Connection, start: str, end: str) -> dict:
+    """Этот период против прошлого такой же длины (сразу перед ним)."""
+    n = len(days_between(start, end))
+    prev = summary(con, shift(start, -n), shift(start, -1))
+    cur = summary(con, start, end)
+    rows = [(k, cur[k], prev[k], pct(cur[k] or 0, prev[k] or 0))
+            for k in ("openers", "listeners", "plays", "per_listener", "registrations")]
+    return {"prev_start": shift(start, -n), "prev_end": shift(start, -1),
+            "rows": [{"key": k, "now": a, "before": b, "delta": d} for k, a, b, d in rows]}
+
+
+def slope(values: list[float]) -> float:
+    """Наклон прямой по методу наименьших квадратов (единиц в день)."""
+    n = len(values)
+    if n < 2:
+        return 0.0
+    mx, my = (n - 1) / 2, sum(values) / n
+    den = sum((i - mx) ** 2 for i in range(n))
+    return sum((i - mx) * (v - my) for i, v in enumerate(values)) / den
+
+
+def pace(series: list[dict], key: str, ahead: int = 30) -> dict | None:
+    """Среднее в день сейчас (последние до 7 дней) и где будет через `ahead` дней, если линия тренда продолжится.
+    Меньше 7 дней данных — None: по паре точек тренд не строим."""
+    vals = [d[key] for d in series]
+    if len(vals) < 7 or not any(vals):
+        return None
+    now = sum(vals[-7:]) / 7
+    k = slope(vals)
+    later = max(0.0, now + k * ahead)
+    return {"now": round(now, 1), "later": round(later, 1), "per_week": round(k * 7, 1), "delta": pct(later, now)}
+
+
+def milestone(con: sqlite3.Connection, start: str, end: str, now: int | None = None) -> dict | None:
+    """Ближайший круглый рубеж пользователей и когда примерно будет при темпе регистраций за период."""
+    now = now or now_ms()
+    total = _one(con, "SELECT COUNT(*) FROM users WHERE banned = 0")
+    target = next((m for m in MILESTONES if m > total), None)
+    if target is None:
+        return None
+    prev = max([0] + [m for m in MILESTONES if m <= total])
+    regs = summary(con, start, end)["registrations"]
+    per_day = regs / len(days_between(start, end))
+    days = None if per_day <= 0 else -(-(target - total) // per_day)
+    return {"total": total, "target": target, "per_day": round(per_day, 2),
+            "progress": round((total - prev) * 100 / (target - prev)),
+            "days": int(days) if days is not None else None,
+            "date": day_of(now + int(days) * DAY_MS) if days is not None else None}
+
+
 # ---- подписки ----
 
 def subscriptions(con: sqlite3.Connection, start: str, end: str, now: int | None = None) -> dict:
@@ -199,10 +259,14 @@ def forecast(con: sqlite3.Connection, now: int | None = None, horizon_days: int 
 def build(con: sqlite3.Connection, start: str, end: str, now: int | None = None) -> dict:
     now = now or now_ms()
     day = today(now)
+    series_ = series(con, start, end)
     return {"start": start, "end": end, "today": day, "days": len(days_between(start, end)),
             "today_summary": summary(con, day, day), "period": summary(con, start, end), "active": active(con, end),
             "services": by_service(con, start, end), "platforms": by_platform(con, start, end),
-            "series": series(con, start, end), "top_tracks": top_tracks(con, day, day),
+            "series": series_, "top_tracks": top_tracks(con, day, day),
             "top_artists": top_artists(con, day, day), "period_tracks": top_tracks(con, start, end),
             "subs": subscriptions(con, start, end, now), "forecast": forecast(con, now),
+            "compare": compare(con, start, end), "milestone": milestone(con, start, end, now),
+            # сегодняшний день ещё идёт — в темп не берём, иначе он тянет среднее и тренд вниз
+            "pace": {k: pace(series_[:-1] if end == day else series_, k) for k in ("openers", "listeners", "plays")},
             "has_events": con.execute("SELECT 1 FROM events LIMIT 1").fetchone() is not None}
