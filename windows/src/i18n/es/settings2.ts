@@ -269,4 +269,11 @@ export default {
   'Под артистом у треков Sonar Mix — откуда трек: похож на твой лайк, разведка, забытый любимый': 'Bajo el artista en las canciones de Sonar Mix: de dónde viene la canción: parecida a un me gusta, exploración, favorita olvidada',
   'Таймер сна в плеере': 'Temporizador de apagado en el reproductor',
   'Кнопка с луной рядом со скоростью: выключить музыку через время или в конце трека': 'Un botón con luna junto a la velocidad: apaga la música tras un tiempo o al final de la canción',
+  'Спокойный графит, тонкие линии, мягкие анимации': 'Grafito sereno, líneas finas, animaciones suaves',
+  'Плотные плашки и крупные заголовки — фирменный вид': 'Paneles sólidos y títulos grandes: el estilo propio',
+  'Стекло и мягкие отблески, анимации с эхом': 'Cristal y brillos suaves, animaciones con eco',
+  'Яркий акцент, волна прогресса, живое движение': 'Acento vivo, progreso en onda, movimiento animado',
+  'Строгие края и чёткие линии, минимум украшений': 'Bordes rectos y líneas nítidas, poca decoración',
+  'Выпуклые кнопки, которые нажимаются по-настоящему': 'Botones en relieve que se hunden de verdad',
+  'Сплошные тёмные блоки, сдержанно и плотно': 'Bloques oscuros macizos, sobrio y compacto',
 } satisfies Record<string, string>

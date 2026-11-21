@@ -97,11 +97,12 @@
   }
 </script>
 
-{#snippet card(id: string, title: string, a: StyleAxes, own: boolean)}
+{#snippet card(id: string, title: string, a: StyleAxes, own: boolean, hint = '')}
   <div class="card" class:on={current === id} role="group" onmouseenter={() => replay(id)}>
     <button class="pick" onclick={() => theme.applyStyle(id)} aria-pressed={current === id}>
       <StylePreview axes={a} {accent} light={theme.light} play={plays[id] ?? 0} />
       <span class="name">{title}</span>
+      {#if hint}<span class="hint">{hint}</span>{/if}
     </button>
     {#if own}
       <span class="tools">
@@ -115,7 +116,7 @@
 <p class="caption">{t('Готовые стили')}</p>
 <div class="cards">
   {#each STYLES as s (s.id)}
-    {@render card(s.id, t(s.title), s.axes, false)}
+    {@render card(s.id, t(s.title), s.axes, false, t(s.hint))}
   {/each}
   {#each customs as c (c.id)}
     {@render card(CUSTOM_STYLE_PREFIX + c.id, c.name, c.axes, true)}
@@ -421,5 +422,14 @@
     display: grid;
     overflow: hidden;
     border-radius: 6px;
+  }
+  .hint {
+    display: block;
+    margin-top: -2px;
+    padding: 0 4px 2px;
+    font-size: calc(11px * var(--fs, 1));
+    line-height: 1.35;
+    color: var(--text-3);
+    text-align: left;
   }
 </style>

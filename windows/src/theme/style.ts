@@ -37,6 +37,8 @@ export const axisKey = <A extends AxisName>(a: A) => `appearance.${a}` as const
 export interface StylePreset {
   id: string
   title: string
+  /** Мини-описание под названием в «Стиле» (ключ перевода). */
+  hint: string
   axes: StyleAxes
 }
 
@@ -46,36 +48,43 @@ export const STYLES: StylePreset[] = [
     // основной вид с 2026-11-22 (design/classic): спокойный графит, Manrope, тонкие линии, мягкие анимации
     id: 'classic',
     title: 'стиль::Классика',
+    hint: 'Спокойный графит, тонкие линии, мягкие анимации',
     axes: { surface: 'classic', font: 'Manrope Variable', font_display: 'Manrope Variable', title_style: 'plain', icon_stroke: 1.75, anim_track: 'classic', anim_like: 'classic', anim_nav: 'plate', progress_look: 'line', loading: 'color' },
   },
   {
     id: 'sonar',
     title: 'Sonar',
+    hint: 'Плотные плашки и крупные заголовки — фирменный вид',
     axes: { surface: 'monolith', font: 'Golos Text Variable', font_display: 'Unbounded Variable', title_style: 'plain', icon_stroke: 2, anim_track: 'edge', anim_like: 'signal', anim_nav: 'dot', progress_look: 'line', loading: 'color' },
   },
   {
     id: 'echo',
     title: 'Эхо',
+    hint: 'Стекло и мягкие отблески, анимации с эхом',
     axes: { surface: 'echo', font: 'Onest Variable', font_display: 'Science Gothic Variable', title_style: 'plain', icon_stroke: 1.75, anim_track: 'echo', anim_like: 'echo', anim_nav: 'dot', progress_look: 'line', loading: 'ring' },
   },
   {
     id: 'signal',
     title: 'Сигнал',
+    hint: 'Яркий акцент, волна прогресса, живое движение',
     axes: { surface: 'signal', font: 'Golos Text Variable', font_display: 'Unbounded Variable', title_style: 'plain', icon_stroke: 2, anim_track: 'signal', anim_like: 'signal', anim_nav: 'capsule', progress_look: 'wave', loading: 'ring' },
   },
   {
     id: 'edge',
     title: 'Грань',
+    hint: 'Строгие края и чёткие линии, минимум украшений',
     axes: { surface: 'edge', font: 'Geist Variable', font_display: 'Geist Variable', title_style: 'plain', icon_stroke: 1.75, anim_track: 'edge', anim_like: 'edge', anim_nav: 'plate', progress_look: 'line', loading: 'color' },
   },
   {
     id: 'tactile',
     title: 'Тактиль',
+    hint: 'Выпуклые кнопки, которые нажимаются по-настоящему',
     axes: { surface: 'tactile', font: 'IBM Plex Sans Variable', font_display: 'IBM Plex Sans Variable', title_style: 'plain', icon_stroke: 2, anim_track: 'tactile', anim_like: 'tactile', anim_nav: 'inset', progress_look: 'groove', loading: 'ring' },
   },
   {
     id: 'monolith',
     title: 'Монолит',
+    hint: 'Сплошные тёмные блоки, сдержанно и плотно',
     axes: { surface: 'monolith', font: 'Inter Tight Variable', font_display: 'Inter Tight Variable', title_style: 'plain', icon_stroke: 2, anim_track: 'monolith', anim_like: 'monolith', anim_nav: 'dot', progress_look: 'line', loading: 'color' },
   },
 ]
