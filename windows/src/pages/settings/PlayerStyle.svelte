@@ -19,7 +19,6 @@
     <div class="art">
       {#if style === 'vinyl'}
         <span class="disc"><span class="label" style:background-image={cover ? `url("${cover}")` : null}></span></span>
-        <span class="arm"></span>
       {:else}
         <span class="img" style:background-image={cover ? `url("${cover}")` : null}></span>
       {/if}
@@ -92,35 +91,20 @@
   .st-large .img {
     border-radius: 0;
   }
+  /* «Пластинка» — круглая обложка целиком, вращается, пока играет */
   .disc {
     position: absolute;
-    inset: 4px;
+    inset: 0;
     border-radius: 50%;
-    background: repeating-radial-gradient(circle, #111 0 2px, #1c1c1f 2px 4px);
-    box-shadow: 0 0 0 1px var(--surface-3);
-    animation: spin 6s linear infinite paused;
+    overflow: hidden;
+    animation: spin 12s linear infinite paused;
   }
   .playing .disc {
     animation-play-state: running;
   }
   .disc .label {
-    inset: 32%;
+    inset: 0;
     border-radius: 50%;
-  }
-  .arm {
-    position: absolute;
-    top: -6px;
-    right: -4px;
-    width: 4px;
-    height: 54px;
-    border-radius: 2px;
-    background: var(--text-2);
-    transform-origin: top center;
-    transform: rotate(24deg);
-    transition: transform var(--normal) var(--ease);
-  }
-  .playing .arm {
-    transform: rotate(32deg);
   }
   .meta {
     display: flex;

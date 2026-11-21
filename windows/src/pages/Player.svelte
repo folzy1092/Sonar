@@ -41,7 +41,7 @@
   // круглая наклейка на виниле (≈ 62 % диска)
   const pstyle = $derived(settings.get('player.style'))
   let artW = $state(320)
-  const coverSize = $derived(pstyle === 'large' ? Math.max(320, artW) : pstyle === 'vinyl' ? Math.round(artW * 0.62) : 320)
+  const coverSize = $derived(pstyle === 'large' ? Math.max(320, artW) : pstyle === 'vinyl' ? Math.max(320, artW) : 320)
   // очередь: «Ранее» (последние сыгранные), «Сейчас играет», «Далее» как в SoundCloud — своя очередь,
   // ниже тумблер «Авто похожие» и похожие автоплея. Ключ строки — стабильный id элемента очереди:
   // при «вперёд / назад» строки переезжают (animate:glide), а не появляются заново
@@ -74,15 +74,6 @@
 <div class="layout q-{settings.get('queue.position')}" class:with-queue={settings.get('queue.show')}>
 <div class="top st-{settings.get('player.style')}" class:flip={settings.get('player.cover_position') === 'right'}>
   <div class="art" class:vinyl={pstyle === 'vinyl'} class:spin={player.playing} bind:clientWidth={artW} data-fx-cover data-fx-frame>
-    {#if settings.get('player.style') === 'vinyl'}
-      <!-- «Пластинка»: диск с бороздками, обложка — наклейка в центре; крутится, пока играет -->
-      <span class="disc" aria-hidden="true"></span>
-      <svg class="arm" class:on={player.playing} viewBox="0 0 60 140" aria-hidden="true">
-        <circle cx="44" cy="14" r="9" />
-        <path d="M44 14 L38 104 L26 124" />
-        <rect x="18" y="118" width="14" height="18" rx="3" transform="rotate(28 25 127)" />
-      </svg>
-    {/if}
     <button class="open-full" aria-label={t('Полноэкранный плеер')} title={t('Полноэкранный плеер')} disabled={!track} onclick={() => lyrics.open()}>
       <Cover url={track?.cover_url} size={coverSize} radius={pstyle === 'vinyl' ? '50%' : '18px'} />
       <LoadFx url={track?.cover_url} />
@@ -266,75 +257,31 @@
     grid-template-columns: minmax(320px, 48%) minmax(0, 1fr);
   }
 
-  /* «Пластинка»: обложка — круглая наклейка на виниле, диск крутится, пока играет, игла опускается */
+  /* «Пластинка»: просто круглая обложка во всю площадь, медленно вращается, пока играет (без диска и
+     иглы — владелец 2026-11-22: «не в буквальном смысле»). Пауза — замирает там, где была. */
   .art.vinyl {
-    display: grid;
-    place-items: center;
     aspect-ratio: 1;
-    overflow: visible;
     border-radius: 50%;
-  }
-  .art.vinyl .disc {
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    background:
-      radial-gradient(circle, transparent 0 30%, oklch(0 0 0 / 0) 30%),
-      repeating-radial-gradient(circle, #111 0 2px, #1b1b1d 2px 3px),
-      #111;
-    box-shadow:
-      0 18px 40px oklch(0 0 0 / 0.55),
-      inset 0 0 0 1px oklch(1 0 0 / 0.06);
   }
   .art.vinyl .open-full {
-    z-index: 1;
     border-radius: 50%;
     overflow: hidden;
-    box-shadow: 0 0 0 6px oklch(0 0 0 / 0.35);
-  }
-  .art.vinyl .open-full,
-  .art.vinyl .disc {
-    animation: vinyl-spin 2.4s linear infinite;
+    animation: vinyl-spin 24s linear infinite;
     animation-play-state: paused;
   }
-  .art.vinyl.spin .open-full,
-  .art.vinyl.spin .disc {
+  .art.vinyl.spin .open-full {
     animation-play-state: running;
   }
-
   @keyframes vinyl-spin {
     to {
       rotate: 1turn;
     }
   }
-  .arm {
-    position: absolute;
-    top: -4%;
-    right: -6%;
-    z-index: 3;
-    width: 18%;
-    fill: var(--surface-3);
-    stroke: var(--text-2);
-    stroke-width: 3;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    transform-origin: 73% 10%;
-    rotate: -24deg;
-    transition: rotate 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-    pointer-events: none;
-  }
-  .arm path {
-    fill: none;
-  }
-  .arm.on {
-    rotate: 0deg;
-  }
   .art.vinyl .on-cover {
     display: none;
   }
   @media (prefers-reduced-motion: reduce) {
-    .art.vinyl .open-full,
-    .art.vinyl .disc {
+    .art.vinyl .open-full {
       animation: none;
     }
   }

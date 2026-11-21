@@ -247,15 +247,15 @@ struct FullPlayerView: View {
     // MARK: - Обложка: стили, жесты
 
     nonisolated private static let space = "player"
-    /// Градусов в секунду — 33⅓ оборота в минуту.
-    private static let spinSpeed = 200.0
+    /// Градусов в секунду: оборот за 24 с — спокойно, как на ПК (`Player.svelte` `vinyl-spin`).
+    private static let spinSpeed = 15.0
 
     private func onCover(_ point: CGPoint) -> Bool {
         coverFrame.insetBy(dx: -8, dy: -8).contains(point)
     }
 
     /// Между шапкой и названием: у «Большого» — прозрачная область поверх обложки-фона, у «Обычного» —
-    /// квадрат, у «Пластинки» — крутящийся диск. Тапы — из настроек жестов.
+    /// квадрат, у «Пластинки» — круглая вращающаяся обложка. Тапы — из настроек жестов.
     private var coverArea: some View {
         Group {
             switch style {
@@ -287,34 +287,21 @@ struct FullPlayerView: View {
         .animation(.easeInOut(duration: 0.45), value: engine.current?.ref)
     }
 
-    /// Пластинка: чёрный диск с бороздками, обложка — наклейкой в центре, крутится, пока играет.
+    /// «Пластинка»: просто круглая обложка во всю площадь, медленно вращается, пока играет — без диска,
+    /// бороздок и иглы (владелец 2026-11-22: «не в буквальном смысле»; как на ПК).
     private var vinyl: some View {
         TimelineView(.animation(minimumInterval: 1 / 60, paused: !engine.isPlaying)) { context in
             let angle = spinBase + (spinStart.map { context.date.timeIntervalSince($0) } ?? 0) * Self.spinSpeed
             GeometryReader { proxy in
                 let side = min(proxy.size.width, proxy.size.height)
-                ZStack {
-                    Circle().fill(Color(white: 0.06))
-                    ForEach(0 ..< 6, id: \.self) { i in
-                        Circle()
-                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                            .padding(side * (0.06 + CGFloat(i) * 0.045))
-                    }
-                    // блик по диску — стоит на месте, пока диск крутится
-                    Circle()
-                        .fill(AngularGradient(colors: [.clear, .white.opacity(0.08), .clear, .white.opacity(0.06), .clear],
-                                              center: .center, angle: .zero))
-                        .rotationEffect(.degrees(-angle))
-                    CoverImage(url: engine.current?.coverURL, cornerRadius: side)
-                        .frame(width: side * 0.42, height: side * 0.42)
-                        .id(engine.current?.ref)
-                        .transition(.opacity)
-                    Circle().fill(Color.black).frame(width: side * 0.035, height: side * 0.035)
-                }
-                .frame(width: side, height: side)
-                .rotationEffect(.degrees(angle))
-                .shadow(color: .black.opacity(0.5), radius: 22, y: 10)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                CoverImage(url: engine.current?.coverURL, cornerRadius: side / 2)
+                    .frame(width: side, height: side)
+                    .clipShape(Circle())
+                    .id(engine.current?.ref)
+                    .transition(.opacity)
+                    .rotationEffect(.degrees(angle))
+                    .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .aspectRatio(1, contentMode: .fit)
         }
