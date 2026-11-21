@@ -1,5 +1,6 @@
 <script lang="ts">
-  // Поле точек героя Главной (lib/sonar-field.ts; порт iPhone SonarField). Canvas, не больше 30 кадров/с;
+  // Поле точек героя Главной (lib/sonar-field.ts; порт iPhone SonarField). Canvas, в покое не больше 30 кадров/с
+  // (клик и курсор над полем — каждый кадр экрана, иначе пружина клика идёт рывками);
   // вне экрана, в свёрнутом окне и в фоне при экономии ресурсов (класс .idle) — не рисуем. Цвет — акцент
   // темы (под обложку). Клик — волна-разлёт / вихрь / подскок по кругу, наведение — лёгкое притяжение,
   // под музыку — спектр общего анализатора плеера (player/analyser.ts): низы — дыхание, размер капель и
@@ -117,6 +118,7 @@
     // игра: клики, курсор, музыка (lib/sonar-field.ts — чистые функции, здесь только состояние кадров)
     let pokes: Poke[] = []
     let pokeCount = 0
+    const pokeOut = { dx: 0, dy: 0, scale: 1 }
     let flashAt = -Infinity
     let hovering = false
     let hx = 0
@@ -204,7 +206,7 @@
             x += d.dx
             y += d.dy
             if (pokes.length) {
-              const o = stackPokes(pokes, x, y, t)
+              const o = stackPokes(pokes, x, y, t, pokeOut)
               x += o.dx
               y += o.dy
               v = Math.min(1, v * o.scale)
@@ -239,7 +241,9 @@
       }
       const calm = reducedMotion()
       const lite = calm || saving()
-      if (!frameDue(now, last, lite)) return
+      // клик и наведение — на полной частоте экрана, в покое хватает 30 к/с
+      const live = pokes.length > 0 || hovering || hoverAmt > 0.001
+      if (!frameDue(now, last, lite, live)) return
       last = now
       draw(now / 1000, calm, lite)
     }

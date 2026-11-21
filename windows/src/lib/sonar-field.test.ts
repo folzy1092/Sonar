@@ -333,5 +333,8 @@ describe('встряска и кадры', () => {
     expect(frameDue(1000 + 1000 / 30 - 1, 1000, false)).toBe(true)
     expect(frameDue(1000 + 1000 / 30, 1000, true)).toBe(false)
     expect(frameDue(1000 + 1000 / 15, 1000, true)).toBe(true)
+    // с полем играют — каждый кадр экрана; в экономии — всё равно 15
+    expect(frameDue(1000 + 1000 / 144, 1000, false, true)).toBe(true)
+    expect(frameDue(1000 + 1000 / 60, 1000, true, true)).toBe(false)
   })
 })

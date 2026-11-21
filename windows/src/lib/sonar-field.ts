@@ -208,8 +208,9 @@ export function pokeOffset(p: Poke, cx: number, cy: number, t: number): Offset {
   }
 }
 
-/** Несколько кликов складываются: сдвиги суммируются, размеры перемножаются. */
-export function stackPokes(pokes: readonly Poke[], cx: number, cy: number, t: number): Offset {
+/** Несколько кликов складываются: сдвиги суммируются, размеры перемножаются. `out` — переиспользуемый
+ *  объект для кадра (тысячи точек × каждый кадр — без мусора для сборщика, иначе поле подёргивается). */
+export function stackPokes(pokes: readonly Poke[], cx: number, cy: number, t: number, out?: { dx: number; dy: number; scale: number }): Offset {
   let dx = 0
   let dy = 0
   let scale = 1
@@ -219,7 +220,11 @@ export function stackPokes(pokes: readonly Poke[], cx: number, cy: number, t: nu
     dy += o.dy
     scale *= o.scale
   }
-  return { dx, dy, scale }
+  if (!out) return { dx, dy, scale }
+  out.dx = dx
+  out.dy = dy
+  out.scale = scale
+  return out
 }
 
 /** Наведение: радиус притяжения и наибольший сдвиг к курсору, px. */
@@ -393,7 +398,10 @@ export function shakeOffset(col: number, row: number, age: number): Offset {
 export const FIELD_FPS = 30
 export const LITE_FPS = 15
 
-/** Пора ли рисовать кадр (2 мс запаса — чтобы дрожь requestAnimationFrame не роняла 30 к/с до 20). */
-export function frameDue(now: number, last: number, lite: boolean): boolean {
+/** Пора ли рисовать кадр (2 мс запаса — чтобы дрожь requestAnimationFrame не роняла 30 к/с до 20).
+ *  `live` — с полем играют прямо сейчас (волна от клика, курсор над полем): каждый кадр экрана, иначе
+ *  пружина клика на 30 к/с идёт рывками по 5–6 px. В «Меньше движения» и экономии — всё равно 15. */
+export function frameDue(now: number, last: number, lite: boolean, live = false): boolean {
+  if (live && !lite) return true
   return now - last >= 1000 / (lite ? LITE_FPS : FIELD_FPS) - 2
 }
