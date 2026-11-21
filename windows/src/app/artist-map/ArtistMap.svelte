@@ -14,7 +14,8 @@
   import { artistsCount, clusterTitle, whyText } from '../../lib/artist-map/why'
   import { clusterHeads, connections, discoveredCount, focusSet } from '../../lib/artist-map/graph'
   import { AvatarCache } from '../../lib/artist-map/avatars'
-  import { CLUSTER_LABEL_MIN, drawMap, readPalette, type DrawNode, type Palette } from '../../lib/artist-map/render'
+  import { CLUSTER_LABEL_MIN, drawMap, drawOverlay, drawScene, readPalette, type DrawNode, type Frame, type Palette } from '../../lib/artist-map/render'
+  import { blitFor, isSharp, layerMargin, layerSize, type LayerShot } from '../../lib/artist-map/scene-cache'
   import { FADE_MS, MORPH_MS, frameNodes, positionsOf, progress, type Positions } from '../../lib/artist-map/scene'
   import MapCard from './MapCard.svelte'
 
@@ -81,7 +82,48 @@
   let palette: Palette | null = null
   let paletteAt = 0
   let focusCache: { key: string; set: Set<string> } | null = null
-  const avatars = new AvatarCache(() => schedule())
+  const avatars = new AvatarCache(() => {
+    // новая аватарка — сцена в кэше устарела
+    version++
+    schedule()
+  })
+  // кэш сцены (lib/artist-map/scene-cache.ts): паутину рисуем один раз, при движении — готовую картинку
+  let layer: HTMLCanvasElement | null = null
+  let layerCtx: CanvasRenderingContext2D | null = null
+  let shot: LayerShot | null = null
+  let shotKey = ''
+  /** Растёт, когда меняется то, что нарисовано в сцене: данные, аватарки, тема, размер. */
+  let version = 0
+  /** Когда карту последний раз двигали (перетаскивание, колесо, перелёт). */
+  let movedAt = 0
+  let sharpTimer: ReturnType<typeof setTimeout> | undefined
+  let drawnByKey = new Map<string, DrawNode>()
+  let morphing = true
+  /** Пока двигают — растянутая картинка ок; после паузы — одна чёткая перерисовка. */
+  const SETTLE_MS = 140
+
+  function moved() {
+    movedAt = performance.now()
+  }
+
+  /** Снять сцену в запасной холст: с полями, если карту двигают (чтобы тащить без перерисовки),
+   *  без полей — если сменилась только подсветка (наведение дешевле). */
+  function renderLayer(frame: Frame, withMargin: boolean) {
+    const margin = withMargin ? layerMargin(vp) : 0
+    const size = layerSize(vp, margin)
+    layer ??= document.createElement('canvas')
+    const w = Math.round(size.w * dpr)
+    const h = Math.round(size.h * dpr)
+    if (layer.width !== w || layer.height !== h) {
+      layer.width = w
+      layer.height = h
+      layerCtx = null
+    }
+    layerCtx ??= layer.getContext('2d')
+    if (!layerCtx) return
+    drawScene({ ...frame, ctx: layerCtx, vp: size })
+    shot = { cam: { ...cam }, vp: { ...vp }, margin }
+  }
 
   function schedule() {
     if (!raf && visible && ctx) raf = requestAnimationFrame(tick)
@@ -105,21 +147,29 @@
     }
     const move = progress(morphStarted, now, reducedMotion() ? 0 : MORPH_MS)
     const fade = progress(morphStarted, now, FADE_MS)
-    if (move < 1 || fade < 1) animating = true
-    drawn = frameNodes(lay, nodesByKey, prev, easeOutQuint(move), fade)
+    const nowMorphing = move < 1 || fade < 1
+    if (nowMorphing) animating = true
+    // круги пересчитываем, только пока они плывут; дальше — те же массивы, без мусора на каждый кадр
+    if (nowMorphing || morphing) {
+      drawn = frameNodes(lay, nodesByKey, prev, easeOutQuint(move), fade)
+      drawnByKey = new Map(drawn.map((n) => [n.key, n]))
+    }
+    morphing = nowMorphing
     if (!palette || now - paletteAt > PALETTE_MS) {
-      palette = readPalette(wrap)
+      const next = readPalette(wrap)
+      if (!palette || JSON.stringify(next) !== JSON.stringify(palette)) version++
+      palette = next
       paletteAt = now
     }
     const hovered = tip?.key ?? null
     const focusKey = hovered ?? selected
-    drawMap({
+    const frame: Frame = {
       ctx,
       vp,
       dpr,
       cam,
       nodes: drawn,
-      byKey: new Map(drawn.map((n) => [n.key, n])),
+      byKey: drawnByKey,
       edges: graph.edges,
       clusters: labels,
       focusKey,
@@ -129,7 +179,34 @@
       palette,
       avatars,
       fade,
-    })
+    }
+    if (morphing) {
+      // круги плывут — каждый кадр разный, кэш бесполезен
+      drawMap(frame)
+      shot = null
+    } else {
+      const key = `${version}|${focusKey}|${selected}|${hovered}|${dpr}`
+      const moving = flight !== null || now - movedAt < SETTLE_MS
+      let b = shot && shotKey === key ? blitFor(shot, cam, vp) : null
+      if (!b || (!isSharp(b) && !moving)) {
+        renderLayer(frame, moving || (shot !== null && shotKey === key))
+        shotKey = key
+        b = shot ? blitFor(shot, cam, vp) : null
+      }
+      if (b && layer) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0)
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
+        ctx.imageSmoothingEnabled = true
+        ctx.drawImage(layer, b.x * dpr, b.y * dpr, b.w * dpr, b.h * dpr)
+        drawOverlay(frame)
+        if (!isSharp(b)) {
+          clearTimeout(sharpTimer)
+          sharpTimer = setTimeout(schedule, SETTLE_MS)
+        }
+      } else {
+        drawMap(frame)
+      }
+    }
     if (animating) schedule()
   }
 
@@ -138,6 +215,8 @@
     focusCache = null
     graph = next
     morphStarted = performance.now()
+    morphing = true
+    version++
     if (selected && !next.nodes.some((n) => n.key === selected)) selected = null
     if (!fitted && vp.w > 0) fitAll()
     schedule()
@@ -220,6 +299,7 @@
       }
       if (drag.moved) {
         cam = panBy(cam, e.clientX - drag.lastX, e.clientY - drag.lastY)
+        moved()
         drag.lastX = e.clientX
         drag.lastY = e.clientY
         schedule()
@@ -261,6 +341,7 @@
     e.preventDefault()
     flight = null
     cam = zoomAt(cam, vp, local(e), wheelFactor(e.deltaY))
+    moved()
     schedule()
   }
 
@@ -279,6 +360,7 @@
     dpr = window.devicePixelRatio || 1
     canvas.width = Math.round(r.width * dpr)
     canvas.height = Math.round(r.height * dpr)
+    version++
     if (!fitted && graph && vp.w > 0) fitAll()
     schedule()
   }
@@ -318,6 +400,10 @@
       document.removeEventListener('visibilitychange', onVis)
       if (raf) cancelAnimationFrame(raf)
       raf = 0
+      clearTimeout(sharpTimer)
+      layer = null
+      layerCtx = null
+      shot = null
       ctx = null
     }
   })

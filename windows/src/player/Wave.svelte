@@ -28,11 +28,23 @@
     let frame = 0
     let last = 0
     let still = false
+    // размер и видимость — от наблюдателей, а не чтением clientWidth в каждом кадре: такое чтение
+    // заставляет браузер пересчитывать раскладку на каждом кадре прокрутки (рывки «как на 30 к/с»)
+    let w = canvas.clientWidth
+    let h = canvas.clientHeight
+    let onScreen = true
+    const ro = new ResizeObserver(([e]) => {
+      w = e.contentRect.width
+      h = e.contentRect.height
+    })
+    ro.observe(canvas)
+    const io = new IntersectionObserver(([e]) => (onScreen = e.isIntersecting))
+    io.observe(canvas)
 
     const draw = (now = performance.now()) => {
       frame = requestAnimationFrame(draw)
       // экономия ресурсов: окно в фоне — не рисуем
-      if (document.documentElement.classList.contains('idle')) return
+      if (!onScreen || document.documentElement.classList.contains('idle')) return
       if (now - last < 1000 / fps - 2) return
       last = now
       if (reducedMotion()) {
@@ -42,8 +54,6 @@
       }
       still = false
       const dpr = window.devicePixelRatio || 1
-      const w = canvas.clientWidth
-      const h = canvas.clientHeight
       if (canvas.width !== Math.round(w * dpr)) canvas.width = Math.round(w * dpr)
       if (canvas.height !== Math.round(h * dpr)) canvas.height = Math.round(h * dpr)
       g.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -112,7 +122,11 @@
       g.fill()
     }
     draw()
-    return () => cancelAnimationFrame(frame)
+    return () => {
+      cancelAnimationFrame(frame)
+      ro.disconnect()
+      io.disconnect()
+    }
   })
 </script>
 

@@ -98,6 +98,13 @@ export function readPalette(el: Element): Palette {
 }
 
 export function drawMap(f: Frame) {
+  drawScene(f)
+  drawOverlay(f)
+}
+
+/** Сцена: названия кучек, паутина, круги и подписи в них. Её можно снять в кэш (`scene-cache.ts`):
+ *  от движения камеры она не меняется. Чистит холст сама. */
+export function drawScene(f: Frame) {
   const { ctx, vp, dpr } = f
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, vp.w, vp.h)
@@ -106,11 +113,17 @@ export function drawMap(f: Frame) {
   const visible = f.nodes.filter((n) => onScreen(f.cam, vp, n, n.r))
   for (const n of visible) drawNode(f, n)
   if (f.cam.zoom >= CLUSTER_LABEL_ZOOM) for (const n of visible) drawInnerLabel(f, n)
+  ctx.globalAlpha = 1
+}
+
+/** Поверх сцены, каждый кадр: подписи выбранного и наведённого (дёшево — два круга). */
+export function drawOverlay(f: Frame) {
+  f.ctx.setTransform(f.dpr, 0, 0, f.dpr, 0, 0)
   for (const key of [f.selected, f.hovered]) {
     const n = key ? f.byKey.get(key) : undefined
     if (n) drawOuterLabel(f, n)
   }
-  ctx.globalAlpha = 1
+  f.ctx.globalAlpha = 1
 }
 
 function nodeAlpha(f: Frame, n: DrawNode): number {
