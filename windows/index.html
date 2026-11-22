@@ -38,6 +38,7 @@
         overflow: visible;
         color: #f5f5f6;
         opacity: 0;
+        will-change: transform, opacity;
         transition: scale 520ms cubic-bezier(0.4, 0, 0.2, 1);
       }
       /* при уходе знак чуть растёт — уходит «в глубину», не сдвигаясь */
@@ -79,47 +80,67 @@
           chord.play().catch(() => {})
         }
 
-        // знак проявляется из размытия и докручивается на месте с мягким торможением
+        // Пока заставка идёт, главный поток грузит интерфейс (Главная, герой с полем точек) и подвисает.
+        // Поэтому знак — только трансформация и прозрачность (их крутит видеокарта сама, без главного
+        // потока, без размытия), а поле точек рисует отдельный поток — OffscreenCanvas в воркере.
         svg.animate(
           reduce
             ? [{ opacity: 0 }, { opacity: 1 }]
             : [
-                { opacity: 0, transform: 'rotate(-220deg) scale(0.8)', filter: 'blur(8px)' },
-                { opacity: 1, transform: 'none', filter: 'blur(0)' },
+                { opacity: 0, transform: 'rotate(-220deg) scale(0.8)' },
+                { opacity: 1, transform: 'none' },
               ],
           { delay: reduce ? 0 : 100, duration: reduce ? 300 : 900, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'both' },
         )
 
         // поле точек и две волны из центра (0 и 240 мс — в такт аккорду); «меньше движения» — без поля
         if (!reduce) {
-          const dpr = devicePixelRatio || 1
-          const w = innerWidth, h = innerHeight, cx = w / 2, cy = h / 2
-          canvas.width = Math.round(w * dpr)
-          canvas.height = Math.round(h * dpr)
-          const ctx = canvas.getContext('2d')
-          ctx.scale(dpr, dpr)
-          const STEP = 16, W = STEP * 1.8, maxR = Math.hypot(w, h) / 2 + 40
-          const dots = []
-          for (let x = (w % STEP) / 2; x < w; x += STEP)
-            for (let y = (h % STEP) / 2; y < h; y += STEP) dots.push([x, y, Math.hypot(x - cx, y - cy), Math.atan2(y - cy, x - cx)])
-          const clamp = (t) => Math.min(1, Math.max(0, t))
-          const wave = (ms) => (1 - (1 - clamp(ms / 1150)) ** 3) * maxR
-          const t0 = performance.now()
-          const frame = (now) => {
-            const ms = now - t0
-            const base = 0.08 * clamp(ms / 200), r1 = wave(ms), r2 = wave(ms - 240)
-            ctx.clearRect(0, 0, w, h)
-            for (const [x, y, d, a] of dots) {
-              let b = 0
-              if (r1 > 0) b += Math.exp(-(((d - r1) / W) ** 2))
-              if (r2 > 0) b += Math.exp(-(((d - r2) / W) ** 2))
-              const fade = clamp(1 - (d / maxR) * 0.6), off = b * STEP * 0.35, sz = 1.4 + b * 1.4
-              ctx.fillStyle = 'rgba(245,245,246,' + (base + b * 0.8) * fade + ')'
-              ctx.fillRect(x + Math.cos(a) * off - sz / 2, y + Math.sin(a) * off - sz / 2, sz, sz)
+          const field = function (canvas, w, h, dpr, start, raf, done) {
+            const cx = w / 2, cy = h / 2
+            canvas.width = Math.round(w * dpr)
+            canvas.height = Math.round(h * dpr)
+            const ctx = canvas.getContext('2d')
+            ctx.scale(dpr, dpr)
+            const STEP = 16, W = STEP * 1.8, maxR = Math.hypot(w, h) / 2 + 40
+            const dots = []
+            for (let x = (w % STEP) / 2; x < w; x += STEP)
+              for (let y = (h % STEP) / 2; y < h; y += STEP) dots.push([x, y, Math.hypot(x - cx, y - cy), Math.atan2(y - cy, x - cx)])
+            const clamp = (t) => Math.min(1, Math.max(0, t))
+            const wave = (ms) => (1 - (1 - clamp(ms / 1150)) ** 3) * maxR
+            const frame = () => {
+              // общее время с заставкой и звуком (timeOrigin у воркера свой)
+              const ms = performance.timeOrigin + performance.now() - start
+              const base = 0.08 * clamp(ms / 200), r1 = wave(ms), r2 = wave(ms - 240)
+              ctx.clearRect(0, 0, w, h)
+              for (const [x, y, d, a] of dots) {
+                let b = 0
+                if (r1 > 0) b += Math.exp(-(((d - r1) / W) ** 2))
+                if (r2 > 0) b += Math.exp(-(((d - r2) / W) ** 2))
+                const fade = clamp(1 - (d / maxR) * 0.6), off = b * STEP * 0.35, sz = 1.4 + b * 1.4
+                ctx.fillStyle = 'rgba(245,245,246,' + (base + b * 0.8) * fade + ')'
+                ctx.fillRect(x + Math.cos(a) * off - sz / 2, y + Math.sin(a) * off - sz / 2, sz, sz)
+              }
+              if (ms < 1600) raf(frame)
+              else done()
             }
-            if (ms < 1500 && splash.isConnected) requestAnimationFrame(frame)
+            raf(frame)
           }
-          requestAnimationFrame(frame)
+          const start = performance.timeOrigin + window.__splashT0
+          const w = innerWidth, h = innerHeight, dpr = devicePixelRatio || 1
+          try {
+            const off = canvas.transferControlToOffscreen()
+            const src =
+              'const field = ' + field.toString() + ';\n' +
+              'onmessage = (e) => { const d = e.data; const raf = self.requestAnimationFrame ? (f) => self.requestAnimationFrame(f) : (f) => setTimeout(f, 16);' +
+              ' field(d.canvas, d.w, d.h, d.dpr, d.start, raf, () => self.close()) }'
+            const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }))
+            const worker = new Worker(url)
+            worker.postMessage({ canvas: off, w, h, dpr, start }, [off])
+            setTimeout(() => (worker.terminate(), URL.revokeObjectURL(url)), 2500)
+          } catch {
+            // нет OffscreenCanvas — рисуем здесь же, как раньше
+            field(canvas, w, h, dpr, start, (f) => splash.isConnected && requestAnimationFrame(f), () => {})
+          }
         }
 
         // окно создаётся скрытым — показываем, когда заставка уже нарисована (tray.rs `show_first`)

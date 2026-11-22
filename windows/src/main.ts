@@ -36,7 +36,8 @@ const app = plaque
   : mount(App, { target: document.getElementById('app')! })
 
 // Заставка из index.html («сонар-поле»): уходит, когда знак встал на место (~1 с от её начала),
-// а интерфейс за ней наводится на резкость — без сдвигов.
+// а интерфейс за ней чуть «подъезжает» (только масштаб — без размытия, его
+// считал бы главный поток, занятый загрузкой).
 const splash = document.getElementById('splash')
 if (splash) {
   const shown = performance.now() - ((window as { __splashT0?: number }).__splashT0 ?? 0)
@@ -46,8 +47,8 @@ if (splash) {
       if (!matchMedia('(prefers-reduced-motion: reduce)').matches)
         document.getElementById('app')?.animate(
           [
-            { filter: 'blur(8px)', scale: '1.02' },
-            { filter: 'blur(0)', scale: '1' },
+            { scale: '1.02' },
+            { scale: '1' },
           ],
           { duration: 820, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
         )
