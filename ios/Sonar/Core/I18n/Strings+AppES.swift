@@ -4,16 +4,7 @@
 
 extension I18n {
     static let appES: [String: String] = [
-        // меню трека: кеш, «Скачать» файлом, устройства, таймер сна; T в тексте
-        "Кешировать": "Guardar en caché",
-        "Кешируется…": "Guardando en caché…",
-        "Убрать из кеша": "Quitar de la caché",
-        "Убрано из кеша": "Quitado de la caché",
-        "Кеширую «{title}»": "Guardando «{title}» en caché",
-        "Освободит место на телефоне": "Liberará espacio en el teléfono",
-        "Скачать": "Descargar",
-        "В файл на телефон": "A un archivo en el teléfono",
-        "Готовлю файл…": "Preparando el archivo…",
+        // меню трека: устройства, таймер сна; T в тексте
         "Выбрать, где играет музыка": "Elegir dónde suena la música",
         "Остановить музыку через заданное время": "Detener la música tras un tiempo",
         "Включён — нажми, чтобы изменить": "Activado: toca para cambiar",

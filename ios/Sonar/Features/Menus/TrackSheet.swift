@@ -3,10 +3,9 @@ import UIKit
 
 /// Лист трека (`IMG_6774`): сверху обложка во всю ширину, растворяется в фон, на ней название,
 /// исполнитель и знак сервиса; капсула ♥ · + · в очередь · поделиться; ниже — Следующим, Волна по
-/// треку, Перейти к артисту, Открыть альбом, Кешировать (в Sonar, играет без сети — «Скачанные»), Скачать
-/// (файл в «Файлы» через лист «Поделиться», `TrackExport`), у играющего трека — Устройства и Таймер сна
-/// (по настройке `player.sleep_button`, запущенный — всегда), Копировать название, Не интересно, Удалить из
-/// плейлиста (если трек в списке). «+» — свои плейлисты Sonar (`AddToPlaylistSheet`). «Закрепить в профиле» — с сервером.
+/// треку, Перейти к артисту, Открыть альбом, Скачать (в Sonar, играет без сети — «Скачанные»), у играющего
+/// трека — Устройства и Таймер сна (по настройке `player.sleep_button`, запущенный — всегда), Копировать
+/// название, Не интересно, Удалить из плейлиста (если трек в списке). «+» — свои плейлисты Sonar (`AddToPlaylistSheet`). «Закрепить в профиле» — с сервером.
 struct TrackSheet: View {
     let item: TrackMenuItem
     @Environment(PlaybackEngine.self) private var engine
@@ -59,22 +58,7 @@ struct TrackSheet: View {
                                 router.push(route, on: chrome.tab, chrome: chrome)
                             }
                         }
-                        cacheRow
-                        SheetMenuRow(icon: .download, title: t("Скачать"), subtitle: t("В файл на телефон")) {
-                            dismiss()
-                            router.say(t("Готовлю файл…"))
-                            let track = track
-                            Task {
-                                do {
-                                    let file = try await TrackExport.file(for: track)
-                                    // меню трека должно успеть закрыться — иначе листу «Поделиться» не на чем открыться
-                                    try? await Task.sleep(for: .milliseconds(450))
-                                    TrackExport.share(file)
-                                } catch {
-                                    router.say(error.localizedDescription)
-                                }
-                            }
-                        }
+                        downloadRow
                         if isCurrent {
                             SheetMenuRow(icon: .computer, title: t("Устройства"), subtitle: t("Выбрать, где играет музыка")) {
                                 showDevices = true
@@ -241,21 +225,19 @@ struct TrackSheet: View {
         .accessibilityLabel(label)
     }
 
-    /// «Кешировать»: трек целиком в Sonar, играет без сети (`DownloadStore`, раздел «Скачанные»). Справа
-    /// внизу — сколько уже в кеше; предела нет — «∞».
     @ViewBuilder
-    private var cacheRow: some View {
+    private var downloadRow: some View {
         if let progress = downloads.progress[track.ref] {
-            SheetMenuRow(icon: .cloud, title: t("Кешируется…"), subtitle: "\(Int(progress * 100)) %", enabled: false) {}
+            SheetMenuRow(icon: .download, title: "Скачивается…", subtitle: "\(Int(progress * 100)) %", enabled: false) {}
         } else if downloads.isDownloaded(track.ref) {
-            SheetMenuRow(icon: .trash, title: t("Убрать из кеша"), subtitle: t("Освободит место на телефоне")) {
+            SheetMenuRow(icon: .trash, title: "Удалить загрузку", subtitle: "Освободит место на телефоне") {
                 downloads.remove(track.ref)
-                done(t("Убрано из кеша"))
+                done("Загрузка удалена")
             }
         } else {
-            SheetMenuRow(icon: .cloud, title: t("Кешировать"), subtitle: "\(downloads.downloaded.count) / ∞") {
+            SheetMenuRow(icon: .download, title: "Скачать", subtitle: "В файл на телефоне — играет без интернета") {
                 downloads.download(track)
-                done(t("Кеширую «{title}»", ["title": track.title]))
+                done("Скачиваю «\(track.title)»")
             }
         }
     }
