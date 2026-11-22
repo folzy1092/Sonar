@@ -102,13 +102,14 @@ final class SoundCloudRepairTests: XCTestCase {
     }
 
     func testJournalLinesCarryNoValues() {
-        for line in [SoundCloudRepair.Fix.clientId.journal, SoundCloudRepair.Fix.token.journal, SoundCloudRepair.journalRelogin] {
+        for line in [SoundCloudRepair.Fix.clientId.journal, SoundCloudRepair.Fix.token.journal, SoundCloudRepair.journalRelogin,
+                     SoundCloudRepair.journalDeferred] {
             XCTAssertTrue(line.hasPrefix("SoundCloud: 401"))
         }
     }
 
     func testBannerStringsAreTranslated() {
-        for key in ["Войди в SoundCloud заново", "Войти заново", "SoundCloud снова подключён"] {
+        for key in ["Войди в SoundCloud заново", "Войти заново", "SoundCloud снова подключён", "Вход устарел"] {
             XCTAssertNotEqual(I18n.translate(key, lang: .en), key)
             XCTAssertNotEqual(I18n.translate(key, lang: .uk), key)
         }

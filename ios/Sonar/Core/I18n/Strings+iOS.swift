@@ -4,6 +4,8 @@
 
 extension I18n {
     static let iosEN: [String: String] = [
+        // SoundCloud не принял вход (Профиль → SoundCloud)
+        "Вход устарел": "Sign-in expired",
         // настроения Sonar Mix (лист на Главной)
         "Настроения": "Moods",
         "Готово": "Done",
@@ -90,6 +92,8 @@ extension I18n {
     ]
 
     static let iosUK: [String: String] = [
+        // SoundCloud не принял вход (Профиль → SoundCloud)
+        "Вход устарел": "Вхід застарів",
         // настроения Sonar Mix (лист на Главной)
         "Настроения": "Настрої",
         "Готово": "Готово",

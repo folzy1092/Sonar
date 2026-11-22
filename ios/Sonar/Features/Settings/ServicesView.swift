@@ -22,6 +22,10 @@ struct ServicesView: View {
     @State private var deviceCode: YandexLogin.DeviceCode?
     @State private var login: Task<Void, Never>?
     @State private var showSoundCloudLogin = false
+    /// SoundCloud отверг сохранённый вход — вместо «Подключено» «Вход устарел» и «Войти заново».
+    @State private var soundCloudStale = false
+    /// Токен, который SoundCloud уже не принимает, — окно входа его не возьмёт.
+    @State private var staleToken: String?
     @State private var showYouTubeLogin = false
     @State private var showVKLogin = false
     @Environment(SettingsStore.self) private var settings
@@ -34,7 +38,24 @@ struct ServicesView: View {
                             ? "Без своих ключей поиск и открытые треки работают на публичном client_id с сайта. OAuth-токен нужен для лайков, плейлистов и закрытых треков."
                             : nil) {
                 if let account = status.soundCloud {
-                    connected(.soundcloud, account)
+                    connected(.soundcloud, account, stale: soundCloudStale)
+                    if soundCloudStale {
+                        RowDivider()
+                        Button {
+                            error = nil
+                            Task {
+                                staleToken = await MusicCore.shared.soundCloudToken()
+                                showSoundCloudLogin = true
+                            }
+                        } label: {
+                            Text(t("Войти заново"))
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Theme.accent)
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                        }
+                        .disabled(busy != nil)
+                        .transition(.opacity)
+                    }
                 } else {
                     Button { error = nil; showSoundCloudLogin = true } label: {
                         Label("Войти в SoundCloud", systemImage: "person.badge.key")
@@ -160,9 +181,17 @@ struct ServicesView: View {
         .animation(Motion.spring, value: deviceCode)
         .onDisappear { login?.cancel() }
         .animation(Motion.spring, value: error)
-        .task { status = await MusicCore.shared.status() }
+        .animation(Motion.spring, value: soundCloudStale)
+        .task {
+            status = await MusicCore.shared.status()
+            // «Подключено» — только если SoundCloud правда принимает вход (а не просто ключи сохранены)
+            if status.soundCloud != nil, only == nil || only == .soundcloud {
+                soundCloudStale = !(await MusicCore.shared.soundCloudSignedIn())
+                status = await MusicCore.shared.status()
+            }
+        }
         .sheet(isPresented: $showSoundCloudLogin) {
-            SoundCloudLoginSheet { token in
+            SoundCloudLoginSheet(ignore: staleToken) { token in
                 showSoundCloudLogin = false
                 connectSoundCloud(token: token)
             }
@@ -193,7 +222,8 @@ struct ServicesView: View {
             do {
                 let id = try await SoundCloud.publicClientId()
                 _ = try await MusicCore.shared.connectSoundCloud(SoundCloudCreds(clientId: id, oauthToken: token))
-                withAnimation(Motion.spring) { error = nil }
+                withAnimation(Motion.spring) { error = nil; soundCloudStale = false }
+                staleToken = nil
                 status = await MusicCore.shared.status()
             } catch {
                 withAnimation(Motion.spring) { self.error = error.localizedDescription }
@@ -339,14 +369,16 @@ struct ServicesView: View {
         .disabled(!enabled || busy != nil)
     }
 
-    private func connected(_ service: Service, _ account: ServiceAccount) -> some View {
+    private func connected(_ service: Service, _ account: ServiceAccount, stale: Bool = false) -> some View {
         HStack(spacing: 12) {
             CoverImage(url: account.avatarURL, cornerRadius: 18).frame(width: 36, height: 36)
             VStack(alignment: .leading, spacing: 2) {
                 Text(account.name ?? "Подключено")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Theme.text)
-                Text("Подключено").font(.system(size: 13)).foregroundStyle(Theme.success)
+                Text(stale ? t("Вход устарел") : t("Подключено")).font(.system(size: 13))
+                    .foregroundStyle(stale ? Theme.danger : Theme.success)
+                    .contentTransition(.opacity)
             }
             Spacer()
             Button("Отключить", role: .destructive) {

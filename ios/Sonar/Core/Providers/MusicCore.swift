@@ -52,6 +52,9 @@ actor MusicCore {
     /// Тихий вход SoundCloud (скрытый WKWebView, `SoundCloudSilentLogin`) — ставит приложение, у ядра
     /// нет WebView. Прежний `oauth_token` → новый или nil.
     private var soundCloudRelogin: (@Sendable (String?) async -> String?)?
+    /// Можно ли тихо входить прямо сейчас: в фоне iOS не даёт скрытому WKWebView выполнить сайт, и вход
+    /// заведомо сорвётся — тогда «Войди заново» не показываем, а ждём, пока Sonar откроют.
+    private var soundCloudReloginReady: (@Sendable () async -> Bool)?
     /// Тихий вход уже идёт — остальные 401 ждут его же, второе окно не открываем.
     private var soundCloudReloginTask: Task<String?, Never>?
     /// Починить не вышло — до нового входа плашку не повторяем и тихий вход не зовём.
@@ -124,8 +127,22 @@ actor MusicCore {
         return account
     }
 
-    func setSoundCloudRelogin(_ hook: @escaping @Sendable (String?) async -> String?) {
+    /// Живой ли вход SoundCloud: профиль с починкой ключей (свежий client_id, тихий вход). false — только
+    /// когда SoundCloud отверг вход; без токена, без сети и при прочих ошибках — true (не пугаем зря).
+    func soundCloudSignedIn() async -> Bool {
+        guard soundCloud?.creds.oauthToken?.isEmpty == false else { return true }
+        do {
+            _ = try await withSoundCloud { try await $0.account() }
+            return true
+        } catch {
+            return !(Self.isAuthError(error) || soundCloudStale)
+        }
+    }
+
+    func setSoundCloudRelogin(_ hook: @escaping @Sendable (String?) async -> String?,
+                              ready: @escaping @Sendable () async -> Bool) {
         soundCloudRelogin = hook
+        soundCloudReloginReady = ready
     }
 
     /// Токен входа SoundCloud, который сейчас сохранён (окно входа не берёт эту же устаревшую cookie).
@@ -205,17 +222,23 @@ actor MusicCore {
             return try await call(SoundCloud(clientId: current.clientId, oauthToken: current.oauthToken))
         }
         if soundCloudStale { throw ServiceError(message: SoundCloudRepair.reloginMessage) }
+        let ready = await soundCloudReloginReady?() ?? true
         let out = await SoundCloudRepair.repair(
             old: failed, error: error,
             call: { try await call(SoundCloud(clientId: $0.clientId, oauthToken: $0.oauthToken)) },
             freshId: { try await SoundCloud.publicClientId() },
-            relogin: { await self.silentSoundCloudLogin($0) })
+            relogin: { ready ? await self.silentSoundCloudLogin($0) : nil })
         if let save = out.save, let account = soundCloud?.account {
             CrashLog.note(save.fix.journal)
             let stored = StoredService(creds: save.creds, account: account)
             ServiceVault.save("soundcloud", stored)
             soundCloud = stored
             streams.removeAll()
+        }
+        if out.relogin, !ready {
+            // в фоне тихий вход не пробовали — вход не «устарел», повторим, когда Sonar откроют
+            CrashLog.note(SoundCloudRepair.journalDeferred)
+            throw error
         }
         if out.relogin, !soundCloudStale {
             CrashLog.warn(SoundCloudRepair.journalRelogin)
@@ -459,10 +482,9 @@ actor MusicCore {
     /// первыми) — последним. Ошибка одного сервиса не мешает другому.
     func myPlaylists() async -> [ServicePlaylist] {
         var out: [ServicePlaylist] = []
-        if let soundCloud, let token = soundCloud.creds.oauthToken, !token.isEmpty, let uid = soundCloud.account.uid {
-            let client = SoundCloud(clientId: soundCloud.creds.clientId, oauthToken: token)
+        if let soundCloud, soundCloud.creds.oauthToken?.isEmpty == false, let uid = soundCloud.account.uid {
             out.append(ServicePlaylist(ref: "scpl:likes", title: "Лайки SoundCloud", owner: soundCloud.account.name ?? "", coverURL: nil, trackCount: 0))
-            out += (try? await client.userPlaylists(uid)) ?? []
+            out += (try? await withSoundCloud { try await $0.userPlaylists(uid) }) ?? []
         }
         if let yandex, let uid = yandex.account.uid {
             out.append(ServicePlaylist(ref: "ympl:likes", title: "Мне нравится", owner: yandex.account.name ?? "", coverURL: nil, trackCount: 0))
@@ -490,11 +512,11 @@ actor MusicCore {
         let (kind, id) = try Self.split(ref)
         switch (kind, id) {
         case ("scpl", "likes"):
-            guard let soundCloud, let token = soundCloud.creds.oauthToken, !token.isEmpty, let uid = soundCloud.account.uid else {
+            guard let soundCloud, soundCloud.creds.oauthToken?.isEmpty == false, let uid = soundCloud.account.uid else {
                 throw ServiceError(message: "Для лайков SoundCloud нужен OAuth-токен — Профиль → Сервисы")
             }
-            let client = SoundCloud(clientId: soundCloud.creds.clientId, oauthToken: token)
-            let tracks = keep(try await client.userLikes(uid, max: Self.maxServiceLikes))
+            // через withSoundCloud: на 401 — свежий client_id и тихий вход, а не голая ошибка
+            let tracks = keep(try await withSoundCloud { try await $0.userLikes(uid, max: Self.maxServiceLikes) })
             return (ServicePlaylist(ref: ref, title: "Лайки SoundCloud", owner: soundCloud.account.name ?? "",
                                     coverURL: tracks.first?.coverURL, trackCount: tracks.count), tracks)
         case ("scpl", _):

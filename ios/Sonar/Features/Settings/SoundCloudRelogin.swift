@@ -21,9 +21,11 @@ final class SoundCloudRelogin {
 
     /// Ядру — тихий вход, приложению — плашка. Зовётся один раз при запуске.
     func start() async {
-        await MusicCore.shared.setSoundCloudRelogin { old in
+        await MusicCore.shared.setSoundCloudRelogin({ old in
             await SoundCloudSilentLogin.run(ignore: old)
-        }
+        }, ready: {
+            await MainActor.run { UIApplication.shared.applicationState == .active }
+        })
         guard observer == nil else { return }
         observer = NotificationCenter.default.addObserver(forName: SoundCloudRepair.reloginNeeded, object: nil,
                                                           queue: .main) { _ in

@@ -4,6 +4,7 @@
 
 extension I18n {
     static let appES: [String: String] = [
+        "Вход устарел": "Sesión caducada",
         "AAC · 128 кбит/с": "AAC · 128 kbps",
         "AAC · до 256 кбит/с": "AAC · hasta 256 kbps",
         "Cookie music.youtube.com": "Cookie de music.youtube.com",

@@ -123,7 +123,7 @@ impl Provider for ScProvider<'_> {
 
   async fn playlists(&self) -> Result<Vec<ServicePlaylist>> {
     let core = self.core;
-    let Some((creds, uid)) = core.sc_uid().await? else { return Ok(vec![]) };
+    let Some((_, uid)) = core.sc_uid().await? else { return Ok(vec![]) };
     let mut out = vec![ServicePlaylist {
       ref_: "scpl:likes".into(),
       title: "Лайки SoundCloud".into(),
@@ -131,15 +131,18 @@ impl Provider for ScProvider<'_> {
       cover_url: None,
       track_count: 0,
     }];
-    out.extend(soundcloud::SoundCloud { http: &core.http, creds: &creds }.user_playlists(&uid).await?);
+    let (http, uid) = (&core.http, uid.as_str());
+    out.extend(core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.user_playlists(uid).await }).await?);
     Ok(out)
   }
 
   async fn playlist(&self, id: &str) -> Result<PlaylistPage> {
     let core = self.core;
     if id == "likes" {
-      let (creds, uid) = core.sc_uid().await?.ok_or_else(|| anyhow!("Нужен OAuth-токен SoundCloud"))?;
-      let raw = soundcloud::SoundCloud { http: &core.http, creds: &creds }.user_likes(&uid, MAX_LIKES).await?;
+      // через with_sc: на 401 — свежий client_id и тихий вход, а не голая ошибка
+      let (_, uid) = core.sc_uid().await?.ok_or_else(|| anyhow!("Нужен OAuth-токен SoundCloud"))?;
+      let (http, uid) = (&core.http, uid.as_str());
+      let raw = core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.user_likes(uid, MAX_LIKES).await }).await?;
       let tracks = core.sc_keep(raw);
       let mut head = self.playlists().await.ok().and_then(|l| l.into_iter().next()).unwrap_or(ServicePlaylist {
         ref_: "scpl:likes".into(),

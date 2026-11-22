@@ -4,6 +4,7 @@
 
 extension I18n {
     static let appDE: [String: String] = [
+        "Вход устарел": "Anmeldung abgelaufen",
         "AAC · 128 кбит/с": "AAC · 128 kbit/s",
         "AAC · до 256 кбит/с": "AAC · bis 256 kbit/s",
         "Cookie music.youtube.com": "music.youtube.com-Cookie",

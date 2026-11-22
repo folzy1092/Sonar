@@ -4,6 +4,7 @@
 
 extension I18n {
     static let appPL: [String: String] = [
+        "Вход устарел": "Logowanie wygasło",
         "AAC · 128 кбит/с": "AAC · 128 kb/s",
         "AAC · до 256 кбит/с": "AAC · do 256 kb/s",
         "Cookie music.youtube.com": "Ciasteczko music.youtube.com",

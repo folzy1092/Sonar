@@ -22,6 +22,7 @@ enum SoundCloudRepair {
         }
     }
 
+    static let journalDeferred = "SoundCloud: 401 в фоне — новый client_id не помог, тихий вход отложен до открытия Sonar"
     static let journalRelogin = "SoundCloud: 401 — ни новый client_id, ни тихий вход не помогли, нужен вход заново"
 
     /// Текст ошибки, когда починить не вышло.
