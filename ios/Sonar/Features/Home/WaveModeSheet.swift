@@ -58,7 +58,7 @@ struct WaveModeSheet: View {
         let hue = Self.hue(mode)
         return Button {
             picked = mode
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
         } label: {
             HStack(spacing: 14) {
                 SonarIcon(Self.icon(mode), filled: selected, size: 24)

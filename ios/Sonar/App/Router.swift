@@ -27,14 +27,16 @@ struct TrackMenuItem: Identifiable {
 @MainActor
 @Observable
 final class Router {
-    var home = NavigationPath()
-    var library = NavigationPath()
-    var search = NavigationPath()
+    // Каждый переход — лёгкий отклик (Haptics.step): вперёд, назад кнопкой и свайпом, к началу вкладки,
+    // плеер открылся или закрылся. Нажатие кнопки перед переходом второго «тыка» не даёт.
+    var home = NavigationPath() { didSet { if home.count != oldValue.count { Haptics.step() } } }
+    var library = NavigationPath() { didSet { if library.count != oldValue.count { Haptics.step() } } }
+    var search = NavigationPath() { didSet { if search.count != oldValue.count { Haptics.step() } } }
     var trackMenu: TrackMenuItem?
     /// Открыт полный плеер.
-    var playerOpen = false
+    var playerOpen = false { didSet { if playerOpen != oldValue { Haptics.step() } } }
     /// Стек Профиля без пути (экраны настроек открываются ссылками-видами) — к началу его возвращает новый id.
-    var profileRoot = UUID()
+    var profileRoot = UUID() { didSet { Haptics.step() } }
     private(set) var toast: String?
 
     @ObservationIgnored private var toastTask: Task<Void, Never>?

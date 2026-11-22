@@ -442,7 +442,7 @@ struct PlaylistScreen: View {
             .onChanged { value in
                 if dragRef == nil {
                     dragRef = track.ref
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    Haptics.tap()
                 }
                 guard let from = draft.firstIndex(where: { $0.ref == track.ref }) else { return }
                 var offset = value.translation.height - consumed(track)
@@ -453,7 +453,7 @@ struct PlaylistScreen: View {
                     withAnimation(Motion.spring) { draft.insert(moved, at: to) }
                     shift[track.ref, default: 0] += CGFloat(to - from) * Self.editRowHeight
                     offset = value.translation.height - consumed(track)
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    Haptics.select()
                 }
                 dragOffset = offset
             }
@@ -472,7 +472,7 @@ struct PlaylistScreen: View {
 
     private func toggleSelection(_ track: Track) {
         if selected.contains(track.ref) { selected.remove(track.ref) } else { selected.insert(track.ref) }
-        UISelectionFeedbackGenerator().selectionChanged()
+        Haptics.select()
     }
 
     private var selectionPanel: some View {

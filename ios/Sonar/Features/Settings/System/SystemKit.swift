@@ -195,7 +195,7 @@ struct SystemSegments<ID: Hashable>: View {
                 Button {
                     guard !on else { return }
                     withAnimation(Motion.spring) { selection = option.id }
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    Haptics.select()
                 } label: {
                     Text(option.title)
                         .font(.system(size: 15, weight: .semibold))

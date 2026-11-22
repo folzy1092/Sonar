@@ -82,7 +82,7 @@ struct PlayerViewSettingsView: View {
         let on = SliderStyle.current(settings) == slider
         return Button {
             slider.save(settings)
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
         } label: {
             HStack(spacing: 16) {
                 Text(slider.title)

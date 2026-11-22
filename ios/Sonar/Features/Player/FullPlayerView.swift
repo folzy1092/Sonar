@@ -328,7 +328,7 @@ struct FullPlayerView: View {
         if action == .like {
             // двойной тап ставит лайк (не снимает) — как в соцсетях; сердце вспыхивает
             if !library.isLiked(track) { library.toggleLike(track) }
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            Haptics.hold()
             likeBurst += 1
             return
         }
@@ -451,7 +451,7 @@ struct FullPlayerView: View {
             .contentShape(Rectangle())
             .onTapGesture { touched() }
             .onLongPressGesture(minimumDuration: 0.45) {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Haptics.hold()
                 showLyricsMenu = true
             }
         }
@@ -866,9 +866,9 @@ struct FullPlayerView: View {
             .contentShape(Circle())
             .scaleEffect(lyricsCirclePressed ? 0.88 : 1)
             .animation(Motion.spring, value: lyricsCirclePressed)
-            .onTapGesture { showLyrics = false }
+            .onTapGesture { Haptics.tap(); showLyrics = false }
             .onLongPressGesture(minimumDuration: 0.45) {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Haptics.hold()
                 touched()
                 showLyricsMenu = true
             } onPressingChanged: { lyricsCirclePressed = $0 }
@@ -940,9 +940,9 @@ struct FullPlayerView: View {
                         ? Theme.text : Theme.textTertiary)
                     .frame(width: 26, height: 44)
                     .contentShape(Rectangle())
-                    .onTapGesture { showLyrics = true }
+                    .onTapGesture { Haptics.tap(); showLyrics = true }
                     .onLongPressGesture(minimumDuration: 0.45) {
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Haptics.hold()
                         showLyricsMenu = true
                     }
                     .accessibilityElement()
@@ -1142,7 +1142,7 @@ struct SpeedSheet: View {
     private func stepButton(_ icon: IconName, label: String, action: @escaping @MainActor () -> Void) -> some View {
         Button {
             withAnimation(Motion.spring) { action() }
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
         } label: {
             SonarIcon(icon, size: 16)
                 .foregroundStyle(Theme.text)
@@ -1156,7 +1156,7 @@ struct SpeedSheet: View {
     private func toggleRow(_ title: String, _ subtitle: String, isOn: Binding<Bool>) -> some View {
         Toggle(isOn: Binding(get: { isOn.wrappedValue }, set: { value in
             withAnimation(Motion.spring) { isOn.wrappedValue = value }
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
         })) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -1254,7 +1254,7 @@ struct QueueSheet: View {
             GestureRunner.perform(action, track: track)
             return
         }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.tap()
     }
 
     private func row(_ track: Track, playing: Bool = false) -> some View {

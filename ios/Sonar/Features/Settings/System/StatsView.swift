@@ -204,7 +204,7 @@ struct StatsView: View {
                         highlighted: selectedBucket == nil ? index == s.buckets.count - 1 : bucket.start == selectedBucket)
                         .onTapGesture {
                             withAnimation(Motion.spring) { selectedBucket = selectedBucket == bucket.start ? nil : bucket.start }
-                            UISelectionFeedbackGenerator().selectionChanged()
+                            Haptics.select()
                         }
                 }
             }

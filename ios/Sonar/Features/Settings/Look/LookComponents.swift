@@ -223,7 +223,7 @@ struct LookChoiceSheet: View {
                 let on = item.id == selected
                 Button {
                     pick(item.id)
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    Haptics.select()
                 } label: {
                     HStack(spacing: 22) {
                         SonarIcon(item.icon, size: 26).foregroundStyle(Theme.text)

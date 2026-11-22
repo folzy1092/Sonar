@@ -38,7 +38,7 @@ enum GestureRunner {
             }
             remove()
         }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.tap()
     }
 }
 
@@ -138,7 +138,7 @@ struct TrackSwipe: ViewModifier {
         let nowArmed = abs(dx) >= Self.threshold
         if nowArmed != armed {
             armed = nowArmed
-            if nowArmed { UISelectionFeedbackGenerator().selectionChanged() }
+            if nowArmed { Haptics.select() }
         }
     }
 

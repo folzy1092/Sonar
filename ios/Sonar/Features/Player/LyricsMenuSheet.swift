@@ -21,7 +21,7 @@ struct LyricsMenuSheet: View {
                     let all = LyricsSize.allCases
                     let next = all[((all.firstIndex(of: look.size) ?? 0) + 1) % all.count]
                     store.size = next
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    Haptics.select()
                 } label: {
                     Text(look.size.rawValue)
                         .font(.system(size: 16, weight: .bold))
@@ -97,7 +97,7 @@ struct LyricsMenuSheet: View {
                 let on = words == option
                 Button {
                     guard option != words else { return }
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    Haptics.select()
                     withAnimation(Motion.spring) { shownWords = option }
                     // текст перестраивается, когда капсула доехала — анимация не дёргается
                     Task {
@@ -133,7 +133,7 @@ struct LyricsMenuSheet: View {
     private func cycleRow(_ title: String, _ value: String, action: @escaping @MainActor () -> Void) -> some View {
         Button {
             action()
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {

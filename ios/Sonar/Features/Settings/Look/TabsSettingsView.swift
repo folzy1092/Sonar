@@ -18,7 +18,7 @@ struct TabsSettingsView: View {
                 ForEach(TabBarStyle.allCases) { item in
                     LookTile(icon: icon(item), title: item.title, subtitle: item.subtitle, selected: style == item) {
                         settings.set(LookKey.tabStyle, .string(item.rawValue))
-                        UISelectionFeedbackGenerator().selectionChanged()
+                        Haptics.select()
                     }
                 }
             }

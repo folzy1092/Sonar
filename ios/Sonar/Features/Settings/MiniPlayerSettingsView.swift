@@ -132,7 +132,7 @@ struct MiniPlayerSettingsView: View {
                 let on = style.preset == preset
                 Button {
                     MiniStyle.presets[preset]?.save(settings)
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    Haptics.select()
                 } label: {
                     VStack(spacing: 10) {
                         SonarIcon(preset.icon, filled: on, size: 30)
@@ -223,7 +223,7 @@ struct OptionSheet: View {
         var next = style
         edit(&next)
         next.save(settings)
-        UISelectionFeedbackGenerator().selectionChanged()
+        Haptics.select()
     }
 
     private func row(icon: IconName, title: String, on: Bool, action: @escaping @MainActor () -> Void) -> some View {

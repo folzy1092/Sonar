@@ -127,7 +127,7 @@ struct LookSettingsView: View {
             ForEach(AppearanceMode.allCases) { item in
                 LookTile(icon: modeIcon(item), title: item.title, selected: mode == item) {
                     settings.set(LookKey.mode, .string(item.rawValue))
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    Haptics.select()
                 }
             }
         }
@@ -157,7 +157,7 @@ struct LookSettingsView: View {
     private func swatch(title: String, colors: (accent: RGB, bg: RGB), on: Bool, pick: @escaping @MainActor () -> Void) -> some View {
         Button {
             pick()
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
         } label: {
             VStack(spacing: 8) {
                 HStack(spacing: -7) {

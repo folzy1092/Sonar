@@ -112,7 +112,7 @@ struct AboutSection: View {
 
     private func check() {
         guard mark == .idle else { return }
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        Haptics.hold()
         mark = .spin
         withAnimation(.easeInOut(duration: 1.0)) { turns += 2 }
         Task {
@@ -130,7 +130,7 @@ struct AboutSection: View {
                 router.say(message.isEmpty ? t("Не удалось проверить обновления") : message)
                 mark = .idle
             default:
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                Haptics.success()
                 withAnimation(Motion.spring) { mark = .done }
                 router.say(t("Новых обновлений не найдено — у тебя последняя версия"))
                 try? await Task.sleep(for: .seconds(1.8))
@@ -141,7 +141,7 @@ struct AboutSection: View {
 
     private func reset() {
         settings.resetToDefaults()
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Haptics.success()
         router.say(t("Настройки сброшены"))
     }
 }

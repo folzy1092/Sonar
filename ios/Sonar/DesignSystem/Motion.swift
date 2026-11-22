@@ -50,7 +50,7 @@ struct PressableStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(Motion.quick, value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, pressed in
-                if pressed, haptic { Haptics.tap() }
+                if pressed, haptic { Haptics.tapThenStep() }
             }
     }
 }

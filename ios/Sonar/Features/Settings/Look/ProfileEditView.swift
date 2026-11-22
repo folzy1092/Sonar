@@ -177,7 +177,7 @@ struct ProfileEditView: View {
             if hasAvatar {
                 Button("Убрать аватар") {
                     settings.set(LookKey.profileAvatar, .string(""))
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    Haptics.select()
                 }
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(Theme.accent)
@@ -197,7 +197,7 @@ struct ProfileEditView: View {
             Button {
                 guard let url else { return }
                 UIPasteboard.general.string = url
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                Haptics.success()
                 withAnimation(Motion.quick) { copied = true }
                 copiedReset?.cancel()
                 copiedReset = Task {

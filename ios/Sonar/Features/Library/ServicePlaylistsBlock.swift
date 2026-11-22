@@ -155,7 +155,7 @@ struct ServicePlaylistsBlock: View {
     private func next() {
         let services = LibraryServices.all
         let index = services.firstIndex { $0.id == current.id } ?? 0
-        UISelectionFeedbackGenerator().selectionChanged()
+        Haptics.select()
         selected = services[(index + 1) % services.count].id.rawValue
     }
 }
@@ -294,7 +294,7 @@ struct ImportPlaylistsSheet: View {
                 }
                 if store.create(name: playlist.title, tracks: tracks, sourceRef: playlist.ref) != nil {
                     done.insert(playlist.ref)
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    Haptics.success()
                 }
             } catch {
                 failed[playlist.ref] = error.localizedDescription

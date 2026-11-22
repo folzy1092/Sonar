@@ -244,7 +244,7 @@ struct StorageSettingsView: View {
     }
 
     private func done(_ text: String) {
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Haptics.success()
         router.say(text)
         Task { await refresh() }
     }

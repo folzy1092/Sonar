@@ -157,7 +157,7 @@ struct LyricsView: View {
             : .timingCurve(0.22, 1, 0.36, 1, duration: max(0.2, m.duration)), value: delta)
         .contentShape(Rectangle())
         .onTapGesture {
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
             if lyrics.synced { onSeek(max(0, line.start - offset + 0.01)) }
             onTouch()
         }

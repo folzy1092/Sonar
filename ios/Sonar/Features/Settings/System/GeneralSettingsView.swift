@@ -108,7 +108,7 @@ private struct LanguageSheet: View {
                     let on = currentLang() == lang
                     Button {
                         withAnimation(Motion.spring) { settings.set(Lang.settingKey, .string(lang.rawValue)) }
-                        UISelectionFeedbackGenerator().selectionChanged()
+                        Haptics.select()
                     } label: {
                         HStack(spacing: 12) {
                             Text(lang.flag)

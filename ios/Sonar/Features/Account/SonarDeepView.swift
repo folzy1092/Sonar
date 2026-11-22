@@ -93,7 +93,7 @@ struct SonarDeepView: View {
         return Button {
             guard !on else { return }
             withAnimation(Motion.spring) { periodID = option.id }
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(periodLabel(option.months))

@@ -43,7 +43,7 @@ struct SleepTimerSection: View {
                                 if case .minutes = option { selectedMinutes = option } else { selectedMinutes = nil }
                             }
                         }
-                        UISelectionFeedbackGenerator().selectionChanged()
+                        Haptics.select()
                     } label: {
                         Text(option.shortTitle)
                             .font(.system(size: 14, weight: .semibold))

@@ -171,7 +171,7 @@ struct EqualizerSheet: View {
                 Spacer()
                 Toggle("", isOn: Binding(get: { enabled }, set: { value in
                     withAnimation(Motion.spring) { settings.set(Equalizer.enabledKey, value) }
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    Haptics.select()
                 }))
                 .labelsHidden()
                 .tint(Theme.accent)
@@ -214,7 +214,7 @@ struct EqualizerSheet: View {
                 let list = EqualizerUserPresets.adding(newName, gains: gains, to: userPresets)
                 settings.set(EqualizerUserPresets.key, .string(EqualizerUserPresets.encode(list)))
                 newName = ""
-                UISelectionFeedbackGenerator().selectionChanged()
+                Haptics.select()
             }
         } message: {
             Text(t("Подвигай полосы и сохрани кривую — она появится здесь"))
@@ -266,7 +266,7 @@ struct EqualizerSheet: View {
                         .onChanged { drag in
                             if dragging != i {
                                 dragging = i
-                                UISelectionFeedbackGenerator().selectionChanged()
+                                Haptics.select()
                             }
                             let part = Double(drag.location.x / max(1, w))
                             let db = Equalizer.clamp(part * 2 * Equalizer.maxDb - Equalizer.maxDb)
@@ -335,7 +335,7 @@ struct EqualizerSheet: View {
         Button {
             withAnimation(Motion.spring) { gains = preset.gains }
             save()
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
         } label: {
             Text(builtin ? t(preset.name) : preset.name)
                 .font(.system(size: 15, weight: .semibold))

@@ -26,7 +26,7 @@ struct QuickPlaylistSheet: View {
             settings.set(QuickPlaylist.key, .string(choice.setting))
             settings.set(QuickPlaylist.titleKey, .string(title))
         }
-        UISelectionFeedbackGenerator().selectionChanged()
+        Haptics.select()
     }
 
     var body: some View {

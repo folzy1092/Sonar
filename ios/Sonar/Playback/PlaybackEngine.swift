@@ -316,7 +316,7 @@ final class PlaybackEngine {
     /// Выбрали трек (в списке, у артиста, в очереди) — лёгкий отклик, если включён (`general.haptics`).
     private func tapFeedback() {
         guard SettingsStore.shared.bool("general.haptics") else { return }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.tap()
     }
 
     func setRate(_ value: Float) {

@@ -58,7 +58,7 @@ struct DrumRuler: View {
                         guard abs(next - value) >= step / 2 else { return }
                         let mediumStep = step * Double(medium)
                         if Int((next / mediumStep).rounded(.down)) != Int((value / mediumStep).rounded(.down)) {
-                            UISelectionFeedbackGenerator().selectionChanged()
+                            Haptics.select()
                         }
                         onChange(next)
                     }
@@ -66,7 +66,7 @@ struct DrumRuler: View {
             )
             .onTapGesture(count: 2) {
                 withAnimation(Motion.spring) { onChange(reset) }
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Haptics.tap()
             }
         }
         .frame(height: height)

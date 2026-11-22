@@ -51,7 +51,7 @@ struct FallbackSettingsCard: View {
     private func arrow(_ icon: IconName, label: String, index: Int, offset: Int) -> some View {
         let possible = order.indices.contains(index + offset)
         return Button {
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
             let next = FallbackPlan.moved(order, from: index, by: offset)
             withAnimation(Motion.spring) { settings.set(FallbackPlan.orderKey, .string(FallbackPlan.encode(next))) }
         } label: {

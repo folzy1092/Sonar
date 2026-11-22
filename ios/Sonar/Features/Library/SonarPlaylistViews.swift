@@ -109,12 +109,12 @@ struct AddToPlaylistSheet: View {
         return Button {
             if let single, inside {
                 store.remove([single.ref], from: playlist.id)
-                UISelectionFeedbackGenerator().selectionChanged()
+                Haptics.select()
                 done(t("Убрано из «{name}»", ["name": playlist.name]))
                 return
             }
             let added = store.add(tracks, to: playlist.id, atStart: atStart)
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
             done(added > 0 ? t("Добавлено в «{name}»", ["name": playlist.name]) : t("Уже в «{name}»", ["name": playlist.name]))
         } label: {
             HStack(spacing: 14) {

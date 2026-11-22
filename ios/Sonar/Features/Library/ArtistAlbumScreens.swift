@@ -35,7 +35,7 @@ private struct PageHeader: View {
                 if let saved, let onSave {
                     CircleButton(icon: saved ? savedIcon : saveIcon, filled: saved, label: saveLabel) {
                         withAnimation(Motion.spring) { onSave() }
-                        UISelectionFeedbackGenerator().selectionChanged()
+                        Haptics.select()
                     }
                     .transition(.scale.combined(with: .opacity))
                 }

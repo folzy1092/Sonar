@@ -75,7 +75,7 @@ struct PlayerToggleRow: View {
     var body: some View {
         Toggle(isOn: Binding(get: { isOn }, set: { value in
             withAnimation(Motion.spring) { isOn = value }
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
         })) {
             HStack(spacing: 16) {
                 SonarIcon(icon, filled: isOn, size: 24)
@@ -187,7 +187,7 @@ struct ChoiceSheet: View {
         let on = item.id == selected
         return Button {
             pick(item.id)
-            UISelectionFeedbackGenerator().selectionChanged()
+            Haptics.select()
             // выбор видно (галочка) — и лист уходит сам
             Task {
                 try? await Task.sleep(for: .milliseconds(220))
@@ -251,7 +251,7 @@ struct ChoiceTiles: View {
                 let on = item.id == selected
                 Button {
                     pick(item.id)
-                    UISelectionFeedbackGenerator().selectionChanged()
+                    Haptics.select()
                 } label: {
                     VStack(spacing: 8) {
                         SonarIcon(item.icon, filled: on, size: 28)

@@ -285,6 +285,7 @@ struct SearchView: View {
                 .frame(height: 52)
                 .contentShape(Rectangle())
                 .onTapGesture {
+                    Haptics.tap()
                     query = item
                     focused = false
                     remember(item)
