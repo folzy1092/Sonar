@@ -54,12 +54,12 @@ struct LyricsMenuSheet: View {
 
             Button {
                 Task {
-                    if store.translation.isEmpty { await store.translate(to: "ru") } else { store.clearTranslation() }
+                    if store.translationLanguage == nil { await store.translate(to: currentLang().rawValue) } else { store.clearTranslation() }
                 }
             } label: {
                 HStack(spacing: 10) {
                     SonarIcon(.translate, size: 21)
-                    Text(store.translation.isEmpty ? "Перевод" : "Убрать перевод")
+                    Text(t(store.translationLanguage == nil ? "Перевести" : "Без перевода"))
                         .font(.system(size: 16, weight: .semibold))
                 }
                 .foregroundStyle(Theme.text)
@@ -86,7 +86,7 @@ struct LyricsMenuSheet: View {
         .padding(.horizontal, Theme.gutter)
         .padding(.top, 30)
         .animation(Motion.spring, value: look)
-        .animation(Motion.spring, value: store.translation.isEmpty)
+        .animation(Motion.spring, value: store.translationLanguage == nil)
     }
 
     /// По словам / По строкам; без пословного времени «По словам» приглушено (закраска — по длительности строки).

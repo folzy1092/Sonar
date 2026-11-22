@@ -174,7 +174,7 @@ struct FullPlayerView: View {
         }
         .onChange(of: lyricsStore.translationMessage) { _, message in
             if let message {
-                engine.message = message
+                engine.message = t(message)
                 lyricsStore.translationMessage = nil
             }
         }
@@ -492,6 +492,7 @@ struct FullPlayerView: View {
             }
             .buttonStyle(PressableStyle())
             .accessibilityLabel("Вернуться к обложке")
+            translateButton
             // ⋮ — то же меню трека, что и без текста; меню текста — зажать текст или кнопку T
             Button {
                 touched()
@@ -508,6 +509,34 @@ struct FullPlayerView: View {
         // промежутки между кнопками тоже шапка: тап — показать кнопки, а не перемотать строку под ней
         .contentShape(Rectangle())
         .onTapGesture { touched() }
+    }
+
+    /// Перевод текста на язык интерфейса — на виду в шапке (раньше был только в меню текста по долгому
+    /// нажатию, и его никто не находил). Включён — подсвечен и держится для следующих треков.
+    private var translateButton: some View {
+        let on = lyricsStore.translationLanguage != nil
+        return Button {
+            touched()
+            Haptics.tap()
+            if on { lyricsStore.clearTranslation() } else { Task { await lyricsStore.translate(to: currentLang().rawValue) } }
+        } label: {
+            ZStack {
+                if lyricsStore.translating {
+                    ProgressView().tint(Theme.text).transition(.opacity)
+                } else {
+                    SonarIcon(.translate, size: 23)
+                        .foregroundStyle(on ? Theme.accentInk : Theme.text)
+                        .transition(.opacity)
+                }
+            }
+            .frame(width: 44, height: 44)
+            .background(on ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.ultraThinMaterial), in: Circle())
+            .contentShape(Circle())
+            .animation(Motion.spring, value: on)
+            .animation(Motion.spring, value: lyricsStore.translating)
+        }
+        .buttonStyle(PressableStyle(scale: 0.88))
+        .accessibilityLabel(t(on ? "Без перевода" : "Перевести"))
     }
 
     /// Касание экрана — кнопки возвращаются, отсчёт простоя сначала.
