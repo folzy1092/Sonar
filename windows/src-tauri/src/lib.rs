@@ -296,6 +296,7 @@ pub fn run() {
       commands::similar_tracks,
       commands::recent_tracks,
       commands::home_releases,
+      commands::release_feed,
       commands::daypart_mix,
       commands::stats,
       commands::recap,

@@ -125,4 +125,10 @@ export default {
   'В Любимых и так пусто': 'Favorites are already empty',
   'Из Любимых уберутся все треки. Альбомы и исполнители останутся.': 'All tracks will be removed from Favorites. Albums and artists will stay.',
   'Любимые очищены — убрано {tracks}': 'Favorites cleared — {tracks} removed',
+  'У {artist} вышел «{title}»': 'New from {artist}: “{title}”',
+  'Новинки': 'New releases',
+  'Новинки исполнителей': 'New releases from artists',
+  'За неделю у любимых исполнителей ничего нового. Подпишись на исполнителя или лайкни его треки — его релизы появятся здесь.': 'Nothing new from your favorite artists this week. Follow an artist or like their tracks — their releases will show up here.',
+  'Колокольчик справа сверху': 'Bell in the top right',
+  'Вышел трек, сингл или альбом у исполнителя, на которого ты подписан или чьи треки лайкаешь, — покажем при запуске и раз в 3 часа': 'A new track, single or album from an artist you follow or whose tracks you like — shown on launch and every 3 hours',
 } satisfies Record<string, string>

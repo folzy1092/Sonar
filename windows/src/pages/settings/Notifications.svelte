@@ -7,6 +7,10 @@
   import { indicator } from '../../lib/indicator'
   import { cascade } from '../../lib/cascade'
   import { t } from '../../lib/i18n.svelte'
+  import Group from '../../components/settings/Group.svelte'
+  import Switch from '../../components/settings/Switch.svelte'
+  import { settings } from '../../lib/settings.svelte'
+  import { newReleases } from '../../lib/new-releases.svelte'
 
   type Filter = 'all' | 'friends' | 'other'
   const FILTERS: { id: Filter; label: string }[] = [
@@ -25,6 +29,19 @@
   let filter = $state<Filter>('all')
   const shown = $derived(filter === 'all' ? KINDS : KINDS.filter((k) => k.group === filter))
 </script>
+
+<!-- работает уже без сервера: ядро само проверяет любимых исполнителей -->
+<Group title={t('Новинки исполнителей')} hint={t('Колокольчик справа сверху')}>
+  <Switch
+    title={t('Новинки исполнителей')}
+    hint={t('Вышел трек, сингл или альбом у исполнителя, на которого ты подписан или чьи треки лайкаешь, — покажем при запуске и раз в 3 часа')}
+    on={settings.get('notify.releases')}
+    onchange={(v) => {
+      settings.set('notify.releases', v)
+      if (v) void newReleases.check()
+    }}
+  />
+</Group>
 
 <div class="chips" role="radiogroup" aria-label={t('Уведомления')} use:indicator={{ key: filter, kind: 'pill' }}>
   {#each FILTERS as f (f.id)}

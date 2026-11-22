@@ -253,6 +253,8 @@ export const DEFAULTS = {
   /** Быстрое окно (Ctrl+K) — только внутри окна Sonar, от `hotkeys.scope` не зависит; пусто — выключено. */
   'hotkeys.quick': 'Ctrl+KeyK',
   'system.tray': true,
+  /** Новинки исполнителей: колокольчик справа сверху и тост «У … вышел …» (lib/new-releases.svelte.ts). */
+  'notify.releases': true,
   'system.power_saving': 'background' as 'off' | 'minimized' | 'background',
   /** Настроение Sonar Mix (`WAVE_MODES`); старое `new` («Незнакомое») читается как `own` — `settings-migrate.ts`. */
   'wave.mode': 'own' as 'own' | 'fun' | 'calm' | 'sad' | 'hard' | 'night' | 'sleep' | 'popular' | 'focus',

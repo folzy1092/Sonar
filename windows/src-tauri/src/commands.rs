@@ -1202,6 +1202,59 @@ pub async fn home_releases(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res
   Ok(albums)
 }
 
+/// Новинка исполнителя для колокольчика «Новинки» (`lib/new-releases.svelte.ts`): альбом или сингл
+/// (`kind: album`, открывается страница альбома) либо трек SoundCloud (`kind: track`, играет сразу).
+#[derive(serde::Serialize)]
+pub struct ReleaseItem {
+  #[serde(rename = "ref")]
+  ref_: String,
+  kind: &'static str,
+  title: String,
+  artist: String,
+  cover_url: Option<String>,
+  /// `YYYY-MM-DD`.
+  released: String,
+  /// Трек целиком — у `kind: track`, чтобы его сыграть.
+  track: Option<Track>,
+}
+
+/// Лента новинок любимых исполнителей (лайкнутые исполнители и исполнители любимых треков): альбомы и
+/// синглы всех сервисов + свежие треки SoundCloud. Только с датой выхода, новые первыми; что из этого
+/// уже видели и что свежее недели — решает клиент.
+#[tauri::command]
+pub async fn release_feed(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<Vec<ReleaseItem>> {
+  let artists = db.0.lock().unwrap().release_artist_refs(24).map_err(err)?;
+  let has_ym = core.has_yandex().await;
+  let artists: Vec<String> = artists.into_iter().filter(|r| has_ym || is_kind(r, ServiceId::Sc, RefKind::Artist)).collect();
+  let core = core.inner().clone();
+  let lists = futures_util::future::join_all(artists.iter().map(|r| {
+    let core = core.clone();
+    async move {
+      let mut out: Vec<ReleaseItem> = Vec::new();
+      for a in core.artist_albums(r).await.unwrap_or_default().into_iter().take(4) {
+        if let Some(released) = a.released.clone() {
+          out.push(ReleaseItem { ref_: a.ref_, kind: "album", title: a.title, artist: a.artist, cover_url: a.cover_url, released, track: None });
+        }
+      }
+      if is_kind(r, ServiceId::Sc, RefKind::Artist) {
+        for t in core.sc_recent_tracks(r, 6).await.unwrap_or_default() {
+          if let Some(released) = t.released {
+            let tr = t.track;
+            out.push(ReleaseItem { ref_: tr.ref_.clone(), kind: "track", title: tr.title.clone(), artist: tr.artist.clone(), cover_url: tr.cover_url.clone(), released, track: Some(tr) });
+          }
+        }
+      }
+      out
+    }
+  }))
+  .await;
+  let mut seen = std::collections::HashSet::new();
+  let mut items: Vec<ReleaseItem> = lists.into_iter().flatten().filter(|i| seen.insert(i.ref_.clone())).collect();
+  items.sort_by(|a, b| b.released.cmp(&a.released));
+  items.truncate(60);
+  Ok(items)
+}
+
 /// Ключ сортировки релиза: `YYYY-MM-DD`, без даты — `YYYY-00-00`.
 fn release_key(a: &crate::providers::Album) -> String {
   a.released.clone().unwrap_or_else(|| format!("{:04}-00-00", a.year.unwrap_or(0)))

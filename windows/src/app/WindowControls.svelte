@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
   import HistoryButton from './HistoryButton.svelte'
+  import ReleasesBell from './ReleasesBell.svelte'
   import { t } from '../lib/i18n.svelte'
   import { settings } from '../lib/settings.svelte'
   import { windowButtonsLook } from '../lib/window-buttons'
@@ -33,7 +34,10 @@
 
 <div class="controls">
   <!-- история прослушивания — как часы у Dotify -->
-  {#if history}<HistoryButton />{/if}
+  {#if history}
+    {#if settings.get('notify.releases')}<ReleasesBell />{/if}
+    <HistoryButton />
+  {/if}
   {#if mac}
     <div class="lights">
       <button class="light close" aria-label={t('Закрыть')} title={t('Закрыть')} onclick={closeWindow}>

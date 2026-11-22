@@ -6,6 +6,7 @@ import '@fontsource-variable/roboto-flex/full.css'
 import './theme/fonts.css'
 import './app.css'
 import './theme/fx.css'
+import { newReleases } from './lib/new-releases.svelte'
 import App from './App.svelte'
 import MiniWindow from './app/MiniWindow.svelte'
 import { player } from './player/player.svelte'
@@ -30,6 +31,9 @@ if (plaque) {
   document.documentElement.classList.add('mini-window')
   document.getElementById('splash')?.remove()
 }
+
+// новинки исполнителей — только в главном окне (колокольчик в чёлке)
+if (!plaque) newReleases.start()
 
 const app = plaque
   ? mount(MiniWindow, { target: document.getElementById('app')!, props: { kind: plaque } })

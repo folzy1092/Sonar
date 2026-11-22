@@ -540,6 +540,31 @@ impl Core {
     self.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.followings(id, max).await }).await
   }
 
+  /// Свежие треки исполнителя SoundCloud (`sca:<id>`) с датой выхода — для «Новинок» (на SoundCloud
+  /// новое выходит треками, а не альбомами). Новые первыми.
+  pub async fn sc_recent_tracks(&self, artist_ref: &str, limit: usize) -> Result<Vec<ArtistTrack>> {
+    let id = artist_ref.strip_prefix("sca:").ok_or_else(|| anyhow!("не исполнитель SoundCloud: {artist_ref}"))?;
+    let http = &self.http;
+    let raw = self.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.user_tracks(id, limit).await }).await?;
+    let dates: HashMap<String, String> = raw
+      .iter()
+      .filter_map(|j| {
+        let date = j["release_date"].as_str().or(j["display_date"].as_str()).or(j["created_at"].as_str())?;
+        Some((format!("sc:{}", j["id"].as_u64()?), date.chars().take(10).collect()))
+      })
+      .collect();
+    let mut out: Vec<ArtistTrack> = self
+      .sc_keep(raw)
+      .into_iter()
+      .map(|t| {
+        let released = dates.get(&t.ref_).cloned();
+        ArtistTrack { track: t, likes: None, released }
+      })
+      .collect();
+    out.sort_by(|a, b| b.released.cmp(&a.released));
+    Ok(out)
+  }
+
   /// Яндекс подключён — можно брать его похожие и новинки.
   pub async fn has_yandex(&self) -> bool {
     self.ym.read().await.is_some()

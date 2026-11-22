@@ -74,6 +74,18 @@ export interface WaveWhy {
   artist?: string
 }
 
+/** Новинка исполнителя: альбом / сингл (`album`) или трек SoundCloud (`track`, с самим треком). */
+export interface ReleaseItem {
+  ref: string
+  kind: 'album' | 'track'
+  title: string
+  artist: string
+  cover_url: string | null
+  /** `YYYY-MM-DD`. */
+  released: string
+  track: Track | null
+}
+
 export interface Album {
   ref: string
   title: string
@@ -549,6 +561,8 @@ export const api = {
   cachedTracks: (refs: string[]) => call<Track[]>('cached_tracks', { refs }),
   recentTracks: (limit = 20) => call<Track[]>('recent_tracks', { limit }),
   homeReleases: () => call<Album[]>('home_releases'),
+  /** Новинки любимых исполнителей для колокольчика (commands.rs `release_feed`). */
+  releaseFeed: () => call<ReleaseItem[]>('release_feed'),
   /** Подборка под время суток на главной: что слушаешь в эти часы + лайки. */
   daypartMix: (limit = 24) => call<Track[]>('daypart_mix', { tzMin: new Date().getTimezoneOffset(), limit }),
   stats: (period: StatsPeriod) => call<Stats>('stats', { period, tzMin: -new Date().getTimezoneOffset() }),
