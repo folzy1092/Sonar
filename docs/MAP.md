@@ -30,10 +30,10 @@ Sonar/
 │   ├── mobile/               photo_1..20, player, likes
 │   └── pc/                   Screenshot_1..18
 │
-├── site/                     GitHub Pages → sonar.folzy.ru (статический сайт)
+├── site/                     GitHub Pages → try-sonar.ru (статический сайт)
 │   ├── index.html            что такое Sonar + «Скачать IPA» (последний релиз)
 │   ├── 404.html              трюк для /@username: рисует профиль через GET /public/users/…
-│   ├── CNAME                 sonar.folzy.ru
+│   ├── CNAME                 try-sonar.ru
 │   └── assets/
 │
 ├── brand/                    иконки, лого, фирменные материалы (brand/README.md)

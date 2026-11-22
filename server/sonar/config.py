@@ -27,7 +27,7 @@ class Settings:
     owner_tg_id: int | None = None
     fernet_key: str = ""
     public_url: str = ""
-    site_url: str = "https://sonar.folzy.ru"
+    site_url: str = "https://try-sonar.ru"
     download_url: str = "https://github.com/folzy1092/Sonar/releases/latest"
     # iPhone — постоянный релиз ios-latest (CI перезаливает, Latest не трогает — он у Windows)
     # канал новостей и обновлений — посты с кнопками от имени бота (бот — админ канала)

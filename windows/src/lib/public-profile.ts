@@ -1,4 +1,4 @@
-// Публичный профиль (TZ.md 10а, SPEC §4.5а): ссылка `https://sonar.folzy.ru/@username` и то, что по ней
+// Публичный профиль (TZ.md 10а, SPEC §4.5а): ссылка `https://try-sonar.ru/@username` и то, что по ней
 // увидит гость. `PublicProfile` — тот же объект, что потом отдаст `GET /public/users/{username}`
 // (docs/API.md) и нарисует страница сайта `site/`. До сервера предпросмотр «Как видят мой профиль»
 // собирает его здесь, на компьютере: профиль из настроек (`profile.*`), Любимые, плейлисты Sonar,
@@ -15,7 +15,7 @@ export const PROFILE_ARTISTS_SHOWN = 6
 /** Часы музыки до этого числа показываются с одной цифрой после точки («1.4»), дальше — целыми. */
 const HOURS_DECIMAL_BELOW = 10
 
-/** Ссылка на профиль: `https://sonar.folzy.ru/@folzy`. Нет @username или он с ошибкой — null. */
+/** Ссылка на профиль: `https://try-sonar.ru/@folzy`. Нет @username или он с ошибкой — null. */
 export function profileUrl(username: string): string | null {
   const name = cleanUsername(username)
   return USERNAME_RE.test(name) ? `${SITE_URL}/@${name}` : null

@@ -31,7 +31,7 @@ final class ChromeStateTests: XCTestCase {
     func testDeepLinks() {
         XCTAssertEqual(DeepLink(URL(string: "sonar://track/sc:123")!), .track("sc:123"))
         XCTAssertEqual(DeepLink(URL(string: "sonar://user/folzy")!), .user("folzy"))
-        XCTAssertNil(DeepLink(URL(string: "https://sonar.folzy.ru")!))
+        XCTAssertNil(DeepLink(URL(string: "https://try-sonar.ru")!))
     }
 }
 

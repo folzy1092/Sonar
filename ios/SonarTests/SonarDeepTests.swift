@@ -38,13 +38,13 @@ final class SonarDeepTests: XCTestCase {
 
     func testPayURL() {
         XCTAssertEqual(SonarDeep.payURL(plan: "echo", period: "3m", username: "folzy")?.absoluteString,
-                       "https://sonar.folzy.ru/pay?plan=echo&period=3m&u=folzy")
+                       "https://try-sonar.ru/pay?plan=echo&period=3m&u=folzy")
         XCTAssertEqual(SonarDeep.payURL(plan: "echo", period: "3m", username: " @folzy ")?.absoluteString,
-                       "https://sonar.folzy.ru/pay?plan=echo&period=3m&u=folzy")
+                       "https://try-sonar.ru/pay?plan=echo&period=3m&u=folzy")
         XCTAssertEqual(SonarDeep.payURL(plan: "ping", period: "1m", username: "")?.absoluteString,
-                       "https://sonar.folzy.ru/pay?plan=ping&period=1m")
+                       "https://try-sonar.ru/pay?plan=ping&period=1m")
         XCTAssertEqual(SonarDeep.payURL(plan: "ping", period: "1m", username: nil)?.absoluteString,
-                       "https://sonar.folzy.ru/pay?plan=ping&period=1m")
+                       "https://try-sonar.ru/pay?plan=ping&period=1m")
     }
 
     func testRub() {

@@ -1,4 +1,4 @@
-# Сайт Sonar — `sonar.folzy.ru` (спека, 2026-11-18)
+# Сайт Sonar — `try-sonar.ru` (спека, 2026-11-18)
 
 Задание для отдельной сессии агента. Сайт — визитка сервиса, скачивание, оплата Sonar Deep, юр-страницы,
 профиль по ссылке и статус. Ориентир по **структуре** — `dotify.fun` (друг владельца разрешил опираться на
@@ -8,7 +8,7 @@ Dotify), но вид — **свой стиль Sonar**: тёмный, споко
 
 ## 1. Техника
 
-- Папка `site/` в монорепо, хостинг **GitHub Pages**, домен `sonar.folzy.ru` (`site/CNAME`; DNS-запись
+- Папка `site/` в монорепо, хостинг **GitHub Pages**, домен `try-sonar.ru` (`site/CNAME`; DNS-запись
   `sonar` → `folzy1092.github.io` добавляет владелец). Деплой — workflow `.github/workflows/site.yml` на пуш в
   `main` с изменениями `site/**`.
 - Статика без сервера: **Astro** (или Vite + ванильный TS) → чистый HTML/CSS, минимум JS. Никаких трекеров,
@@ -131,5 +131,5 @@ Dotify), но вид — **свой стиль Sonar**: тёмный, споко
 - Все страницы на всех языках сайта, адаптив 375–1440 px, Lighthouse ≥ 90 (Performance, Accessibility, SEO).
 - `/pay` правильно читает `plan` / `period` / `u` и совпадает по ценам с `windows/src/lib/subscription.ts`
   (тест или скрипт сверки `site/data/plans.json`).
-- Workflow `site.yml` деплоит, `sonar.folzy.ru` открывается (после DNS-записи владельца).
+- Workflow `site.yml` деплоит, `try-sonar.ru` открывается (после DNS-записи владельца).
 - ROADMAP: отметить пункт «Сайт», в CLAUDE.md — где лежит сайт и как он собирается.

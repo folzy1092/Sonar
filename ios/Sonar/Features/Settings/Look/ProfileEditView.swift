@@ -189,7 +189,7 @@ struct ProfileEditView: View {
         .padding(.vertical, 8)
     }
 
-    /// «Копировать ссылку на профиль» (ПК `CopyProfileLink.svelte`): `https://sonar.folzy.ru/@username`
+    /// «Копировать ссылку на профиль» (ПК `CopyProfileLink.svelte`): `https://try-sonar.ru/@username`
     /// в буфер, значок ссылки → галочка на пару секунд. Без @username — кнопка неактивна.
     private var share: some View {
         let url = LocalProfile.profileURL(username)

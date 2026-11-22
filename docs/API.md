@@ -40,7 +40,7 @@
 | GET | `/notifications?since=` | → `[{id, title, text, created_at, read}]` |
 | POST | `/notifications/read` | `{ids: [id]}` → `204` |
 
-`PublicProfile` — **черновик** страницы профиля по ссылке `https://sonar.folzy.ru/@username` (SPEC §4.5а).
+`PublicProfile` — **черновик** страницы профиля по ссылке `https://try-sonar.ru/@username` (SPEC §4.5а).
 Пока по нему работает только предпросмотр «Как видят мой профиль» на ПК (`windows/src/lib/public-profile.ts`
 `buildPublicProfile`, раскладка — `pages/profile/ProfileView.svelte`, её же повторит сайт). Сервер **не отдаёт**
 поля ниже шапки, пока владелец не ответит про приватность (NEXT_PROMPT этап 0 п. 9): до ответа
@@ -83,7 +83,7 @@ PublicTrack = {ref, title, artist, cover_url, duration_ms}
 
 `created_at` — когда на устройстве вошли (начало сессии; по нему правило 24 ч), `last_seen_at` — последний запрос.
 
-Быстрая ссылка (`POST /auth/link`) отвечает `{code, url, bot_url, expires_at}`: `url` = `https://sonar.folzy.ru/auth/<code>`
+Быстрая ссылка (`POST /auth/link`) отвечает `{code, url, bot_url, expires_at}`: `url` = `https://try-sonar.ru/auth/<code>`
 (открыть там, где уже вошли; QR на новом устройстве), `bot_url` = `https://t.me/SonarMusicApp?start=link_<code>` —
 «Войти через Telegram» на новом iPhone/ПК. `GET /auth/link/{code}` → `{for: {kind, name, platform?}, created_at, expires_at}`.
 
@@ -635,10 +635,10 @@ selfbot переключился сменой адреса:
 
 ```json
 // Config — GET /config
-{"discord_app_id": "1571615944449466510", "site_url": "https://sonar.folzy.ru", "telegram_url": "https://t.me/SonarUpdates",
+{"discord_app_id": "1571615944449466510", "site_url": "https://try-sonar.ru", "telegram_url": "https://t.me/SonarUpdates",
  "registration_open": true, "maintenance": {"on": false, "text": "Sonar обновляется, вернёмся через несколько минут"},
  "services": {"yandex": true},
- "links": {"site": "https://sonar.folzy.ru", "channel": "@SonarUpdates", "windows": "https://…", "ios": "https://…"}}
+ "links": {"site": "https://try-sonar.ru", "channel": "@SonarUpdates", "windows": "https://…", "ios": "https://…"}}
 // maintenance.on — клиент показывает text вместо ошибок; services.yandex = false — «Яндекс временно недоступен».
 ```
 

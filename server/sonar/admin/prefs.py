@@ -43,7 +43,7 @@ SECTIONS: list[tuple[str, list[Pref]]] = [
              "Показывается цитатой под приветствием /start. Пусто — ничего. HTML Telegram не нужен — текст как есть.", "bot_notice"),
     ]),
     ("Ссылки", [
-        Pref("site_url", "Сайт", "https://sonar.folzy.ru", "url", "Профили /@username и быстрый вход.", "site_url"),
+        Pref("site_url", "Сайт", "https://try-sonar.ru", "url", "Профили /@username и быстрый вход.", "site_url"),
         Pref("channel", "Канал новостей", "@SonarUpdates", "text", "Куда бот публикует посты.", "channel"),
         Pref("download_url", "Скачать для Windows", "https://github.com/folzy1092/Sonar/releases/latest", "url",
              "Если в боте нет проверенной версии.", "download_url"),

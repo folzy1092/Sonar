@@ -240,7 +240,7 @@ def test_settings_save_and_apply(client, app, con):
     logged_in(client)
     token = csrf_of(client.get("/admin/settings").text)
     form = {"csrf": token, "registration_open": "", "maintenance": "1", "maintenance_text": "Чиним",
-            "yandex_enabled": "1", "bot_notice": "Завтра обновление", "site_url": "https://sonar.folzy.ru",
+            "yandex_enabled": "1", "bot_notice": "Завтра обновление", "site_url": "https://try-sonar.ru",
             "channel": "@SonarUpdates", "download_url": "", "download_url_ios": ""}
     r = client.post("/admin/settings", data=form, follow_redirects=False)
     assert "m=saved" in r.headers["location"]

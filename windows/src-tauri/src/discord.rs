@@ -29,7 +29,7 @@ enum Msg {
 pub const FORMATS: [&str; 5] = ["artist", "title", "artist_title", "title_artist", "app"];
 
 /// Сайт Sonar: страница трека по ссылке (BOT.md §2.11) и скачивание.
-const SITE: &str = "https://sonar.folzy.ru";
+const SITE: &str = "https://try-sonar.ru";
 const DOWNLOAD: &str = "https://github.com/folzy1092/Sonar/releases/latest";
 
 pub struct Discord {

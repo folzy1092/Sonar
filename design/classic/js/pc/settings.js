@@ -130,7 +130,7 @@ window.Sonar = window.Sonar || {}
     `<div class="prof-row"><span class="avatar xl">F</span><div class="prof-who"><b class="sel">Folzy</b><span class="sel">@folzy</span></div>` +
     `<button class="btn btn-soft sm" data-act="noop">${icon('palette')}<span>Баннер и фон</span></button></div></div>` +
     group('Аккаунт', row('Логин', 'Не меняется — его меняет только админ', '<code>folzy</code>') +
-      row('Имя пользователя', 'Ссылка на профиль — sonar.folzy.ru/@folzy', '<button class="btn btn-soft sm" data-act="noop">Изменить</button>')) +
+      row('Имя пользователя', 'Ссылка на профиль — try-sonar.ru/@folzy', '<button class="btn btn-soft sm" data-act="noop">Изменить</button>')) +
     group('Витрина', `<div class="shows">${showcase()}</div>`) +
     group('Приватность', PRIVACY.map(([k, l]) => row(l, '', seg(k, [['all', 'Все'], ['friends', 'Друзья'], ['none', 'Никто']]))).join(''))
 
@@ -140,7 +140,7 @@ window.Sonar = window.Sonar || {}
     group('Срок', seg('period', M.PERIODS.map(([m, off]) => [String(m), `${m} мес${off ? ` <em>−${off}%</em>` : ''}`]), 'num')) +
     group('Тариф', part('plans', s)) +
     group('Что внутри', `<ul class="feats">${M.DEEP_FEATURES.map((f) => `<li>${icon('check')}${f}</li>`).join('')}</ul>`) +
-    `<div class="deep-pay"><button class="btn btn-accent" data-act="deep-pay">${icon('external')}<span>Оплатить на сайте</span></button><span>sonar.folzy.ru/pay</span></div>`
+    `<div class="deep-pay"><button class="btn btn-accent" data-act="deep-pay">${icon('external')}<span>Оплатить на сайте</span></button><span>try-sonar.ru/pay</span></div>`
 
   const system = (s) =>
     group('Запуск', row('Запускать вместе с Windows', 'Свёрнутым в трей', tgl('autostart', 'Автозапуск')) +
@@ -208,7 +208,7 @@ window.Sonar = window.Sonar || {}
     actions: {
       settings: (s, el) => ({ overlay: 'settings', settingsSec: PANES[el.dataset.sec || el.dataset.to] ? (el.dataset.sec || el.dataset.to) : s.settingsSec, menu: null, ann: null }),
       'deep-lock': () => ({ settingsSec: 'deep', ...S.app.toast('3D, 8D, 12D, 16D и реверб — в Sonar Deep') }),
-      'deep-pay': (s) => S.app.toast(`Откроется sonar.folzy.ru/pay — тариф ${M.PLANS.find((p) => p.id === s.plan).name}, ${s.period} мес`),
+      'deep-pay': (s) => S.app.toast(`Откроется try-sonar.ru/pay — тариф ${M.PLANS.find((p) => p.id === s.plan).name}, ${s.period} мес`),
       'svc-fix': () => ({ svcFixed: true, ...S.app.toast('SoundCloud снова подключён') }),
       'svc-link': () => ({ vkLinked: true, ...S.app.toast('VK Музыка подключена') }),
       'cache-clear': () => ({ cacheCleared: true, ...S.app.toast('Кэш очищен — 1,8 ГБ', { cacheCleared: false }) }),

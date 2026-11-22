@@ -526,4 +526,4 @@ def status(items: dict[str, Item], online: int, users: int, uptime: float | None
         tail = f"{e('logo_telegram')} Telegram: {_mark(g('telegram'))}"
         other.append((f"{e('logo_lastfm')} {LASTFM}: {_mark(g('lastfm'))} · " if g("lastfm") else "") + tail)
         html += quote(_tree(other), "Тексты и прочее:")
-    return Screen(html=html, kb=[[Btn("Обновить", "refresh", "status")], [Btn("Страница статуса", "web", url="https://sonar.folzy.ru/status")]])
+    return Screen(html=html, kb=[[Btn("Обновить", "refresh", "status")], [Btn("Страница статуса", "web", url="https://try-sonar.ru/status")]])

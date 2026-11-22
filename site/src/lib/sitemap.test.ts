@@ -3,20 +3,20 @@ import { LANGS } from '../i18n'
 import { SITEMAP_PATHS, sitemapXml } from './sitemap'
 
 describe('sitemapXml', () => {
-  const xml = sitemapXml('https://sonar.folzy.ru')
+  const xml = sitemapXml('https://try-sonar.ru')
 
   test('каждая страница — на всех языках', () => {
     expect(xml.match(/<url>/g)).toHaveLength(SITEMAP_PATHS.length * LANGS.length)
-    expect(xml).toContain('<loc>https://sonar.folzy.ru/</loc>')
-    expect(xml).toContain('<loc>https://sonar.folzy.ru/en/pay</loc>')
-    expect(xml).toContain('<loc>https://sonar.folzy.ru/uk/faq</loc>')
-    expect(xml).toContain('<loc>https://sonar.folzy.ru/pl/faq</loc>')
+    expect(xml).toContain('<loc>https://try-sonar.ru/</loc>')
+    expect(xml).toContain('<loc>https://try-sonar.ru/en/pay</loc>')
+    expect(xml).toContain('<loc>https://try-sonar.ru/uk/faq</loc>')
+    expect(xml).toContain('<loc>https://try-sonar.ru/pl/faq</loc>')
   })
 
   test('у страницы есть hreflang-альтернативы и x-default', () => {
-    expect(xml).toContain('hreflang="uk" href="https://sonar.folzy.ru/uk/terms"')
-    expect(xml).toContain('hreflang="de" href="https://sonar.folzy.ru/de/terms"')
-    expect(xml).toContain('hreflang="x-default" href="https://sonar.folzy.ru/terms"')
+    expect(xml).toContain('hreflang="uk" href="https://try-sonar.ru/uk/terms"')
+    expect(xml).toContain('hreflang="de" href="https://try-sonar.ru/de/terms"')
+    expect(xml).toContain('hreflang="x-default" href="https://try-sonar.ru/terms"')
   })
 
   test('без 404 и профилей', () => {

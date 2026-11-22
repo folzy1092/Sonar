@@ -1,6 +1,6 @@
 // Адреса сайта. API пока нет (сервер не куплен) — `API_URL = null`: статус и профили показывают честную
 // заготовку. Когда сервер заработает — вписать `https://sonar-api.folzy.ru` и пересобрать сайт.
-export const SITE_URL = 'https://sonar.folzy.ru'
+export const SITE_URL = 'https://try-sonar.ru'
 export const API_URL: string | null = null
 
 const REPO = 'https://github.com/folzy1092/Sonar'

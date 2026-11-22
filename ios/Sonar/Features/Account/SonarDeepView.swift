@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Аккаунт → Подписка Sonar Deep (как ПК `pages/settings/Subscription.svelte`): тариф, срок, что даёт,
-/// итог и «Перейти к оплате» — оплата на сайте `sonar.folzy.ru/pay`. Цены и правила — `Core/Account/SonarDeep.swift`.
+/// итог и «Перейти к оплате» — оплата на сайте `try-sonar.ru/pay`. Цены и правила — `Core/Account/SonarDeep.swift`.
 /// У разработчика Sonar сверху — карточка «Sonar Deep · Dev · без срока» (`SonarDeep.subscriptionOf`).
 struct SonarDeepView: View {
     @Environment(SettingsStore.self) private var settings

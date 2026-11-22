@@ -210,8 +210,8 @@ final class LookThemeTests: XCTestCase {
     }
 
     func testProfileURL() {
-        XCTAssertEqual(LocalProfile.profileURL("folzy"), "https://sonar.folzy.ru/@folzy")
-        XCTAssertEqual(LocalProfile.profileURL("  @Folzy_1 "), "https://sonar.folzy.ru/@folzy_1")
+        XCTAssertEqual(LocalProfile.profileURL("folzy"), "https://try-sonar.ru/@folzy")
+        XCTAssertEqual(LocalProfile.profileURL("  @Folzy_1 "), "https://try-sonar.ru/@folzy_1")
         XCTAssertNil(LocalProfile.profileURL(""))
         XCTAssertNil(LocalProfile.profileURL("ab"))
         XCTAssertNil(LocalProfile.profileURL("фолзи"))

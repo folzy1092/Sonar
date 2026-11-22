@@ -1,9 +1,9 @@
-// Сайт Sonar — статика для GitHub Pages (sonar.folzy.ru). Спека — docs/SITE.md.
+// Сайт Sonar — статика для GitHub Pages (try-sonar.ru). Спека — docs/SITE.md.
 import { defineConfig } from 'astro/config'
 import { INLINE_SCRIPT_HASHES } from './src/lib/inline-scripts.mjs'
 
 export default defineConfig({
-  site: 'https://sonar.folzy.ru',
+  site: 'https://try-sonar.ru',
   trailingSlash: 'ignore',
   build: { format: 'directory', inlineStylesheets: 'auto' },
   // CSP мета-тегом (у GitHub Pages нет своих заголовков): Astro сам считает хэши всех своих

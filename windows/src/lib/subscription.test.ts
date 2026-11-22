@@ -27,8 +27,8 @@ describe('подписка', () => {
   })
 
   it('ссылка на оплату', () => {
-    expect(payUrl('echo', '3m', 'folzy')).toBe('https://sonar.folzy.ru/pay?plan=echo&period=3m&u=folzy')
-    expect(payUrl('ping', '1m')).toBe('https://sonar.folzy.ru/pay?plan=ping&period=1m')
+    expect(payUrl('echo', '3m', 'folzy')).toBe('https://try-sonar.ru/pay?plan=echo&period=3m&u=folzy')
+    expect(payUrl('ping', '1m')).toBe('https://try-sonar.ru/pay?plan=ping&period=1m')
   })
 
   it('пределы бесплатного: перенос до 500, плейлистов до 5 — только когда включены', () => {

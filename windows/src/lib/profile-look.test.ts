@@ -49,7 +49,7 @@ describe('ссылки профиля', () => {
 
   it('узнаёт Discord и сайт, дописывает https', () => {
     expect(parseLink('https://discord.gg/abc')?.kind).toBe('discord')
-    expect(parseLink('sonar.folzy.ru')).toEqual({ kind: 'site', url: 'https://sonar.folzy.ru/' })
+    expect(parseLink('try-sonar.ru')).toEqual({ kind: 'site', url: 'https://try-sonar.ru/' })
   })
 
   it('не ссылка и чужой протокол — null', () => {
@@ -68,10 +68,10 @@ describe('ссылки профиля', () => {
     expect(addLink(one, parseLink('@folzy_music')!)).toHaveLength(1)
     const full = Array.from({ length: LINKS_MAX }, (_, i) => parseLink(`site${i}.com`)!)
     expect(addLink(full, parseLink('extra.com')!)).toHaveLength(LINKS_MAX)
-    const two = addLink(one, parseLink('sonar.folzy.ru')!)
+    const two = addLink(one, parseLink('try-sonar.ru')!)
     expect(two).toHaveLength(2)
     expect(one).toHaveLength(1)
-    expect(removeLink(two, 'https://t.me/folzy_music')).toEqual([parseLink('sonar.folzy.ru')])
+    expect(removeLink(two, 'https://t.me/folzy_music')).toEqual([parseLink('try-sonar.ru')])
   })
 
   it('из настроек берёт только настоящие ссылки', () => {

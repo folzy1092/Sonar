@@ -221,7 +221,7 @@ const scr = {
     html: `Привет, <b>${name()}</b>! ${E('profile')}\n\nЧем я могу помочь?\n${Q(`Поддержка — кнопка ${E('bug')} Баг / Идея ниже`)}`,
     kb: [[B('Профиль', 'profile', (m) => edit(m, scr.profile())), B('Статистика', 'stats', (m) => edit(m, scr.stats()))],
       [B('Сервисы', 'services', (m) => edit(m, scr.services())), B('Баг / Идея', 'bug', (m) => edit(m, scr.reportKind()))],
-      [B('Скачать Sonar', 'download', null, { url: 'sonar.folzy.ru' })]],
+      [B('Скачать Sonar', 'download', null, { url: 'try-sonar.ru' })]],
   }),
 
   profile: () => ({
@@ -230,7 +230,7 @@ const scr = {
       + Q(`Имя: <b>Folzy</b>\nЛогин: ${C('@folzy')} · ${C('#104633')}\n${E('date')} с 14 ноября 2026`, 'Аккаунт')
       + Q(`${E('logo_soundcloud')} SoundCloud ${E('ok')}\n${E('logo_yandex_music')} Яндекс Музыка ${E('ok')}\n${E('logo_lastfm')} Last.fm ${E('down')}`, 'Сервисы')
       + Q(`${E('time')} 412 мин · ${E('track')} 96 треков`, 'Неделя')
-      + `\n${E('web')} <span class="link">sonar.folzy.ru/@folzy</span>`,
+      + `\n${E('web')} <span class="link">try-sonar.ru/@folzy</span>`,
     kb: [[B('Рефералка', 'referral', (m) => edit(m, scr.referral())), B('Интеграция', 'integration', (m) => edit(m, scr.integration()))],
       [B('Выйти', 'logout', (m) => edit(m, scr.logoutAsk()))],
       [B('Версии', 'versions', (m) => edit(m, scr.versions()))],
@@ -378,7 +378,7 @@ const scr = {
     return {
       html,
       kb: [[B('Обновить', 'refresh', (m) => { S.online = 1 + Math.floor(Math.random() * 6); edit(m, scr.status()); toast('Обновлено'); }),
-        B('Страница статуса', 'web', null, { url: 'sonar.folzy.ru/status' })]],
+        B('Страница статуса', 'web', null, { url: 'try-sonar.ru/status' })]],
     };
   },
 };
@@ -432,7 +432,7 @@ function onText(text) {
       if (t !== S.reg.pass) { S.expect = 'reg_pass'; return later(500, () => short(`${E('cancel')} Пароли не совпадают. Придумай пароль заново:`)); }
       S.expect = null;
       return later(700, () => {
-        send({ html: `<b>Успешно!</b> ${E('success')}\n${Q(`Аккаунт ${C(S.reg.login)} создан и привязан к Telegram`)}`, kb: [[B('Скачать Sonar', 'download', null, { url: 'sonar.folzy.ru' })]] });
+        send({ html: `<b>Успешно!</b> ${E('success')}\n${Q(`Аккаунт ${C(S.reg.login)} создан и привязан к Telegram`)}`, kb: [[B('Скачать Sonar', 'download', null, { url: 'try-sonar.ru' })]] });
         setWho('user');
       });
     case 'report':

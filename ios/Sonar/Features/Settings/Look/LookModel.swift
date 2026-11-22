@@ -301,8 +301,8 @@ enum LocalProfile {
     }
 
     /// Публичный сайт (как ПК `lib/site.ts` `SITE_URL`) — один адрес на всё приложение: «Сайт» в
-    /// «О приложении» (`AboutSection.site`) и профиль по ссылке `https://sonar.folzy.ru/@username`.
-    static let siteURL = "https://sonar.folzy.ru"
+    /// «О приложении» (`AboutSection.site`) и профиль по ссылке `https://try-sonar.ru/@username`.
+    static let siteURL = "https://try-sonar.ru"
 
     /// Ссылка на профиль (ПК `profileUrl`): @username без «@», строчными. Пусто или с ошибкой — nil.
     static func profileURL(_ raw: String) -> String? {

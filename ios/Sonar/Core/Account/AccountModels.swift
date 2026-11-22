@@ -166,7 +166,7 @@ struct AuthResult: Codable, Equatable, Sendable {
 /// Быстрая ссылка входа (`POST /auth/link`, BOT.md §3): живёт 5 минут.
 struct AuthLink: Codable, Equatable, Sendable {
     var code: String
-    /// `https://sonar.folzy.ru/auth/<code>` — открыть там, где уже вошли (ПК или iPhone).
+    /// `https://try-sonar.ru/auth/<code>` — открыть там, где уже вошли (ПК или iPhone).
     var url: String
     /// `https://t.me/SonarMusicApp?start=link_<code>` — подтвердить в боте. Нет в ответе — собираем сами.
     var botURL: String?

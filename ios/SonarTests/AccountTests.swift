@@ -165,7 +165,7 @@ final class AccountTests: XCTestCase {
     func testQuickLinkLoginPollsUntilApproved() async throws {
         let api = FakeAPI()
         let expires = Int64(Date().timeIntervalSince1970 * 1000) + 300_000
-        api.on("POST /auth/link", 200, #"{"code":"abc","url":"https://sonar.folzy.ru/auth/abc","expires_at":\#(expires)}"#)
+        api.on("POST /auth/link", 200, #"{"code":"abc","url":"https://try-sonar.ru/auth/abc","expires_at":\#(expires)}"#)
         api.on("GET /auth/link/abc/poll", 200, #"{"status":"pending"}"#)
         api.on("GET /auth/link/abc/poll", 200, #"{"status":"pending"}"#)
         api.on("GET /auth/link/abc/poll", 200, #"{"status":"approved","session":"tok_q","user":\#(userJSON)}"#)

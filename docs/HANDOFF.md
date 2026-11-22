@@ -97,7 +97,7 @@ YouTube Music; длинное название в полноэкранном п�
 
 ---
 
-# Передача 2026-11-18 (поздний вечер, сессия на Mac) → сайт `sonar.folzy.ru`
+# Передача 2026-11-18 (поздний вечер, сессия на Mac) → сайт `try-sonar.ru`
 
 **Начни отсюда.** Сайт по `docs/SITE.md` сделан и лежит в `site/` (Astro 5, свой CSS, ru / en / uk, 33 страницы).
 Деплой — `.github/workflows/site.yml` (типы `astro check` → тесты → сборка → GitHub Pages). Lighthouse на главной (телефон):
@@ -105,7 +105,7 @@ Accessibility 100, SEO 100, Best Practices 96 (403 от GitHub API при лим
 замедлением, CLS 0,02.
 
 **Чтобы сайт открылся (делает владелец; на 2026-11-18 ещё не сделано):**
-1. GitHub → репо Sonar → Settings → Pages → Source: **GitHub Actions**; Custom domain `sonar.folzy.ru`,
+1. GitHub → репо Sonar → Settings → Pages → Source: **GitHub Actions**; Custom domain `try-sonar.ru`,
    Enforce HTTPS. Сейчас Pages у репо выключен: прогоны `site.yml` падают на `configure-pages` с «Get Pages
    site failed… Not Found», хотя тесты и сборка проходят. У `folzy1092.github.io` свой домен `folzy.is-a.dev`,
    поэтому без своего домена у Sonar адрес `folzy1092.github.io/Sonar/` уводит на `folzy.is-a.dev/Sonar/` (404).
@@ -113,7 +113,7 @@ Accessibility 100, SEO 100, Best Practices 96 (403 от GitHub API при лим
    folzy1092.github.io.`. На 2026-11-18 её нет (reg.ru отвечает NXDOMAIN). Запись в Cloudflare не сработает,
    пока серверы имён домена не переключены на Cloudflare (без прокси, пока не выпущен сертификат).
 3. Перезапустить `site.yml` (Actions → site → Re-run all jobs).
-4. Проверка: `https://dns.google/resolve?name=sonar.folzy.ru&type=CNAME` отдаёт `folzy1092.github.io.`,
+4. Проверка: `https://dns.google/resolve?name=try-sonar.ru&type=CNAME` отдаёт `folzy1092.github.io.`,
    страницы открываются на ru / en / uk, `/@username` — через `404.html`.
 
 **Что важно знать:**
@@ -144,7 +144,7 @@ b5e5b48 (iPhone: Приватность и Sonar Deep).
 2. Вживую в exe: все новые страницы настроек; мини-плеер во всю ширину снизу (`bottom_inset` → `bottom_full`);
    оверлей — Система → Оверлей «Показать сейчас», место 3×3, «Появляться само» (опрос раз в секунду, не
    открывается при открытом мини-окне), горячие клавиши по умолчанию Ctrl+Alt+O (оверлей) и Ctrl+Alt+T (мини).
-3. На iPhone: Аккаунт → Приватность и Аккаунт → Подписка (кнопка ведёт на `sonar.folzy.ru/pay?plan=…&period=…&u=…`).
+3. На iPhone: Аккаунт → Приватность и Аккаунт → Подписка (кнопка ведёт на `try-sonar.ru/pay?plan=…&period=…&u=…`).
 
 **Что важно знать:**
 - Оверлей — отдельное окно `overlay` (`commands.rs` `overlay_window`), живёт рядом с мини-окном. Поверх игр в
@@ -520,7 +520,7 @@ Spotify, резерв. Логи CI без входа в GitHub не видны: 
   друзей появится (Tauri 2 умеет, сложность средняя: фоновое воспроизведение).
 - Готовность Windows-клиента — ~55–60 % (с сервером ~50 %).
 - **Сервер** Velt владелец купит **на неделе после 2026-11-15**.
-- **Статус сервиса** — SPEC §3.11, API §9: страница `sonar.folzy.ru/status`, бот `/status`.
+- **Статус сервиса** — SPEC §3.11, API §9: страница `try-sonar.ru/status`, бот `/status`.
 - **Бот** — `docs/BOT.md` (полная спека): только `/start` и `/status`; вход логин → пароль
   (сообщение с паролем удаляется) или **быстрая ссылка** (5 мин) с окном подтверждения в приложении
   (красное «Авторизация в аккаунт», «Разрешить» активна через 3 с); профиль: Рефералка ·

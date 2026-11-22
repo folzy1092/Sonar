@@ -70,11 +70,11 @@ const base = { name: '', username: '', avatar: '' }
 describe('profileUrl', () => {
   it('ссылка на сайт с @username', () => {
     expect(profileUrl('folzy')).toBe(`${SITE_URL}/@folzy`)
-    expect(profileUrl('@folzy')).toBe('https://sonar.folzy.ru/@folzy')
+    expect(profileUrl('@folzy')).toBe('https://try-sonar.ru/@folzy')
   })
 
   it('чистит «@», пробелы и регистр, как поле @username', () => {
-    expect(profileUrl('  @Folzy_1 ')).toBe('https://sonar.folzy.ru/@folzy_1')
+    expect(profileUrl('  @Folzy_1 ')).toBe('https://try-sonar.ru/@folzy_1')
   })
 
   it('нет @username или он с ошибкой — ссылки нет', () => {

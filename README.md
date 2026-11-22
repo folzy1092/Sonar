@@ -17,7 +17,7 @@ SoundCloud, Яндекс Музыка, YouTube Music, VK Музыка и Spotify
 
 [Скачать для Windows](https://github.com/folzy1092/Sonar/releases/latest/download/Sonar-setup.exe) ·
 [IPA для iPhone](https://github.com/folzy1092/Sonar/releases/download/ios-latest/Sonar.ipa) ·
-[Сайт](https://sonar.folzy.ru) · [Новости — @SonarUpdates](https://t.me/SonarUpdates) · [Документация](docs/)
+[Сайт](https://try-sonar.ru) · [Новости — @SonarUpdates](https://t.me/SonarUpdates) · [Документация](docs/)
 
 </div>
 
@@ -58,7 +58,7 @@ SoundCloud, Яндекс Музыка, YouTube Music, VK Музыка и Spotify
 
 **Sonar Deep** — подписка на функции самого Sonar (объёмный звук 3D · 8D · 12D · 16D, реверб, расширенный пульт и др.),
 тарифы Ping · Echo · Pod · Fleet на 1–4 места. Доступ к музыке и скачивание треков — бесплатно.
-Оплата — на сайте [sonar.folzy.ru/pay](https://sonar.folzy.ru/pay) (заработает вместе с сервером).
+Оплата — на сайте [try-sonar.ru/pay](https://try-sonar.ru/pay) (заработает вместе с сервером).
 
 ## ПК и iPhone
 
@@ -83,7 +83,7 @@ SoundCloud, Яндекс Музыка, YouTube Music, VK Музыка и Spotify
 ## Что дальше
 
 Свой сервер: аккаунт, синхронизация между устройствами, друзья и личные сообщения («скинуть трек»),
-«Продолжить с другого устройства», публичный профиль `sonar.folzy.ru/@username` и бот
+«Продолжить с другого устройства», публичный профиль `try-sonar.ru/@username` и бот
 [@SonarMusicApp](https://t.me/SonarMusicApp). Ещё — языки es / de / pl.
 План — [docs/ROADMAP.md](docs/ROADMAP.md).
 
@@ -93,7 +93,7 @@ SoundCloud, Яндекс Музыка, YouTube Music, VK Музыка и Spotify
 windows/   ПК-клиент: Tauri 2 (Rust) + Svelte 5 + TypeScript
 ios/       iPhone-клиент: SwiftUI, проект из XcodeGen
 server/    Python: FastAPI и Telegram-бот (ждёт хостинга)
-site/      sonar.folzy.ru — Astro, ru / en / uk
+site/      try-sonar.ru — Astro, ru / en / uk
 docs/      ТЗ, спека, API, база, настройки, карта проекта
 brand/     знак Sonar и знаки сервисов
 updates/   объявления обновлений и changelog для приложений

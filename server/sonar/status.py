@@ -14,7 +14,7 @@ from .db import now_ms
 OK, PARTIAL, DOWN = "ok", "partial", "down"
 SLOW_MS = 2000
 TIMEOUT = aiohttp.ClientTimeout(total=5)
-UA = {"User-Agent": "Sonar/0.1 (+https://sonar.folzy.ru)"}
+UA = {"User-Agent": "Sonar/0.1 (+https://try-sonar.ru)"}
 MIN_FREE_BYTES = 100 * 1024 * 1024
 
 
