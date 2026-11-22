@@ -18,6 +18,7 @@
   import { likeFx } from '../../lib/like-fx'
   import { toast } from '../../lib/toast.svelte'
   import { t } from '../../lib/i18n.svelte'
+  import { player } from '../../player/player.svelte'
   import type { RGB } from '../../theme/palette'
 
   const current = $derived(settings.get('appearance.style'))
@@ -89,11 +90,22 @@
     steps.forEach((s, i) => setTimeout(() => (demo = s), i * 360))
     setTimeout(() => (demo = null), steps.length * 360 + 250)
   }
-  // демо смены трека — на своей обложке в кнопке, а не на окне, которое отъехало за настройками
+  // Демо смены трека — на своей обложке рядом с кнопкой (окно отъехало за настройками): текущий трек
+  // сменяется на следующий из очереди, а если он последний — на предыдущий; трек один — на «ноту»;
+  // ничего не играет — просто цвет (жёлтый ⇄ розовый). Каждый «Показать» — туда и обратно.
   let trackDemo = $state<HTMLElement>()
+  let demoFlip = $state(false)
+  const demoCovers = $derived.by<[string | null, string | null] | null>(() => {
+    if (!player.current) return null
+    const at = (i: number) => player.tracks[player.order[i]]?.cover_url ?? null
+    const pos = player.pos
+    const other = pos + 1 < player.order.length ? at(pos + 1) : pos > 0 ? at(pos - 1) : null
+    return [player.current.cover_url ?? null, other]
+  })
   function showTrack() {
     replay('now')
-    if (trackDemo) trackChange(trackDemo)
+    demoFlip = !demoFlip
+    requestAnimationFrame(() => trackDemo && trackChange(trackDemo))
   }
 </script>
 
@@ -206,9 +218,18 @@
 
 <div class="axis">
   <Choice title={t('Смена трека')} hint={t('Как обложка и заголовок встречают новый трек')} wide fill value={axes.anim_track} options={[...ANIMS, { id: 'fade' as const, label: t('Плавно') }]} onchange={(v) => setAxis('anim_track', v)} />
-  <button class="show" onclick={showTrack}>
-    <span class="demo-cover" bind:this={trackDemo}><span class="demo-frame" data-fx-cover data-fx-frame><Cover url={null} size={22} radius="6px" /></span></span> {t('Показать')}
-  </button>
+  <span class="show-row">
+    <span class="demo-cover track" bind:this={trackDemo}>
+      <span class="demo-frame" data-fx-cover data-fx-frame>
+        {#if demoCovers}
+          <Cover url={demoCovers[demoFlip ? 1 : 0]} size={44} radius="9px" />
+        {:else}
+          <span class="swatch" class:flip={demoFlip}></span>
+        {/if}
+      </span>
+    </span>
+    <button class="show" onclick={showTrack}><Icon name="play" size={12} filled /> {t('Показать')}</button>
+  </span>
 </div>
 <div class="axis">
   <Choice title={t('Лайк')} hint={t('Что происходит с сердцем, когда ставишь лайк')} wide fill value={axes.anim_like} options={[...ANIMS, { id: 'pop' as const, label: t('Прыжок') }]} onchange={(v) => setAxis('anim_like', v)} />
@@ -422,6 +443,22 @@
     display: grid;
     overflow: hidden;
     border-radius: 6px;
+  }
+  .demo-cover.track,
+  .demo-cover.track .demo-frame {
+    border-radius: 9px;
+    overflow: visible;
+  }
+  /* ничего не играет — смена трека показана сменой цвета */
+  .swatch {
+    width: 44px;
+    height: 44px;
+    border-radius: 9px;
+    background: oklch(0.85 0.16 95);
+    transition: background-color 0.6s var(--ease);
+  }
+  .swatch.flip {
+    background: oklch(0.72 0.19 350);
   }
   .hint {
     display: block;
