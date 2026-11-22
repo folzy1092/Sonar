@@ -11,7 +11,7 @@ import sqlite3
 from dataclasses import dataclass
 
 from ..config import Settings
-from ..db import kv_get, kv_set
+from ..db import kv_get, kv_set, tx
 
 
 DISCORD_APP_ID = "1571615944449466510"  # то же, что вшито в клиент (discord.rs APP_ID), не секрет
@@ -91,7 +91,7 @@ def parse(form: dict[str, str]) -> dict[str, str]:
 def save(con: sqlite3.Connection, new: dict[str, str]) -> list[str]:
     """Записать изменившиеся; вернуть их ключи."""
     changed = [k for k, v in new.items() if v != get(con, k)]
-    with con:
+    with tx(con):
         for k in changed:
             kv_set(con, "setting:" + k, new[k])
     return changed

@@ -2,10 +2,12 @@
 // предзагрузка следующего в очереди, сдвиг на трек, настройки вида (LYRICS.md §5–7).
 import { mapAnnotations, type Annotation } from './core/annotations'
 import { untrack } from 'svelte'
+import { listen } from '@tauri-apps/api/event'
 import { api, type Track } from '../lib/api'
 import { player } from '../player/player.svelte'
 import { lang, t } from '../lib/i18n.svelte'
 import { toast } from '../lib/toast.svelte'
+import { isTauri } from '../lib/tauri'
 import { clampOffset, fromMs, toMs } from './core/offset'
 import type { Lyrics } from './core/types'
 
@@ -89,6 +91,12 @@ class LyricsStore {
     if (this.started) return
     this.started = true
     void this.loadSettings()
+    if (isTauri) {
+      // фоновая перепроверка в Rust нашла синхронный текст вместо текста без времени (аудит п. 9)
+      void listen<{ ref: string; lyrics: Lyrics }>('lyrics:upgraded', (e) =>
+        this.upgrade(e.payload.ref, e.payload.lyrics),
+      ).catch(() => {})
+    }
     $effect.root(() => {
       $effect(() => {
         const t = player.current
@@ -134,6 +142,19 @@ class LyricsStore {
       .finally(() => this.inflight.delete(t.ref))
     this.inflight.set(t.ref, p)
     return p
+  }
+
+  /** Синхронный текст пришёл позже кэша — подменить на месте, если трек ещё на экране. */
+  private upgrade(ref: string, l: Lyrics) {
+    this.remember(ref, l)
+    const t = player.current
+    if (this.ref !== ref || t?.ref !== ref || !l.lines.length) return
+    this.data = l
+    this.status = 'ready'
+    this.notes = new Map()
+    this.translation = null
+    void this.loadNotes(t, l)
+    if (this.translateOn) void this.translate(true)
   }
 
   private remember(ref: string, l: Lyrics | null) {

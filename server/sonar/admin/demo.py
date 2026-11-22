@@ -7,7 +7,7 @@ from __future__ import annotations
 import random
 import sqlite3
 
-from ..db import now_ms
+from ..db import now_ms, tx
 from ..events import day_of
 from ..subs import DAY_MS, PLANS
 
@@ -26,7 +26,7 @@ def seed(con: sqlite3.Connection, days: int = 60, rnd_seed: int = 7) -> None:
     rnd = random.Random(rnd_seed)
     now = now_ms()
     start = now - days * DAY_MS
-    with con:
+    with tx(con):
         for i, name in enumerate(["folzy"] + NAMES):
             uid = f"u_demo{i:03d}"
             created = start + int((i / (len(NAMES) + 1)) ** 1.4 * days * DAY_MS)

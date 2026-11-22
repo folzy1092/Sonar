@@ -532,7 +532,7 @@ async def login_password(msg: Message, state: FSMContext, ctx: Ctx):
     await delete_quietly(msg)  # пароль не остаётся в чате
     data = await state.get_data()
     try:
-        user = ctx.accounts.verify(data.get("login", ""), msg.text, tg_id=msg.from_user.id)
+        user = await ctx.accounts.verify(data.get("login", ""), msg.text, tg_id=msg.from_user.id)
     except AccountError as err:
         if err.code in ("too_many", "no_user"):
             await state.clear()
@@ -579,7 +579,7 @@ async def reg_again(msg: Message, state: FSMContext, ctx: Ctx):
         await state.clear()
         return await say(ctx, msg.chat.id, S.ERRORS["registration_closed"])
     try:
-        user = ctx.accounts.register(data["login"], msg.text, referred_code=data.get("ref"))
+        user = await ctx.accounts.register(data["login"], msg.text, referred_code=data.get("ref"))
     except AccountError as err:
         await state.set_state(Reg.login)
         return await say(ctx, msg.chat.id, S.ERRORS[err.code])

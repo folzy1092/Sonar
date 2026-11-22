@@ -1,13 +1,15 @@
 """Админка: вход со случайным заводским паролем, обязательная смена, CSRF, лимит попыток, страницы, действия, события."""
 import hashlib
 import re
+from asyncio import run
 
 import pytest
 from fastapi.testclient import TestClient
 
 from sonar import events
 from sonar.admin import prefs
-from sonar.admin.auth import FACTORY_LOGIN, PASSWORD_MIN, AdminAuth, AuthError
+from sonar.admin.auth import (FACTORY_LOGIN, LOGIN_TRIES_PER_IP, LOGIN_TRIES_PER_LOGIN, PASSWORD_MIN, AdminAuth,
+                              AuthError)
 from sonar.config import Settings
 from sonar.db import now_ms
 from sonar.web import create_app
@@ -65,7 +67,7 @@ def test_factory_admin_created_once_with_random_password(con):
     row = con.execute("SELECT * FROM admins").fetchone()
     assert row["login"] == "folzy" and row["must_change"] == 1
     assert row["password_hash"].startswith("$argon2id$") and password not in row["password_hash"]
-    auth.login("folzy", password, "1.1.1.1")
+    run(auth.login("folzy", password, "1.1.1.1"))
 
 
 def test_factory_password_differs_per_install(tmp_path):
@@ -82,7 +84,7 @@ def test_factory_password_logged_once(con, tmp_path, caplog):
     shown = [r.getMessage() for r in caplog.records if "пароль" in r.getMessage()]
     assert len(shown) == 1
     password = shown[0].split("пароль: ")[1].split(" ")[0]
-    AdminAuth(con).login("folzy", password, "1.1.1.1")
+    run(AdminAuth(con).login("folzy", password, "1.1.1.1"))
 
 
 def test_factory_password_not_in_source():
@@ -166,7 +168,7 @@ def test_unknown_admin_is_bad_not_distinct(con):
     auth = AdminAuth(con)
     auth.ensure_factory()
     with pytest.raises(AuthError) as e:
-        auth.login("ghost", "whatever", "1.1.1.1")
+        run(auth.login("ghost", "whatever", "1.1.1.1"))
     assert e.value.code == "bad"
 
 
@@ -397,8 +399,32 @@ def test_rate_limit_check_does_not_grow_memory():
 def test_admin_login_key_is_capped(con):
     auth = AdminAuth(con)
     with pytest.raises(AuthError):
-        auth.login("x" * 10_000, "wrong", "1.2.3.4")
-    assert max(len(k) for k in auth.limit.hits) <= len("login:") + 64
+        run(auth.login("x" * 10_000, "wrong", "1.2.3.4"))
+    assert max(len(k) for k in auth.login_limit.hits) <= len("login:") + 64
+
+
+def test_lockout_from_one_ip_does_not_lock_owner(con):
+    """Аудит п. 11: пять неудачных попыток с чужого IP закрывают этот IP, а не логин для всех."""
+    auth = AdminAuth(con)
+    password = auth.ensure_factory()
+    for _ in range(LOGIN_TRIES_PER_IP):
+        with pytest.raises(AuthError):
+            run(auth.login("folzy", "wrong", "6.6.6.6"))
+    with pytest.raises(AuthError) as e:
+        run(auth.login("folzy", password, "6.6.6.6"))
+    assert e.value.code == "too_many"
+    run(auth.login("folzy", password, "1.1.1.1"))
+
+
+def test_spread_brute_force_hits_soft_login_limit(con):
+    auth = AdminAuth(con)
+    password = auth.ensure_factory()
+    for i in range(LOGIN_TRIES_PER_LOGIN):
+        with pytest.raises(AuthError):
+            run(auth.login("folzy", "wrong", f"10.0.{i // 256}.{i % 256}"))
+    with pytest.raises(AuthError) as e:
+        run(auth.login("folzy", password, "1.1.1.1"))
+    assert e.value.code == "too_many"
 
 
 def test_future_custom_period_and_huge_page(client, con):

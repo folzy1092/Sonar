@@ -1,3 +1,5 @@
+from asyncio import run
+
 import pytest
 
 from sonar.accounts import AccountError, looks_like_token
@@ -5,46 +7,46 @@ from sonar.db import now_ms
 
 
 def test_register_and_login(acc):
-    u = acc.register("Folzy", "password1")
+    u = run(acc.register("Folzy", "password1"))
     assert u.login == "folzy" and u.username == "folzy" and u.number == 1 and len(u.referral_code) == 6
-    assert acc.verify("folzy", "password1").id == u.id
-    assert acc.verify("@FOLZY", "password1").id == u.id
+    assert run(acc.verify("folzy", "password1")).id == u.id
+    assert run(acc.verify("@FOLZY", "password1")).id == u.id
     with pytest.raises(AccountError) as e:
-        acc.verify("folzy", "nope")
+        run(acc.verify("folzy", "nope"))
     assert e.value.code == "bad_password"
-    assert acc.register("second", "password2").number == 2
+    assert run(acc.register("second", "password2")).number == 2
 
 
 @pytest.mark.parametrize("login", ["ab", "Кот", "a b", "x" * 25])
 def test_bad_logins(acc, login):
     with pytest.raises(AccountError) as e:
-        acc.register(login, "password1")
+        run(acc.register(login, "password1"))
     assert e.value.code == "login_format"
 
 
 def test_taken_and_short_password(acc):
-    acc.register("folzy", "password1")
+    run(acc.register("folzy", "password1"))
     with pytest.raises(AccountError) as e:
-        acc.register("FOLZY", "password1")
+        run(acc.register("FOLZY", "password1"))
     assert e.value.code == "login_taken"
     with pytest.raises(AccountError) as e:
-        acc.register("other", "short")
+        run(acc.register("other", "short"))
     assert e.value.code == "password_short"
 
 
 def test_rate_limit(acc):
-    acc.register("folzy", "password1")
+    run(acc.register("folzy", "password1"))
     for _ in range(5):
         with pytest.raises(AccountError):
-            acc.verify("folzy", "wrong", tg_id=1)
+            run(acc.verify("folzy", "wrong", tg_id=1))
     with pytest.raises(AccountError) as e:
-        acc.verify("folzy", "password1", tg_id=1)
+        run(acc.verify("folzy", "password1", tg_id=1))
     assert e.value.code == "too_many"
 
 
 def test_telegram_link_moves_between_accounts(acc):
-    a = acc.register("first", "password1")
-    b = acc.register("second", "password1")
+    a = run(acc.register("first", "password1"))
+    b = run(acc.register("second", "password1"))
     acc.link_tg(a, 42, "me")
     acc.link_tg(b, 42, "me")
     assert acc.by_tg(42).id == b.id
@@ -54,7 +56,7 @@ def test_telegram_link_moves_between_accounts(acc):
 
 
 def test_token_always_visible(acc):
-    u = acc.register("folzy", "password1")
+    u = run(acc.register("folzy", "password1"))
     assert acc.token(u) is None
     t1 = acc.new_token(u)
     assert t1.startswith("snr_") and acc.token(u) == t1 and acc.user_by_token(t1).id == u.id
@@ -65,13 +67,13 @@ def test_token_always_visible(acc):
 
 
 def test_referral(acc):
-    a = acc.register("first", "password1")
-    acc.register("second", "password1", referred_code=a.referral_code.lower())
+    a = run(acc.register("first", "password1"))
+    run(acc.register("second", "password1", referred_code=a.referral_code.lower()))
     assert acc.referral_count(a) == 1
 
 
 def test_stats(acc, con):
-    u = acc.register("folzy", "password1")
+    u = run(acc.register("folzy", "password1"))
     t = now_ms() - 3600_000
     con.executemany("INSERT INTO plays (user_id, ref, artist, played_at, listened_ms) VALUES (?,?,?,?,?)",
                     [(u.id, "sc:1", "Mareux", t, 180_000), (u.id, "sc:1", "Mareux", t + 1, 180_000),
@@ -89,7 +91,7 @@ def test_token_detector():
 
 
 def test_listeners_24h_counts_accounts_once(acc, con):
-    a, b, c = (acc.register(n, "password1") for n in ("folzy", "second", "third"))
+    a, b, c = (run(acc.register(n, "password1")) for n in ("folzy", "second", "third"))
     day = now_ms() - 3600_000
     con.executemany("INSERT INTO plays (user_id, ref, artist, played_at, listened_ms) VALUES (?,?,?,?,?)",
                     [(a.id, "sc:1", "A", day + 1, 1000), (a.id, "sc:2", "A", day + 2, 1000),

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 SCHEMA = """
@@ -186,6 +188,25 @@ CREATE INDEX IF NOT EXISTS admin_audit_target ON admin_audit(target, at);
 
 def now_ms() -> int:
     return int(time.time() * 1000)
+
+
+@contextmanager
+def tx(con: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
+    """Явная транзакция: база открыта с isolation_level=None, а при нём `with con:` ничего не начинает.
+
+    BEGIN IMMEDIATE сразу берёт запись — шаги действия (бан + выход + журнал) либо все, либо ни одного.
+    Вложенный вызов входит во внешнюю транзакцию.
+    """
+    if con.in_transaction:
+        yield con
+        return
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        yield con
+    except BaseException:
+        con.execute("ROLLBACK")
+        raise
+    con.execute("COMMIT")
 
 
 def connect(path: Path | str) -> sqlite3.Connection:

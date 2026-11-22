@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 import secrets
@@ -16,7 +17,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from cryptography.fernet import Fernet, InvalidToken
 
-from .db import now_ms
+from .db import now_ms, tx
 
 LOGIN_RE = re.compile(r"^[a-z0-9_.]{3,24}$")
 PASSWORD_MIN = 8
@@ -26,6 +27,14 @@ TOKEN_PREFIX = "snr_"
 TOKEN_LIKE = re.compile(r"^(y0_[\w-]{20,}|AQAAAA[\w-]{20,}|2-\d{5,}-\d+-\w{10,}|[A-Za-z0-9_-]{32,})$")
 
 _ph = PasswordHasher()  # argon2id по умолчанию
+
+
+def password_ok(password_hash: str, password: str) -> bool:
+    """Проверка argon2 без исключений. Медленная (~50 мс) — из async-кода звать через `asyncio.to_thread`."""
+    try:
+        return _ph.verify(password_hash, password)
+    except (VerifyMismatchError, InvalidHashError):
+        return False
 
 
 class AccountError(Exception):
@@ -125,8 +134,8 @@ class Accounts:
             raise AccountError("login_taken")
         return login
 
-    def register(self, login: str, password: str, tg_id: int | None = None, tg_username: str | None = None,
-                 referred_code: str | None = None) -> User:
+    async def register(self, login: str, password: str, tg_id: int | None = None, tg_username: str | None = None,
+                       referred_code: str | None = None) -> User:
         login = self.check_login(login)
         if len(password) < PASSWORD_MIN:
             raise AccountError("password_short")
@@ -134,35 +143,37 @@ class Accounts:
             raise AccountError("tg_taken")
         ref = self.by_referral(referred_code) if referred_code else None
         uid = "u_" + secrets.token_hex(8)
-        with self.con:
+        # Хэш — в потоке: бот и админка живут в одном цикле событий, argon2 не должен его держать.
+        password_hash = await asyncio.to_thread(_ph.hash, password)
+        with tx(self.con):
+            if not self.login_free(login):  # пока считался хэш, логин мог занять другой
+                raise AccountError("login_taken")
             n = self.con.execute("SELECT COALESCE(MAX(number), ?) + 1 AS n FROM users", (NUMBER_START - 1,)).fetchone()["n"]
             self.con.execute(
                 "INSERT INTO users (id, number, login, username, display_name, password_hash, tg_id, tg_username,"
                 " referral_code, referred_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                (uid, n, login, login, login, _ph.hash(password), tg_id, tg_username, self._new_ref_code(),
+                (uid, n, login, login, login, password_hash, tg_id, tg_username, self._new_ref_code(),
                  ref.id if ref else None, now_ms()),
             )
         return self.by_id(uid)
 
-    def verify(self, login: str, password: str, tg_id: int | None = None) -> User:
+    async def verify(self, login: str, password: str, tg_id: int | None = None) -> User:
         """Вход логином и паролем; AccountError('no_user' | 'bad_password' | 'too_many')."""
         keys = [f"login:{login.lower()}"] + ([f"tg:{tg_id}"] if tg_id else [])
         if self.login_limit.blocked(*keys):
             raise AccountError("too_many")
+        # Попытка считается до проверки: пока argon2 считает в потоке, параллельные попытки тоже упрутся в лимит.
+        self.login_limit.hit(*keys)
         r = self.con.execute("SELECT * FROM users WHERE login = ? AND banned = 0", (login.strip().lstrip("@"),)).fetchone()
         if r is None:
-            self.login_limit.hit(*keys)
             raise AccountError("no_user")
-        try:
-            _ph.verify(r["password_hash"] or "", password)
-        except (VerifyMismatchError, InvalidHashError):
-            self.login_limit.hit(*keys)
+        if not await asyncio.to_thread(password_ok, r["password_hash"] or "", password):
             raise AccountError("bad_password")
         self.login_limit.reset(*keys)
         return User.of(r)
 
     def link_tg(self, user: User, tg_id: int, tg_username: str | None) -> User:
-        with self.con:
+        with tx(self.con):
             # Telegram может быть привязан только к одному аккаунту — отвязываем от прежнего.
             self.con.execute("UPDATE users SET tg_id = NULL WHERE tg_id = ? AND id != ?", (tg_id, user.id))
             self.con.execute("UPDATE users SET tg_id = ?, tg_username = ? WHERE id = ?", (tg_id, tg_username, user.id))

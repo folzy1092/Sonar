@@ -10,7 +10,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
-use tauri::State;
+use tauri::{Emitter, Manager, State};
 
 type Res<T> = Result<T, String>;
 
@@ -516,10 +516,19 @@ pub fn discord_status(discord: State<'_, Arc<crate::discord::Discord>>) -> serde
 
 // ——— тексты песен (SPEC §3.7б, docs/LYRICS.md) ———
 
+/// Фоновая перепроверка нашла синхронный текст: `{ ref, lyrics }` — панель подменяет текст без перезагрузки.
+pub const LYRICS_UPGRADED_EVENT: &str = "lyrics:upgraded";
+
 /// Текст трека: кэш в базе → lrclib → Genius. `None` — «Текст не найден»
-/// («нет» перепроверяется через 30 мин, текст без времени — раз в 3 дня ищет синхронный). `refresh` — выбросить кэш и искать заново.
+/// («нет» перепроверяется через 30 мин, текст без времени — раз в 3 дня ищет синхронный фоном). `refresh` — выбросить кэш и искать заново.
 #[tauri::command]
-pub async fn lyrics(core: State<'_, Arc<Core>>, db: State<'_, Db>, track: Track, refresh: Option<bool>) -> Res<Option<Lyrics>> {
+pub async fn lyrics(
+  app: tauri::AppHandle,
+  core: State<'_, Arc<Core>>,
+  db: State<'_, Db>,
+  track: Track,
+  refresh: Option<bool>,
+) -> Res<Option<Lyrics>> {
   // кэш читаем отдельно: блокировка базы не должна дожить до `await` ниже
   let cached = if refresh == Some(true) {
     db.0.lock().unwrap().clear_lyrics(&track.ref_).map_err(err)?;
@@ -534,16 +543,12 @@ pub async fn lyrics(core: State<'_, Arc<Core>>, db: State<'_, Db>, track: Track,
           if !lyrics::wants_synced_upgrade(&l, crate::store::now_ms() - at) {
             return Ok(Some(l));
           }
-          // текст без времени и давно — вдруг на lrclib появился синхронный; нет — оставляем прежний
-          // и откладываем следующую проверку (fetched_at обновится)
-          let fresh = lyrics::fetch_track(&core.http, &track, false).await.ok().flatten();
-          let keep = match fresh {
-            Some(n) if n.is_synced => n,
-            _ => l,
-          };
-          let json = serde_json::to_string(&keep).map_err(err)?;
-          db.0.lock().unwrap().put_lyrics(&track.ref_, Some(&json), Some(keep.source.as_str())).map_err(err)?;
-          return Ok(Some(keep));
+          // текст без времени и давно — вдруг на lrclib появился синхронный. Прежний текст отдаём сразу
+          // (аудит п. 9), а lrclib спрашиваем фоном. fetched_at сдвигаем заранее: повторный вызов
+          // (предзагрузка, возврат к треку) не запустит вторую проверку.
+          db.0.lock().unwrap().put_lyrics(&track.ref_, Some(&j), Some(l.source.as_str())).map_err(err)?;
+          tauri::async_runtime::spawn(upgrade_to_synced(app, core.inner().clone(), track));
+          return Ok(Some(l));
         }
       }
       None if crate::store::now_ms() - at < lyrics::RECHECK_TTL_MS => return Ok(None),
@@ -558,6 +563,24 @@ pub async fn lyrics(core: State<'_, Arc<Core>>, db: State<'_, Db>, track: Track,
     .put_lyrics(&track.ref_, json.as_deref(), found.as_ref().map(|l| l.source.as_str()))
     .map_err(err)?;
   Ok(found)
+}
+
+/// Фон для `lyrics`: синхронный текст нашёлся — в кэш и событие [`LYRICS_UPGRADED_EVENT`]; нет — остаётся прежний.
+async fn upgrade_to_synced(app: tauri::AppHandle, core: Arc<Core>, track: Track) {
+  let fresh = match lyrics::fetch_track(&core.http, &track, false).await {
+    Ok(Some(l)) if l.is_synced => l,
+    Ok(_) => return,
+    Err(e) => return log::warn!("[lyrics] фоновая перепроверка {}: {e}", track.ref_),
+  };
+  let saved = serde_json::to_string(&fresh).map_err(err).and_then(|json| {
+    let db = app.state::<Db>();
+    let store = db.0.lock().unwrap();
+    store.put_lyrics(&track.ref_, Some(&json), Some(fresh.source.as_str())).map_err(err)
+  });
+  if let Err(e) = saved {
+    return log::warn!("[lyrics] не сохранил синхронный текст {}: {e}", track.ref_);
+  }
+  let _ = app.emit(LYRICS_UPGRADED_EVENT, serde_json::json!({ "ref": track.ref_, "lyrics": fresh }));
 }
 
 /// Аннотации Genius к тексту трека (строки фрагмента + пояснение). Нет на Genius — пустой список.

@@ -6,16 +6,16 @@ must_change не пускает дальше формы смены пароля.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import secrets
 import sqlite3
 from dataclasses import dataclass
 
 from argon2 import PasswordHasher
-from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
-from ..accounts import RateLimit
-from ..db import now_ms
+from ..accounts import RateLimit, password_ok
+from ..db import now_ms, tx
 
 FACTORY_LOGIN = "folzy"
 # 18 случайных байт → 24 символа base64url: заводской пароль живёт до первого входа.
@@ -24,6 +24,10 @@ SESSION_TTL_MS = 12 * 3600_000      # ADMIN.md §1: сессия админки 
 PASSWORD_MIN = 10
 # Длиннее логина не бывает — обрезаем до проверки, чтобы мусорный ввод не раздувал ключи лимита входа.
 LOGIN_MAX = 64
+LOGIN_WINDOW_S = 15 * 60
+LOGIN_TRIES_PER_IP = 5
+# Логин считается со всех адресов, но мягко: чужой с одного IP не запрёт владельца, а перебор с сотни IP упрётся сюда.
+LOGIN_TRIES_PER_LOGIN = 50
 
 _ph = PasswordHasher()
 # Ложная проверка для несуществующего логина — чтобы время ответа не выдавало, есть ли такой админ.
@@ -57,7 +61,8 @@ def _h(token: str) -> str:
 class AdminAuth:
     def __init__(self, con: sqlite3.Connection):
         self.con = con
-        self.limit = RateLimit(limit=5, window_s=15 * 60)
+        self.ip_limit = RateLimit(limit=LOGIN_TRIES_PER_IP, window_s=LOGIN_WINDOW_S)
+        self.login_limit = RateLimit(limit=LOGIN_TRIES_PER_LOGIN, window_s=LOGIN_WINDOW_S)
 
     def ensure_factory(self) -> str | None:
         """Нет ни одного админа — создать заводского со случайным паролем. → этот пароль (показать один раз) или None."""
@@ -71,21 +76,20 @@ class AdminAuth:
     def _admin(self, r) -> Admin:
         return Admin(r["id"], r["login"], bool(r["must_change"]))
 
-    def login(self, login: str, password: str, ip: str, user_agent: str = "") -> tuple[str, Session]:
+    async def login(self, login: str, password: str, ip: str, user_agent: str = "") -> tuple[str, Session]:
         """→ (токен для cookie, сессия). AuthError('too_many' | 'bad')."""
         login = login.strip().lower()[:LOGIN_MAX]
-        keys = (f"ip:{ip}", f"login:{login}")
-        if self.limit.blocked(*keys):
+        ip_key, login_key = f"ip:{ip}", f"login:{login}"
+        if self.ip_limit.blocked(ip_key) or self.login_limit.blocked(login_key):
             raise AuthError("too_many")
+        # Попытка считается до проверки: пока argon2 считает в потоке, параллельные попытки тоже упрутся в лимит.
+        self.ip_limit.hit(ip_key)
+        self.login_limit.hit(login_key)
         r = self.con.execute("SELECT * FROM admins WHERE login = ?", (login,)).fetchone()
-        try:
-            _ph.verify(r["password_hash"] if r else _DUMMY, password)
-            if r is None:
-                raise VerifyMismatchError
-        except (VerifyMismatchError, InvalidHashError):
-            self.limit.hit(*keys)
-            raise AuthError("bad") from None
-        self.limit.reset(*keys)
+        ok = await asyncio.to_thread(password_ok, r["password_hash"] if r else _DUMMY, password)
+        if not ok or r is None:
+            raise AuthError("bad")
+        self.ip_limit.reset(ip_key)
         return self._new_session(self._admin(r), ip, user_agent)
 
     def _new_session(self, admin: Admin, ip: str, user_agent: str) -> tuple[str, Session]:
@@ -119,20 +123,19 @@ class AdminAuth:
     def logout(self, s: Session) -> None:
         self.con.execute("DELETE FROM admin_sessions WHERE token_hash = ?", (s.token_hash,))
 
-    def change_password(self, s: Session, old: str, new: str, again: str, ip: str, user_agent: str = "") -> tuple[str, Session]:
+    async def change_password(self, s: Session, old: str, new: str, again: str, ip: str,
+                              user_agent: str = "") -> tuple[str, Session]:
         """Сменить пароль; все сессии этого админа закрываются, выдаётся новая. AuthError с кодом причины."""
         r = self.con.execute("SELECT * FROM admins WHERE id = ?", (s.admin.id,)).fetchone()
-        try:
-            _ph.verify(r["password_hash"], old)
-        except (VerifyMismatchError, InvalidHashError):
-            raise AuthError("bad_old") from None
+        if not await asyncio.to_thread(password_ok, r["password_hash"], old):
+            raise AuthError("bad_old")
         if new != again:
             raise AuthError("mismatch")
         if len(new) < PASSWORD_MIN:
             raise AuthError("short")
         if new == old or new.lower() in {r["login"].lower(), FACTORY_LOGIN}:
             raise AuthError("weak")
-        self.set_password(r["login"], new)
+        self._store_password(r["id"], await asyncio.to_thread(_ph.hash, new))
         return self._new_session(Admin(r["id"], r["login"], False), ip, user_agent)
 
     def set_password(self, login: str, new: str) -> None:
@@ -140,7 +143,10 @@ class AdminAuth:
         r = self.con.execute("SELECT id FROM admins WHERE login = ?", (login,)).fetchone()
         if r is None:
             raise AuthError("no_admin")
-        with self.con:
+        self._store_password(r["id"], _ph.hash(new))
+
+    def _store_password(self, admin_id: int, password_hash: str) -> None:
+        with tx(self.con):
             self.con.execute("UPDATE admins SET password_hash = ?, must_change = 0, changed_at = ? WHERE id = ?",
-                             (_ph.hash(new), now_ms(), r["id"]))
-            self.con.execute("DELETE FROM admin_sessions WHERE admin_id = ?", (r["id"],))
+                             (password_hash, now_ms(), admin_id))
+            self.con.execute("DELETE FROM admin_sessions WHERE admin_id = ?", (admin_id,))

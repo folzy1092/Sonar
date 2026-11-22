@@ -7,7 +7,7 @@ import json
 import sqlite3
 
 from ..accounts import LOGIN_RE
-from ..db import now_ms
+from ..db import now_ms, tx
 from .. import subs
 
 PAGE = 50
@@ -135,7 +135,7 @@ def card(con: sqlite3.Connection, user_id: str, now: int | None = None) -> dict 
 
 def ban(con: sqlite3.Connection, admin: str, user_id: str, reason: str) -> None:
     reason = reason.strip()[:200] or None
-    with con:
+    with tx(con):
         n = con.execute("UPDATE users SET banned = 1, ban_reason = ?, banned_at = ? WHERE id = ? AND banned = 0",
                         (reason, now_ms(), user_id)).rowcount
         if not n:
@@ -145,7 +145,7 @@ def ban(con: sqlite3.Connection, admin: str, user_id: str, reason: str) -> None:
 
 
 def unban(con: sqlite3.Connection, admin: str, user_id: str) -> None:
-    with con:
+    with tx(con):
         if not con.execute("UPDATE users SET banned = 0, ban_reason = NULL, banned_at = NULL WHERE id = ? AND banned = 1",
                            (user_id,)).rowcount:
             raise UserError("no_change")
@@ -164,7 +164,7 @@ def set_login(con: sqlite3.Connection, admin: str, user_id: str, login: str) -> 
         raise UserError("no_change")
     if con.execute("SELECT 1 FROM users WHERE (login = ? OR username = ?) AND id != ?", (login, login, user_id)).fetchone():
         raise UserError("login_taken")
-    with con:
+    with tx(con):
         con.execute("UPDATE users SET login = ? WHERE id = ?", (login, user_id))
         audit(con, admin, "set_login", user_id, old=old["login"], new=login)
 
@@ -173,7 +173,7 @@ def grant_sub(con: sqlite3.Connection, admin: str, user_id: str, plan: str, days
     if con.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone() is None:
         raise UserError("no_user")
     try:
-        with con:
+        with tx(con):
             subs.grant(con, user_id, plan, days, amount, note=note.strip()[:200] or None)
             audit(con, admin, "grant_sub", user_id, plan=plan, days=days, amount=amount)
     except subs.SubError as e:
@@ -182,7 +182,7 @@ def grant_sub(con: sqlite3.Connection, admin: str, user_id: str, plan: str, days
 
 def end_device(con: sqlite3.Connection, admin: str, user_id: str, device_id: str) -> None:
     """Завершить сессию одного устройства (ADMIN.md §4): там нужно войти заново, остальные не трогаем."""
-    with con:
+    with tx(con):
         if not con.execute("DELETE FROM sessions WHERE user_id = ? AND device_id = ?", (user_id, device_id)).rowcount:
             raise UserError("no_change")
         audit(con, admin, "end_device", user_id, device=device_id[:64])
@@ -190,7 +190,7 @@ def end_device(con: sqlite3.Connection, admin: str, user_id: str, device_id: str
 
 def logout_all(con: sqlite3.Connection, admin: str, user_id: str) -> None:
     """Выйти на всех устройствах без бана (ADMIN.md §3) — например, если у человека увели телефон."""
-    with con:
+    with tx(con):
         n = con.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,)).rowcount
         if not n:
             raise UserError("no_change")

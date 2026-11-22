@@ -11,7 +11,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from .db import now_ms
+from .db import now_ms, tx
 
 KINDS = {"open", "play"}
 # Префикс ref → сервис (API.md §2 «Префиксы ref»); local — локальные файлы ПК.
@@ -89,7 +89,7 @@ def record(con: sqlite3.Connection, dev: Device, events: list[dict], now: int | 
     if not rows:
         return 0
     before = con.total_changes
-    with con:
+    with tx(con):
         con.executemany("INSERT OR IGNORE INTO events (user_id, device_id, platform, kind, service, ref, artist, title, at, day)"
                         " VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
     return con.total_changes - before

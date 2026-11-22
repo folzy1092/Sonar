@@ -175,7 +175,7 @@ async def login_submit(request: Request):
     if not pre or not secrets.compare_digest(form.get("csrf", ""), pre):
         return _go("/login", e="csrf")
     try:
-        token, s = _auth(request).login(form.get("login", ""), form.get("password", ""), _ip(request),
+        token, s = await _auth(request).login(form.get("login", ""), form.get("password", ""), _ip(request),
                                         request.headers.get("user-agent", ""))
     except AuthError as err:
         users.login_failed(_state(request).con, form.get("login", ""), _ip(request), err.code)
@@ -231,7 +231,7 @@ async def password_submit(request: Request):
     if not _csrf_ok(s, form):
         return _go("/password", e="csrf")
     try:
-        token, new = _auth(request).change_password(s, form.get("old", ""), form.get("new", ""), form.get("again", ""),
+        token, new = await _auth(request).change_password(s, form.get("old", ""), form.get("new", ""), form.get("again", ""),
                                                     _ip(request), request.headers.get("user-agent", ""))
     except AuthError as err:
         return _go("/password", e=err.code)

@@ -1,3 +1,5 @@
+from asyncio import run
+
 import pytest
 
 from sonar.bot import screens as S
@@ -15,9 +17,9 @@ def rels(con):
 
 @pytest.fixture
 def users(acc):
-    a = acc.register("folzy", "password1", tg_id=111111)
-    b = acc.register("tester", "password1", tg_id=222222)
-    c = acc.register("noTg", "password1")
+    a = run(acc.register("folzy", "password1", tg_id=111111))
+    b = run(acc.register("tester", "password1", tg_id=222222))
+    c = run(acc.register("noTg", "password1"))
     return a, b, c
 
 
