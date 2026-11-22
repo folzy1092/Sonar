@@ -6,8 +6,11 @@ import UIKit
 /// фигуры в этом месте. Фигуры по кругу перетекают друг в друга: знак Sonar → шар со светом → две волны.
 /// Сами по себе точки всё время чуть плывут и дышат размером; когда играет музыка — сильнее и с бегущей
 /// рябью. Цвет — акцент темы (под обложку). Касание — фигура целиком пружинит, как желе (сжалась,
-/// качнулась к пальцу, успокоилась) и лёгкий тактильный отклик; долгое нажатие — лист настроений волны (`onHold`). Рисует Canvas одним путём, ~1800 точек, 30 кадров/с (во время касания — 60, в режиме энергосбережения и когда приложение
-/// не на переднем плане — 15); вне экрана — пауза.
+/// качнулась к пальцу, успокоилась) и лёгкий тактильный отклик. Настроения — своей шестерёнкой рядом с
+/// заголовком (долгое нажатие на поле убрано 2026-11-22: из-за него тап ждал, не долгое ли это нажатие, и
+/// поле откликалось с задержкой). Рисует Canvas одним путём в фоне (`rendersAsynchronously` — кадр не ждёт
+/// главный поток), ~1800 точек, 30 кадров/с (во время касания — 60, в режиме энергосбережения и когда
+/// приложение не на переднем плане — 15); вне экрана — пауза.
 /// Всё «на кадр» (фигуры, течение) — `FieldFrame`, на точку остаётся только сложение таблиц.
 struct SonarField: View {
     var active: Bool
@@ -15,7 +18,6 @@ struct SonarField: View {
     var color: Color
     /// Шаг сетки, pt.
     var step: CGFloat = 8
-    var onHold: (@MainActor () -> Void)?
 
     /// Касание: где и когда.
     struct Poke: Sendable {
@@ -26,7 +28,7 @@ struct SonarField: View {
     }
 
     /// Сколько шевелятся точки после касания, с.
-    static let pokeLife = 1.3
+    nonisolated static let pokeLife = 1.3
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -42,7 +44,8 @@ struct SonarField: View {
             let t = context.date.timeIntervalSinceReferenceDate
             let logo = self.logo, playing = self.playing, color = self.color, step = self.step
             let pokes = self.pokes.filter { t - $0.time < Self.pokeLife }
-            Canvas { gc, canvas in
+            // @Sendable: в фоне Canvas зовёт рисование не из главного потока — внутри только nonisolated
+            Canvas(rendersAsynchronously: true) { @Sendable gc, canvas in
                 let grid = FieldGrid(size: canvas, step: step)
                 guard grid.cols > 0, grid.rows > 0 else { return }
                 let frame = FieldFrame(grid: grid, t: t, playing: playing)
@@ -78,10 +81,6 @@ struct SonarField: View {
         .onTapGesture(coordinateSpace: .local) { point in
             poke(at: point)
         }
-        .onLongPressGesture(minimumDuration: 0.45) {
-            Haptics.hold()
-            onHold?()
-        }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { new in
             guard new != size else { return }
             size = new
@@ -115,9 +114,9 @@ struct SonarField: View {
         return poking ? pokeInterval : calmInterval
     }
     /// Меньше этого радиуса точка не рисуется, pt.
-    static let minRadius = 0.45
+    nonisolated static let minRadius = 0.45
     /// Сильнее всего касание надувает точку (подскок) — граница для пропуска пустых точек.
-    static let pokeMaxScale = 1.45
+    nonisolated static let pokeMaxScale = 1.45
     /// Сколько касаний играют разом: частые тычки не копят работу на кадр.
     static let maxPokes = 4
 
@@ -148,7 +147,7 @@ struct SonarField: View {
     /// Игра от касания — волна идёт от пальца через всю фигуру (не продавливает точку под ним):
     /// 0 — точки разлетаются кольцом и пружиной собираются обратно; 1 — вихрь, фигура закручивается
     /// вокруг пальца и раскручивается; 2 — подскок: точки по очереди прыгают вверх и надуваются.
-    static func play(_ poke: Poke, at c: CGPoint, t: TimeInterval) -> (dx: CGFloat, dy: CGFloat, scale: Double) {
+    nonisolated static func play(_ poke: Poke, at c: CGPoint, t: TimeInterval) -> (dx: CGFloat, dy: CGFloat, scale: Double) {
         let age = t - poke.time
         guard age >= 0, age < pokeLife else { return (0, 0, 1) }
         let vx = Double(c.x - poke.point.x), vy = Double(c.y - poke.point.y)

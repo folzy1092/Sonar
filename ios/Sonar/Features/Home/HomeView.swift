@@ -20,9 +20,7 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                SonarField(active: active && !showModes, playing: myWavePlaying, color: Theme.accent) {
-                    showModes = true
-                }
+                SonarField(active: active && !showModes, playing: myWavePlaying, color: Theme.accent)
                     .frame(height: 290)
                     .padding(.horizontal, -Theme.gutter)
                     .padding(.top, 4)
@@ -120,6 +118,15 @@ struct HomeView: View {
                 }
             }
             Spacer(minLength: 8)
+            // настроение Sonar Mix — отдельной шестерёнкой: долгое нажатие на поле никто не находил
+            Button { showModes = true } label: {
+                SonarIcon(.settings, size: 24)
+                    .foregroundStyle(Theme.text)
+                    .frame(width: 50, height: 50)
+                    .background(Theme.raised, in: Circle())
+            }
+            .buttonStyle(PressableStyle(scale: 0.9))
+            .accessibilityLabel(t("Настроение Sonar Mix"))
             Button {
                 // сама ставит на паузу / продолжает, если Sonar Mix уже играет
                 engine.playMyWave()
