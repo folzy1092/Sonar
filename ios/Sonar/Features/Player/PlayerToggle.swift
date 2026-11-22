@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Повтор и перемешивание в плеере (docs/POLISH_PROMPT.md п. 5, как ПК `player/repeat-ui.ts`):
-/// выкл — значок `textSecondary` без фона; вкл — значок акцента, кружок акцента 15 % и точка 4 pt под ним.
+/// выкл — значок `textSecondary`; вкл — значок акцента и точка 4 pt под ним (без кружка-подложки).
 /// Подписи для VoiceOver — те же строки, что подсказки на ПК: «Повтор: выкл / всё / один трек».
 enum RepeatUI {
     static func icon(_ mode: RepeatMode) -> IconName {
@@ -53,7 +53,7 @@ struct PlayerToggleIcon: View {
                 }
             }
             .frame(width: size + Self.pad, height: size + Self.pad)
-            .background(Circle().fill(Theme.accent.opacity(active ? 0.15 : 0)))
+            // без полупрозрачного кружка под значком — только цвет и точка (просьба владельца 2026-11-22)
             .overlay(alignment: .bottom) {
                 Circle()
                     .fill(Theme.accent)
