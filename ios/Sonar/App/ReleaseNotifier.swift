@@ -1,7 +1,9 @@
 import BackgroundTasks
 import Foundation
 import Observation
-import UserNotifications
+// UNNotificationSettings не Sendable, а `notificationSettings()` зовём из nonisolated-метода — без
+// @preconcurrency строгая проверка Swift 6 валит сборку (CI 8f9fb9e / d973a4b).
+@preconcurrency import UserNotifications
 
 /// «Новинки исполнителей» на iPhone — как ПК `lib/new-releases.svelte.ts`, но вместо тоста — уведомление.
 /// Фоновое обновление iOS (`BGAppRefreshTask`, `SonarApp` `.backgroundTask`; просим раз в 3 ч, когда

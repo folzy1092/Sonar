@@ -4,14 +4,11 @@
 1 → 2 → 3, каждая отдельным коммитом. Перед стартом — CLAUDE.md (общение, git, переводы) и `docs/HANDOFF.md`.
 Прошлое задание (пакет 2026-11-22: новинки на iPhone, «Схожесть», совместный плейлист) сделано — см. ROADMAP.
 
-## 0. Сборка iOS упала — сначала это
+## 0. Сборка iOS
 
-- Красные `8f9fb9e` (пакет 2026-11-22) и `d973a4b` (плашка «Свой звук»), последняя зелёная — `c935590`.
-- Причина одна — строгая проверка Sendable в `ios/Sonar/App/ReleaseNotifier.swift`, строки 145 и 151:
-  `await center.notificationSettings()` — «non-sendable result type 'UNNotificationSettings' cannot be sent
-  from nonisolated context». Плашка «Свой звук» ни при чём, она просто легла поверх красного.
-- Фикс, который подсказывает компилятор: `@preconcurrency import UserNotifications` (строка 4). Либо брать
-  только `authorizationStatus` внутри `@MainActor`-метода. Проверка — только CI (`ios.yml`), Mac нет.
+- Падали `8f9fb9e` и `d973a4b`: строгая проверка Sendable в `ios/Sonar/App/ReleaseNotifier.swift`
+  (`await center.notificationSettings()` из nonisolated-метода). **Починено** — `@preconcurrency import
+  UserNotifications`. Если CI всё ещё красный — смотри лог `ios.yml`, Mac нет.
 - Предупреждение `ProfileEditView.swift:156` (захват `label` в `@Sendable`) сборку не валит — по желанию.
 - **Каждый пуш в `ios/` отменяет идущую сборку** (`cancel-in-progress`) — правки iPhone копи и пушь пачкой.
 
