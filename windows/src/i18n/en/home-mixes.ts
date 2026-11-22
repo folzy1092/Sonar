@@ -28,4 +28,6 @@ export default {
   'Послушай или лайкни что-нибудь — и выбери отсюда.': 'Play or like something, then pick it here.',
   'Похоже на': 'Similar to',
   'Открыть исполнителя': 'Open artist',
+  'Похоже на {list}': 'Similar to {list}',
+  'Рядом с {artist} на карте исполнителей': 'Next to {artist} on the artist map',
 }

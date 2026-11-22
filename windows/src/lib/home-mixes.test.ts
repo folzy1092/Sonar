@@ -13,6 +13,8 @@ import {
   normName,
   parseSeed,
   pickFromPools,
+  pickWithReasons,
+  cleanPool,
   readCache,
   seedArtists,
   similarRow,
@@ -62,6 +64,10 @@ describe('isFresh', () => {
     expect(isFresh(tr('2', 'A', { plays: 2_000_000 }))).toBe(false)
     expect(isFresh(tr('3', 'A'))).toBe(false)
   })
+  it('хвост на десяток прослушиваний — не «малоизвестный», а мусор', () => {
+    expect(isFresh(tr('1', 'A', { plays: 7 }))).toBe(false)
+    expect(isFresh(tr('2', 'A', { plays: 999 }))).toBe(false)
+  })
 })
 
 describe('pickFromPools', () => {
@@ -89,7 +95,7 @@ describe('pickFromPools', () => {
   })
 
   it('ограничение на исполнителя, фильтр и длина', () => {
-    const pools = [[tr('1', 'A', { plays: 10 }), tr('2', 'A', { plays: 10 }), tr('3', 'A', { plays: 10 }), tr('4', 'B'), tr('5', 'C', { plays: 5 })]]
+    const pools = [[tr('1', 'A', { plays: 1500 }), tr('2', 'A', { plays: 1500 }), tr('3', 'A', { plays: 1500 }), tr('4', 'B'), tr('5', 'C', { plays: 5000 })]]
     const out = pickFromPools(pools, { maxPerArtist: 1, filter: (t) => isFresh(t) })
     expect(out.map((t) => t.ref)).toEqual(['1', '5'])
     expect(pickFromPools(pools, { limit: 2 })).toHaveLength(2)
@@ -117,6 +123,36 @@ describe('pickFromPools: случайные советы', () => {
     const out = pickFromPools(pools)
     expect(out.slice(0, 2).map((t) => t.artist)).toEqual(['Shared', 'Shared'])
     expect(out.map((t) => t.ref)).toContain('x')
+  })
+})
+
+describe('pickWithReasons', () => {
+  it('fill: false — одиночные советы не добираются, даже если надёжных мало', () => {
+    const pools = [
+      [tr('x', 'Once'), tr('s1', 'Shared')],
+      [tr('s2', 'Shared'), tr('y', 'Twice')],
+    ]
+    const out = pickWithReasons(pools, { fill: false })
+    expect(out.map((p) => p.track.artist)).toEqual(['Shared', 'Shared'])
+  })
+
+  it('причина: какие затравки советуют и чей сосед по карте', () => {
+    const pools = [
+      [tr('s1', 'Shared'), tr('n', 'Neighbour')],
+      [tr('s2', 'Shared')],
+    ]
+    const related = (name: string) => (name === 'Fav' ? ['Neighbour'] : [])
+    const out = pickWithReasons(pools, { taste: ['Fav'], related, seedLabels: ['Seed A', 'Seed B'], fill: false })
+    const byRef = Object.fromEntries(out.map((p) => [p.track.ref, p.why]))
+    expect(byRef.s1).toEqual({ seeds: ['Seed A', 'Seed B'], near: null })
+    expect(byRef.n).toEqual({ seeds: ['Seed A'], near: 'Fav' })
+  })
+})
+
+describe('cleanPool', () => {
+  it('выкидывает хвост почти без прослушиваний и не добирает его обратно', () => {
+    const pool = [tr('1', 'A', { plays: 30_000 }), tr('2', 'B', { plays: 20_000 }), tr('3', 'C', { plays: 40_000 }), tr('4', 'D', { plays: 7 })]
+    expect(cleanPool(pool).map((t) => t.ref)).toEqual(['1', '2', '3'])
   })
 })
 
@@ -209,6 +245,7 @@ describe('кэш на день', () => {
     const c = readCache(raw, now)
     expect(c?.new.map((t) => t.ref)).toEqual(['1'])
     expect(c?.like).toEqual([])
+    expect(c?.why).toEqual({})
     expect(readCache(raw, new Date(2026, 10, 19, 1))).toBeNull()
     expect(readCache('{oops', now)).toBeNull()
     expect(readCache(null, now)).toBeNull()

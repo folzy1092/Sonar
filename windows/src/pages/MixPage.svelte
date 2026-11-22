@@ -122,7 +122,7 @@
   {:else}
     <div class="list" use:cascade={items[0]?.ref}>
       {#each visible as x, i (x.ref)}
-        <TrackRow track={x} onplay={() => play(i)} />
+        <TrackRow track={x} note={mixes.why(id, x.ref)} onplay={() => play(i)} />
       {/each}
     </div>
   {/if}

@@ -15,6 +15,9 @@ export function isMixId(v: unknown): v is MixId {
 /** Честный признак «малоизвестного»: прослушивания на SoundCloud меньше этого. У Яндекса счётчика нет —
  *  такие треки в «Свежих артистах» не участвуют, а не угадываются. */
 export const FRESH_MAX_PLAYS = 50_000
+/** …и не меньше этого: ниже — хвост выдачи SoundCloud (случайный трек жанра на десяток прослушиваний), а не
+ *  «малоизвестный исполнитель рядом со вкусом». */
+export const FRESH_MIN_PLAYS = 1_000
 /** Сколько треков одного исполнителя пускаем в подборку. */
 export const MAX_PER_ARTIST = 2
 /** Длина подборки по умолчанию. */
@@ -72,8 +75,19 @@ export function limitPerArtist(tracks: readonly Track[], max = MAX_PER_ARTIST): 
 }
 
 /** У трека есть честный признак малоизвестного: счётчик SoundCloud известен и мал. */
-export function isFresh(t: Track, maxPlays = FRESH_MAX_PLAYS): boolean {
-  return typeof t.plays === 'number' && Number.isFinite(t.plays) && t.plays >= 0 && t.plays < maxPlays
+export function isFresh(t: Track, maxPlays = FRESH_MAX_PLAYS, minPlays = FRESH_MIN_PLAYS): boolean {
+  return typeof t.plays === 'number' && Number.isFinite(t.plays) && t.plays >= minPlays && t.plays < maxPlays
+}
+
+/** Почему трек в подборке: какие затравки (их исполнители) советуют его исполнителя и чей он сосед по карте. */
+export interface MixReason {
+  seeds: string[]
+  near: string | null
+}
+
+export interface Picked {
+  track: Track
+  why: MixReason
 }
 
 export interface PickOptions {
@@ -89,6 +103,10 @@ export interface PickOptions {
   filter?: (t: Track) => boolean
   maxPerArtist?: number
   limit?: number
+  /** Подпись затравки каждого пула (исполнитель трека-затравки) — для «почему этот трек». */
+  seedLabels?: readonly string[]
+  /** Добирать ли одиночными советами, если надёжных мало. `false` — только надёжные, пусть их и мало. */
+  fill?: boolean
 }
 
 const noRelated = (): string[] => []
@@ -109,13 +127,13 @@ function scorePools(pools: readonly (readonly Track[])[]): Map<string, { track: 
   return scored
 }
 
-/** Соседи любимых исполнителей (нормализованные), без самих любимых. */
-function neighbours(taste: readonly string[], related: (name: string) => string[], known: Set<string>): Set<string> {
-  const out = new Set<string>()
+/** Соседи любимых исполнителей (нормализованные, без самих любимых) → чей сосед (первый из любимых). */
+function neighbours(taste: readonly string[], related: (name: string) => string[], known: Set<string>): Map<string, string> {
+  const out = new Map<string, string>()
   for (const name of taste) {
     for (const n of related(name) ?? []) {
       const key = normName(n)
-      if (key && !known.has(key)) out.add(key)
+      if (key && !known.has(key) && !out.has(key)) out.set(key, name)
     }
   }
   return out
@@ -126,6 +144,11 @@ function neighbours(taste: readonly string[], related: (name: string) => string[
  * `maxPerArtist` на исполнителя; выше — те, кого советуют чаще, и соседи любимых по `related`.
  */
 export function pickFromPools(pools: readonly (readonly Track[])[], opts: PickOptions = {}): Track[] {
+  return pickWithReasons(pools, opts).map((p) => p.track)
+}
+
+/** То же, что `pickFromPools`, но у каждого трека — почему он здесь (`MixReason`). */
+export function pickWithReasons(pools: readonly (readonly Track[])[], opts: PickOptions = {}): Picked[] {
   const known = new Set([...(opts.known ?? [])].map(normName).filter(Boolean))
   const exclude = new Set(opts.exclude ?? [])
   const near = neighbours(opts.taste ?? [], opts.related ?? noRelated, known)
@@ -143,24 +166,37 @@ export function pickFromPools(pools: readonly (readonly Track[])[], opts: PickOp
     }
   })
   const support = (t: Track) => trackArtists(t).reduce((m, a) => Math.max(m, artistPools.get(normName(a.name))?.size ?? 0), 0)
-  const isNear = (t: Track) => trackArtists(t).some((a) => near.has(normName(a.name)))
+  const nearOf = (t: Track) => trackArtists(t).map((a) => near.get(normName(a.name))).find((x) => !!x) ?? null
+  const labels = opts.seedLabels ?? []
+  const why = (t: Track): MixReason => {
+    const idx = new Set<number>()
+    for (const a of trackArtists(t)) for (const i of artistPools.get(normName(a.name)) ?? []) idx.add(i)
+    const seeds = [...new Set([...idx].sort((a, b) => a - b).map((i) => labels[i]).filter((x): x is string => !!x))]
+    return { seeds, near: nearOf(t) }
+  }
   const candidates = [...scorePools(pools).values()]
     .filter(({ track }) => !exclude.has(track.ref) && track.available !== false)
     .filter(({ track }) => !trackArtists(track).some((a) => known.has(normName(a.name))))
     .filter(({ track }) => (opts.filter ? opts.filter(track) : true))
     .map((c) => {
       const s = support(c.track)
-      const nearBoost = isNear(c.track) ? RELATED_BOOST : 0
+      const nearBoost = nearOf(c.track) ? RELATED_BOOST : 0
       return { ...c, strong: s >= 2 || nearBoost > 0, score: c.score + nearBoost + Math.max(0, s - 1) * ARTIST_SUPPORT_BOOST }
     })
     .sort((a, b) => b.score - a.score || a.first - b.first)
   const limit = opts.limit ?? MIX_LIMIT
   const max = opts.maxPerArtist ?? MAX_PER_ARTIST
+  const withWhy = (list: Track[]) => list.map((track) => ({ track, why: why(track) }))
   const strong = limitPerArtist(dedupe(candidates.filter((c) => c.strong).map((c) => c.track)), max)
-  if (strong.length >= Math.min(limit, MIN_BEFORE_FILL)) return strong.slice(0, limit)
+  if (opts.fill === false || strong.length >= Math.min(limit, MIN_BEFORE_FILL)) return withWhy(strong.slice(0, limit))
   // надёжных мало — добираем случайными советами, но после надёжных
   const all = limitPerArtist(dedupe([...strong, ...candidates.filter((c) => !c.strong).map((c) => c.track)]), max)
-  return all.slice(0, Math.min(limit, Math.max(strong.length, MIN_BEFORE_FILL)))
+  return withWhy(all.slice(0, Math.min(limit, Math.max(strong.length, MIN_BEFORE_FILL))))
+}
+
+/** Пул похожего для подборок: без перезаливов и почти не слушанного хвоста (`cleanSimilar` без добора). */
+export function cleanPool(pool: readonly Track[]): Track[] {
+  return cleanSimilar(pool, 0)
 }
 
 /** Разные исполнители подборки по частоте (кого больше — тот первым), с аватаркой — выше при равенстве. */
@@ -322,6 +358,8 @@ export interface MixCache {
   new: Track[]
   fresh: Track[]
   like: Track[]
+  /** Почему трек в «Новом» и «Свежих» (ref → причина). */
+  why: Record<string, MixReason>
 }
 
 /** Разбор кэша из хранилища; чужой день или битые данные — `null`. */
@@ -331,8 +369,20 @@ export function readCache(raw: string | null, now = new Date()): MixCache | null
     const o = JSON.parse(raw) as Partial<MixCache>
     if (o?.day !== dayKey(now)) return null
     const list = (v: unknown) => (Array.isArray(v) ? (v.filter((t) => t && typeof t.ref === 'string') as Track[]) : [])
-    return { day: o.day, seed: typeof o.seed === 'string' ? o.seed : null, new: list(o.new), fresh: list(o.fresh), like: list(o.like) }
+    return { day: o.day, seed: typeof o.seed === 'string' ? o.seed : null, new: list(o.new), fresh: list(o.fresh), like: list(o.like), why: reasons(o.why) }
   } catch {
     return null
   }
+}
+
+function reasons(v: unknown): Record<string, MixReason> {
+  const out: Record<string, MixReason> = {}
+  if (!v || typeof v !== 'object') return out
+  for (const [ref, r] of Object.entries(v as Record<string, unknown>)) {
+    const o = r as Partial<MixReason> | null
+    if (!o || typeof o !== 'object') continue
+    const seeds = Array.isArray(o.seeds) ? o.seeds.filter((x): x is string => typeof x === 'string') : []
+    out[ref] = { seeds, near: typeof o.near === 'string' ? o.near : null }
+  }
+  return out
 }

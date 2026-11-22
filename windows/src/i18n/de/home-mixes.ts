@@ -25,4 +25,6 @@ export default {
   'Послушай или лайкни что-нибудь — и выбери отсюда.': 'Hör oder like etwas und wähl es dann hier aus.',
   'Похоже на': 'Ähnlich wie',
   'Открыть исполнителя': 'Künstler öffnen',
+  'Похоже на {list}': 'Ähnlich wie {list}',
+  'Рядом с {artist} на карте исполнителей': 'Neben {artist} auf der Künstlerkarte',
 } satisfies Record<string, string>

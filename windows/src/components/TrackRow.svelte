@@ -35,10 +35,12 @@
     queueAt?: number
     /** Совместный плейлист: кто добавил трек — маленький аватар перед ❤. */
     addedBy?: PlaylistMember | null
+    /** Пояснение вместо колонки альбома (подборки: почему трек здесь). */
+    note?: string
     onplay: () => void
   }
 
-  let { track, index, variant = 'list', addedAt, playlistId, itemId, queueAt, addedBy, onplay }: Props = $props()
+  let { track, index, variant = 'list', addedAt, playlistId, itemId, queueAt, addedBy, note, onplay }: Props = $props()
   const isCurrent = $derived(player.current?.ref === track.ref)
   const liked = $derived(library.isLiked(track.ref))
   const target = $derived({ track, addedAt, playlistId, itemId, queueAt })
@@ -120,7 +122,7 @@
     </span>
   </span>
   {#if variant === 'list'}
-    <span class="album">{#if missing}<span class="gone">{t('Файл не найден')}</span>{:else}{track.album?.title ?? ''}{/if}</span>
+    <span class="album" title={note || undefined}>{#if missing}<span class="gone">{t('Файл не найден')}</span>{:else if note}{note}{:else}{track.album?.title ?? ''}{/if}</span>
   {/if}
   <span class="end">
     {#if missing}

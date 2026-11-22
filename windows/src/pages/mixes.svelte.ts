@@ -8,23 +8,26 @@ import { t } from '../lib/i18n.svelte'
 import { isLocalRef } from '../lib/services'
 import { relatedLookup } from '../lib/artist-map/api'
 import {
+  cleanPool,
   cleanSimilar,
   dayKey,
   dedupe,
   isFresh,
   limitPerArtist,
   parseSeed,
-  pickFromPools,
+  pickWithReasons,
   readCache,
   toSeed,
   trackArtists,
   type MixCache,
+  type MixReason,
   type MixId,
   type SeedTrack,
 } from '../lib/home-mixes'
 import { DAYPART_TEXT, daypart, home } from './home-data.svelte'
 
-const CACHE_KEY = 'sonar.home-mixes'
+// v2 — «Свежие» без хвоста и добора, с причинами: старый кэш дня с мусором не читаем
+const CACHE_KEY = 'sonar.home-mixes.v2'
 /** Сколько затравок (любимых треков) спрашиваем о похожем. */
 const SEEDS = 6
 /** Сколько похожих берём на одну затравку. */
@@ -63,13 +66,18 @@ async function gatherTaste() {
   const seedRefs = [...(stats?.top_tracks ?? []).slice(0, 3).map((x) => x.ref), ...favs.slice(0, 3).map((x) => x.ref), ...recent.slice(0, 3).map((x) => x.ref)]
   // файлы с компьютера похожего не знают — не затравки
   const seeds = [...new Set(seedRefs)].filter((ref) => !isLocalRef(ref)).slice(0, SEEDS)
-  return { known, taste: statArtists, seeds }
+  // подпись затравки для «почему этот трек» — её исполнитель
+  const artistOf = new Map<string, string>()
+  for (const x of [...(stats?.top_tracks ?? []), ...favs, ...recent]) if (x.artist && !artistOf.has(x.ref)) artistOf.set(x.ref, x.artist)
+  return { known, taste: statArtists, seeds, seedLabel: (ref: string) => artistOf.get(ref) ?? '' }
 }
 
 class Mixes {
   newTracks = $state<Track[]>([])
   fresh = $state<Track[]>([])
   like = $state<Track[]>([])
+  /** Почему трек в «Новом» и «Свежих» (ref → причина). */
+  reasons = $state<Record<string, MixReason>>({})
   loading = $state(false)
   likeLoading = $state(false)
   /** Для какой затравки собрано `like` (ref). */
@@ -140,6 +148,17 @@ class Mixes {
     }
   }
 
+  /** Почему трек в подборке — строка под ним; только «Новое» и «Свежие», у остальных причина в шапке. */
+  why(id: MixId, ref: string): string {
+    if (id !== 'new' && id !== 'fresh') return ''
+    const r = this.reasons[ref]
+    if (!r) return ''
+    const parts: string[] = []
+    if (r.seeds.length) parts.push(t('Похоже на {list}', { list: r.seeds.slice(0, 3).join(', ') }))
+    if (r.near) parts.push(t('Рядом с {artist} на карте исполнителей', { artist: r.near }))
+    return parts.join(' · ')
+  }
+
   isLoading(id: MixId): boolean {
     if (id === 'daypart' || id === 'recent') return home.loading
     if (id === 'like') return this.likeLoading
@@ -153,6 +172,7 @@ class Mixes {
       this.day = cache.day
       this.newTracks = cache.new
       this.fresh = cache.fresh
+      this.reasons = cache.why
       if (cache.seed) {
         this.like = cache.like
         this.likeFor = cache.seed
@@ -166,16 +186,24 @@ class Mixes {
     if (this.loading) return
     this.loading = true
     try {
-      const { known, taste, seeds } = await gatherTaste()
+      const { known, taste, seeds, seedLabel } = await gatherTaste()
       const [results, related] = await Promise.all([
         Promise.allSettled(seeds.map((ref) => api.similarTracks(ref, PER_SEED))),
         // соседи любимых по карте исполнителей — доп. сигнал: их треки выше
         relatedLookup(taste),
       ])
-      const pools = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
+      // хвост выдачи (перезаливы, треки на десяток прослушиваний) — не вкус, чистим до отбора
+      const ok = seeds.flatMap((ref, i) => (results[i].status === 'fulfilled' ? [{ ref, pool: cleanPool((results[i] as PromiseFulfilledResult<Track[]>).value) }] : []))
+      const pools = ok.map((x) => x.pool)
+      const seedLabels = ok.map((x) => seedLabel(x.ref))
       const exclude = new Set(seeds)
-      this.newTracks = pickFromPools(pools, { known, taste, related, exclude })
-      this.fresh = pickFromPools(pools, { known, taste, related, exclude, filter: (x) => isFresh(x) })
+      const base = { known, taste, related, exclude, seedLabels }
+      const picked = pickWithReasons(pools, base)
+      // «Свежие» — только надёжные (советуют ≥ 2 затравки или сосед любимых): мало — значит мало, без добора
+      const fresh = pickWithReasons(pools, { ...base, filter: (x) => isFresh(x), fill: false })
+      this.newTracks = picked.map((p) => p.track)
+      this.fresh = fresh.map((p) => p.track)
+      this.reasons = Object.fromEntries([...picked, ...fresh].map((p) => [p.track.ref, p.why]))
       this.day = dayKey()
       this.save()
     } catch {
@@ -221,6 +249,7 @@ class Mixes {
       new: $state.snapshot(this.newTracks),
       fresh: $state.snapshot(this.fresh),
       like: $state.snapshot(this.like),
+      why: $state.snapshot(this.reasons),
     })
   }
 }
