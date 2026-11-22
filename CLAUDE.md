@@ -46,7 +46,7 @@ Discord RPC: ID приложения Discord пользователь **не в�
 (`discord.rs` `APP_ID` = 1571615944449466510, с 2026-11-15), потом приходит с сервера (`GET /config`). Тесты Windows: `npm test` (vitest),
 `cargo test` в `src-tauri`; живые проверки SC — `SC_CLIENT_ID=… cargo test -- --ignored`.
 Запуск без команд — батники в корне: «Собрать и запустить.bat» (`tauri build --no-bundle` + запуск),
-«Запустить.bat». Окно Sonar только одно (single-instance), при запуске и Ctrl+R — заставка с лого.
+«Запустить.bat». Окно Sonar только одно (single-instance), при запуске и Ctrl+R — заставка «сонар-поле» (`index.html`, уход — `main.ts`; прототипы — `design/splash/`), звук при запуске — `audio.splash_sound` (выкл. по умолчанию, зеркало в `localStorage`, файл — `scripts/gen-splash-sound.mjs`, рояль VCSL CC0).
 Вид — **«Классика»** (основной с 2026-11-22: прототип и передача — `design/classic/` + `HANDOFF.md`, поверхность `classic` — `theme/palette.ts` / `DesignSystem/Palette.swift`, разовый переход — `appearance.classic_switched`), это первый из готовых стилей Sonar (Интерфейс → Стиль: готовые стили и «Свой», оси — `theme/style.ts`,
 `docs/SETTINGS.md` «Стиль»); макеты — `reference/design/` (локально), Dotify — только ориентир по
 ясности. Владелец просит «не слопно»; всплывашки открываются и закрываются **только кликом**.

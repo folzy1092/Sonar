@@ -140,6 +140,9 @@ export const DEFAULTS = {
   'audio.gapless': true,
   /** Тише во время звонков: пока другое приложение пишет с микрофона, музыка на 20 % (calls.rs). */
   'audio.duck_calls': true,
+  /** Звук при запуске: аккорд рояля под волны заставки (index.html, public/splash-chord.wav). Выключен,
+   *  чтобы не был назойливым (решение владельца 2026-11-22); заставка читает зеркало в localStorage. */
+  'audio.splash_sound': false,
   /** Резервный сервис: свой сервис трек не играет — тот же трек из другого (services/fallback.rs). */
   'audio.fallback': true,
   /** Порядок резервных сервисов (id реестра); пусто — порядок реестра (lib/fallback.ts). */
@@ -266,6 +269,16 @@ export const DEFAULTS = {
 export type SettingKey = keyof typeof DEFAULTS
 type Value<K extends SettingKey> = (typeof DEFAULTS)[K]
 
+/** Заставка (index.html) рисуется раньше, чем настройки дочитываются из базы, — ей нужен свой
+ *  быстрый флаг: «Звук при запуске» дублируется в localStorage. */
+function mirrorSplashSound(on: boolean) {
+  try {
+    localStorage.setItem('sonar.splash_sound', on ? '1' : '0')
+  } catch {
+    // хранилище недоступно — заставка просто молчит
+  }
+}
+
 class Settings {
   private values = $state<Record<string, unknown>>({})
   loaded = $state(false)
@@ -279,6 +292,7 @@ class Settings {
       .then((all) => {
         this.values = { ...migrateSettings(all), ...this.early }
         this.early = {}
+        mirrorSplashSound(this.get('audio.splash_sound'))
       })
       .catch(() => {})
       .finally(() => (this.loaded = true))
@@ -294,6 +308,7 @@ class Settings {
     if (!this.loaded) this.early[key] = value
     this.values = { ...this.values, [key]: value }
     void api.setSetting(key, value).catch(() => {})
+    if (key === 'audio.splash_sound') mirrorSplashSound(value as boolean)
   }
 
   /** Стиль мини-плеера: пресет выставляет фон, прогресс, обложку и форму. */

@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sonar</title>
     <style>
-      /* Заставка при запуске и Ctrl+R (в HTML — появляется до загрузки интерфейса). Векторный знак
-         раскручивается, как пропеллер кукурузника: с разгоном, за лопастями — короткие размытые
-         следы от скорости. Не доходя до конца раскрутки, заставка плавно растворяется на месте
-         (без сдвигов — решение владельца 2026-11-16). Вращение ведёт скрипт ниже, затухание
-         запускает src/main.ts (класс .out). */
+      /* Заставка при запуске и Ctrl+R (в HTML — появляется до загрузки интерфейса), «сонар-поле»
+         (выбор владельца 2026-11-22, прототипы — design/splash/): фон — поле точек, из центра по нему
+         проходят две волны, точки вспыхивают и расступаются, знак мягко докручивается на месте.
+         Включено «Звук при запуске» (audio.splash_sound) — аккорд рояля в такт волнам.
+         Поле и знак ведёт скрипт ниже, уход (класс .out) запускает src/main.ts. */
       #splash {
         position: fixed;
         inset: 0;
@@ -18,90 +18,114 @@
         display: grid;
         place-items: center;
         background: #050506;
-        transition: opacity 640ms cubic-bezier(0.4, 0, 0.2, 1);
+        transition: opacity 620ms cubic-bezier(0.4, 0, 0.2, 1);
         will-change: opacity;
       }
       #splash.out {
         opacity: 0;
         pointer-events: none;
       }
-      /* знак при затухании чуть растёт и размывается — уходит «в глубину», не сдвигаясь */
-      #splash svg {
-        transition:
-          scale 640ms cubic-bezier(0.4, 0, 0.2, 1),
-          filter 640ms cubic-bezier(0.4, 0, 0.2, 1);
-      }
-      #splash.out svg {
-        scale: 1.12;
-        filter: blur(3px);
+      #splash canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
       }
       #splash svg {
+        position: relative;
         width: 112px;
         height: 112px;
         overflow: visible;
         color: #f5f5f6;
         opacity: 0;
+        transition: scale 520ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      /* при уходе знак чуть растёт — уходит «в глубину», не сдвигаясь */
+      #splash.out svg {
+        scale: 1.06;
       }
       @media (prefers-reduced-motion: reduce) {
-        #splash,
-        #splash svg {
-          transition: opacity 400ms ease;
-        }
         #splash.out svg {
           scale: none;
-          filter: none;
         }
       }
     </style>
   </head>
   <body>
     <div id="splash" aria-hidden="true">
+      <canvas></canvas>
       <svg viewBox="62 62 900 900" aria-hidden="true">
         <defs><path id="sp-s" fill="currentColor" fill-rule="evenodd" d="M244.1 917.6C244.4 917.3 251.9 915.7 260.7 914.0C336.9 899.8 417.1 875.8 476.5 849.5C558.3 813.3 619.4 767.3 654.0 715.7C671.2 690.1 681.9 661.6 685.0 633.2C686.8 617.5 685.8 595.7 683.0 586.0C671.0 544.5 630.9 504.6 560.5 464.0C548.4 457.1 506.8 435.7 492.5 429.2L483.5 425.1L497.5 425.1C529.0 424.9 580.9 428.1 613.0 432.1C703.1 443.3 761.6 466.9 796.5 506.0C841.5 556.5 830.9 619.4 765.9 687.4C705.1 751.1 629.7 803.6 541.8 843.3C455.5 882.4 357.3 908.2 266.0 916.0C259.1 916.6 251.3 917.3 248.5 917.6C245.8 917.9 243.8 917.9 244.1 917.6ZM258.1 847.6C258.3 847.4 265.5 846.0 274.0 844.6C365.5 829.0 447.9 797.3 506.7 755.2C551.1 723.4 589.3 681.0 615.0 635.2C618.4 629.0 621.5 624.0 621.8 624.0C622.8 624.0 620.9 639.1 618.5 648.6C615.4 661.7 611.3 672.5 603.6 688.4C593.0 710.1 581.0 726.4 563.5 742.8C505.4 797.1 406.3 833.1 279.6 846.0C258.1 848.2 257.5 848.2 258.1 847.6ZM485.0 597.9C366.7 592.9 284.2 570.4 240.9 531.3C186.8 482.5 186.4 424.2 239.8 357.3C260.5 331.4 302.5 292.2 338.3 265.2C454.9 177.6 607.3 121.0 762.5 107.6C778.9 106.2 784.3 106.2 776.4 107.5C763.4 109.8 734.7 115.7 717.6 119.6C548.3 158.5 426.0 224.8 370.0 308.3C352.8 333.9 342.1 362.4 339.0 390.8C337.2 406.5 338.2 428.3 341.0 438.0C353.0 479.5 393.1 519.4 463.5 560.0C475.6 566.9 517.2 588.3 531.5 594.8L540.5 598.9L522.0 598.8C511.8 598.7 495.2 598.3 485.0 597.9ZM402.4 392.6C403.2 383.4 406.9 368.0 411.0 357.1C415.3 345.3 425.9 323.9 431.7 315.0C474.7 249.5 574.6 201.5 707.0 182.5C727.1 179.7 765.0 175.7 765.7 176.4C766.0 176.6 764.0 177.2 761.3 177.5C750.5 179.1 723.5 184.4 707.0 188.2C620.0 208.3 549.3 241.0 494.3 286.4C462.1 313.1 429.5 352.2 409.0 388.8C405.6 395.0 402.5 400.0 402.2 400.0C402.0 400.0 402.0 396.7 402.4 392.6Z" /></defs>
-        <g id="sp-trails">
-          <use href="#sp-s" opacity="0" />
-          <use href="#sp-s" opacity="0" />
-          <use href="#sp-s" opacity="0" />
-          <use href="#sp-s" opacity="0" />
-        </g>
-        <use id="sp-main" href="#sp-s" />
+        <use href="#sp-s" />
       </svg>
     </div>
     <script>
-      // Пропеллер: угол растёт с разгоном (кубически), за знаком — 4 следа, отстающие тем сильнее,
-      // чем выше скорость, и тем прозрачнее, чем дальше. На малой скорости следов нет.
       ;(() => {
-        const svg = document.querySelector('#splash svg')
-        if (!svg) return
-        const main = document.getElementById('sp-main')
-        const trails = Array.from(document.querySelectorAll('#sp-trails use'))
+        const splash = document.getElementById('splash')
+        // мини-окно и оверлей открывают этот же файл — им заставка не нужна (main.ts её убирает),
+        // и главное окно они не трогают
+        if (!splash || location.hash) return
+        window.__splashT0 = performance.now()
+        const svg = splash.querySelector('svg')
+        const canvas = splash.querySelector('canvas')
         const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
-        const DUR = 1000
-        const TURN = 1260
-        const t0 = performance.now()
-        const frame = (now) => {
-          const ms = now - t0
-          svg.style.opacity = String(Math.min(1, ms / 140))
-          if (reduce) return ms < DUR && requestAnimationFrame(frame)
-          const t = Math.min(1, ms / DUR)
-          const angle = TURN * t * t * t
-          const speed = 3 * t * t // 0…3, производная кубика
-          main.setAttribute('transform', `rotate(${angle} 512 512)`)
-          trails.forEach((u, i) => {
-            const lag = (i + 1) * 9 * speed
-            u.setAttribute('transform', `rotate(${angle - lag} 512 512)`)
-            u.setAttribute('opacity', String(Math.min(1, speed / 2) * (0.32 - i * 0.07)))
-          })
-          if (ms < DUR + 200) requestAnimationFrame(frame)
+
+        // звук — только если включён тумблер «Звук при запуске»: настройки из базы читаются позже,
+        // чем рисуется заставка, поэтому здесь — их зеркало в localStorage (settings.svelte.ts).
+        // Файл сведён scripts/gen-splash-sound.mjs: первая нота — на первой волне, ответ — на второй.
+        if (localStorage.getItem('sonar.splash_sound') === '1') {
+          const chord = new Audio('/splash-chord.wav')
+          chord.volume = 0.55
+          chord.play().catch(() => {})
         }
-        requestAnimationFrame(frame)
-        // окно создаётся скрытым — показываем, когда заставка уже нарисована (tray.rs `show_first`);
-        // мини-окно и оверлей открывают этот же файл, им главное окно не трогать
-        if (!location.hash) {
-          requestAnimationFrame(() =>
-            requestAnimationFrame(() => window.__TAURI_INTERNALS__?.invoke('first_paint').catch(() => {})),
-          )
+
+        // знак проявляется из размытия и докручивается на месте с мягким торможением
+        svg.animate(
+          reduce
+            ? [{ opacity: 0 }, { opacity: 1 }]
+            : [
+                { opacity: 0, transform: 'rotate(-220deg) scale(0.8)', filter: 'blur(8px)' },
+                { opacity: 1, transform: 'none', filter: 'blur(0)' },
+              ],
+          { delay: reduce ? 0 : 100, duration: reduce ? 300 : 900, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'both' },
+        )
+
+        // поле точек и две волны из центра (0 и 240 мс — в такт аккорду); «меньше движения» — без поля
+        if (!reduce) {
+          const dpr = devicePixelRatio || 1
+          const w = innerWidth, h = innerHeight, cx = w / 2, cy = h / 2
+          canvas.width = Math.round(w * dpr)
+          canvas.height = Math.round(h * dpr)
+          const ctx = canvas.getContext('2d')
+          ctx.scale(dpr, dpr)
+          const STEP = 16, W = STEP * 1.8, maxR = Math.hypot(w, h) / 2 + 40
+          const dots = []
+          for (let x = (w % STEP) / 2; x < w; x += STEP)
+            for (let y = (h % STEP) / 2; y < h; y += STEP) dots.push([x, y, Math.hypot(x - cx, y - cy), Math.atan2(y - cy, x - cx)])
+          const clamp = (t) => Math.min(1, Math.max(0, t))
+          const wave = (ms) => (1 - (1 - clamp(ms / 1150)) ** 3) * maxR
+          const t0 = performance.now()
+          const frame = (now) => {
+            const ms = now - t0
+            const base = 0.08 * clamp(ms / 200), r1 = wave(ms), r2 = wave(ms - 240)
+            ctx.clearRect(0, 0, w, h)
+            for (const [x, y, d, a] of dots) {
+              let b = 0
+              if (r1 > 0) b += Math.exp(-(((d - r1) / W) ** 2))
+              if (r2 > 0) b += Math.exp(-(((d - r2) / W) ** 2))
+              const fade = clamp(1 - (d / maxR) * 0.6), off = b * STEP * 0.35, sz = 1.4 + b * 1.4
+              ctx.fillStyle = 'rgba(245,245,246,' + (base + b * 0.8) * fade + ')'
+              ctx.fillRect(x + Math.cos(a) * off - sz / 2, y + Math.sin(a) * off - sz / 2, sz, sz)
+            }
+            if (ms < 1500 && splash.isConnected) requestAnimationFrame(frame)
+          }
+          requestAnimationFrame(frame)
         }
+
+        // окно создаётся скрытым — показываем, когда заставка уже нарисована (tray.rs `show_first`)
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => window.__TAURI_INTERNALS__?.invoke('first_paint').catch(() => {})),
+        )
       })()
     </script>
     <div id="app"></div>

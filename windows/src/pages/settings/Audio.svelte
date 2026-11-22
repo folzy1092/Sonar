@@ -153,6 +153,12 @@
       player.setCall(player.inCall)
     }}
   />
+  <Switch
+    title={t('Звук при запуске')}
+    hint={t('Короткий аккорд рояля в такт заставке, когда Sonar открывается или перезагружается')}
+    on={settings.get('audio.splash_sound')}
+    onchange={(v) => settings.set('audio.splash_sound', v)}
+  />
 </Group>
 
 <FallbackOrder />

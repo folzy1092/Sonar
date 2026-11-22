@@ -37,6 +37,8 @@ export default {
   'Плавное затухание в конце трека и нарастание в начале следующего': 'Płynne wyciszanie końca utworu i narastanie początku następnego',
   'Длительность кроссфейда': 'Czas crossfade’u',
   'с': 's',
+  'Звук при запуске': 'Dźwięk przy uruchomieniu',
+  'Короткий аккорд рояля в такт заставке, когда Sonar открывается или перезагружается': 'Krótki akord fortepianu w rytm ekranu startowego, gdy Sonar się otwiera lub przeładowuje',
   'Тише во время звонков': 'Ciszej podczas rozmów',
   'Музыка стихает до 20 %, пока другое приложение занимает микрофон: звонок, голосовой чат Discord или Telegram': 'Muzyka ścisza się do 20 %, gdy inna aplikacja używa mikrofonu: rozmowa, czat głosowy Discorda lub Telegrama',
   'SoundCloud в качестве Яндекса': 'SoundCloud w jakości Yandex',
