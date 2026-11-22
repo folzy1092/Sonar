@@ -226,6 +226,57 @@ export function similarRow(
   return [...list.filter(isNear), ...list.filter((t) => !isNear(t))].slice(0, limit)
 }
 
+/** Перезалив: то же название и длина в пределах этого — один трек, залитый разными аккаунтами. */
+const REUPLOAD_DURATION_MS = 2000
+/** Ниже этой доли от медианы прослушиваний подборки трек — случайный добор SoundCloud, а не похожее. */
+const SIMILAR_MEDIAN_SHARE = 0.01
+/** И ниже этого — тоже, даже если вся подборка нишевая (но не выше её медианы — см. `cleanSimilar`). */
+const SIMILAR_MIN_PLAYS = 100
+/** Меньше стольких после чистки — добираем лучшими из выкинутых. */
+export const SIMILAR_MIN_KEEP = 15
+
+function median(xs: readonly number[]): number {
+  const s = [...xs].sort((a, b) => a - b)
+  const m = s.length >> 1
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2
+}
+
+/** Без перезаливов: то же название (без регистра) и длина ±2 с — остаётся первый. Длина 0 — не знаем, не склеиваем. */
+function dropReuploads(tracks: readonly Track[]): Track[] {
+  const kept: Track[] = []
+  for (const t of tracks) {
+    const title = normName(t.title)
+    const dup = t.duration_ms > 0 && kept.some((k) => k.duration_ms > 0 && normName(k.title) === title && Math.abs(k.duration_ms - t.duration_ms) <= REUPLOAD_DURATION_MS)
+    if (!dup) kept.push(t)
+  }
+  return kept
+}
+
+/**
+ * Чистка «Похоже на трек» (сырой `/tracks/{id}/related` SoundCloud): у нишевого трека хвост выдачи —
+ * случайные треки того же жанра на десятки прослушиваний и перезаливы одного трека разными аккаунтами.
+ * Склеивает перезаливы и выкидывает почти не слушанное на фоне подборки (порог — 1 % медианы, не меньше
+ * 100, но не выше самой медианы: нишевая подборка целиком остаётся). Треки без счётчика (Яндекс) не
+ * трогает. Осталось меньше `minKeep` — добирает лучшими из выкинутых; порядок сервиса сохраняется.
+ */
+export function cleanSimilar(tracks: readonly Track[], minKeep = SIMILAR_MIN_KEEP): Track[] {
+  const list = dropReuploads(tracks)
+  const counted = list.map((t) => t.plays).filter((p): p is number => typeof p === 'number' && Number.isFinite(p))
+  if (!counted.length) return list
+  const mid = median(counted)
+  const floor = Math.min(mid, Math.max(SIMILAR_MIN_PLAYS, mid * SIMILAR_MEDIAN_SHARE))
+  const low = (t: Track) => typeof t.plays === 'number' && t.plays < floor
+  const kept = list.filter((t) => !low(t))
+  if (kept.length >= minKeep) return kept
+  const back = new Set(
+    list
+      .filter(low)
+      .sort((a, b) => (b.plays ?? 0) - (a.plays ?? 0))
+      .slice(0, minKeep - kept.length),
+  )
+  return list.filter((t) => !low(t) || back.has(t))
+}
+
 /** Выбор трека для «Похоже на трек»: без повторов, по запросу в названии или исполнителе. */
 export function matchTracks(tracks: readonly Track[], query: string, limit = 40): Track[] {
   const q = normName(query)

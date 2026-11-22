@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Track } from './api'
 import {
   artistsPreview,
+  cleanSimilar,
   dayKey,
   dedupe,
   interleave,
@@ -211,5 +212,44 @@ describe('кэш на день', () => {
     expect(readCache(raw, new Date(2026, 10, 19, 1))).toBeNull()
     expect(readCache('{oops', now)).toBeNull()
     expect(readCache(null, now)).toBeNull()
+  })
+})
+
+describe('cleanSimilar', () => {
+  const pop = (ref: string, plays: number, extra: Partial<Track> = {}) => tr(ref, `A${ref}`, { plays, duration_ms: 180_000, ...extra })
+
+  it('склеивает перезаливы: то же название и длина ±2 с у разных исполнителей — остаётся первый', () => {
+    const list = [
+      pop('1', 900_000),
+      tr('2', 'The Groove', { title: "Don't Look Any Further", duration_ms: 169_000, plays: 50_000 }),
+      tr('3', 'Playerism', { title: "don't look  any further", duration_ms: 170_500, plays: 60_000 }),
+      tr('4', 'Other', { title: "Don't Look Any Further", duration_ms: 240_000, plays: 70_000 }),
+    ]
+    expect(cleanSimilar(list, 0).map((t) => t.ref)).toEqual(['1', '2', '4'])
+  })
+
+  it('длину 0 не считает совпадением — без длины перезалив не угадать', () => {
+    const list = [tr('1', 'X', { title: 'Song', duration_ms: 0 }), tr('2', 'Y', { title: 'Song', duration_ms: 0 })]
+    expect(cleanSimilar(list, 0)).toHaveLength(2)
+  })
+
+  it('выкидывает почти не слушанное на фоне подборки, порядок сохраняет', () => {
+    const list = [pop('1', 1_700_000), pop('2', 77_000), pop('3', 15), pop('4', 421_000), pop('5', 31), pop('6', 160_000)]
+    expect(cleanSimilar(list, 0).map((t) => t.ref)).toEqual(['1', '2', '4', '6'])
+  })
+
+  it('треки без счётчика (Яндекс) не трогает', () => {
+    const list = [pop('1', 500_000), pop('2', 400_000), tr('ym:3', 'Y', { title: 'ya', plays: undefined }), pop('4', 12)]
+    expect(cleanSimilar(list, 0).map((t) => t.ref)).toEqual(['1', '2', 'ym:3'])
+  })
+
+  it('мало осталось — добирает лучшими из выкинутых, а не пустеет', () => {
+    const list = [pop('1', 1_000_000), pop('2', 10), pop('3', 40), pop('4', 25)]
+    expect(cleanSimilar(list, 3).map((t) => t.ref)).toEqual(['1', '3', '4'])
+  })
+
+  it('нишевая подборка, где у всех мало прослушиваний, остаётся целой', () => {
+    const list = [pop('1', 300), pop('2', 150), pop('3', 220)]
+    expect(cleanSimilar(list, 0).map((t) => t.ref)).toEqual(['1', '2', '3'])
   })
 })

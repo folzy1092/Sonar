@@ -8,6 +8,7 @@ import { t } from '../lib/i18n.svelte'
 import { isLocalRef } from '../lib/services'
 import { relatedLookup } from '../lib/artist-map/api'
 import {
+  cleanSimilar,
   dayKey,
   dedupe,
   isFresh,
@@ -200,7 +201,7 @@ class Mixes {
     }
     // пока грузили, выбрали другой трек — его запрос пропустили из-за флага, грузим заново
     if (this.seed?.ref !== seed.ref) return this.loadLike(force)
-    this.like = list ? limitPerArtist(dedupe(list.filter((x) => x.ref !== seed.ref)), MAX_PER_ARTIST_LOOSE) : []
+    this.like = list ? limitPerArtist(cleanSimilar(dedupe(list.filter((x) => x.ref !== seed.ref))), MAX_PER_ARTIST_LOOSE) : []
     this.likeFor = seed.ref
     if (list) this.save()
   }
