@@ -1104,7 +1104,7 @@ struct SpeedSheet: View {
     }
 
     /// −1.5 → «−1.5 st», 0 → «0 st».
-    static func pitchLabel(_ semitones: Double) -> String {
+    nonisolated static func pitchLabel(_ semitones: Double) -> String {
         let value = (semitones * 10).rounded() / 10
         if value == 0 { return "0 st" }
         return (value > 0 ? "+" : "−") + String(format: "%.1f", abs(value)) + " st"
