@@ -282,10 +282,19 @@ struct GlassFill<S: Shape>: View {
     var tint: Color?
     @Environment(SettingsStore.self) private var settings
 
+    /// Непрозрачность заливки поверх стекла: без «Прозрачности» — 1, иначе по `appearance.opacity`
+    /// (с размытием — чуть меньше, его и так видно). Ею же гаснет фон-обложка мини-плеера.
+    @MainActor
+    static func alpha(_ settings: SettingsStore) -> Double {
+        guard settings.bool(LookKey.glass) else { return 1 }
+        let type = GlassType(rawValue: settings.string(LookKey.glassType)) ?? .ultra
+        let opacity = min(1, max(0.15, settings.number(LookKey.opacity, fallback: 80) / 100))
+        return type == .noBlur ? opacity : opacity * 0.78
+    }
+
     var body: some View {
         let glass = settings.bool(LookKey.glass)
         let type = GlassType(rawValue: settings.string(LookKey.glassType)) ?? .ultra
-        let opacity = min(1, max(0.15, settings.number(LookKey.opacity, fallback: 80) / 100))
         let color = tint ?? Theme.surface
         ZStack {
             if glass {
@@ -295,7 +304,7 @@ struct GlassFill<S: Shape>: View {
                 case .noBlur: EmptyView()
                 }
             }
-            shape.fill(color.opacity(glass ? (type == .noBlur ? opacity : opacity * 0.78) : 1))
+            shape.fill(color.opacity(Self.alpha(settings)))
         }
         .animation(Motion.spring, value: glass)
         .animation(Motion.spring, value: type)

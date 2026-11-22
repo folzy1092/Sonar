@@ -149,7 +149,9 @@ struct MiniStyle: Equatable {
 }
 
 /// Фон мини-плеера по виду: цвет обложки (стекло в оттенке акцента), сама обложка (размытая и
-/// затемнённая) или стандартный (поверхность темы). Форма — по скруглению.
+/// затемнённая) или стандартный (поверхность темы). Форма — по скруглению. Стекло — то же, что у панели и
+/// кругов вкладок (`GlassFill`): при «Ультра» под свёрнутым мини-плеером видно, что под ним, как под
+/// кнопками рядом (владелец 2026-11-22: раньше плотная заливка акцентом не пропускала ничего).
 struct MiniPlayerSurface: View {
     var height: CGFloat = 64
     @Environment(SettingsStore.self) private var settings
@@ -159,19 +161,20 @@ struct MiniPlayerSurface: View {
         let style = MiniStyle.current(settings)
         let shape = RoundedRectangle(cornerRadius: style.corners.radius(height: height), style: .continuous)
         ZStack {
-            shape.fill(.ultraThinMaterial)
             switch style.background {
             case .coverColor:
-                shape.fill(Theme.accent.opacity(ThemeStore.shared.isMono ? 0.32 : 0.58))
+                GlassFill(shape: shape, tint: Theme.raised.mix(with: Theme.accent, by: ThemeStore.shared.isMono ? 0.35 : 0.6))
             case .cover:
+                GlassFill(shape: shape, tint: .black)
                 CoverImage(url: engine.current?.coverURL, cornerRadius: 0)
                     .blur(radius: 6)
                     .overlay(Color.black.opacity(0.42))
                     .clipShape(shape)
+                    .opacity(GlassFill<RoundedRectangle>.alpha(settings))
                     .id(engine.current?.ref)
                     .transition(.opacity)
             case .theme:
-                shape.fill(Theme.raised.opacity(0.85))
+                GlassFill(shape: shape, tint: Theme.raised)
             }
         }
         .overlay(shape.strokeBorder(Theme.text.opacity(0.08), lineWidth: 1))
