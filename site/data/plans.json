@@ -1,11 +1,11 @@
 {
-  "$comment": "Зеркало windows/src/lib/subscription.ts (сверяет тест src/lib/plans.test.ts). Помесячные цены утвердил владелец 2026-11-18, скидки за срок — черновик.",
+  "$comment": "Зеркало windows/src/lib/subscription.ts (сверяет тест src/lib/plans.test.ts). Помесячные цены утвердил владелец 2026-11-18, ×1,5 — 2026-11-22, скидки за срок — черновик.",
   "currency": "RUB",
   "plans": [
-    { "id": "ping", "name": "Ping", "seats": 1, "monthly": 100 },
-    { "id": "echo", "name": "Echo", "seats": 2, "monthly": 190 },
-    { "id": "pod", "name": "Pod", "seats": 3, "monthly": 285 },
-    { "id": "fleet", "name": "Fleet", "seats": 4, "monthly": 380 }
+    { "id": "ping", "name": "Ping", "seats": 1, "monthly": 150 },
+    { "id": "echo", "name": "Echo", "seats": 2, "monthly": 285 },
+    { "id": "pod", "name": "Pod", "seats": 3, "monthly": 425 },
+    { "id": "fleet", "name": "Fleet", "seats": 4, "monthly": 570 }
   ],
   "periods": [
     { "id": "1m", "months": 1, "discount": 0 },

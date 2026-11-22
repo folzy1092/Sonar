@@ -14,8 +14,8 @@ describe('подписка', () => {
     }
   })
 
-  it('цены владельца: 100 ₽ за место, на двоих −10, на троих −15, на четверых −20; скидка растёт со сроком', () => {
-    expect(PLANS.map((p) => p.monthly)).toEqual([100, 190, 285, 380])
+  it('цены владельца ×1,5 (2026-11-22): 150 ₽ за место, дальше лесенкой дешевле; скидка растёт со сроком', () => {
+    expect(PLANS.map((p) => p.monthly)).toEqual([150, 285, 425, 570])
     for (const plan of PLANS)
       for (const period of PERIODS) expect(price(plan, period) % 5).toBe(0)
     const solo = PLANS[0]

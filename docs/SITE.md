@@ -21,7 +21,7 @@ Dotify), но вид — **свой стиль Sonar**: тёмный, споко
   — только прозрачность.
 - Данные, которые меняются, — из JSON в репо, не зашивать в разметку:
   `updates/update.json` (версия Windows), `updates/ios-update.json` (iOS), цены — `site/data/plans.json`
-  (зеркало `windows/src/lib/subscription.ts`: 100 / 190 / 285 / 380 ₽ в месяц — утверждено владельцем, скидки за срок — черновик), changelog — `updates/changelog.json`.
+  (зеркало `windows/src/lib/subscription.ts`: 150 / 285 / 425 / 570 ₽ в месяц — утверждено владельцем, ×1,5 с 2026-11-22, скидки за срок — черновик), changelog — `updates/changelog.json`.
 
 ## 2. Шапка и подвал (на всех страницах)
 

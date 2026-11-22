@@ -32,8 +32,8 @@ describe('plans.json совпадает с приложением (windows/src/l
     expect(FREE_LIMITS.import_tracks).toBe(app.FREE_LIMITS.import_tracks)
   })
 
-  test('утверждённые владельцем цены: 100 / 190 / 285 / 380 ₽', () => {
-    expect(PLANS.map((p) => p.monthly)).toEqual([100, 190, 285, 380])
+  test('утверждённые владельцем цены: 150 / 285 / 425 / 570 ₽', () => {
+    expect(PLANS.map((p) => p.monthly)).toEqual([150, 285, 425, 570])
   })
 })
 

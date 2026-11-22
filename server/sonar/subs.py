@@ -12,7 +12,7 @@ from .db import now_ms
 
 DAY_MS = 86400_000
 MONTH_DAYS = 30
-PLANS = {"ping": ("Ping", 1, 100), "echo": ("Echo", 2, 190), "pod": ("Pod", 3, 285), "fleet": ("Fleet", 4, 380)}
+PLANS = {"ping": ("Ping", 1, 150), "echo": ("Echo", 2, 285), "pod": ("Pod", 3, 425), "fleet": ("Fleet", 4, 570)}
 PLAN_ORDER = list(PLANS)
 
 

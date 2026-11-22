@@ -29,11 +29,12 @@ export interface Period {
 }
 
 export const PLANS: readonly Plan[] = [
-  // Цены владельца (2026-11-18): одно место — 100 ₽, за каждое место столько же, но на 10 / 15 / 20 ₽ дешевле.
-  { id: 'ping', name: 'Ping', seats: 1, monthly: 100 },
-  { id: 'echo', name: 'Echo', seats: 2, monthly: 190 },
-  { id: 'pod', name: 'Pod', seats: 3, monthly: 285 },
-  { id: 'fleet', name: 'Fleet', seats: 4, monthly: 380 },
+  // Цены владельца: с 2026-11-22 ×1,5 (одно место — 150 ₽; запас под акции, чтобы скидка не выглядела как «подписка за 30 ₽»),
+  // за каждое следующее место чуть дешевле — та же лесенка, что и у прежних 100 / 190 / 285 / 380.
+  { id: 'ping', name: 'Ping', seats: 1, monthly: 150 },
+  { id: 'echo', name: 'Echo', seats: 2, monthly: 285 },
+  { id: 'pod', name: 'Pod', seats: 3, monthly: 425 },
+  { id: 'fleet', name: 'Fleet', seats: 4, monthly: 570 },
 ]
 
 export const PERIODS: readonly Period[] = [
