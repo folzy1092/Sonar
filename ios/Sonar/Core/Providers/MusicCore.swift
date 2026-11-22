@@ -52,8 +52,9 @@ actor MusicCore {
     /// Тихий вход SoundCloud (скрытый WKWebView, `SoundCloudSilentLogin`) — ставит приложение, у ядра
     /// нет WebView. Прежний `oauth_token` → новый или nil.
     private var soundCloudRelogin: (@Sendable (String?) async -> String?)?
-    /// Можно ли тихо входить прямо сейчас: в фоне iOS не даёт скрытому WKWebView выполнить сайт, и вход
-    /// заведомо сорвётся — тогда «Войди заново» не показываем, а ждём, пока Sonar откроют.
+    /// Sonar на экране. Тихий вход пробуем всегда (в фоне музыка играет — процесс жив, раньше вход в фоне не
+    /// пробовали вовсе, и SoundCloud на iPhone «отваливался» на заблокированном экране); но если в фоне он не
+    /// вышел — «Войди заново» не показываем, а ждём, пока Sonar откроют.
     private var soundCloudReloginReady: (@Sendable () async -> Bool)?
     /// Тихий вход уже идёт — остальные 401 ждут его же, второе окно не открываем.
     private var soundCloudReloginTask: Task<String?, Never>?
@@ -227,7 +228,7 @@ actor MusicCore {
             old: failed, error: error,
             call: { try await call(SoundCloud(clientId: $0.clientId, oauthToken: $0.oauthToken)) },
             freshId: { try await SoundCloud.publicClientId() },
-            relogin: { ready ? await self.silentSoundCloudLogin($0) : nil })
+            relogin: { await self.silentSoundCloudLogin($0) })
         if let save = out.save, let account = soundCloud?.account {
             CrashLog.note(save.fix.journal)
             let stored = StoredService(creds: save.creds, account: account)
@@ -246,6 +247,28 @@ actor MusicCore {
             NotificationCenter.default.post(name: SoundCloudRepair.reloginNeeded, object: nil)
         }
         return try out.result.get()
+    }
+
+    /// Когда последний раз тихо освежали вход (UserDefaults, переживает перезапуск).
+    private static let refreshedKey = "sonar.soundcloud.refreshed_at"
+
+    /// Sonar открыли: если вход SoundCloud не освежали больше `maxAge`, тихо берём свежий `oauth_token`
+    /// заранее — чтобы в фоне (экран заблокирован, играют треки) он не протух. Сайт отдал тот же токен —
+    /// ничего не меняем. Ошибки молча: это профилактика, не починка.
+    func refreshSoundCloudIfOld(maxAge: TimeInterval = 6 * 3600) async {
+        guard let stored = soundCloud, let old = stored.creds.oauthToken, !old.isEmpty, !soundCloudStale else { return }
+        let last = UserDefaults.standard.double(forKey: Self.refreshedKey)
+        guard Date().timeIntervalSince1970 - last > maxAge else { return }
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.refreshedKey)
+        guard let token = await silentSoundCloudLogin(old), !token.isEmpty, token != old,
+              soundCloud?.creds.oauthToken == old else { return }
+        let creds = SoundCloudCreds(clientId: stored.creds.clientId, oauthToken: token)
+        // новый токен сохраняем, только если он рабочий
+        guard (try? await SoundCloud(clientId: creds.clientId, oauthToken: token).account()) != nil else { return }
+        ServiceVault.save("soundcloud", StoredService(creds: creds, account: stored.account))
+        soundCloud = StoredService(creds: creds, account: stored.account)
+        streams.removeAll()
+        CrashLog.note("SoundCloud: вход освежён заранее при открытии Sonar")
     }
 
     private func silentSoundCloudLogin(_ old: String?) async -> String? {

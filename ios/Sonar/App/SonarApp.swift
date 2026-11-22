@@ -53,7 +53,11 @@ struct SonarApp: App {
                                                                                 saved: settings.string(FallbackPlan.orderKey)))
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active { checker.checkIfStale(settings: settings) }
+                    if phase == .active {
+                        checker.checkIfStale(settings: settings)
+                        // SoundCloud: освежить вход заранее, пока Sonar на экране (в фоне тихий вход ненадёжен)
+                        Task { await MusicCore.shared.refreshSoundCloudIfOld() }
+                    }
                 }
                 // «выйди на рабочий стол» — в своём окне поверх всего (Update/HomeHintWindow.swift)
                 .onChange(of: updater.stage, initial: true) { _, stage in
