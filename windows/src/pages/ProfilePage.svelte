@@ -13,6 +13,8 @@
   import { settings } from '../lib/settings.svelte'
   import { player } from '../player/player.svelte'
   import { settingsPanel } from './settings-section.svelte'
+  import { colorHex, readLinks, readShowcase, visibleShowcase } from '../lib/profile-look'
+  import type { ProfileLook } from './profile/ProfileView.svelte'
 
   let favorites = $state<ListTrack[] | null>(null)
   let playlists = $state<Playlist[] | null>(null)
@@ -43,6 +45,22 @@
       viewer,
     }),
   )
+
+  // Вид профиля (Аккаунт → Профиль): раскладка, баннер, ник, ссылки, витрина — гость и друг видят его
+  // так же, как превью в настройках (раньше здесь всегда была шапка по умолчанию)
+  const look = $derived<ProfileLook>({
+    banner: settings.get('profile.banner'),
+    background: settings.get('profile.background'),
+    color: colorHex(settings.get('profile.color')),
+    status: settings.get('profile.status'),
+    bio: settings.get('profile.bio'),
+    links: readLinks(settings.get('profile.links')),
+    layout: settings.get('profile.layout'),
+    nickFont: settings.get('profile.nick_font'),
+    nickEffect: settings.get('profile.nick_effect'),
+    nickColor2: colorHex(settings.get('profile.nick_color2')),
+    showcase: visibleShowcase(readShowcase(settings.get('profile.showcase')), settings.get('privacy.hidden_playlists') ?? []),
+  })
 
   const valueOf = <T,>(r: PromiseSettledResult<T>): T | null => (r.status === 'fulfilled' ? r.value : null)
 
@@ -77,7 +95,7 @@
     {/each}
   </div>
 
-  <ProfileView {profile} {loading} />
+  <ProfileView {profile} {loading} {look} />
 </div>
 
 <style>

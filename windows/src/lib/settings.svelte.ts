@@ -57,6 +57,8 @@ export const DEFAULTS = {
   'profile.layout': 'avatar' as ProfileLayout,
   'profile.nick_font': 'default' as NickFont,
   'profile.nick_effect': 'none' as NickEffect,
+  /** Второй цвет переливающегося ника; '' — розоватый по умолчанию. */
+  'profile.nick_color2': '' as '' | ProfileColor,
   'profile.showcase': [] as ShowcaseItem[],
   /** Приватность профиля (Аккаунт → Приватность, lib/public-profile.ts): что видит гость по ссылке. */
   'privacy.friend_requests': 'everyone' as 'everyone' | 'fof' | 'nobody',

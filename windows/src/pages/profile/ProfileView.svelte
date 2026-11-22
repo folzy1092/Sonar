@@ -1,3 +1,21 @@
+<script lang="ts" module>
+  import type { NickEffect, ProfileLayout, ProfileLink, ShowcaseItem } from '../../lib/profile-look'
+  /** Вид профиля (SETTINGS_NEXT «Профиль»): с ним шапка — та же карточка, что превью в настройках. */
+  export interface ProfileLook {
+    banner: string
+    background: string
+    color: string | null
+    status: string
+    bio: string
+    links: readonly ProfileLink[]
+    layout: ProfileLayout
+    nickFont: string
+    nickEffect: NickEffect
+    nickColor2: string | null
+    showcase: readonly ShowcaseItem[]
+  }
+</script>
+
 <script lang="ts">
   // Страница публичного профиля — то, что гость увидит по ссылке `try-sonar.ru/@username`.
   // Рисует только `PublicProfile` (lib/public-profile.ts, тот же объект, что отдаст
@@ -7,6 +25,7 @@
   import CountUp from '../../components/CountUp.svelte'
   import Icon from '../../components/Icon.svelte'
   import DevBadge from '../../components/profile/DevBadge.svelte'
+  import ProfileCard from '../../components/profile/ProfileCard.svelte'
   import { subscriptionOf } from '../../lib/subscription'
   import { cascade } from '../../lib/cascade'
   import { dateLong, durationText, tracksText } from '../../lib/format'
@@ -15,7 +34,7 @@
 
   const MS_PER_HOUR = 3_600_000
 
-  let { profile, loading }: { profile: PublicProfile; loading: boolean } = $props()
+  let { profile, loading, look = null }: { profile: PublicProfile; loading: boolean; look?: ProfileLook | null } = $props()
 
   const initial = $derived(profileInitial(profile))
   // значок «Dev» у ника разработчика; с сервером признак придёт в самом профиле
@@ -43,6 +62,14 @@
 {/snippet}
 
 <article class="profile">
+  {#if look}
+    <div class="look">
+      <ProfileCard name={profile.display_name} username={profile.username ?? ''} avatar={profile.avatar_url} {...look} />
+      <button class="open" disabled title={t('Кнопка для гостей на сайте: открывает профиль в приложении')}>
+        <Icon name="headphones" size={16} />{t('Открыть в Sonar')}
+      </button>
+    </div>
+  {:else}
   <header class="hero">
     <span class="ava">
       {#if profile.avatar_url}<img src={profile.avatar_url} alt="" draggable="false" class="fade-img" onload={loaded} />{:else}<span class="initial">{initial}</span>{/if}
@@ -63,6 +90,7 @@
       </button>
     </div>
   </header>
+  {/if}
 
   {#if loading}
     <div class="skels" aria-hidden="true">
@@ -159,6 +187,14 @@
     display: flex;
     flex-direction: column;
     gap: 26px;
+  }
+  .look {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .look .open {
+    align-self: flex-start;
   }
   .hero {
     display: flex;

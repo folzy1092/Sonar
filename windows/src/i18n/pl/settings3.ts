@@ -90,6 +90,10 @@ export default {
   'Полоса над аватаром, 3 : 1': 'Pasek nad awatarem, 3 : 1',
   'За всей карточкой профиля, 16 : 9': 'Za całą kartą profilu, 16 : 9',
   'Цвет профиля': 'Kolor profilu',
+
+  'Второй цвет перелива': 'Drugi kolor opalizacji',
+
+  'Первый — цвет профиля': 'Pierwszy to kolor profilu',
   'Красит ник, кольцо аватара и акценты профиля': 'Koloruje nick, obwódkę awatara i akcenty profilu',
   'Без цвета': 'Bez koloru',
   'Имя и описание': 'Nazwa i opis',

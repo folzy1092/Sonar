@@ -90,6 +90,10 @@ export default {
   "Полоса над аватаром, 3 : 1": "A strip above the avatar, 3 : 1",
   "За всей карточкой профиля, 16 : 9": "Behind the whole profile card, 16 : 9",
   "Цвет профиля": "Profile color",
+
+  'Второй цвет перелива': 'Second shimmer color',
+
+  'Первый — цвет профиля': 'The first is your profile color',
   "Красит ник, кольцо аватара и акценты профиля": "Tints the nickname, the avatar ring and profile accents",
   "Без цвета": "No color",
   "Имя и описание": "Name and description",

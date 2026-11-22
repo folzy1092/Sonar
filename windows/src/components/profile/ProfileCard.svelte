@@ -23,6 +23,8 @@
     layout: ProfileLayout
     nickFont: string
     nickEffect: NickEffect
+    /** Второй цвет переливающегося ника (hex); null — по умолчанию. */
+    nickColor2?: string | null
     showcase: readonly ShowcaseItem[]
   }
   let p: Props = $props()
@@ -45,7 +47,7 @@
     </span>
     <div class="who">
       <span class="nick-line">
-        <Nick text={p.name.trim() || t('Без имени')} font={p.nickFont} effect={p.nickEffect} color={p.color} size={p.layout === 'big_name' ? 34 : 22} />
+        <Nick text={p.name.trim() || t('Без имени')} font={p.nickFont} effect={p.nickEffect} color={p.color} color2={p.nickColor2 ?? null} size={p.layout === 'big_name' ? 34 : p.layout === 'center' ? 28 : 22} />
         {#if dev}<DevBadge color={p.color} size={p.layout === 'big_name' ? 12 : 10.5} />{/if}
       </span>
       <small>{p.username ? `@${p.username}` : t('без @username')}</small>
@@ -59,7 +61,7 @@
     </div>
   {/if}
   {#if p.showcase.length}
-    <div class="show">
+    <div class="show" style:--n={Math.min(p.showcase.length, 6)}>
       {#each p.showcase as s (s.kind + s.ref)}
         <span class="tile" title={s.subtitle ? `${s.title} — ${s.subtitle}` : s.title}>
           <span class="art" class:round={s.kind === 'artist'}>
@@ -210,11 +212,14 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* Витрина: колонок ровно столько, сколько вещей (до 6), плитка до 170 px — две вещи не жмутся в углу
+     узкими колонками из шести (владелец 2026-11-22: «много незаполненного места») */
   .show {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 8px;
-    margin-top: 4px;
+    grid-template-columns: repeat(var(--n, 1), minmax(0, 170px));
+    justify-content: start;
+    gap: 12px;
+    margin-top: 6px;
   }
   .tile {
     display: flex;
@@ -241,7 +246,7 @@
     object-fit: cover;
   }
   .tile b {
-    font-size: calc(11px * var(--fs, 1));
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -278,12 +283,30 @@
   .lay-banner .head {
     margin-top: -70px;
   }
-  /* По центру */
+  /* По центру: баннер выше, аватар и ник крупнее, ссылки и витрина — по центру */
+  .lay-center .banner {
+    height: 132px;
+  }
   .lay-center .head {
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 6px;
+    gap: 8px;
+    margin-top: -52px;
+  }
+  .lay-center .ava {
+    width: 104px;
+    height: 104px;
+  }
+  .lay-center .ava b {
+    font-size: calc(36px * var(--fs, 1));
+  }
+  .lay-center .show {
+    justify-content: center;
+    margin-top: 10px;
+  }
+  .lay-center .who small {
+    font-size: calc(13px * var(--fs, 1));
   }
   .lay-center .who {
     align-items: center;

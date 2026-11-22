@@ -57,6 +57,8 @@
   const fallback = $derived(home.account)
   const userOk = $derived(!username.trim() || USERNAME_RE.test(cleanUsername(username)))
   const color = $derived(colorHex(settings.get('profile.color')))
+  /** Второй цвет переливающегося ника (null — по умолчанию). */
+  const color2 = $derived(colorHex(settings.get('profile.nick_color2')))
   const links = $derived(readLinks(settings.get('profile.links')))
   const showcase = $derived(readShowcase(settings.get('profile.showcase')))
   const hidden = $derived(settings.get('privacy.hidden_playlists'))
@@ -142,7 +144,7 @@
 {/snippet}
 
 {#snippet effectTile(id: string)}
-  <span class="sample"><Nick text="Sonar" font={settings.get('profile.nick_font')} effect={id as never} {color} size={19} /></span>
+  <span class="sample"><Nick text="Sonar" font={settings.get('profile.nick_font')} effect={id as never} {color} {color2} size={19} /></span>
 {/snippet}
 
 <div class="preview">
@@ -159,6 +161,7 @@
     layout={settings.get('profile.layout')}
     nickFont={settings.get('profile.nick_font')}
     nickEffect={settings.get('profile.nick_effect')}
+    nickColor2={color2}
     showcase={visibleShowcase(showcase, hidden)}
   />
 </div>
@@ -251,6 +254,20 @@
     onchange={(v) => settings.set('profile.nick_effect', v)}
     tile={effectTile}
   />
+  {#if settings.get('profile.nick_effect') === 'shimmer'}
+    <div class="second" transition:slide={{ duration: 200 }}>
+      <span class="text"><b>{t('Второй цвет перелива')}</b><small>{t('Первый — цвет профиля')}</small></span>
+      <div class="colors" role="radiogroup" aria-label={t('Второй цвет перелива')}>
+        <button class="dot none" class:on={!settings.get('profile.nick_color2')} role="radio" aria-checked={!settings.get('profile.nick_color2')} title={t('По умолчанию')} onclick={() => settings.set('profile.nick_color2', '')}>
+          <Icon name="x" size={14} />
+        </button>
+        {#each PROFILE_COLORS as c (c.id)}
+          {@const on = settings.get('profile.nick_color2') === c.id}
+          <button class="dot" class:on role="radio" aria-checked={on} aria-label={c.id} style:--c={c.hex} onclick={() => settings.set('profile.nick_color2', c.id)}></button>
+        {/each}
+      </div>
+    </div>
+  {/if}
 </Card>
 
 <Card title={t('Витрина')} hint={t('Покажи в профиле то, что любишь: плейлист, альбом, исполнителя или трек')}>
@@ -745,5 +762,19 @@
     from {
       opacity: 0;
     }
+  }
+  .second {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .second .text {
+    display: flex;
+    flex-direction: column;
+  }
+  .second small {
+    color: var(--text-3);
+    font-size: calc(12px * var(--fs, 1));
   }
 </style>
