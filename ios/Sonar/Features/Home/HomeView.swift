@@ -182,14 +182,15 @@ struct HomeView: View {
             ScrollView(.horizontal) {
                 HStack(alignment: .top, spacing: 16) {
                     if !feed.forYou.isEmpty {
+                        // как на ПК: карточка открывает подборку, «Слушать» — на её странице
                         MosaicCard(title: "Для вас", subtitle: feed.subtitle(feed.forYou), tracks: feed.forYou) {
-                            engine.play(feed.forYou, at: 0, context: "Для вас")
+                            router.push(.homeMix(.forYou), on: .home, chrome: chrome)
                         }
                         .cascade(0)
                     }
                     if !feed.discoveries.isEmpty {
                         MosaicCard(title: "Открытия", subtitle: feed.subtitle(feed.discoveries), tracks: feed.discoveries) {
-                            engine.play(feed.discoveries, at: 0, context: "Открытия")
+                            router.push(.homeMix(.discoveries), on: .home, chrome: chrome)
                         }
                         .cascade(1)
                     }

@@ -53,6 +53,8 @@ struct TrackRow: View {
     var remove: (@MainActor () -> Void)?
     /// Свайп вбок — жест из «Жестов». false — там, где вбок листаются страницы («Недавнее» на Главной).
     var swipes = true
+    /// Строка под исполнителем — почему трек здесь (подборки Главной); пусто — нет строки.
+    var note: String = ""
     let action: @MainActor () -> Void
     @Environment(PlaybackEngine.self) private var engine
     @Environment(Router.self) private var router
@@ -63,7 +65,15 @@ struct TrackRow: View {
                 HStack(spacing: 14) {
                     CoverImage(url: track.coverURL, cornerRadius: 10)
                         .frame(width: 50, height: 50)
-                    TrackTitle(track: track, playing: playing)
+                    VStack(alignment: .leading, spacing: 2) {
+                        TrackTitle(track: track, playing: playing)
+                        if !note.isEmpty {
+                            Text(note)
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.textTertiary)
+                                .lineLimit(1)
+                        }
+                    }
                     Spacer(minLength: 6)
                 }
                 .contentShape(Rectangle())

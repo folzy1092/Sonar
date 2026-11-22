@@ -16,6 +16,11 @@ final class HomeFeed {
     var forYou: [Track] { snapshot.forYou.filter { !library.isDisliked($0.ref) } }
     /// «Открытия».
     var discoveries: [Track] { snapshot.discoveries.filter { !library.isDisliked($0.ref) } }
+    /// Почему трек в «Открытиях»: «Похоже на <исполнители затравок>»; нет причины — пусто.
+    func reason(for ref: String) -> String {
+        guard let seeds = snapshot.reasons[ref], !seeds.isEmpty else { return "" }
+        return t("Похоже на {list}", ["list": seeds.prefix(3).joined(separator: ", ")])
+    }
     /// «Релизы», свежие первыми.
     var releases: [Album] { snapshot.releases }
     private(set) var loading = false
@@ -26,7 +31,27 @@ final class HomeFeed {
         var forYou: [Track] = []
         var discoveries: [Track] = []
         var releases: [Album] = []
+        /// «Открытия»: ref → исполнители затравок, которые его советуют.
+        var reasons: [String: [String]] = [:]
         var at: Date?
+
+        init(forYou: [Track] = [], discoveries: [Track] = [], releases: [Album] = [], reasons: [String: [String]] = [:], at: Date? = nil) {
+            self.forYou = forYou
+            self.discoveries = discoveries
+            self.releases = releases
+            self.reasons = reasons
+            self.at = at
+        }
+
+        // старый home.json без reasons читается как есть
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            forYou = try c.decodeIfPresent([Track].self, forKey: .forYou) ?? []
+            discoveries = try c.decodeIfPresent([Track].self, forKey: .discoveries) ?? []
+            releases = try c.decodeIfPresent([Album].self, forKey: .releases) ?? []
+            reasons = try c.decodeIfPresent([String: [String]].self, forKey: .reasons) ?? [:]
+            at = try c.decodeIfPresent(Date.self, forKey: .at)
+        }
 
         var isEmpty: Bool { forYou.isEmpty && discoveries.isEmpty && releases.isEmpty }
     }
@@ -76,20 +101,25 @@ final class HomeFeed {
         async let similarLists = concurrentMap(seeds) { try await source.similar(to: $0, limit: 20) }
         async let topLists = concurrentMap(artists) { try await source.artistTop($0, limit: 10) }
         async let albumLists = concurrentMap(releaseArtists) { try await source.artistAlbums($0) }
-        let (similar, tops, albums) = await (similarLists, topLists, albumLists)
+        let (rawSimilar, tops, albums) = await (similarLists, topLists, albumLists)
+        // хвост выдачи (перезаливы, треки на десяток прослушиваний) — не вкус, чистим до отбора
+        let similar = rawSimilar.map { $0.map(HomeMath.cleanPool) }
 
         let answered = (similar + tops).contains { $0 != nil } || albums.contains { $0 != nil }
         guard answered else { return }
 
         var exclude = Set(liked.map(\.ref)).union(recent.map(\.ref))
         exclude.formUnion(library.disliked)
+        // подпись затравки для «почему этот трек» — её исполнитель
+        let byRef = Dictionary((liked + recent).map { ($0.ref, $0.mainArtistName) }, uniquingKeysWith: { first, _ in first })
+        let answeredSeeds = zip(seeds, similar).compactMap { ref, list in list.map { _ in byRef[ref] ?? "" } }
         let split = HomeMath.split(similar: similar.compactMap { $0 }, tops: tops.compactMap { $0 },
-                                   taste: history.taste(liked: liked), exclude: exclude)
+                                   taste: history.taste(liked: liked), exclude: exclude, seedLabels: answeredSeeds)
         var fresh = HomeMath.freshReleases(albums.compactMap { $0 }.flatMap { $0.prefix(8) }, now: now())
         if fresh.count < 4, let more = try? await source.newReleases(limit: 16) {
             fresh = HomeMath.mergeReleases(fresh, more)
         }
-        snapshot = Snapshot(forYou: split.forYou, discoveries: split.discoveries, releases: fresh, at: now())
+        snapshot = Snapshot(forYou: split.forYou, discoveries: split.discoveries, releases: fresh, reasons: split.reasons, at: now())
         save()
     }
 
@@ -134,12 +164,24 @@ enum HomeMath {
     }
 
     /// Похожее и популярное → «Для вас» (знакомые артисты, ≤ 2 трека на артиста) и «Открытия»
-    /// (незнакомые, по одному треку на артиста). Без exclude, недоступных и повторов.
+    /// (незнакомые, по одному треку на артиста). Без exclude, недоступных и повторов. В «Открытия» —
+    /// только артисты, которых советуют хотя бы две затравки: одиночный совет SoundCloud — случайный трек
+    /// жанра (как ПК `pickWithReasons` с `fill: false`). Мало — значит мало, без добора.
+    /// `reasons` — ref «Открытия» → подписи затравок (`seedLabels`, по индексу списка `similar`).
     static func split(similar: [[Track]], tops: [[Track]], taste: Taste, exclude: Set<String>,
-                      limit: Int = rowLimit) -> (forYou: [Track], discoveries: [Track]) {
+                      seedLabels: [String] = [],
+                      limit: Int = rowLimit) -> (forYou: [Track], discoveries: [Track], reasons: [String: [String]]) {
         let pool = interleave(similar)
+        // какие затравки (по индексу) советуют исполнителя
+        var support: [String: Set<Int>] = [:]
+        for (i, list) in similar.enumerated() {
+            for track in list { for key in track.artistKeys where !key.isEmpty { support[key, default: []].insert(i) } }
+        }
+        func seedsOf(_ track: Track) -> [Int] {
+            Array(track.artistKeys.reduce(into: Set<Int>()) { $0.formUnion(support[$1] ?? []) }).sorted()
+        }
         let known = pool.filter { taste.isKnown($0) }
-        let unknown = pool.filter { !taste.isKnown($0) && ($0.plays ?? Int.max) >= minPlaysUnknown }
+        let unknown = pool.filter { !taste.isKnown($0) && ($0.plays ?? Int.max) >= minPlaysUnknown && seedsOf($0).count >= 2 }
         var seen = exclude
         // не два трека артиста подряд: неподходящий ждёт следующего шанса, а не теряется
         func take(_ list: [Track], perArtist cap: Int) -> [Track] {
@@ -163,7 +205,43 @@ enum HomeMath {
         }
         let forYou = take(interleave([known, interleave(tops)]), perArtist: 2)
         let discoveries = take(unknown, perArtist: 1)
-        return (forYou, discoveries)
+        var reasons: [String: [String]] = [:]
+        for track in discoveries {
+            var seen = Set<String>()
+            let labels = seedsOf(track).compactMap { $0 < seedLabels.count ? seedLabels[$0] : nil }
+                .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+            if !labels.isEmpty { reasons[track.ref] = labels }
+        }
+        return (forYou, discoveries, reasons)
+    }
+
+    /// Перезалив: то же название и длина в пределах этого — один трек разными аккаунтами.
+    static let reuploadMs = 2000
+    /// Ниже этой доли медианы прослушиваний выдачи (и ниже `minPlaysTail`) — хвост, а не похожее.
+    static let tailMedianShare = 0.01
+    static let minPlaysTail = 100
+
+    /// Выдача похожего без хвоста (порт ПК `cleanSimilar(pool, 0)`): склеивает перезаливы (то же название
+    /// без регистра и длина ±2 с) и выкидывает почти не слушанное — порог 1 % медианы, не меньше 100, но не
+    /// выше самой медианы (нишевая выдача целиком остаётся). Треки без счётчика (Яндекс) не трогает.
+    static func cleanPool(_ tracks: [Track]) -> [Track] {
+        var kept: [Track] = []
+        for track in tracks {
+            let title = track.title.lowercased()
+            let dup = track.durationMs > 0 && kept.contains {
+                $0.durationMs > 0 && $0.title.lowercased() == title && abs($0.durationMs - track.durationMs) <= reuploadMs
+            }
+            if !dup { kept.append(track) }
+        }
+        let counted = kept.compactMap(\.plays).sorted()
+        guard !counted.isEmpty else { return kept }
+        let m = counted.count / 2
+        let median = counted.count % 2 == 1 ? Double(counted[m]) : Double(counted[m - 1] + counted[m]) / 2
+        let floor = min(median, max(Double(minPlaysTail), median * tailMedianShare))
+        return kept.filter { track in
+            guard let plays = track.plays else { return true }
+            return Double(plays) >= floor
+        }
     }
 
     /// Ключ сортировки релиза: `YYYY-MM-DD`, без даты — `YYYY-00-00`.

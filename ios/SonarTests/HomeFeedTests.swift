@@ -26,6 +26,23 @@ final class HomeFeedTests: XCTestCase {
         XCTAssertEqual(split.discoveries.map(\.ref), ["sc:4"], "по треку на артиста, без случайных заливов и недоступных")
     }
 
+    func testDiscoveriesOnlyWhenTwoSeedsAgreeWithReasons() {
+        let taste = Taste()
+        let similar = [[makeTrack("sc:1", "Once", plays: 5000), makeTrack("sc:2", "Shared", plays: 5000)],
+                       [makeTrack("sc:3", "Shared", plays: 7000), makeTrack("sc:4", "Twice", plays: 5000)]]
+        let split = HomeMath.split(similar: similar, tops: [], taste: taste, exclude: [], seedLabels: ["Seed A", "Seed B"])
+        XCTAssertEqual(split.discoveries.map(\.artist), ["Shared"], "одиночный совет — не «Открытия», добора нет")
+        XCTAssertEqual(split.reasons[split.discoveries[0].ref], ["Seed A", "Seed B"])
+    }
+
+    func testCleanPoolDropsTailAndReuploads() {
+        let pool = [makeTrack("sc:1", "A", title: "X", plays: 30000), makeTrack("sc:2", "B", title: "x", plays: 20000),
+                    makeTrack("sc:3", "C", plays: 40000), makeTrack("sc:4", "D", plays: 7), makeTrack("ym:5", "E")]
+        XCTAssertEqual(HomeMath.cleanPool(pool).map(\.ref), ["sc:1", "sc:3", "ym:5"], "перезалив и хвост — вон, без счётчика — остаётся")
+        let niche = [makeTrack("sc:1", "A", plays: 40), makeTrack("sc:2", "B", plays: 30), makeTrack("sc:3", "C", plays: 50)]
+        XCTAssertEqual(HomeMath.cleanPool(niche).count, 2, "порог не выше медианы")
+    }
+
     func testFreshReleases() {
         let now = ISO8601DateFormatter().date(from: "2026-11-17T12:00:00Z")!
         let albums = [
@@ -65,8 +82,9 @@ final class HomeFeedTests: XCTestCase {
         let (home, library, history, file) = feed(source, now: { now })
         library.toggleLike(makeTrack("sc:liked", "Fav", artistRef: "sca:fav"))
         history.record(makeTrack("ym:recent", "Old", artistRef: "yma:old"))
-        source.similarByRef["sc:liked"] = [makeTrack("sc:k1", "Fav"), makeTrack("sc:u1", "Stranger", plays: 5000)]
-        source.similarByRef["ym:recent"] = [makeTrack("ym:k2", "Old"), makeTrack("ym:u2", "Other")]
+        // в «Открытия» — только тех, кого советуют обе затравки
+        source.similarByRef["sc:liked"] = [makeTrack("sc:k1", "Fav"), makeTrack("sc:u1", "Stranger", plays: 5000), makeTrack("ym:u2b", "Other")]
+        source.similarByRef["ym:recent"] = [makeTrack("ym:k2", "Old"), makeTrack("ym:u2", "Other"), makeTrack("sc:u1b", "Stranger", plays: 6000)]
         source.topByArtist["sca:fav"] = [makeTrack("sc:t1", "Fav", artistRef: "sca:fav")]
         let today = HomeMath.dayString(now)
         source.albumsByArtist["sca:fav"] = [makeAlbum("scalb:1", "Fav", released: today)]
@@ -75,6 +93,7 @@ final class HomeFeedTests: XCTestCase {
         XCTAssertFalse(home.forYou.isEmpty)
         XCTAssertTrue(home.forYou.allSatisfy { ["fav", "old"].contains($0.artistKey) })
         XCTAssertEqual(Set(home.discoveries.map(\.ref)), ["sc:u1", "ym:u2"])
+        XCTAssertFalse(home.reason(for: "sc:u1").isEmpty, "у «Открытий» есть причина")
         XCTAssertEqual(home.releases.first?.ref, "scalb:1")
         XCTAssertEqual(home.releases.count, 3, "мало своих релизов — дополнили новинками")
         XCTAssertFalse(home.loading)
@@ -102,9 +121,11 @@ final class HomeFeedTests: XCTestCase {
 
     func testOfflineKeepsOldRows() async {
         let source = FakeSource()
-        let (home, library, _, _) = feed(source)
+        let (home, library, history, _) = feed(source)
         library.toggleLike(makeTrack("sc:liked", "Fav"))
+        history.record(makeTrack("ym:recent", "Old"))
         source.similarByRef["sc:liked"] = [makeTrack("sc:u1", "Stranger", plays: 5000)]
+        source.similarByRef["ym:recent"] = [makeTrack("sc:u1b", "Stranger", plays: 4000)]
         await home.refresh()
         XCTAssertEqual(home.discoveries.map(\.ref), ["sc:u1"])
         source.failAll = true

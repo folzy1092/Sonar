@@ -13,6 +13,14 @@ enum Route: Hashable {
     case smartPlaylist(id: String)
     case artist(ref: String, name: String)
     case album(ref: String, title: String)
+    /// Подборка Главной целиком («Для вас», «Открытия») — с причиной у треков «Открытий».
+    case homeMix(HomeMix)
+}
+
+/// Подборки Главной (`HomeFeed`).
+enum HomeMix: String, Hashable {
+    case forYou
+    case discoveries
 }
 
 /// Лист трека: какой трек и можно ли убрать его из списка, где он показан.

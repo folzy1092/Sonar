@@ -204,6 +204,7 @@ struct RouteScreen: View {
         case let .smartPlaylist(id): SmartPlaylistScreen(id: id)
         case let .artist(ref, name): ArtistScreen(ref: ref, name: name)
         case let .album(ref, title): AlbumScreen(ref: ref, title: title)
+        case let .homeMix(mix): PlaylistScreen(source: .mix(mix))
         }
     }
 }

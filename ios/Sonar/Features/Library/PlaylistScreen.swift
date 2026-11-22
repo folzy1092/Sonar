@@ -13,6 +13,8 @@ struct PlaylistScreen: View {
         case service(ServicePlaylist)
         /// Свой плейлист Sonar (`PlaylistStore`).
         case sonar(String)
+        /// Подборка Главной (`HomeFeed`).
+        case mix(HomeMix)
     }
 
     let source: Source
@@ -63,6 +65,8 @@ struct PlaylistScreen: View {
         case .recent: "Недавнее"
         case let .service(playlist): playlist.title
         case .sonar: own?.name ?? t("Плейлист Sonar")
+        case .mix(.forYou): "Для вас"
+        case .mix(.discoveries): "Открытия"
         }
     }
 
@@ -81,6 +85,8 @@ struct PlaylistScreen: View {
         case .recent: PlayHistory.shared.recent
         case .service: loaded
         case .sonar: own?.tracks ?? []
+        case .mix(.forYou): HomeFeed.shared.forYou
+        case .mix(.discoveries): HomeFeed.shared.discoveries
         }
     }
 
@@ -285,6 +291,10 @@ struct PlaylistScreen: View {
         case .liked: bigIcon(.heart)
         case .downloaded: bigIcon(.download)
         case .recent: bigIcon(.history)
+        case .mix:
+            PlaylistCollage(covers: Covers.collage(tracks), cornerRadius: 24)
+                .frame(width: 220, height: 220)
+                .shadow(color: Theme.glow.opacity(0.35), radius: 24, y: 10)
         case let .service(playlist):
             CoverImage(url: playlist.coverURL, cornerRadius: 24)
                 .frame(width: 220, height: 220)
@@ -339,7 +349,8 @@ struct PlaylistScreen: View {
             let list = shown
             LazyVStack(spacing: 4) {
                 ForEach(Array(list.enumerated()), id: \.element.ref) { index, track in
-                    TrackRow(track: track, playing: engine.current?.ref == track.ref, remove: removal(for: track)) {
+                    TrackRow(track: track, playing: engine.current?.ref == track.ref, remove: removal(for: track),
+                             note: source == .mix(.discoveries) ? HomeFeed.shared.reason(for: track.ref) : "") {
                         engine.play(list, at: index, context: title, tapped: true)
                     }
                     .cascade(index)
@@ -370,6 +381,7 @@ struct PlaylistScreen: View {
         case .recent: "Здесь будут треки, которые ты слушал"
         case .service: "В плейлисте пусто"
         case .sonar: t("Добавляй треки через меню трека: «Добавить в плейлист».")
+        case .mix: t("Слушай и лайкай дальше — здесь соберутся треки под твой вкус.")
         }
     }
 
