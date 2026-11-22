@@ -3,7 +3,7 @@ import Observation
 
 /// Медиатека на устройстве, пока нет базы и сервера: Любимые (новые сверху, порядок можно менять),
 /// 👎 «Не интересно» (`wave_dislikes`: трек не попадёт в подборки, волну и «Авто похожие») и
-/// запомненная скорость треков (`track_prefs.speed`). JSON в Application Support; когда появится SQLite по DB.md — переедут
+/// звук трека «Для этого трека» (`track_prefs.sound_json`, `TrackSound`). JSON в Application Support; когда появится SQLite по DB.md — переедут
 /// туда с теми же полями.
 @MainActor
 @Observable
@@ -12,8 +12,8 @@ final class LibraryStore {
 
     private(set) var liked: [Track] = []
     private(set) var likedRefs: Set<String> = []
-    /// ref → скорость, «Запомнить» в листе скорости.
-    private(set) var speeds: [String: Float] = [:]
+    /// ref → звук трека («Для этого трека» в листе скорости). Остальные треки — по общим настройкам.
+    private(set) var sounds: [String: TrackSound] = [:]
     /// 👎 — ref треков «Не интересно».
     private(set) var disliked: Set<String> = []
     /// ref → когда лайкнут (мс с 1970) — для умных плейлистов («Новое в Любимых»). Перетаскивание его не
@@ -22,7 +22,9 @@ final class LibraryStore {
 
     private struct Snapshot: Codable {
         var liked: [Track]
-        var speeds: [String: Float]
+        /// Старый файл: только «Запомнить скорость» — переносится в `sounds` (скорость, тон сохраняется).
+        var speeds: [String: Float]?
+        var sounds: [String: TrackSound]?
         /// Нет в старом файле — пусто.
         var disliked: [String]?
         var likedAt: [String: Int]?
@@ -39,7 +41,9 @@ final class LibraryStore {
         if let data = try? Data(contentsOf: self.file), let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data) {
             liked = snapshot.liked
             likedRefs = Set(snapshot.liked.map(\.ref))
-            speeds = snapshot.speeds
+            var sounds = (snapshot.speeds ?? [:]).compactMapValues { TrackSound(rate: Double($0)).normalized() }
+            for (ref, sound) in snapshot.sounds ?? [:] { sounds[ref] = sound.normalized() }
+            self.sounds = sounds
             disliked = Set(snapshot.disliked ?? [])
             likedAt = (snapshot.likedAt ?? [:]).filter { likedRefs.contains($0.key) }
         }
@@ -93,18 +97,20 @@ final class LibraryStore {
         save()
     }
 
-    func speed(for ref: String) -> Float? {
-        speeds[ref]
+    func sound(for ref: String) -> TrackSound? {
+        sounds[ref]
     }
 
-    /// nil — забыть.
-    func rememberSpeed(_ speed: Float?, for ref: String) {
-        speeds[ref] = speed
+    /// Запомнить звук для трека; nil — забыть (трек снова по общим настройкам).
+    func rememberSound(_ sound: TrackSound?, for ref: String) {
+        let sound = sound?.normalized()
+        guard sounds[ref] != sound else { return }
+        sounds[ref] = sound
         save()
     }
 
     private func save() {
-        let snapshot = Snapshot(liked: liked, speeds: speeds, disliked: disliked.sorted(), likedAt: likedAt)
+        let snapshot = Snapshot(liked: liked, speeds: nil, sounds: sounds, disliked: disliked.sorted(), likedAt: likedAt)
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: file, options: .atomic)
@@ -118,7 +124,7 @@ final class LibraryStore {
 
     /// Пришло с другого устройства: заменить списки целиком (nil — не трогать). `likedAt` — даты новых лайков;
     /// у оставшихся в Любимых даты сохраняются.
-    func applySynced(liked: [Track]? = nil, disliked: Set<String>? = nil, speeds: [String: Float]? = nil,
+    func applySynced(liked: [Track]? = nil, disliked: Set<String>? = nil, sounds: [String: TrackSound]? = nil,
                      likedAt: [String: Int] = [:]) {
         if let liked {
             self.liked = liked
@@ -126,7 +132,7 @@ final class LibraryStore {
         }
         self.likedAt = self.likedAt.merging(likedAt) { _, new in new }.filter { likedRefs.contains($0.key) }
         if let disliked { self.disliked = disliked }
-        if let speeds { self.speeds = speeds }
+        if let sounds { self.sounds = sounds }
         save()
     }
 }

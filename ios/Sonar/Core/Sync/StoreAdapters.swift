@@ -162,8 +162,9 @@ final class DislikesSyncAdapter: SyncAdapter {
     }
 }
 
-/// Настройки трека (`track_pref`): «Запомнить» скорость (`LibraryStore.speeds`) и сдвиг текста
-/// (`LyricsStore.offsets`, мс).
+/// Настройки трека (`track_pref`): звук трека (`LibraryStore.sounds`, `sound` + `speed` для старых клиентов) и
+/// сдвиг текста (`LyricsStore.offsets`, мс). Изменённая на другом устройстве строка приходит с новым `rev` —
+/// сверять хэши не нужно.
 @MainActor
 final class TrackPrefsSyncAdapter: SyncAdapter {
     let types: Set<String> = ["track_pref"]
@@ -177,28 +178,25 @@ final class TrackPrefsSyncAdapter: SyncAdapter {
         self.setOffset = setOffset
     }
 
-    static func speedValue(_ speed: Float?) -> JSONValue {
-        guard let speed else { return .null }
-        return .double((Double(speed) * 1000).rounded() / 1000)
-    }
-
     func snapshot(journal: SyncJournal) -> [SyncKey: JSONValue] {
         let offsets = offsets().filter { $0.value != 0 }
-        let refs = Set(library.speeds.keys).union(offsets.keys)
+        let refs = Set(library.sounds.keys).union(offsets.keys)
         var out: [SyncKey: JSONValue] = [:]
         for ref in refs {
+            let sound = library.sounds[ref]
             out[SyncKey("track_pref", ref)] = .object([
-                "speed": Self.speedValue(library.speeds[ref]),
+                "speed": sound.map { .double($0.rate) } ?? .null,
                 "lyrics_offset_ms": offsets[ref].map { .int($0) } ?? .null,
+                "sound": sound?.json ?? .null,
             ])
         }
         return out
     }
 
     func apply(_ change: SyncChange, journal: SyncJournal) -> Bool {
-        var speeds = library.speeds
-        speeds[change.key] = change.value["speed"].number.map { Float($0) }
-        if speeds != library.speeds { library.applySynced(speeds: speeds) }
+        var sounds = library.sounds
+        sounds[change.key] = TrackSound.fromSync(change.value)
+        if sounds != library.sounds { library.applySynced(sounds: sounds) }
         let ms = change.value["lyrics_offset_ms"].int
         if offsets()[change.key] != ms { setOffset(change.key, ms) }
         return true

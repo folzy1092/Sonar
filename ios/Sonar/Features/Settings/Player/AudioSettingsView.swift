@@ -149,7 +149,8 @@ struct AudioSettingsView: View {
 /// Эквалайзер (как на ПК, `EqButton.svelte`): 12 полос ±12 дБ — тянуть пальцем вверх-вниз, звучит сразу;
 /// сверху — кривая (настоящая АЧХ фильтров), пресеты чипами: свои («Мои» на ПК, `audio.eq_presets`) первыми,
 /// «+» сохраняет текущую кривую, долгое нажатие на свой — удалить; переключатель вкл/выкл. Кривая одна на
-/// все треки. Сейчас играет поток HLS — подсказка, что на нём эквалайзер не слышен.
+/// все треки, а у трека со своим звуком («Для этого трека» в листе скорости) — его (`PlaybackEngine.saveEq`).
+/// Сейчас играет поток HLS — подсказка, что на нём эквалайзер не слышен.
 struct EqualizerSheet: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(PlaybackEngine.self) private var engine
@@ -177,6 +178,10 @@ struct EqualizerSheet: View {
             }
             .padding(.horizontal, 8)
 
+            if engine.hasTrackSound {
+                HintCard(icon: .sparkles, text: t("У этого трека свой звук — кривая сохранится только для него"))
+            }
+
             if engine.isHLS, engine.current != nil {
                 HintCard(icon: .info, text: "Сейчас играет поток HLS SoundCloud — iPhone проигрывает его мимо эквалайзера. "
                     + "Треки Яндекса, SoundCloud через Яндекс и скачанные звучат с ним.")
@@ -201,7 +206,7 @@ struct EqualizerSheet: View {
         .padding(.horizontal, Theme.gutter)
         .padding(.top, 30)
         .animation(Motion.spring, value: enabled)
-        .onAppear { gains = Equalizer.parse(settings.string(Equalizer.gainsKey)) }
+        .onAppear { gains = engine.eqGains }
         .alert(t("Сохранить текущий"), isPresented: $naming) {
             TextField(t("Название"), text: $newName)
             Button(t("Отмена"), role: .cancel) { newName = "" }
@@ -343,6 +348,6 @@ struct EqualizerSheet: View {
     }
 
     private func save() {
-        settings.set(Equalizer.gainsKey, .string(Equalizer.isFlat(gains) ? "" : Equalizer.encode(gains)))
+        engine.saveEq(gains)
     }
 }

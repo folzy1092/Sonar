@@ -37,6 +37,11 @@ extension SettingsDefaults {
             "player.wave_why": .bool(true),
             // таймер сна в плеере (лист скорости и меню трека), как ПК — по умолчанию выключен
             "player.sleep_button": .bool(false),
+            // общие тон и реверб листа скорости (у трека со своим звуком — его, `TrackSound`); скорость на новом
+            // треке — 1×, как раньше. Только этот телефон: у ПК свой `player.tempo`
+            "player.pitch_linked": .bool(false),
+            "player.pitch": .double(0),
+            "player.reverb": .double(0),
         ]
         for (key, value) in Gestures.defaults { out[key] = .string(value) }
         return out

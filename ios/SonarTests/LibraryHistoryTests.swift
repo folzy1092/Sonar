@@ -60,7 +60,7 @@ final class LibraryHistoryTests: XCTestCase {
         let old = #"{"liked": [], "speeds": {"sc:1": 1.25}}"#
         try Data(old.utf8).write(to: dir.appendingPathComponent("library.json"))
         let store = library(dir)
-        XCTAssertEqual(store.speed(for: "sc:1"), 1.25)
+        XCTAssertEqual(store.sound(for: "sc:1"), TrackSound(rate: 1.25), "старая «Запомнить скорость» — звук трека")
         XCTAssertTrue(store.disliked.isEmpty)
     }
 

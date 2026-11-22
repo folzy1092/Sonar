@@ -52,8 +52,18 @@ final class PlaybackEngine {
     var message: String?
     var repeatMode: RepeatMode = .off
     private(set) var shuffle = false
-    /// Скорость 0.5–2× (тон не меняется — `.timeDomain`).
+    /// Скорость 0.5–2× (тон не меняется — `.timeDomain`; связан со скоростью — `.varispeed`).
     private(set) var rate: Float = 1
+    /// Свой тон в полутонах −12…+12, когда не связан со скоростью (`AudioTap` — только файлы, не HLS).
+    private(set) var pitch: Double = 0
+    /// Тон едет вместе со скоростью — slowed / sped up (сам AVPlayer, работает и на HLS).
+    private(set) var pitchLinked = false
+    /// Реверб 0…1, 0 — выключен (`AudioTap` — только файлы).
+    private(set) var reverb: Double = 0
+    /// У играющего трека свой звук («Для этого трека», `TrackSound`): правки пишутся в трек.
+    private(set) var hasTrackSound = false
+    /// Кривая эквалайзера трека со своим звуком (nil — общая `audio.eq`).
+    private(set) var trackEq: [Double]?
     /// Треки, дописанные «Авто похожими» (в очереди — отдельным блоком).
     private(set) var autoRefs: Set<String> = []
     /// Сейчас играет Sonar Mix или «Волна по треку» — для кнопки ▶/⏸ на Главной.
@@ -302,11 +312,139 @@ final class PlaybackEngine {
     }
 
     func setRate(_ value: Float) {
-        rate = min(2, max(0.5, value))
+        applyRate(value)
+        persistTempo()
+    }
+
+    private func applyRate(_ value: Float) {
+        rate = (min(2, max(0.5, value)) * 100).rounded() / 100
         player.defaultRate = rate
         if isPlaying { player.rate = rate }
         nowPlaying.update()
     }
+
+    // MARK: - Тон, реверб и звук трека (лист скорости)
+
+    /// Тон, который звучит: связан — от скорости, иначе свой.
+    var semitones: Double { pitchLinked ? TrackSound.linkedSemitones(Double(rate)) : pitch }
+
+    /// Тон. Связан со скоростью — двигается скорость (как у пластинки): −2 пт ≈ ×0.89.
+    func setPitch(_ semitones: Double) {
+        let value = min(12, max(-12, (semitones * 10).rounded() / 10))
+        if pitchLinked {
+            var next = Float(TrackSound.pitchRatio(value))
+            // шаг тона 0.1 пт мельче шага скорости 0.01 — сдвигаем скорость хотя бы на 0.01 в ту же сторону
+            let rounded = (min(2, max(0.5, next)) * 100).rounded() / 100
+            if rounded == rate, value != self.semitones { next = rate + (value > self.semitones ? 0.01 : -0.01) }
+            applyRate(next)
+        } else {
+            pitch = value
+        }
+        applyTempo()
+        persistTempo()
+    }
+
+    /// Связать тон со скоростью. Отвязали — тон остаётся тем, что звучал, и дальше двигается сам.
+    func setPitchLinked(_ on: Bool) {
+        guard on != pitchLinked else { return }
+        if !on { pitch = TrackSound.linkedSemitones(Double(rate)) }
+        pitchLinked = on
+        applyTempo()
+        persistTempo()
+    }
+
+    func setReverb(_ amount: Double) {
+        reverb = (min(1, max(0, amount)) * 100).rounded() / 100
+        applyTempo()
+        persistTempo()
+    }
+
+    /// Всё как было: 1×, без сдвига тона и реверба.
+    func resetTempo() {
+        applyRate(1)
+        pitch = 0
+        reverb = 0
+        applyTempo()
+        persistTempo()
+    }
+
+    /// «Для этого трека»: включили — нынешний звук (и кривая эквалайзера) запоминается для трека; выключили —
+    /// трек забывает свой звук и играет по общим настройкам.
+    func setTrackSound(_ on: Bool) {
+        guard let ref = current?.ref, on != hasTrackSound else { return }
+        if on {
+            trackEq = Equalizer.parse(SettingsStore.shared.string(Equalizer.gainsKey))
+            hasTrackSound = true
+            persistTempo()
+        } else {
+            LibraryStore.shared.rememberSound(nil, for: ref)
+            applyTrackSound(for: ref)
+        }
+    }
+
+    /// Кривая эквалайзера, которая сейчас звучит: трека со своим звуком или общая.
+    var eqGains: [Double] { trackEq ?? Equalizer.parse(SettingsStore.shared.string(Equalizer.gainsKey)) }
+
+    /// Сохранить кривую: у трека со своим звуком — в трек, иначе общую.
+    func saveEq(_ gains: [Double]) {
+        if hasTrackSound {
+            trackEq = gains.map(Equalizer.clamp)
+            persistTempo()
+        } else {
+            SettingsStore.shared.set(Equalizer.gainsKey, .string(Equalizer.isFlat(gains) ? "" : Equalizer.encode(gains)))
+        }
+    }
+
+    /// Новый трек: свой звук — звучит он; иначе общие тон и реверб и 1× (SPEC §4.3).
+    private func applyTrackSound(for ref: String?) {
+        if let ref, let sound = LibraryStore.shared.sound(for: ref) {
+            hasTrackSound = true
+            pitch = sound.pitch
+            pitchLinked = sound.linked
+            reverb = sound.reverb
+            trackEq = sound.eq
+            applyRate(Float(sound.rate))
+        } else {
+            let settings = SettingsStore.shared
+            hasTrackSound = false
+            trackEq = nil
+            pitch = settings.double("player.pitch")
+            pitchLinked = settings.bool("player.pitch_linked")
+            reverb = settings.double("player.reverb")
+            applyRate(1)
+        }
+        applyTempo()
+    }
+
+    /// Звук, который сейчас звучит, — для записи в трек.
+    private var currentSound: TrackSound {
+        TrackSound(rate: Double(rate), pitch: pitch, linked: pitchLinked, reverb: reverb, eq: trackEq)
+    }
+
+    private func persistTempo() {
+        if hasTrackSound, let ref = current?.ref {
+            LibraryStore.shared.rememberSound(currentSound, for: ref)
+            return
+        }
+        let settings = SettingsStore.shared
+        if settings.double("player.pitch") != pitch { settings.set("player.pitch", .double(pitch)) }
+        if settings.bool("player.pitch_linked") != pitchLinked { settings.set("player.pitch_linked", pitchLinked) }
+        if settings.double("player.reverb") != reverb { settings.set("player.reverb", .double(reverb)) }
+    }
+
+    /// Тон и реверб — в обработку звука; связанный тон — алгоритм AVPlayer у всех элементов обеих дек.
+    private func applyTempo() {
+        AudioTap.params.updateEffects(pitchRatio: pitchLinked ? 1 : TrackSound.pitchRatio(pitch), reverb: reverb)
+        let algorithm = pitchAlgorithm
+        for deck in decks {
+            for item in deck.items() where item.audioTimePitchAlgorithm != algorithm {
+                item.audioTimePitchAlgorithm = algorithm
+            }
+        }
+        if let item = preloaded?.item, item.audioTimePitchAlgorithm != algorithm { item.audioTimePitchAlgorithm = algorithm }
+    }
+
+    private var pitchAlgorithm: AVAudioTimePitchAlgorithm { pitchLinked ? .varispeed : .timeDomain }
 
     /// «Следующим» / «В очередь».
     func enqueue(_ track: Track, next: Bool) {
@@ -357,7 +495,7 @@ final class PlaybackEngine {
         // CDN VK отдаёт поток только клиенту с тем же User-Agent, что и у API (Kate Mobile)
         let options: [String: Any] = VK.isCDN(url) ? [AVURLAssetHTTPUserAgentKey: VK.userAgent] : [:]
         let item = AVPlayerItem(asset: AVURLAsset(url: url, options: options))
-        item.audioTimePitchAlgorithm = .timeDomain
+        item.audioTimePitchAlgorithm = pitchAlgorithm
         // буфер вперёд — чтобы мобильная сеть не рвала звук
         item.preferredForwardBufferDuration = 30
         return item
@@ -429,8 +567,8 @@ final class PlaybackEngine {
         duration = Double(track.durationMs) / 1000
         quality = nil
         isLoading = true
-        // запомненная скорость трека, иначе обычная (SPEC §4.3)
-        if !fresh { setRate(LibraryStore.shared.speed(for: track.ref) ?? 1) }
+        // свой звук трека («Для этого трека»), иначе общий тон и реверб и 1× (SPEC §4.3)
+        if !fresh { applyTrackSound(for: track.ref) }
         nowPlaying.update()
         Task {
             do {
@@ -633,7 +771,7 @@ final class PlaybackEngine {
         isHLS = next.hls
         if let track = current {
             duration = Double(track.durationMs) / 1000
-            setRate(LibraryStore.shared.speed(for: track.ref) ?? 1)
+            applyTrackSound(for: track.ref)
             nowPlaying.update(artworkFor: track)
         }
         attach(next.item)
@@ -906,7 +1044,8 @@ final class PlaybackEngine {
 
     private func applySettings() {
         let settings = SettingsStore.shared
-        AudioTap.params.update(gains: Equalizer.parse(settings.string(Equalizer.gainsKey)),
+        // у трека со своим звуком — его кривая
+        AudioTap.params.update(gains: trackEq ?? Equalizer.parse(settings.string(Equalizer.gainsKey)),
                                eqEnabled: settings.bool(Equalizer.enabledKey),
                                normalize: settings.bool("audio.normalize"))
         let wasCrossfade = crossfade
@@ -1068,7 +1207,7 @@ final class PlaybackEngine {
             duration = Double(track.durationMs) / 1000
             position = max(0, min(snapshot.position, duration - 1))
             pendingStart = (track.ref, position)
-            rate = LibraryStore.shared.speed(for: track.ref) ?? 1
+            applyTrackSound(for: track.ref)
         }
     }
 

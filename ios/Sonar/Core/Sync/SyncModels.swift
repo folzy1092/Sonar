@@ -148,6 +148,9 @@ enum SyncPolicy {
         "audio.eq",
         "player.speed_mode",
         "player.tempo",
+        "player.pitch_linked",
+        "player.pitch",
+        "player.reverb",
         "obs.token",
         "lyrics.view",
     ]

@@ -47,7 +47,7 @@ final class SyncTests: XCTestCase {
         a.library.toggleLike(makeTrack("sc:2", "C"))
         a.library.toggleLike(makeTrack("sc:2", "C")) // снят — не должен приехать лайком
         a.library.toggleDislike(makeTrack("sc:9", "Bad"))
-        a.library.rememberSpeed(1.25, for: "sc:1")
+        a.library.rememberSound(TrackSound(rate: 0.8, linked: true, reverb: 0.4, eq: Array(repeating: 2, count: 12)), for: "sc:1")
         a.offsets["sc:1"] = 250
         a.settings.set("appearance.animations", false)
         a.settings.set("wave.mode", .string("sad"))
@@ -66,7 +66,10 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(b.library.liked.map(\.ref), ["ym:5", "sc:1"], "порядок как на A, снятый лайк не приехал")
         XCTAssertEqual(b.library.liked.first?.title, "Song ym:5", "карточка трека приехала с лайком")
         XCTAssertEqual(b.library.disliked, ["sc:9"])
-        XCTAssertEqual(b.library.speed(for: "sc:1"), 1.25)
+        XCTAssertEqual(b.library.sound(for: "sc:1"), TrackSound(rate: 0.8, linked: true, reverb: 0.4, eq: Array(repeating: 2, count: 12)))
+        XCTAssertNil(b.library.sound(for: "ym:5"), "другие треки — по общим настройкам")
+        let pushedSound = await server.value("track_pref", "sc:1")
+        XCTAssertEqual(pushedSound?["speed"].number, 0.8, "скорость рядом — для старых клиентов")
         XCTAssertEqual(b.offsets["sc:1"], 250)
         XCTAssertFalse(b.settings.bool("appearance.animations"))
         XCTAssertEqual(b.settings.string("wave.mode"), "sad")
@@ -78,13 +81,13 @@ final class SyncTests: XCTestCase {
         // B снял лайк и 👎 — A получает удаления
         b.library.toggleLike(makeTrack("sc:1", "A"))
         b.library.toggleDislike(makeTrack("sc:9", "Bad"))
-        b.library.rememberSpeed(nil, for: "sc:1")
+        b.library.rememberSound(nil, for: "sc:1")
         b.offsets["sc:1"] = nil
         _ = try await b.sync(server)
         _ = try await a.sync(server)
         XCTAssertEqual(a.library.liked.map(\.ref), ["ym:5"])
         XCTAssertTrue(a.library.disliked.isEmpty)
-        XCTAssertNil(a.library.speed(for: "sc:1"))
+        XCTAssertNil(a.library.sound(for: "sc:1"))
         XCTAssertNil(a.offsets["sc:1"])
         let quiet = try await a.sync(server)
         XCTAssertEqual(quiet.pushed, 0)

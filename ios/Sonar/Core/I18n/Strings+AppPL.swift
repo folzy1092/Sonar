@@ -4,6 +4,14 @@
 
 extension I18n {
     static let appPL: [String: String] = [
+        // лист скорости: тон, связь со скоростью, звук трека
+        "Тон": "Ton",
+        "Тон ниже": "Niżej",
+        "Тон выше": "Wyżej",
+        "Связать тон со скоростью": "Połącz ton z prędkością",
+        "Slowed / sped up: скорость меняет высоту звука": "Slowed / sped up: prędkość zmienia wysokość dźwięku",
+        "У этого трека свой звук — кривая сохранится только для него": "Ten utwór ma własne brzmienie – krzywa zapisze się tylko dla niego",
+        "Этот трек идёт потоком HLS — свой тон и реверб на нём не слышны. Slowed со связанным тоном работает": "Ten utwór leci strumieniem HLS – własny ton i pogłos nie są słyszalne. Slowed z połączonym tonem działa",
         // меню трека: устройства, таймер сна; T в тексте
         "Выбрать, где играет музыка": "Wybierz, gdzie gra muzyka",
         "Остановить музыку через заданное время": "Zatrzymaj muzykę po ustalonym czasie",

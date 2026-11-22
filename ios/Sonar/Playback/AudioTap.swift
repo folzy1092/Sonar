@@ -2,9 +2,10 @@ import AVFoundation
 import MediaToolbox
 import os
 
-/// Эквалайзер и нормализация громкости на iPhone: `MTAudioProcessingTap` в `AVAudioMix` элемента
-/// плеера. Звук трека проходит через 12 фильтров (`Equalizer`) и выравниватель (`Leveler`) — числа и
-/// формулы в `PlayerDSP.swift`.
+/// Эквалайзер, тон, реверб и нормализация громкости на iPhone: `MTAudioProcessingTap` в `AVAudioMix`
+/// элемента плеера. Звук трека проходит через 12 фильтров (`Equalizer`), сдвиг тона (`PitchShifter`), реверб
+/// (`Reverb`) и выравниватель (`Leveler`) — числа и формулы в `PlayerDSP.swift` и `SoundFX.swift`. Тон,
+/// связанный со скоростью (slowed), — не здесь: его даёт сам AVPlayer (`audioTimePitchAlgorithm = .varispeed`).
 ///
 /// Ограничение AVFoundation: `audioMix` работает только для файлов — Яндекс (mp3 / FLAC), SoundCloud через
 /// Яндекс, прогрессивный mp3 SoundCloud и скачанные треки. Поток HLS (почти весь SoundCloud) AVPlayer
@@ -77,6 +78,10 @@ final class AudioTapParams: Sendable {
         var gains: [Double] = Equalizer.flat
         var eqEnabled = true
         var normalize = false
+        /// Множитель частоты своего тона (1 — без сдвига).
+        var pitchRatio = 1.0
+        /// Реверб 0…1 (0 — выключен).
+        var reverb = 0.0
         var version = 0
     }
 
@@ -87,6 +92,16 @@ final class AudioTapParams: Sendable {
             values.gains = gains
             values.eqEnabled = eqEnabled
             values.normalize = normalize
+            values.version &+= 1
+        }
+    }
+
+    /// Тон и реверб листа скорости (`PlaybackEngine.applyTempo`).
+    func updateEffects(pitchRatio: Double, reverb: Double) {
+        lock.withLock { values in
+            guard values.pitchRatio != pitchRatio || values.reverb != reverb else { return }
+            values.pitchRatio = pitchRatio
+            values.reverb = reverb
             values.version &+= 1
         }
     }
@@ -112,6 +127,13 @@ private final class TapContext: @unchecked Sendable {
     private var eqOn = false
     private var normalize = false
     private var leveler = Leveler.State()
+    private var pitchRatio = 1.0
+    private var pitchOn = false
+    private var reverbAmount: Float = 0
+    private var reverbOn = false
+    /// По каналу — создаются в `prepare`, в звуковом потоке только используются.
+    private var shifters: [PitchShifter] = []
+    private var reverbs: [Reverb] = []
     private let coefficients = UnsafeMutablePointer<FloatBiquad>.allocate(capacity: TapContext.bands)
     private let active = UnsafeMutablePointer<Bool>.allocate(capacity: TapContext.bands)
     private let states = UnsafeMutablePointer<BiquadState>.allocate(capacity: TapContext.bands * TapContext.maxChannels)
@@ -140,6 +162,9 @@ private final class TapContext: @unchecked Sendable {
         ready = isFloat && channels > 0 && channels <= Self.maxChannels
         version = -1
         states.update(repeating: BiquadState(), count: Self.bands * Self.maxChannels)
+        let count = ready ? channels : 0
+        shifters = (0 ..< count).map { _ in PitchShifter() }
+        reverbs = (0 ..< count).map { Reverb(sampleRate: sampleRate, channel: $0) }
     }
 
     func unprepare() {
@@ -150,6 +175,15 @@ private final class TapContext: @unchecked Sendable {
         guard let values = params.values(newerThan: version) else { return }
         version = values.version
         normalize = values.normalize && useLeveler
+        // эффект только что включился — с чистой памятью, без хвоста прошлого раза
+        let wantPitch = abs(values.pitchRatio - 1) > 0.0005
+        if wantPitch, !pitchOn { shifters.forEach { $0.reset() } }
+        pitchOn = wantPitch
+        pitchRatio = values.pitchRatio
+        let wantReverb = values.reverb > 0.001
+        if wantReverb, !reverbOn { reverbs.forEach { $0.reset() } }
+        reverbOn = wantReverb
+        reverbAmount = Float(min(1, values.reverb))
         eqOn = values.eqEnabled && !Equalizer.isFlat(values.gains)
         let filters = Equalizer.filters(values.gains, sampleRate: sampleRate)
         for band in 0 ..< Self.bands {
@@ -168,12 +202,13 @@ private final class TapContext: @unchecked Sendable {
         guard ready, frames > 0 else { return }
         refresh()
         let levelerBusy = normalize || abs(leveler.gain - 1) > 0.001
-        guard eqOn || levelerBusy else { return }
+        let effectsOn = pitchOn || reverbOn
+        guard eqOn || effectsOn || levelerBusy else { return }
         let buffers = UnsafeMutableAudioBufferListPointer(list)
         var sum: Double = 0
         var count = 0
 
-        // 1. эквалайзер на месте + сумма квадратов для оценки громкости (после эквалайзера, как на ПК)
+        // 1. эквалайзер, тон и реверб на месте + сумма квадратов для оценки громкости (после них, как на ПК)
         var channelBase = 0
         for buffer in buffers {
             guard let data = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
@@ -181,6 +216,11 @@ private final class TapContext: @unchecked Sendable {
             let length = min(frames, Int(buffer.mDataByteSize) / (MemoryLayout<Float>.size * stride))
             for c in 0 ..< stride where channelBase + c < Self.maxChannels {
                 let state = states + (channelBase + c) * Self.bands
+                let channel = channelBase + c
+                let shifter = pitchOn && channel < shifters.count ? shifters[channel] : nil
+                let reverb = reverbOn && channel < reverbs.count ? reverbs[channel] : nil
+                let ratio = pitchRatio
+                let amount = reverbAmount
                 var i = c
                 for _ in 0 ..< length {
                     var x = data[i]
@@ -188,8 +228,10 @@ private final class TapContext: @unchecked Sendable {
                         for band in 0 ..< Self.bands where active[band] {
                             x = state[band].process(x, coefficients[band])
                         }
-                        data[i] = x
                     }
+                    if let shifter { x = shifter.process(x, ratio: ratio) }
+                    if let reverb { x = Reverb.mix(dry: x, wet: reverb.process(x), amount: amount) }
+                    if eqOn || effectsOn { data[i] = x }
                     sum += Double(x) * Double(x)
                     i += stride
                 }
@@ -202,7 +244,7 @@ private final class TapContext: @unchecked Sendable {
         let before = Float(leveler.gain)
         let after = Float(leveler.step(blockDb: Leveler.rmsDb(sumOfSquares: sum, count: count),
                                        dt: Double(frames) / sampleRate, enabled: normalize))
-        let boosting = eqOn || after > 1 || before > 1
+        let boosting = eqOn || effectsOn || after > 1 || before > 1
         guard levelerBusy || boosting else { return }
         for buffer in buffers {
             guard let data = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }

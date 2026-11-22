@@ -89,6 +89,15 @@ final class SettingsStore {
         return ""
     }
 
+    /// Число (целое тоже читается); нет — 0.
+    func double(_ key: String) -> Double {
+        switch value(key) {
+        case let .double(value)?: value
+        case let .int(value)?: Double(value)
+        default: 0
+        }
+    }
+
     func set(_ key: String, _ value: SettingValue) {
         values[key] = value
         if let data = try? JSONEncoder().encode(values) {

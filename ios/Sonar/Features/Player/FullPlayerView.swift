@@ -217,8 +217,8 @@ struct FullPlayerView: View {
         }
         .sheet(isPresented: $showSpeed) {
             SpeedSheet()
-                // без таймера сна лист ниже — блок таймера по настройке `player.sleep_button`
-                .presentationDetents([.height(settings.bool("player.sleep_button") || engine.sleep != nil ? 440 : 340)])
+                // тон, реверб и «Для этого трека» — выше; таймер сна по настройке `player.sleep_button` — ещё выше
+                .presentationDetents([.height(settings.bool("player.sleep_button") || engine.sleep != nil ? 700 : 600), .large])
                 .presentationBackground(.ultraThinMaterial)
         }
         .overlay(alignment: .top) {
@@ -978,9 +978,10 @@ struct FullPlayerView: View {
 }
 
 /// Скорость (`photo_30`): крупно 1.0×, кнопки 0.75 · 1 · 1.25 · 1.5 · 2, шаги ползунком, «Запомнить» для трека.
+/// Лист скорости: скорость, тон (свой или связанный со скоростью — slowed), реверб, «Для этого трека» и таймер
+/// сна. Звук трека запоминается вместе с кривой эквалайзера и едет на все устройства (`TrackSound`).
 struct SpeedSheet: View {
     @Environment(PlaybackEngine.self) private var engine
-    @Environment(LibraryStore.self) private var library
     @Environment(SettingsStore.self) private var settings
     private let presets: [Float] = [0.75, 1, 1.25, 1.5, 2]
 
@@ -992,6 +993,7 @@ struct SpeedSheet: View {
     private let steps: [Float] = stride(from: 0.5, through: 2, by: 0.25).map { Float($0) }
 
     var body: some View {
+        ScrollView {
         VStack(spacing: 18) {
             Text(Self.label(engine.rate))
                 .font(.system(size: 54, weight: .heavy).monospacedDigit())
@@ -1019,29 +1021,121 @@ struct SpeedSheet: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            tempoControls
             // таймер сна — по настройке `player.sleep_button`; уже запущенный видно всегда, чтобы отменить
             if settings.bool("player.sleep_button") || engine.sleep != nil {
                 SleepTimerSection()
                     .padding(.top, 4)
             }
-            if let track = engine.current {
-                let remembered = library.speed(for: track.ref) != nil
-                Button {
-                    withAnimation(Motion.spring) {
-                        library.rememberSpeed(remembered ? nil : engine.rate, for: track.ref)
-                    }
-                } label: {
-                    Label(remembered ? "Запомнено для трека" : "Запомнить", systemImage: remembered ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(remembered ? Theme.accent : Theme.text)
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.line))
-                }
-                .buttonStyle(PressableStyle())
-            }
         }
         .padding(.horizontal, 18)
+        .padding(.bottom, 24)
         .animation(Motion.spring, value: engine.rate)
+        .animation(Motion.spring, value: engine.reverb > 0)
+        .animation(Motion.spring, value: engine.hasTrackSound)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    /// Сила реверба, к которой он вернётся, когда его снова включат.
+    @State private var reverbStrength = 0.35
+
+    /// Тон, связь тона со скоростью, реверб и «Для этого трека» (как меню скорости ПК, `SpeedButton.svelte`).
+    @ViewBuilder
+    private var tempoControls: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Text(t("Тон"))
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Theme.text)
+                Spacer()
+                stepButton(.dash, label: t("Тон ниже")) { engine.setPitch(engine.semitones - 0.5) }
+                Text(Self.pitchLabel(engine.semitones))
+                    .font(.system(size: 16, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(Theme.text)
+                    .contentTransition(.numericText(value: engine.semitones))
+                    .frame(minWidth: 66)
+                    .onTapGesture(count: 2) { withAnimation(Motion.spring) { engine.setPitch(0) } }
+                stepButton(.plus, label: t("Тон выше")) { engine.setPitch(engine.semitones + 0.5) }
+            }
+            .padding(.vertical, 8)
+            .animation(Motion.spring, value: engine.semitones)
+            Divider().overlay(Theme.line)
+            toggleRow(t("Связать тон со скоростью"), t("Slowed / sped up: скорость меняет высоту звука"),
+                      isOn: Binding(get: { engine.pitchLinked }, set: { engine.setPitchLinked($0) }))
+            Divider().overlay(Theme.line)
+            toggleRow(t("Реверберация"), t("Атмосферное пространство и объёмная глубина"),
+                      isOn: Binding(get: { engine.reverb > 0 }, set: { on in
+                          engine.setReverb(on ? max(0.05, reverbStrength) : 0)
+                      }))
+            if engine.reverb > 0 {
+                HStack(spacing: 12) {
+                    Slider(value: Binding(get: { engine.reverb }, set: { value in
+                        reverbStrength = value
+                        engine.setReverb(max(0.01, value))
+                    }), in: 0.01 ... 1)
+                    .tint(Theme.accent)
+                    Text("\(Int((engine.reverb * 100).rounded())) %")
+                        .font(.system(size: 14, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(width: 48, alignment: .trailing)
+                }
+                .padding(.bottom, 8)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            if engine.current != nil {
+                Divider().overlay(Theme.line)
+                toggleRow(t("Для этого трека"), t("Скорость, тон, реверб и эквалайзер — только у этого трека и на всех твоих устройствах"),
+                          isOn: Binding(get: { engine.hasTrackSound }, set: { engine.setTrackSound($0) }))
+            }
+        }
+        .padding(.horizontal, 14)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        // поток HLS AVPlayer играет мимо обработки звука — честно говорим, что из этого слышно
+        if engine.isHLS, (!engine.pitchLinked && engine.pitch != 0) || engine.reverb > 0 {
+            HintCard(icon: .info, text: t("Этот трек идёт потоком HLS — свой тон и реверб на нём не слышны. Slowed со связанным тоном работает"))
+                .transition(.opacity)
+        }
+    }
+
+    /// −1.5 → «−1.5 st», 0 → «0 st».
+    static func pitchLabel(_ semitones: Double) -> String {
+        let value = (semitones * 10).rounded() / 10
+        if value == 0 { return "0 st" }
+        return (value > 0 ? "+" : "−") + String(format: "%.1f", abs(value)) + " st"
+    }
+
+    private func stepButton(_ icon: IconName, label: String, action: @escaping @MainActor () -> Void) -> some View {
+        Button {
+            withAnimation(Motion.spring) { action() }
+            UISelectionFeedbackGenerator().selectionChanged()
+        } label: {
+            SonarIcon(icon, size: 16)
+                .foregroundStyle(Theme.text)
+                .frame(width: 36, height: 36)
+                .background(Color.white.opacity(0.08), in: Circle())
+        }
+        .buttonStyle(PressableStyle(scale: 0.88))
+        .accessibilityLabel(label)
+    }
+
+    private func toggleRow(_ title: String, _ subtitle: String, isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: Binding(get: { isOn.wrappedValue }, set: { value in
+            withAnimation(Motion.spring) { isOn.wrappedValue = value }
+            UISelectionFeedbackGenerator().selectionChanged()
+        })) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Theme.text)
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .tint(Theme.accent)
+        .padding(.vertical, 10)
     }
 }
 
