@@ -8,11 +8,13 @@
     on: boolean
     onchange?: (v: boolean) => void
     soon?: boolean
+    /** Сейчас недоступно (без пометки «Скоро»). */
+    disabled?: boolean
   }
-  let { title, hint, on, onchange, soon = false }: Props = $props()
+  let { title, hint, on, onchange, soon = false, disabled = false }: Props = $props()
 </script>
 
-<button class="row" class:soon role="switch" aria-checked={on} disabled={soon} onclick={() => onchange?.(!on)}>
+<button class="row" class:soon role="switch" aria-checked={on} disabled={soon || disabled} onclick={() => onchange?.(!on)}>
   <span class="text">
     <b>{title}{#if soon}<Soon />{/if}</b>
     {#if hint}<small>{hint}</small>{/if}

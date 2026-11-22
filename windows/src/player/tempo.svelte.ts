@@ -2,7 +2,10 @@
 // ×0.8 … ×1.35, ползунок скорости 0.5–2× с шагом 0.01, тон −12…+12 полутонов, «Связать тон со
 // скоростью» (как slowed / sped up: тон едет вместе с темпом), «Сохранять между треками» (иначе на
 // новом треке — снова 1×), реверб 0–100 %. Звук — `player.svelte.ts` `applySpeed` и `effects.ts`.
-import { api } from '../lib/api'
+// «Для этого трека» (решение владельца 2026-11-22): скорость, тон, реверб и кривая эквалайзера
+// запоминаются для одного трека (`track_prefs.sound_json`, синк `track_pref`), остальные треки — по общим.
+import { api, type TrackSound } from '../lib/api'
+import { eq } from './eq.svelte'
 
 export const SPEED_PRESETS = [0.8, 0.9, 1, 1.15, 1.25, 1.35] as const
 export const SPEED_MIN = 0.5
@@ -26,6 +29,30 @@ export function badge(rate: number, pitch: number, reverb: number): string {
   if (reverb > 0) return 'Reverb'
   return ''
 }
+
+/** Что звучит → звук трека: выключенный реверб — 0. */
+export function toSound(s: Pick<Saved, 'rate' | 'pitch' | 'linked' | 'reverb' | 'reverbOn'>, eqGains: number[] | null): TrackSound {
+  return {
+    rate: clampRate(s.rate),
+    pitch: clampPitch(s.pitch),
+    linked: s.linked,
+    reverb: s.reverbOn ? Math.round(Math.min(1, Math.max(0, s.reverb)) * 100) / 100 : 0,
+    eq: eqGains ? eqGains.slice() : null,
+  }
+}
+
+/** Звук трека → состояние меню. Реверб 0 — выключен, а сила остаётся прежней (`keepReverb`). */
+export function fromSound(s: TrackSound, keepReverb: number): Pick<Saved, 'rate' | 'pitch' | 'linked' | 'reverb' | 'reverbOn'> {
+  return {
+    rate: clampRate(s.rate),
+    pitch: clampPitch(s.pitch),
+    linked: s.linked,
+    reverb: s.reverb > 0 ? Math.min(1, s.reverb) : keepReverb,
+    reverbOn: s.reverb > 0,
+  }
+}
+
+type Mix = Pick<Saved, 'rate' | 'pitch' | 'linked' | 'reverb' | 'reverbOn'>
 
 interface Saved {
   rate: number
@@ -55,9 +82,77 @@ class Tempo {
   /** Что-то настроено — кнопка в плеере подсвечена. */
   active = $derived(this.rate !== 1 || (!this.linked && this.pitch !== 0) || this.reverbOn)
 
+  /** У трека свой звук («Для этого трека»): правки пишутся в трек, а не в общие настройки. */
+  perTrack = $state(false)
+  /** Играющий трек есть — переключатель «Для этого трека» доступен. */
+  hasTrack = $state(false)
+
   private lastRef: string | null = null
   private timer: ReturnType<typeof setTimeout> | null = null
   private loaded = false
+  /** Общие скорость, тон и реверб, пока звучат трековые. */
+  private general: Mix | null = null
+
+  constructor() {
+    eq.onTrackSave = () => this.save()
+  }
+
+  private mix(): Mix {
+    return { rate: this.rate, pitch: this.pitch, linked: this.linked, reverb: this.reverb, reverbOn: this.reverbOn }
+  }
+
+  private put(m: Mix) {
+    this.rate = m.rate
+    this.pitch = m.pitch
+    this.linked = m.linked
+    this.reverb = m.reverb
+    this.reverbOn = m.reverbOn
+  }
+
+  /** «Для этого трека»: включили — нынешний звук (и кривая эквалайзера) запоминается для трека;
+   *  выключили — трек забывает свой звук и играет по общим настройкам. */
+  setPerTrack(on: boolean) {
+    const ref = this.lastRef
+    if (!ref || on === this.perTrack) return
+    if (on) {
+      this.general = this.mix()
+      this.perTrack = true
+      eq.useTrack($state.snapshot(eq.saved))
+      this.save()
+    } else {
+      this.leaveTrack()
+      void api.setTrackSound(ref, null).catch(() => {})
+    }
+  }
+
+  /** Трек без своего звука: общие скорость, тон, реверб и кривая. */
+  private leaveTrack() {
+    if (!this.perTrack) return
+    if (this.timer) {
+      // недописанная правка трека — дописать сразу
+      clearTimeout(this.timer)
+      this.timer = null
+      this.flush()
+    }
+    this.perTrack = false
+    if (this.general) this.put(this.general)
+    this.general = null
+    eq.useGlobal()
+  }
+
+  /** Звук трека пришёл из базы — звучит он. */
+  private enterTrack(s: TrackSound) {
+    if (this.timer) {
+      // общая правка (сброс к 1× на новом треке) ждёт записи — пусть уйдёт в общие, а не в трек
+      clearTimeout(this.timer)
+      this.timer = null
+      this.flush()
+    }
+    if (!this.perTrack) this.general = this.mix()
+    this.put(fromSound(s, this.general?.reverb ?? this.reverb))
+    this.perTrack = true
+    eq.useTrack(s.eq)
+  }
 
   async load() {
     if (this.loaded) return
@@ -130,24 +225,47 @@ class Tempo {
     this.save()
   }
 
-  /** Новый трек: без «Сохранять между треками» скорость и тон возвращаются к 1×. */
+  /** Новый трек: свой звук трека — звучит он; иначе общие настройки, а без «Сохранять между
+   *  треками» скорость и тон возвращаются к 1×. */
   trackChanged(ref: string | null) {
     if (ref === this.lastRef) return
     const first = this.lastRef === null
+    this.leaveTrack()
     this.lastRef = ref
+    this.hasTrack = ref !== null
     if (!first && !this.keep && (this.rate !== 1 || this.pitch !== 0)) {
       this.rate = 1
       this.pitch = 0
       this.save()
     }
+    if (!ref) return
+    void api
+      .trackSound(ref)
+      .then((s) => {
+        // пока читали, трек сменился — не наш
+        if (s && ref === this.lastRef) this.enterTrack(s)
+      })
+      .catch(() => {})
   }
 
   private save() {
     if (this.timer) clearTimeout(this.timer)
     this.timer = setTimeout(() => {
-      const s: Saved = { rate: this.rate, pitch: this.pitch, linked: this.linked, keep: this.keep, reverb: this.reverb, reverbOn: this.reverbOn }
-      void api.setSetting('player.tempo', s).catch(() => {})
+      this.timer = null
+      this.flush()
     }, 250)
+  }
+
+  /** Записать: у трека со своим звуком — в трек, иначе — в общие настройки. */
+  private flush() {
+    if (this.perTrack && this.lastRef) {
+      void api.setTrackSound(this.lastRef, toSound(this.mix(), $state.snapshot(eq.saved))).catch(() => {})
+      // «Сохранять для след. треков» — общая настройка, она живёт и у трека со своим звуком
+      if (this.general) void api.setSetting('player.tempo', { ...this.general, keep: this.keep }).catch(() => {})
+      return
+    }
+    const s: Saved = { rate: this.rate, pitch: this.pitch, linked: this.linked, keep: this.keep, reverb: this.reverb, reverbOn: this.reverbOn }
+    void api.setSetting('player.tempo', s).catch(() => {})
   }
 }
 

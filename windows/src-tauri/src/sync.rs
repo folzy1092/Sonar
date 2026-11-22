@@ -300,6 +300,46 @@ mod tests {
   }
 
   #[test]
+  fn track_sound_follows_the_user_and_later_edit_replaces_it() {
+    use crate::store::TrackSound;
+    let server = MemoryServer::default();
+    let a = Mutex::new(Store::memory().unwrap());
+    let b = Mutex::new(Store::memory().unwrap());
+    let slowed = TrackSound { rate: 0.8, pitch: 0.0, linked: true, reverb: 0.4, eq: Some(vec![2.0; 12]) };
+    a.lock().unwrap().set_track_sound("sc:1", Some(slowed.clone())).unwrap();
+    block(sync_once(&a, &server)).unwrap();
+    // новое устройство: взялось с сервера, дальше живёт в своей базе
+    block(sync_once(&b, &server)).unwrap();
+    assert_eq!(b.lock().unwrap().track_sound("sc:1").unwrap(), Some(slowed.clone()));
+    assert_eq!(b.lock().unwrap().track_sound("sc:2").unwrap(), None);
+    // на B трек перенастроили — A получает только эту строку (rev выше), без сверки хэшей
+    let faster = TrackSound { rate: 1.25, ..slowed };
+    b.lock().unwrap().set_track_sound("sc:1", Some(faster.clone())).unwrap();
+    block(sync_once(&b, &server)).unwrap();
+    let r = block(sync_once(&a, &server)).unwrap();
+    assert_eq!(r.pulled, 1, "{r:?}");
+    assert_eq!(a.lock().unwrap().track_sound("sc:1").unwrap(), Some(faster));
+    // «забыть» тоже едет
+    a.lock().unwrap().set_track_sound("sc:1", None).unwrap();
+    block(sync_once(&a, &server)).unwrap();
+    block(sync_once(&b, &server)).unwrap();
+    assert_eq!(b.lock().unwrap().track_sound("sc:1").unwrap(), None);
+    // старый клиент прислал только «Запомнить скорость» — это скорость с сохранением тона
+    let old = Op {
+      op_id: "old:1".into(),
+      kind: "track_pref".into(),
+      key: "ym:5".into(),
+      value: Some(serde_json::json!({ "speed": 1.1, "lyrics_offset_ms": null })),
+      client_ts: now_ms(),
+      rev: 0,
+    };
+    block(server.push(&[old])).unwrap();
+    block(sync_once(&a, &server)).unwrap();
+    let s = a.lock().unwrap().track_sound("ym:5").unwrap().unwrap();
+    assert_eq!((s.rate, s.linked, s.reverb, s.eq), (1.1, false, 0.0, None));
+  }
+
+  #[test]
   fn own_pending_change_beats_incoming_and_later_setting_wins() {
     let server = MemoryServer::default();
     let a = Mutex::new(Store::memory().unwrap());

@@ -344,7 +344,7 @@ missing, truncated}`.
 | GET | `/library/likes?kind=track\|album\|artist` | `{rev, items: [{item: Track\|Album\|Artist, added_at}]}` |
 | PUT | `/library/likes/{ref}` | → `{rev}` (вид — по разбору ref из §2 «Префиксы ref»: трек, альбом или артист работающего сервиса, например `sc:`/`ym:` трек, `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист; плейлист сервиса — не лайк) |
 | DELETE | `/library/likes/{ref}` | → `{rev}` |
-| PUT | `/library/track-prefs/{ref}` | `{speed?: 0.5…2.0, lyrics_offset_ms?, eq?: number[12]}` → `{rev}` («Запомнить») |
+| PUT | `/library/track-prefs/{ref}` | `{speed?: 0.5…2.0, lyrics_offset_ms?, sound?: TrackSound \| null}` → `{rev}` («Запомнить»; `TrackSound` — `{rate 0.5…2, pitch −12…12, linked, reverb 0…1, eq: number[12] \| null}`, «Для этого трека», 2026-11-22) |
 | DELETE | `/library/track-prefs` | сбросить все → `{rev}` |
 | GET | `/playlists` | `[Playlist]` (без треков) |
 | POST | `/playlists` | `{name, tracks?: [ref]}` → `Playlist` |
@@ -569,7 +569,7 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 | `playlist_item` | id элемента | `{playlist_id, ref, position, added_at, track?}` |
 | `setting` | ключ | значение; только `sync: да` из SETTINGS.md — громкость, масштаб, качество, `system.*`, `update.*`, `storage.*` остаются на устройстве |
 | `dislike` | ref | `{artist, added_at}` |
-| `track_pref` | ref | `{speed, lyrics_offset_ms}` |
+| `track_pref` | ref | `{speed, lyrics_offset_ms, sound}` — `sound` = `TrackSound` (§4) или `null`; `speed` = `sound.rate` для старых клиентов, а значение без `sound` клиенты читают как «скорость, тон сохраняется» (ПК `store/track_sound.rs`, iPhone `TrackSound.swift`). Сверять хэши не нужно: изменённая строка получает новый `rev` и приходит остальным устройствам в `pull` |
 | `wave_event` | `we_…` | `{device_id, session_id, ref, artist, mode, source, seed_ref, served_at, reward, listened_ms, ended_at}` — без `features_json` |
 
 `op_id` = `<device_id>:<type>:<key>:<локальный rev>` — повтор после сбоя сети сервер узнаёт по нему и

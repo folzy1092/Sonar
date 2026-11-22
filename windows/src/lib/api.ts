@@ -13,6 +13,15 @@ import type { ImportHead, ImportProgress, ImportResult } from './import'
 export type Source = ServiceId
 export type Repeat = 'off' | 'all' | 'one'
 
+/** Звук, запомненный для трека (store/track_sound.rs): reverb 0 — выключен, eq null — общая кривая. */
+export interface TrackSound {
+  rate: number
+  pitch: number
+  linked: boolean
+  reverb: number
+  eq: number[] | null
+}
+
 export interface ArtistRef {
   ref: string
   name: string
@@ -503,8 +512,9 @@ export const api = {
   lyricsOffset: (trackRef: string) => call<number>('lyrics_offset', { trackRef }),
   setLyricsOffset: (trackRef: string, ms: number) => call<void>('set_lyrics_offset', { trackRef, ms }),
 
-  trackEq: (trackRef: string) => call<number[] | null>('track_eq', { trackRef }),
-  setTrackEq: (trackRef: string, gains: number[] | null) => call<void>('set_track_eq', { trackRef, gains }),
+  /** Звук трека («Для этого трека»): скорость, тон, реверб, эквалайзер; null — общие настройки. */
+  trackSound: (trackRef: string) => call<TrackSound | null>('track_sound', { trackRef }),
+  setTrackSound: (trackRef: string, sound: TrackSound | null) => call<void>('set_track_sound', { trackRef, sound }),
 
   wavePortion: (req: {
     exclude?: string[]

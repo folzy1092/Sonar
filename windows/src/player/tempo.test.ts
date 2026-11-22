@@ -37,3 +37,32 @@ describe('питч, связанный со скоростью', () => {
     expect(tempo.rate).toBe(r)
   })
 })
+
+describe('звук трека («Для этого трека»)', () => {
+  it('выключенный реверб уходит нулём, кривая копируется', async () => {
+    const { toSound } = await import('./tempo.svelte')
+    const g = Array(12).fill(2)
+    const s = toSound({ rate: 0.8, pitch: 0, linked: true, reverb: 0.5, reverbOn: false }, g)
+    expect(s).toEqual({ rate: 0.8, pitch: 0, linked: true, reverb: 0, eq: g })
+    g[0] = 9
+    expect(s.eq?.[0]).toBe(2)
+    expect(toSound({ rate: 3, pitch: -20, linked: false, reverb: 0.456, reverbOn: true }, null)).toEqual({
+      rate: 2,
+      pitch: -12,
+      linked: false,
+      reverb: 0.46,
+      eq: null,
+    })
+  })
+  it('реверб 0 — выключен, сила остаётся прежней', async () => {
+    const { fromSound } = await import('./tempo.svelte')
+    expect(fromSound({ rate: 0.8, pitch: 0, linked: true, reverb: 0, eq: null }, 0.35)).toEqual({
+      rate: 0.8,
+      pitch: 0,
+      linked: true,
+      reverb: 0.35,
+      reverbOn: false,
+    })
+    expect(fromSound({ rate: 1, pitch: 2, linked: false, reverb: 0.6, eq: null }, 0.35).reverbOn).toBe(true)
+  })
+})

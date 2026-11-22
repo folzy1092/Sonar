@@ -583,16 +583,16 @@ pub fn set_lyrics_offset(db: State<'_, Db>, track_ref: String, ms: i64) -> Res<(
   db.0.lock().unwrap().set_lyrics_offset(&track_ref, ms).map_err(err)
 }
 
-// ——— эквалайзер: кривая, запомненная для трека ———
+// ——— звук трека: скорость, тон, реверб и эквалайзер «Для этого трека» (store/track_sound.rs) ———
 
 #[tauri::command]
-pub fn track_eq(db: State<'_, Db>, track_ref: String) -> Res<Option<Vec<f64>>> {
-  db.0.lock().unwrap().track_eq(&track_ref).map_err(err)
+pub fn track_sound(db: State<'_, Db>, track_ref: String) -> Res<Option<crate::store::TrackSound>> {
+  db.0.lock().unwrap().track_sound(&track_ref).map_err(err)
 }
 
 #[tauri::command]
-pub fn set_track_eq(db: State<'_, Db>, track_ref: String, gains: Option<Vec<f64>>) -> Res<()> {
-  db.0.lock().unwrap().set_track_eq(&track_ref, gains.as_deref()).map_err(err)
+pub fn set_track_sound(db: State<'_, Db>, track_ref: String, sound: Option<crate::store::TrackSound>) -> Res<()> {
+  db.0.lock().unwrap().set_track_sound(&track_ref, sound).map_err(err)
 }
 
 // ——— главная и своя волна (SPEC §3.7) ———

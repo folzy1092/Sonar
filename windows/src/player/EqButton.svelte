@@ -172,7 +172,7 @@
 
         <button class="save" class:on={justSaved && !eq.dirty} disabled={!eq.dirty && !justSaved} onclick={save}>
           {#key justSaved && !eq.dirty}
-            <span class="lbl">{#if justSaved && !eq.dirty}<Icon name="check" size={15} /> {t('Сохранено')}{:else}{t('Сохранить для всех треков')}{/if}</span>
+            <span class="lbl">{#if justSaved && !eq.dirty}<Icon name="check" size={15} /> {t('Сохранено')}{:else}{eq.trackMode ? t('Сохранить для этого трека') : t('Сохранить для всех треков')}{/if}</span>
           {/key}
         </button>
       </div>

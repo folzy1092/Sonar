@@ -88,6 +88,13 @@ class Equalizer {
   /** Имя пресета, с которым совпадает текущая кривая. */
   activePreset = $derived(this.presets.find((p) => p.gains.every((g, i) => Math.abs(g - this.gains[i]) < 0.05))?.name ?? null)
 
+  /** У трека свой звук («Для этого трека» в меню скорости): кривая — его, «Сохранить» пишет в трек. */
+  trackMode = $state(false)
+  /** Общая кривая, пока звучит кривая трека. */
+  private globalSaved: number[] = flat()
+  /** «Сохранить» в режиме трека — запись звука трека (ставит `tempo.svelte.ts`). */
+  onTrackSave: (() => void) | null = null
+
   private filters: BiquadFilterNode[] = []
 
   /** Цепочка фильтров между `input` и `output` (вызывает плеер). */
@@ -126,9 +133,14 @@ class Equalizer {
         api.getSetting<boolean>('audio.eq_enabled'),
       ])
       if (typeof on === 'boolean') this.enabled = on
-      if (valid(cur)) this.saved = cur.map(clampDb)
       if (Array.isArray(presets)) this.userPresets = presets.filter((p) => typeof p?.name === 'string' && valid(p.gains))
-      this.set(this.saved)
+      const general = valid(cur) ? cur.map(clampDb) : flat()
+      // трек со своим звуком успел включиться раньше — общая кривая подождёт
+      if (this.trackMode) this.globalSaved = general
+      else {
+        this.saved = general
+        this.set(this.saved)
+      }
     } catch {
       // вне приложения — ровная кривая
     }
@@ -146,11 +158,28 @@ class Equalizer {
     this.set(g)
   }
 
-  /** «Сохранить» — кривая становится общей для всех треков. */
+  /** «Сохранить» — кривая становится общей для всех треков, а у трека со своим звуком — его. */
   save() {
     const g = $state.snapshot(this.gains)
     this.saved = g
-    void api.setSetting('audio.eq', g).catch(() => {})
+    if (this.trackMode) this.onTrackSave?.()
+    else void api.setSetting('audio.eq', g).catch(() => {})
+  }
+
+  /** Кривая трека (null — общая): звучит и сохраняется для трека. */
+  useTrack(gains: number[] | null) {
+    if (!this.trackMode) this.globalSaved = $state.snapshot(this.saved)
+    this.trackMode = true
+    this.saved = valid(gains) ? gains.map(clampDb) : this.globalSaved.slice()
+    this.set(this.saved)
+  }
+
+  /** Трек без своего звука — снова общая кривая. */
+  useGlobal() {
+    if (!this.trackMode) return
+    this.trackMode = false
+    this.saved = this.globalSaved.slice()
+    this.set(this.saved)
   }
 
   /** Закрыли эквалайзер без сохранения — звучит снова сохранённая кривая. */

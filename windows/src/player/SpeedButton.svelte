@@ -63,8 +63,13 @@
   <button
     class="speed"
     class:active={tempo.active}
+    class:mine={tempo.perTrack}
     class:open
-    title={tempo.active ? t('Скорость и тональность: {rate}', { rate: fmtRate(tempo.rate) }) : t('Скорость и тональность')}
+    title={tempo.perTrack
+      ? t('Свой звук трека: {rate}', { rate: fmtRate(tempo.rate) })
+      : tempo.active
+        ? t('Скорость и тональность: {rate}', { rate: fmtRate(tempo.rate) })
+        : t('Скорость и тональность')}
     aria-label={t('Скорость и тональность')}
     aria-expanded={open}
     onclick={toggle}
@@ -88,6 +93,13 @@
       {@render drum(t('Питч'), tempo.semitones, PITCH_MIN, PITCH_MAX, 0.1, `${fmtPitch(tempo.semitones)} st`, (v) => tempo.setPitch(v), 0, 10)}
 
       <div class="switches">
+        <Switch
+          title={t('Для этого трека')}
+          hint={t('Скорость, тон, реверб и эквалайзер — только у этого трека и на всех твоих устройствах')}
+          on={tempo.perTrack}
+          disabled={!tempo.hasTrack}
+          onchange={(v) => tempo.setPerTrack(v)}
+        />
         <Switch title={t('Связать скорость с питчем')} hint={t('Режим винила / кассеты: скорость меняет высоту звука')} on={tempo.linked} onchange={(v) => tempo.setLinked(v)} />
         <Switch title={t('Сохранять для след. треков')} hint={t('Иначе новый трек играет в x1.0')} on={tempo.keep} onchange={(v) => tempo.setKeep(v)} />
         <Switch title={t('Реверберация ✦')} hint={t('Атмосферное пространство и объёмная глубина')} on={tempo.reverbOn} onchange={(v) => tempo.setReverbOn(v)} />
@@ -128,6 +140,27 @@
     color: var(--text);
     background: color-mix(in srgb, var(--text) 14%, transparent);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent);
+  }
+  /* у трека свой звук — точка в углу, появляется пружиной */
+  .speed {
+    position: relative;
+  }
+  .speed.mine::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: dot-in 260ms var(--ease);
+  }
+  @keyframes dot-in {
+    from {
+      transform: scale(0);
+      opacity: 0;
+    }
   }
   .face {
     display: inline-flex;

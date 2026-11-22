@@ -198,13 +198,29 @@ impl Store {
       push("dislike", r, (!deleted).then(|| json!({ "artist": artist, "added_at": at })), at, rev);
     }
 
-    let mut st = self.db.prepare("SELECT ref, speed, lyrics_offset_ms, deleted, rev FROM track_prefs WHERE user_id = ?1 AND rev > ?2")?;
+    // звук трека (`sound`) — скорость, тон, реверб, эквалайзер; `speed` рядом для старых клиентов
+    let mut st =
+      self.db.prepare("SELECT ref, speed, lyrics_offset_ms, sound_json, deleted, rev FROM track_prefs WHERE user_id = ?1 AND rev > ?2")?;
     for row in st.query_map(params![LOCAL_USER, since], |r| {
-      Ok((r.get::<_, String>(0)?, r.get::<_, Option<f64>>(1)?, r.get::<_, Option<i64>>(2)?, r.get::<_, bool>(3)?, r.get::<_, i64>(4)?))
+      Ok((
+        r.get::<_, String>(0)?,
+        r.get::<_, Option<f64>>(1)?,
+        r.get::<_, Option<i64>>(2)?,
+        r.get::<_, Option<String>>(3)?,
+        r.get::<_, bool>(4)?,
+        r.get::<_, i64>(5)?,
+      ))
     })? {
-      let (r, speed, offset, deleted, rev) = row?;
-      let empty = speed.is_none() && offset.is_none();
-      push("track_pref", r, (!deleted && !empty).then(|| json!({ "speed": speed, "lyrics_offset_ms": offset })), now_ms(), rev);
+      let (r, speed, offset, sound, deleted, rev) = row?;
+      let sound: Option<Value> = sound.and_then(|j| serde_json::from_str(&j).ok());
+      let empty = speed.is_none() && offset.is_none() && sound.is_none();
+      push(
+        "track_pref",
+        r,
+        (!deleted && !empty).then(|| json!({ "speed": speed, "lyrics_offset_ms": offset, "sound": sound })),
+        now_ms(),
+        rev,
+      );
     }
 
     // журнал волны — без features_json (WAVE.md §3а): их можно пересчитать, а весят они больше всего
@@ -399,14 +415,17 @@ impl Store {
         if self.local_pending("SELECT rev FROM track_prefs WHERE user_id = ?1 AND ref = ?2", &c.key)? {
           return Ok(false);
         }
+        // звук: `sound`, у старых клиентов — из `speed` (store/track_sound.rs)
+        let sound = v.and_then(super::TrackSound::from_sync);
         self.db.execute(
-          "INSERT INTO track_prefs (user_id, ref, speed, lyrics_offset_ms, deleted, rev) VALUES (?1, ?2, ?3, ?4, ?5, 0)
-           ON CONFLICT(user_id, ref) DO UPDATE SET speed = ?3, lyrics_offset_ms = ?4, deleted = ?5, rev = 0",
+          "INSERT INTO track_prefs (user_id, ref, speed, lyrics_offset_ms, sound_json, deleted, rev) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0)
+           ON CONFLICT(user_id, ref) DO UPDATE SET speed = ?3, lyrics_offset_ms = ?4, sound_json = ?5, deleted = ?6, rev = 0",
           params![
             LOCAL_USER,
             c.key,
-            v.and_then(|v| v["speed"].as_f64()),
+            sound.as_ref().map(|s| s.rate),
             v.and_then(|v| v["lyrics_offset_ms"].as_i64()),
+            sound.as_ref().map(serde_json::to_string).transpose()?,
             v.is_none()
           ],
         )?;

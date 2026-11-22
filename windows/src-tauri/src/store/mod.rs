@@ -20,6 +20,7 @@ mod smart_rules;
 mod stats;
 mod sync;
 mod system;
+mod track_sound;
 mod wave;
 mod wave_events;
 pub use alias::TrackAlias;
@@ -31,6 +32,7 @@ pub use sync::{Change, Op, PlayUpload};
 pub use search::SearchEntry;
 pub use smart::{SmartPlaylist, SmartPreview};
 pub use smart_rules::Rules as SmartRules;
+pub use track_sound::TrackSound;
 pub use wave::Taste;
 pub use wave_events::{ServedEvent, WaveStats};
 
@@ -166,6 +168,8 @@ CREATE TABLE artist_follows (
 CREATE TABLE artist_phantom_tracks (
   source_ref TEXT NOT NULL, ref TEXT NOT NULL, fetched_at INTEGER NOT NULL, PRIMARY KEY (source_ref, ref)
 );
+"#, r#"
+ALTER TABLE track_prefs ADD COLUMN sound_json TEXT;
 "#];
 
 pub fn now_ms() -> i64 {
@@ -794,34 +798,7 @@ impl Store {
        ON CONFLICT(user_id, ref) DO UPDATE SET lyrics_offset_ms = ?3, deleted = 0, rev = ?4",
       params![LOCAL_USER, r, value, rev],
     )?;
-    self.db.execute(
-      "UPDATE track_prefs SET deleted = 1 WHERE user_id = ?1 AND ref = ?2 AND speed IS NULL AND lyrics_offset_ms IS NULL AND eq_json IS NULL",
-      [LOCAL_USER, r],
-    )?;
-    Ok(())
-  }
-
-  /// Кривая эквалайзера, запомненная для трека («Запомнить»), — 12 значений в дБ.
-  pub fn track_eq(&self, r: &str) -> Result<Option<Vec<f64>>> {
-    let v: Option<Option<String>> = self
-      .db
-      .query_row("SELECT eq_json FROM track_prefs WHERE user_id = ?1 AND ref = ?2 AND deleted = 0", [LOCAL_USER, r], |row| row.get(0))
-      .optional()?;
-    Ok(v.flatten().and_then(|j| serde_json::from_str(&j).ok()))
-  }
-
-  pub fn set_track_eq(&self, r: &str, gains: Option<&[f64]>) -> Result<()> {
-    let json = gains.map(serde_json::to_string).transpose()?;
-    let rev = self.next_rev()?;
-    self.db.execute(
-      "INSERT INTO track_prefs (user_id, ref, eq_json, deleted, rev) VALUES (?1, ?2, ?3, 0, ?4)
-       ON CONFLICT(user_id, ref) DO UPDATE SET eq_json = ?3, deleted = 0, rev = ?4",
-      params![LOCAL_USER, r, json, rev],
-    )?;
-    self.db.execute(
-      "UPDATE track_prefs SET deleted = 1 WHERE user_id = ?1 AND ref = ?2 AND speed IS NULL AND lyrics_offset_ms IS NULL AND eq_json IS NULL",
-      [LOCAL_USER, r],
-    )?;
+    self.db.execute(track_sound::MARK_EMPTY, [LOCAL_USER, r])?;
     Ok(())
   }
 }
@@ -1066,10 +1043,6 @@ mod tests {
     assert_eq!(s.lyrics_offset("sc:1").unwrap(), 15_000);
     s.set_lyrics_offset("sc:1", 0).unwrap();
     assert_eq!(s.lyrics_offset("sc:1").unwrap(), 0);
-    s.set_track_eq("sc:1", Some(&[1.0, -2.5])).unwrap();
-    assert_eq!(s.track_eq("sc:1").unwrap(), Some(vec![1.0, -2.5]));
-    s.set_track_eq("sc:1", None).unwrap();
-    assert_eq!(s.track_eq("sc:1").unwrap(), None);
   }
 
   #[test]
