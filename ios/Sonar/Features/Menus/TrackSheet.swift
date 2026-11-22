@@ -4,7 +4,7 @@ import UIKit
 /// Лист трека (`IMG_6774`): сверху обложка во всю ширину, растворяется в фон, на ней название,
 /// исполнитель и знак сервиса; капсула ♥ · + · в очередь · поделиться; ниже — Следующим, Волна по
 /// треку, Перейти к артисту, Открыть альбом, Скачать (в Sonar, играет без сети — «Скачанные»), у играющего
-/// трека — Устройства и Таймер сна (по настройке `player.sleep_button`, запущенный — всегда), Копировать
+/// трека — Устройства и Таймер сна (только с настройкой `player.sleep_button`), Копировать
 /// название, Не интересно, Удалить из плейлиста (если трек в списке). «+» — свои плейлисты Sonar (`AddToPlaylistSheet`). «Закрепить в профиле» — с сервером.
 struct TrackSheet: View {
     let item: TrackMenuItem
@@ -63,7 +63,7 @@ struct TrackSheet: View {
                             SheetMenuRow(icon: .computer, title: t("Устройства"), subtitle: t("Выбрать, где играет музыка")) {
                                 showDevices = true
                             }
-                            if settings.bool("player.sleep_button") || engine.sleep != nil {
+                            if settings.bool("player.sleep_button") {
                                 SheetMenuRow(icon: .moon, title: t("Таймер сна"),
                                              subtitle: engine.sleep == nil ? t("Остановить музыку через заданное время")
                                                  : t("Включён — нажми, чтобы изменить")) {

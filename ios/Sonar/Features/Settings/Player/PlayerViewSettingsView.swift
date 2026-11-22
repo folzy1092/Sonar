@@ -63,7 +63,11 @@ struct PlayerViewSettingsView: View {
                 PlayerRowDivider()
                 PlayerToggleRow(icon: .moon, title: t("Таймер сна в плеере"),
                                 subtitle: t("В меню трека и в листе скорости: выключить музыку через время"),
-                                isOn: Binding(get: { settings.bool("player.sleep_button") }, set: { settings.set("player.sleep_button", $0) }))
+                                isOn: Binding(get: { settings.bool("player.sleep_button") }, set: { on in
+                                    settings.set("player.sleep_button", on)
+                                    // выключили — таймера в плеере нет, и запущенный не должен тихо остановить музыку
+                                    if !on { engine.setSleep(nil) }
+                                }))
             }
             .cascade(5)
         }

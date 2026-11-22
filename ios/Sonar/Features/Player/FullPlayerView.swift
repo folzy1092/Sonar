@@ -218,7 +218,7 @@ struct FullPlayerView: View {
         .sheet(isPresented: $showSpeed) {
             SpeedSheet()
                 // тон, реверб и «Для этого трека» — выше; таймер сна по настройке `player.sleep_button` — ещё выше
-                .presentationDetents([.height(settings.bool("player.sleep_button") || engine.sleep != nil ? 700 : 600), .large])
+                .presentationDetents([.height(settings.bool("player.sleep_button") ? 700 : 600), .large])
                 .presentationBackground(.ultraThinMaterial)
         }
         .overlay(alignment: .top) {
@@ -1022,8 +1022,8 @@ struct SpeedSheet: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
             tempoControls
-            // таймер сна — по настройке `player.sleep_button`; уже запущенный видно всегда, чтобы отменить
-            if settings.bool("player.sleep_button") || engine.sleep != nil {
+            // таймер сна — только с настройкой `player.sleep_button` (выключили — запущенный отменяется)
+            if settings.bool("player.sleep_button") {
                 SleepTimerSection()
                     .padding(.top, 4)
             }
