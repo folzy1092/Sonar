@@ -21,6 +21,8 @@
   import SeekBar from './SeekBar.svelte'
   import Wave from './Wave.svelte'
   import WhyLine from './WhyLine.svelte'
+  import SpeedButton from './SpeedButton.svelte'
+  import OwnSoundChip from './OwnSoundChip.svelte'
   import ArtBackdrop from './ArtBackdrop.svelte'
   import LyricsView from '../lyrics/LyricsView.svelte'
   import LyricsMenu from '../lyrics/LyricsMenu.svelte'
@@ -38,6 +40,8 @@
   const withCover = $derived(lyrics.coverShown)
 
   let menuAt = $state<{ x: number; y: number } | null>(null)
+  /** Кнопка скорости в углу — плашка «Свой звук» открывает её всплывашку. */
+  let speed: SpeedButton | undefined = $state()
 
   function openArtist(ref: string) {
     if (hasSelection()) return
@@ -163,6 +167,7 @@
             >{:else}{track.artist}{/each}
         {/if}
       </p>
+      <OwnSoundChip onopen={() => speed?.show()} />
       <WhyLine {track} />
 
       <div class="seek"><SeekBar /></div>
@@ -222,7 +227,8 @@
         oninput={(e) => player.setVolume(Number(e.currentTarget.value))}
       />
     </div>
-    <div></div>
+    <!-- скорость и звук трека: плашка «Свой звук» открывает эту всплывашку -->
+    <div class="speed-slot"><SpeedButton bind:this={speed} /></div>
   </footer>
 
   {#if menuAt}
@@ -575,6 +581,25 @@
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
     padding: 6px 16px 14px;
+  }
+  /* кнопка скорости на тёмном фоне — светлая, всплывашка остаётся в теме приложения */
+  .speed-slot {
+    justify-self: end;
+  }
+  .speed-slot :global(.speed) {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .speed-slot :global(.speed:hover),
+  .speed-slot :global(.speed.open),
+  .speed-slot :global(.speed.active) {
+    color: #fff;
+  }
+  .speed-slot :global(.speed.active) {
+    background: rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+  .col > :global(.own) {
+    margin-top: 10px;
   }
   .volume {
     display: flex;

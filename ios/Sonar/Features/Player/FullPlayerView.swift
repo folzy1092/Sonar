@@ -681,9 +681,13 @@ struct FullPlayerView: View {
                     .background(Color.white.opacity(0.1), in: Capsule())
                     .transition(.opacity)
             }
+            if let parts = engine.ownSoundParts {
+                OwnSoundChip(parts: parts) { showSpeed = true }
+            }
         }
         .frame(maxWidth: .infinity, alignment: frameAlign)
         .animation(Motion.spring, value: engine.quality)
+        .animation(Motion.spring, value: engine.ownSoundParts)
         .animation(Motion.spring, value: align)
     }
 

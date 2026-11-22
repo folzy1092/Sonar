@@ -6,6 +6,7 @@
 // запоминаются для одного трека (`track_prefs.sound_json`, синк `track_pref`), остальные треки — по общим.
 import { api, type TrackSound } from '../lib/api'
 import { eq } from './eq.svelte'
+import { ownSound } from '../lib/own-sound.svelte'
 
 export const SPEED_PRESETS = [0.8, 0.9, 1, 1.15, 1.25, 1.35] as const
 export const SPEED_MIN = 0.5
@@ -28,6 +29,23 @@ export function badge(rate: number, pitch: number, reverb: number): string {
   if (pitch !== 0) return `${pitch > 0 ? '+' : ''}${pitch}`
   if (reverb > 0) return 'Reverb'
   return ''
+}
+
+/** Полоса эквалайзера тише этого порога (дБ) — считай ровной. */
+const EQ_FLAT_DB = 0.05
+
+/**
+ * Плашка «Свой звук · x0.85 · −2 st · Reverb · EQ»: только то, что отличается от обычного звука.
+ * Тон, связанный со скоростью, отдельно не пишется — он уже в скорости. То же на iPhone
+ * (`Core/Library/TrackSound.swift` `ownSoundParts`).
+ */
+export function ownSoundParts(s: Mix, eqGains: readonly number[] | null): string[] {
+  const parts: string[] = []
+  if (s.rate !== 1) parts.push(`x${s.rate}`)
+  if (!s.linked && s.pitch !== 0) parts.push(`${s.pitch > 0 ? '+' : '−'}${Math.abs(s.pitch)} st`)
+  if (s.reverbOn) parts.push('Reverb')
+  if (eqGains?.some((g) => Math.abs(g) >= EQ_FLAT_DB)) parts.push('EQ')
+  return parts
 }
 
 /** Что звучит → звук трека: выключенный реверб — 0. */
@@ -86,6 +104,8 @@ class Tempo {
   perTrack = $state(false)
   /** Играющий трек есть — переключатель «Для этого трека» доступен. */
   hasTrack = $state(false)
+  /** Что у трека своего — для плашки «Свой звук · …» (пусто, если своего звука нет). */
+  ownParts = $derived(this.perTrack ? ownSoundParts(this, eq.saved) : [])
 
   private lastRef: string | null = null
   private timer: ReturnType<typeof setTimeout> | null = null
@@ -121,6 +141,7 @@ class Tempo {
       this.save()
     } else {
       this.leaveTrack()
+      ownSound.mark(ref, false)
       void api.setTrackSound(ref, null).catch(() => {})
     }
   }
@@ -152,11 +173,14 @@ class Tempo {
     this.put(fromSound(s, this.general?.reverb ?? this.reverb))
     this.perTrack = true
     eq.useTrack(s.eq)
+    // звук мог приехать синком — значок в списках подхватит его с первого же проигрывания
+    if (this.lastRef) ownSound.mark(this.lastRef, true)
   }
 
   async load() {
     if (this.loaded) return
     this.loaded = true
+    void ownSound.load()
     try {
       const [s, legacy] = await Promise.all([api.getSetting<Partial<Saved>>('player.tempo'), api.getSetting<string>('player.speed_mode')])
       if (s && typeof s === 'object') {
@@ -259,6 +283,7 @@ class Tempo {
   /** Записать: у трека со своим звуком — в трек, иначе — в общие настройки. */
   private flush() {
     if (this.perTrack && this.lastRef) {
+      ownSound.mark(this.lastRef, true)
       void api.setTrackSound(this.lastRef, toSound(this.mix(), $state.snapshot(eq.saved))).catch(() => {})
       // «Сохранять для след. треков» — общая настройка, она живёт и у трека со своим звуком
       if (this.general) void api.setSetting('player.tempo', { ...this.general, keep: this.keep }).catch(() => {})

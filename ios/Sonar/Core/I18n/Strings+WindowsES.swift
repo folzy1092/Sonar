@@ -1236,6 +1236,8 @@ extension I18n {
         "Своих плейлистов пока нет": "Aún no tienes listas propias",
         "Своих плейлистов пока нет — найди трек, альбом или исполнителя в поиске": "Aún no tienes listas propias — busca una pista, un álbum o un artista",
         "Свой": "Personalizada",
+        "Свой звук": "Sonido propio",
+        "Свой звук трека": "Sonido propio de la pista",
         "Свой звук трека: {rate}": "Sonido propio de la pista: {rate}",
         "Свой стиль — из частей разных стилей": "Estilo propio: mezcla de partes de distintos estilos",
         "Свой шрифт с компьютера (.ttf, .otf, .woff, .woff2)": "Tu propia fuente de este ordenador (.ttf, .otf, .woff, .woff2)",

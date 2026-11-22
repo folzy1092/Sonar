@@ -13,6 +13,8 @@ struct MiniPlayer: View {
     /// Сдвиг под пальцем: GestureState сам возвращается в 0, даже если жест прервали (смена трека, прокрутка) —
     /// раньше `@State` мог застрять, и содержимое уезжало мимо капсулы.
     @GestureState(resetTransaction: Transaction(animation: Motion.spring)) private var drag: CGFloat = 0
+    /// Тап по плашке «Свой звук» — лист скорости с этим треком.
+    @State private var showSpeed = false
 
     /// Вид (Профиль → Мини-плеер): фон, прогресс, обложка, скругление.
     private var style: MiniStyle { MiniStyle.current(settings) }
@@ -52,7 +54,14 @@ struct MiniPlayer: View {
                     Color.clear.frame(width: 6, height: 1)
                 }
                 VStack(alignment: .leading, spacing: 1) {
-                    MarqueeText(text: track.title, font: .system(size: compact ? 16 : 17, weight: .medium), color: Theme.text)
+                    HStack(spacing: 6) {
+                        MarqueeText(text: track.title, font: .system(size: compact ? 16 : 17, weight: .medium), color: Theme.text)
+                        if let parts = engine.ownSoundParts {
+                            // в капсуле тесно — без слов «Свой звук», только что отличается (полностью — в плеере)
+                            OwnSoundChip(parts: parts, short: true) { showSpeed = true }
+                        }
+                    }
+                    .animation(Motion.spring, value: engine.ownSoundParts)
                     Group {
                         if let next = previewNext {
                             MarqueeText(text: "Дальше · \(next.title)", font: .system(size: compact ? 14 : 15, weight: .medium), color: Theme.accent)
@@ -129,6 +138,11 @@ struct MiniPlayer: View {
             .clipShape(RoundedRectangle(cornerRadius: style.corners.radius(height: compact ? 56 : 64), style: .continuous))
             .contentShape(Rectangle())
             .onTapGesture(perform: open)
+            .sheet(isPresented: $showSpeed) {
+                SpeedSheet()
+                    .presentationDetents([.height(settings.bool("player.sleep_button") ? 700 : 600), .large])
+                    .presentationBackground(.ultraThinMaterial)
+            }
             .gesture(
                 DragGesture(minimumDistance: 20)
                     .updating($drag) { value, state, _ in

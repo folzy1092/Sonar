@@ -35,6 +35,13 @@
     open = !open
   }
 
+  /** Открыть снаружи — клик по плашке «Свой звук» рядом с названием. */
+  export function show() {
+    if (open) return
+    place()
+    open = true
+  }
+
   const fmtRate = (v: number) => `x${v.toFixed(2)}`
   const fmtPitch = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)}`
 

@@ -71,6 +71,14 @@ struct TrackRow: View {
             .buttonStyle(PressableStyle(scale: 0.98, haptic: false))
             .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in open() })
 
+            if LibraryStore.shared.sound(for: track.ref) != nil {
+                // свой звук трека («Для этого трека»): скорость, тон, реверб или эквалайзер только у него
+                SonarIcon(.sliders, size: 15)
+                    .foregroundStyle(Theme.accent.opacity(0.85))
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    .accessibilityLabel(t("Свой звук трека"))
+            }
+
             DurationPill(ms: track.durationMs, playing: playing, isPlaying: engine.isPlaying)
 
             Button(action: open) {
@@ -86,6 +94,7 @@ struct TrackRow: View {
         // свайпы из Профиль → Жесты → Медиатека (по умолчанию — «Играть следующим»)
         .modifier(OptionalTrackSwipe(on: swipes, track: track, remove: remove))
         .opacity(track.available ? 1 : 0.4)
+        .animation(Motion.spring, value: LibraryStore.shared.sound(for: track.ref) != nil)
     }
 
     private func open() {

@@ -137,6 +137,8 @@ export default {
   'Для этого трека': 'Für diesen Titel',
   'Скорость, тон, реверб и эквалайзер — только у этого трека и на всех твоих устройствах': 'Tempo, Tonhöhe, Hall und Equalizer – nur für diesen Titel und auf allen deinen Geräten',
   'Свой звук трека: {rate}': 'Eigener Klang des Titels: {rate}',
+  'Свой звук': 'Eigener Klang',
+  'Свой звук трека': 'Eigener Klang des Titels',
   'Сохранить для этого трека': 'Für diesen Titel speichern',
   'Иначе новый трек играет в x1.0': 'Sonst läuft ein neuer Titel mit x1.0',
   'Реверберация ✦': 'Hall ✦',

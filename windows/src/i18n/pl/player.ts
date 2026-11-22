@@ -137,6 +137,8 @@ export default {
   'Для этого трека': 'Dla tego utworu',
   'Скорость, тон, реверб и эквалайзер — только у этого трека и на всех твоих устройствах': 'Prędkość, ton, pogłos i korektor – tylko dla tego utworu i na wszystkich twoich urządzeniach',
   'Свой звук трека: {rate}': 'Własne brzmienie utworu: {rate}',
+  'Свой звук': 'Własne brzmienie',
+  'Свой звук трека': 'Własne brzmienie utworu',
   'Сохранить для этого трека': 'Zapisz dla tego utworu',
   'Иначе новый трек играет в x1.0': 'W przeciwnym razie nowy utwór gra w x1.0',
   'Реверберация ✦': 'Pogłos ✦',

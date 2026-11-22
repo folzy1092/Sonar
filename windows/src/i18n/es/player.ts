@@ -137,6 +137,8 @@ export default {
   'Для этого трека': 'Para esta pista',
   'Скорость, тон, реверб и эквалайзер — только у этого трека и на всех твоих устройствах': 'Velocidad, tono, reverberación y ecualizador: solo para esta pista y en todos tus dispositivos',
   'Свой звук трека: {rate}': 'Sonido propio de la pista: {rate}',
+  'Свой звук': 'Sonido propio',
+  'Свой звук трека': 'Sonido propio de la pista',
   'Сохранить для этого трека': 'Guardar para esta pista',
   'Иначе новый трек играет в x1.0': 'Si no, la pista nueva suena a x1.0',
   'Реверберация ✦': 'Reverberación ✦',

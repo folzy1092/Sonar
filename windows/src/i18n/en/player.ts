@@ -144,6 +144,8 @@ export default {
   'Для этого трека': 'For this track',
   'Скорость, тон, реверб и эквалайзер — только у этого трека и на всех твоих устройствах': 'Speed, pitch, reverb and EQ — only for this track, on all your devices',
   'Свой звук трека: {rate}': 'Track’s own sound: {rate}',
+  'Свой звук': 'Own sound',
+  'Свой звук трека': 'Track’s own sound',
   'Сохранить для этого трека': 'Save for this track',
   'Иначе новый трек играет в x1.0': 'Otherwise a new track plays at x1.0',
   'Реверберация ✦': 'Reverb ✦',

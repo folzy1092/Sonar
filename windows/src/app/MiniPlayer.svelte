@@ -11,6 +11,7 @@
   import Cover from '../components/Cover.svelte'
   import PlayPause from '../components/PlayPause.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
+  import OwnSoundChip from '../player/OwnSoundChip.svelte'
   import EqButton from '../player/EqButton.svelte'
   import { fade } from 'svelte/transition'
   import { scale } from '../lib/motion'
@@ -38,6 +39,8 @@
   // происходит, чтобы случайно не перемотать.
   let bar: HTMLElement | undefined = $state()
   let ring: SVGCircleElement | undefined = $state()
+  /** Кнопка скорости — плашка «Свой звук» открывает её всплывашку. */
+  let speed: SpeedButton | undefined = $state()
 
   // Прогресс рисуется каждый кадр мимо Svelte: `--p` (0…1) на фоне-полосе через transform, кольцу —
   // stroke-dasharray. Позицию плавно ведут часы плеера (player.onFrame), а не шаги timeupdate.
@@ -133,7 +136,10 @@
         <span class="expand" aria-hidden="true"><Icon name="expand" size={18} /></span>
       </button>
       <span class="meta selectable" use:replay={track?.ref}>
-        <span class="title" role="link" tabindex="-1" onclick={openPlayer} onkeydown={() => {}}>{track?.title ?? t('Ничего не играет')}</span>
+        <span class="line">
+          <span class="title" role="link" tabindex="-1" onclick={openPlayer} onkeydown={() => {}}>{track?.title ?? t('Ничего не играет')}</span>
+          <OwnSoundChip onopen={() => speed?.show()} />
+        </span>
         {#if player.fallbackNeeded}
           <!-- свой сервис не играет, резерв выключен или не нашёл трек: по клику — Плеер → Аудио → «Резервный сервис» -->
           <button class="artist fallback" title={t('Настройки → Аудио')} onclick={() => settingsPanel.show('player', 'audio')}>{t('Нужен резервный сервис')}</button>
@@ -195,7 +201,7 @@
     <span class="mini-leds" data-fx-leds aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     <div class="capsule">
       <EqButton />
-      <SpeedButton />
+      <SpeedButton bind:this={speed} />
       <Volume />
       <!-- правая панель: текста нет — очередь, текст найден — «Т» (app/side-pane.svelte.ts); открывает вид
            по тексту — не «руками», так что догрузившийся текст панель покажет сама. Полноэкранный плеер — клик по обложке -->
@@ -388,6 +394,16 @@
   }
   .title {
     font-weight: 600;
+  }
+  /* название и плашка «Свой звук» в одну строку: длинное название сжимается, плашка — нет */
+  .line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .line .title {
+    min-width: 0;
   }
   .art {
     position: relative;

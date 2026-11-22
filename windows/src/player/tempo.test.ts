@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { badge, clampPitch, clampRate, linkedSemitones, pitchRatio } from './tempo.svelte'
+import { badge, clampPitch, clampRate, linkedSemitones, ownSoundParts, pitchRatio } from './tempo.svelte'
 
 describe('скорость и тон', () => {
   it('скорость в пределах 0.5–2 с точностью до сотых', () => {
@@ -20,6 +20,21 @@ describe('скорость и тон', () => {
     expect(badge(0.8, 0, 0)).toBe('0.8×')
     expect(badge(1, 2, 0)).toBe('+2')
     expect(badge(1, 0, 0.3)).toBe('Reverb')
+  })
+})
+
+describe('плашка «Свой звук»', () => {
+  const plain = { rate: 1, pitch: 0, linked: true, reverb: 0.35, reverbOn: false }
+  it('только то, что отличается от обычного звука', () => {
+    expect(ownSoundParts(plain, null)).toEqual([])
+    expect(ownSoundParts({ ...plain, rate: 0.85, reverbOn: true }, null)).toEqual(['x0.85', 'Reverb'])
+    expect(ownSoundParts({ ...plain, linked: false, pitch: -2 }, Array(12).fill(0))).toEqual(['−2 st'])
+    expect(ownSoundParts({ ...plain, linked: false, pitch: 1.5 }, null)).toEqual(['+1.5 st'])
+  })
+  it('связанный тон не пишется отдельно, ровная кривая — не EQ', () => {
+    expect(ownSoundParts({ ...plain, rate: 0.8, pitch: 3 }, null)).toEqual(['x0.8'])
+    expect(ownSoundParts(plain, Array(12).fill(0.01))).toEqual([])
+    expect(ownSoundParts(plain, [0, 0, 2, ...Array(9).fill(0)])).toEqual(['EQ'])
   })
 })
 

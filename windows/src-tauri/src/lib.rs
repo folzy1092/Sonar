@@ -289,6 +289,7 @@ pub fn run() {
       commands::set_lyrics_offset,
       commands::track_sound,
       commands::set_track_sound,
+      commands::track_sound_refs,
       commands::wave_portion,
       commands::wave_feedback,
       commands::wave_stats,

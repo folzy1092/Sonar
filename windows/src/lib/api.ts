@@ -539,6 +539,8 @@ export const api = {
   /** Звук трека («Для этого трека»): скорость, тон, реверб, эквалайзер; null — общие настройки. */
   trackSound: (trackRef: string) => call<TrackSound | null>('track_sound', { trackRef }),
   setTrackSound: (trackRef: string, sound: TrackSound | null) => call<void>('set_track_sound', { trackRef, sound }),
+  /** Все ref со своим звуком — значок в списках одним запросом. */
+  trackSoundRefs: () => call<string[]>('track_sound_refs'),
 
   wavePortion: (req: {
     exclude?: string[]

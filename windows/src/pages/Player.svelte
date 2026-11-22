@@ -21,6 +21,7 @@
   import { autoplay } from '../player/autoplay.svelte'
   import SeekBar from '../player/SeekBar.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
+  import OwnSoundChip from '../player/OwnSoundChip.svelte'
   import SleepButton from '../player/SleepButton.svelte'
   import { sleep } from '../player/sleep.svelte'
   import EqButton from '../player/EqButton.svelte'
@@ -37,6 +38,8 @@
   import { t } from '../lib/i18n.svelte'
 
   const track = $derived(player.current)
+  /** Кнопка скорости — плашка «Свой звук» открывает её всплывашку. */
+  let speed: SpeedButton | undefined = $state()
   // стиль страницы (Плеер → Вид): обычный — обложка 320 px; большой — на всю колонку; пластинка —
   // круглая наклейка на виниле (≈ 62 % диска)
   const pstyle = $derived(settings.get('player.style'))
@@ -142,11 +145,14 @@
       <WhyLine {track} />
       <NextUp />
       <!-- что реально играет — своё место под артистом, а не под полосой -->
-      {#if player.quality}
-        {#key qualityLabel(player.quality, player.via)}
-          <span class="quality" title={t('Что реально играет')}>{qualityLabel(player.quality, player.via)}</span>
-        {/key}
-      {/if}
+      <span class="chips">
+        {#if player.quality}
+          {#key qualityLabel(player.quality, player.via)}
+            <span class="quality" title={t('Что реально играет')}>{qualityLabel(player.quality, player.via)}</span>
+          {/key}
+        {/if}
+        <OwnSoundChip onopen={() => speed?.show()} />
+      </span>
     </div>
 
     <div class="seek" class:viz-under={settings.get('player.visualizer') === 'slider'}>
@@ -211,7 +217,7 @@
         />
       </div>
       <div class="panel extra">
-        <SpeedButton />
+        <SpeedButton bind:this={speed} />
         <!-- таймер сна — только по тумблеру (Интерфейс → Плеер); уже запущенный видно, чтобы отменить -->
         {#if settings.get('player.sleep_button') || sleep.active}<SleepButton />{/if}
         <EqButton />
@@ -537,6 +543,18 @@
     font-size: calc(11px * var(--fs, 1));
     color: var(--text-3);
     font-variant-numeric: tabular-nums;
+  }
+  /* качество и «Свой звук» — одной строкой под артистом */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: var(--justify, center);
+    gap: 6px;
+    max-width: 100%;
+  }
+  .chips :global(.own) {
+    margin-top: 8px;
   }
   .quality {
     margin-top: 8px;

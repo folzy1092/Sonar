@@ -618,6 +618,12 @@ pub fn set_track_sound(db: State<'_, Db>, track_ref: String, sound: Option<crate
   db.0.lock().unwrap().set_track_sound(&track_ref, sound).map_err(err)
 }
 
+/// Все ref со своим звуком — значок в списках треков одним запросом.
+#[tauri::command]
+pub fn track_sound_refs(db: State<'_, Db>) -> Res<Vec<String>> {
+  db.0.lock().unwrap().track_sound_refs().map_err(err)
+}
+
 // ——— главная и своя волна (SPEC §3.7) ———
 
 #[derive(serde::Deserialize)]

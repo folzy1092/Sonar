@@ -79,6 +79,15 @@ impl Store {
     Ok(v.flatten().and_then(|j| serde_json::from_str::<TrackSound>(&j).ok()).and_then(TrackSound::normalized))
   }
 
+  /// Все треки со своим звуком — значок в списках одним запросом, не по треку.
+  pub fn track_sound_refs(&self) -> Result<Vec<String>> {
+    let mut stmt = self
+      .db
+      .prepare("SELECT ref FROM track_prefs WHERE user_id = ?1 AND deleted = 0 AND sound_json IS NOT NULL ORDER BY ref")?;
+    let refs = stmt.query_map([LOCAL_USER], |row| row.get(0))?.collect::<rusqlite::Result<Vec<String>>>()?;
+    Ok(refs)
+  }
+
   /// Запомнить звук для трека (`None` — забыть). `speed` пишется рядом для старых клиентов.
   pub fn set_track_sound(&self, r: &str, sound: Option<TrackSound>) -> Result<()> {
     let sound = sound.and_then(TrackSound::normalized);
@@ -135,6 +144,17 @@ mod tests {
     s.set_track_sound("sc:1", None).unwrap();
     assert_eq!(s.track_sound("sc:1").unwrap(), None);
     assert_eq!(s.track_prefs_count().unwrap(), 0, "пустая запись помечена удалённой");
+  }
+
+  #[test]
+  fn refs_lists_only_tracks_with_own_sound() {
+    let s = Store::memory().unwrap();
+    s.set_track_sound("sc:2", Some(slowed())).unwrap();
+    s.set_track_sound("ym:1", Some(slowed())).unwrap();
+    s.set_lyrics_offset("sc:3", 200).unwrap();
+    s.set_track_sound("sc:4", Some(slowed())).unwrap();
+    s.set_track_sound("sc:4", None).unwrap();
+    assert_eq!(s.track_sound_refs().unwrap(), vec!["sc:2", "ym:1"], "оффсет текста и забытый звук — не в списке");
   }
 
   #[test]

@@ -17,6 +17,8 @@
   import { settings } from '../lib/settings.svelte'
   import { compact } from '../lib/format'
   import { t, tn, lang } from '../lib/i18n.svelte'
+  import { ownSound } from '../lib/own-sound.svelte'
+  import { pop } from '../lib/motion'
 
   interface Props {
     track: Track
@@ -152,6 +154,10 @@
     {#if settings.get('appearance.show_sources') && serviceOf(track.ref)}
       <!-- Интерфейс → Вид → «Показывать площадки»: откуда трек, рядом с длительностью -->
       <span class="src"><SourceIcon service={serviceOf(track.ref)!} size={14} /></span>
+    {/if}
+    {#if ownSound.refs.has(track.ref)}
+      <!-- свой звук трека («Для этого трека») — скорость, тон, реверб или эквалайзер только у него -->
+      <span class="own" title={t('Свой звук трека')} transition:pop={{ scale: 0.6 }}><Icon name="adjustments" size={13} /></span>
     {/if}
     {#if variant === 'list'}
       <span class="dur">{formatTime(track.duration_ms)}</span>
@@ -400,6 +406,13 @@
     display: grid;
     place-items: center;
     flex: none;
+    opacity: 0.85;
+  }
+  .own {
+    display: grid;
+    place-items: center;
+    flex: none;
+    color: var(--accent);
     opacity: 0.85;
   }
   .dur {

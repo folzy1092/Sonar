@@ -424,6 +424,9 @@ final class PlaybackEngine {
         applyTempo()
     }
 
+    /// Плашка «Свой звук · …» у названия: что отличается у играющего трека; без своего звука — nil.
+    var ownSoundParts: [String]? { hasTrackSound ? currentSound.ownParts : nil }
+
     /// Звук, который сейчас звучит, — для записи в трек.
     private var currentSound: TrackSound {
         TrackSound(rate: Double(rate), pitch: pitch, linked: pitchLinked, reverb: reverb, eq: trackEq)

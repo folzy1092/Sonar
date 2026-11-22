@@ -26,6 +26,18 @@ final class TrackSoundTests: XCTestCase {
         XCTAssertNil(TrackSound.fromSync(.null))
     }
 
+    /// Плашка «Свой звук»: только то, что отличается от обычного звука (зеркало ПК `ownSoundParts`).
+    func testOwnPartsListOnlyDifferences() {
+        XCTAssertEqual(TrackSound(rate: 0.85, reverb: 0.4).ownParts, ["x0.85", "Reverb"])
+        XCTAssertEqual(TrackSound(rate: 1, pitch: -2).ownParts, ["−2 st"])
+        XCTAssertEqual(TrackSound(rate: 1.5, pitch: 1.5).ownParts, ["x1.5", "+1.5 st"])
+        XCTAssertEqual(TrackSound(rate: 0.8, pitch: 3, linked: true).ownParts, ["x0.8"], "связанный тон видно в скорости")
+        XCTAssertEqual(TrackSound(rate: 1, eq: Array(repeating: 0, count: 12)).ownParts, [], "плоская кривая — не EQ")
+        var curve = Array(repeating: 0.0, count: 12)
+        curve[2] = 2
+        XCTAssertEqual(TrackSound(rate: 1, eq: curve).ownParts, ["EQ"])
+    }
+
     func testLinkedSemitones() {
         XCTAssertEqual(TrackSound.linkedSemitones(2), 12)
         XCTAssertEqual(TrackSound.linkedSemitones(1), 0)

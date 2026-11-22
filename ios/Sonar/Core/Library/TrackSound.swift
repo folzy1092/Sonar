@@ -44,6 +44,28 @@ struct TrackSound: Codable, Equatable, Sendable {
         pow(2, semitones / 12)
     }
 
+    // MARK: - Плашка «Свой звук»
+
+    /// Что у трека отличается от обычного звука — для плашки «Свой звук · x0.85 · Reverb» у названия
+    /// (решение владельца 2026-11-22). Зеркало ПК `player/tempo.svelte.ts` `ownSoundParts`: скорость не 1×,
+    /// свой тон (связанный со скоростью не пишем — его уже видно в скорости), реверб, не плоская кривая.
+    var ownParts: [String] {
+        var parts: [String] = []
+        if rate != 1 { parts.append("x\(Self.trim(rate))") }
+        if !linked, pitch != 0 { parts.append("\(pitch > 0 ? "+" : "−")\(Self.trim(abs(pitch))) st") }
+        if reverb > 0 { parts.append("Reverb") }
+        if let eq, !Equalizer.isFlat(eq) { parts.append("EQ") }
+        return parts
+    }
+
+    /// 0.85 → «0.85», 1.50 → «1.5», 2 → «2» — как число в JS.
+    private static func trim(_ value: Double) -> String {
+        var text = String(format: "%.2f", value)
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return text
+    }
+
     // MARK: - Синк
 
     var json: JSONValue {
