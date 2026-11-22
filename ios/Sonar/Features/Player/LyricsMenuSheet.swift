@@ -6,7 +6,6 @@ import UIKit
 /// сброс), «Перевод», «Найти заново».
 struct LyricsMenuSheet: View {
     let track: Track
-    @State private var dragStart: Double?
     /// Что показывает переключатель «По словам / По строкам» — капсула едет сразу, а текст за листом
     /// перестраивается после неё (иначе тяжёлая перекладка текста дёргает анимацию). nil — как в настройке.
     @State private var shownWords: Bool?
@@ -156,93 +155,22 @@ struct LyricsMenuSheet: View {
         .buttonStyle(PressableStyle(scale: 0.99))
     }
 
-    /// Шаг ленты: 10 мс — столько точек.
-    private static let tickSpacing: CGFloat = 7
-
-    /// Линейка смещения — «барабан», как на ПК (`components/Ruler.svelte`): лента делений едет под неподвижной
-    /// меткой по центру. Тянешь вбок — текст раньше / позже, до ±2 с, шаг 10 мс; деление каждые 10 мс, среднее —
-    /// каждые 100 мс, длинное с подписью — каждую секунду; ноль подсвечен. Двойной тап — к нулю.
+    /// Линейка смещения — «барабан», как на ПК (`DrumRuler`): тянешь вбок — текст раньше / позже, до ±2 с, шаг
+    /// 10 мс; деление каждые 10 мс, среднее — каждые 100 мс, длинное с подписью — каждую секунду. Двойной тап — к нулю.
     private var offsetRuler: some View {
         HStack(spacing: 14) {
-            GeometryReader { proxy in
-                let w = proxy.size.width
-                let h = proxy.size.height
-                ZStack {
-                    Canvas { context, size in
-                        let center = size.width / 2
-                        let step = Self.tickSpacing
-                        let current = Int((offset * 100).rounded())
-                        // видимые деления: по ширине в обе стороны от центра
-                        let half = Int(center / step) + 2
-                        for k in max(-200, current - half) ... min(200, current + half) {
-                            let x = center + CGFloat(k - current) * step
-                            let major = k % 100 == 0
-                            let medium = k % 10 == 0
-                            let length: CGFloat = major ? 24 : medium ? 15 : 8
-                            let color: Color = k == 0 ? Theme.accent : (major || medium ? Theme.textSecondary : Theme.textTertiary)
-                            let rect = CGRect(x: x - (major ? 1 : 0.5), y: size.height / 2 - length / 2 - 6,
-                                              width: major ? 2 : 1, height: length)
-                            context.fill(Path(roundedRect: rect, cornerRadius: 1), with: .color(color.opacity(medium ? 1 : 0.7)))
-                            if major {
-                                let seconds = k / 100
-                                let text = seconds == 0 ? "0" : (seconds > 0 ? "+" : "−") + "\(abs(seconds)) с"
-                                context.draw(Text(text).font(.system(size: 11, weight: .medium).monospacedDigit())
-                                                .foregroundStyle(k == 0 ? Theme.accent : Theme.textTertiary),
-                                             at: CGPoint(x: x, y: size.height - 8))
-                            }
-                        }
-                    }
-                    // края растворяются — лента «уходит» за границы
-                    .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.18),
-                                                 .init(color: .black, location: 0.82), .init(color: .clear, location: 1)],
-                                         startPoint: .leading, endPoint: .trailing))
-                    // неподвижная метка по центру
-                    Capsule()
-                        .fill(offset == 0 ? Theme.text : Theme.accent)
-                        .frame(width: 3, height: 34)
-                        .offset(y: -6)
-                        .shadow(color: Theme.accent.opacity(offset == 0 ? 0 : 0.5), radius: 6)
-                }
-                .frame(width: w, height: h)
-                .background(Theme.raised.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 2)
-                        .onChanged { drag in
-                            let start = dragStart ?? offset
-                            if dragStart == nil { dragStart = offset }
-                            // лента едет за пальцем: тянешь вправо — значение меньше
-                            let next = start - Double(drag.translation.width / Self.tickSpacing) / 100
-                            let rounded = (min(2, max(-2, next)) * 100).rounded() / 100
-                            if rounded != offset {
-                                let crossed = Int((rounded * 10).rounded(.down)) != Int((offset * 10).rounded(.down))
-                                store.setOffset(rounded, for: track.ref)
-                                if crossed { UISelectionFeedbackGenerator().selectionChanged() }
-                            }
-                        }
-                        .onEnded { _ in dragStart = nil }
-                )
-                .onTapGesture(count: 2) {
-                    withAnimation(Motion.spring) { store.setOffset(0, for: track.ref) }
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                }
-                .accessibilityElement()
+            DrumRuler(value: offset, range: -2 ... 2, step: 0.01, medium: 10, major: 100,
+                      label: { seconds in
+                          let s = Int(seconds.rounded())
+                          return s == 0 ? "0" : (s > 0 ? "+" : "−") + "\(abs(s)) с"
+                      }) { store.setOffset($0, for: track.ref) }
                 .accessibilityLabel(t("Сдвиг текста"))
-                .accessibilityValue(Self.label(offset))
-                .accessibilityAdjustableAction { direction in
-                    let next = offset + (direction == .increment ? 0.05 : -0.05)
-                    store.setOffset((min(2, max(-2, next)) * 100).rounded() / 100, for: track.ref)
-                }
-            }
-            .frame(height: 56)
             Text(Self.label(offset))
                 .font(.system(size: 16, weight: .medium).monospacedDigit())
                 .foregroundStyle(Theme.text)
                 .frame(minWidth: 70, alignment: .trailing)
                 .contentTransition(.numericText())
         }
-        .animation(.easeOut(duration: 0.12), value: offset)
     }
 
     static func label(_ seconds: Double) -> String {

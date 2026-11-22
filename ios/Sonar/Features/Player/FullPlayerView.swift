@@ -990,7 +990,6 @@ struct SpeedSheet: View {
         let text = String(format: "%.2f", rate)
         return (text.hasSuffix("0") ? String(text.dropLast()) : text) + "×"
     }
-    private let steps: [Float] = stride(from: 0.5, through: 2, by: 0.25).map { Float($0) }
 
     var body: some View {
         ScrollView {
@@ -1012,15 +1011,10 @@ struct SpeedSheet: View {
                     .buttonStyle(PressableStyle(scale: 0.92))
                 }
             }
-            HStack(spacing: 2) {
-                ForEach(steps, id: \.self) { value in
-                    Rectangle()
-                        .fill(value <= engine.rate ? Color.white.opacity(0.85) : Color.white.opacity(0.1))
-                        .frame(height: 28)
-                        .onTapGesture { withAnimation(Motion.spring) { engine.setRate(value) } }
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            // скорость — «барабан», как на ПК: шаг 0.01, деление каждые 0.05, подпись каждые 0.25
+            DrumRuler(value: Double(engine.rate), range: 0.5 ... 2, step: 0.01, medium: 5, major: 25,
+                      label: { String(format: "%g×", $0) }, reset: 1) { engine.setRate(Float($0)) }
+                .accessibilityLabel(t("Скорость"))
             tempoControls
             // таймер сна — только с настройкой `player.sleep_button` (выключили — запущенный отменяется)
             if settings.bool("player.sleep_button") {
@@ -1058,8 +1052,16 @@ struct SpeedSheet: View {
                     .onTapGesture(count: 2) { withAnimation(Motion.spring) { engine.setPitch(0) } }
                 stepButton(.plus, label: t("Тон выше")) { engine.setPitch(engine.semitones + 0.5) }
             }
-            .padding(.vertical, 8)
+            .padding(.top, 8)
             .animation(Motion.spring, value: engine.semitones)
+            // тон — «барабан»: шаг 0.1 пт, деление каждые 0.5, подпись каждый полутон
+            DrumRuler(value: engine.semitones, range: -12 ... 12, step: 0.1, medium: 5, major: 10,
+                      label: { st in
+                          let n = Int(st.rounded())
+                          return n == 0 ? "0" : (n > 0 ? "+" : "−") + "\(abs(n))"
+                      }) { engine.setPitch($0) }
+                .accessibilityLabel(t("Тон"))
+                .padding(.bottom, 10)
             Divider().overlay(Theme.line)
             toggleRow(t("Связать тон со скоростью"), t("Slowed / sped up: скорость меняет высоту звука"),
                       isOn: Binding(get: { engine.pitchLinked }, set: { engine.setPitchLinked($0) }))
@@ -1070,14 +1072,17 @@ struct SpeedSheet: View {
                       }))
             if engine.reverb > 0 {
                 HStack(spacing: 12) {
-                    Slider(value: Binding(get: { engine.reverb }, set: { value in
+                    // сила реверба — «барабан»: шаг 1 %, подпись каждые 25 %, двойной тап — 35 %, как на ПК
+                    DrumRuler(value: engine.reverb, range: 0.01 ... 1, step: 0.01, medium: 5, major: 25,
+                              label: { "\(Int(($0 * 100).rounded())) %" }, reset: 0.35, height: 50) { value in
                         reverbStrength = value
-                        engine.setReverb(max(0.01, value))
-                    }), in: 0.01 ... 1)
-                    .tint(Theme.accent)
+                        engine.setReverb(value)
+                    }
+                    .accessibilityLabel(t("Реверберация"))
                     Text("\(Int((engine.reverb * 100).rounded())) %")
                         .font(.system(size: 14, weight: .semibold).monospacedDigit())
                         .foregroundStyle(Theme.textSecondary)
+                        .contentTransition(.numericText(value: engine.reverb))
                         .frame(width: 48, alignment: .trailing)
                 }
                 .padding(.bottom, 8)
