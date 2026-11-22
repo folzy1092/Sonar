@@ -247,6 +247,7 @@ iOS-плеер устроен так же по составу (обложка �
 | Эквалайзер: кривая (настоящая АЧХ фильтров, точки полос), свои пресеты «+» / долгое нажатие — удалить (`audio.eq_presets`, тот же JSON `[{name, gains}]` строкой) | `EqButton.svelte`, `eq.svelte.ts` | `EqualizerCurveView`, `Core/Settings/EqualizerExtras.swift` |
 | Аккаунт → Приватность (2026-11-18): кто может позвать в друзья (Все · Друзья друзей · Никто) и кто видит Плейлисты, Любимые, Что играет сейчас, Статистику (Все · Друзья · Никто) — те же ключи `privacy.*` | `pages/settings/Privacy.svelte`, `lib/public-profile.ts` | `Features/Account/PrivacySettingsView.swift`, правила — `Core/Account/Privacy.swift` (XCTest `PrivacyTests`) |
 | Аккаунт → Подписка Sonar Deep (2026-11-18): тарифы Ping · Echo · Pod · Fleet, срок 1 / 3 / 6 / 12 мес. со скидкой, что даёт, итог, «Перейти к оплате» → `try-sonar.ru/pay?plan=…&period=…&u=…` | `pages/settings/Subscription.svelte`, `lib/subscription.ts` | `Features/Account/SonarDeepView.swift`, цены — `Core/Account/SonarDeep.swift` (XCTest `SonarDeepTests`; меняешь цены — в обоих местах) |
+| Новинки исполнителей (2026-11-22): альбомы и синглы любимых исполнителей + свежие треки SoundCloud за неделю, «У … вышел …», выключатель Уведомления → «Новинки исполнителей» | колокольчик `app/ReleasesBell.svelte` + тост, `release_feed`, `lib/new-releases.svelte.ts` | без колокольчика — фоновая проверка и локальное уведомление `App/ReleaseNotifier.swift` (BGAppRefresh), расчёт `Core/Home/Releases.swift`, тап → `sonar://album|track/<ref>` |
 
 Уже были на iPhone (сверка подтвердила): сдвиг текста ±2 с в меню текста (`LyricsMenuSheet`, линейка), экран
 статистики с графиками по журналу прослушиваний (`StatsView`), поиск с чипами и историей, готовые темы и светлая.
@@ -272,6 +273,11 @@ iOS-плеер устроен так же по составу (обложка �
 - `privacy.hidden_playlists` — «Скрыть от других» у одного плейлиста: у настроек iPhone (`SettingValue`) нет
   списков; придёт с синком профиля.
 - Единый поиск (кнопка «Все», `lib/unified-search.ts`) — только ПК, так решил владелец.
+- «Схожесть» вкуса в профиле друга (2026-11-22): блок `pages/profile/TasteMatch.svelte`, расчёт `lib/taste-match.ts`.
+  На iPhone — только тот же расчёт `Core/Account/TasteMatch.swift` (XCTest сверяет цифры с ПК); экран — когда
+  появятся профили друзей (сервер).
+- Совместный плейлист (2026-11-22): значок «Совместный», аватар «кто добавил» в строке трека, «Пригласить друга»
+  (неактивен до сервера) — `lib/collab.ts`, миграция № 15. На iPhone — вместе с синком своих плейлистов.
 - Кнопка «Сохранить для всех треков» у эквалайзера — на iPhone кривая сохраняется сразу (так задумано).
 - «Найти дубли» в меню Любимых и своего плейлиста (экран групп, «Убрать отмеченные» с «Отменить» —
   `pages/DupesPage.svelte`, `src-tauri/src/dupes/`). На iPhone пока только ядро с теми же правилами и

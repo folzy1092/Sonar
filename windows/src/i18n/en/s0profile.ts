@@ -20,4 +20,12 @@ export default {
   'и ещё {n}': 'and {n} more',
   'плейлист|плейлиста|плейлистов': 'playlist|playlists',
   'Чаще всего слушает': 'Listens to most',
+  // «Схожесть» в профиле друга
+  'Схожесть': 'Similarity',
+  'Очень похожие вкусы': 'Very similar taste',
+  'Похожие вкусы': 'Similar taste',
+  'Разные вкусы': 'Different taste',
+  'Общие треки': 'Tracks in common',
+  'Общие исполнители': 'Artists in common',
+  'Общих исполнителей пока нет': 'No artists in common yet',
 } satisfies Record<string, string>

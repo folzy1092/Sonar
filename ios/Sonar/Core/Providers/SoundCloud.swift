@@ -59,6 +59,11 @@ struct SoundCloud: Sendable {
         try await get("\(Self.api)/users/\(id)/toptracks", [("limit", "\(limit)")])["collection"].items
     }
 
+    /// Последние заливы пользователя, новые первыми — для «Новинок» (`release_feed`).
+    func userTracks(_ id: String, limit: Int) async throws -> [JSONValue] {
+        try await get("\(Self.api)/users/\(id)/tracks", [("limit", "\(limit)")])["collection"].items
+    }
+
     func userAlbums(_ id: String) async throws -> [Album] {
         try await get("\(Self.api)/users/\(id)/albums", [("limit", "30")])["collection"].items.compactMap(Self.parseAlbum)
     }

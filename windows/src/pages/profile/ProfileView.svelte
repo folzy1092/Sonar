@@ -26,6 +26,7 @@
   import Icon from '../../components/Icon.svelte'
   import DevBadge from '../../components/profile/DevBadge.svelte'
   import ProfileCard from '../../components/profile/ProfileCard.svelte'
+  import TasteMatch, { type TasteBlock } from './TasteMatch.svelte'
   import { subscriptionOf } from '../../lib/subscription'
   import { cascade } from '../../lib/cascade'
   import { dateLong, durationText, tracksText } from '../../lib/format'
@@ -34,7 +35,12 @@
 
   const MS_PER_HOUR = 3_600_000
 
-  let { profile, loading, look = null }: { profile: PublicProfile; loading: boolean; look?: ProfileLook | null } = $props()
+  let {
+    profile,
+    loading,
+    look = null,
+    taste = null,
+  }: { profile: PublicProfile; loading: boolean; look?: ProfileLook | null; taste?: TasteBlock | null } = $props()
 
   const initial = $derived(profileInitial(profile))
   // значок «Dev» у ника разработчика; с сервером признак придёт в самом профиле
@@ -115,6 +121,8 @@
           </span>
         </section>
       {/if}
+
+      {#if taste}<TasteMatch {taste} />{/if}
 
       {#if profile.stats}
         <section class="stats">

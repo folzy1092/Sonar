@@ -353,6 +353,11 @@
           playlistMenu.close()
           router.go('dupes', own.id)
         })}
+        <!-- совместный плейлист (docs/API.md §4): приглашение — через сервер, до него пункт неактивен -->
+        <button class="item" role="menuitem" disabled title={t('Появится вместе с сервером Sonar')}>
+          <Icon name="user" size={17} />
+          <span>{t('Пригласить друга')}</span>
+        </button>
         {@render exportEntry()}
         <hr />
         {@render item(own.hidden ? 'eye' : 'eyeOff', own.hidden ? t('Показать плейлист') : t('Скрыть плейлист'), toggleHidden)}
@@ -490,9 +495,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .item:hover {
+  .item:hover:not(:disabled) {
     background: var(--hover);
     color: var(--text);
+  }
+  .item:disabled {
+    opacity: 0.45;
+    cursor: default;
   }
   .item.danger:hover,
   .item.danger.sure {

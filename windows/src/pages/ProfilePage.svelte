@@ -14,6 +14,8 @@
   import { player } from '../player/player.svelte'
   import { settingsPanel } from './settings-section.svelte'
   import { colorHex, readLinks, readShowcase, visibleShowcase } from '../lib/profile-look'
+  import { demoFriendTaste, tasteMatch, type TasteArtist } from '../lib/taste-match'
+  import type { TasteBlock } from './profile/TasteMatch.svelte'
   import type { ProfileLook } from './profile/ProfileView.svelte'
 
   let favorites = $state<ListTrack[] | null>(null)
@@ -62,6 +64,23 @@
     showcase: visibleShowcase(readShowcase(settings.get('profile.showcase')), settings.get('privacy.hidden_playlists') ?? []),
   })
 
+  // «Схожесть» видна только другу; друзей пока нет (они — с сервером, `GET /users/{username}/taste`),
+  // поэтому в предпросмотре «Друг» — демо-друг из части моих же исполнителей и лайков
+  const taste = $derived.by<TasteBlock | null>(() => {
+    if (viewer !== 'friend' || !stats) return null
+    const artists: TasteArtist[] = [stats.top_artist, ...stats.more_artists]
+      .filter((a): a is NonNullable<typeof a> => !!a)
+      .map((a) => ({ name: a.name, ref: a.ref, avatar_url: a.avatar_url, plays: a.plays }))
+    const me = { artists, likes: favorites ?? [] }
+    const match = tasteMatch(me, demoFriendTaste(me))
+    if (!match) return null
+    return {
+      match,
+      owner: { name: profile.display_name || profile.username || 'Sonar', avatar_url: profile.avatar_url },
+      viewer: { name: t('Друг'), avatar_url: null },
+    }
+  })
+
   const valueOf = <T,>(r: PromiseSettledResult<T>): T | null => (r.status === 'fulfilled' ? r.value : null)
 
   void Promise.allSettled([api.favorites(), api.playlists(), api.stats('all')]).then(([f, p, s]) => {
@@ -95,7 +114,7 @@
     {/each}
   </div>
 
-  <ProfileView {profile} {loading} {look} />
+  <ProfileView {profile} {loading} {look} {taste} />
 </div>
 
 <style>

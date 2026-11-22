@@ -10,6 +10,8 @@ extension SettingsDefaults {
         "general.add_position": .string("start"),
         // тактильный отклик на нажатия (настройки, вкладки, Sonar Mix) — почти незаметный
         "general.haptics": .bool(true),
+        // Уведомления: новинки любимых исполнителей (ReleaseNotifier), общий ключ с ПК
+        "notify.releases": .bool(true),
         // Хранилище (iOS): потолок кэша обложек на диске, МБ — 128 / 256 / 512 / 1024
         "storage.covers_limit_mb": .int(256),
         // Статистика: открытый период — week / month / year / all

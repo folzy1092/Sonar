@@ -339,9 +339,11 @@ impl Store {
         match v {
           Some(v) => {
             self.db.execute(
-              "INSERT INTO playlists (id, user_id, name, hidden, source_ref, created_at, updated_at, deleted, rev)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0)
-               ON CONFLICT(id) DO UPDATE SET name = ?3, hidden = ?4, source_ref = ?5, updated_at = ?7, deleted = 0, rev = 0",
+              // участников совместного плейлиста ведёт сервер: приходят всегда целиком, нет соавторов — NULL
+              "INSERT INTO playlists (id, user_id, name, hidden, source_ref, created_at, updated_at, collab_json, deleted, rev)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 0, 0)
+               ON CONFLICT(id) DO UPDATE SET name = ?3, hidden = ?4, source_ref = ?5, updated_at = ?7, collab_json = ?8,
+               deleted = 0, rev = 0",
               params![
                 c.key,
                 LOCAL_USER,
@@ -350,6 +352,7 @@ impl Store {
                 v["source_ref"].as_str(),
                 get_i("created_at"),
                 get_i("updated_at"),
+                super::Collab::from_sync(v),
               ],
             )?;
           }
@@ -374,9 +377,17 @@ impl Store {
               params![pl, LOCAL_USER, now_ms()],
             )?;
             self.db.execute(
-              "INSERT INTO playlist_items (id, playlist_id, ref, position, added_at, deleted, rev) VALUES (?1, ?2, ?3, ?4, ?5, 0, 0)
-               ON CONFLICT(id) DO UPDATE SET playlist_id = ?2, ref = ?3, position = ?4, deleted = 0, rev = 0",
-              params![c.key, pl, v["ref"].as_str().unwrap_or_default(), v["position"].as_f64().unwrap_or(0.0), get_i("added_at")],
+              "INSERT INTO playlist_items (id, playlist_id, ref, position, added_at, added_by, deleted, rev)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 0)
+               ON CONFLICT(id) DO UPDATE SET playlist_id = ?2, ref = ?3, position = ?4, added_by = ?6, deleted = 0, rev = 0",
+              params![
+                c.key,
+                pl,
+                v["ref"].as_str().unwrap_or_default(),
+                v["position"].as_f64().unwrap_or(0.0),
+                get_i("added_at"),
+                v["added_by"].as_str(),
+              ],
             )?;
           }
           None => {

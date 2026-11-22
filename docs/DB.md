@@ -119,10 +119,22 @@ CREATE TABLE playlist_items (
   ref           TEXT NOT NULL,
   position      REAL NOT NULL,                  -- дробные позиции: вставка без перенумерации
   added_at      INTEGER NOT NULL,
+  added_by      TEXT REFERENCES users(id),      -- кто добавил; только в совместном плейлисте (API.md §4 «Совместные плейлисты»)
   deleted       INTEGER NOT NULL DEFAULT 0,
   rev           INTEGER NOT NULL
 );
 CREATE INDEX playlist_items_pl ON playlist_items(playlist_id, position);
+
+-- Участники совместного плейлиста (2026-11-22). Владелец — playlists.user_id, сюда не пишется.
+-- На клиенте (Windows, миграция № 15) таблицы нет: playlists.collab_json — {owner, collaborators}
+-- из синка как есть (NULL — обычный плейлист), playlist_items.added_by — username.
+CREATE TABLE playlist_collaborators (
+  playlist_id   TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  added_at      INTEGER NOT NULL,
+  PRIMARY KEY (playlist_id, user_id)
+);
+CREATE INDEX playlist_collaborators_user ON playlist_collaborators(user_id);
 
 CREATE TABLE settings (
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

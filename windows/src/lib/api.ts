@@ -120,6 +120,15 @@ export interface ServicePlaylist {
 export interface ListTrack extends Track {
   item_id: string
   added_at: number
+  /** Кто добавил трек в совместный плейлист (`username`); в своём плейлисте и Любимых — нет. */
+  added_by?: string
+}
+
+/** Участник совместного плейлиста (docs/API.md §4 «Совместные плейлисты»). */
+export interface PlaylistMember {
+  username: string
+  display_name: string | null
+  avatar_url: string | null
 }
 
 export interface Playlist {
@@ -133,6 +142,9 @@ export interface Playlist {
   duration_ms: number
   covers: string[]
   tracks: ListTrack[] | null
+  /** Совместный плейлист: владелец и соавторы приходят с сервера; обычный — `null` и `[]`. */
+  owner: PlaylistMember | null
+  collaborators: PlaylistMember[]
 }
 
 /** Где ищутся дубли: Любимые или id своего плейлиста (`pl_…`). */

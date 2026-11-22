@@ -173,6 +173,7 @@ mod tests {
     ListTrack {
       item_id: item_id.into(),
       added_at,
+      added_by: None,
       track: Track {
         ref_: r.into(),
         title: title.into(),

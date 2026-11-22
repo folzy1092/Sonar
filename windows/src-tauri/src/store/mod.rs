@@ -170,6 +170,9 @@ CREATE TABLE artist_phantom_tracks (
 );
 "#, r#"
 ALTER TABLE track_prefs ADD COLUMN sound_json TEXT;
+"#, r#"
+ALTER TABLE playlists ADD COLUMN collab_json TEXT;
+ALTER TABLE playlist_items ADD COLUMN added_by TEXT;
 "#];
 
 pub fn now_ms() -> i64 {
@@ -209,6 +212,9 @@ pub struct Play {
 pub struct ListTrack {
   pub item_id: String,
   pub added_at: i64,
+  /// Кто добавил трек в совместный плейлист (`@username`); в своём плейлисте и Любимых — нет.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub added_by: Option<String>,
   #[serde(flatten)]
   pub track: Track,
 }
@@ -227,6 +233,39 @@ pub struct Playlist {
   /// До 4 обложек первых треков — для коллажа.
   pub covers: Vec<String>,
   pub tracks: Option<Vec<ListTrack>>,
+  /// Совместный плейлист (docs/API.md §4 «Совместные плейлисты»): владелец и соавторы приходят с сервера.
+  /// Обычный плейлист — `owner: null`, `collaborators: []`.
+  #[serde(default)]
+  pub owner: Option<Member>,
+  #[serde(default)]
+  pub collaborators: Vec<Member>,
+}
+
+/// Участник совместного плейлиста.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Member {
+  pub username: String,
+  #[serde(default)]
+  pub display_name: Option<String>,
+  #[serde(default)]
+  pub avatar_url: Option<String>,
+}
+
+/// Что лежит в `playlists.collab_json`: участники совместного плейлиста.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct Collab {
+  #[serde(default)]
+  pub owner: Option<Member>,
+  #[serde(default)]
+  pub collaborators: Vec<Member>,
+}
+
+impl Collab {
+  /// Из значения синка: соавторов нет — плейлист обычный, в базу кладём NULL.
+  pub fn from_sync(v: &serde_json::Value) -> Option<String> {
+    let collab: Collab = serde_json::from_value(v.clone()).ok()?;
+    (!collab.collaborators.is_empty()).then(|| serde_json::to_string(&collab).ok()).flatten()
+  }
 }
 
 /// Вид лайка по префиксу ref (реестр сервисов, только работающие): `sc:`/`ym:` трек,
@@ -508,7 +547,7 @@ impl Store {
       self.tracks(&refs)?.into_iter().map(|t| (t.ref_.clone(), t)).collect();
     Ok(likes
       .into_iter()
-      .filter_map(|(r, added_at)| by_ref.get(&r).map(|t| ListTrack { item_id: r, added_at, track: t.clone() }))
+      .filter_map(|(r, added_at)| by_ref.get(&r).map(|t| ListTrack { item_id: r, added_at, added_by: None, track: t.clone() }))
       .collect())
   }
 
@@ -560,6 +599,8 @@ impl Store {
   }
 
   fn summary(&self, row: &rusqlite::Row) -> rusqlite::Result<Playlist> {
+    let collab: Collab =
+      row.get::<_, Option<String>>(6)?.and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default();
     Ok(Playlist {
       id: row.get(0)?,
       name: row.get(1)?,
@@ -571,6 +612,8 @@ impl Store {
       duration_ms: 0,
       covers: vec![],
       tracks: None,
+      owner: collab.owner,
+      collaborators: collab.collaborators,
     })
   }
 
@@ -614,7 +657,7 @@ impl Store {
   /// Все плейлисты без треков, новые сверху.
   pub fn playlists(&self) -> Result<Vec<Playlist>> {
     let mut st = self.db.prepare(
-      "SELECT id, name, hidden, source_ref, created_at, updated_at FROM playlists
+      "SELECT id, name, hidden, source_ref, created_at, updated_at, collab_json FROM playlists
        WHERE user_id = ?1 AND deleted = 0 ORDER BY created_at DESC",
     )?;
     let mut list: Vec<Playlist> = st.query_map([LOCAL_USER], |r| self.summary(r))?.collect::<rusqlite::Result<_>>()?;
@@ -628,7 +671,7 @@ impl Store {
     let p = self
       .db
       .query_row(
-        "SELECT id, name, hidden, source_ref, created_at, updated_at FROM playlists
+        "SELECT id, name, hidden, source_ref, created_at, updated_at, collab_json FROM playlists
          WHERE user_id = ?1 AND id = ?2 AND deleted = 0",
         [LOCAL_USER, id],
         |r| self.summary(r),
@@ -637,17 +680,19 @@ impl Store {
     let Some(mut p) = p else { return Ok(None) };
     self.fill_stats(&mut p)?;
     let mut st = self.db.prepare(
-      "SELECT id, ref, added_at FROM playlist_items WHERE playlist_id = ?1 AND deleted = 0 ORDER BY position",
+      "SELECT id, ref, added_at, added_by FROM playlist_items WHERE playlist_id = ?1 AND deleted = 0 ORDER BY position",
     )?;
-    let items: Vec<(String, String, i64)> =
-      st.query_map([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect::<rusqlite::Result<_>>()?;
+    let items: Vec<(String, String, i64, Option<String>)> =
+      st.query_map([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?.collect::<rusqlite::Result<_>>()?;
     let refs: Vec<String> = items.iter().map(|i| i.1.clone()).collect();
     let by_ref: std::collections::HashMap<String, Track> =
       self.tracks(&refs)?.into_iter().map(|t| (t.ref_.clone(), t)).collect();
     p.tracks = Some(
       items
         .into_iter()
-        .filter_map(|(item_id, r, added_at)| by_ref.get(&r).map(|t| ListTrack { item_id, added_at, track: t.clone() }))
+        .filter_map(|(item_id, r, added_at, added_by)| {
+          by_ref.get(&r).map(|t| ListTrack { item_id, added_at, added_by, track: t.clone() })
+        })
         .collect(),
     );
     Ok(Some(p))
@@ -1105,5 +1150,45 @@ mod tests {
     assert!(s.follow_cache().unwrap().is_empty());
     s.put_phantom("scpl:likes", &["sc:1".into()]).unwrap();
     assert!(s.graph_tracks().unwrap().iter().any(|g| g.track.ref_ == "sc:1" && g.in_library));
+  }
+
+  #[test]
+  fn collab_playlist_comes_from_sync_with_members_and_adders() {
+    use super::sync::Change;
+    let mut s = Store::memory().unwrap();
+    s.upsert_tracks(&[track("sc:1"), track("sc:2")]).unwrap();
+    let member = |u: &str| serde_json::json!({ "username": u, "display_name": null, "avatar_url": null });
+    let playlist = |collaborators: serde_json::Value| Change {
+      kind: "playlist".into(),
+      key: "pl_c".into(),
+      value: Some(serde_json::json!({
+        "name": "Вместе", "hidden": false, "source_ref": null, "created_at": 1, "updated_at": 2,
+        "owner": member("folzy"), "collaborators": collaborators,
+      })),
+      rev: 1,
+    };
+    let item = |id: &str, r: &str, by: Option<&str>| Change {
+      kind: "playlist_item".into(),
+      key: id.into(),
+      value: Some(serde_json::json!({ "playlist_id": "pl_c", "ref": r, "position": 1.0, "added_at": 3, "added_by": by })),
+      rev: 2,
+    };
+    s.apply_changes(&[playlist(serde_json::json!([member("friend")])), item("i1", "sc:1", Some("friend")), item("i2", "sc:2", None)])
+      .unwrap();
+
+    let p = s.playlist("pl_c").unwrap().unwrap();
+    assert_eq!(p.owner.as_ref().map(|m| m.username.as_str()), Some("folzy"));
+    assert_eq!(p.collaborators.iter().map(|m| m.username.as_str()).collect::<Vec<_>>(), ["friend"]);
+    let by: Vec<_> = p.tracks.unwrap().into_iter().map(|t| t.added_by).collect();
+    assert_eq!(by, [Some("friend".to_string()), None]);
+    // в списке плейлистов участники тоже есть
+    assert_eq!(s.playlists().unwrap()[0].collaborators.len(), 1);
+
+    // соавторов убрали — плейлист снова обычный
+    s.apply_changes(&[playlist(serde_json::json!([]))]).unwrap();
+    let p = s.playlist("pl_c").unwrap().unwrap();
+    assert!(p.owner.is_none() && p.collaborators.is_empty());
+    let json = serde_json::to_value(&p).unwrap();
+    assert!(json["tracks"][1].get("added_by").is_none(), "added_by без значения не уходит в JSON");
   }
 }

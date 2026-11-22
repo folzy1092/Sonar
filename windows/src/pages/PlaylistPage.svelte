@@ -11,7 +11,8 @@
   import EmptyState from '../components/EmptyState.svelte'
   import Icon from '../components/Icon.svelte'
   import TrackRow from '../components/TrackRow.svelte'
-  import { api, errorText, onLocalFilesChanged, type ListTrack, type Track } from '../lib/api'
+  import { api, errorText, onLocalFilesChanged, type ListTrack, type Playlist, type Track } from '../lib/api'
+  import { adderOf, isCollab } from '../lib/collab'
   import { durationText, tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
   import { openImport } from '../lib/import.svelte'
@@ -36,6 +37,8 @@
   const covers = $derived(pc.covers)
   let image = $state<string | null>(null)
   let hidden = $state(false)
+  /** Участники совместного плейлиста (с сервером); обычный — пусто. */
+  let members = $state<Pick<Playlist, 'owner' | 'collaborators'>>({ owner: null, collaborators: [] })
   let items = $state<(Track & Partial<ListTrack>)[]>([])
   let loading = $state(true)
   let error = $state<string | null>(null)
@@ -87,6 +90,7 @@
         const p = await api.playlist(id)
         title = p.name
         hidden = p.hidden
+        members = { owner: p.owner, collaborators: p.collaborators }
         items = p.tracks ?? []
         // обложки с сервера — сразу, потом сверка по картинкам, если треки пришли
         pc.set(items, p.covers)
@@ -206,7 +210,7 @@
   {#snippet subtitle()}
     {#if kind === 'favorites'}{t('Лайкнутые треки')}
     {:else if kind === 'local'}{t('Папки с музыкой')}
-    {:else if kind === 'own'}{t('Плейлист Sonar')}{#if hidden} · {t('скрыт')}{/if}
+    {:else if kind === 'own'}{t('Плейлист Sonar')}{#if isCollab(members)} · <span class="collab" title={[members.owner, ...members.collaborators].map((m) => m?.display_name || m?.username).filter(Boolean).join(', ')}>{t('Совместный')}</span>{/if}{#if hidden} · {t('скрыт')}{/if}
     {:else}{owner ? `${owner} · ` : ''}{t(byId(serviceOf(id))?.name ?? 'Яндекс Музыка')}{/if}
   {/snippet}
   {#snippet actions()}
@@ -304,6 +308,7 @@
             addedAt={t.added_at}
             playlistId={kind === 'own' ? id : undefined}
             itemId={kind === 'own' ? t.item_id : undefined}
+            addedBy={adderOf(members, t.added_by)}
             onplay={() => play(i)}
           />
         </div>
@@ -381,6 +386,13 @@
   /* сторож окна списка — невидимая строка в самом низу */
   .more {
     height: 1px;
+  }
+  .collab {
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
   }
   .drag.over {
     border-top-color: var(--accent);

@@ -66,9 +66,13 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UIUserInterfaceStyle: Dark
-        # музыка играет в фоне и на экране блокировки
+        # музыка играет в фоне и на экране блокировки; fetch — фоновая проверка «Новинок исполнителей»
+        # (App/ReleaseNotifier.swift, BGAppRefreshTask раз в несколько часов, когда решит iOS)
         UIBackgroundModes:
           - audio
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.folzy.sonar.releases
         # ссылки sonar://track/<ref>, sonar://auth/<code>, sonar://user/<username> (BOT.md, SPEC §4.5а)
         CFBundleURLTypes:
           - CFBundleURLName: com.folzy.sonar

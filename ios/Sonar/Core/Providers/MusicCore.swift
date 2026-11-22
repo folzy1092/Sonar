@@ -308,7 +308,7 @@ actor MusicCore {
     }
 
     /// Сырой JSON SoundCloud → модели; JSON запоминаем для потока.
-    private func keep(_ raw: [JSONValue]) -> [Track] {
+    func keep(_ raw: [JSONValue]) -> [Track] {
         if soundCloudRaw.count > 5000 { soundCloudRaw.removeAll() }
         return raw.compactMap { json in
             guard let track = SoundCloud.parseTrack(json) else { return nil }

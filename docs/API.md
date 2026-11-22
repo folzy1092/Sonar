@@ -63,6 +63,37 @@ PublicTrack = {ref, title, artist, cover_url, duration_ms}
 статистика, «сейчас играет», отдельные плейлисты) — решит ответ владельца по приватности; предпросмотр
 на ПК до него показывает всё как открытое.
 
+### «Схожесть» вкуса — `GET /users/{username}/taste` (договор, 2026-11-22)
+
+Блок «Схожесть» в профиле друга (docs/NEXT_FRIEND.md §2): насколько вкус того, кто смотрит, совпадает со вкусом
+владельца профиля. Только с авторизацией и **только друзьям** (друзья — с сервером): не друг → `403 not_friends`,
+свой профиль → `400 self`. Учитывает `privacy.*` владельца профиля: скрыты Любимые — лайки в расчёт не идут и
+`tracks` пустой; скрыта статистика — только лайки; скрыто всё — `403 private`.
+
+| Метод | Путь | Ответ |
+|---|---|---|
+| GET | `/users/{username}/taste` | `TasteMatch` или `204` — сравнивать не с чем (ни топа, ни лайков у кого-то из двоих) |
+
+```
+TasteMatch = {percent: 0…100, level: "very" | "similar" | "different",
+              user: {username, display_name, avatar_url},           // владелец профиля
+              artists: [{name, ref, avatar_url, plays}],            // общие, сначала те, кого оба слушают больше, до 24
+              tracks: [PublicTrack]}                                // общие лайки, до 5, в порядке Любимых смотрящего
+```
+
+Формула — одна на ПК (`windows/src/lib/taste-match.ts`, тесты рядом), iPhone (`ios/Sonar/Core/Account/TasteMatch.swift`)
+и сервере; менять — везде сразу:
+
+- исполнители — топ за всё время (как `stats.top_artists`, до 50): доля = прослушивания / все прослушивания топа,
+  пересечение = Σ min(доля у меня, доля у друга) по общим; имена сравниваются без регистра, ё = е (у друга тот же
+  артист может быть с другого сервиса); `ref` и аватар — смотрящего, чего нет — владельца;
+- лайки — общие (по `ref` или «артист + название») / max(меньший из двух списков, 20);
+- `percent` = round(√(0.7 · исполнители + 0.3 · лайки) · 100); нет лайков у кого-то — только исполнители, нет топа —
+  только лайки; `level`: ≥ 85 — `very` («Очень похожие вкусы»), ≥ 60 — `similar`, ниже — `different`.
+
+Сервер считает при запросе (кэш на 1 ч на пару пользователей), клиенты показывают ответ как есть. До сервера блок
+виден только в предпросмотре «Друг» на ПК (`pages/ProfilePage.svelte`, демо-друг — `demoFriendTaste`).
+
 `device` = `{id, name, platform, os, app_version, build}`, например
 `{"id": "6f1c…-uuid", "name": "iPhone 15 Pro", "platform": "ios", "os": "iOS 18.1", "app_version": "0.1.0", "build": 239}`:
 
@@ -354,6 +385,8 @@ missing, truncated}`.
 | POST | `/playlists/{id}/tracks` | `{refs: [ref], position: "start"\|"end"\|int}` → `{rev}` |
 | DELETE | `/playlists/{id}/tracks` | `{item_ids: [id]}` → `{rev}` |
 | PUT | `/playlists/{id}/order` | `{item_ids: [id]}` (полный порядок) → `{rev}` |
+| POST | `/playlists/{id}/collaborators` | `{username}` → `Playlist` — пригласить друга в совместный плейлист (§4 «Совместные плейлисты») |
+| DELETE | `/playlists/{id}/collaborators/{username}` | → `Playlist` — убрать участника (владелец) или выйти самому (участник) |
 
 ```json
 // Playlist (в списке tracks = null; covers — до 4 обложек первых треков для коллажа)
@@ -361,6 +394,26 @@ missing, truncated}`.
  "created_at": 1794340594779, "updated_at": 1794340594779, "track_count": 2, "duration_ms": 312000,
  "covers": ["https://..."], "tracks": [{"item_id": "pi_01JD3...", "added_at": 1794340594779, "ref": "sc:1", "...": "поля Track"}]}
 ```
+
+### Совместные плейлисты (договор, 2026-11-22; клиент ПК готов, сервера нет)
+
+Плейлист Sonar, в который пишут 2+ человек. Владелец (`owner`) — тот, кто создал; участники
+(`collaborators`) — друзья, которых он пригласил. Участник видит плейлист у себя в медиатеке, добавляет,
+убирает и переставляет треки; переименовать, скрыть, удалить плейлист и приглашать — только владелец.
+
+- `POST /playlists/{id}/collaborators {username}` — только владелец; `403 not_owner`, `403 not_friends`
+  (пригласить можно только друга), `404` — нет плейлиста или пользователя, `409 already` — уже участник,
+  `409 too_many` — участников больше 20.
+- `DELETE /playlists/{id}/collaborators/{username}` — владелец убирает кого угодно, участник — только себя;
+  треки, которые он добавил, остаются (`added_by` не меняется).
+- У `Playlist` два поля: `owner: Member | null` и `collaborators: [Member]` (`Member` — `{username,
+  display_name, avatar_url}`); у обычного плейлиста `owner = null`, `collaborators = []`. У трека
+  плейлиста — `added_by` (username того, кто добавил); в обычном плейлисте поля нет.
+- Состав участников — только на сервере: клиент его не пушит, а берёт из синка (`playlist` §6) и
+  целиком перезаписывает. Совместный плейлист приходит в синк каждому участнику.
+- ПК: значок «Совместный» в шапке плейлиста, аватар добавившего в строке трека, пункт меню «Пригласить
+  друга» — неактивен с подсказкой, пока нет сервера (`lib/collab.ts`, `PlaylistPage`, `PlaylistMenu`).
+  iPhone — пока нет.
 
 Импорт плейлиста сервиса повторно не создаёт копию: уже перенесённый (`source_ref`) дополняется
 треками, которых в нём ещё нет. Windows-клиент сейчас делает всё это локально (команды
@@ -565,8 +618,8 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 | `type` | `key` | `value` |
 |---|---|---|
 | `like` | ref (`sc:1`, `ymalb:9`, `sca:3`) | `{kind, added_at, track?}` — `track` (Track) у треков, чтобы на другом устройстве была карточка |
-| `playlist` | `pl_…` | `{name, hidden, source_ref, created_at, updated_at}` |
-| `playlist_item` | id элемента | `{playlist_id, ref, position, added_at, track?}` |
+| `playlist` | `pl_…` | `{name, hidden, source_ref, created_at, updated_at, owner?, collaborators?}` — `owner` / `collaborators` (§4 «Совместные плейлисты») присылает только сервер |
+| `playlist_item` | id элемента | `{playlist_id, ref, position, added_at, track?, added_by?}` — `added_by` (username) только в совместном плейлисте, ставит сервер |
 | `setting` | ключ | значение; только `sync: да` из SETTINGS.md — громкость, масштаб, качество, `system.*`, `update.*`, `storage.*` остаются на устройстве |
 | `dislike` | ref | `{artist, added_at}` |
 | `track_pref` | ref | `{speed, lyrics_offset_ms, sound}` — `sound` = `TrackSound` (§4) или `null`; `speed` = `sound.rate` для старых клиентов, а значение без `sound` клиенты читают как «скорость, тон сохраняется» (ПК `store/track_sound.rs`, iPhone `TrackSound.swift`). Сверять хэши не нужно: изменённая строка получает новый `rev` и приходит остальным устройствам в `pull` |

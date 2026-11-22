@@ -6,7 +6,7 @@
   import SourceIcon from './SourceIcon.svelte'
   import { serviceOf } from '../lib/services'
   import { pulse } from '../lib/pulse'
-  import type { Track } from '../lib/api'
+  import type { PlaylistMember, Track } from '../lib/api'
   import { library } from '../lib/library.svelte'
   import { trackMenu } from '../lib/menu.svelte'
   import { hasSelection } from '../lib/selection'
@@ -31,10 +31,12 @@
     itemId?: string
     /** Строка «Далее» в очереди плеера (номер в upNext) — в меню «Убрать из очереди». */
     queueAt?: number
+    /** Совместный плейлист: кто добавил трек — маленький аватар перед ❤. */
+    addedBy?: PlaylistMember | null
     onplay: () => void
   }
 
-  let { track, index, variant = 'list', addedAt, playlistId, itemId, queueAt, onplay }: Props = $props()
+  let { track, index, variant = 'list', addedAt, playlistId, itemId, queueAt, addedBy, onplay }: Props = $props()
   const isCurrent = $derived(player.current?.ref === track.ref)
   const liked = $derived(library.isLiked(track.ref))
   const target = $derived({ track, addedAt, playlistId, itemId, queueAt })
@@ -128,6 +130,12 @@
       <!-- число прослушиваний на сервисе (SoundCloud отдаёт, Яндекс — нет) -->
       <span class="plays" title="{track.plays.toLocaleString(LOCALES[lang()])} {tn(track.plays, ['прослушивание', 'прослушивания', 'прослушиваний'])}">
         <Icon name="play" size={11} filled stroke={0} />{compact(track.plays)}
+      </span>
+    {/if}
+    {#if addedBy}
+      {@const who = addedBy.display_name || addedBy.username}
+      <span class="adder" title={t('Добавил(а) {name}', { name: who })}>
+        {#if addedBy.avatar_url}<img src={addedBy.avatar_url} alt="" loading="lazy" draggable="false" />{:else}{[...who][0].toUpperCase()}{/if}
       </span>
     {/if}
     {#if variant !== 'album'}
@@ -247,6 +255,24 @@
     display: flex;
     align-items: center;
     gap: 10px;
+  }
+  .adder {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .adder img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
   .like,
   .dots {

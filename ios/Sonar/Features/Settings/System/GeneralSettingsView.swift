@@ -47,6 +47,15 @@ struct GeneralSettingsView: View {
             }
             .cascade(2)
 
+            // работает без сервера: ядро само проверяет любимых исполнителей (ReleaseNotifier)
+            SystemSection(title: t("Уведомления")) {
+                SystemToggle(icon: .bell, title: t("Новинки исполнителей"),
+                             subtitle: t("Вышел трек, сингл или альбом у исполнителя, на которого ты подписан или чьи треки лайкаешь, — покажем при запуске и раз в 3 часа"),
+                             isOn: Binding(get: { settings.bool(ReleaseNotifier.key) },
+                                           set: { on in Task { await ReleaseNotifier.shared.setEnabled(on) } }))
+            }
+            .cascade(2)
+
             if Features.widgetsVisible {
                 SystemSection(title: t("Виджет и Siri"), footer: t("Его играют кнопка «Быстрый плейлист» в виджете и команда «Быстрый плейлист» в Siri и «Командах»")) {
                     Button { quickSheet = true } label: {

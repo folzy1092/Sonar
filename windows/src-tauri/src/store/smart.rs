@@ -109,7 +109,7 @@ impl Store {
     Ok(Ok(
       evaluate(&rules, candidates, history, now_ms())
         .into_iter()
-        .map(|c| ListTrack { item_id: c.track.ref_.clone(), added_at: c.added_at, track: c.track })
+        .map(|c| ListTrack { item_id: c.track.ref_.clone(), added_at: c.added_at, added_by: None, track: c.track })
         .collect(),
     ))
   }

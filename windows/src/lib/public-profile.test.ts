@@ -42,6 +42,8 @@ const playlist = (n: number, extra: Partial<Playlist> = {}): Playlist => ({
   duration_ms: n * 60_000,
   covers: ['a', 'b', 'c', 'd', 'e'],
   tracks: null,
+  owner: null,
+  collaborators: [],
   ...extra,
 })
 

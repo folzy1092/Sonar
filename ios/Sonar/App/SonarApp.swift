@@ -7,6 +7,8 @@ struct SonarApp: App {
     init() {
         // журнал сбоев — первым делом: ловит сбои и читает отчёт прошлого запуска
         CrashLog.start()
+        // тап по уведомлению «Новинки», которое запустило Sonar с нуля, — делегат нужен до конца запуска
+        ReleaseNotifier.installDelegate()
     }
 
     @State private var chrome = ChromeState()
@@ -17,6 +19,7 @@ struct SonarApp: App {
     @State private var engine = PlaybackEngine.shared
     @State private var library = LibraryStore.shared
     @State private var router = Router()
+    @State private var releases = ReleaseNotifier.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -57,16 +60,28 @@ struct SonarApp: App {
                         checker.checkIfStale(settings: settings)
                         // SoundCloud: освежить вход заранее, пока Sonar на экране (в фоне тихий вход ненадёжен)
                         Task { await MusicCore.shared.refreshSoundCloudIfOld() }
+                        // новинки любимых исполнителей — не чаще раза в 3 ч (notify.releases)
+                        Task { await releases.checkIfStale() }
                     }
+                }
+                // тап по уведомлению «Новинки»: альбом — открыть, трек — сыграть
+                .onChange(of: releases.pendingURL, initial: true) { _, url in
+                    guard let url else { return }
+                    releases.pendingURL = nil
+                    DeepLink.handle(url, router: router, chrome: chrome)
                 }
                 // «выйди на рабочий стол» — в своём окне поверх всего (Update/HomeHintWindow.swift)
                 .onChange(of: updater.stage, initial: true) { _, stage in
                     HomeHintWindow.shared.update(for: stage)
                 }
                 .onOpenURL { url in
-                    // sonar://play/<liked|wave|quick> (виджет), sonar://auth/<code>; track и user — разбор позже
-                    DeepLink.handle(url)
+                    // sonar://play/<liked|wave|quick> (виджет), sonar://auth/<code>, album и track (новинки)
+                    DeepLink.handle(url, router: router, chrome: chrome)
                 }
+        }
+        // фоновое обновление iOS: новинки исполнителей, пока Sonar закрыт (ReleaseNotifier)
+        .backgroundTask(.appRefresh(ReleaseNotifier.taskID)) {
+            await ReleaseNotifier.shared.runInBackground()
         }
     }
 }
