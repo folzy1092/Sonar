@@ -35,6 +35,8 @@ extension SettingsDefaults {
             // Sonar Mix: подкачка следующих на Wi‑Fi для игры без сети (`WaveCache`) и «Почему этот трек»
             "storage.wave_offline": .bool(true),
             "player.wave_why": .bool(true),
+            // таймер сна в плеере (лист скорости и меню трека), как ПК — по умолчанию выключен
+            "player.sleep_button": .bool(false),
         ]
         for (key, value) in Gestures.defaults { out[key] = .string(value) }
         return out

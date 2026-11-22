@@ -130,17 +130,17 @@ struct SheetMenuRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 22) {
-                SonarIcon(icon, size: 24)
+            HStack(spacing: 18) {
+                SonarIcon(icon, size: 22)
                     .foregroundStyle(tint ?? Theme.textSecondary)
-                    .frame(width: 36)
-                VStack(alignment: .leading, spacing: 3) {
+                    .frame(width: 32)
+                VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 17, weight: .medium))
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(tint ?? Theme.text)
                     if let subtitle {
                         Text(subtitle)
-                            .font(.system(size: 15))
+                            .font(.system(size: 13.5))
                             .foregroundStyle(Theme.textSecondary)
                             .lineLimit(1)
                     }

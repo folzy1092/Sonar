@@ -3,16 +3,24 @@ import UIKit
 
 /// Лист трека (`IMG_6774`): сверху обложка во всю ширину, растворяется в фон, на ней название,
 /// исполнитель и знак сервиса; капсула ♥ · + · в очередь · поделиться; ниже — Следующим, Волна по
-/// треку, Перейти к артисту, Скачать, Копировать название, Не интересно, Удалить из плейлиста (если трек
-/// в списке). «+» — свои плейлисты Sonar (`AddToPlaylistSheet`). «Из кеша» и «Закрепить в профиле» — с сервером.
+/// треку, Перейти к артисту, Открыть альбом, Кешировать (в Sonar, играет без сети — «Скачанные»), Скачать
+/// (файл в «Файлы» через лист «Поделиться», `TrackExport`), у играющего трека — Устройства и Таймер сна
+/// (по настройке `player.sleep_button`, запущенный — всегда), Копировать название, Не интересно, Удалить из
+/// плейлиста (если трек в списке). «+» — свои плейлисты Sonar (`AddToPlaylistSheet`). «Закрепить в профиле» — с сервером.
 struct TrackSheet: View {
     let item: TrackMenuItem
     @Environment(PlaybackEngine.self) private var engine
     @Environment(LibraryStore.self) private var library
     @Environment(ChromeState.self) private var chrome
     @Environment(Router.self) private var router
+    @Environment(SettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
     @State private var addToPlaylist = false
+    @State private var showDevices = false
+    @State private var showSleep = false
+
+    /// Трек в меню — тот, что играет: тогда есть «Устройства» и «Таймер сна».
+    private var isCurrent: Bool { engine.current?.ref == track.ref }
 
     private var track: Track { item.track }
     private var downloads: DownloadStore { DownloadStore.shared }
@@ -51,7 +59,34 @@ struct TrackSheet: View {
                                 router.push(route, on: chrome.tab, chrome: chrome)
                             }
                         }
-                        downloadRow
+                        cacheRow
+                        SheetMenuRow(icon: .download, title: t("Скачать"), subtitle: t("В файл на телефон")) {
+                            dismiss()
+                            router.say(t("Готовлю файл…"))
+                            let track = track
+                            Task {
+                                do {
+                                    let file = try await TrackExport.file(for: track)
+                                    // меню трека должно успеть закрыться — иначе листу «Поделиться» не на чем открыться
+                                    try? await Task.sleep(for: .milliseconds(450))
+                                    TrackExport.share(file)
+                                } catch {
+                                    router.say(error.localizedDescription)
+                                }
+                            }
+                        }
+                        if isCurrent {
+                            SheetMenuRow(icon: .computer, title: t("Устройства"), subtitle: t("Выбрать, где играет музыка")) {
+                                showDevices = true
+                            }
+                            if settings.bool("player.sleep_button") || engine.sleep != nil {
+                                SheetMenuRow(icon: .moon, title: t("Таймер сна"),
+                                             subtitle: engine.sleep == nil ? t("Остановить музыку через заданное время")
+                                                 : t("Включён — нажми, чтобы изменить")) {
+                                    showSleep = true
+                                }
+                            }
+                        }
                         SheetMenuRow(icon: .copy, title: t("Копировать название"), subtitle: CopyText.track(track)) {
                             UIPasteboard.general.string = CopyText.track(track)
                             done(t("Название скопировано"))
@@ -80,6 +115,23 @@ struct TrackSheet: View {
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .background(Theme.background)
+        .sheet(isPresented: $showDevices) {
+            DevicePickerSheet()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(30)
+                .presentationBackground(Theme.background)
+        }
+        .sheet(isPresented: $showSleep) {
+            SleepTimerSection()
+                .padding(.horizontal, Theme.gutter)
+                .padding(.top, 28)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .presentationDetents([.height(190)])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(30)
+                .presentationBackground(Theme.background)
+        }
         .sheet(isPresented: $addToPlaylist) {
             AddToPlaylistSheet(tracks: [track]) { message in
                 // закрыть оба листа разом (вложенный и лист трека) и показать плашку; dismiss, а не
@@ -189,19 +241,21 @@ struct TrackSheet: View {
         .accessibilityLabel(label)
     }
 
+    /// «Кешировать»: трек целиком в Sonar, играет без сети (`DownloadStore`, раздел «Скачанные»). Справа
+    /// внизу — сколько уже в кеше; предела нет — «∞».
     @ViewBuilder
-    private var downloadRow: some View {
+    private var cacheRow: some View {
         if let progress = downloads.progress[track.ref] {
-            SheetMenuRow(icon: .download, title: "Скачивается…", subtitle: "\(Int(progress * 100)) %", enabled: false) {}
+            SheetMenuRow(icon: .cloud, title: t("Кешируется…"), subtitle: "\(Int(progress * 100)) %", enabled: false) {}
         } else if downloads.isDownloaded(track.ref) {
-            SheetMenuRow(icon: .trash, title: "Удалить загрузку", subtitle: "Освободит место на телефоне") {
+            SheetMenuRow(icon: .trash, title: t("Убрать из кеша"), subtitle: t("Освободит место на телефоне")) {
                 downloads.remove(track.ref)
-                done("Загрузка удалена")
+                done(t("Убрано из кеша"))
             }
         } else {
-            SheetMenuRow(icon: .download, title: "Скачать", subtitle: "В файл на телефоне — играет без интернета") {
+            SheetMenuRow(icon: .cloud, title: t("Кешировать"), subtitle: "\(downloads.downloaded.count) / ∞") {
                 downloads.download(track)
-                done("Скачиваю «\(track.title)»")
+                done(t("Кеширую «{title}»", ["title": track.title]))
             }
         }
     }

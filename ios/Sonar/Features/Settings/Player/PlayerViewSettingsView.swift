@@ -60,6 +60,10 @@ struct PlayerViewSettingsView: View {
                 PlayerToggleRow(icon: .user, title: "Аватарки артистов",
                                 subtitle: "Перед именем исполнителя в плеере",
                                 isOn: Binding(get: { settings.bool("player.artist_avatars") }, set: { settings.set("player.artist_avatars", $0) }))
+                PlayerRowDivider()
+                PlayerToggleRow(icon: .moon, title: t("Таймер сна в плеере"),
+                                subtitle: t("В меню трека и в листе скорости: выключить музыку через время"),
+                                isOn: Binding(get: { settings.bool("player.sleep_button") }, set: { settings.set("player.sleep_button", $0) }))
             }
             .cascade(5)
         }

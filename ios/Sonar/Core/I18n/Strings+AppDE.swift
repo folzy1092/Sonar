@@ -4,6 +4,21 @@
 
 extension I18n {
     static let appDE: [String: String] = [
+        // меню трека: кеш, «Скачать» файлом, устройства, таймер сна; T в тексте
+        "Кешировать": "Zwischenspeichern",
+        "Кешируется…": "Wird zwischengespeichert…",
+        "Убрать из кеша": "Aus dem Cache entfernen",
+        "Убрано из кеша": "Aus dem Cache entfernt",
+        "Кеширую «{title}»": "„{title}“ wird zwischengespeichert",
+        "Освободит место на телефоне": "Gibt Speicher auf dem Telefon frei",
+        "Скачать": "Herunterladen",
+        "В файл на телефон": "Als Datei aufs Telefon",
+        "Готовлю файл…": "Datei wird vorbereitet…",
+        "Выбрать, где играет музыка": "Wählen, wo die Musik läuft",
+        "Остановить музыку через заданное время": "Musik nach einer festen Zeit stoppen",
+        "Включён — нажми, чтобы изменить": "An – tippe zum Ändern",
+        "В меню трека и в листе скорости: выключить музыку через время": "Im Titelmenü und im Tempo-Blatt: Musik nach einer Weile stoppen",
+        "Меню текста": "Liedtext-Menü",
         "Вход устарел": "Anmeldung abgelaufen",
         "AAC · 128 кбит/с": "AAC · 128 kbit/s",
         "AAC · до 256 кбит/с": "AAC · bis 256 kbit/s",

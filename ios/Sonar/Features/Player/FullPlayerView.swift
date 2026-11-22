@@ -37,6 +37,8 @@ struct FullPlayerView: View {
     @State private var chromeHidden = false
     @State private var lastTouch = Date()
     @State private var showLyricsMenu = false
+    /// T в тексте зажата — кнопка чуть проседает, как остальные.
+    @State private var lyricsCirclePressed = false
     /// Меню трека (⋮). Своё: общий лист в RootView не показывается поверх полноэкранного плеера.
     @State private var trackMenu: TrackMenuItem?
     @Environment(ChromeState.self) private var chrome
@@ -194,7 +196,7 @@ struct FullPlayerView: View {
         .sheet(isPresented: $showLyricsMenu) {
             if let track = engine.current {
                 LyricsMenuSheet(track: track)
-                    .presentationDetents([.height(520)])
+                    .presentationDetents([.height(470)])
                     .presentationDragIndicator(.visible)
                     .presentationCornerRadius(30)
                     .presentationBackground(Theme.background)
@@ -215,7 +217,8 @@ struct FullPlayerView: View {
         }
         .sheet(isPresented: $showSpeed) {
             SpeedSheet()
-                .presentationDetents([.height(440)])
+                // без таймера сна лист ниже — блок таймера по настройке `player.sleep_button`
+                .presentationDetents([.height(settings.bool("player.sleep_button") || engine.sleep != nil ? 440 : 340)])
                 .presentationBackground(.ultraThinMaterial)
         }
         .overlay(alignment: .top) {
@@ -824,20 +827,26 @@ struct FullPlayerView: View {
         .accessibilityLabel(t(liked ? "Убрать из Любимых" : "В Любимые"))
     }
 
-    /// T справа от капсулы, когда открыт текст: подсвечена, тап — меню текста
-    /// (обратно к обложке — капсула с треком в шапке).
+    /// T справа от капсулы, когда открыт текст: подсвечена. Тап — обратно к обложке, зажать — меню
+    /// текста (как зажать сам текст).
     private func lyricsCircle(side: CGFloat) -> some View {
-        Button {
-            touched()
-            showLyricsMenu = true
-        } label: {
-            SonarIcon(.letterT, size: 22)
-                .foregroundStyle(Theme.accentInk)
-                .frame(width: side, height: side)
-                .background(Theme.accent, in: Circle())
-        }
-        .accessibilityLabel(t("Текст песни"))
-        .accessibilityAddTraits(.isSelected)
+        SonarIcon(.letterT, size: 22)
+            .foregroundStyle(Theme.accentInk)
+            .frame(width: side, height: side)
+            .background(Theme.accent, in: Circle())
+            .contentShape(Circle())
+            .scaleEffect(lyricsCirclePressed ? 0.88 : 1)
+            .animation(Motion.spring, value: lyricsCirclePressed)
+            .onTapGesture { showLyrics = false }
+            .onLongPressGesture(minimumDuration: 0.45) {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                touched()
+                showLyricsMenu = true
+            } onPressingChanged: { lyricsCirclePressed = $0 }
+            .accessibilityElement()
+            .accessibilityAddTraits([.isButton, .isSelected])
+            .accessibilityLabel(t("Текст песни"))
+            .accessibilityAction(named: t("Меню текста")) { showLyricsMenu = true }
     }
 
     /// «Играть» в стиле `player.play_button`: круг, квадрат со скруглением или просто значок.
@@ -972,6 +981,7 @@ struct FullPlayerView: View {
 struct SpeedSheet: View {
     @Environment(PlaybackEngine.self) private var engine
     @Environment(LibraryStore.self) private var library
+    @Environment(SettingsStore.self) private var settings
     private let presets: [Float] = [0.75, 1, 1.25, 1.5, 2]
 
     /// 1 → «1.0×», 1.25 → «1.25×», 1.5 → «1.5×».
@@ -1009,8 +1019,11 @@ struct SpeedSheet: View {
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
-            SleepTimerSection()
-                .padding(.top, 4)
+            // таймер сна — по настройке `player.sleep_button`; уже запущенный видно всегда, чтобы отменить
+            if settings.bool("player.sleep_button") || engine.sleep != nil {
+                SleepTimerSection()
+                    .padding(.top, 4)
+            }
             if let track = engine.current {
                 let remembered = library.speed(for: track.ref) != nil
                 Button {

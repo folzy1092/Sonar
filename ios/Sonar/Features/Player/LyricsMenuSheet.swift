@@ -23,10 +23,10 @@ struct LyricsMenuSheet: View {
                     UISelectionFeedbackGenerator().selectionChanged()
                 } label: {
                     Text(look.size.rawValue)
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(Theme.text)
                         .contentTransition(.numericText())
-                        .frame(width: 58, height: 58)
+                        .frame(width: 52, height: 52)
                         .background(Theme.raised, in: Circle())
                 }
                 .buttonStyle(PressableStyle(scale: 0.9))
@@ -56,13 +56,13 @@ struct LyricsMenuSheet: View {
                 }
             } label: {
                 HStack(spacing: 10) {
-                    SonarIcon(.translate, size: 24)
+                    SonarIcon(.translate, size: 21)
                     Text(store.translation.isEmpty ? "Перевод" : "Убрать перевод")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 16, weight: .semibold))
                 }
                 .foregroundStyle(Theme.text)
                 .frame(maxWidth: .infinity)
-                .frame(height: 56)
+                .frame(height: 50)
                 .overlay(Capsule().strokeBorder(Theme.text.opacity(0.18), lineWidth: 1.2))
                 .contentShape(Capsule())
             }
@@ -73,7 +73,7 @@ struct LyricsMenuSheet: View {
                 Task { await store.reload(for: track) }
             } label: {
                 Text("Найти текст заново")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(Theme.textSecondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 40)
@@ -97,10 +97,10 @@ struct LyricsMenuSheet: View {
                     UISelectionFeedbackGenerator().selectionChanged()
                 } label: {
                     Text(words ? "По словам" : "По строкам")
-                        .font(.system(size: 17, weight: .medium))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(on ? Theme.background : Theme.textSecondary)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 46)
+                        .frame(height: 40)
                         .background {
                             if on {
                                 Capsule().fill(Theme.text).padding(0)
@@ -126,10 +126,10 @@ struct LyricsMenuSheet: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.system(size: 18))
+                        .font(.system(size: 16))
                         .foregroundStyle(Theme.text)
                     Text(value)
-                        .font(.system(size: 16))
+                        .font(.system(size: 13.5))
                         .foregroundStyle(Theme.textSecondary)
                         .contentTransition(.opacity)
                 }
@@ -137,7 +137,7 @@ struct LyricsMenuSheet: View {
                 SonarIcon(.chevronRight, size: 22).foregroundStyle(Theme.textTertiary)
             }
             .padding(.horizontal, 6)
-            .frame(height: 70)
+            .frame(height: 60)
             .contentShape(Rectangle())
         }
         .buttonStyle(PressableStyle(scale: 0.99))
@@ -183,7 +183,7 @@ struct LyricsMenuSheet: View {
             }
             .frame(height: 50)
             Text(Self.label(offset))
-                .font(.system(size: 18, weight: .medium).monospacedDigit())
+                .font(.system(size: 16, weight: .medium).monospacedDigit())
                 .foregroundStyle(Theme.text)
                 .frame(minWidth: 70, alignment: .trailing)
                 .contentTransition(.numericText())
