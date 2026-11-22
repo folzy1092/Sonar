@@ -90,7 +90,7 @@ private struct DrumTape: View, Animatable {
     let spacing: CGFloat
     let label: (Int) -> String
 
-    var animatableData: Double {
+    nonisolated var animatableData: Double {
         get { position }
         set { position = newValue }
     }
