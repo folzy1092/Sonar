@@ -176,7 +176,7 @@ export default {
   'Вокруг обложки': 'Wokół okładki',
   'Исполнитель': 'Wykonawca',
   'Форма': 'Kształt',
-  'Скругление концов мини плеера и левой панели: 100% — капсула': 'Zaokrąglenie końców miniodtwarzacza i lewego panelu: 100 % to kapsuła',
+  'Скругление концов мини плеера и панели вкладок: 100% — капсула': 'Zaokrąglenie końców miniodtwarzacza i paska kart: 100 % to kapsuła',
   'Скругление обложки в мини плеере: 100% — круг': 'Zaokrąglenie okładki w miniodtwarzaczu: 100 % to koło',
   'Стиль плеера': 'Styl odtwarzacza',
   'Выберите визуальный стиль плеера': 'Wybierz styl wizualny odtwarzacza',

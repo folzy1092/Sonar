@@ -176,7 +176,7 @@ export default {
   'Вокруг обложки': 'Around cover',
   'Исполнитель': 'Artist',
   'Форма': 'Shape',
-  'Скругление концов мини плеера и левой панели: 100% — капсула': 'Rounding of the mini player and left panel ends: 100% is a pill',
+  'Скругление концов мини плеера и панели вкладок: 100% — капсула': 'Rounding of the mini player and tab bar ends: 100% is a pill',
   'Скругление обложки в мини плеере: 100% — круг': 'Cover rounding in the mini player: 100% is a circle',
   'Стиль плеера': 'Player style',
   'Выберите визуальный стиль плеера': 'Choose the player’s visual style',

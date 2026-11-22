@@ -176,7 +176,7 @@ export default {
   'Вокруг обложки': 'Alrededor de la portada',
   'Исполнитель': 'Artista',
   'Форма': 'Forma',
-  'Скругление концов мини плеера и левой панели: 100% — капсула': 'Redondeo de los extremos del minirreproductor y del panel izquierdo: 100 % es una cápsula',
+  'Скругление концов мини плеера и панели вкладок: 100% — капсула': 'Redondeo de los extremos del minirreproductor y de la barra de pestañas: 100 % es una cápsula',
   'Скругление обложки в мини плеере: 100% — круг': 'Redondeo de la portada en el minirreproductor: 100 % es un círculo',
   'Стиль плеера': 'Estilo del reproductor',
   'Выберите визуальный стиль плеера': 'Elige el estilo visual del reproductor',

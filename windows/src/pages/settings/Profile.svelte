@@ -63,7 +63,7 @@
   const linkOk = $derived(!linkInput.trim() || parseLink(linkInput) !== null)
 
   const PICTURES: { key: Picture; label: string; hint: string }[] = [
-    { key: 'profile.avatar', label: 'Аватар', hint: 'Круглый, в левой панели и на главной' },
+    { key: 'profile.avatar', label: 'Аватар', hint: 'Круглый, в панели вкладок и на главной' },
     { key: 'profile.banner', label: 'Баннер', hint: 'Полоса над аватаром, 3 : 1' },
     { key: 'profile.background', label: 'Фон', hint: 'За всей карточкой профиля, 16 : 9' },
   ]
