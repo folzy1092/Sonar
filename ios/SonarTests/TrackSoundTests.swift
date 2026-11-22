@@ -106,7 +106,8 @@ final class TrackSoundTests: XCTestCase {
                     "Скорость, тон, реверб и эквалайзер — только у этого трека и на всех твоих устройствах",
                     "У этого трека свой звук — кривая сохранится только для него",
                     "Этот трек идёт потоком HLS — свой тон и реверб на нём не слышны. Slowed со связанным тоном работает"] {
-            for lang in Lang.allCases where lang != .ru {
+            // «Тон» по-украински тоже «Тон» — совпадение с русским здесь не пропуск перевода
+            for lang in Lang.allCases where lang != .ru && !(key == "Тон" && lang == .uk) {
                 XCTAssertNotEqual(I18n.translate(key, lang: lang), key, "\(key) — \(lang)")
             }
         }
