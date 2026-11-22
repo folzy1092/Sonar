@@ -3,13 +3,12 @@
   // (queueView / queueItems), текст — LyricsView в уменьшенном масштабе. Выезжает справа, закрывается
   // крайней кнопкой мини-плеера. Есть текст — сверху капсулы «Текст · Очередь», нет — только очередь.
   import { untrack } from 'svelte'
-  import { fly, slide } from 'svelte/transition'
   import TrackRow from '../components/TrackRow.svelte'
   import LyricsView from '../lyrics/LyricsView.svelte'
   import { lyrics } from '../lyrics/lyrics.svelte'
   import { cascade } from '../lib/cascade'
   import { indicator } from '../lib/indicator'
-  import { glide, reducedMotion, rise, xfade } from '../lib/motion'
+  import { glide, reducedMotion, rise, xfade, fly, slide } from '../lib/motion'
   import { t } from '../lib/i18n.svelte'
   import { player } from '../player/player.svelte'
   import { growLimit, QUEUE_WINDOW, queueItems, queueView } from '../player/queue-view'

@@ -3,7 +3,6 @@
   // выключен. Привязка — 6-значный код или QR с экрана (5 минут), дальше телефон входит своим ключом.
   // Звук не передаётся — только команды и что сейчас играет. Отвязать — ключ телефона перестаёт работать.
   import { onDestroy } from 'svelte'
-  import { slide } from 'svelte/transition'
   import Switch from '../../components/settings/Switch.svelte'
   import Group from '../../components/settings/Group.svelte'
   import Icon from '../../components/Icon.svelte'
@@ -11,7 +10,7 @@
   import { remote } from '../../lib/remote.svelte'
   import { api, errorText, type RemoteDevice, type RemotePairStart } from '../../lib/api'
   import { cascade } from '../../lib/cascade'
-  import { pop } from '../../lib/motion'
+  import { pop, slide } from '../../lib/motion'
   import { confirm } from '../../lib/confirm.svelte'
   import { toast } from '../../lib/toast.svelte'
   import { dateLong } from '../../lib/format'

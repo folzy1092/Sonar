@@ -8,7 +8,7 @@
   import Rows from '../../components/settings/Rows.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Slider from '../../components/settings/Slider.svelte'
-  import { slide } from 'svelte/transition'
+  import { slide } from '../../lib/motion'
   import Group from '../../components/settings/Group.svelte'
   import More from '../../components/settings/More.svelte'
   import FallbackOrder from '../../components/settings/FallbackOrder.svelte'

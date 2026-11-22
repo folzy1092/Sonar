@@ -207,4 +207,5 @@ export default {
   'Выберите где отображается обложка': 'Wähle, wo das Cover angezeigt wird',
   'Обложка в обложке': 'Cover im Cover',
   'Отображать меньшую обложку внутри основной': 'Ein kleineres Cover im Haupt-Cover anzeigen',
+  'Разделы настроек': 'Einstellungsbereiche',
 } satisfies Record<string, string>

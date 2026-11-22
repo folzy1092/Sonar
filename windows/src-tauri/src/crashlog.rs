@@ -9,7 +9,7 @@
 //! в «Загрузки» и показывает его в Проводнике — прислать вручную.
 
 use anyhow::{anyhow, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -147,19 +147,38 @@ pub enum Sent {
   Saved { path: String },
 }
 
-/// Отправить отчёт: в Telegram ботом отчётов, а в сборке без него — сохранить в «Загрузки».
-pub async fn send(http: &reqwest::Client, device: &str) -> Result<Sent> {
-  let report = path("report.log").ok_or_else(|| anyhow!("журнал не запущен"))?;
-  let body = std::fs::read(&report).map_err(|_| anyhow!("Отчёт уже отправлен или удалён"))?;
-  let p = summarize(&String::from_utf8_lossy(&body));
-  let caption = format!(
-    "{} Sonar {} · {}\nустройство {device}\nошибок: {}\n{}",
+/// Что было в интерфейсе в момент отправки — помогает повторить ошибку.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Context {
+  /// Стиль интерфейса (`appearance.style`).
+  pub style: Option<String>,
+  /// Сколько треков в очереди.
+  pub queue: Option<usize>,
+}
+
+/// Длина строки стиля в подписи — защита от мусора из интерфейса.
+const STYLE_MAX: usize = 32;
+
+/// Подпись к отчёту: что случилось, версия, система, устройство, стиль и очередь.
+fn caption(p: &Pending, device: &str, ctx: &Context) -> String {
+  let style: String = ctx.style.as_deref().unwrap_or("?").chars().take(STYLE_MAX).collect();
+  let queue = ctx.queue.map_or_else(|| "?".to_owned(), |n| n.to_string());
+  format!(
+    "{} Sonar {} · {}\nустройство {device}\nстиль {style} · очередь {queue}\nошибок: {}\n{}",
     if p.crashed { "💥 Падение" } else { "⚠️ Ошибки" },
     env!("CARGO_PKG_VERSION"),
     os_line(),
     p.errors,
     p.last
-  );
+  )
+}
+
+/// Отправить отчёт: в Telegram ботом отчётов, а в сборке без него — сохранить в «Загрузки».
+pub async fn send(http: &reqwest::Client, device: &str, ctx: &Context) -> Result<Sent> {
+  let report = path("report.log").ok_or_else(|| anyhow!("журнал не запущен"))?;
+  let body = std::fs::read(&report).map_err(|_| anyhow!("Отчёт уже отправлен или удалён"))?;
+  let p = summarize(&String::from_utf8_lossy(&body));
+  let caption = caption(&p, device, ctx);
   let name = format!("sonar-{}-{}.log", env!("CARGO_PKG_VERSION"), crate::store::now_ms());
   match (option_env!("SONAR_REPORT_BOT_TOKEN"), option_env!("SONAR_REPORT_CHAT")) {
     (Some(token), Some(chat)) if !token.is_empty() && !chat.is_empty() => {
@@ -191,6 +210,18 @@ pub async fn send(http: &reqwest::Client, device: &str) -> Result<Sent> {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn caption_has_version_style_and_queue() {
+    let p = Pending { crashed: true, errors: 2, last: "PANIC x".into() };
+    let ctx = Context { style: Some("classic".into()), queue: Some(412) };
+    let c = caption(&p, "dev1", &ctx);
+    assert!(c.contains(env!("CARGO_PKG_VERSION")));
+    assert!(c.contains("стиль classic · очередь 412"));
+    assert!(c.contains("устройство dev1"));
+    let blank = caption(&p, "dev1", &Context { style: Some("x".repeat(500)), queue: None });
+    assert!(blank.contains(&format!("стиль {} · очередь ?", "x".repeat(STYLE_MAX))));
+  }
 
   #[test]
   fn summary_counts_errors_and_panics() {

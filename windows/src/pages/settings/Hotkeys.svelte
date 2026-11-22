@@ -3,7 +3,7 @@
   // везде), ниже три карточки: Плеер, Навигация (с быстрым окном), Окно и оверлей. Клавиша — кнопка-колпачок:
   // клик — «нажми новое», Esc — отмена, Backspace / Delete — без клавиши. ↻ у строки — как с завода.
   // Навигации можно голую клавишу (`/`): она работает только внутри окна.
-  import { slide } from 'svelte/transition'
+  import { slide } from '../../lib/motion'
   import Card from '../../components/settings/Card.svelte'
   import Choice from '../../components/settings/Choice.svelte'
   import Icon from '../../components/Icon.svelte'

@@ -316,3 +316,74 @@ def test_admin_sees_own_sessions_and_closes_others(app, con):
     assert "m=sessions_closed" in r.headers["location"]
     assert b.get("/admin/", follow_redirects=False).headers["location"] == "/admin/login"
     assert a.get("/admin/", follow_redirects=False).status_code == 200
+
+
+def test_failed_logins_go_to_audit_with_cap(client, con):
+    from sonar.admin import users as admin_users
+    login(client, "wrong", user="intruder")
+    row = con.execute("SELECT admin, detail FROM admin_audit WHERE action = 'login_failed'").fetchone()
+    assert row["admin"] == "—" and '"login": "intruder"' in row["detail"] and '"reason": "bad"' in row["detail"]
+    for _ in range(5):
+        login(client, "wrong")
+    reasons = [r[0] for r in con.execute("SELECT detail FROM admin_audit WHERE action = 'login_failed'")]
+    assert any('"reason": "too_many"' in d for d in reasons)
+    for _ in range(admin_users.FAILED_LOGIN_CAP):
+        admin_users.login_failed(con, "x", "1.1.1.1", "bad")
+    assert admin_users.login_failed(con, "x", "1.1.1.1", "bad") is False
+    assert con.execute("SELECT COUNT(*) FROM admin_audit WHERE action = 'login_failed'").fetchone()[0] \
+        == admin_users.FAILED_LOGIN_CAP
+
+
+def test_audit_csv_export_filtered_and_formula_safe(client, con):
+    from sonar.admin import users as admin_users
+    assert client.get("/admin/audit.csv", follow_redirects=False).headers["location"] == "/admin/login"
+    logged_in(client)
+    uid = add_user(con)
+    admin_users.audit(con, "folzy", "ban", uid, reason="=HYPERLINK(\"x\")")
+    admin_users.audit(con, "folzy", "grant_sub", uid, days=30)
+    r = client.get("/admin/audit.csv?a=ban")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/csv")
+    assert "attachment" in r.headers["content-disposition"] and "-ban-" in r.headers["content-disposition"]
+    text = r.text.lstrip("﻿")
+    assert text.splitlines()[0] == "at,admin,action,user_id,user_login,detail"
+    assert "mira" in text and "grant_sub" not in text
+    assert admin_users.csv_cell("=1+1") == "'=1+1" and admin_users.csv_cell("-5") == "'-5"
+    assert admin_users.csv_cell("ok") == "ok" and admin_users.csv_cell(None) == ""
+    assert "Скачать CSV" in client.get("/admin/audit").text
+
+
+def test_users_search_by_telegram_id(client, con):
+    logged_in(client)
+    add_user(con, "u_1", "mira", n=1)
+    add_user(con, "u_2", "lev", n=2)
+    con.execute("UPDATE users SET tg_id = 987654321 WHERE id = 'u_2'")
+    page = client.get("/admin/users?q=987654321").text
+    assert "lev" in page and "mira" not in page
+
+
+def test_rate_limit_check_does_not_grow_memory():
+    from sonar.accounts import RateLimit
+    limit = RateLimit(limit=2, window_s=60)
+    for i in range(500):
+        assert limit.blocked(f"ip:10.0.0.{i}", f"login:user{i}") is False
+    assert limit.hits == {}, "проверка без попыток не заводит записей"
+    limit.hit("ip:1")
+    limit.hits["ip:1"][0] -= 120  # попытка старше окна
+    assert limit.blocked("ip:1") is False and "ip:1" not in limit.hits, "отжившая очередь удаляется"
+
+
+def test_admin_login_key_is_capped(con):
+    auth = AdminAuth(con)
+    with pytest.raises(AuthError):
+        auth.login("x" * 10_000, "wrong", "1.2.3.4")
+    assert max(len(k) for k in auth.limit.hits) <= len("login:") + 64
+
+
+def test_future_custom_period_and_huge_page(client, con):
+    from sonar.admin.web import PAGE_MAX, _int
+    logged_in(client)
+    assert _int("9" * 40) == PAGE_MAX and _int("-5") == 1 and _int("x") == 1
+    assert client.get("/admin/audit?page=" + "9" * 40).status_code == 200
+    assert client.get("/admin/users?page=" + "9" * 40).status_code == 200
+    r = client.get("/admin/?p=custom&from=2999-01-01&to=2999-02-01")
+    assert r.status_code == 200

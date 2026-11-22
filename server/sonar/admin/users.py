@@ -1,6 +1,8 @@
 """Пользователи в админке: список с поиском и фильтрами, карточка, действия (бан, логин, подписка)."""
 from __future__ import annotations
 
+import csv
+import io
 import json
 import sqlite3
 
@@ -23,6 +25,21 @@ class UserError(Exception):
 def audit(con: sqlite3.Connection, admin: str, action: str, target: str | None = None, **detail) -> None:
     con.execute("INSERT INTO admin_audit (at, admin, action, target, detail) VALUES (?,?,?,?,?)",
                 (now_ms(), admin, action, target, json.dumps(detail, ensure_ascii=False) if detail else None))
+
+
+FAILED_LOGIN_CAP = 200  # записей о неудачных входах за час — дальше не пишем, чтобы перебор не раздул базу
+HOUR_MS = 60 * 60 * 1000
+
+
+def login_failed(con: sqlite3.Connection, login: str, ip: str, reason: str, now: int | None = None) -> bool:
+    """Записать неудачный или заблокированный вход в журнал. → False, если за час их уже слишком много."""
+    now = now or now_ms()
+    recent = con.execute("SELECT COUNT(*) FROM admin_audit WHERE action = 'login_failed' AND at >= ?",
+                         (now - HOUR_MS,)).fetchone()[0]
+    if recent >= FAILED_LOGIN_CAP:
+        return False
+    audit(con, "—", "login_failed", None, login=login.strip()[:64], ip=ip, reason=reason)
+    return True
 
 
 def listing(con: sqlite3.Connection, q: str = "", flt: str = "all", sort: str = "new", page: int = 1,
@@ -188,3 +205,29 @@ def audit_page(con: sqlite3.Connection, action: str | None, page: int) -> tuple[
         f"SELECT a.*, u.login AS user_login FROM admin_audit a LEFT JOIN users u ON u.id = a.target {where}"
         " ORDER BY a.at DESC, a.id DESC LIMIT ? OFFSET ?", args + [AUDIT_PAGE, (max(page, 1) - 1) * AUDIT_PAGE]).fetchall()
     return [dict(r) for r in rows], total
+
+
+AUDIT_CSV_MAX = 50_000
+CSV_HEADER = ("at", "admin", "action", "user_id", "user_login", "detail")
+
+
+def csv_cell(value) -> str:
+    """Ячейка CSV без формул: Excel и Таблицы исполняют «=…», «+…», «-…», «@…» — прячем апострофом."""
+    text = "" if value is None else str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+def audit_csv(con: sqlite3.Connection, action: str | None, fmt_at) -> str:
+    """Журнал целиком (до AUDIT_CSV_MAX строк, новые сверху) одной строкой CSV."""
+    where, args = ("WHERE a.action = ?", [action]) if action else ("", [])
+    rows = con.execute(
+        f"SELECT a.at, a.admin, a.action, a.target, u.login AS user_login, a.detail FROM admin_audit a"
+        f" LEFT JOIN users u ON u.id = a.target {where} ORDER BY a.at DESC, a.id DESC LIMIT ?",
+        args + [AUDIT_CSV_MAX]).fetchall()
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(CSV_HEADER)
+    for r in rows:
+        w.writerow([csv_cell(fmt_at(r["at"])), csv_cell(r["admin"]), csv_cell(r["action"]), csv_cell(r["target"]),
+                    csv_cell(r["user_login"]), csv_cell(r["detail"])])
+    return out.getvalue()

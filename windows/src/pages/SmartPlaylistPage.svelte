@@ -8,6 +8,8 @@
   import Icon from '../components/Icon.svelte'
   import TrackRow from '../components/TrackRow.svelte'
   import { cascade } from '../lib/cascade'
+  import { growLimit, LIST_WINDOW } from '../lib/list-window'
+  import { nearEnd } from '../lib/near-end'
   import { api, errorText, type SmartPlaylist } from '../lib/api'
   import { durationText, tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
@@ -35,6 +37,13 @@
     return q ? items.filter((x) => `${x.title} ${x.artist}`.toLowerCase().includes(q)) : items
   })
   const total = $derived(items.reduce((s, x) => s + x.duration_ms, 0))
+  // окно списка: большой умный плейлист не рисуется целиком; новый фильтр — окно снова маленькое
+  let limit = $state(LIST_WINDOW)
+  $effect.pre(() => {
+    void filter
+    limit = LIST_WINDOW
+  })
+  const shown = $derived(visible.length > limit ? visible.slice(0, limit) : visible)
 
   /** Подпись под названием: откуда треки и сколько условий. */
   const rulesText = $derived.by(() => {
@@ -145,14 +154,26 @@
     <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('В «{title}» нет «{query}».', { title, query: filter.trim() })} />
   {:else}
     <div class="list" use:cascade>
-      {#each visible as x, i (x.ref)}
+      {#each shown as x, i (x.ref)}
         <TrackRow track={x} addedAt={x.added_at} onplay={() => play(i)} />
       {/each}
+      {#if shown.length < visible.length}
+        <div class="more" use:nearEnd={{ key: limit, onreach: () => (limit = growLimit(limit, visible.length)) }}></div>
+      {/if}
     </div>
   {/if}
 </div>
 
 <style>
+  /* сторож окна списка — невидимая строка в самом низу */
+  .more {
+    height: 1px;
+  }
+  /* строки вне экрана не раскладываются и не рисуются */
+  .list > :global(*) {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 56px;
+  }
   .find {
     display: flex;
     align-items: center;

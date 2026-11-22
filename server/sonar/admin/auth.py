@@ -21,6 +21,8 @@ FACTORY_LOGIN = "folzy"
 FACTORY_HASH = "$argon2id$v=19$m=65536,t=3,p=4$CBDDxt0fRy4DNS6h+twaJg$wEEch4WWjBWtx16uoLyJsGGkeFHxF+SDS3YucaHu8F0"
 SESSION_TTL_MS = 12 * 3600_000      # ADMIN.md §1: сессия админки короткая
 PASSWORD_MIN = 10
+# Длиннее логина не бывает — обрезаем до проверки, чтобы мусорный ввод не раздувал ключи лимита входа.
+LOGIN_MAX = 64
 
 _ph = PasswordHasher()
 # Ложная проверка для несуществующего логина — чтобы время ответа не выдавало, есть ли такой админ.
@@ -69,7 +71,7 @@ class AdminAuth:
 
     def login(self, login: str, password: str, ip: str, user_agent: str = "") -> tuple[str, Session]:
         """→ (токен для cookie, сессия). AuthError('too_many' | 'bad')."""
-        login = login.strip().lower()
+        login = login.strip().lower()[:LOGIN_MAX]
         keys = (f"ip:{ip}", f"login:{login}")
         if self.limit.blocked(*keys):
             raise AuthError("too_many")

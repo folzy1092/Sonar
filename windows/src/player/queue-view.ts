@@ -71,16 +71,8 @@ export type QueueItem =
   /** Очередь длиннее окна: строка-сторож, дойдёт прокрутка — окно растёт (`growLimit`). */
   | { kind: 'more'; key: string }
 
-/** Сколько треков после текущего рисовать сразу. «Любимые» на тысячи треков целиком — тысячи строк и
- *  FLIP у каждой на смене трека: прокрутка и скрытие элементов лагали (владелец 2026-11-22). */
-export const QUEUE_WINDOW = 60
-/** На сколько окно растёт, когда прокрутка дошла до конца. */
-export const QUEUE_STEP = 60
-
-/** Новый размер окна: плюс шаг, но не больше длины очереди (и не меньше прежнего). */
-export function growLimit(limit: number, total: number): number {
-  return Math.max(limit, Math.min(limit + QUEUE_STEP, total))
-}
+/** Сколько треков после текущего рисовать сразу и на сколько окно растёт — общее окно длинных списков. */
+export { LIST_STEP as QUEUE_STEP, LIST_WINDOW as QUEUE_WINDOW, growLimit } from '../lib/list-window'
 
 export interface ItemsOptions {
   /** Показывать тумблер «Авто похожие» и похожие (не в Sonar Mix). */

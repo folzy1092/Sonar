@@ -3,8 +3,7 @@
   // не открывает. Колесо мыши над значком или ползунком меняет громкость.
   import Icon from '../components/Icon.svelte'
   import { player } from './player.svelte'
-  import { slide } from 'svelte/transition'
-  import { reducedMotion } from '../lib/motion'
+  import { reducedMotion, slide } from '../lib/motion'
   import { t } from '../lib/i18n.svelte'
 
   let open = $state(false)

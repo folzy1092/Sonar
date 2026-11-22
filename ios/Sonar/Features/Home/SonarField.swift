@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UIKit
 
@@ -5,7 +6,8 @@ import UIKit
 /// фигуры в этом месте. Фигуры по кругу перетекают друг в друга: знак Sonar → шар со светом → две волны.
 /// Сами по себе точки всё время чуть плывут и дышат размером; когда играет музыка — сильнее и с бегущей
 /// рябью. Цвет — акцент темы (под обложку). Касание — фигура целиком пружинит, как желе (сжалась,
-/// качнулась к пальцу, успокоилась) и лёгкий тактильный отклик; долгое нажатие — лист настроений волны (`onHold`). Рисует Canvas одним путём, ~1800 точек, 30 кадров/с (во время касания — 60); вне экрана — пауза.
+/// качнулась к пальцу, успокоилась) и лёгкий тактильный отклик; долгое нажатие — лист настроений волны (`onHold`). Рисует Canvas одним путём, ~1800 точек, 30 кадров/с (во время касания — 60, в режиме энергосбережения и когда приложение
+/// не на переднем плане — 15); вне экрана — пауза.
 /// Всё «на кадр» (фигуры, течение) — `FieldFrame`, на точку остаётся только сложение таблиц.
 struct SonarField: View {
     var active: Bool
@@ -27,14 +29,15 @@ struct SonarField: View {
     static let pokeLife = 1.3
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
     @State private var size: CGSize = .zero
     @State private var logo: [Float] = []
     @State private var pokes: [Poke] = []
     @State private var kindCounter = -1
 
     var body: some View {
-        // пока играет касание — 60 кадров/с: точки разлетаются быстро, на 30 это видно как рывки
-        let interval = pokes.isEmpty ? Self.calmInterval : Self.pokeInterval
+        let interval = Self.frameInterval(poking: !pokes.isEmpty, lowPower: lowPower, sceneActive: scenePhase == .active)
         TimelineView(.animation(minimumInterval: interval, paused: !active || reduceMotion)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             let logo = self.logo, playing = self.playing, color = self.color, step = self.step
@@ -85,6 +88,9 @@ struct SonarField: View {
             logo = Self.logoMask(FieldGrid(size: new, step: step))
         }
         .onAppear { Haptics.prepareNudge() }
+        .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange).receive(on: RunLoop.main)) { _ in
+            lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        }
         // последнее касание отыграло — убрать его, поле вернётся к спокойным 30 кадрам/с
         .task(id: kindCounter) {
             guard !pokes.isEmpty else { return }
@@ -99,6 +105,15 @@ struct SonarField: View {
     /// Кадр без касаний и во время игры касания, с.
     static let calmInterval: TimeInterval = 1 / 30
     static let pokeInterval: TimeInterval = 1 / 60
+    /// Энергосбережение или приложение не на переднем плане — поле живёт, но реже.
+    static let saverInterval: TimeInterval = 1 / 15
+
+    /// Шаг кадра. Пока играет касание — 60 кадров/с: точки разлетаются быстро, на 30 это видно как рывки.
+    /// Энергосбережение и неактивная сцена важнее касания — батарея дороже плавности.
+    static func frameInterval(poking: Bool, lowPower: Bool, sceneActive: Bool) -> TimeInterval {
+        if lowPower || !sceneActive { return saverInterval }
+        return poking ? pokeInterval : calmInterval
+    }
     /// Меньше этого радиуса точка не рисуется, pt.
     static let minRadius = 0.45
     /// Сильнее всего касание надувает точку (подскок) — граница для пропуска пустых точек.

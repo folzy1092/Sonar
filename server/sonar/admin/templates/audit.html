@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Журнал{% endblock %}
 {% block main %}
-<div class="head"><div><h1>Журнал</h1><p>Действий: {{ total | num }}</p></div></div>
+<div class="head"><div><h1>Журнал</h1><p>Действий: {{ total | num }}</p></div>
+  {% if rows %}<a class="btn ghost" href="{{ BASE }}/audit.csv{{ '?a=' ~ a if a }}" download>Скачать CSV</a>{% endif %}</div>
 <form class="filters" method="get" action="{{ BASE }}/audit">
   <select name="a" aria-label="Действие">
     <option value="">Все действия</option>

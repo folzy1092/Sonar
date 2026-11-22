@@ -207,4 +207,5 @@ export default {
   'Выберите где отображается обложка': 'Elige dónde se muestra la portada',
   'Обложка в обложке': 'Portada en la portada',
   'Отображать меньшую обложку внутри основной': 'Muestra una portada más pequeña dentro de la principal',
+  'Разделы настроек': 'Secciones de ajustes',
 } satisfies Record<string, string>

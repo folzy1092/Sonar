@@ -48,8 +48,9 @@ MESSAGES = {
 ACTIONS = {"login": "Вход в админку", "password": "Смена пароля", "ban": "Блокировка", "unban": "Разблокировка",
            "set_login": "Смена логина", "grant_sub": "Подписка вручную", "settings": "Настройки",
            "end_device": "Завершена сессия устройства", "logout_all": "Выход на всех устройствах",
-           "close_sessions": "Закрыты другие сессии админки"}
+           "close_sessions": "Закрыты другие сессии админки", "login_failed": "Неудачный вход в админку"}
 PERIODS = {"today": 1, "7": 7, "30": 30, "90": 90}
+PAGE_MAX = 1_000_000  # дальше страниц всё равно нет, а огромный OFFSET роняет SQLite
 
 router = APIRouter(prefix=BASE)
 
@@ -138,9 +139,9 @@ def _csrf_ok(s: Session, form: dict) -> bool:
 
 
 def _int(v: str, low: int = 1) -> int:
-    """Номер страницы из адреса: мусор и меньше `low` — `low`."""
+    """Номер страницы из адреса: мусор и меньше `low` — `low`, огромное — `PAGE_MAX` (OFFSET в SQLite — int64)."""
     try:
-        return max(low, int(v))
+        return min(max(low, int(v)), PAGE_MAX)
     except ValueError:
         return low
 
@@ -177,6 +178,7 @@ async def login_submit(request: Request):
         token, s = _auth(request).login(form.get("login", ""), form.get("password", ""), _ip(request),
                                         request.headers.get("user-agent", ""))
     except AuthError as err:
+        users.login_failed(_state(request).con, form.get("login", ""), _ip(request), err.code)
         return _go("/login", e=err.code)
     users.audit(_state(request).con, s.admin.login, "login", None, ip=_ip(request))
     resp = _go("/password" if s.admin.must_change else "/")
@@ -253,6 +255,7 @@ def _period(request: Request) -> tuple[str, str, str]:
             return "30", dashboard.shift(today, -29), today
         a, b = min(a, b), max(a, b)
         b = min(b, date.fromisoformat(today))
+        a = min(a, b)  # оба дня в будущем — период из одного сегодняшнего дня, а не «с завтра по сегодня»
         if (b - a).days > 366:
             a = date.fromordinal(b.toordinal() - 366)
         return "custom", a.isoformat(), b.isoformat()
@@ -374,15 +377,31 @@ async def settings_submit(request: Request):
     return _go("/settings", m="saved" if changed else "no_change")
 
 
+def _audit_action(request: Request) -> str:
+    action = request.query_params.get("a", "")
+    return action if action in ACTIONS else ""
+
+
+@router.get("/audit.csv")
+async def audit_csv(request: Request):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    action = _audit_action(request)
+    iso = lambda ms: datetime.fromtimestamp(ms / 1000, tz()).isoformat(timespec="seconds")  # noqa: E731
+    body = "\ufeff" + users.audit_csv(_state(request).con, action or None, iso)  # BOM — Excel узнаёт UTF-8
+    name = f"sonar-audit{'-' + action if action else ''}-{date.today().isoformat()}.csv"
+    return Response(body, media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+
+
 @router.get("/audit", response_class=HTMLResponse)
 async def audit_page(request: Request):
     s = _guard(request)
     if not isinstance(s, Session):
         return s
-    qp = request.query_params
-    action = qp.get("a", "")
-    action = action if action in ACTIONS else ""
-    page = _int(qp.get("page", "1"))
+    action = _audit_action(request)
+    page = _int(request.query_params.get("page", "1"))
     rows, total = users.audit_page(_state(request).con, action or None, page)
     pages = max(1, (total + users.AUDIT_PAGE - 1) // users.AUDIT_PAGE)
     link = lambda n: BASE + "/audit?" + urlencode({"a": action, "page": n})  # noqa: E731

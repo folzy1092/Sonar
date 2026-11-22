@@ -2,6 +2,7 @@
 // <head> всех страниц: заголовок, описание, canonical, hreflang, Open Graph, значок. Трекеров нет.
 import '../styles/global.css'
 import { SITE_URL } from '../config'
+import { JS_CLASS } from '../lib/inline-scripts.mjs'
 import { LANGS, LOCALES, href, type Lang } from '../i18n'
 import favicon from '../../../brand/icon/sonar_icon_dark.svg?url'
 
@@ -25,6 +26,7 @@ const canonical = new URL(href(lang, path), SITE_URL).href
 <meta name="description" content={description} />
 <meta name="theme-color" content="#050506" />
 <meta name="color-scheme" content="dark" />
+<meta name="referrer" content="strict-origin-when-cross-origin" />
 {noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={canonical} />}
 {!noindex && LANGS.map((l) => <link rel="alternate" hreflang={l} href={new URL(href(l, path), SITE_URL).href} />)}
 {!noindex && <link rel="alternate" hreflang="x-default" href={new URL(href('ru', path), SITE_URL).href} />}
@@ -40,4 +42,4 @@ const canonical = new URL(href(lang, path), SITE_URL).href
 <meta property="og:image" content={new URL(OG_IMAGE, SITE_URL).href} />
 <meta name="twitter:card" content="summary_large_image" />
 
-<script is:inline>document.documentElement.classList.add('js')</script>
+<script is:inline set:html={JS_CLASS} />

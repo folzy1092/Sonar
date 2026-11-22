@@ -726,9 +726,9 @@ pub fn report_pending() -> Option<crate::crashlog::Pending> {
 
 /// «Отправить лог»: в Telegram ботом отчётов (или в «Загрузки», если бот не вшит в сборку).
 #[tauri::command]
-pub async fn report_send(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<crate::crashlog::Sent> {
+pub async fn report_send(core: State<'_, Arc<Core>>, db: State<'_, Db>, context: Option<crate::crashlog::Context>) -> Res<crate::crashlog::Sent> {
   let device = db.0.lock().unwrap().device_id().map_err(err)?;
-  let sent = crate::crashlog::send(&core.http, &device).await.map_err(err)?;
+  let sent = crate::crashlog::send(&core.http, &device, &context.unwrap_or_default()).await.map_err(err)?;
   if let crate::crashlog::Sent::Saved { path } = &sent {
     // показать файл в Проводнике — его останется переслать
     let _ = std::process::Command::new("explorer").arg(format!("/select,{path}")).spawn();

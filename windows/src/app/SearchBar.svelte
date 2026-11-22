@@ -6,7 +6,6 @@
   import { IMPLEMENTED } from '../lib/services'
   import Cover from '../components/Cover.svelte'
   import { onMount } from 'svelte'
-  import { fly } from 'svelte/transition'
   import { searchHistory, type SearchEntry } from '../lib/search-history.svelte'
   import { openRef } from './router.svelte'
   import { playStation } from '../player/autoplay.svelte'
@@ -16,7 +15,7 @@
   import { fade } from 'svelte/transition'
   import { autocompleteSource } from './autocomplete-source.svelte'
   import { canSuggest, decideKey, suggest, type FieldState } from '../lib/autocomplete'
-  import { reducedMotion } from '../lib/motion'
+  import { reducedMotion, fly } from '../lib/motion'
 
   // недавнее под пустым полем: открывается кликом по полю, закрывается кликом мимо (или выбором)
   let open = $state(false)

@@ -1,6 +1,8 @@
 <script lang="ts">
   import ScrollStick from '../components/ScrollStick.svelte'
   import { cascade } from '../lib/cascade'
+  import { growLimit, LIST_WINDOW } from '../lib/list-window'
+  import { nearEnd } from '../lib/near-end'
   // Плейлист / Любимые (pc/Screenshot_28). Параметр роутера:
   //   favorites — свои лайки; pl_… — плейлист Sonar (правка, скрыть, удалить, порядок перетаскиванием);
   //   scpl:… / ympl:… — плейлист сервиса «фантомом», с кнопкой «Перенести в Sonar»;
@@ -60,6 +62,14 @@
     else if (sort.id === 'duration') list.sort((a, b) => a.duration_ms - b.duration_ms)
     return list
   })
+  // окно списка: «Любимые» на тысячи треков не рисуются целиком; новый фильтр или порядок — окно снова маленькое
+  let limit = $state(LIST_WINDOW)
+  $effect.pre(() => {
+    void filter
+    void sortIdx
+    limit = LIST_WINDOW
+  })
+  const shown = $derived(visible.length > limit ? visible.slice(0, limit) : visible)
   const total = $derived(items.reduce((s, t) => s + t.duration_ms, 0))
   const context = kind === 'favorites' ? 'favorites' : kind === 'local' ? 'local' : `playlist:${id}`
   const canReorder = $derived(kind === 'own' && sort.id === 'custom' && !filter.trim())
@@ -271,7 +281,7 @@
     <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('В «{title}» нет «{query}».', { title: heading, query: filter.trim() })} />
   {:else}
     <div class="list" use:cascade>
-      {#each visible as t, i (t.item_id ?? t.ref + i)}
+      {#each shown as t, i (t.item_id ?? t.ref + i)}
         <div
           class="drag"
           class:over={dragOver === i && dragFrom !== i}
@@ -298,6 +308,9 @@
           />
         </div>
       {/each}
+      {#if shown.length < visible.length}
+        <div class="more" use:nearEnd={{ key: limit, onreach: () => (limit = growLimit(limit, visible.length)) }}></div>
+      {/if}
     </div>
   {/if}
 </div>
@@ -361,6 +374,13 @@
   .drag {
     border-radius: var(--radius-m);
     border-top: 2px solid transparent;
+    /* строки вне экрана не раскладываются и не рисуются */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 56px;
+  }
+  /* сторож окна списка — невидимая строка в самом низу */
+  .more {
+    height: 1px;
   }
   .drag.over {
     border-top-color: var(--accent);

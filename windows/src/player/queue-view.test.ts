@@ -140,3 +140,25 @@ describe('growLimit', () => {
     expect(growLimit(80, 70)).toBe(80)
   })
 })
+
+// Замер вместо профилировщика: exe здесь не запустить, поэтому проверяем, что пересчёт очереди
+// на 5000 треков (каждая смена трека или прокрутка до сторожа) укладывается в долю кадра.
+describe('скорость очереди', () => {
+  const BIG = 5000
+  const FRAME_MS = 16
+
+  it(`очередь на ${BIG} треков пересчитывается быстрее кадра`, () => {
+    const tracks = Array.from({ length: BIG }, (_, i) => tr(`t${i}`))
+    const big = src({ tracks, order: tracks.map((_, i) => i), pos: 2500, ids: tracks.map((_, i) => i) })
+    queueItems(queueView(big), { autoSection: false, autoOn: false, limit: QUEUE_STEP }) // прогрев
+    const runs = 20
+    const started = performance.now()
+    let shown = 0
+    for (let i = 0; i < runs; i++) {
+      shown = queueItems(queueView({ ...big, pos: 2500 + i }), { autoSection: false, autoOn: false, limit: QUEUE_STEP }).length
+    }
+    const perRun = (performance.now() - started) / runs
+    expect(shown).toBeLessThanOrEqual(QUEUE_STEP + 10)
+    expect(perRun).toBeLessThan(FRAME_MS)
+  })
+})

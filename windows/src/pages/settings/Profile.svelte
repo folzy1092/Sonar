@@ -3,7 +3,7 @@
   // картинки (аватар, баннер, фон), цвет профиля, имя и описание, ссылки, вид шапки, шрифт и эффект ника,
   // витрина до 6 мест. До сервера всё в `profile.*` настройках (синхронизируются), с сервером — GET/PATCH
   // /me (docs/API.md). Пусто — имя и аватар из подключённого сервиса. Уровней и значков нет.
-  import { slide } from 'svelte/transition'
+  import { slide } from '../../lib/motion'
   import Card from '../../components/settings/Card.svelte'
   import PreviewTiles from '../../components/settings/PreviewTiles.svelte'
   import CopyProfileLink from '../../components/CopyProfileLink.svelte'

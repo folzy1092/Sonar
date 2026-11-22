@@ -401,7 +401,7 @@ export const api = {
     call<ServiceStatus>('connect_service_key', { service, fields }),
   resolveLink: (url: string) => call<LinkItem>('resolve_link', { url }),
   reportPending: () => call<CrashReport | null>('report_pending'),
-  reportSend: () => call<ReportSent>('report_send'),
+  reportSend: (context: { style: string; queue: number }) => call<ReportSent>('report_send', { context }),
   reportDismiss: () => call<void>('report_dismiss'),
   logFrontend: (level: 'error' | 'warn', message: string) => call<void>('log_frontend', { level, message }),
   syncNow: () => call<{ pushed: number; pulled: number; plays: number }>('sync_now'),

@@ -18,12 +18,11 @@
   // Карточка сервиса в Настройки → Сервисы: шапка (значок, имя, статус, «Отключить»), вход в один клик
   // и ручной ввод ключей — всё из реестра lib/services.ts. Значения полей не уходят ни в ошибки, ни в
   // интерфейс: после успеха поля очищаются, ошибку показываем ту, что вернул Rust.
-  import { slide } from 'svelte/transition'
   import SourceIcon from '../../components/SourceIcon.svelte'
   import { t } from '../../lib/i18n.svelte'
   import { api, errorText, type ServiceState, type ServiceStatus } from '../../lib/api'
   import { ICONS } from '../../lib/service-icons'
-  import { pop, reducedMotion, xfade } from '../../lib/motion'
+  import { pop, reducedMotion, xfade, slide } from '../../lib/motion'
   import { toast } from '../../lib/toast.svelte'
   import type { ServiceInfo } from '../../lib/services'
 

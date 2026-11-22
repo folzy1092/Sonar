@@ -84,7 +84,7 @@ section + section { margin-top: 16px; }
 .split i { display: block; background: var(--deep); }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--text-2); font-size: 13px; margin-top: 8px; }
 .legend b { font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
-.sw { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 6px; background: var(--text-3); }
+.sw { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 8px; background: var(--text-3); }
 .sw.accent { background: var(--deep); }
 
 /* графики */
@@ -105,7 +105,7 @@ section + section { margin-top: 16px; }
 .rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .rank li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: baseline; }
 .rank .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rank .t small { color: var(--text-3); font-size: 12px; margin-left: 6px; }
+.rank .t small { color: var(--text-3); font-size: 12px; margin-left: 8px; }
 .rank .v { color: var(--text-2); font-variant-numeric: tabular-nums; font-size: 13px; text-align: right; }
 .rank .bar { grid-column: 1 / -1; height: 3px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
 .rank .bar i { display: block; height: 100%; background: var(--text-3); }
@@ -151,7 +151,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
   transition: background-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
 .seg a:hover { color: var(--text); }
 .seg a.on { background: var(--surface-3); color: var(--text); }
-.field { display: flex; flex-direction: column; gap: 6px; }
+.field { display: flex; flex-direction: column; gap: 8px; }
 .field label { color: var(--text-2); font-size: 13px; }
 .field .hint { color: var(--text-3); font-size: 12px; }
 .field.bad input, .field.bad textarea { border-color: var(--down); }
@@ -221,9 +221,9 @@ table.plain tbody tr:hover { background: none; }
 .row.between { justify-content: space-between; }
 
 /* Свои сессии админки — на странице пароля */
-.sess-title { font-size: 15px; margin: 24px 0 8px; }
-.sessions { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.sess { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 1px solid var(--border);
+.sess-title { font-size: 16px; line-height: 24px; margin: 24px 0 8px; }
+.sessions { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sess { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--border);
   border-radius: var(--r-sm); font-size: 13px; color: var(--text-2); }
 .sess.on { color: var(--text); background: var(--surface-1); }
 .sess small { display: block; color: var(--text-3); font-size: 12px; max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -2,24 +2,17 @@
 // 404.html (и /en/404/, /uk/404/, /es/404/ …). На корневую 404 GitHub Pages попадают и `/en/…`, `/de/…` — встроенный
 // скрипт переводит их на копию нужного языка, а `notfound.ts` возвращает исходный адрес в строку браузера.
 import NotFound from '../../components/notfound/NotFound.astro'
-import { DEFAULT_LANG, LANGS, langParam, langPaths, useT } from '../../i18n'
+import { langParam, langPaths, useT } from '../../i18n'
+import { NOT_FOUND_LANG } from '../../lib/inline-scripts.mjs'
 import Base from '../../layouts/Base.astro'
 
 export const getStaticPaths = langPaths
 
 const lang = langParam(Astro.params.lang)
 const { t } = useT(lang)
-/** Префиксы языков для встроенного скрипта: `en|uk|es|de|pl`. */
-const prefixes = LANGS.filter((l) => l !== DEFAULT_LANG).join('|')
 ---
 
 <Base lang={lang} path="/" title={t('Страница не найдена')} description={t('Такой страницы на сайте Sonar нет.')} noindex>
-  <script is:inline slot="head" define:vars={{ pageLang: lang, prefixes }}>
-    var m = location.pathname.match(new RegExp('^/(' + prefixes + ')(?=/|$)'))
-    var want = m ? m[1] : 'ru'
-    if (want !== pageLang && !new RegExp('^/(' + prefixes + ')/404/?$').test(location.pathname)) {
-      location.replace('/' + want + '/404/?from=' + encodeURIComponent(location.pathname + location.search + location.hash))
-    }
-  </script>
+  <script is:inline slot="head" set:html={NOT_FOUND_LANG} />
   <NotFound lang={lang} />
 </Base>

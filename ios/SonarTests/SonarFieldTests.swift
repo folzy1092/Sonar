@@ -80,4 +80,12 @@ final class SonarFieldTests: XCTestCase {
         XCTAssertEqual(gone.dx, 0)
         XCTAssertEqual(gone.scale, 1)
     }
+
+    func testFrameIntervalSavesBatteryFirst() {
+        XCTAssertEqual(SonarField.frameInterval(poking: false, lowPower: false, sceneActive: true), 1 / 30)
+        XCTAssertEqual(SonarField.frameInterval(poking: true, lowPower: false, sceneActive: true), 1 / 60)
+        // энергосбережение и неактивная сцена — 15 кадров/с даже во время касания
+        XCTAssertEqual(SonarField.frameInterval(poking: true, lowPower: true, sceneActive: true), 1 / 15)
+        XCTAssertEqual(SonarField.frameInterval(poking: false, lowPower: false, sceneActive: false), 1 / 15)
+    }
 }

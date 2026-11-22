@@ -3,7 +3,7 @@
   // других»), «Поиск» — треки, альбомы и исполнители сервиса, который стоит первым в едином поиске
   // (`search.preferred`). Нажал на строку — место добавлено, список не закрывается: можно взять ещё.
   import { onDestroy, onMount } from 'svelte'
-  import { fly } from 'svelte/transition'
+  import { fly } from '../../lib/motion'
   import Choice from '../../components/settings/Choice.svelte'
   import Icon from '../../components/Icon.svelte'
   import { api } from '../../lib/api'

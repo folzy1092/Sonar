@@ -9,6 +9,8 @@
   import { isTauri } from '../lib/tauri'
   import { updater } from '../lib/updater.svelte'
   import { t } from '../lib/i18n.svelte'
+  import { settings } from '../lib/settings.svelte'
+  import { player } from '../player/player.svelte'
 
   let report = $state<CrashReport | null>(null)
   let phase = $state<'idle' | 'sending' | 'sent' | 'saved' | 'error'>('idle')
@@ -33,7 +35,8 @@
   async function send() {
     phase = 'sending'
     try {
-      const r = await api.reportSend()
+      // стиль и размер очереди — в подпись отчёта (версию добавляет Rust)
+      const r = await api.reportSend({ style: settings.get('appearance.style'), queue: player.tracks.length })
       phase = r.kind === 'telegram' ? 'sent' : 'saved'
       setTimeout(() => (report = null), 2200)
     } catch (e) {

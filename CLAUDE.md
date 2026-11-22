@@ -41,7 +41,7 @@ CI `ios.yml` → неподписанная `Sonar.ipa`, подписывает 
 окна — `glass.rs`, раскладки вкладок и мини-плеера — сетка в `App.svelte`. Анимации — общие приёмы `windows/src/lib/` (`motion.ts`, `use:cascade`, `use:indicator`, `use:pulse`; длинные списки очереди — окно `QUEUE_WINDOW` + сторож `lib/near-end.ts` + `content-visibility`),
 новые экраны собирать на них; настройки — `lib/settings.svelte.ts` (ключи и значения по умолчанию).
 Журнал ошибок — `windows/src-tauri/src/crashlog.rs` (плашка после сбоя, «Отправить лог» ботом отчётов из
-секретов CI `SONAR_REPORT_*`, токен в репо не класть). Синк на стороне клиента готов (`store/sync.rs`, `sync.rs`). **Админка на сервере** (2026-11-22) — `server/sonar/admin/` (FastAPI + Jinja без JS, `docs/ADMIN.md` §0): вход `folzy` с обязательной сменой заводского пароля (в коде только хэш, сброс — `python -m sonar.admin passwd`), пользователи, дашборд из таблицы `events` (`POST /events`, клиенты пока не шлют), подписки — `subs.py`, выход пользователя с одного или всех устройств, журнал с фильтром и страницами, свои сессии админки на смене пароля; настройки без деплоя — `admin/prefs.py` → `GET /config`; HTTP поднимается в процессе бота (`sonar/web.py`), локально на выдуманных данных — `python server/tools/admin_demo.py`.
+секретов CI `SONAR_REPORT_*`, токен в репо не класть). Синк на стороне клиента готов (`store/sync.rs`, `sync.rs`). **Админка на сервере** (2026-11-22) — `server/sonar/admin/` (FastAPI + Jinja без JS, `docs/ADMIN.md` §0): вход `folzy` с обязательной сменой заводского пароля (в коде только хэш, сброс — `python -m sonar.admin passwd`), пользователи, дашборд из таблицы `events` (`POST /events`, клиенты пока не шлют), подписки — `subs.py`, выход пользователя с одного или всех устройств, журнал с фильтром и страницами (неудачные входы, CSV), свои сессии админки на смене пароля; настройки без деплоя — `admin/prefs.py` → `GET /config`; HTTP поднимается в процессе бота (`sonar/web.py`), локально на выдуманных данных — `python server/tools/admin_demo.py`.
 Discord RPC: ID приложения Discord пользователь **не вводит** — до сервера он вшит в сборку
 (`discord.rs` `APP_ID` = 1571615944449466510, с 2026-11-15), потом приходит с сервера (`GET /config`). Тесты Windows: `npm test` (vitest),
 `cargo test` в `src-tauri`; живые проверки SC — `SC_CLIENT_ID=… cargo test -- --ignored`.
@@ -230,3 +230,6 @@ Discord RPC: ID приложения Discord пользователь **не в�
   `windows/src/lib/subscription.ts` и что каждая строка переведена на en и uk).
 - iOS: собирается только на CI (Mac нет) — пуш в `main` запускает `ios.yml`; смотреть лог сборки.
 - Обновил API или схему — обнови `docs/API.md` / `docs/DB.md` в том же коммите.
+- Крупный пуш (несколько экранов, сервер, безопасность) — сначала навык `ponytail-review` по диффу,
+  «Must fix» — до пуша. Раз в несколько недель — `ponytail-audit` всего репо в `docs/AUDIT.md`.
+- Карта кода — навык `graphify` (только AST, без семантики — бесплатно): `graphify-out/` в git не идёт.

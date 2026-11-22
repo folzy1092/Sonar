@@ -51,7 +51,7 @@
   import { isShutter, openMode } from './lib/settings-open'
   import { hotkeys } from './lib/hotkeys.svelte'
   import { remote } from './lib/remote.svelte'
-  import { slide } from 'svelte/transition'
+  import { slide } from './lib/motion'
   import { notch } from './lib/notch'
   import { floating } from './lib/floating'
 

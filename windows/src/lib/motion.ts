@@ -2,7 +2,15 @@
 // с прозрачностью, исчезает быстрее, чем появлялось. «Меньше движения» в системе или выключатель
 // `appearance.animations` — только прозрачность.
 import { cubicOut, cubicIn } from 'svelte/easing'
-import type { TransitionConfig } from 'svelte/transition'
+import {
+  fly as svelteFly,
+  scale as svelteScale,
+  slide as svelteSlide,
+  type FlyParams,
+  type ScaleParams,
+  type SlideParams,
+  type TransitionConfig,
+} from 'svelte/transition'
 import { flip, type AnimationConfig } from 'svelte/animate'
 
 let animationsOn = true
@@ -91,4 +99,27 @@ export function countUp(from: number, to: number, ms: number, cb: (v: number) =>
   }
   raf = requestAnimationFrame(step)
   return () => cancelAnimationFrame(raf)
+}
+
+/** Длительность «спокойной» версии: короче движения, только прозрачность. */
+const CALM_SHARE = 0.6
+const SVELTE_DEFAULT_MS = 400
+
+function calm({ duration = SVELTE_DEFAULT_MS, delay = 0 }: { duration?: number; delay?: number }): TransitionConfig {
+  return { duration: Math.round(duration * CALM_SHARE), delay, css: (t) => `opacity:${t}` }
+}
+
+/** `slide` из svelte/transition, но «Меньше движения» — без сворачивания высоты, только прозрачность. */
+export function slide(node: Element, params: SlideParams = {}): TransitionConfig {
+  return reducedMotion() ? calm(params) : svelteSlide(node, params)
+}
+
+/** `fly` из svelte/transition, но «Меньше движения» — без сдвига, только прозрачность. */
+export function fly(node: Element, params: FlyParams = {}): TransitionConfig {
+  return reducedMotion() ? calm(params) : svelteFly(node, params)
+}
+
+/** `scale` из svelte/transition, но «Меньше движения» — без масштаба, только прозрачность. */
+export function scale(node: Element, params: ScaleParams = {}): TransitionConfig {
+  return reducedMotion() ? calm(params) : svelteScale(node, params)
 }

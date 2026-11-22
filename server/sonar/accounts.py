@@ -72,9 +72,15 @@ class RateLimit:
     def blocked(self, *keys: str) -> bool:
         t = time.monotonic()
         for k in keys:
-            q = self.hits[k]
+            # `get`, а не `self.hits[k]`: проверка не должна заводить запись на каждый новый логин или IP
+            q = self.hits.get(k)
+            if q is None:
+                continue
             while q and t - q[0] > self.window:
                 q.popleft()
+            if not q:
+                del self.hits[k]
+                continue
             if len(q) >= self.limit:
                 return True
         return False
