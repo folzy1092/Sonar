@@ -27,10 +27,10 @@ enum SonarDeep {
     }
 
     static let plans: [Plan] = [
-        Plan(id: "ping", name: "Ping", seats: 1, monthly: 100),
-        Plan(id: "echo", name: "Echo", seats: 2, monthly: 190),
-        Plan(id: "pod", name: "Pod", seats: 3, monthly: 285),
-        Plan(id: "fleet", name: "Fleet", seats: 4, monthly: 380),
+        Plan(id: "ping", name: "Ping", seats: 1, monthly: 150),
+        Plan(id: "echo", name: "Echo", seats: 2, monthly: 285),
+        Plan(id: "pod", name: "Pod", seats: 3, monthly: 425),
+        Plan(id: "fleet", name: "Fleet", seats: 4, monthly: 570),
     ]
 
     /// Строка под тарифами: кому достаётся Deep — «только для тебя» / «для тебя и ещё одного друга…» (как ПК

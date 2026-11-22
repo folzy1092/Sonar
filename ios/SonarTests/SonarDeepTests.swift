@@ -14,11 +14,11 @@ final class SonarDeepTests: XCTestCase {
     }
 
     func testPricesMatchPc() {
-        XCTAssertEqual(SonarDeep.price(plan("fleet"), period("1m")), 380)
-        XCTAssertEqual(SonarDeep.price(plan("echo"), period("3m")), 510)
-        XCTAssertEqual(SonarDeep.price(plan("pod"), period("6m")), 1450)
-        XCTAssertEqual(SonarDeep.price(plan("ping"), period("12m")), 900)
-        XCTAssertEqual(SonarDeep.price(plan("fleet"), period("12m")), 3420)
+        XCTAssertEqual(SonarDeep.price(plan("fleet"), period("1m")), 570)
+        XCTAssertEqual(SonarDeep.price(plan("echo"), period("3m")), 765)
+        XCTAssertEqual(SonarDeep.price(plan("pod"), period("6m")), 2165)
+        XCTAssertEqual(SonarDeep.price(plan("ping"), period("12m")), 1350)
+        XCTAssertEqual(SonarDeep.price(plan("fleet"), period("12m")), 5130)
     }
 
     func testPricesRoundDownToFive() {
