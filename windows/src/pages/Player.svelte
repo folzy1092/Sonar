@@ -41,6 +41,8 @@
   // круглая наклейка на виниле (≈ 62 % диска)
   const pstyle = $derived(settings.get('player.style'))
   let artW = $state(320)
+  /** Высота правой колонки — «Большая» обложка вровень с ней (не длиннее). */
+  let sideH = $state(0)
   const coverSize = $derived(pstyle === 'large' ? Math.max(320, artW) : pstyle === 'vinyl' ? Math.max(320, artW) : 320)
   // очередь: «Ранее» (последние сыгранные), «Сейчас играет», «Далее» как в SoundCloud — своя очередь,
   // ниже тумблер «Авто похожие» и похожие автоплея. Ключ строки — стабильный id элемента очереди:
@@ -80,7 +82,7 @@
 </script>
 
 <div class="layout q-{settings.get('queue.position')}" class:with-queue={settings.get('queue.show')}>
-<div class="top st-{settings.get('player.style')}" class:flip={settings.get('player.cover_position') === 'right'}>
+<div class="top st-{settings.get('player.style')}" style:--side-h={sideH ? `${sideH}px` : null} class:flip={settings.get('player.cover_position') === 'right'}>
   <div class="art" class:vinyl={pstyle === 'vinyl'} class:spin={player.playing} bind:clientWidth={artW} data-fx-cover data-fx-frame>
     <button class="open-full" aria-label={t('Полноэкранный плеер')} title={t('Полноэкранный плеер')} disabled={!track} onclick={() => lyrics.open()}>
       <Cover url={track?.cover_url} size={coverSize} radius={pstyle === 'vinyl' ? '50%' : '18px'} />
@@ -120,7 +122,7 @@
     {/if}
   </div>
 
-  <div class="side">
+  <div class="side" bind:clientHeight={sideH}>
     <div class="head" style:--align={align} style:--justify={align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'} use:replay={track?.ref}>
       <h1 class="selectable" data-fx-title title={track?.title}>{track?.title ?? t('Ничего не играет')}</h1>
       <p class="artist selectable">
@@ -263,9 +265,13 @@
 
 <style>
   /* ---- стиль плеера (Плеер → Вид, player.style) ---- */
-  /* «Большой»: обложка на всю высоту — колонка шире, обложка растягивается по ней */
+  /* «Большой»: обложка вровень с правой колонкой — верх с названием, низ с громкостью (владелец
+     2026-11-22: раньше тянулась на 48 % ширины и торчала вниз); не меньше обычных 320 px и не шире 48 % */
   .top.st-large {
-    grid-template-columns: minmax(320px, 48%) minmax(0, 1fr);
+    grid-template-columns: max(320px, min(var(--side-h, 320px), 48%)) minmax(0, 1fr);
+  }
+  .top.st-large .art {
+    margin-top: 0;
   }
 
   /* «Пластинка»: просто круглая обложка во всю площадь, медленно вращается, пока играет (без диска и

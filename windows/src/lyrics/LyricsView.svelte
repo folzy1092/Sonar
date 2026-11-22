@@ -299,7 +299,8 @@
   <div class="scroller" bind:this={scroller} onwheel={() => ((userScrollAt = performance.now()), cancelAnimationFrame(glideRaf))}>
     {#if synced}
       {#if intro}
-        <div class="line pause intro" class:active={active === -1} style:opacity={active === -1 ? 1 : 0.42}>
+        <!-- текст пошёл — точки вступления гаснут совсем (владелец 2026-11-22), место остаётся: строки не дёргаются -->
+        <div class="line pause intro" class:active={active === -1} style:opacity={active === -1 ? 1 : 0} style:transition="opacity 0.4s var(--ease)">
           <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="count" aria-hidden="true"></span>
         </div>
       {/if}
