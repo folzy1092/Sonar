@@ -1,7 +1,8 @@
 """Вход в админку: свой админ (не аккаунт Sonar), сессии в базе, смена заводского пароля.
 
-Заводской админ `folzy` создаётся при первом запуске. Репо публичное, поэтому пароля в коде нет —
-только его хэш argon2id; флаг must_change не пускает дальше формы смены пароля.
+Заводской админ `folzy` создаётся при первом запуске со случайным паролем: он печатается один раз в журнал
+запуска, в базе — только хэш argon2id. Репо публичное, поэтому ни пароля, ни хэша в коде нет; флаг
+must_change не пускает дальше формы смены пароля.
 """
 from __future__ import annotations
 
@@ -17,8 +18,8 @@ from ..accounts import RateLimit
 from ..db import now_ms
 
 FACTORY_LOGIN = "folzy"
-# argon2id заводского пароля (временный, сменить при первом входе). Сам пароль владелец знает из задачи.
-FACTORY_HASH = "$argon2id$v=19$m=65536,t=3,p=4$CBDDxt0fRy4DNS6h+twaJg$wEEch4WWjBWtx16uoLyJsGGkeFHxF+SDS3YucaHu8F0"
+# 18 случайных байт → 24 символа base64url: заводской пароль живёт до первого входа.
+FACTORY_PASSWORD_BYTES = 18
 SESSION_TTL_MS = 12 * 3600_000      # ADMIN.md §1: сессия админки короткая
 PASSWORD_MIN = 10
 # Длиннее логина не бывает — обрезаем до проверки, чтобы мусорный ввод не раздувал ключи лимита входа.
@@ -58,13 +59,14 @@ class AdminAuth:
         self.con = con
         self.limit = RateLimit(limit=5, window_s=15 * 60)
 
-    def ensure_factory(self) -> bool:
-        """Нет ни одного админа — создать заводского. True, если создан."""
+    def ensure_factory(self) -> str | None:
+        """Нет ни одного админа — создать заводского со случайным паролем. → этот пароль (показать один раз) или None."""
         if self.con.execute("SELECT 1 FROM admins LIMIT 1").fetchone():
-            return False
+            return None
+        password = secrets.token_urlsafe(FACTORY_PASSWORD_BYTES)
         self.con.execute("INSERT INTO admins (login, password_hash, must_change, created_at) VALUES (?,?,1,?)",
-                         (FACTORY_LOGIN, FACTORY_HASH, now_ms()))
-        return True
+                         (FACTORY_LOGIN, _ph.hash(password), now_ms()))
+        return password
 
     def _admin(self, r) -> Admin:
         return Admin(r["id"], r["login"], bool(r["must_change"]))
@@ -128,7 +130,7 @@ class AdminAuth:
             raise AuthError("mismatch")
         if len(new) < PASSWORD_MIN:
             raise AuthError("short")
-        if new == old or new.lower() in {r["login"].lower(), FACTORY_LOGIN} or _verifies(FACTORY_HASH, new):
+        if new == old or new.lower() in {r["login"].lower(), FACTORY_LOGIN}:
             raise AuthError("weak")
         self.set_password(r["login"], new)
         return self._new_session(Admin(r["id"], r["login"], False), ip, user_agent)
@@ -142,10 +144,3 @@ class AdminAuth:
             self.con.execute("UPDATE admins SET password_hash = ?, must_change = 0, changed_at = ? WHERE id = ?",
                              (_ph.hash(new), now_ms(), r["id"]))
             self.con.execute("DELETE FROM admin_sessions WHERE admin_id = ?", (r["id"],))
-
-
-def _verifies(h: str, password: str) -> bool:
-    try:
-        return _ph.verify(h, password)
-    except (VerifyMismatchError, InvalidHashError):
-        return False

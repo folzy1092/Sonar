@@ -421,7 +421,7 @@ CREATE INDEX subscriptions_ends ON subscriptions(ends_at);
 CREATE TABLE admins (                           -- свой вход админки, не аккаунт Sonar
   id            INTEGER PRIMARY KEY,
   login         TEXT UNIQUE NOT NULL COLLATE NOCASE,
-  password_hash TEXT NOT NULL,                  -- argon2id; заводской folzy — только хэш в коде
+  password_hash TEXT NOT NULL,                  -- argon2id; заводской folzy — случайный пароль, один раз в журнал
   must_change   INTEGER NOT NULL DEFAULT 1,     -- 1 — до смены пароля видна только форма смены
   created_at    INTEGER NOT NULL,
   changed_at    INTEGER

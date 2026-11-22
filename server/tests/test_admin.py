@@ -1,4 +1,4 @@
-"""Админка: вход с заводским паролем, обязательная смена, CSRF, лимит попыток, страницы, действия, события."""
+"""Админка: вход со случайным заводским паролем, обязательная смена, CSRF, лимит попыток, страницы, действия, события."""
 import hashlib
 import re
 
@@ -7,17 +7,19 @@ from fastapi.testclient import TestClient
 
 from sonar import events
 from sonar.admin import prefs
-from sonar.admin.auth import FACTORY_HASH, FACTORY_LOGIN, AdminAuth, AuthError
+from sonar.admin.auth import FACTORY_LOGIN, PASSWORD_MIN, AdminAuth, AuthError
 from sonar.config import Settings
 from sonar.db import now_ms
 from sonar.web import create_app
 
-FACTORY_PASSWORD = "folzy"  # заводской пароль из задачи; в коде сервера — только его хэш
+FACTORY_PASSWORD = ""  # случайный, его задаёт фикстура app (create_app сам печатает пароль в журнал)
 NEW_PASSWORD = "river-sonar-42"
 
 
 @pytest.fixture
 def app(con, tmp_path):
+    global FACTORY_PASSWORD
+    FACTORY_PASSWORD = AdminAuth(con).ensure_factory()
     return create_app(con, Settings(data_dir=tmp_path))
 
 
@@ -30,7 +32,8 @@ def csrf_of(html: str) -> str:
     return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
 
 
-def login(client, password=FACTORY_PASSWORD, user=FACTORY_LOGIN):
+def login(client, password=None, user=FACTORY_LOGIN):
+    password = FACTORY_PASSWORD if password is None else password
     page = client.get("/admin/login")
     return client.post("/admin/login", data={"login": user, "password": password, "csrf": csrf_of(page.text)},
                        follow_redirects=False)
@@ -54,13 +57,32 @@ def add_user(con, uid="u_1", login="mira", created=None, n=1):
 
 # ---- заводской админ ----
 
-def test_factory_admin_created_once_with_hash_only(con):
+def test_factory_admin_created_once_with_random_password(con):
     auth = AdminAuth(con)
-    assert auth.ensure_factory() is True
-    assert auth.ensure_factory() is False
+    password = auth.ensure_factory()
+    assert password and len(password) >= PASSWORD_MIN and password.lower() != FACTORY_LOGIN
+    assert auth.ensure_factory() is None
     row = con.execute("SELECT * FROM admins").fetchone()
     assert row["login"] == "folzy" and row["must_change"] == 1
-    assert row["password_hash"].startswith("$argon2id$") and FACTORY_PASSWORD not in row["password_hash"]
+    assert row["password_hash"].startswith("$argon2id$") and password not in row["password_hash"]
+    auth.login("folzy", password, "1.1.1.1")
+
+
+def test_factory_password_differs_per_install(tmp_path):
+    from sonar.db import connect
+    first = AdminAuth(connect(tmp_path / "a.db")).ensure_factory()
+    second = AdminAuth(connect(tmp_path / "b.db")).ensure_factory()
+    assert first != second
+
+
+def test_factory_password_logged_once(con, tmp_path, caplog):
+    with caplog.at_level("WARNING", logger="sonar.web"):
+        create_app(con, Settings(data_dir=tmp_path))
+        create_app(con, Settings(data_dir=tmp_path))
+    shown = [r.getMessage() for r in caplog.records if "пароль" in r.getMessage()]
+    assert len(shown) == 1
+    password = shown[0].split("пароль: ")[1].split(" ")[0]
+    AdminAuth(con).login("folzy", password, "1.1.1.1")
 
 
 def test_factory_password_not_in_source():
@@ -69,7 +91,7 @@ def test_factory_password_not_in_source():
     for f in [*(root / "sonar").rglob("*.py"), root / "env.example"]:
         text = f.read_text(encoding="utf-8")
         assert not re.search(r"""password\w*\s*=\s*["']folzy["']""", text, re.I), f
-    assert FACTORY_HASH.startswith("$argon2id$")
+        assert "$argon2id$" not in text, f  # ни пароля, ни его хэша в публичном репо
 
 
 def test_login_requires_password_change_first(client):

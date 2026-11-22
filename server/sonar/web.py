@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import config, events
 from .admin import prefs
-from .admin.auth import AdminAuth
+from .admin.auth import FACTORY_LOGIN, AdminAuth
 from .admin.web import BASE, HERE, router as admin_router
 from .config import Settings
 
@@ -30,8 +30,11 @@ def create_app(con: sqlite3.Connection, settings: Settings) -> FastAPI:
     app = FastAPI(title="Sonar", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.con, app.state.settings = con, settings
     app.state.admin_auth = AdminAuth(con)
-    if app.state.admin_auth.ensure_factory():
-        log.warning("создан заводской админ folzy — смени пароль при первом входе")
+    factory_password = app.state.admin_auth.ensure_factory()
+    if factory_password:
+        # Единственный раз, когда пароль виден: в базе только хэш. Потерял — python -m sonar.admin passwd.
+        log.warning("создан заводской админ %s, пароль: %s — войди и смени его (показывается один раз)",
+                    FACTORY_LOGIN, factory_password)
     prefs.apply(con, settings)
     app.mount(BASE + "/static", StaticFiles(directory=str(HERE / "static")), name="admin-static")
     app.include_router(admin_router)
