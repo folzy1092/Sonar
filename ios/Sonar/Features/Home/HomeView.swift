@@ -340,7 +340,8 @@ struct RecentPager: View {
                     ForEach(Array(pages.enumerated()), id: \.offset) { index, list in
                         VStack(spacing: 4) {
                             ForEach(Array(list.enumerated()), id: \.element.ref) { row, track in
-                                TrackRow(track: track, playing: engine.current?.ref == track.ref) {
+                                // свайп вбок листает страницы «Недавнего», а не жест строки
+                                TrackRow(track: track, playing: engine.current?.ref == track.ref, swipes: false) {
                                     engine.play(tracks, at: index * 4 + row, context: "Недавнее", tapped: true)
                                 }
                             }

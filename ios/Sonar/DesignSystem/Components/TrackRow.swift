@@ -51,6 +51,8 @@ struct TrackRow: View {
     var playing = false
     /// Убрать из списка, где показан (Любимые, плейлист) — пункт «Удалить из плейлиста» в листе.
     var remove: (@MainActor () -> Void)?
+    /// Свайп вбок — жест из «Жестов». false — там, где вбок листаются страницы («Недавнее» на Главной).
+    var swipes = true
     let action: @MainActor () -> Void
     @Environment(PlaybackEngine.self) private var engine
     @Environment(Router.self) private var router
@@ -82,7 +84,7 @@ struct TrackRow: View {
         }
         .padding(.vertical, 5)
         // свайпы из Профиль → Жесты → Медиатека (по умолчанию — «Играть следующим»)
-        .trackSwipe(.library, track: track, remove: remove)
+        .modifier(OptionalTrackSwipe(on: swipes, track: track, remove: remove))
         .opacity(track.available ? 1 : 0.4)
     }
 
@@ -154,5 +156,20 @@ struct DurationPill: View {
         .frame(width: 52, height: 28)
         .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Theme.line, lineWidth: 1.2))
         .animation(Motion.spring, value: playing)
+    }
+}
+
+/// Свайпы строки — только если они не мешают листать (`TrackRow.swipes`).
+private struct OptionalTrackSwipe: ViewModifier {
+    let on: Bool
+    let track: Track
+    let remove: (@MainActor () -> Void)?
+
+    func body(content: Content) -> some View {
+        if on {
+            content.trackSwipe(.library, track: track, remove: remove)
+        } else {
+            content
+        }
     }
 }
