@@ -222,6 +222,7 @@ final class PlaybackEngine {
             play([list[index]], at: 0, context: context)
             return
         }
+        tapFeedback()
         // пульт: играет ПК — список уходит туда, этот iPhone молчит
         if RemoteControl.shared.forward(list, from: index) { return }
         // новая очередь — прошлая волна (если была) закончилась, её сессии исход уже не нужен
@@ -281,6 +282,7 @@ final class PlaybackEngine {
     func jump(toUpcoming offset: Int) {
         let target = pos + 1 + offset
         guard order.indices.contains(target) else { return }
+        tapFeedback()
         finishPlay(skipped: true)
         pos = target
         load(autoplay: true)
@@ -309,6 +311,12 @@ final class PlaybackEngine {
     func cycleRepeat() {
         repeatMode = repeatMode.next
         dropPreload()
+    }
+
+    /// Выбрали трек (в списке, у артиста, в очереди) — лёгкий отклик, если включён (`general.haptics`).
+    private func tapFeedback() {
+        guard SettingsStore.shared.bool("general.haptics") else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     func setRate(_ value: Float) {

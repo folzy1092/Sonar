@@ -1,12 +1,15 @@
 import SwiftUI
 import UIKit
 
-/// Меню текста (`IMG_6787`, `IMG_6788`): «По словам / По строкам» и круг размера (S → M → L → XL), Стиль
+/// Меню текста (`IMG_6787`, `IMG_6788`): круг размера (S → M → L → XL) и «По словам / По строкам», Стиль
 /// текста и Анимация (тап — следующее значение, как в ПК-клиенте), смещение линейкой ±2 с (двойной тап —
 /// сброс), «Перевод», «Найти заново».
 struct LyricsMenuSheet: View {
     let track: Track
     @State private var dragStart: Double?
+    /// Что показывает переключатель «По словам / По строкам» — капсула едет сразу, а текст за листом
+    /// перестраивается после неё (иначе тяжёлая перекладка текста дёргает анимацию). nil — как в настройке.
+    @State private var shownWords: Bool?
 
     private var store: LyricsStore { LyricsStore.shared }
     private var look: LyricsLook { LyricsLook.current() }
@@ -15,7 +18,6 @@ struct LyricsMenuSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                syncSwitch
                 Button {
                     let all = LyricsSize.allCases
                     let next = all[((all.firstIndex(of: look.size) ?? 0) + 1) % all.count]
@@ -31,6 +33,7 @@ struct LyricsMenuSheet: View {
                 }
                 .buttonStyle(PressableStyle(scale: 0.9))
                 .accessibilityLabel("Размер текста \(look.size.rawValue)")
+                syncSwitch
             }
 
             VStack(spacing: 0) {
@@ -89,34 +92,44 @@ struct LyricsMenuSheet: View {
 
     /// По словам / По строкам; без пословного времени «По словам» приглушено (закраска — по длительности строки).
     private var syncSwitch: some View {
-        HStack(spacing: 0) {
-            ForEach([true, false], id: \.self) { words in
-                let on = look.words == words
+        let words = shownWords ?? look.words
+        return HStack(spacing: 0) {
+            ForEach([true, false], id: \.self) { option in
+                let on = words == option
                 Button {
-                    store.mode = words ? .words : .lines
+                    guard option != words else { return }
                     UISelectionFeedbackGenerator().selectionChanged()
+                    withAnimation(Motion.spring) { shownWords = option }
+                    // текст перестраивается, когда капсула доехала — анимация не дёргается
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(280))
+                        guard shownWords == option else { return }
+                        store.mode = option ? .words : .lines
+                    }
                 } label: {
-                    Text(words ? "По словам" : "По строкам")
+                    Text(option ? "По словам" : "По строкам")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(on ? Theme.background : Theme.textSecondary)
+                        .contentTransition(.opacity)
                         .frame(maxWidth: .infinity)
                         .frame(height: 40)
-                        .background {
-                            if on {
-                                Capsule().fill(Theme.text).padding(0)
-                                    .matchedGeometryEffect(id: "sync", in: namespace)
-                            }
-                        }
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
             }
         }
+        // капсула — одна, едет сдвигом (дешевле matchedGeometryEffect, не перестраивает кнопки)
+        .background(alignment: .leading) {
+            GeometryReader { proxy in
+                Capsule()
+                    .fill(Theme.text)
+                    .frame(width: proxy.size.width / 2)
+                    .offset(x: words ? 0 : proxy.size.width / 2)
+            }
+        }
         .padding(6)
         .background(Theme.raised, in: Capsule())
     }
-
-    @Namespace private var namespace
 
     private func cycleRow(_ title: String, _ value: String, action: @escaping @MainActor () -> Void) -> some View {
         Button {
