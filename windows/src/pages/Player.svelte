@@ -7,7 +7,8 @@
   import PlayPause from '../components/PlayPause.svelte'
   import { pulse } from '../lib/pulse'
   import { glide, rise, xfade } from '../lib/motion'
-  import { queueItems, queueView } from '../player/queue-view'
+  import { growLimit, QUEUE_WINDOW, queueItems, queueView } from '../player/queue-view'
+  import { nearEnd } from '../lib/near-end'
   import { replay } from '../lib/replay'
   import { WAVE_CONTEXT, wave } from '../player/my-wave.svelte'
   import { settings } from '../lib/settings.svelte'
@@ -48,7 +49,15 @@
   const queue = $derived(
     queueView({ tracks: player.tracks, order: player.order, pos: player.pos, ids: player.entryIds, autoRefs: player.autoRefs }),
   )
-  const queueRows = $derived(queueItems(queue, { autoSection: player.context !== WAVE_CONTEXT, autoOn: autoplay.on }))
+  // окно очереди: сразу — {QUEUE_WINDOW} треков после текущего, дальше догружаются при прокрутке (nearEnd);
+  // новая очередь (другой источник) — окно снова маленькое
+  let limit = $state(QUEUE_WINDOW)
+  $effect.pre(() => {
+    void player.context
+    limit = QUEUE_WINDOW
+  })
+  const queueRows = $derived(queueItems(queue, { autoSection: player.context !== WAVE_CONTEXT, autoOn: autoplay.on, limit }))
+  const queueTotal = $derived(queue.own.length + queue.auto.length)
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
   const avatar = $derived(settings.get('player.artist_avatars') ? (track?.artists[0]?.avatar_url ?? null) : null)
   const align = $derived(settings.get('player.title_align'))
@@ -240,6 +249,9 @@
           <div class="auto">
             <Switch title={t('Авто похожие')} hint={autoplay.on ? (autoplay.loading && !queue.auto.length ? t('Подбираю похожие…') : t('После очереди играют похожие треки')) : t('Очередь доиграет и остановится')} on={autoplay.on} onchange={(v) => autoplay.set(v)} />
           </div>
+        {:else if row.kind === 'more'}
+          <!-- сторож окна: прокрутка подошла — дорисовать ещё -->
+          <div class="more" use:nearEnd={{ key: limit, onreach: () => (limit = growLimit(limit, queueTotal)) }}></div>
         {:else}
           <p class="empty">{t('Очередь пуста — включи трек из поиска.')}</p>
         {/if}
@@ -642,6 +654,15 @@
     padding-top: 6px;
     border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
     font-size: calc(13px * var(--fs, 1));
+  }
+  /* сторож окна очереди — невидимая строка в самом низу */
+  .more {
+    height: 1px;
+  }
+  /* строки вне экрана не раскладываются и не рисуются — прокрутка и скрытие элементов не тормозят */
+  .row-slot {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 56px;
   }
   .empty {
     margin: 4px 6px;

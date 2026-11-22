@@ -68,19 +68,34 @@ export type QueueItem =
   | { kind: 'track'; key: string; section: 'earlier' | 'now' | 'next' | 'auto'; entry: QueueEntry }
   | { kind: 'switch'; key: string }
   | { kind: 'empty'; key: string }
+  /** Очередь длиннее окна: строка-сторож, дойдёт прокрутка — окно растёт (`growLimit`). */
+  | { kind: 'more'; key: string }
+
+/** Сколько треков после текущего рисовать сразу. «Любимые» на тысячи треков целиком — тысячи строк и
+ *  FLIP у каждой на смене трека: прокрутка и скрытие элементов лагали (владелец 2026-11-22). */
+export const QUEUE_WINDOW = 60
+/** На сколько окно растёт, когда прокрутка дошла до конца. */
+export const QUEUE_STEP = 60
+
+/** Новый размер окна: плюс шаг, но не больше длины очереди (и не меньше прежнего). */
+export function growLimit(limit: number, total: number): number {
+  return Math.max(limit, Math.min(limit + QUEUE_STEP, total))
+}
 
 export interface ItemsOptions {
   /** Показывать тумблер «Авто похожие» и похожие (не в Sonar Mix). */
   autoSection: boolean
   /** Автоплей включён (пустая очередь без похожих — без надписи «пусто»). */
   autoOn: boolean
+  /** Сколько треков после текущего показать (своя очередь + похожие); нет — все. */
+  limit?: number
 }
 
 const trackItems = (list: QueueEntry[], section: 'earlier' | 'now' | 'next' | 'auto'): QueueItem[] =>
   list.map((entry) => ({ kind: 'track', key: `e${entry.id}`, section, entry }))
 
 /** Плоский список строк очереди по разделам. Ключи стабильны: `e<id>` у треков, имена у остальных. */
-export function queueItems(view: QueueView, { autoSection, autoOn }: ItemsOptions): QueueItem[] {
+export function queueItems(view: QueueView, { autoSection, autoOn, limit = Infinity }: ItemsOptions): QueueItem[] {
   const out: QueueItem[] = []
   if (view.earlier.length) {
     out.push({ kind: 'head', key: 'h-earlier', section: 'earlier' })
@@ -91,11 +106,14 @@ export function queueItems(view: QueueView, { autoSection, autoOn }: ItemsOption
     out.push(...trackItems([view.current], 'now'))
   }
   out.push({ kind: 'head', key: 'h-next', section: 'next' })
-  out.push(...trackItems(view.own, 'next'))
+  out.push(...trackItems(view.own.slice(0, limit), 'next'))
+  if (view.own.length > limit) return [...out, { kind: 'more', key: 'more' }]
   if (!view.own.length && !view.auto.length && !autoOn) out.push({ kind: 'empty', key: 'empty' })
   if (autoSection) {
+    const room = limit - view.own.length
     out.push({ kind: 'switch', key: 'auto-switch' })
-    out.push(...trackItems(view.auto, 'auto'))
+    out.push(...trackItems(view.auto.slice(0, room), 'auto'))
+    if (view.auto.length > room) out.push({ kind: 'more', key: 'more' })
   }
   return out
 }

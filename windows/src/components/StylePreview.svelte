@@ -243,6 +243,13 @@
     border: 1.5px solid var(--accent);
     opacity: 0;
   }
+  /* «Классика» — как при смене трека (theme/fx.css): обложка проявляется, заголовок поднимается */
+  .t-classic .run .cover {
+    animation: fx-settle 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .t-classic .run b {
+    animation: fx-rise6 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  }
   .t-echo .run .cover {
     animation: fx-cover-echo 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   }

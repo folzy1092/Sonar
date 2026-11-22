@@ -12,7 +12,8 @@
   import { glide, reducedMotion, rise, xfade } from '../lib/motion'
   import { t } from '../lib/i18n.svelte'
   import { player } from '../player/player.svelte'
-  import { queueItems, queueView } from '../player/queue-view'
+  import { growLimit, QUEUE_WINDOW, queueItems, queueView } from '../player/queue-view'
+  import { nearEnd } from '../lib/near-end'
   import { WAVE_CONTEXT } from '../player/my-wave.svelte'
   import { autoplay } from '../player/autoplay.svelte'
   import { knownLyrics, lyricsAvail, sidePane, type PaneMode } from './side-pane.svelte'
@@ -32,7 +33,15 @@
   const queue = $derived(
     queueView({ tracks: player.tracks, order: player.order, pos: player.pos, ids: player.entryIds, autoRefs: player.autoRefs }),
   )
-  const rows = $derived(queueItems(queue, { autoSection: player.context !== WAVE_CONTEXT, autoOn: autoplay.on }))
+  // окно очереди: сразу — {QUEUE_WINDOW} треков после текущего, дальше догружаются при прокрутке (nearEnd);
+  // новая очередь (другой источник) — окно снова маленькое
+  let limit = $state(QUEUE_WINDOW)
+  $effect.pre(() => {
+    void player.context
+    limit = QUEUE_WINDOW
+  })
+  const rows = $derived(queueItems(queue, { autoSection: player.context !== WAVE_CONTEXT, autoOn: autoplay.on, limit }))
+  const queueTotal = $derived(queue.own.length + queue.auto.length)
 
   /** Переключатель появляется и прячется по высоте; «Меньше движения» — только прозрачность. */
   function reveal(node: Element) {
@@ -71,6 +80,8 @@
                     <TrackRow track={entry.track} variant="queue" onplay={() => player.playPos(entry.pos)} />
                   {/if}
                 </div>
+              {:else if row.kind === 'more'}
+                <div class="more" use:nearEnd={{ key: limit, onreach: () => (limit = growLimit(limit, queueTotal)) }}></div>
               {:else if row.kind === 'empty'}
                 <p class="empty">{t('Очередь пуста — включи трек из поиска.')}</p>
               {/if}
@@ -109,6 +120,15 @@
     font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
     color: var(--text-3);
+  }
+  /* сторож окна очереди — невидимая строка в самом низу */
+  .more {
+    height: 1px;
+  }
+  /* строки вне экрана не раскладываются и не рисуются — прокрутка и скрытие элементов не тормозят */
+  .row-slot {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 56px;
   }
   .empty {
     margin: 8px 6px;

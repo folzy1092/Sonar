@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Track } from '../lib/api'
-import { queueItems, queueView, type QueueSource } from './queue-view'
+import { growLimit, QUEUE_STEP, queueItems, queueView, type QueueSource } from './queue-view'
 
 const tr = (ref: string): Track => ({
   ref,
@@ -113,5 +113,30 @@ describe('queueItems', () => {
   it('ключи уникальны', () => {
     const items = queueItems(queueView(src({ pos: 3, autoRefs: new Set(['f']) })), { autoSection: true, autoOn: false })
     expect(new Set(keys(items)).size).toBe(items.length)
+  })
+
+  it('длинная очередь — рисуются только первые `limit` треков после текущего, дальше строка «ещё»', () => {
+    const view = queueView(src({ pos: 0 }))
+    const items = queueItems(view, { autoSection: true, autoOn: true, limit: 3 })
+    expect(keys(items)).toEqual(['h-now', 'e100', 'h-next', 'e101', 'e102', 'e103', 'more'])
+  })
+
+  it('окно доходит до похожих — тумблер и часть похожих видны, хвост — «ещё»', () => {
+    const view = queueView(src({ pos: 2, earlierSize: 0, autoRefs: new Set(['f']) }))
+    const items = queueItems(view, { autoSection: true, autoOn: true, limit: 3 })
+    expect(keys(items)).toEqual(['h-now', 'e102', 'h-next', 'e103', 'e104', 'auto-switch', 'e105', 'more'])
+  })
+
+  it('всё влезло в окно — строки «ещё» нет', () => {
+    const view = queueView(src({ pos: 2, autoRefs: new Set(['f']) }))
+    expect(keys(queueItems(view, { autoSection: true, autoOn: true, limit: 5 }))).not.toContain('more')
+  })
+})
+
+describe('growLimit', () => {
+  it('добавляет шаг и не уходит за длину очереди', () => {
+    expect(growLimit(60, 1000)).toBe(60 + QUEUE_STEP)
+    expect(growLimit(60, 70)).toBe(70)
+    expect(growLimit(80, 70)).toBe(80)
   })
 })
