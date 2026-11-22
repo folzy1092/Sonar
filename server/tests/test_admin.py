@@ -260,3 +260,59 @@ def test_bot_notice_in_menus():
     s = Settings(bot_notice="Завтра <b>обновление</b>")
     assert "Завтра &lt;b&gt;обновление&lt;/b&gt;" in S.guest(s).html
     assert "обновление" not in S.guest(Settings()).html
+
+
+# ---- выход с устройств, журнал, свои сессии ----
+
+def add_session(con, uid, sid, device):
+    con.execute("INSERT INTO sessions (id, user_id, token_hash, device_id, device_name, platform, created_at, last_seen_at)"
+                " VALUES (?, ?, ?, ?, ?, 'ios', 1, 1)", (sid, uid, hashlib.sha256(sid.encode()).hexdigest(), device, device))
+
+
+def test_end_one_device_and_all_devices_without_ban(client, con):
+    logged_in(client)
+    uid = add_user(con)
+    add_session(con, uid, "s_1", "dev-1")
+    add_session(con, uid, "s_2", "dev-2")
+    token = csrf_of(client.get(f"/admin/users/{uid}").text)
+    r = client.post(f"/admin/users/{uid}/device", data={"csrf": token, "device": "dev-1"}, follow_redirects=False)
+    assert "m=device_ended" in r.headers["location"]
+    assert [r[0] for r in con.execute("SELECT device_id FROM sessions WHERE user_id = ?", (uid,))] == ["dev-2"]
+    r = client.post(f"/admin/users/{uid}/device", data={"csrf": token, "device": "dev-1"}, follow_redirects=False)
+    assert "e=no_change" in r.headers["location"]
+    r = client.post(f"/admin/users/{uid}/logout_all", data={"csrf": token}, follow_redirects=False)
+    assert "m=logged_out" in r.headers["location"]
+    assert con.execute("SELECT COUNT(*) FROM sessions WHERE user_id = ?", (uid,)).fetchone()[0] == 0
+    assert con.execute("SELECT banned FROM users WHERE id = ?", (uid,)).fetchone()[0] == 0
+    actions = [r[0] for r in con.execute("SELECT action FROM admin_audit WHERE target = ? ORDER BY id", (uid,))]
+    assert actions == ["end_device", "logout_all"]
+    assert "e=no_change" in client.post(f"/admin/users/{uid}/logout_all", data={"csrf": token},
+                                        follow_redirects=False).headers["location"]
+
+
+def test_audit_filter_and_pages(client, con):
+    from sonar.admin import users as admin_users
+    logged_in(client)
+    uid = add_user(con)
+    for i in range(admin_users.AUDIT_PAGE + 5):
+        admin_users.audit(con, "folzy", "grant_sub", uid, n=i)
+    admin_users.audit(con, "folzy", "ban", uid, reason="спам")
+    page = client.get("/admin/audit?a=ban").text
+    assert "спам" in page and "Подписка вручную</td>" not in page
+    first = client.get("/admin/audit?a=grant_sub").text
+    assert "page=2" in first
+    second = client.get("/admin/audit?a=grant_sub&page=2").text
+    assert second.count("Подписка вручную</td>") == 5
+    assert client.get("/admin/audit?a=nope&page=x").status_code == 200
+
+
+def test_admin_sees_own_sessions_and_closes_others(app, con):
+    a = logged_in(TestClient(app, base_url="http://testserver"))
+    b = TestClient(app, base_url="http://testserver")
+    login(b, NEW_PASSWORD)
+    page = a.get("/admin/password").text
+    assert page.count('<li class="sess') == 2
+    r = a.post("/admin/sessions/close_others", data={"csrf": csrf_of(page)}, follow_redirects=False)
+    assert "m=sessions_closed" in r.headers["location"]
+    assert b.get("/admin/", follow_redirects=False).headers["location"] == "/admin/login"
+    assert a.get("/admin/", follow_redirects=False).status_code == 200

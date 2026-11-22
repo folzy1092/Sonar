@@ -42,9 +42,13 @@ MESSAGES = {
     "login_set": "Логин изменён", "sub_granted": "Подписка выдана", "saved": "Сохранено",
     "password_changed": "Пароль изменён, остальные сессии закрыты", "too_long": "Слишком длинно",
     "not_https": "Ссылка должна начинаться с https://", "bad_period": "Неверный период",
+    "device_ended": "Сессия устройства завершена", "logged_out": "Вышел на всех устройствах",
+    "sessions_closed": "Остальные сессии админки закрыты",
 }
 ACTIONS = {"login": "Вход в админку", "password": "Смена пароля", "ban": "Блокировка", "unban": "Разблокировка",
-           "set_login": "Смена логина", "grant_sub": "Подписка вручную", "settings": "Настройки"}
+           "set_login": "Смена логина", "grant_sub": "Подписка вручную", "settings": "Настройки",
+           "end_device": "Завершена сессия устройства", "logout_all": "Выход на всех устройствах",
+           "close_sessions": "Закрыты другие сессии админки"}
 PERIODS = {"today": 1, "7": 7, "30": 30, "90": 90}
 
 router = APIRouter(prefix=BASE)
@@ -133,6 +137,14 @@ def _csrf_ok(s: Session, form: dict) -> bool:
     return secrets.compare_digest(form.get("csrf", ""), s.csrf)
 
 
+def _int(v: str, low: int = 1) -> int:
+    """Номер страницы из адреса: мусор и меньше `low` — `low`."""
+    try:
+        return max(low, int(v))
+    except ValueError:
+        return low
+
+
 def _guard(request: Request) -> Session | Response:
     """Вошёл и сменил заводской пароль — сессия; иначе — куда отправить."""
     s = _session(request)
@@ -189,7 +201,23 @@ async def password_page(request: Request):
     s = _session(request)
     if s is None:
         return _go("/login")
-    return _page(request, "password.html", s, forced=s.admin.must_change, min_len=PASSWORD_MIN)
+    return _page(request, "password.html", s, forced=s.admin.must_change, min_len=PASSWORD_MIN,
+                 sessions=_auth(request).sessions(s))
+
+
+@router.post("/sessions/close_others")
+async def close_other_sessions(request: Request):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    form = await _form(request)
+    if not _csrf_ok(s, form):
+        return _go("/password", e="csrf")
+    n = _auth(request).close_others(s)
+    if not n:
+        return _go("/password", e="no_change")
+    users.audit(_state(request).con, s.admin.login, "close_sessions", None, sessions=n)
+    return _go("/password", m="sessions_closed")
 
 
 @router.post("/password")
@@ -256,10 +284,7 @@ async def users_page(request: Request):
     qp = request.query_params
     q, flt, sort = qp.get("q", "")[:64], qp.get("f", "all"), qp.get("sort", "new")
     flt = flt if flt in users.FILTERS else "all"
-    try:
-        page = max(1, int(qp.get("page", "1")))
-    except ValueError:
-        page = 1
+    page = _int(qp.get("page", "1"))
     rows, total = users.listing(_state(request).con, q, flt, sort, page)
     pages = max(1, (total + users.PAGE - 1) // users.PAGE)
     link = lambda n: BASE + "/users?" + urlencode({"q": q, "f": flt, "sort": sort, "page": n})  # noqa: E731
@@ -305,6 +330,12 @@ async def user_action(request: Request, user_id: str, action: str):
                 return _go(path, e="bad_days")
             users.grant_sub(con, who, user_id, form.get("plan", ""), days, amount, form.get("note", ""))
             msg = "sub_granted"
+        elif action == "device":
+            users.end_device(con, who, user_id, form.get("device", ""))
+            msg = "device_ended"
+        elif action == "logout_all":
+            users.logout_all(con, who, user_id)
+            msg = "logged_out"
         else:
             return _go(path)
     except users.UserError as err:
@@ -348,7 +379,12 @@ async def audit_page(request: Request):
     s = _guard(request)
     if not isinstance(s, Session):
         return s
-    rows = _state(request).con.execute(
-        "SELECT a.*, u.login AS user_login FROM admin_audit a LEFT JOIN users u ON u.id = a.target"
-        " ORDER BY a.at DESC LIMIT 200").fetchall()
-    return _page(request, "audit.html", s, rows=rows, nav="audit")
+    qp = request.query_params
+    action = qp.get("a", "")
+    action = action if action in ACTIONS else ""
+    page = _int(qp.get("page", "1"))
+    rows, total = users.audit_page(_state(request).con, action or None, page)
+    pages = max(1, (total + users.AUDIT_PAGE - 1) // users.AUDIT_PAGE)
+    link = lambda n: BASE + "/audit?" + urlencode({"a": action, "page": n})  # noqa: E731
+    return _page(request, "audit.html", s, rows=rows, total=total, a=action, page=page, pages=pages, link=link,
+                 nav="audit")

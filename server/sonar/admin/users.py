@@ -9,6 +9,7 @@ from ..db import now_ms
 from .. import subs
 
 PAGE = 50
+AUDIT_PAGE = 100
 SORTS = {"new": "u.created_at DESC", "old": "u.created_at ASC", "seen": "last_seen DESC", "number": "u.number ASC"}
 FILTERS = {"all", "banned", "subscribed", "no_sub", "tg", "no_tg", "active7"}
 
@@ -160,3 +161,30 @@ def grant_sub(con: sqlite3.Connection, admin: str, user_id: str, plan: str, days
             audit(con, admin, "grant_sub", user_id, plan=plan, days=days, amount=amount)
     except subs.SubError as e:
         raise UserError(e.code) from None
+
+
+def end_device(con: sqlite3.Connection, admin: str, user_id: str, device_id: str) -> None:
+    """Завершить сессию одного устройства (ADMIN.md §4): там нужно войти заново, остальные не трогаем."""
+    with con:
+        if not con.execute("DELETE FROM sessions WHERE user_id = ? AND device_id = ?", (user_id, device_id)).rowcount:
+            raise UserError("no_change")
+        audit(con, admin, "end_device", user_id, device=device_id[:64])
+
+
+def logout_all(con: sqlite3.Connection, admin: str, user_id: str) -> None:
+    """Выйти на всех устройствах без бана (ADMIN.md §3) — например, если у человека увели телефон."""
+    with con:
+        n = con.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,)).rowcount
+        if not n:
+            raise UserError("no_change")
+        audit(con, admin, "logout_all", user_id, sessions=n)
+
+
+def audit_page(con: sqlite3.Connection, action: str | None, page: int) -> tuple[list[dict], int]:
+    """Журнал админки страницами, по желанию — одно действие. → (строки, всего)."""
+    where, args = ("WHERE a.action = ?", [action]) if action else ("", [])
+    total = con.execute(f"SELECT COUNT(*) FROM admin_audit a {where}", args).fetchone()[0]
+    rows = con.execute(
+        f"SELECT a.*, u.login AS user_login FROM admin_audit a LEFT JOIN users u ON u.id = a.target {where}"
+        " ORDER BY a.at DESC, a.id DESC LIMIT ? OFFSET ?", args + [AUDIT_PAGE, (max(page, 1) - 1) * AUDIT_PAGE]).fetchall()
+    return [dict(r) for r in rows], total

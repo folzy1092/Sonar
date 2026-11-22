@@ -1,7 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Журнал{% endblock %}
 {% block main %}
-<div class="head"><div><h1>Журнал</h1><p>Последние 200 действий в админке</p></div></div>
+<div class="head"><div><h1>Журнал</h1><p>Действий: {{ total | num }}</p></div></div>
+<form class="filters" method="get" action="{{ BASE }}/audit">
+  <select name="a" aria-label="Действие">
+    <option value="">Все действия</option>
+    {% for k, name in ACTIONS.items() %}<option value="{{ k }}" {{ 'selected' if a == k }}>{{ name }}</option>{% endfor %}
+  </select>
+  <button class="btn">Показать</button>
+  {% if a %}<a class="btn ghost" href="{{ BASE }}/audit">Сбросить</a>{% endif %}
+</form>
 {% if rows %}
 <div class="table-wrap"><table>
   <thead><tr><th>Когда</th><th>Кто</th><th>Что</th><th>Пользователь</th><th>Подробности</th></tr></thead>
@@ -11,5 +19,12 @@
       <td class="mono muted">{{ r.detail or '' }}</td></tr>
   {% endfor %}</tbody>
 </table></div>
-{% else %}<div class="panel empty">Действий ещё не было</div>{% endif %}
+{% if pages > 1 %}
+<div class="pager">
+  {% if page > 1 %}<a class="btn" href="{{ link(page - 1) }}">Назад</a>{% endif %}
+  <span class="num">{{ page }} из {{ pages }}</span>
+  {% if page < pages %}<a class="btn" href="{{ link(page + 1) }}">Дальше</a>{% endif %}
+</div>
+{% endif %}
+{% else %}<div class="panel empty">{{ 'Таких действий не было' if a else 'Действий ещё не было' }}</div>{% endif %}
 {% endblock %}

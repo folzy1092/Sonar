@@ -99,6 +99,19 @@ class AdminAuth:
                              " WHERE s.token_hash = ? AND s.expires_at > ?", (_h(token), now_ms())).fetchone()
         return Session(self._admin(r), r["csrf"], r["token_hash"]) if r else None
 
+    def sessions(self, s: Session) -> list[dict]:
+        """Открытые сессии этого админа, текущая — первой (`current`)."""
+        rows = self.con.execute("SELECT token_hash, ip, user_agent, created_at FROM admin_sessions"
+                                " WHERE admin_id = ? AND expires_at > ? ORDER BY created_at DESC", (s.admin.id, now_ms()))
+        out = [{"ip": r["ip"], "user_agent": r["user_agent"], "created_at": r["created_at"],
+                "current": r["token_hash"] == s.token_hash} for r in rows]
+        return sorted(out, key=lambda r: not r["current"])
+
+    def close_others(self, s: Session) -> int:
+        """Закрыть все сессии админа, кроме текущей. → сколько закрыто."""
+        return self.con.execute("DELETE FROM admin_sessions WHERE admin_id = ? AND token_hash != ?",
+                                (s.admin.id, s.token_hash)).rowcount
+
     def logout(self, s: Session) -> None:
         self.con.execute("DELETE FROM admin_sessions WHERE token_hash = ?", (s.token_hash,))
 
