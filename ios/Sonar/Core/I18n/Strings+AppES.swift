@@ -4,6 +4,7 @@
 
 extension I18n {
     static let appES: [String: String] = [
+        "Сдвиг текста": "Desfase de la letra",
         // лист скорости: тон, связь со скоростью, звук трека
         "Тон": "Tono",
         "Тон ниже": "Bajar el tono",

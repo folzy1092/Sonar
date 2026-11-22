@@ -4,6 +4,7 @@
 
 extension I18n {
     static let appDE: [String: String] = [
+        "Сдвиг текста": "Liedtext-Versatz",
         // лист скорости: тон, связь со скоростью, звук трека
         "Тон": "Tonhöhe",
         "Тон ниже": "Tiefer",

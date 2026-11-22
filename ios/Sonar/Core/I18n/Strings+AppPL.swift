@@ -4,6 +4,7 @@
 
 extension I18n {
     static let appPL: [String: String] = [
+        "Сдвиг текста": "Przesunięcie tekstu",
         // лист скорости: тон, связь со скоростью, звук трека
         "Тон": "Ton",
         "Тон ниже": "Niżej",
