@@ -24,6 +24,8 @@
   /** Длина окружности кольца (r = 52) — от неё считаются дуги долей. */
   const RING = 2 * Math.PI * 52
   const RING_GAP = 4
+  /** Лимиты автоскачивания Любимых, ГБ. */
+  const LIKED_LIMITS_GB = [2, 5, 10, 20, 50]
 
   let usage = $state<StorageUsage | null>(null)
   let confirmPrefs = $state(false)
@@ -84,6 +86,16 @@
     if (downloads.queue.paused) return `${t('Пауза')} · ${rest}`
     return `${t('Скачивается')} · ${rest}`
   })
+
+  async function toggleAutoLiked(on: boolean) {
+    if (!on) settings.set('storage.auto_download_liked', false)
+    else if (await downloads.enableLiked()) await refresh()
+  }
+
+  function setLikedLimit(gb: number) {
+    settings.set('storage.auto_download_limit_gb', gb)
+    void downloads.fillLiked()
+  }
 
   async function clearDownloads() {
     if (!usage || !(await downloads.clear(usage.downloaded, usage.downloaded_bytes))) return
@@ -222,6 +234,27 @@
           {/if}
         </div>
         <div class="bar" class:idle={downloads.queue.paused || offline.on}><i style:width="{downloads.share * 100}%"></i></div>
+      </div>
+    {/if}
+  </section>
+
+  <section class="card">
+    <Switch
+      title={t('Скачивать Любимые')}
+      hint={t('Лайкнутые треки сами скачиваются на этот компьютер, пока не упрутся в лимит')}
+      on={settings.get('storage.auto_download_liked')}
+      onchange={toggleAutoLiked}
+    />
+    {#if settings.get('storage.auto_download_liked')}
+      <div transition:slide>
+        <Choice
+          title={t('Лимит для Любимых')}
+          hint={t('Сколько места на диске могут занять скачанные треки')}
+          value={settings.get('storage.auto_download_limit_gb')}
+          options={LIKED_LIMITS_GB.map((n) => ({ id: n, label: t('{n} ГБ', { n }) }))}
+          onchange={setLikedLimit}
+        />
+        <small class="note">{t('Лимитную сеть Sonar на ПК не различает — качает по любой, в том числе через точку доступа телефона')}</small>
       </div>
     {/if}
   </section>
@@ -446,6 +479,12 @@
   }
   .dl .row {
     padding: 0;
+  }
+  .note {
+    display: block;
+    padding: 2px 0 4px;
+    font-size: calc(12px * var(--fs, 1));
+    color: var(--text-3);
   }
   .queue {
     padding-top: 12px;

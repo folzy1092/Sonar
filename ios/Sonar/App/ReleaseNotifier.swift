@@ -98,7 +98,7 @@ final class ReleaseNotifier {
 
     /// Собрать ленту, про новые свежие — уведомить, запомнить их как увиденные.
     func check(now: Date = Date()) async {
-        guard SettingsStore.shared.bool(Self.key), !checking else { return }
+        guard SettingsStore.shared.bool(Self.key), !checking, !OfflineFlag.isOn else { return }
         checking = true
         defer { checking = false }
         let artists = Self.artistRefs()

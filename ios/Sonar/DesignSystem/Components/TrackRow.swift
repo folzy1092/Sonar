@@ -5,8 +5,14 @@ struct CoverImage: View {
     let url: String?
     var cornerRadius: CGFloat = 10
 
+    /// Скачанный трек или кэш волны — обложка с телефона (в офлайне сеть закрыта, `docs/OFFLINE.md` §7).
+    private var source: URL? {
+        guard let url else { return nil }
+        return DownloadStore.shared.localCover(url) ?? WaveCache.shared.localCover(url) ?? URL(string: url)
+    }
+
     var body: some View {
-        AsyncImage(url: url.flatMap(URL.init(string:)), transaction: Transaction(animation: Motion.quick)) { phase in
+        AsyncImage(url: source, transaction: Transaction(animation: Motion.quick)) { phase in
             switch phase {
             case let .success(image):
                 image.resizable().scaledToFill().transition(.opacity)

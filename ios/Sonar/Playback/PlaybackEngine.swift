@@ -517,13 +517,37 @@ final class PlaybackEngine {
     /// Не играет со своего сервиса — тот же трек из резервного (`MusicCore.playable`), broken — свой
     /// поток уже не открылся в плеере.
     private static func source(for track: Track, fresh: Bool, safe: Bool = false, broken: Bool = false) async throws -> MusicCore.Playable {
-        if !fresh, !safe, let local = DownloadStore.shared.localURL(track.ref) {
+        // офлайн: AVPlayer ходит в сеть мимо сторожа — поэтому только файл, остальное не играет (OFFLINE.md §5)
+        let offline = OfflineFlag.isOn
+        if offline || (!fresh && !safe), let local = DownloadStore.shared.localURL(track.ref) {
             return .init(source: .file(url: local, quality: DownloadStore.shared.quality(track.ref) ?? "Скачан"), via: nil)
         }
-        if !fresh, !safe, let cached = WaveCache.shared.localURL(track.ref) {
+        if offline || (!fresh && !safe), let cached = WaveCache.shared.localURL(track.ref) {
             return .init(source: .file(url: cached, quality: WaveCache.shared.quality(track.ref) ?? "Офлайн"), via: nil)
         }
+        if offline { throw ServiceError(message: t("Нет в офлайне — скачай трек, пока есть сеть")) }
         return try await MusicCore.shared.playable(track, fresh: fresh, safe: safe, broken: broken)
+    }
+
+    /// Офлайн включили (`OfflineMode`, OFFLINE.md §9): из «Далее» уходит недоступное; играет недоступный —
+    /// затихает и встаёт на паузу (следующий сам не стартует).
+    func offlineChanged() {
+        guard OfflineFlag.isOn, !order.isEmpty else { return }
+        dropPreload()
+        let pruned = OfflineQueue.prune(order: order, pos: pos) { Self.isLocal(self.tracks[$0].ref) }
+        order = pruned.order
+        pos = pruned.pos
+        saveSnapshot(force: true)
+        guard let current, !Self.isLocal(current.ref), isPlaying else { return }
+        Task {
+            let start = player.volume
+            for step in stride(from: OfflineQueue.fadeSteps - 1, through: 0, by: -1) {
+                player.volume = start * Float(step) / Float(OfflineQueue.fadeSteps)
+                try? await Task.sleep(for: .milliseconds(OfflineQueue.fadeStepMs))
+            }
+            pause()
+            applyVolumes()
+        }
     }
 
     /// Трек есть на телефоне — сыграет без сети.
@@ -853,6 +877,8 @@ final class PlaybackEngine {
 
     /// «Авто похожие»: до конца очереди меньше трёх треков — дописать похожие (повтор трека — не надо).
     private func topUpAutoplay() {
+        // офлайн: похожие и волна — из сети, не добираем
+        guard !OfflineFlag.isOn else { return }
         if isWave {
             topUpWave()
             return
@@ -952,6 +978,11 @@ final class PlaybackEngine {
 
     private func startWave(seed: Track?) {
         guard !waveLoading else { return }
+        // офлайн: волне нужна сеть (виджет, Siri) — честно сказать, а не ждать отказа сторожа
+        guard !OfflineFlag.isOn else {
+            message = t("Нет доступа к сети: включён офлайн-режим")
+            return
+        }
         waveLoading = true
         Task {
             defer { self.waveLoading = false }
@@ -973,7 +1004,7 @@ final class PlaybackEngine {
 
     /// Волна: до конца очереди меньше трёх — следующая порция.
     private func topUpWave() {
-        guard !waveMoreLoading, order.count - pos - 1 < Autoplay.left else { return }
+        guard !OfflineFlag.isOn, !waveMoreLoading, order.count - pos - 1 < Autoplay.left else { return }
         let id = queueId
         waveMoreLoading = true
         Task {

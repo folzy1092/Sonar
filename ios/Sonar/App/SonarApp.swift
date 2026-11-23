@@ -7,6 +7,8 @@ struct SonarApp: App {
     init() {
         // журнал сбоев — первым делом: ловит сбои и читает отчёт прошлого запуска
         CrashLog.start()
+        // офлайн-режим — до любого запроса: сторож сети и флаг из настроек (docs/OFFLINE.md §4.1)
+        OfflineMode.bootstrap()
         // тап по уведомлению «Новинки», которое запустило Sonar с нуля, — делегат нужен до конца запуска
         ReleaseNotifier.installDelegate()
     }
@@ -20,6 +22,7 @@ struct SonarApp: App {
     @State private var library = LibraryStore.shared
     @State private var router = Router()
     @State private var releases = ReleaseNotifier.shared
+    @State private var offline = OfflineMode.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -33,6 +36,7 @@ struct SonarApp: App {
                 .environment(engine)
                 .environment(library)
                 .environment(router)
+                .environment(offline)
                 .tint(Theme.accent)
                 .task {
                     // «Классика» — основной вид: один раз переключаем и прежних пользователей
@@ -44,11 +48,14 @@ struct SonarApp: App {
                     StorageUsage.applyCoverLimit(settings)
                     // Last.fm убран (docs/LASTFM_EXIT.md): прежний вход и очередь стираются один раз
                     RetiredIntegrations.forgetOnDevice()
-                    // SoundCloud: тихий вход и плашка «Войди заново», если ключи перестали работать
-                    await SoundCloudRelogin.shared.start()
-                    // сервер: синхронизация и версия устройства — без включённого сервера ничего не делают
-                    SyncService.shared.start()
-                    await AccountStore.shared.reportLaunch()
+                    // офлайн: ни входа в SoundCloud, ни синка — включат сеть, синк стартует сам (OfflineMode.set)
+                    if !offline.isOn {
+                        // SoundCloud: тихий вход и плашка «Войди заново», если ключи перестали работать
+                        await SoundCloudRelogin.shared.start()
+                        // сервер: синхронизация и версия устройства — без включённого сервера ничего не делают
+                        SyncService.shared.start()
+                        await AccountStore.shared.reportLaunch()
+                    }
                     await MusicCore.shared.configure(maxKbps: MusicCore.qualityKbps(settings.string("audio.quality")),
                                                      soundCloudViaYandex: settings.bool("audio.sc_via_yandex"),
                                                      youTubeHigh: MusicCore.youTubeHigh(settings.string(YouTubeQuality.key)),
@@ -56,7 +63,7 @@ struct SonarApp: App {
                                                                                 saved: settings.string(FallbackPlan.orderKey)))
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .active {
+                    if phase == .active, !offline.isOn {
                         checker.checkIfStale(settings: settings)
                         // SoundCloud: освежить вход заранее, пока Sonar на экране (в фоне тихий вход ненадёжен)
                         Task { await MusicCore.shared.refreshSoundCloudIfOld() }

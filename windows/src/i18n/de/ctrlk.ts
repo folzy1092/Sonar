@@ -26,4 +26,6 @@ export default {
   'выбрать': 'auswählen',
   'следующий раздел': 'nächster Bereich',
   'закрыть': 'schließen',
+  'Офлайн-режим: включить': 'Offline-Modus: einschalten',
+  'Офлайн-режим: выключить': 'Offline-Modus: ausschalten',
 } satisfies Record<string, string>

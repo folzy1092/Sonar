@@ -44,6 +44,7 @@ struct LibraryView: View {
     @Environment(LibraryStore.self) private var library
     @Environment(ChromeState.self) private var chrome
     @Environment(Router.self) private var router
+    @Environment(OfflineMode.self) private var offline
     @State private var section: Shelf = .all
     @State private var sort: Sort = .added
     @State private var source: SourceFilter = .all
@@ -85,7 +86,8 @@ struct LibraryView: View {
                     .padding(.top, 14)
                     .id(section)
                     .transition(.opacity.combined(with: .offset(y: 10)))
-                if section == .all || section == .playlists {
+                // плейлисты сервисов — только с сетью (docs/OFFLINE.md §6)
+                if section == .all || section == .playlists, !offline.isOn {
                     ServicePlaylistsBlock(
                         playlists: playlists.filter { matches($0.title) || matches($0.owner) },
                         moved: Set(store.playlists.compactMap(\.sourceRef)),
@@ -108,6 +110,9 @@ struct LibraryView: View {
         .pageBackground()
         .animation(Motion.spring, value: section)
         .animation(Motion.spring, value: searching)
+        .animation(Motion.spring, value: offline.isOn)
+        // офлайн: альбомы и исполнители — каталог сервисов, без сети их нет
+        .onChange(of: offline.isOn) { _, on in if on, !shelves.contains(section) { section = .all } }
         .newPlaylistAlert(isPresented: $creating) { id in
             router.push(.sonarPlaylist(id: id), on: .library, chrome: chrome)
         }
@@ -123,6 +128,7 @@ struct LibraryView: View {
         // вкладка живёт всё время: подключил сервис в Профиле — при возвращении плейлисты подтянутся
         .onAppear { Task { await reloadPlaylists(force: false) } }
         .refreshable { await reloadPlaylists(force: true) }
+        .onChange(of: offline.isOn) { _, on in if !on { Task { await reloadPlaylists(force: false) } } }
         .sheet(isPresented: $showImport) {
             ImportPlaylistsSheet(playlists: playlists) { id in
                 connectService = ServiceSheetItem(id: id)
@@ -176,7 +182,7 @@ struct LibraryView: View {
             Menu {
                 Button(t("Новый плейлист")) { creating = true }
                 Button(t("Умный плейлист — по правилам")) { smartEditor = .blank }
-                Button(t("Импорт из сервисов")) { showImport = true }
+                if !offline.isOn { Button(t("Импорт из сервисов")) { showImport = true } }
             } label: {
                 SonarIcon(.plus, size: 22)
                     .foregroundStyle(Theme.text)
@@ -206,7 +212,7 @@ struct LibraryView: View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
                 HStack(spacing: 22) {
-                    ForEach(Shelf.allCases) { item in
+                    ForEach(shelves) { item in
                         Button {
                             section = item
                             withAnimation(Motion.spring) { proxy.scrollTo(item, anchor: .center) }
@@ -226,6 +232,16 @@ struct LibraryView: View {
         }
     }
 
+    /// Вкладки: в офлайне — без альбомов и исполнителей.
+    private var shelves: [Shelf] {
+        offline.isOn ? [.all, .playlists] : Shelf.allCases
+    }
+
+    /// Подпись числа треков: в офлайне — «12 из 40 · офлайн».
+    private func countLine(_ list: [Track]) -> String {
+        offline.isOn ? OfflineFilter.countText(available: offline.filter.count(list), total: list.count) : tracksCount(list.count)
+    }
+
     // MARK: - Сетка
 
     private func matches(_ text: String) -> Bool {
@@ -236,6 +252,7 @@ struct LibraryView: View {
     /// Плейлисты сервисов: при первом показе, после подключения сервиса (другой набор аккаунтов) и не чаще
     /// раза в 5 минут; потянул вниз — сразу.
     private func reloadPlaylists(force: Bool) async {
+        guard !offline.isOn else { return }
         let status = await MusicCore.shared.status()
         let key = [status.soundCloud, status.yandex, status.youtube, status.vk].map { $0?.uid ?? $0?.name ?? "-" }.joined(separator: "|")
         guard force || key != loadedFor || Date().timeIntervalSince(loadedAt) > 300, !loadingPlaylists else { return }
@@ -256,13 +273,15 @@ struct LibraryView: View {
 
     /// Умные плейлисты: только без фильтра сервиса (треки в них считаются по правилам).
     private var smartPlaylists: [SmartPlaylistDef] {
-        guard source == .all else { return [] }
+        guard source == .all, !offline.isOn else { return [] }
         let list = smart.lists.filter { matches($0.name) }
         return sort == .title ? list.sorted { $0.name.localizedCompare($1.name) == .orderedAscending } : list
     }
 
     private func keepsOwn(_ playlist: SonarPlaylist) -> Bool {
         if section != .playlists, playlist.hidden { return false }
+        // офлайн: плейлист без единого трека на телефоне скрыт
+        if offline.isOn, offline.filter.count(playlist.tracks) == 0 { return false }
         guard matches(playlist.name) else { return false }
         if source == .all { return true }
         if let origin = playlist.sourceRef, source.keeps(origin) { return true }
@@ -325,7 +344,7 @@ struct LibraryView: View {
         LazyVGrid(columns: columns, alignment: .leading, spacing: 22) {
             if section == .all || section == .playlists {
                 if matches("Любимые") {
-                    LibraryTile(title: "Любимые", subtitle: tracksCount(library.liked.count), icon: .heart) {
+                    LibraryTile(title: "Любимые", subtitle: countLine(library.liked), icon: .heart) {
                         router.push(.liked, on: .library, chrome: chrome)
                     }
                     .cascade(0)
@@ -339,7 +358,7 @@ struct LibraryView: View {
                 let own = ownPlaylists
                 ForEach(Array(own.enumerated()), id: \.element.id) { index, playlist in
                     LibraryTile(title: playlist.name,
-                                subtitle: playlist.hidden ? tracksCount(playlist.tracks.count) + " · " + t("скрыт") : tracksCount(playlist.tracks.count),
+                                subtitle: playlist.hidden ? countLine(playlist.tracks) + " · " + t("скрыт") : countLine(playlist.tracks),
                                 covers: playlist.covers) {
                         router.push(.sonarPlaylist(id: playlist.id), on: .library, chrome: chrome)
                     }
@@ -355,7 +374,7 @@ struct LibraryView: View {
                     .cascade(index + 2 + own.count)
                 }
             }
-            if section == .all || section == .albums {
+            if section == .all || section == .albums, !offline.isOn {
                 ForEach(Array(albums.prefix(section == .all ? 6 : 200).enumerated()), id: \.element.ref) { index, album in
                     LibraryTile(title: album.title, subtitle: album.artist, cover: album.cover) {
                         router.push(.album(ref: album.ref, title: album.title), on: .library, chrome: chrome)
@@ -363,7 +382,7 @@ struct LibraryView: View {
                     .cascade(index + 4)
                 }
             }
-            if section == .all || section == .artists {
+            if section == .all || section == .artists, !offline.isOn {
                 ForEach(Array(artists.prefix(section == .all ? 6 : 200).enumerated()), id: \.element.ref) { index, artist in
                     LibraryTile(title: artist.name,
                                 subtitle: artist.followed ? t("Вы подписаны") : tracksCount(artist.count) + " в Любимых",

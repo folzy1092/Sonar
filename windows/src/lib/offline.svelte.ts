@@ -3,8 +3,12 @@
 // Экраны фильтруют списки через `offline.allows` / `offline.only`; включают и выключают — через настройку.
 import { api, onLocalFilesChanged, onOfflineChanged, onOfflineIndexChanged, type Track } from './api'
 import { settings } from './settings.svelte'
-import { availableOnly, imageSrc, isAvailable, uniqueByRef } from './offline-core'
+import { availableOnly, imageSrc, isAvailable, suggestOnNetwork, uniqueByRef } from './offline-core'
 import { t } from './i18n.svelte'
+import { toast } from './toast.svelte'
+
+/** Сколько висит плашка «Сеть пропала» — дольше обычного тоста: успеть дотянуться до кнопки. */
+const SUGGEST_TOAST_MS = 10_000
 
 class Offline {
   on = $state(false)
@@ -14,6 +18,8 @@ class Offline {
   private started: Promise<void> | null = null
   private seq = 0
   private listeners: Array<(on: boolean) => void> = []
+  /** За эту пропажу сети офлайн-режим уже предлагали. */
+  private suggested = false
 
   /**
    * Читает флаг и порт из Rust. `main.ts` ждёт его до монтирования интерфейса: иначе первые `<img>` успели бы
@@ -33,6 +39,7 @@ class Offline {
       .catch((e) => console.warn('офлайн: порт локального сервера не прочитался', e))
     void this.refresh()
     this.hideDeadImages()
+    this.watchNetwork()
     onOfflineChanged((on) => this.apply(on))
     onOfflineIndexChanged(() => void this.refresh())
     onLocalFilesChanged(() => void this.refresh())
@@ -75,6 +82,21 @@ class Offline {
   }
 
   /**
+   * Пропала сеть (событие браузера `offline`), режим выключен и подсказка разрешена — одна плашка с кнопкой
+   * «Включить офлайн-режим» (`docs/OFFLINE.md` §12). Включается только по клику, сам — никогда.
+   */
+  private watchNetwork() {
+    if (typeof window === 'undefined') return
+    const handle = (kind: 'offline' | 'online') => {
+      const next = suggestOnNetwork(this.suggested, { kind, modeOn: this.on, enabled: settings.get('general.offline_suggest') })
+      this.suggested = next.shown
+      if (next.show) toast.show(t('Сеть пропала'), SUGGEST_TOAST_MS, { label: t('Включить офлайн-режим'), run: () => this.set(true) })
+    }
+    window.addEventListener('offline', () => handle('offline'))
+    window.addEventListener('online', () => handle('online'))
+  }
+
+  /**
    * Офлайн: картинки без кэша на диске `/cover` не отдаёт — прячем их, а не показываем значок битой картинки.
    * Включили сеть — `src` меняется, картинка грузится и снова видна.
    */
@@ -105,6 +127,8 @@ class Offline {
   private apply(on: boolean, notify = true) {
     const was = this.on
     this.on = on
+    // режим могли переключить из трея: настройка в базе уже новая, зеркало настроек догоняет
+    if (notify) settings.mirror('general.offline', on)
     if (notify && was !== on) for (const cb of this.listeners) cb(on)
   }
 

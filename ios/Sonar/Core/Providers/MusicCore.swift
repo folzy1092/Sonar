@@ -576,8 +576,8 @@ actor MusicCore {
     // MARK: - Скачивание
 
     /// Откуда скачать трек файлом. Яндекс — mp3 / FLAC как для плеера. SoundCloud: Яндекс-двойник (если
-    /// включено «SoundCloud в качестве Яндекса»), иначе прямой mp3 SoundCloud, иначе двойник всё равно;
-    /// только HLS — «Этот трек нельзя скачать».
+    /// включено «SoundCloud в качестве Яндекса»), иначе прямой mp3 SoundCloud, иначе HLS склейкой
+    /// (`CoreDownloadFetcher.fetchHLS`), иначе двойник всё равно; ничего — «Этот трек нельзя скачать».
     func downloadSource(_ ref: String) async throws -> DownloadSource {
         let (kind, id) = try Self.split(ref)
         let cannot = ServiceError(message: "Этот трек нельзя скачать")
@@ -604,11 +604,22 @@ actor MusicCore {
                 }
                 if let stream, let source = DownloadSource.from(stream) { return source }
             }
+            if let source = await soundCloudHLS(ref) { return source }
             if !soundCloudViaYandex, let source = await twinDownload(ref, id: id) { return source }
             throw cannot
         default:
             throw ServiceError(message: "Неизвестный источник в \(ref)")
         }
+    }
+
+    /// Лучший HLS SoundCloud (AAC → mp3), не превью — склеить в файл.
+    private func soundCloudHLS(_ ref: String) async -> DownloadSource? {
+        guard let json = soundCloudRaw[ref], let transcoding = SoundCloud.pickTranscoding(json),
+              transcoding["format"]["protocol"].string == "hls", transcoding["snipped"].bool != true,
+              case let .hls(url, quality)? = try? await withSoundCloud({ try await $0.stream(json, transcoding: transcoding) })
+        else { return nil }
+        let mpeg = transcoding["format"]["mime_type"].string == "audio/mpeg"
+        return DownloadSource(url: url, fileExtension: mpeg ? "mp3" : "m4a", quality: quality, isHLS: true)
     }
 
     /// Тот же трек на Яндексе файлом (сверка и память пар — общие с резервом).

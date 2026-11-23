@@ -23,6 +23,7 @@ const DAY: i64 = 24 * 3600 * 1000;
 const LOCAL_SETTINGS: &[&str] = &[
   "general.language",
   "general.offline",
+  "general.offline_suggest",
   "audio.quality",
   "audio.sc_via_yandex",
   "audio.output_device",

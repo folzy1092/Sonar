@@ -2,6 +2,7 @@
 // локальная база (команды Rust); здесь — копия для сердечек и меню «Добавить в плейлист».
 import { api, errorText, type Album, type Artist, type DupeListId, type Playlist, type RemovedDupes, type Track } from './api'
 import { toast } from './toast.svelte'
+import { downloads } from './downloads.svelte'
 import { t } from './i18n.svelte'
 import { tracksText } from './format'
 
@@ -42,6 +43,7 @@ class Library {
     try {
       await api.setLike(item.ref, on, on ? item : undefined)
       this.version++
+      if (on) void downloads.fillLiked(item.ref)
     } catch (e) {
       toast.show(errorText(e))
       await this.load(true)
@@ -63,6 +65,7 @@ class Library {
       await this.load(true)
     }
     this.version++
+    void downloads.fillLiked()
     return fresh.length
   }
 

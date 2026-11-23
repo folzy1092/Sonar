@@ -1,9 +1,14 @@
 // Скачивание треков (`docs/OFFLINE.md` §8, Rust — `downloads.rs`): зеркало очереди (`downloads-changed`) и набора
 // скачанного (`downloaded_refs`, перечитывается по `offline-index-changed`). Меню треков, плейлистов и альбомов зовут
 // `download`, строки треков показывают `stateOf`, карточка «Скачанное» в Хранилище — прогресс и кнопки.
-import { api, errorText, onDownloadsChanged, onOfflineIndexChanged, type DownloadJob, type DownloadsSnapshot, type Track } from './api'
-import { batchBytes, bytesText, needsConfirm, progress, toDownload, type Quality } from './downloads-core'
+// Автоскачивание Любимых (`storage.auto_download_liked`): при запуске и после лайка недостающие лайки встают в
+// очередь, пока всё скачанное влезает в `storage.auto_download_limit_gb`. Лимитную сеть (мобильная точка доступа)
+// ПК не различает — проверки Wi-Fi нет, качает по любой сети.
+import { api, errorText, onDownloadsChanged, onOfflineIndexChanged, type DownloadJob, type DownloadsSnapshot, type ListTrack, type Track } from './api'
+import { batchBytes, bytesText, likedPlan, needsConfirm, progress, toDownload, type Quality } from './downloads-core'
 import { confirm } from './confirm.svelte'
+import { offline } from './offline.svelte'
+import { settings } from './settings.svelte'
 import { toast } from './toast.svelte'
 import { t, tn } from './i18n.svelte'
 
@@ -11,6 +16,7 @@ import { t, tn } from './i18n.svelte'
 export type RowState = DownloadJob['state'] | 'done' | null
 
 const EMPTY: DownloadsSnapshot = { paused: false, done: 0, left: 0, jobs: {} }
+const GB = 1024 ** 3
 
 class Downloads {
   queue = $state<DownloadsSnapshot>(EMPTY)
@@ -23,7 +29,7 @@ class Downloads {
     this.started = true
     onDownloadsChanged((s) => this.apply(s))
     onOfflineIndexChanged(() => void this.reload())
-    void this.reload()
+    void this.reload().then(() => this.fillLiked())
     api
       .downloadsState()
       .then((s) => (this.queue = s))
@@ -66,8 +72,7 @@ class Downloads {
       toast.show(tracks.length ? t('Уже скачано') : t('Нечего скачивать'))
       return
     }
-    const quality = (await api.getSetting<Quality>('audio.quality').catch(() => null)) ?? 'max'
-    const bytes = batchBytes(list, quality)
+    const bytes = batchBytes(list, await this.quality())
     if (needsConfirm(list.length, bytes) && !(await this.confirmBatch(list.length, bytes))) return
     try {
       const n = await api.downloadTracks(list)
@@ -75,6 +80,57 @@ class Downloads {
     } catch (e) {
       toast.show(errorText(e))
     }
+  }
+
+  private async quality(): Promise<Quality> {
+    return (await api.getSetting<Quality>('audio.quality').catch(() => null)) ?? 'max'
+  }
+
+  /** Что ждёт или качается сейчас — место под это уже занято. */
+  private inQueue(): ReadonlySet<string> {
+    const jobs = this.queue.jobs
+    return new Set(Object.keys(jobs).filter((r) => jobs[r].state === 'queued' || jobs[r].state === 'active'))
+  }
+
+  /** Любимые, которых нет на диске, — в порядке Любимых (свежие лайки сверху). */
+  private async missingLiked(): Promise<ListTrack[]> {
+    return toDownload(await api.favorites(), this.refs)
+  }
+
+  /** Докачать Любимые в пределах лимита (`only` — один свежий лайк). Тихо: без тостов, ошибка — в журнал. */
+  async fillLiked(only?: string): Promise<void> {
+    await settings.load()
+    if (!settings.get('storage.auto_download_liked') || offline.on) return
+    try {
+      const liked = await api.favorites()
+      if (!toDownload(liked, this.refs).some((x) => !only || x.ref === only)) return
+      const [usage, quality] = await Promise.all([api.storageUsage(), this.quality()])
+      const limit = settings.get('storage.auto_download_limit_gb') * GB
+      const fit = likedPlan(liked, this.refs, this.inQueue(), usage.downloaded_bytes, limit, quality, only)
+      if (fit.length) await api.downloadTracks(fit)
+    } catch (e) {
+      console.warn('скачивание: Любимые не докачались', e)
+    }
+  }
+
+  /** Включить автоскачивание Любимых: сперва сказать, сколько их не скачано и сколько это весит. Вернёт, включили ли. */
+  async enableLiked(): Promise<boolean> {
+    try {
+      const [missing, quality] = await Promise.all([this.missingLiked(), this.quality()])
+      if (missing.length && !(await this.confirmLiked(missing.length, batchBytes(missing, quality)))) return false
+      settings.set('storage.auto_download_liked', true)
+      await this.fillLiked()
+      return true
+    } catch (e) {
+      toast.show(errorText(e))
+      return false
+    }
+  }
+
+  private confirmLiked(count: number, bytes: number): Promise<boolean> {
+    const limit = settings.get('storage.auto_download_limit_gb') * GB
+    const parts = [`${count} ${tn(count, ['трек', 'трека', 'треков'])}`, `~${bytesText(bytes)}`, t('лимит {n}', { n: bytesText(limit) })]
+    return confirm.ask({ title: t('Скачивать Любимые?'), text: parts.join(' · '), yes: t('Включить'), no: t('Отмена') })
   }
 
   private async confirmBatch(count: number, bytes: number): Promise<boolean> {

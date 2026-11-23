@@ -11,7 +11,7 @@
   import NavIcon from '../components/NavIcon.svelte'
   import { playlistMenu } from '../lib/playlist-menu.svelte'
   import Tile from '../components/Tile.svelte'
-  import { api, looksLikeLink, onLocalFilesChanged, type Album, type Artist, type ServicePlaylist, type ServiceStatus, type ServicesStatus } from '../lib/api'
+  import { api, looksLikeLink, onLocalFilesChanged, type Album, type Artist, type ServicePlaylist, type ServiceStatus, type ServicesStatus, type Track } from '../lib/api'
   import { tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
   import { openImport } from '../lib/import.svelte'
@@ -32,14 +32,23 @@
   import MapBanner from '../app/artist-map/MapBanner.svelte'
   import { collage } from '../lib/covers'
   import { offline } from '../lib/offline.svelte'
+  import { groupAlbums, groupArtists, groupId, type OfflineGroup } from '../lib/offline-groups'
 
   const allTabs = ['Все', 'Плейлисты', 'Альбомы', 'Исполнители'] as const
-  // офлайн: альбомы и исполнители — каталог сервисов, без сети их нет (OFFLINE.md §15)
-  const tabs = $derived(offline.on ? allTabs.slice(0, 2) : allTabs)
   let tab = $state<(typeof allTabs)[number]>('Все')
+
+  // офлайн: альбомы и исполнители — не каталог сервисов, а группы из того, что играет без сети (OFFLINE.md §6.3)
+  let offlinePool = $state<Track[]>([])
   $effect(() => {
-    if (!tabs.includes(tab)) tab = 'Все'
+    if (!offline.on) return
+    void offline.refs
+    offline
+      .pool()
+      .then((p) => (offlinePool = p))
+      .catch((e) => console.warn('офлайн: доступное не прочиталось', e))
   })
+  const offlineAlbums = $derived(offline.on ? groupAlbums(offlinePool) : [])
+  const offlineArtists = $derived(offline.on ? groupArtists(offlinePool) : [])
 
   let status = $state<ServicesStatus | null>(null)
   let albums = $state<Album[]>([])
@@ -228,7 +237,7 @@
 </script>
 
 <div class="tabs" role="tablist" data-tauri-drag-region>
-  {#each tabs as tb (tb)}
+  {#each allTabs as tb (tb)}
     <button class="tab" class:on={tab === tb} role="tab" aria-selected={tab === tb} onclick={() => (tab = tb)}>{t(tb)}</button>
   {/each}
 </div>
@@ -375,6 +384,40 @@
     {#if phantomError && tab === 'Плейлисты'}<p class="hint err">{phantomError}</p>{/if}
   </section>
   {/if}
+{/if}
+
+{#snippet offlineGroups(groups: OfflineGroup<Track>[], round: boolean, empty: string)}
+  {#if groups.length}
+    <div class:row={tab === 'Все'} class:grid={tab !== 'Все'} use:cascade={tab} use:hscroll use:edges>
+      {#each groups as g (g.key)}
+        <Tile
+          title={g.title}
+          subtitle={g.subtitle || undefined}
+          meta={tracksText(g.tracks.length)}
+          image={g.cover}
+          icon={round ? 'user' : 'disc'}
+          {round}
+          onclick={() => router.go('playlist', groupId(g.kind, g.key))}
+        />
+      {/each}
+    </div>
+  {:else}
+    <p class="hint">{empty}</p>
+  {/if}
+{/snippet}
+
+{#if offline.on && (tab === 'Все' || tab === 'Альбомы') && (offlineAlbums.length || tab === 'Альбомы')}
+  <section class="block">
+    <h2>{t('Альбомы')} {#if tab === 'Все'}<button class="more" aria-label={t('Все альбомы')} onclick={() => (tab = 'Альбомы')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
+    {@render offlineGroups(offlineAlbums, false, t('Офлайн: альбомов на этом компьютере нет'))}
+  </section>
+{/if}
+
+{#if offline.on && (tab === 'Все' || tab === 'Исполнители') && (offlineArtists.length || tab === 'Исполнители')}
+  <section class="block">
+    <h2>{t('Исполнители')} {#if tab === 'Все'}<button class="more" aria-label={t('Все исполнители')} onclick={() => (tab = 'Исполнители')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
+    {@render offlineGroups(offlineArtists, true, t('Офлайн: исполнителей на этом компьютере нет'))}
+  </section>
 {/if}
 
 {#if !offline.on && (tab === 'Все' || tab === 'Альбомы')}

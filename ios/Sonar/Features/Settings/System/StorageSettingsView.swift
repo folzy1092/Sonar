@@ -64,6 +64,7 @@ struct StorageSettingsView: View {
     @State private var log = PlayLog.shared
     @State private var usage: StorageUsage?
     @State private var confirm: Danger?
+    @State private var likedBatch: DownloadPlan.Batch?
     @AppStorage("search.history") private var searchHistory = ""
 
     private var lyricsDirectory: URL { LyricsCache().directory }
@@ -88,6 +89,45 @@ struct StorageSettingsView: View {
         })
     }
 
+    private var wifiOnly: Binding<Bool> {
+        Binding(get: { settings.bool(DownloadStore.wifiOnlyKey) }, set: {
+            settings.set(DownloadStore.wifiOnlyKey, $0)
+            downloads.resume()
+        })
+    }
+
+    /// Включение — с подтверждением, если Любимых не хватает (сколько, ~размер, лимит), как ПК `enableLiked`.
+    private var autoLiked: Binding<Bool> {
+        Binding(get: { settings.bool(LikedAutoDownload.enabledKey) }, set: { on in
+            guard on else { return settings.set(LikedAutoDownload.enabledKey, false) }
+            let missing = LikedAutoDownload.missing(LibraryStore.shared.liked)
+            guard missing.isEmpty else {
+                likedBatch = DownloadPlan.Batch(missing, quality: settings.string("audio.quality"), free: nil)
+                return
+            }
+            enableLiked()
+        })
+    }
+
+    private var likedLimit: Binding<Int> {
+        Binding(get: { LikedAutoDownload.limitGB(settings) }, set: {
+            settings.set(LikedAutoDownload.limitKey, .int($0))
+            LikedAutoDownload.fill()
+        })
+    }
+
+    private func enableLiked() {
+        settings.set(LikedAutoDownload.enabledKey, true)
+        LikedAutoDownload.fill()
+    }
+
+    /// «120 треков · ~1.4 ГБ · лимит 5 ГБ».
+    private func likedSummary(_ batch: DownloadPlan.Batch) -> String {
+        let limit = DownloadPlan.bytesText(Int64(LikedAutoDownload.limitGB(settings)) << 30)
+        return [tracksCount(batch.tracks.count), "~" + DownloadPlan.bytesText(batch.bytes), t("лимит {n}", ["n": limit])]
+            .joined(separator: " · ")
+    }
+
     var body: some View {
         SystemScreen(title: t("Хранилище")) {
             summary
@@ -96,6 +136,26 @@ struct StorageSettingsView: View {
             SystemSection(title: t("Скачанные"), footer: t("Играют без сети. Удалить отдельный трек — в его меню.")) {
                 SystemRow(icon: .download, title: t("Скачанные треки"),
                           subtitle: "\(downloads.downloaded.count) \(tn(downloads.downloaded.count, "трек", "трека", "треков")), \(bytesText(usage?.downloadsBytes ?? 0))")
+                RowDivider()
+                SystemToggle(icon: .cellphone, title: t("Только по Wi‑Fi"),
+                             subtitle: t("По сотовой сети загрузки ждут Wi‑Fi"), isOn: wifiOnly)
+                RowDivider()
+                SystemToggle(icon: .heart, title: t("Скачивать Любимые"),
+                             subtitle: t("Лайкнутые треки сами скачиваются на этот телефон по Wi‑Fi, пока не упрутся в лимит"),
+                             isOn: autoLiked)
+                if settings.bool(LikedAutoDownload.enabledKey) {
+                    RowDivider()
+                    VStack(alignment: .leading, spacing: 10) {
+                        SystemRow(icon: .storage, title: t("Лимит для Любимых"),
+                                  subtitle: t("Сколько места на диске могут занять скачанные треки"))
+                            .padding(.bottom, -12)
+                        SystemSegments(options: DownloadPlan.limitOptions.map { SystemSegments<Int>.Option(id: $0, title: t("{n} ГБ", ["n": "\($0)"])) },
+                                       selection: likedLimit)
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 12)
+                    }
+                    .transition(.opacity)
+                }
                 RowDivider()
                 SystemButtonRow(icon: .trash, title: t("Удалить все скачанные"), tint: Theme.danger,
                                 enabled: !downloads.downloaded.isEmpty) { confirm = .downloads }
@@ -157,6 +217,13 @@ struct StorageSettingsView: View {
                 }
             }
             Button(t("Отмена"), role: .cancel) {}
+        }
+        .alert(t("Скачивать Любимые?"), isPresented: Binding(get: { likedBatch != nil }, set: { if !$0 { likedBatch = nil } }),
+               presenting: likedBatch) { _ in
+            Button(t("Включить")) { enableLiked() }
+            Button(t("Отмена"), role: .cancel) {}
+        } message: { batch in
+            Text(likedSummary(batch) + "\n" + t("Не закрывай Sonar, пока качается"))
         }
     }
 

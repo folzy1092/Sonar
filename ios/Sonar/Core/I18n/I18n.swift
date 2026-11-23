@@ -72,20 +72,22 @@ enum Lang: String, CaseIterable, Identifiable, Sendable {
 
 enum I18n {
     /// Словарь языка: Windows + iOS (iOS главнее), затем свои словари экранов (`Strings+Library`, `Strings+Export`,
-    /// `Strings+YouTube`, `Strings+Spotify`, `Strings+Fallback`, `Strings+Smart`, `Strings+Remote`, `Strings+SonarDeep`, `Strings+Search`).
+    /// `Strings+YouTube`, `Strings+Spotify`, `Strings+Fallback`, `Strings+Smart`, `Strings+Remote`, `Strings+SonarDeep`, `Strings+Search`, `Strings+Offline`).
     static let dictionaries: [Lang: [String: String]] = [
         .en: windowsEN.merging(iosEN) { _, ios in ios }.merging(accountEN) { _, a in a }.merging(libraryEN) { _, l in l }
             .merging(exportEN) { _, e in e }.merging(youtubeEN) { _, y in y }.merging(spotifyEN) { _, s in s }.merging(fallbackEN) { _, f in f }
             .merging(smartEN) { _, s in s }
             .merging(remoteEN) { _, r in r }
             .merging(sonarDeepEN) { _, d in d }
-            .merging(searchEN) { _, s in s },
+            .merging(searchEN) { _, s in s }
+            .merging(offlineEN) { _, o in o },
         .uk: windowsUK.merging(iosUK) { _, ios in ios }.merging(accountUK) { _, a in a }.merging(libraryUK) { _, l in l }
             .merging(exportUK) { _, e in e }.merging(youtubeUK) { _, y in y }.merging(spotifyUK) { _, s in s }.merging(fallbackUK) { _, f in f }
             .merging(smartUK) { _, s in s }
             .merging(remoteUK) { _, r in r }
             .merging(sonarDeepUK) { _, d in d }
-            .merging(searchUK) { _, s in s },
+            .merging(searchUK) { _, s in s }
+            .merging(offlineUK) { _, o in o },
         .es: windowsES.merging(appES) { _, a in a },
         .de: windowsDE.merging(appDE) { _, a in a },
         .pl: windowsPL.merging(appPL) { _, a in a },

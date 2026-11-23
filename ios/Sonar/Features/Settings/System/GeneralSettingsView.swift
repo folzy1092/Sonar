@@ -19,6 +19,9 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         SystemScreen(title: t("Общее")) {
+            NetworkSection()
+                .cascade(0)
+
             SystemSection(title: t("Язык")) {
                 Button { languageSheet = true } label: {
                     SystemRow(icon: .translate, title: t("Язык интерфейса"), value: "\(lang.flag) \(lang.nativeName)", chevron: true)
@@ -149,5 +152,31 @@ private struct LanguageSheet: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, Theme.gutter)
+    }
+}
+
+/// «Сеть» (docs/OFFLINE.md §4): офлайн-режим и подсказка включить его, когда сеть пропала.
+private struct NetworkSection: View {
+    @Environment(SettingsStore.self) private var settings
+    @Environment(OfflineMode.self) private var offline
+
+    var body: some View {
+        SystemSection(title: t("Сеть"), footer: footer) {
+            SystemToggle(icon: .cloudOff, title: t("Офлайн-режим"),
+                         subtitle: t("Sonar не выходит в интернет и показывает только скачанные треки и кэш волны. Для роуминга и слабой сети"),
+                         isOn: Binding(get: { offline.isOn }, set: { offline.set($0) }))
+            RowDivider()
+            SystemToggle(icon: .bell, title: t("Предлагать офлайн-режим"),
+                         subtitle: t("Пропала сеть — одна плашка с кнопкой. Сам режим не включается"),
+                         isOn: Binding(get: { settings.bool(OfflineSuggest.key) }, set: { settings.set(OfflineSuggest.key, $0) }))
+        }
+    }
+
+    /// Включён — сколько доступно и сколько запросов не пустили.
+    private var footer: String? {
+        guard offline.isOn else { return nil }
+        let count = offline.availableTracks.count
+        return "\(t("Доступно офлайн")): \(count) \(tn(count, "трек", "трека", "треков")) · "
+            + t("Запросов заблокировано с включения: {n}", ["n": "\(OfflineFlag.blocked)"])
     }
 }

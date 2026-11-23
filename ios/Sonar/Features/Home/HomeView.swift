@@ -11,6 +11,7 @@ struct HomeView: View {
     @Environment(Router.self) private var router
     @Environment(UpdateChecker.self) private var checker
     @Environment(LibraryStore.self) private var library
+    @Environment(OfflineMode.self) private var offline
     @State private var showUpdate = false
     @State private var showModes = false
     private var feed: HomeFeed { HomeFeed.shared }
@@ -20,19 +21,19 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                SonarField(active: active && !showModes, playing: myWavePlaying, color: Theme.accent)
+                SonarField(active: active && !showModes, playing: myWavePlaying && !offline.isOn, color: Theme.accent)
                     .frame(height: 290)
                     .padding(.horizontal, -Theme.gutter)
                     .padding(.top, 4)
-                waveTitle
-                    .padding(.top, 6)
-                RecapInvite()
-                mixes
-                    .padding(.top, 34)
-                recent
-                    .padding(.top, 34)
-                releases
-                    .padding(.top, 30)
+                if offline.isOn {
+                    // офлайн: без Sonar Mix, подборок и релизов — только то, что играет без сети
+                    OfflineHome()
+                        .padding(.top, 6)
+                        .transition(.opacity)
+                } else {
+                    online
+                        .transition(.opacity)
+                }
             }
             .padding(.horizontal, Theme.gutter)
             .padding(.bottom, 170)
@@ -41,11 +42,12 @@ struct HomeView: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, offset in
             if active { chrome.scrolled(to: offset) }
         }
-        .refreshable { await feed.refresh(force: true) }
+        .refreshable { if !offline.isOn { await feed.refresh(force: true) } }
         .animation(Motion.spring, value: engine.waveMode)
+        .animation(Motion.spring, value: offline.isOn)
         .pageBackground()
-        .task { await feed.refresh() }
-        .onChange(of: library.liked.count) { Task { await feed.refresh() } }
+        .task(id: offline.isOn) { if !offline.isOn { await feed.refresh() } }
+        .onChange(of: library.liked.count) { if !offline.isOn { Task { await feed.refresh() } } }
         .sheet(isPresented: $showModes) {
             WaveModeSheet()
                 .presentationDetents([.height(440)])
@@ -56,6 +58,21 @@ struct HomeView: View {
         .sheet(isPresented: $showUpdate) {
             NavigationStack { UpdateView() }
                 .presentationBackground(Theme.background)
+        }
+    }
+
+    /// Главная с сетью: Sonar Mix, итоги, подборки, недавнее и релизы.
+    private var online: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            waveTitle
+                .padding(.top, 6)
+            RecapInvite()
+            mixes
+                .padding(.top, 34)
+            recent
+                .padding(.top, 34)
+            releases
+                .padding(.top, 30)
         }
     }
 

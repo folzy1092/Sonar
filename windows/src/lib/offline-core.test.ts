@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { autoplayFromPool, availableOnly, imageSrc, isAvailable, searchOffline, uniqueByRef } from './offline-core'
+import { autoplayFromPool, availableOnly, imageSrc, isAvailable, searchOffline, suggestOnNetwork, uniqueByRef } from './offline-core'
 
 const tr = (ref: string, title = ref, artist = 'a', album?: string) => ({
   ref,
@@ -75,5 +75,28 @@ describe('офлайн: картинки', () => {
     expect(imageSrc('/assets/logo.svg', true, 1)).toBe('/assets/logo.svg')
     expect(imageSrc('', true, 1)).toBeUndefined()
     expect(imageSrc(null, true, 1)).toBeUndefined()
+  })
+})
+
+describe('suggestOnNetwork — одна плашка на одну пропажу сети', () => {
+  const ev = (kind: 'offline' | 'online', modeOn = false, enabled = true) => ({ kind, modeOn, enabled })
+
+  test('сеть пропала впервые — показываем', () => {
+    expect(suggestOnNetwork(false, ev('offline'))).toEqual({ shown: true, show: true })
+  })
+
+  test('повторное событие той же пропажи — молчим', () => {
+    expect(suggestOnNetwork(true, ev('offline'))).toEqual({ shown: true, show: false })
+  })
+
+  test('сеть вернулась — следующая пропажа снова предложит', () => {
+    const back = suggestOnNetwork(true, ev('online'))
+    expect(back).toEqual({ shown: false, show: false })
+    expect(suggestOnNetwork(back.shown, ev('offline')).show).toBe(true)
+  })
+
+  test('режим уже включён или подсказка выключена — не предлагаем', () => {
+    expect(suggestOnNetwork(false, ev('offline', true)).show).toBe(false)
+    expect(suggestOnNetwork(false, ev('offline', false, false)).show).toBe(false)
   })
 })

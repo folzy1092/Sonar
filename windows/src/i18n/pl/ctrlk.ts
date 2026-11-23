@@ -26,4 +26,6 @@ export default {
   'выбрать': 'wybierz',
   'следующий раздел': 'następna sekcja',
   'закрыть': 'zamknij',
+  'Офлайн-режим: включить': 'Tryb offline: włącz',
+  'Офлайн-режим: выключить': 'Tryb offline: wyłącz',
 } satisfies Record<string, string>

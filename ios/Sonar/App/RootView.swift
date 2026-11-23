@@ -11,6 +11,7 @@ struct RootView: View {
     @Environment(PlaybackEngine.self) private var engine
     @Environment(Router.self) private var router
     @Environment(SettingsStore.self) private var settings
+    @Environment(OfflineMode.self) private var offline
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
     @State private var showUpdate = false
@@ -55,6 +56,17 @@ struct RootView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.96, anchor: .bottom)))
             }
 
+            // офлайн-режим включён — капсула «Офлайн» над нижней панелью, тап выключает (docs/OFFLINE.md §6)
+            if offline.isOn, checker.popup == nil {
+                OfflinePill(offline: offline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Theme.gutter)
+                    .padding(.bottom, BottomChrome.visibleHeight(hasMini: engine.current != nil || RemoteControl.shared.isActive, collapsed: chrome.collapsed) + 10)
+                    .offset(y: chrome.barHidden ? 190 : 0)
+                    .opacity(chrome.barHidden ? 0 : 1)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottomLeading)))
+            }
+
             BottomChrome(bottomInset: bottomInset) { router.playerOpen = true }
                 .padding(.bottom, BottomChrome.edgePadding)
                 .offset(y: chrome.barHidden ? 190 : 0)
@@ -65,8 +77,14 @@ struct RootView: View {
         .overlay(alignment: .top) {
             VStack(spacing: 8) {
                 // SoundCloud не принял ключи и починить их не вышло (POLISH_PROMPT п. 8)
-                if relogin.needed {
+                if relogin.needed, !offline.isOn {
                     SoundCloudReloginBanner(relogin: relogin)
+                        .padding(.horizontal, 16)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                // пропала сеть — предложить офлайн-режим (general.offline_suggest); сам режим не включается
+                if offline.suggesting {
+                    OfflineSuggestBanner(offline: offline)
                         .padding(.horizontal, 16)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
@@ -128,6 +146,18 @@ struct RootView: View {
         }
         .crashReportSheet()
         .approveLoginOverlay()
+        .onChange(of: NetworkStatus.shared.isOnline) { _, online in
+            withAnimation(Motion.spring) { offline.networkChanged(online: online) }
+        }
+        .onChange(of: NetworkStatus.shared.isUnmetered) { _, _ in
+            // Wi‑Fi вернулся — очередь «Скачать» продолжает (только Wi‑Fi — `storage.download_wifi_only`)
+            DownloadStore.shared.resume()
+            LikedAutoDownload.fill()
+        }
+        // Автоскачивание Любимых: при запуске, после лайка и когда офлайн выключили (`storage.auto_download_liked`)
+        .onChange(of: LibraryStore.shared.liked.count, initial: true) { _, _ in LikedAutoDownload.fill() }
+        .onChange(of: offline.isOn) { _, on in if !on { LikedAutoDownload.fill() } }
+        .animation(Motion.spring, value: offline.isOn)
         .onChange(of: chrome.tab) { _, tab in CrashLog.note("экран: \(tab.rawValue)") }
         .onChange(of: engine.current?.ref) { _, ref in if let ref { CrashLog.note("трек: \(ref)") } }
         .sheet(item: $router.trackMenu) { item in

@@ -44,6 +44,21 @@
       .catch(() => {})
   })
 
+  // счётчик отрезанных запросов (offline.rs): пока режим включён и страница открыта — раз в пару секунд
+  const BLOCKED_POLL_MS = 2000
+  let blocked = $state(0)
+  $effect(() => {
+    if (!offline.on) return
+    const read = () =>
+      api
+        .offlineBlocked()
+        .then((n) => (blocked = n))
+        .catch((e) => console.warn('офлайн: счётчик не прочитался', e))
+    read()
+    const timer = setInterval(read, BLOCKED_POLL_MS)
+    return () => clearInterval(timer)
+  })
+
   function setPlatform(v: ServiceKey) {
     settings.set('general.platform', v)
     // порция волны подбиралась под старую платформу
@@ -70,12 +85,19 @@
   <Switch
     title={t('Офлайн-режим')}
     hint={t('Sonar не выходит в интернет и показывает только скачанные и локальные треки. Для роуминга и слабой сети')}
-    on={settings.get('general.offline')}
+    on={offline.on}
     onchange={(v) => offline.set(v)}
   />
   {#if offline.on}
     <p class="avail">{t('Доступно офлайн')}: {offline.refs.size} {tn(offline.refs.size, ['трек', 'трека', 'треков'])}</p>
+    <p class="avail">{t('Запросов заблокировано с включения: {n}', { n: blocked })}</p>
   {/if}
+  <Switch
+    title={t('Предлагать офлайн-режим')}
+    hint={t('Пропала сеть — одна плашка с кнопкой. Сам режим не включается')}
+    on={settings.get('general.offline_suggest')}
+    onchange={(v) => settings.set('general.offline_suggest', v)}
+  />
 </Card>
 
 <Card>

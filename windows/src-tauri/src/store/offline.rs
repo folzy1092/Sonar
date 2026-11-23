@@ -3,11 +3,37 @@
 //! при запуске индекс сверяется с папкой кэша. Снимок `Track` хранится в строке: `tracks` могут обновить,
 //! а офлайн-список обязан показать название.
 
-use super::{now_ms, Store};
+use super::{now_ms, Store, LOCAL_USER};
 use crate::providers::Track;
 use anyhow::Result;
 use rusqlite::params;
+use serde::Serialize;
 use std::collections::{HashMap, HashSet};
+
+/// Сколько последних прослушиваний задают «что слушал недавно» для «Sonar Mix офлайн».
+const RECENT_PLAYS: i64 = 50;
+
+/// Местные сигналы трека для «Sonar Mix офлайн» (`lib/offline-mix.ts`): всё из своей базы, без сети.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct MixSignal {
+  #[serde(rename = "ref")]
+  pub ref_: String,
+  /// Сколько раз слушал (таблица `plays`).
+  pub plays: u32,
+  /// Когда слушал последний раз, мс; 0 — ни разу.
+  pub last_played: i64,
+  /// Ручные пропуски в волне (`skips`).
+  pub skips: u32,
+  /// Теги трека (`wave::parse_tags`, без имён исполнителей).
+  pub tags: Vec<String>,
+}
+
+/// Сигналы пула и теги недавно слушанного (с повторами — чаще слушал, больше вес).
+#[derive(Debug, Serialize)]
+pub struct MixSignals {
+  pub tracks: Vec<MixSignal>,
+  pub recent_tags: Vec<String>,
+}
 
 /// Файл в кэше, который лёг сам (прослушан или подкачан).
 pub const KIND_CACHE: &str = "cache";
@@ -81,6 +107,77 @@ impl Store {
         Some(t) => out.push(t),
         None => out.extend(self.tracks(&[r])?),
       }
+    }
+    Ok(out)
+  }
+
+  /// Сигналы для «Sonar Mix офлайн» по `refs` (то, что играет без сети) — три запроса на весь пул, не на трек.
+  pub fn offline_mix_signals(&self, refs: &[String]) -> Result<MixSignals> {
+    let wanted: HashSet<&str> = refs.iter().map(String::as_str).collect();
+    let mut plays: HashMap<String, (u32, i64)> = HashMap::new();
+    {
+      let mut st = self.db.prepare("SELECT ref, COUNT(*), MAX(played_at) FROM plays WHERE user_id = ?1 GROUP BY ref")?;
+      let rows = st.query_map([LOCAL_USER], |r| Ok((r.get::<_, String>(0)?, r.get::<_, u32>(1)?, r.get::<_, i64>(2)?)))?;
+      for row in rows {
+        let (r, n, last) = row?;
+        if wanted.contains(r.as_str()) {
+          plays.insert(r, (n, last));
+        }
+      }
+    }
+    let mut skips: HashMap<String, u32> = HashMap::new();
+    {
+      let mut st = self.db.prepare("SELECT ref, COUNT(*) FROM skips WHERE user_id = ?1 GROUP BY ref")?;
+      let rows = st.query_map([LOCAL_USER], |r| Ok((r.get::<_, String>(0)?, r.get::<_, u32>(1)?)))?;
+      for row in rows {
+        let (r, n) = row?;
+        if wanted.contains(r.as_str()) {
+          skips.insert(r, n);
+        }
+      }
+    }
+    let mut tags: HashMap<String, Vec<String>> = HashMap::new();
+    {
+      let mut st = self.db.prepare("SELECT ref, tags, artist, artists_json FROM tracks WHERE tags IS NOT NULL")?;
+      let rows = st.query_map([], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, Option<String>>(3)?))
+      })?;
+      for row in rows {
+        let (r, raw, artist, json) = row?;
+        if wanted.contains(r.as_str()) {
+          tags.insert(r, crate::wave::parse_tags(&raw, &super::wave::row_artists(&artist, json)));
+        }
+      }
+    }
+    let tracks = refs
+      .iter()
+      .map(|r| {
+        let (n, last) = plays.get(r).copied().unwrap_or((0, 0));
+        MixSignal {
+          ref_: r.clone(),
+          plays: n,
+          last_played: last,
+          skips: skips.get(r).copied().unwrap_or(0),
+          tags: tags.remove(r).unwrap_or_default(),
+        }
+      })
+      .collect();
+    Ok(MixSignals { tracks, recent_tags: self.recent_play_tags()? })
+  }
+
+  /// Теги последних `RECENT_PLAYS` прослушиваний (с повторами).
+  fn recent_play_tags(&self) -> Result<Vec<String>> {
+    let mut st = self.db.prepare(
+      "SELECT t.tags, t.artist, t.artists_json FROM plays p JOIN tracks t ON t.ref = p.ref
+       WHERE p.user_id = ?1 AND t.tags IS NOT NULL ORDER BY p.played_at DESC LIMIT ?2",
+    )?;
+    let rows = st.query_map(params![LOCAL_USER, RECENT_PLAYS], |r| {
+      Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, Option<String>>(2)?))
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+      let (raw, artist, json) = row?;
+      out.extend(crate::wave::parse_tags(&raw, &super::wave::row_artists(&artist, json)));
     }
     Ok(out)
   }
@@ -203,6 +300,26 @@ mod tests {
     assert!(s.offline_pinned_covers().unwrap().contains("https://i1.sndcdn.com/a.jpg"));
     s.offline_drop_kind(KIND_CACHE).unwrap();
     assert_eq!(s.offline_pinned_refs().unwrap().len(), 1);
+  }
+
+  #[test]
+  fn mix_signals_count_plays_skips_and_tags_of_pool_only() {
+    let mut s = Store::memory().unwrap();
+    let mut a = track("sc:1", "Первый");
+    a.tags = Some("lofi chill".into());
+    s.upsert_tracks(&[a, track("sc:2", "Второй"), track("sc:3", "Не в пуле")]).unwrap();
+    for (r, at) in [("sc:1", 10), ("sc:1", 30), ("sc:3", 40)] {
+      s.add_play(&super::super::Play { ref_: r.into(), artist: "a".into(), context: None, played_at: at, listened_ms: 1000 }).unwrap();
+    }
+    s.add_skip("sc:2", "a", 500).unwrap();
+
+    let got = s.offline_mix_signals(&["sc:1".to_owned(), "sc:2".to_owned()]).unwrap();
+    assert_eq!(got.tracks.len(), 2, "только пул");
+    assert_eq!((got.tracks[0].plays, got.tracks[0].last_played, got.tracks[0].skips), (2, 30, 0));
+    assert!(!got.tracks[0].tags.is_empty());
+    assert_eq!((got.tracks[1].plays, got.tracks[1].skips), (0, 1));
+    assert!(got.tracks[1].tags.is_empty());
+    assert!(!got.recent_tags.is_empty(), "теги недавнего — из истории, не только из пула");
   }
 
   #[test]

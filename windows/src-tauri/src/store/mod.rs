@@ -13,7 +13,7 @@ mod artist_graph;
 pub mod covers;
 mod dupes;
 mod local_files;
-mod offline;
+pub mod offline;
 mod recap;
 mod search;
 mod smart;

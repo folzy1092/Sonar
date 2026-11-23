@@ -62,6 +62,7 @@ where
 
   fn call(&mut self, req: R) -> Self::Future {
     if crate::offline::is_on() {
+      crate::offline::note_blocked();
       return Box::pin(std::future::ready(Err(Box::new(OfflineError) as BoxError)));
     }
     Box::pin(self.0.call(req))
@@ -118,7 +119,9 @@ mod tests {
     assert_eq!(accepted.load(Ordering::SeqCst), 1, "в сети — одно соединение, дальше оно в пуле");
 
     set_on(true);
+    let before = crate::offline::blocked();
     let err = pick(&live, &dead).get(&url).send().await.unwrap_err();
+    assert!(crate::offline::blocked() > before, "отбитое соединение попало в счётчик");
     let chain = std::iter::successors(Some(&err as &dyn std::error::Error), |e| e.source());
     assert!(chain.map(|e| e.to_string()).any(|t| t == crate::offline::MESSAGE), "ошибка офлайна, а не сети: {err:?}");
     assert!(dead.get(&url).send().await.is_err());

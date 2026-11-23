@@ -1,9 +1,10 @@
 //! Трей (решение владельца 2026-11-14, `system.tray`): крестик окна прячет Sonar в фон — музыка
 //! играет дальше; выключено — крестик закрывает приложение. Значок в трее: левый клик — показать
-//! окно, правый — «Открыть», «Играть / пауза», «Следующий», «Выход».
+//! окно, правый — «Открыть», «Играть / пауза», «Следующий», «Офлайн-режим» (галочка), «Выход».
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use std::sync::OnceLock;
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
@@ -15,6 +16,18 @@ pub static HIDE_ON_CLOSE: AtomicBool = AtomicBool::new(true);
 /// через 3 с из `setup`. Запуск с `--autostart` остаётся в трее.
 static FIRST_SHOWN: AtomicBool = AtomicBool::new(false);
 pub static START_HIDDEN: AtomicBool = AtomicBool::new(false);
+
+/// Галочка «Офлайн-режим» в меню трея: режим переключили откуда угодно — `offline::switch` ставит её заново.
+static OFFLINE_ITEM: OnceLock<CheckMenuItem<tauri::Wry>> = OnceLock::new();
+
+/// Синхронизировать галочку с флагом (трея ещё нет — ничего).
+pub fn set_offline_checked(on: bool) {
+  if let Some(item) = OFFLINE_ITEM.get() {
+    if let Err(e) = item.set_checked(on) {
+      eprintln!("трей: галочка офлайн-режима не встала — {e}");
+    }
+  }
+}
 
 pub fn show_first(app: &AppHandle) {
   if START_HIDDEN.load(Ordering::Relaxed) || FIRST_SHOWN.swap(true, Ordering::Relaxed) {
@@ -37,8 +50,12 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
   let toggle = MenuItem::with_id(app, "toggle", "Играть / пауза", true, None::<&str>)?;
   let next = MenuItem::with_id(app, "next", "Следующий", true, None::<&str>)?;
   let sep = PredefinedMenuItem::separator(app)?;
+  // флаг уже прочитан из базы (`lib.rs` — до трея), галочка сразу верная
+  let offline = CheckMenuItem::with_id(app, "offline", "Офлайн-режим", true, crate::offline::is_on(), None::<&str>)?;
+  let sep2 = PredefinedMenuItem::separator(app)?;
   let quit = MenuItem::with_id(app, "quit", "Выход", true, None::<&str>)?;
-  let menu = Menu::with_items(app, &[&open, &toggle, &next, &sep, &quit])?;
+  let menu = Menu::with_items(app, &[&open, &toggle, &next, &sep, &offline, &sep2, &quit])?;
+  let _ = OFFLINE_ITEM.set(offline);
 
   let mut tray = TrayIconBuilder::with_id("main")
     .tooltip("Sonar")
@@ -53,6 +70,7 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
       "next" => {
         let _ = app.emit("media-control", "next");
       }
+      "offline" => crate::offline::toggle(app),
       "quit" => app.exit(0),
       _ => {}
     })

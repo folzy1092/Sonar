@@ -46,6 +46,7 @@ final class SoundCloudRelogin {
 
     func signIn() {
         dismiss()
+        guard !OfflineFlag.isOn else { return }
         signingIn = true
     }
 
@@ -73,6 +74,8 @@ enum SoundCloudSilentLogin {
     private static let poll: Duration = .seconds(1)
 
     static func run(ignore: String?) async -> String? {
+        // WKWebView ходит мимо сторожа URLSession — в офлайне не открываем вовсе
+        guard !OfflineFlag.isOn else { return nil }
         let store = SoundCloudWebStore.shared
         let config = WKWebViewConfiguration()
         config.websiteDataStore = store

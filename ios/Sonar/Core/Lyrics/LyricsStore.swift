@@ -37,6 +37,8 @@ final class LyricsStore {
 
     @ObservationIgnored private let provider: LyricsProviding
     @ObservationIgnored private let cache: LyricsCache
+    /// Тексты скачанных треков (`DownloadStore.onSaved`): не чистятся и в офлайне показываются без срока.
+    @ObservationIgnored private let pinned: LyricsCache
     @ObservationIgnored private let offsetsFile: URL
     @ObservationIgnored private let settings: SettingsStore
     /// ref → текст (nil — «не найдено»), новые в конце.
@@ -49,24 +51,26 @@ final class LyricsStore {
     @ObservationIgnored private var generation = 0
 
     /// `isLiked` — трек в Любимых (кэш у них живёт две недели). Без аргументов — общие хранилища приложения.
-    init(provider: LyricsProviding = LyricsFinder(), cache: LyricsCache = LyricsCache(), offsetsFile: URL? = nil,
-         settings: SettingsStore? = nil, isLiked: ((String) -> Bool)? = nil) {
+    init(provider: LyricsProviding = LyricsFinder(), cache: LyricsCache = LyricsCache(), pinned: LyricsCache? = nil,
+         offsetsFile: URL? = nil, settings: SettingsStore? = nil, isLiked: ((String) -> Bool)? = nil) {
         self.provider = provider
         self.cache = cache
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
+        self.pinned = pinned ?? LyricsCache(directory: base.appendingPathComponent("Sonar/Downloads/lyrics", isDirectory: true))
         self.offsetsFile = offsetsFile ?? base.appendingPathComponent("Sonar/lyrics-offsets.json")
         self.settings = settings ?? .shared
         if let data = try? Data(contentsOf: self.offsetsFile), let saved = try? JSONDecoder().decode([String: Int].self, from: data) {
             offsets = saved
         }
         let liked = isLiked ?? { LibraryStore.shared.likedRefs.contains($0) }
-        cache.prune(isLiked: liked)
+        // в офлайне кэш не чистим: новый текст без сети не найти
+        if !OfflineFlag.isOn { cache.prune(isLiked: liked) }
     }
 
     // MARK: текст
 
-    /// Текст трека: память → кэш → сеть. Повторный вызов для того же трека — из памяти, без запроса.
+    /// Текст трека: память → кэш → скачанное → сеть. Повторный вызов для того же трека — из памяти, без запроса.
     func load(for track: Track) async {
         if track.ref == trackRef, lyrics != nil || loading || failed != nil { return }
         await show(track, refresh: false)
@@ -126,11 +130,13 @@ final class LyricsStore {
             return
         }
         lyrics = found
+        // пояснения Genius и перевод — только с сетью
+        guard !OfflineFlag.isOn else { return }
         Task { await loadNotes(track, found, token: token) }
         if let language = translationLanguage { await translate(to: language, quiet: true) }
     }
 
-    /// Память → кэш → сеть (одновременные запросы одного трека — один поиск).
+    /// Память → кэш → скачанное → сеть (одновременные запросы одного трека — один поиск).
     private func fetch(_ track: Track) async throws -> Lyrics? {
         let ref = track.ref
         if let hit = memory[ref] {
@@ -141,6 +147,16 @@ final class LyricsStore {
             remember(ref, hit)
             return hit
         }
+        // скачанный трек: текст рядом; без сети годится и «не найдено» любой давности
+        let offline = OfflineFlag.isOn
+        if let entry = pinned.get(ref), entry.lyrics != nil || offline {
+            remember(ref, entry.lyrics)
+            return entry.lyrics
+        }
+        if offline, let entry = cache.get(ref) {
+            remember(ref, entry.lyrics)
+            return entry.lyrics
+        }
         if let running = inflight[ref] { return try await running.value }
         let provider = provider
         let query = LyricsQuery(track)
@@ -150,8 +166,22 @@ final class LyricsStore {
         let found = try await task.value
         let saved = found?.lines.isEmpty == false ? found : nil
         cache.put(ref, saved)
+        if FileManager.default.fileExists(atPath: pinned.file(for: ref).path) { pinned.put(ref, saved) }
         remember(ref, saved)
         return saved
+    }
+
+    /// Трек скачан — текст рядом с ним. Текста нет — пустая запись: найдётся позже — `fetch` её обновит.
+    /// Сеть упала — ничего не пишем.
+    func pin(_ track: Track) async {
+        let found: Lyrics?
+        do { found = try await fetch(track) } catch { return }
+        pinned.put(track.ref, found)
+    }
+
+    /// Скачанный трек удалён.
+    func unpin(_ ref: String) {
+        pinned.remove(ref)
     }
 
     private func remember(_ ref: String, _ lyrics: Lyrics?) {

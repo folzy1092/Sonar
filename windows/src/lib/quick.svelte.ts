@@ -8,10 +8,11 @@ import { connected, serviceOf, type ServiceId } from './services'
 import { settings } from './settings.svelte'
 import { library } from './library.svelte'
 import { toast } from './toast.svelte'
+import { offline } from './offline.svelte'
 import { t } from './i18n.svelte'
 import { tracksText } from './format'
 import { interleave, normalize, rank, searchLayouts, uniqueByRef } from './quick-core'
-import { QUICK_ACTIONS, QUICK_GROUPS, QUICK_SETTINGS, WAVE_MOOD_TITLE, type QuickActionId, type QuickGroupId, type QuickHint } from './quick-catalog'
+import { OFFLINE_OFF_TITLE, QUICK_ACTIONS, QUICK_GROUPS, QUICK_SETTINGS, WAVE_MOOD_TITLE, type QuickActionId, type QuickGroupId, type QuickHint } from './quick-catalog'
 import { player } from '../player/player.svelte'
 import { wave, WAVE_MODES, type WaveMode } from '../player/my-wave.svelte'
 import { sleep } from '../player/sleep.svelte'
@@ -112,10 +113,16 @@ function runAction(id: QuickActionId, title: string) {
     sleep.cancel()
     toast.show(t('Таймер сна выключен'))
   } else if (id === 'settings') openSettings()
+  else if (id === 'offline') offline.set(!offline.on)
+}
+
+/** Подпись действия по текущему состоянию: офлайн-режим включён — «выключить». */
+function actionLabel(a: (typeof QUICK_ACTIONS)[number]): (typeof QUICK_ACTIONS)[number] {
+  return a.id === 'offline' && offline.on ? { ...a, title: OFFLINE_OFF_TITLE } : a
 }
 
 function actionItems(): { item: QuickItem; texts: string[] }[] {
-  const actions = QUICK_ACTIONS.map((a) => ({
+  const actions = QUICK_ACTIONS.map(actionLabel).map((a) => ({
     item: {
       key: `action:${a.id}`,
       group: 'actions' as const,

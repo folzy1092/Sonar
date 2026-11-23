@@ -139,6 +139,7 @@ enum SyncError: LocalizedError, Equatable {
 enum SyncPolicy {
     static let localSettings: Set<String> = [
         "general.language",
+        "general.offline",
         "audio.quality",
         "audio.sc_via_yandex",
         "audio.output_device",

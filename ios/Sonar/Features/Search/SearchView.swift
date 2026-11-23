@@ -44,6 +44,7 @@ struct SearchView: View {
     @Environment(PlaybackEngine.self) private var engine
     @Environment(ChromeState.self) private var chrome
     @Environment(Router.self) private var router
+    @Environment(OfflineMode.self) private var offline
     @AppStorage("search.source") private var sourceRaw = Service.soundcloud.rawValue
     @AppStorage("search.history") private var historyRaw = ""
     @State private var query = ""
@@ -86,22 +87,28 @@ struct SearchView: View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 field
-                CircleButton(icon: sourceIcon, label: "Искать в: \(source.title)") {
-                    Task {
-                        let connected = await SpotifyCore.shared.account != nil
-                        sourceRaw = source.next(spotifyConnected: connected).rawValue
-                        router.say("Ищу в \(source.title)")
+                // офлайн: ни сервисов, ни ссылок — поиск только по телефону
+                if !offline.isOn {
+                    CircleButton(icon: sourceIcon, label: "Искать в: \(source.title)") {
+                        Task {
+                            let connected = await SpotifyCore.shared.account != nil
+                            sourceRaw = source.next(spotifyConnected: connected).rawValue
+                            router.say("Ищу в \(source.title)")
+                        }
                     }
+                    CircleButton(icon: .link, label: "Вставить ссылку") { pasteLink() }
                 }
-                CircleButton(icon: .link, label: "Вставить ссылку") { pasteLink() }
             }
             .padding(.horizontal, Theme.gutter)
             .padding(.top, 8)
 
             suggestionChip
 
-            chips
-                .padding(.top, 14)
+            if !offline.isOn {
+                chips
+                    .padding(.top, 14)
+                    .transition(.opacity)
+            }
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
@@ -136,6 +143,11 @@ struct SearchView: View {
         }
         .onChange(of: sourceRaw) { search(immediately: true) }
         .onChange(of: kind) { search(immediately: true) }
+        .onChange(of: offline.isOn) { _, on in
+            if on { kind = .all }
+            search(immediately: true)
+        }
+        .animation(Motion.spring, value: offline.isOn)
         .task(id: candidatesKey) {
             candidates = Autocomplete.candidates(liked: LibraryStore.shared.liked, history: history,
                                                  recent: PlayHistory.shared.recent)
@@ -250,7 +262,9 @@ struct SearchView: View {
     @ViewBuilder
     private var historyList: some View {
         if history.isEmpty {
-            HintCard(icon: .search, text: "Ищи треки, альбомы и артистов SoundCloud и Яндекс Музыки — или вставь ссылку")
+            HintCard(icon: offline.isOn ? .cloudOff : .search,
+                     text: offline.isOn ? t("В офлайне ищем только среди скачанного и локального.")
+                         : "Ищи треки, альбомы и артистов SoundCloud и Яндекс Музыки — или вставь ссылку")
                 .padding(.top, 6)
         } else {
             HStack {
@@ -490,6 +504,16 @@ struct SearchView: View {
             link = nil
             error = nil
             loading = false
+            return
+        }
+        if offline.isOn {
+            withAnimation(Motion.spring) {
+                tracks = OfflineSearch.match(offline.availableTracks, query: text)
+                more = SearchResults()
+                link = nil
+                error = nil
+                loading = false
+            }
             return
         }
         let service = source

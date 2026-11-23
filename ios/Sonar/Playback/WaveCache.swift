@@ -41,8 +41,7 @@ final class NetworkStatus {
 
 /// Волна без сети (`storage.wave_offline`): на Wi‑Fi следующие 15 треков волны подкачиваются в кэш
 /// (Caches/Sonar/WaveCache — в бэкап не идёт, iOS может почистить при нехватке места), без сети плеер играет
-/// их оттуда. Качает так же, как «Скачать» (`DownloadStore` — файл, не HLS: у SoundCloud — Яндекс-двойник или
-/// прямой mp3), по два за раз. Сыгранное и ушедшее из «Далее» удаляется. План — `WaveCachePlan`.
+/// их оттуда. Качает так же, как «Скачать» (`DownloadStore` — файл; HLS SoundCloud склеивается), по два за раз. Сыгранное и ушедшее из «Далее» удаляется. План — `WaveCachePlan`.
 @MainActor
 final class WaveCache {
     static let shared = WaveCache()
@@ -71,6 +70,18 @@ final class WaveCache {
         store.localURL(ref)
     }
 
+    func localCover(_ url: String) -> URL? {
+        store.localCover(url)
+    }
+
+    /// Трек в кэше волны (без проверки файла — для фильтров офлайна).
+    func has(_ ref: String) -> Bool {
+        store.isDownloaded(ref)
+    }
+
+    /// Что лежит в кэше волны — для офлайн-главной.
+    var tracks: [Track] { store.downloaded }
+
     func quality(_ ref: String) -> String? {
         store.quality(ref).map { "\($0) · офлайн" }
     }
@@ -82,6 +93,8 @@ final class WaveCache {
     /// выключено — очистить.
     func update(upcoming: [Track], current: Track?, isWave: Bool, enabled: Bool) {
         guard isWave || !enabled else { return }
+        // офлайн: ни подкачки, ни чистки — сыгранное ещё пригодится без сети
+        guard !OfflineFlag.isOn else { return }
         lastUpcoming = upcoming
         lastCurrent = current
         lastEnabled = enabled
@@ -118,7 +131,7 @@ final class WaveCache {
             pump = nil
             return false
         }
-        if network.isUnmetered {
+        if network.isUnmetered, !OfflineFlag.isOn {
             while store.progress.count < WaveCachePlan.parallel, !queue.isEmpty {
                 let track = queue.removeFirst()
                 attempted.insert(track.ref)

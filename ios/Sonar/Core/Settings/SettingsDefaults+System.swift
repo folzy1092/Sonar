@@ -10,6 +10,15 @@ extension SettingsDefaults {
         "general.add_position": .string("start"),
         // тактильный отклик на нажатия (настройки, вкладки, Sonar Mix) — почти незаметный
         "general.haptics": .bool(true),
+        // Офлайн-режим (docs/OFFLINE.md): ни байта в сеть; только это устройство, не синхронизируется
+        "general.offline": .bool(false),
+        // пропала сеть — плашка «Включить офлайн-режим» (сам режим не включается)
+        "general.offline_suggest": .bool(true),
+        // Скачивать только по Wi-Fi (OFFLINE.md §8): по сотовой очередь ждёт
+        "storage.download_wifi_only": .bool(true),
+        // Автоскачивание Любимых (OFFLINE.md §8.3): свежие лайки первыми, пока всё скачанное влезает в лимит, ГБ
+        "storage.auto_download_liked": .bool(false),
+        "storage.auto_download_limit_gb": .int(5),
         // Уведомления: новинки любимых исполнителей (ReleaseNotifier), общий ключ с ПК
         "notify.releases": .bool(true),
         // Хранилище (iOS): потолок кэша обложек на диске, МБ — 128 / 256 / 512 / 1024

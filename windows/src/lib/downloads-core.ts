@@ -45,6 +45,30 @@ export function toDownload<T extends { ref: string }>(tracks: readonly T[], down
   })
 }
 
+/** Автоскачивание Любимых: что из списка (по порядку, новые лайки первыми) влезает в лимит поверх уже скачанного.
+ * Первый не влезший останавливает подбор — иначе мелкие старые треки обгоняли бы свежие лайки. */
+export function fitToLimit<T extends Sized>(tracks: readonly T[], usedBytes: number, limitBytes: number, quality: Quality): T[] {
+  let total = usedBytes
+  const over = tracks.findIndex((t) => (total += trackBytes(t, quality)) > limitBytes)
+  return tracks.slice(0, over < 0 ? tracks.length : over)
+}
+
+/** Автоскачивание Любимых целиком (как iPhone `LikedAutoDownload.plan`): недостающие лайки по порядку, пока скачанное
+ * + уже стоящее в очереди + новое не больше лимита. `only` — подобрать один свежий лайк. */
+export function likedPlan<T extends Sized>(
+  liked: readonly T[],
+  downloaded: ReadonlySet<string>,
+  queued: ReadonlySet<string>,
+  usedBytes: number,
+  limitBytes: number,
+  quality: Quality,
+  only?: string,
+): T[] {
+  const inQueue = liked.filter((t) => queued.has(t.ref))
+  const missing = toDownload(liked, downloaded).filter((t) => !queued.has(t.ref) && (!only || t.ref === only))
+  return fitToLimit(missing, usedBytes + batchBytes(inQueue, quality), limitBytes, quality)
+}
+
 /** Доля готового в пачке, 0…1. Пусто — 0. */
 export function progress(done: number, left: number): number {
   const all = done + left

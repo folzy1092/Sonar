@@ -79,3 +79,22 @@ export function imageSrc(url: string | null | undefined, on: boolean, port: numb
   if (port == null) return undefined
   return `http://127.0.0.1:${port}/cover?u=${encodeURIComponent(url)}`
 }
+
+/** Событие сети браузера и что Sonar знает в этот момент. */
+export interface NetworkEvent {
+  kind: 'offline' | 'online'
+  /** Офлайн-режим уже включён. */
+  modeOn: boolean
+  /** `general.offline_suggest`. */
+  enabled: boolean
+}
+
+/**
+ * Предложить ли офлайн-режим, когда пропала сеть: одна плашка на одну пропажу (`shown` — уже предлагали),
+ * сеть вернулась — счёт сначала. Сам режим отсюда никогда не включается.
+ */
+export function suggestOnNetwork(shown: boolean, e: NetworkEvent): { shown: boolean; show: boolean } {
+  if (e.kind === 'online') return { shown: false, show: false }
+  if (shown || e.modeOn || !e.enabled) return { shown, show: false }
+  return { shown: true, show: true }
+}

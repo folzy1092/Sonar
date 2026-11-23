@@ -380,6 +380,18 @@ pub fn offline_tracks(db: State<'_, Db>) -> Res<Vec<Track>> {
   db.0.lock().unwrap().offline_cached_tracks().map_err(err)
 }
 
+/// Сколько попыток выйти в сеть отбито с включения офлайн-режима («Сеть» в настройках).
+#[tauri::command]
+pub fn offline_blocked() -> u64 {
+  crate::offline::blocked()
+}
+
+/// Местные сигналы для «Sonar Mix офлайн» (`lib/offline-mix.ts`): прослушивания, пропуски, теги — без сети.
+#[tauri::command]
+pub fn offline_mix_signals(db: State<'_, Db>, refs: Vec<String>) -> Res<crate::store::offline::MixSignals> {
+  db.0.lock().unwrap().offline_mix_signals(&refs).map_err(err)
+}
+
 // ——— каталог: поиск артистов/альбомов/плейлистов, страницы ———
 
 #[tauri::command]

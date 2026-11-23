@@ -51,7 +51,31 @@ final class LyricsStoreTests: XCTestCase {
     private func makeStore(_ provider: FakeLyricsProvider, dir: URL, liked: Set<String> = []) -> LyricsStore {
         let settings = SettingsStore(storage: UserDefaults(suiteName: "lyrics-\(UUID().uuidString)")!)
         return LyricsStore(provider: provider, cache: LyricsCache(directory: dir.appendingPathComponent("cache")),
+                           pinned: LyricsCache(directory: dir.appendingPathComponent("pinned")),
                            offsetsFile: dir.appendingPathComponent("offsets.json"), settings: settings, isLiked: { liked.contains($0) })
+    }
+
+    /// Скачанный трек: текст рядом, переживает чистку кэша и в офлайне берётся без сети.
+    func testPinnedLyricsServeOffline() async {
+        let dir = tempDirectory()
+        let provider = FakeLyricsProvider()
+        provider.byTitle["Song ym:7"] = sample()
+        let track = makeTrack("ym:7", "A")
+        await makeStore(provider, dir: dir).pin(track)
+        try? FileManager.default.removeItem(at: dir.appendingPathComponent("cache"))
+
+        OfflineFlag.set(true)
+        defer { OfflineFlag.set(false) }
+        provider.failFind = true
+        let offline = makeStore(provider, dir: dir)
+        await offline.load(for: track)
+        XCTAssertEqual(offline.lyrics?.lines.map(\.text), ["Раз", "", "Два"])
+        XCTAssertEqual(provider.calls("find"), 1, "в офлайне — только с телефона")
+
+        offline.unpin(track.ref)
+        let after = makeStore(provider, dir: dir)
+        await after.load(for: track)
+        XCTAssertNil(after.lyrics)
     }
 
     func testLoadUsesMemoryThenCache() async {
@@ -79,6 +103,28 @@ final class LyricsStoreTests: XCTestCase {
         await again.reload(for: track)
         XCTAssertEqual(again.lyrics?.lines.map(\.text), ["Новый"])
         XCTAssertEqual(provider.calls("find"), 2)
+    }
+
+    /// Скачали трек без текста — текст, найденный позже, тоже ложится рядом с ним.
+    func testPinnedWithoutLyricsPicksUpLaterFind() async {
+        let dir = tempDirectory()
+        let provider = FakeLyricsProvider()
+        let track = makeTrack("ym:8", "A")
+        await makeStore(provider, dir: dir).pin(track)
+        try? FileManager.default.removeItem(at: dir.appendingPathComponent("cache"))
+
+        provider.byTitle["Song ym:8"] = sample()
+        let online = makeStore(provider, dir: dir)
+        await online.load(for: track)
+        XCTAssertNotNil(online.lyrics)
+        try? FileManager.default.removeItem(at: dir.appendingPathComponent("cache"))
+
+        OfflineFlag.set(true)
+        defer { OfflineFlag.set(false) }
+        provider.failFind = true
+        let offline = makeStore(provider, dir: dir)
+        await offline.load(for: track)
+        XCTAssertEqual(offline.lyrics?.lines.map(\.text), ["Раз", "", "Два"])
     }
 
     func testNotFoundIsCachedButErrorsAreNot() async {

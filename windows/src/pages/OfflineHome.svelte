@@ -1,12 +1,15 @@
 <script lang="ts">
   // Главная в офлайне (docs/OFFLINE.md §8.2): без Sonar Mix, «Для тебя», релизов и всего сетевого.
-  // Только то, что играет без сети: недавнее, любимые и всё скачанное / локальное.
+  // Только то, что играет без сети: недавнее, любимые и всё скачанное / локальное; «Sonar Mix офлайн» (§6.1, этап 4) —
+  // когда доступного хватает на микс (lib/offline-mix.ts).
   import Icon from '../components/Icon.svelte'
   import Tile from '../components/Tile.svelte'
   import Shelf from '../components/Shelf.svelte'
   import { api, type Track } from '../lib/api'
   import { offline } from '../lib/offline.svelte'
   import { autoplayFromPool } from '../lib/offline-core'
+  import { MIX_MIN_POOL, rankOfflineMix } from '../lib/offline-mix'
+  import { toast } from '../lib/toast.svelte'
   import { player } from '../player/player.svelte'
   import { t, tn } from '../lib/i18n.svelte'
   import { cascade } from '../lib/cascade'
@@ -43,6 +46,18 @@
     void player.playList(tracks, i, 'offline', title)
   }
 
+  async function playMix() {
+    try {
+      const signals = await api.offlineMixSignals(pool.map((x) => x.ref))
+      const liked = new Set(favorites.map((x) => x.ref))
+      const mix = rankOfflineMix(pool, { liked, signals: signals.tracks, recentTags: signals.recent_tags, now: Date.now(), rand: Math.random })
+      if (mix.length) void player.playList(mix, 0, 'offline', t('Sonar Mix офлайн'))
+    } catch (e) {
+      console.warn('офлайн: микс не собрался', e)
+      toast.show(t('Не получилось собрать микс'))
+    }
+  }
+
   function shuffleAll() {
     const all = autoplayFromPool(pool, new Set(), () => false, pool.length)
     if (all.length) void player.playList(all, 0, 'offline', t('Всё доступное'))
@@ -57,7 +72,12 @@
     {tn(offline.refs.size, ['трек', 'трека', 'треков'])}
   </p>
   <div class="actions">
-    <button class="listen press" disabled={!pool.length} onclick={shuffleAll}>
+    {#if pool.length >= MIX_MIN_POOL}
+      <button class="listen press" onclick={playMix} title={t('Микс из скачанного: лайки, что слушал чаще и недавно, без частых пропусков')}>
+        <Icon name="waveform" size={18} />{t('Sonar Mix офлайн')}
+      </button>
+    {/if}
+    <button class={pool.length >= MIX_MIN_POOL ? 'ghost press' : 'listen press'} disabled={!pool.length} onclick={shuffleAll}>
       <Icon name="shuffle" size={18} />{t('Перемешать всё')}
     </button>
     <button class="ghost press" onclick={() => offline.set(false)}>{t('Выключить офлайн-режим')}</button>
@@ -126,7 +146,8 @@
     background: var(--accent);
     color: var(--accent-ink);
   }
-  .listen:disabled {
+  .listen:disabled,
+  .ghost:disabled {
     opacity: 0.5;
   }
   .ghost {

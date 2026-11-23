@@ -55,7 +55,7 @@ Discord RPC: ID приложения Discord пользователь **не в�
 у владельца Sonar без спроса. Установщик — свой шаблон NSIS `windows/src-tauri/installer.nsi` (страница «Ярлыки»; сверять с `tauri-bundler` при обновлении `@tauri-apps/cli`). Знак и иконки — из вектора `brand/logo.svg` / `brand/icon/*.svg`. Название и артист в плеере
 выделяются и копируются.
 
-## Офлайн-режим (спека, 2026-11-23)
+## Офлайн-режим (2026-11-23)
 
 Настройка `general.offline` («Офлайн-режим», ПК и iPhone): ни байта в сеть, играет только скачанное / кэшированное / локальное,
 остальное скрыто, не синхронизируется. Задание — `docs/OFFLINE.md` (этапы, механизм «ни байта», вопросы владельцу в разд. 15);
@@ -67,7 +67,13 @@ ROADMAP — «Блок O». **ПК сделан 2026-11-23 (этапы 0–1):**
 `lib/offline-net.test.ts` (новый `fetch`/сокет/`<img>` мимо — красный тест). **«Скачать» на ПК (этап 2) сделан 2026-11-23:** очередь —
 `downloads.rs` (в памяти, по 2, пауза/повтор/отмена, офлайн держит очередь), файлы — `<кэш>/pinned` (`kind = pinned`, LRU не трогает) +
 `pinned/covers` + текст в `lyrics_cache` (чистка его не трогает); фронт — `lib/downloads.svelte.ts` + `lib/downloads-core.ts`, «Скачанное» —
-`pages/settings/Storage.svelte`. Дальше — iPhone (этап 3).
+`pages/settings/Storage.svelte`. **Этап 5 на ПК** (2026-11-23): плашка «Сеть пропала» (`general.offline_suggest`), счётчик
+заблокированных, трей и Ctrl+K, Sonar Mix офлайн — `lib/offline-mix.ts`, альбомы и исполнители из доступного — `lib/offline-groups.ts`
+(id `offline:<вид>:<ключ>`), автоскачивание Любимых — `fillLiked`. **iPhone (этапы 3–5) сделан 2026-11-23:** флаг — `Core/Offline/OfflineFlag.swift`
+(из сохранённых настроек до первого запроса), сторож — `OfflineGuard` первым в `Net.configuration` (**каждая `URLSession` — через
+`Net.configuration`**, тест `testEverySessionUsesNetConfiguration`), фильтры — `OfflineFilter` / `OfflineMode`, экраны — `Features/Offline/`;
+«Скачать» — `DownloadStore` (очередь по 2, `mayStart` — «Только по Wi‑Fi»), правила — `DownloadPlan.swift` (оценка, лимит, HLS склейкой),
+автоскачивание Любимых — `LikedAutoDownload.swift`. Sonar Mix и альбомы офлайн на iPhone — нет. Проверено только CI, не на устройстве.
 
 ## Навыки агента и аудит
 

@@ -272,6 +272,8 @@ pub fn run() {
       commands::offline_state,
       commands::offline_refs,
       commands::offline_tracks,
+      commands::offline_blocked,
+      commands::offline_mix_signals,
       commands::media_update,
       commands::search_more,
       commands::artist_page,

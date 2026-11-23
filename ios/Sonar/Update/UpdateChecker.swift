@@ -65,7 +65,8 @@ final class UpdateChecker {
 
     /// silent — фоновая: при находке показывает всплывашку (кроме уже закрытой для этой сборки).
     func check(silent: Bool = false) async {
-        guard !isChecking else { return }
+        // офлайн-режим: проверки обновлений нет вовсе (OFFLINE.md §4.1)
+        guard !isChecking, !OfflineFlag.isOn else { return }
         isChecking = true
         defer { isChecking = false }
         let installed = Self.installedBuild

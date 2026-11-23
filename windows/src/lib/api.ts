@@ -631,6 +631,10 @@ export const api = {
   offlineState: () => call<boolean>('offline_state'),
   offlineRefs: () => call<string[]>('offline_refs'),
   offlineTracks: () => call<Track[]>('offline_tracks'),
+  /** Сколько запросов в сеть отрезано с включения офлайн-режима (`offline.rs` `blocked`). */
+  offlineBlocked: () => call<number>('offline_blocked'),
+  /** Сигналы для «Sonar Mix офлайн»: прослушивания, пропуски и теги доступных треков (`store/offline.rs`). */
+  offlineMixSignals: (refs: string[]) => call<MixSignals>('offline_mix_signals', { refs }),
   /** Скачивание (`downloads.rs`, `docs/OFFLINE.md` §8): поставить в очередь (вернёт, сколько добавлено), очередь,
    *  что скачано, пауза, повтор упавших, отмена, удалить скачанное, удалить всё, открыть папку, свободно на диске. */
   downloadTracks: (tracks: Track[]) => call<number>('download_tracks', { tracks }),
@@ -645,6 +649,21 @@ export const api = {
   diskFree: () => call<number | null>('disk_free'),
 
   mediaUpdate: (info: MediaInfo) => (isTauri ? invoke<void>('media_update', { info }) : Promise.resolve()),
+}
+
+/** Что Sonar знает о треке для «Sonar Mix офлайн»: прослушивания, последний раз (мс), пропуски, теги. */
+export interface MixSignal {
+  ref: string
+  plays: number
+  last_played: number
+  skips: number
+  tags: string[]
+}
+
+/** Сигналы по доступным трекам и теги последних прослушиваний. */
+export interface MixSignals {
+  tracks: MixSignal[]
+  recent_tags: string[]
 }
 
 /** Итог скана папок с музыкой: сколько файлов в индексе и что изменилось. */

@@ -39,6 +39,8 @@ export const DEFAULTS = {
   'general.similar_autoplay': true,
   /** Офлайн-режим (docs/OFFLINE.md): ни байта в сеть. Владелец — Rust (offline.rs), в синк не идёт. */
   'general.offline': false,
+  /** Пропала сеть, а режим выключен — одна плашка «Включить офлайн-режим» (сам режим не включается). Только это устройство. */
+  'general.offline_suggest': true,
   'general.add_position': 'start' as 'start' | 'end',
   /** Тема: тёмная / светлая / как в системе (меняется на лету). */
   'appearance.mode': 'dark' as 'dark' | 'light' | 'system',
@@ -131,6 +133,10 @@ export const DEFAULTS = {
   'storage.cache_limit_mb': 2048 as number,
   /** Sonar Mix офлайн: следующие 15 треков Sonar Mix заранее скачиваются в кэш треков. */
   'storage.wave_offline': false,
+  /** Скачивать Любимые: новый лайк — в очередь «Скачать», при запуске докачиваются недостающие (downloads.rs). */
+  'storage.auto_download_liked': false,
+  /** Потолок автоскачивания Любимых, ГБ (весь объём скачанного); дальше Sonar не ставит в очередь. */
+  'storage.auto_download_limit_gb': 5 as number,
   /** Папки с музыкой на этом компьютере (local/, «На этом компьютере» в Медиатеке). */
   'storage.music_folders': [] as string[],
   'audio.output_device': '' as string,
@@ -338,6 +344,11 @@ class Settings {
   setMiniShape(shape: 'default' | 'capsule') {
     this.set('mini.shape', shape)
     this.set('mini.shape_round', MINI_SHAPE_ROUND[shape])
+  }
+
+  /** Значение уже записано в базу другим путём (меню трея → Rust) — только обновить зеркало, без записи. */
+  mirror<K extends SettingKey>(key: K, value: Value<K>) {
+    this.values = { ...this.values, [key]: value }
   }
 
   /** После «Сбросить настройки». */

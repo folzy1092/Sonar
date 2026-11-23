@@ -22,6 +22,7 @@ struct PlaylistScreen: View {
     @Environment(LibraryStore.self) private var library
     @Environment(ChromeState.self) private var chrome
     @Environment(Router.self) private var router
+    @Environment(OfflineMode.self) private var offline
     @Environment(\.dismiss) private var dismiss
 
     @State private var loaded: [Track] = []
@@ -36,6 +37,8 @@ struct PlaylistScreen: View {
     @State private var renaming = false
     @State private var nameDraft = ""
     @State private var confirmDelete = false
+    /// «Скачать всё» больше 50 треков или 1 ГБ — сначала спросить (`docs/OFFLINE.md` §8.2).
+    @State private var batch: DownloadPlan.Batch?
     @State private var addAllToPlaylist = false
     @FocusState private var searchFocused: Bool
 
@@ -78,7 +81,12 @@ struct PlaylistScreen: View {
         }
     }
 
+    /// В офлайне — только то, что есть на телефоне (`docs/OFFLINE.md` §6: недоступное скрыто).
     private var tracks: [Track] {
+        offline.isOn ? offline.filter.tracks(allTracks) : allTracks
+    }
+
+    private var allTracks: [Track] {
         switch source {
         case .liked: library.liked
         case .downloaded: downloads.downloaded
@@ -98,6 +106,8 @@ struct PlaylistScreen: View {
     }
 
     private var editable: Bool {
+        // офлайн: правка списка по урезанному виду перемешала бы скрытое — только чтение (Скачанные можно)
+        if offline.isOn, source != .downloaded { return false }
         switch source {
         case .liked, .downloaded, .sonar: true
         default: false
@@ -106,6 +116,7 @@ struct PlaylistScreen: View {
 
     /// Порядок можно менять у Любимых и своих плейлистов (Скачанные — по дате загрузки).
     private var reorderable: Bool {
+        guard !offline.isOn else { return false }
         switch source {
         case .liked, .sonar: true
         default: false
@@ -184,6 +195,12 @@ struct PlaylistScreen: View {
                 if case let .sonar(id) = source { store.rename(id, to: nameDraft) }
             }
         }
+        .alert(t("Скачать всё?"), isPresented: Binding(get: { batch != nil }, set: { if !$0 { batch = nil } }), presenting: batch) { batch in
+            Button(t("Отмена"), role: .cancel) {}
+            Button(t("Скачать")) { startDownloads(batch.tracks) }
+        } message: { batch in
+            Text(batch.summary + "\n" + t("Не закрывай Sonar, пока качается"))
+        }
         .alert(t("Удалить плейлист?"), isPresented: $confirmDelete) {
             Button(t("Отмена"), role: .cancel) {}
             Button(t("Удалить"), role: .destructive) {
@@ -201,7 +218,7 @@ struct PlaylistScreen: View {
                 title: title,
                 count: tracks.count,
                 canEdit: editable,
-                canDownload: source != .downloaded,
+                canDownload: source != .downloaded && !offline.isOn,
                 play: { play(shuffle: false) },
                 shuffle: { play(shuffle: true) },
                 download: downloadAll,
@@ -379,7 +396,7 @@ struct PlaylistScreen: View {
         case .liked: "Нажми ♥ у трека — он появится здесь"
         case .downloaded: "Скачанные треки играют без интернета. Скачать — в меню трека или плейлиста"
         case .recent: "Здесь будут треки, которые ты слушал"
-        case .service: "В плейлисте пусто"
+        case .service: offline.isOn ? t("Плейлисты сервисов открываются только с сетью.") : "В плейлисте пусто"
         case .sonar: t("Добавляй треки через меню трека: «Добавить в плейлист».")
         case .mix: t("Слушай и лайкай дальше — здесь соберутся треки под твой вкус.")
         }
@@ -596,17 +613,32 @@ struct PlaylistScreen: View {
     }
 
     private func downloadAll() {
-        let missing = tracks.filter { !downloads.isDownloaded($0.ref) }
+        let missing = tracks.filter { !downloads.isDownloaded($0.ref) && !downloads.isQueued($0.ref) }
         guard !missing.isEmpty else {
-            router.say("Всё уже скачано")
+            router.say(t("Уже скачано"))
             return
         }
-        for track in missing { downloads.download(track) }
-        router.say("Скачиваю " + tracksCount(missing.count))
+        let plan = DownloadPlan.Batch(missing, quality: SettingsStore.shared.string("audio.quality"),
+                                      free: DownloadPlan.freeBytes(at: downloads.directory))
+        guard plan.fits else {
+            router.say(t("Не хватит места: {n}", ["n": plan.summary]))
+            return
+        }
+        if plan.needsConfirm {
+            batch = plan
+        } else {
+            startDownloads(missing)
+        }
+    }
+
+    private func startDownloads(_ list: [Track]) {
+        for track in list { downloads.download(track) }
+        router.say(t("Скачивание: {n}", ["n": tracksCount(list.count)]))
     }
 
     /// «217 треков, 6 ч 51 мин» — у своих плейлистов, как на ПК; у остальных — только число.
     private var countLine: String {
+        if offline.isOn { return OfflineFilter.countText(available: tracks.count, total: allTracks.count) }
         guard case .sonar = source, let own, own.durationMs > 0 else { return tracksCount(tracks.count) }
         return tracksCount(tracks.count) + ", " + PlaylistDuration.text(ms: own.durationMs)
     }
@@ -651,7 +683,7 @@ struct PlaylistScreen: View {
             })
         }
         switch source {
-        case let .service(playlist):
+        case let .service(playlist) where !offline.isOn:
             if let existing = store.playlist(source: playlist.ref) {
                 rows.append(.init(icon: .transfer, title: t("Открыть в Sonar"), subtitle: existing.name) {
                     router.push(.sonarPlaylist(id: existing.id), on: chrome.tab, chrome: chrome)
@@ -689,7 +721,7 @@ struct PlaylistScreen: View {
     }
 
     private func load() async {
-        guard case let .service(playlist) = source else { return }
+        guard case let .service(playlist) = source, !offline.isOn else { return }
         loading = true
         defer { loading = false }
         do {

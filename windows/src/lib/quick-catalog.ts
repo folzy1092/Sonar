@@ -54,6 +54,7 @@ export type QuickActionId =
   | 'go_library'
   | 'go_search'
   | 'go_player'
+  | 'offline'
 
 export interface QuickAction {
   id: QuickActionId
@@ -83,7 +84,12 @@ export const QUICK_ACTIONS: readonly QuickAction[] = [
   { id: 'go_library', title: 'Медиатека', keywords: ['library', 'плейлисты'], icon: 'library' },
   { id: 'go_search', title: 'Поиск', keywords: ['search', 'найти'], icon: 'search' },
   { id: 'go_player', title: 'Плеер', keywords: ['player', 'сейчас играет', 'now playing'], icon: 'player' },
+  // подпись зависит от состояния: включён режим — показывается OFFLINE_OFF_TITLE (lib/quick.svelte.ts)
+  { id: 'offline', title: 'Офлайн-режим: включить', keywords: ['офлайн', 'без сети', 'роуминг', 'offline', 'airplane'], icon: 'wifiOff' },
 ]
+
+/** Подпись действия `offline`, когда режим уже включён. */
+export const OFFLINE_OFF_TITLE = 'Офлайн-режим: выключить'
 
 /** Подпись настроения волны: «Sonar Mix: Грустное». */
 export const WAVE_MOOD_TITLE = 'Sonar Mix: {mode}'
@@ -102,11 +108,11 @@ export const SETTINGS_KEYWORDS: Readonly<Record<string, readonly string[]>> = {
   overlay: ['Режим', 'Появляться само', 'Положение на экране', 'Непрозрачность', 'Масштаб', 'Показать сейчас'],
   services: ['SoundCloud', 'Яндекс Музыка', 'YouTube Music', 'VK Музыка', 'Spotify'],
   apps: ['Discord RPC', 'OBS Studio'],
-  general: ['Язык', 'Платформа', 'Экономия ресурсов', 'При входе в Windows — Sonar запустится в трее'],
+  general: ['Офлайн-режим', 'Язык', 'Платформа', 'Экономия ресурсов', 'При входе в Windows — Sonar запустится в трее'],
   hotkeys: ['Где действуют', 'Быстрое окно'],
   update: ['Проверять обновления', 'История версий'],
   about: ['Версия', 'Бета-версии', 'Сбросить настройки'],
-  storage: ['Что очистить?', 'Кеширование треков', 'Размер кэша треков', 'Sonar Mix офлайн', 'Папки с музыкой', 'История поиска'],
+  storage: ['Что очистить?', 'Кеширование треков', 'Размер кэша треков', 'Sonar Mix офлайн', 'Скачивать Любимые', 'Папки с музыкой', 'История поиска'],
 }
 
 export interface QuickSetting {

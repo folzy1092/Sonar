@@ -29,10 +29,17 @@ struct ServicesView: View {
     @State private var showYouTubeLogin = false
     @State private var showVKLogin = false
     @Environment(SettingsStore.self) private var settings
+    @Environment(OfflineMode.self) private var offline
     @Environment(\.openURL) private var openURL
 
     var body: some View {
         SettingsScreen(title: only?.title ?? "Сервисы") {
+            // окна входа (WKWebView) идут в сеть мимо сторожа — в офлайне сервисы не трогаем
+            if offline.isOn {
+                HintCard(icon: .cloudOff, text: t("Сервисы подключаются только с сетью."))
+                    .cascade(0)
+            }
+            Group {
             if only == nil || only == .soundcloud {
             SettingsSection(title: "SoundCloud", footer: status.soundCloud == nil
                             ? "Без своих ключей поиск и открытые треки работают на публичном client_id с сайта. OAuth-токен нужен для лайков, плейлистов и закрытых треков."
@@ -176,7 +183,11 @@ struct ServicesView: View {
             }
             .cascade(5)
             }
+            }
+            .disabled(offline.isOn)
+            .opacity(offline.isOn ? 0.5 : 1)
         }
+        .animation(Motion.spring, value: offline.isOn)
         .animation(Motion.spring, value: status)
         .animation(Motion.spring, value: deviceCode)
         .onDisappear { login?.cancel() }
@@ -184,6 +195,7 @@ struct ServicesView: View {
         .animation(Motion.spring, value: soundCloudStale)
         .task {
             status = await MusicCore.shared.status()
+            guard !offline.isOn else { return }
             // «Подключено» — только если SoundCloud правда принимает вход (а не просто ключи сохранены)
             if status.soundCloud != nil, only == nil || only == .soundcloud {
                 soundCloudStale = !(await MusicCore.shared.soundCloudSignedIn())

@@ -56,7 +56,7 @@ pub fn tag_values(sums: &TagSums) -> HashMap<String, f64> {
 }
 /// Артисты строки истории: из `artists_json` кэша треков (совместный трек — все), а если записи
 /// нет — сохранённая строка `artist` (как `wave::artist_names`).
-fn row_artists(artist: &str, json: Option<String>) -> Vec<String> {
+pub(super) fn row_artists(artist: &str, json: Option<String>) -> Vec<String> {
   let list: Vec<crate::providers::ArtistRef> = json.and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default();
   crate::wave::artist_names(artist, &list)
 }

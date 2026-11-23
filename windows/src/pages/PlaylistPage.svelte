@@ -25,10 +25,20 @@
   import { onDestroy } from 'svelte'
   import { PixelCollage } from '../lib/pixel-collage.svelte'
   import { offline } from '../lib/offline.svelte'
+  import { findGroup, parseGroupId } from '../lib/offline-groups'
 
   const id = router.param ?? 'favorites'
-  const kind: 'favorites' | 'own' | 'service' | 'local' =
-    id === 'favorites' ? 'favorites' : id === 'local' ? 'local' : id.startsWith('pl_') ? 'own' : 'service'
+  /** `offline` — альбом или исполнитель из доступного без сети (lib/offline-groups.ts): локальный список, без сети. */
+  const group = parseGroupId(id)
+  const kind: 'favorites' | 'own' | 'service' | 'local' | 'offline' = group
+    ? 'offline'
+    : id === 'favorites'
+      ? 'favorites'
+      : id === 'local'
+        ? 'local'
+        : id.startsWith('pl_')
+          ? 'own'
+          : 'service'
 
   let title = $state('')
   /** Заголовок на экране: «Любимые» и «На этом компьютере» переводятся на лету, остальное — как есть. */
@@ -78,7 +88,8 @@
   const shown = $derived(visible.length > limit ? visible.slice(0, limit) : visible)
   const total = $derived(avail.reduce((s, t) => s + t.duration_ms, 0))
   const countMeta = $derived(offline.on ? offline.countText(avail.length, items.length) : tracksText(items.length))
-  const context = kind === 'favorites' ? 'favorites' : kind === 'local' ? 'local' : `playlist:${id}`
+  const context = kind === 'favorites' ? 'favorites' : kind === 'local' ? 'local' : kind === 'offline' ? 'offline' : `playlist:${id}`
+  const headIcon = kind === 'favorites' ? 'heart' : kind === 'local' ? 'monitor' : kind === 'offline' ? (group?.kind === 'artist' ? 'user' : 'disc') : 'music'
   // в офлайне часть треков скрыта — индексы на экране не совпадают с плейлистом, порядок не трогаем
   const canReorder = $derived(kind === 'own' && sort.id === 'custom' && !filter.trim() && !offline.on)
 
@@ -95,6 +106,12 @@
         pc.set([], [])
       } else if (kind === 'local') {
         items = await api.localTracks()
+        pc.set(items)
+      } else if (kind === 'offline') {
+        const found = findGroup(await offline.pool(), id)
+        title = found?.title ?? ''
+        owner = found?.subtitle ?? ''
+        items = found?.tracks ?? []
         pc.set(items)
       } else if (kind === 'own') {
         const p = await api.playlist(id)
@@ -122,6 +139,8 @@
   $effect(() => {
     if (kind === 'service') return
     library.version
+    // офлайн-группа — заново, когда кэш докачал или вытеснил трек
+    if (kind === 'offline') void offline.refs
     void load()
   })
   $effect(() => {
@@ -211,7 +230,7 @@
   title={heading}
   {image}
   {covers}
-  icon={kind === 'favorites' ? 'heart' : kind === 'local' ? 'monitor' : 'music'}
+  icon={headIcon}
   meta={loading ? '' : `${countMeta}${avail.length ? `, ${durationText(total)}` : ''}`}
   {context}
   disabled={!visible.length}
@@ -222,6 +241,7 @@
   {#snippet subtitle()}
     {#if kind === 'favorites'}{t('Лайкнутые треки')}
     {:else if kind === 'local'}{t('Папки с музыкой')}
+    {:else if kind === 'offline'}{owner ? `${owner} · ` : ''}{group?.kind === 'artist' ? t('Исполнитель · офлайн') : t('Альбом · офлайн')}
     {:else if kind === 'own'}{t('Плейлист Sonar')}{#if isCollab(members)} · <span class="collab" title={[members.owner, ...members.collaborators].map((m) => m?.display_name || m?.username).filter(Boolean).join(', ')}>{t('Совместный')}</span>{/if}{#if hidden} · {t('скрыт')}{/if}
     {:else}{owner ? `${owner} · ` : ''}{t(byId(serviceOf(id))?.name ?? 'Яндекс Музыка')}{/if}
   {/snippet}
@@ -285,9 +305,11 @@
     <EmptyState icon="key" title={t('Не получилось открыть')} text={error} />
   {:else if loading}
     <div class="skeleton">{#each { length: 8 } as _, i (i)}<div class="sk"></div>{/each}</div>
+  {:else if kind === 'offline' && !items.length}
+    <EmptyState icon="wifiOff" title={t('Офлайн: здесь ничего нет')} text={t('Треков отсюда на этом компьютере больше нет.')} />
   {:else if !items.length}
     <EmptyState
-      icon={kind === 'favorites' ? 'heart' : kind === 'local' ? 'monitor' : 'music'}
+      icon={headIcon}
       title={t('Пока пусто')}
       text={kind === 'favorites'
         ? t('Нажми на сердце у трека — он появится здесь.')

@@ -4,6 +4,15 @@
 
 extension I18n {
     static let appPL: [String: String] = [
+        // офлайн-режим
+        "Играет только то, что есть на этом телефоне": "Gra tylko to, co jest na tym telefonie",
+        "Не закрывай Sonar, пока качается": "Nie zamykaj Sonara, dopóki pobiera",
+        "Не хватит места: {n}": "Za mało miejsca: {n}",
+        "Только по Wi‑Fi": "Tylko przez Wi‑Fi",
+        "По сотовой сети загрузки ждут Wi‑Fi": "W sieci komórkowej pobieranie czeka na Wi‑Fi",
+        "Лайкнутые треки сами скачиваются на этот телефон по Wi‑Fi, пока не упрутся в лимит": "Polubione utwory same pobierają się na ten telefon przez Wi‑Fi, aż dojdą do limitu",
+        "Sonar не выходит в интернет и показывает только скачанные треки и кэш волны. Для роуминга и слабой сети": "Sonar nie łączy się z internetem i pokazuje tylko pobrane utwory oraz pamięć podręczną Mixu. Na roaming i słaby zasięg",
+        "Сервисы подключаются только с сетью.": "Serwisy łączą się tylko przy dostępie do sieci.",
         "Сдвиг текста": "Przesunięcie tekstu",
         // лист скорости: тон, связь со скоростью, звук трека
         "Тон": "Ton",

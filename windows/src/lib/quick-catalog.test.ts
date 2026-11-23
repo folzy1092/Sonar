@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { QUICK_ACTIONS, QUICK_GROUPS, QUICK_HINTS, QUICK_SETTINGS, SETTINGS_KEYWORDS, WAVE_MOOD_TITLE } from './quick-catalog'
+import { OFFLINE_OFF_TITLE, QUICK_ACTIONS, QUICK_GROUPS, QUICK_HINTS, QUICK_SETTINGS, SETTINGS_KEYWORDS, WAVE_MOOD_TITLE } from './quick-catalog'
 import { SUBS, TABS } from '../pages/settings-section.svelte'
 import quickOpenSource from '../app/QuickOpen.svelte?raw'
 import quickSource from './quick.svelte.ts?raw'
@@ -29,6 +29,7 @@ function quickStrings(): string[] {
     ...QUICK_GROUPS.map((g) => g.title),
     ...QUICK_ACTIONS.map((a) => a.title),
     WAVE_MOOD_TITLE,
+    OFFLINE_OFF_TITLE,
     ...QUICK_SETTINGS.flatMap((s) => [s.title, ...s.path]),
     ...Object.values(QUICK_HINTS).flatMap((h) => h.map(([, label]) => label)),
     ...[quickOpenSource, quickSource, hotkeysSource].flatMap(literals),

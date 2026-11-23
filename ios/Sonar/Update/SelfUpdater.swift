@@ -528,7 +528,7 @@ final class IPADownload: NSObject, URLSessionDownloadDelegate, @unchecked Sendab
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             // продолжение — до старта задачи: делегат не может ответить раньше
             self.continuation = continuation
-            let configuration = URLSessionConfiguration.default
+            let configuration = Net.configuration()
             configuration.timeoutIntervalForRequest = 60
             configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
             let queue = OperationQueue()
