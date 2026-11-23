@@ -12,6 +12,7 @@
   import { t } from '../lib/i18n.svelte'
   import { player } from '../player/player.svelte'
   import { growLimit, QUEUE_WINDOW, queueItems, queueView } from '../player/queue-view'
+  import { isPartyContext } from '../player/blend/party-core'
   import { nearEnd } from '../lib/near-end'
   import { WAVE_CONTEXT } from '../player/my-wave.svelte'
   import { autoplay } from '../player/autoplay.svelte'
@@ -39,7 +40,7 @@
     void player.context
     limit = QUEUE_WINDOW
   })
-  const rows = $derived(queueItems(queue, { autoSection: player.context !== WAVE_CONTEXT, autoOn: autoplay.on, limit }))
+  const rows = $derived(queueItems(queue, { autoSection: player.context !== WAVE_CONTEXT, autoOn: autoplay.on, limit, party: isPartyContext(player.context) }))
   const queueTotal = $derived(queue.own.length + queue.auto.length)
 
   /** Переключатель появляется и прячется по высоте; «Меньше движения» — только прозрачность. */
@@ -81,6 +82,8 @@
                 </div>
               {:else if row.kind === 'more'}
                 <div class="more" use:nearEnd={{ key: limit, onreach: () => (limit = growLimit(limit, queueTotal)) }}></div>
+              {:else if row.kind === 'party'}
+                <p class="empty">{t('остальное — по ходу')}</p>
               {:else if row.kind === 'empty'}
                 <p class="empty">{t('Очередь пуста — включи трек из поиска.')}</p>
               {/if}

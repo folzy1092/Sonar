@@ -5,7 +5,6 @@
 import { untrack } from 'svelte'
 import { api, onOfflineChanged } from '../../lib/api'
 import { isTauri } from '../../lib/tauri'
-import { settings } from '../../lib/settings.svelte'
 import { player } from '../player.svelte'
 import { ANALYSIS_VERSION, type BlendAnalysis } from './analysis'
 import { AnalyzeQueue, type AnalyzePriority } from './analyze-queue'
@@ -100,7 +99,7 @@ class BlendAnalysisStore {
     })
     $effect.root(() => {
       $effect(() => {
-        if (!settings.get('audio.blend')) return
+        if (!player.blendOn) return
         const now = player.current?.ref
         const next = player.repeat === 'one' ? undefined : player.upNext[0]?.ref
         untrack(() => {

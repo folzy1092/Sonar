@@ -64,4 +64,7 @@ export default {
   'Отладочная панель': 'Debug panel',
   'Карточка у плеера: анализ треков, план перехода и его фазы — только для Dev':
     'A card by the player: track analysis, the transition plan and its phases — Dev only',
+  'Свести для вечеринки': 'Mix for a party',
+  'Вечеринка · {name}': 'Party · {name}',
+  'остальное — по ходу': 'the rest — as we go',
 }

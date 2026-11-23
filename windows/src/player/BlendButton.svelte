@@ -11,6 +11,7 @@
   import { pop, slide } from '../lib/motion'
   import { settings } from '../lib/settings.svelte'
   import { blendAnalysis } from './blend/analyze.svelte'
+  import { party } from './blend/party.svelte'
   import { BLEND_LENGTHS, BLEND_TYPES, blendSettings, CUT_MAX_SEC, CUT_RECOMMENDED_SEC } from './blend/settings'
   import { buttonLabel, cardFor, KIND_TEXT, LENGTH_TEXT } from './blend/view'
   import { formatTime, player } from './player.svelte'
@@ -21,7 +22,7 @@
   let down = $state(false)
   let room = $state(600)
 
-  const on = $derived(settings.get('audio.blend'))
+  const on = $derived(player.blendOn)
   const opts = $derived(
     blendSettings({
       type: settings.get('audio.blend_type'),
@@ -78,6 +79,12 @@
     open = !open
   }
 
+  /** Выключили на вечеринке — вечеринка кончается, очередь остаётся. */
+  function setOn(v: boolean) {
+    if (!v && party.active) party.end()
+    settings.set('audio.blend', v)
+  }
+
   function toTransition() {
     const ms = player.blend.previewAtMs()
     if (ms != null) player.seek(ms)
@@ -115,7 +122,7 @@
         title={t('Сведение')}
         hint={t('Переход по долям, как у диджея, вместо кроссфейда')}
         {on}
-        onchange={(v) => settings.set('audio.blend', v)}
+        onchange={setOn}
       />
 
       <span class="label">{t('Сведение::Вид')}</span>

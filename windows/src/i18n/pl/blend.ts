@@ -64,4 +64,7 @@ export default {
   'Отладочная панель': 'Panel debugowania',
   'Карточка у плеера: анализ треков, план перехода и его фазы — только для Dev':
     'Karta przy odtwarzaczu: analiza utworów, plan przejścia i jego fazy — tylko dla Dev',
+  'Свести для вечеринки': 'Zmiksuj na imprezę',
+  'Вечеринка · {name}': 'Impreza · {name}',
+  'остальное — по ходу': 'reszta — na bieżąco',
 }

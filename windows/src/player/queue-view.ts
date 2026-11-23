@@ -68,6 +68,8 @@ export type QueueItem =
   | { kind: 'track'; key: string; section: 'earlier' | 'now' | 'next' | 'auto'; entry: QueueEntry }
   | { kind: 'switch'; key: string }
   | { kind: 'empty'; key: string }
+  /** Вечеринка: под «Далее» — «остальное — по ходу» вместо похожих. */
+  | { kind: 'party'; key: string }
   /** Очередь длиннее окна: строка-сторож, дойдёт прокрутка — окно растёт (`growLimit`). */
   | { kind: 'more'; key: string }
 
@@ -81,13 +83,15 @@ export interface ItemsOptions {
   autoOn: boolean
   /** Сколько треков после текущего показать (своя очередь + похожие); нет — все. */
   limit?: number
+  /** Вечеринка (контекст `party:`): следующий подбирается по ходу, похожих нет. */
+  party?: boolean
 }
 
 const trackItems = (list: QueueEntry[], section: 'earlier' | 'now' | 'next' | 'auto'): QueueItem[] =>
   list.map((entry) => ({ kind: 'track', key: `e${entry.id}`, section, entry }))
 
 /** Плоский список строк очереди по разделам. Ключи стабильны: `e<id>` у треков, имена у остальных. */
-export function queueItems(view: QueueView, { autoSection, autoOn, limit = Infinity }: ItemsOptions): QueueItem[] {
+export function queueItems(view: QueueView, { autoSection, autoOn, limit = Infinity, party = false }: ItemsOptions): QueueItem[] {
   const out: QueueItem[] = []
   if (view.earlier.length) {
     out.push({ kind: 'head', key: 'h-earlier', section: 'earlier' })
@@ -100,6 +104,7 @@ export function queueItems(view: QueueView, { autoSection, autoOn, limit = Infin
   out.push({ kind: 'head', key: 'h-next', section: 'next' })
   out.push(...trackItems(view.own.slice(0, limit), 'next'))
   if (view.own.length > limit) return [...out, { kind: 'more', key: 'more' }]
+  if (party) return [...out, { kind: 'party', key: 'party' }]
   if (!view.own.length && !view.auto.length && !autoOn) out.push({ kind: 'empty', key: 'empty' })
   if (autoSection) {
     const room = limit - view.own.length

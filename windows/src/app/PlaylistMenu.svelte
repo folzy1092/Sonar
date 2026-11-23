@@ -5,6 +5,7 @@
   // (решение владельца 2026-11-17). Любимые — те же действия и «Очистить Любимые» с двойным подтверждением
   // окном по центру (второй раз — «Да» через 3 с). Треки сервиса грузятся один раз и запоминаются.
   // «Экспорт ›» у всех трёх — подменю M3U8 / CSV / JSON (ExportItems, export.ts), файл — в окне «Сохранить как».
+  // «Свести для вечеринки» у всех трёх — сведение в своём порядке (player/blend/party.svelte.ts).
   import { settings } from '../lib/settings.svelte'
   import Cover from '../components/Cover.svelte'
   import Icon from '../components/Icon.svelte'
@@ -16,6 +17,7 @@
   import { toast } from '../lib/toast.svelte'
   import { tracksText } from '../lib/format'
   import { player } from '../player/player.svelte'
+  import { party } from '../player/blend/party.svelte'
   import { openRef, router } from './router.svelte'
   import { pop, rise } from '../lib/motion'
   import { t } from '../lib/i18n.svelte'
@@ -289,6 +291,7 @@
         })}
         {@render item('play', t('Слушать'), () => withFav((list) => player.playList(list, 0, 'favorites', t('Любимые'))))}
         {@render item('shuffle', t('Слушать вперемешку'), () => withFav((list) => player.playShuffled(list, 'favorites', t('Любимые'))))}
+        {@render item('vinyl', t('Свести для вечеринки'), () => withFav((list) => party.start(list, 'favorites', t('Любимые'))))}
         <hr />
         {@render item('playNext', t('Следующими'), () => withFav((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
         {@render item('queue', t('В очередь'), () => withFav((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}
@@ -340,6 +343,7 @@
         })}
         {@render item('play', t('Слушать'), () => withOwn((list, pl) => player.playList(list, 0, ctx, pl.name)))}
         {@render item('shuffle', t('Слушать вперемешку'), () => withOwn((list, pl) => player.playShuffled(list, ctx, pl.name)))}
+        {@render item('vinyl', t('Свести для вечеринки'), () => withOwn((list, pl) => party.start(list, ctx, pl.name)))}
         <hr />
         {@render item('playNext', t('Следующими'), () => withOwn((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
         {@render item('queue', t('В очередь'), () => withOwn((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}
@@ -405,6 +409,7 @@
         })}
         {@render item('play', t('Слушать'), () => withTracks((list, pl) => player.playList(list, 0, ctx, pl.title)))}
         {@render item('shuffle', t('Слушать вперемешку'), () => withTracks((list, pl) => player.playShuffled(list, ctx, pl.title)))}
+        {@render item('vinyl', t('Свести для вечеринки'), () => withTracks((list, pl) => party.start(list, ctx, pl.title)))}
         <hr />
         {@render item('playNext', t('Следующими'), () => withTracks((list) => player.addToQueue(list, true), t('Треки будут играть следующими')))}
         {@render item('queue', t('В очередь'), () => withTracks((list) => player.addToQueue(list, false), t('Треки добавлены в очередь')))}

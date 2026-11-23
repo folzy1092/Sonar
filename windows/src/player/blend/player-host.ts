@@ -41,6 +41,17 @@ interface Held {
   track: Track | null
 }
 
+/** Настройки сведения из `audio.blend_*` — для плана перехода (контроллер и вечеринка). */
+export function currentBlendSettings() {
+  return blendSettings({
+    type: settings.get('audio.blend_type'),
+    length: settings.get('audio.blend_length'),
+    cut: settings.get('audio.blend_cut'),
+    tempo: settings.get('audio.blend_tempo'),
+    key: settings.get('audio.blend_key'),
+  })
+}
+
 /** Свой звук трека так, как его применит `tempo.trackChanged`: «Для этого трека» или общий (с «Запомнить»). */
 export function ownSound(s: TrackSound | null, keep: boolean, cur: OwnSound): OwnSound {
   if (s) return { rate: s.rate, pitch: s.pitch, linked: s.linked }
@@ -124,14 +135,7 @@ export function createBlendHost(side: HostSide): BlendHost<Track, PlayerDeck> {
     get nyquist() {
       return (side.ctx()?.sampleRate ?? 48_000) / 2
     },
-    settings: () =>
-      blendSettings({
-        type: settings.get('audio.blend_type'),
-        length: settings.get('audio.blend_length'),
-        cut: settings.get('audio.blend_cut'),
-        tempo: settings.get('audio.blend_tempo'),
-        key: settings.get('audio.blend_key'),
-      }),
+    settings: currentBlendSettings,
     analysis: (ref) => side.analysis(ref),
     sound: async (ref) => {
       const cur = { rate: tempo.rate, pitch: tempo.pitch, linked: tempo.linked }

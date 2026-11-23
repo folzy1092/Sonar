@@ -64,4 +64,7 @@ export default {
   'Отладочная панель': 'Panel de depuración',
   'Карточка у плеера: анализ треков, план перехода и его фазы — только для Dev':
     'Tarjeta junto al reproductor: análisis, plan de transición y sus fases — solo Dev',
+  'Свести для вечеринки': 'Mezclar para una fiesta',
+  'Вечеринка · {name}': 'Fiesta · {name}',
+  'остальное — по ходу': 'lo demás, sobre la marcha',
 }

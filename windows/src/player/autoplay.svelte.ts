@@ -11,6 +11,7 @@ import { api, type Track } from '../lib/api'
 import { settings } from '../lib/settings.svelte'
 import { player } from './player.svelte'
 import { WAVE_CONTEXT, wave } from './my-wave.svelte'
+import { isPartyContext } from './blend/party-core'
 import { t } from '../lib/i18n.svelte'
 import { isLocalRef } from '../lib/services'
 import { offline } from '../lib/offline.svelte'
@@ -75,7 +76,9 @@ class Autoplay {
       $effect(() => {
         // повтор очереди не мешает: при включённом тумблере после очереди идут похожие, а не круг
         // заново (жалоба владельца 2026-11-16); не трогаем только повтор одного трека
-        if (!this.on || player.context === WAVE_CONTEXT || player.repeat === 'one' || !player.current) return
+        // на вечеринке следующий подбирает сама вечеринка (blend/party.svelte.ts)
+        if (!this.on || player.context === WAVE_CONTEXT || isPartyContext(player.context)) return
+        if (player.repeat === 'one' || !player.current) return
         const left = player.order.length - 1 - player.pos
         if (left < LEFT) untrack(() => void this.fill())
       })

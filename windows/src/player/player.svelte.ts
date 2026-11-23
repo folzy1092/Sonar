@@ -11,6 +11,7 @@ import { DeckChain } from './blend/deck-chain'
 import type { BlendAnalysis } from './blend/analysis'
 import { BlendController } from './blend/controller.svelte'
 import { createBlendHost, type PlayerDeck } from './blend/player-host'
+import { isPartyContext } from './blend/party-core'
 import { Effects } from './effects'
 import { pitchRatio, tempo } from './tempo.svelte'
 import { settings } from '../lib/settings.svelte'
@@ -101,6 +102,10 @@ class Player {
 
   /** «Далее» — треки после текущего в порядке воспроизведения. */
   upNext = $derived(this.order.slice(this.pos + 1).map((i) => this.tracks[i]))
+  /** Сведение включено: тумблером `audio.blend` или само на вечеринке (контекст `party:`). */
+  get blendOn(): boolean {
+    return settings.get('audio.blend') || isPartyContext(this.context)
+  }
 
   /** Активный «дек» — тот, что сейчас звучит и управляется. Реактивный: тексту песни нужно знать,
    *  что после кроссфейда играет другой <audio>. */
@@ -743,7 +748,7 @@ class Player {
     if (!dur || dur < 20_000) return
     const p = nextPos(this.pos, this.order.length, this.repeat, false)
     const next = p === null ? null : (this.tracks[this.order[p]] ?? null)
-    const blendOn = settings.get('audio.blend')
+    const blendOn = this.blendOn
     const chain = this.chains.get(a)
     const cur = this.current
     if (cur && chain) {

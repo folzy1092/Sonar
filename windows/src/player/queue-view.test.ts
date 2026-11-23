@@ -110,6 +110,14 @@ describe('queueItems', () => {
     expect(sections).toEqual(['earlier', 'now', 'next', 'next', 'next', 'next', 'next', 'next'])
   })
 
+  it('вечеринка: после «Далее» — «остальное — по ходу», без тумблера, похожих и «пусто»', () => {
+    const view = queueView(src({ pos: 7, autoRefs: new Set(['g']) }))
+    const items = keys(queueItems(view, { autoSection: true, autoOn: false, party: true }))
+    expect(items.at(-1)).toBe('party')
+    expect(items).not.toContain('auto-switch')
+    expect(items).not.toContain('empty')
+  })
+
   it('ключи уникальны', () => {
     const items = queueItems(queueView(src({ pos: 3, autoRefs: new Set(['f']) })), { autoSection: true, autoOn: false })
     expect(new Set(keys(items)).size).toBe(items.length)

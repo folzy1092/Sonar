@@ -8,6 +8,7 @@
   import { pulse } from '../lib/pulse'
   import { glide, rise, xfade, slide } from '../lib/motion'
   import { growLimit, QUEUE_WINDOW, queueItems, queueView } from '../player/queue-view'
+  import { isPartyContext, partyBase } from '../player/blend/party-core'
   import { nearEnd } from '../lib/near-end'
   import { replay } from '../lib/replay'
   import { WAVE_CONTEXT, wave } from '../player/my-wave.svelte'
@@ -62,7 +63,7 @@
     void player.context
     limit = QUEUE_WINDOW
   })
-  const queueRows = $derived(queueItems(queue, { autoSection: player.context !== WAVE_CONTEXT, autoOn: autoplay.on, limit }))
+  const queueRows = $derived(queueItems(queue, { autoSection: player.context !== WAVE_CONTEXT, autoOn: autoplay.on, limit, party: isPartyContext(player.context) }))
   const queueTotal = $derived(queue.own.length + queue.auto.length)
   const duration = $derived(player.durationMs || track?.duration_ms || 0)
   const avatar = $derived(settings.get('player.artist_avatars') ? (track?.artists[0]?.avatar_url ?? null) : null)
@@ -77,7 +78,7 @@
   )
 
   function openContext() {
-    const c = player.context
+    const c = isPartyContext(player.context) ? partyBase(player.context) : player.context
     if (!c) return
     if (c === 'favorites') openRef('favorites')
     else if (c.startsWith('playlist:')) openRef(c.slice(9))
@@ -262,6 +263,9 @@
         {:else if row.kind === 'more'}
           <!-- сторож окна: прокрутка подошла — дорисовать ещё -->
           <div class="more" use:nearEnd={{ key: limit, onreach: () => (limit = growLimit(limit, queueTotal)) }}></div>
+        {:else if row.kind === 'party'}
+          <!-- вечеринка: следующий подбирается по ходу из пула (player/blend/party.svelte.ts) -->
+          <p class="empty">{t('остальное — по ходу')}</p>
         {:else}
           <p class="empty">{t('Очередь пуста — включи трек из поиска.')}</p>
         {/if}
