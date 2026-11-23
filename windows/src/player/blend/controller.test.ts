@@ -104,6 +104,10 @@ interface Setup {
   settings?: Partial<BlendSettings>
   loadDelaySec?: number
   bpmB?: number
+  /** Громкость B, LUFS (у A −10): разница даёт поправку громкости B. */
+  loudB?: number
+  /** Тональность B (у A — 0): другая даёт сдвиг тона, который снимается после перехода. */
+  keyB?: number
 }
 
 function setup(over: Setup = {}) {
@@ -132,7 +136,7 @@ function setup(over: Setup = {}) {
   }
   const analyses = new Map([
     ['a', track('a')],
-    ['b', track('b', over.bpmB ?? 128)],
+    ['b', { ...track('b', over.bpmB ?? 128), loudness: over.loudB ?? -10, key: over.keyB ?? 0 }],
   ])
   const log = {
     promoted: [] as { deck: Deck; listenedMs: number }[],
@@ -165,12 +169,13 @@ function setup(over: Setup = {}) {
   deckA.el.paused = false
   const durMs = analyses.get('a')!.durationMs
   let enabled = true
+  let nextRef = 'b'
   let current: Deck = deckA
 
   const consider = () =>
     ctl.consider({
       a: { ref: 'a' },
-      b: { ref: 'b' },
+      b: { ref: nextRef },
       deckA,
       posMs: deckA.el.currentTime * 1000,
       durMs,
@@ -225,6 +230,7 @@ function setup(over: Setup = {}) {
     consider,
     clock,
     setEnabled: (v: boolean) => (enabled = v),
+    setNext: (ref: string) => (nextRef = ref),
   }
 }
 
@@ -421,6 +427,30 @@ describe('BlendController', () => {
     s.setEnabled(false)
     await s.until(() => s.log.promoted.length > 0)
     expect(s.log.promoted).toHaveLength(1)
+  })
+
+  it('перемотка, пока снимается сдвиг тона после перехода, — громкость и тон B не дёргаются', async () => {
+    const s = setup({ loudB: -6, keyB: 2 })
+    await s.toPreroll()
+    await s.until(() => s.log.held.length === 2)
+    await s.advance(3)
+    expect(s.ctl.phase).toBe('promoting')
+    expect(s.deckB()!.gain.at(s.clock())).toBeCloseTo(1, 6)
+    s.ctl.cancel()
+    expect(s.deckB()!.gain.at(s.clock() + 0.3)).toBeCloseTo(1, 6)
+    expect(s.log.held).toEqual([true, false])
+  })
+
+  it('B убрали из очереди во время перехода — переход гаснет, B не становится текущим', async () => {
+    const s = setup()
+    await s.toPreroll()
+    await s.until(s.bPlaying)
+    s.setNext('c')
+    await s.advance(STEP)
+    expect(s.ctl.phase).toBe('idle')
+    await s.advance(1)
+    expect(s.log.promoted).toHaveLength(0)
+    expect(s.log.released).toContain(s.deckB())
   })
 
   it('выключили сведение до старта B — план тихо забыт', async () => {

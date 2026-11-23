@@ -39,11 +39,6 @@ interface Held {
   track: Track | null
 }
 
-export type PlayerBlendHost = BlendHost<Track, PlayerDeck> & {
-  /** Дек занят сведением: его ошибки разбирает контроллер или сама загрузка. */
-  busy(el: HTMLAudioElement): boolean
-}
-
 /** Свой звук трека так, как его применит `tempo.trackChanged`: «Для этого трека» или общий (с «Запомнить»). */
 export function ownSound(s: TrackSound | null, keep: boolean, cur: OwnSound): OwnSound {
   if (s) return { rate: s.rate, pitch: s.pitch, linked: s.linked }
@@ -87,7 +82,7 @@ function ready(el: HTMLAudioElement, hls: Hls | null): Promise<void> {
   })
 }
 
-export function createBlendHost(side: HostSide): PlayerBlendHost {
+export function createBlendHost(side: HostSide): BlendHost<Track, PlayerDeck> {
   const held = new Map<HTMLAudioElement, Held>()
 
   function release(deck: PlayerDeck) {
@@ -146,6 +141,5 @@ export function createBlendHost(side: HostSide): PlayerBlendHost {
     },
     release,
     hold: (on) => side.hold(on),
-    busy: (el) => held.has(el),
   }
 }

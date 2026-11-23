@@ -149,7 +149,14 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
 
   /** Переход ведёт контроллер (плееру не надо делать кроссфейд)? Зовётся на каждом `timeupdate`. */
   consider(c: Consider<T, D>): boolean {
-    if (this.started()) return true
+    if (this.started()) {
+      // очередь поменяли, пока B ещё не текущий: B уже не следующий — переход гасим
+      if (!this.live?.promoted && c.b?.ref !== this.pair?.b.ref) {
+        this.cancel()
+        return false
+      }
+      return true
+    }
     if (!c.enabled || !c.b || c.durMs < MIN_TRACK_MS) return this.drop()
     const pairKey = `${c.a.ref}>${c.b.ref}`
     if (this.failed === pairKey) return false
@@ -186,6 +193,8 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
   cancel() {
     const { pair, live } = this
     if (!pair || !live) return this.reset()
+    // переход уже свёрнут, идёт только снятие сдвига тона — B и так текущий, трогать нечего
+    if (live.settleFrom !== null) return
     if (live.promoted) return this.wrapUp(CANCEL_SEC)
     const t = this.host.now()
     const deckB = live.deckB

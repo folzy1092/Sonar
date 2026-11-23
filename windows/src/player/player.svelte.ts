@@ -234,11 +234,10 @@ class Player {
     )
     addEventListener('ratechange', tick(() => this.clock.setRate(a.playbackRate, a.currentTime, now())))
     addEventListener('ended', () => this.onEnded())
-    addEventListener('error', () => {
-      const message = a.error?.message || t('не удалось воспроизвести')
-      if (a === this.audio) void this.onMediaError(message)
-      // второй дек занят сведением — его ошибку разбирает контроллер (или загрузка B)
-      else if (!this.blend.onDeckError(a) && !this.blendHost.busy(a)) this.onError(message)
+    // мимо own(): ошибку второго дека разбирает сведение (пока B грузится — сама загрузка в player-host)
+    a.addEventListener('error', () => {
+      if (a === this.audio) void this.onMediaError(a.error?.message || t('не удалось воспроизвести'))
+      else this.blend.onDeckError(a)
     })
   }
 
