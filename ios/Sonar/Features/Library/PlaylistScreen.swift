@@ -108,7 +108,7 @@ struct PlaylistScreen: View {
     private var editable: Bool {
         // офлайн: правка списка по урезанному виду перемешала бы скрытое — только чтение (Скачанные можно)
         if offline.isOn, source != .downloaded { return false }
-        switch source {
+        return switch source {
         case .liked, .downloaded, .sonar: true
         default: false
         }
@@ -117,7 +117,7 @@ struct PlaylistScreen: View {
     /// Порядок можно менять у Любимых и своих плейлистов (Скачанные — по дате загрузки).
     private var reorderable: Bool {
         guard !offline.isOn else { return false }
-        switch source {
+        return switch source {
         case .liked, .sonar: true
         default: false
         }
