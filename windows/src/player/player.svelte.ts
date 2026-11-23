@@ -7,6 +7,7 @@ import { untrack } from 'svelte'
 import { api, errorText, onMediaControl, type PlayerState, type Repeat, type StreamUrl, type Track } from '../lib/api'
 import { eq } from './eq.svelte'
 import { Leveler } from './leveler'
+import { DeckChain } from './blend/deck-chain'
 import { Effects } from './effects'
 import { pitchRatio, tempo } from './tempo.svelte'
 import { settings } from '../lib/settings.svelte'
@@ -88,8 +89,9 @@ class Player {
   private audio = $state.raw<HTMLAudioElement | null>(null)
   /** Два дека для кроссфейда и бесшовного: следующий трек стартует на втором, пока первый затухает. */
   private decks: HTMLAudioElement[] = []
-  /** Громкость каждого дека в Web Audio (кроссфейд меняет их местами). */
-  private deckGain = new Map<HTMLAudioElement, GainNode>()
+  /** Цепочка звука каждого дека в Web Audio: громкость (кроссфейд меняет их местами), изолятор,
+   *  фильтр, эхо и тон трека этого дека (docs/BLEND.md §3). */
+  private chains = new Map<HTMLAudioElement, DeckChain>()
   /** Затухающий дек после перехода: остановится по таймеру. */
   private fading: { el: HTMLAudioElement; hls: Hls | null; timer: ReturnType<typeof setTimeout> } | null = null
   private crossing = false
@@ -248,19 +250,19 @@ class Player {
   private connectAnalyser() {
     try {
       const ctx = new AudioContext()
-      // оба дека → свой регулятор (кроссфейд) → общий вход эквалайзера
+      // каждый дек → своя цепочка (громкость, изолятор, фильтр, эхо, тон) → общий вход эквалайзера
       const mix = ctx.createGain()
       for (const d of this.decks) {
-        const g = ctx.createGain()
-        g.gain.value = d === this.audio ? 1 : 0
-        ctx.createMediaElementSource(d).connect(g)
-        g.connect(mix)
-        this.deckGain.set(d, g)
+        const chain = new DeckChain(ctx)
+        chain.gain.gain.value = d === this.audio ? 1 : 0
+        ctx.createMediaElementSource(d).connect(chain.gain)
+        chain.output.connect(mix)
+        this.chains.set(d, chain)
       }
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 2048
       analyser.smoothingTimeConstant = 0.82
-      // источник → эквалайзер → выравниватель громкости → тон и реверб → анализатор волны → выход
+      // микс → эквалайзер → выравниватель громкости → реверб → анализатор волны → выход
       const leveler = new Leveler(ctx)
       const effects = new Effects(ctx)
       eq.connect(ctx, mix, leveler.input)
@@ -530,14 +532,15 @@ class Player {
   }
 
   /** Скорость, тон и реверб из меню скорости (`tempo.svelte.ts`). Тон связан со скоростью — его
-   *  двигает сам <audio> (slowed / sped up); не связан — <audio> держит тон, а сдвиг делает `effects`. */
+   *  двигает сам <audio> (slowed / sped up); не связан — <audio> держит тон, а сдвиг делает цепочка
+   *  активного дека (затухающий дек при переходе держит тон своего трека). */
   private applySpeed() {
     if (!this.audio) return
     const rate = tempo.rate
     this.audio.preservesPitch = !tempo.linked
     this.audio.defaultPlaybackRate = rate
     this.audio.playbackRate = rate
-    void this.effects?.setPitch(tempo.linked ? 1 : pitchRatio(tempo.pitch))
+    void this.chains.get(this.audio)?.setUserPitch(tempo.linked ? 1 : pitchRatio(tempo.pitch))
     this.effects?.setReverb(tempo.wet)
   }
 
@@ -679,7 +682,7 @@ class Player {
 
   /** Плавно (`sec`) выставить громкость дека в Web Audio; 0 с — сразу. */
   private gainTo(el: HTMLAudioElement | null, v: number, sec: number) {
-    const g = el ? this.deckGain.get(el) : null
+    const g = el ? this.chains.get(el)?.gain : null
     if (!g || !this.ctx) return
     const t = this.ctx.currentTime
     g.gain.cancelScheduledValues(t)

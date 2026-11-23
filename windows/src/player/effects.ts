@@ -1,13 +1,12 @@
 // Звуковые эффекты меню скорости: сдвиг тона без смены темпа и реверб.
 //
-// Тон: AudioWorklet с классическим сдвигом на двух линиях задержки — читающая головка едет
+// Тон (сам узел живёт в цепочке дека — `blend/deck-chain.ts`): AudioWorklet с классическим сдвигом на двух линиях задержки — читающая головка едет
 // быстрее или медленнее пишущей, две головки со сдвигом в полпериода плавно сменяют друг друга
-// (окно sin², сумма весов всегда 1). Темп при этом держит сам <audio> (`preservesPitch`). Тон 0 —
-// обработчик выключается из цепочки совсем, звук идёт напрямую.
+// (окно sin², сумма весов всегда 1). Темп при этом держит сам <audio> (`preservesPitch`).
 // Реверб: свёртка с синтезированным откликом зала (шум с экспоненциальным спадом, стерео
 // раздельно), сухой и мокрый сигналы смешиваются по ползунку 0–100 %.
 
-const WORKLET = `
+export const PITCH_WORKLET = `
 class SonarPitch extends AudioWorkletProcessor {
   static get parameterDescriptors() { return [{ name: 'ratio', defaultValue: 1, minValue: 0.25, maxValue: 4 }] }
   constructor() {
@@ -71,67 +70,43 @@ function impulse(ctx: AudioContext, seconds = 2.6, decay = 3.2): AudioBuffer {
   return ir
 }
 
-export class Effects {
-  readonly input: GainNode
-  readonly output: GainNode
-  private mid: GainNode
-  private dry: GainNode
-  private wet: GainNode
-  private conv: ConvolverNode | null = null
-  private pitch: AudioWorkletNode | null = null
-  private loading: Promise<void> | null = null
-  private ratio = 1
-  private pitched = false
+/** Модуль `sonar-pitch` грузится в контекст один раз; узлы из него создают цепочки деков. */
+const pitchModules = new WeakMap<BaseAudioContext, Promise<void>>()
 
-  constructor(private ctx: AudioContext) {
-    this.input = ctx.createGain()
-    this.mid = ctx.createGain()
-    this.dry = ctx.createGain()
-    this.wet = ctx.createGain()
-    this.output = ctx.createGain()
-    this.wet.gain.value = 0
-    this.input.connect(this.mid)
-    this.mid.connect(this.dry)
-    this.dry.connect(this.output)
-    this.wet.connect(this.output)
-  }
-
-  private loadPitch(): Promise<void> {
-    this.loading ??= (async () => {
-      const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }))
+export function loadPitchModule(ctx: BaseAudioContext): Promise<void> {
+  let p = pitchModules.get(ctx)
+  if (!p) {
+    p = (async () => {
+      const url = URL.createObjectURL(new Blob([PITCH_WORKLET], { type: 'application/javascript' }))
       try {
-        await this.ctx.audioWorklet.addModule(url)
-        this.pitch = new AudioWorkletNode(this.ctx, 'sonar-pitch', { outputChannelCount: [2] })
+        await ctx.audioWorklet.addModule(url)
       } finally {
         URL.revokeObjectURL(url)
       }
     })()
-    return this.loading
+    pitchModules.set(ctx, p)
+    p.catch(() => pitchModules.delete(ctx))
   }
+  return p
+}
 
-  /** Сдвиг тона множителем частоты (1 — без сдвига, обработчик вне цепочки). */
-  async setPitch(ratio: number) {
-    this.ratio = ratio
-    const want = Math.abs(ratio - 1) > 0.001
-    if (want) {
-      try {
-        await this.loadPitch()
-      } catch {
-        return // нет AudioWorklet — тон не трогаем, звук идёт как есть
-      }
-    }
-    if (!this.pitch) return
-    this.pitch.parameters.get('ratio')?.setTargetAtTime(this.ratio, this.ctx.currentTime, 0.05)
-    if (want === this.pitched) return
-    this.pitched = want
-    this.input.disconnect()
-    if (want) {
-      this.input.connect(this.pitch)
-      this.pitch.connect(this.mid)
-    } else {
-      this.pitch.disconnect()
-      this.input.connect(this.mid)
-    }
+/** Общий реверб после микса (тон — у каждого дека свой). */
+export class Effects {
+  readonly input: GainNode
+  readonly output: GainNode
+  private dry: GainNode
+  private wet: GainNode
+  private conv: ConvolverNode | null = null
+
+  constructor(private ctx: AudioContext) {
+    this.input = ctx.createGain()
+    this.dry = ctx.createGain()
+    this.wet = ctx.createGain()
+    this.output = ctx.createGain()
+    this.wet.gain.value = 0
+    this.input.connect(this.dry)
+    this.dry.connect(this.output)
+    this.wet.connect(this.output)
   }
 
   /** Реверб 0…1: мокрый сигнал растёт, сухой чуть уходит, общая громкость почти не меняется. */
@@ -140,7 +115,7 @@ export class Effects {
     if (a > 0 && !this.conv) {
       this.conv = this.ctx.createConvolver()
       this.conv.buffer = impulse(this.ctx)
-      this.mid.connect(this.conv)
+      this.input.connect(this.conv)
       this.conv.connect(this.wet)
     }
     const t = this.ctx.currentTime
