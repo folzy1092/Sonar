@@ -122,6 +122,12 @@ class BlendAnalysisStore {
     return this.queue.failure(ref) ? 'failed' : 'none'
   }
 
+  /** Счётчики очереди для отладочной карточки. */
+  stats() {
+    void this.tick
+    return this.queue.stats()
+  }
+
   failure(ref: string): string | undefined {
     void this.tick
     return this.queue.failure(ref)

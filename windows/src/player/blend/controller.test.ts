@@ -277,6 +277,9 @@ describe('BlendController', () => {
     const { deck, listenedMs } = s.log.promoted[0]
     expect(deck).toBe(s.deckB())
     expect(listenedMs).toBeGreaterThan(1000)
+    // доведённый переход просят оценить
+    expect(s.ctl.done?.kind).toBe(plan.kind)
+    expect(s.ctl.done?.to).toBe(s.ctl.current?.to)
     expect(s.deckA.el.currentTime * 1000).toBeGreaterThanOrEqual(plan.endAMs - 60)
     await s.advance(1)
     expect(s.log.released).toContain(s.deckA)
@@ -345,6 +348,8 @@ describe('BlendController', () => {
     await vi.advanceTimersByTimeAsync(400)
     expect(s.log.released).toContain(s.deckB())
     expect(s.log.promoted).toHaveLength(0)
+    // сорванный переход оценить не просят
+    expect(s.ctl.done).toBeNull()
   })
 
   it('«Следующий» до старта B — обычное листание', async () => {

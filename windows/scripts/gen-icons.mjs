@@ -13,7 +13,7 @@ const MAP = {
   home: 'home-4', search: 'search', library: 'folder', player: 'play', settings: 'settings-3',
   play: 'play', pause: 'pause', prev: 'skip-previous', next: 'skip-forward', repeatOnce: 'repeat-one',
   repeat: 'repeat', shuffle: 'shuffle-2', heart: 'heart', clock: 'time', history: 'history',
-  volume: 'volume', volumeOff: 'volume-off', dots: 'more-1', dislike: 'thumb-down-2', check: 'check',
+  volume: 'volume', volumeOff: 'volume-off', dots: 'more-1', like: 'thumb-up-2', dislike: 'thumb-down-2', check: 'check',
   lyrics: 'quote-left', queue: 'playlist', music: 'music-2', bolt: 'flash', link: 'link', user: 'user-3',
   download: 'download-2', plus: 'add', refresh: 'refresh-2', chevronLeft: 'left', chevronRight: 'right',
   chevronDown: 'down', eyeClosed: 'eye-close', textLines: 'align-left', expand: 'fullscreen',

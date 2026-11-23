@@ -7,8 +7,9 @@ import { api, type StreamUrl, type Track, type TrackSound } from '../../lib/api'
 import { settings } from '../../lib/settings.svelte'
 import { tempo } from '../tempo.svelte'
 import type { BlendAnalysis } from './analysis'
-import type { BlendHost, OwnSound } from './controller.svelte'
+import type { BlendHost, BlendSettings, OwnSound } from './controller.svelte'
 import type { DeckChain } from './deck-chain'
+import { blendRatings } from './ratings.svelte'
 import { blendSettings } from './settings'
 
 export interface PlayerDeck {
@@ -42,14 +43,15 @@ interface Held {
 }
 
 /** Настройки сведения из `audio.blend_*` — для плана перехода (контроллер и вечеринка). */
-export function currentBlendSettings() {
-  return blendSettings({
+export function currentBlendSettings(): BlendSettings {
+  const base = blendSettings({
     type: settings.get('audio.blend_type'),
     length: settings.get('audio.blend_length'),
     cut: settings.get('audio.blend_cut'),
     tempo: settings.get('audio.blend_tempo'),
     key: settings.get('audio.blend_key'),
   })
+  return { ...base, ratings: blendRatings.balance }
 }
 
 /** Свой звук трека так, как его применит `tempo.trackChanged`: «Для этого трека» или общий (с «Запомнить»). */

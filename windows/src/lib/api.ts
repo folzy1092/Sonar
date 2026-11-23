@@ -617,6 +617,9 @@ export const api = {
   blendRelease: (trackRef: string) => call<void>('blend_release', { trackRef }),
   blendGet: (refs: string[]) => call<Record<string, { version: number; data: string }>>('blend_get', { refs }),
   blendPut: (trackRef: string, version: number, json: string) => call<void>('blend_put', { trackRef, version, json }),
+  blendRate: (from: string, to: string, kind: string, score: 1 | -1) => call<void>('blend_rate', { from, to, kind, score }),
+  /** Перевес оценок по видам перехода с `sinceMs`: −1…1. */
+  blendBalance: (sinceMs: number) => call<Record<string, number>>('blend_balance', { sinceMs }),
   addSearchHistory: (entry: import('./search-history.svelte').SearchEntry) => call<void>('add_search_history', { entry }),
   searchHistory: (limit = 20) => call<import('./search-history.svelte').SearchEntry[]>('search_history', { limit }),
   searchHistoryCount: () => call<number>('search_history_count'),

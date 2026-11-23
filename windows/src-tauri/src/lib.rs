@@ -216,6 +216,7 @@ pub fn run() {
       blend::blend_get,
       blend::blend_put,
       blend::blend_rate,
+      blend::blend_balance,
       downloads::download_tracks,
       downloads::downloads_state,
       downloads::downloaded_refs,

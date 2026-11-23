@@ -35,6 +35,8 @@ export class AnalyzeQueue {
   private readonly running = new Map<string, Job>()
   /** Растёт на `reset`: задачи старого поколения результат не записывают. */
   private generation = 0
+  /** Сколько треков посчитано (декодировано) за сессию — для отладки. */
+  private computed = 0
 
   constructor(
     private readonly deps: AnalyzeDeps,
@@ -50,6 +52,11 @@ export class AnalyzeQueue {
   /** Почему анализа нет (или `undefined`, если не падал). */
   failure(ref: string): string | undefined {
     return this.failed.get(ref)
+  }
+
+  /** Для отладки (§10.3): анализов в памяти, ждут, идут, упали, посчитано за сессию. */
+  stats(): { ready: number; waiting: number; running: number; failed: number; computed: number } {
+    return { ready: this.ready.size, waiting: this.waiting.length, running: this.running.size, failed: this.failed.size, computed: this.computed }
   }
 
   pending(ref: string): boolean {
@@ -150,6 +157,7 @@ export class AnalyzeQueue {
     const stored = (await this.deps.load([ref]))[ref]
     if (fresh(stored)) return stored
     const a = await this.deps.compute(ref)
+    this.computed++
     if (gen === this.generation) await this.deps.save(a)
     return a
   }

@@ -5,7 +5,7 @@
 import type { BlendAnalysis } from './analysis'
 import { type ChainLike, deckValues, freezeDeck, rampDeck, scheduleDeck, setDeck } from './automation'
 import { type BlendCurves, curvesFor, tempoAt } from './curves'
-import { barMs, type BlendType, plan as planTransitions, type TransitionPlan } from './planner'
+import { barMs, type BlendKind, type BlendType, plan as planTransitions, type TransitionPlan } from './planner'
 
 /** То, что контроллер трогает у `<audio>`. */
 export interface MediaLike {
@@ -35,6 +35,8 @@ export interface BlendSettings {
   cutSec: number
   tempoTolPct: number
   keyShift: boolean
+  /** Перевес 👍/👎 по видам за 60 дней (§8.6): «Авто» реже берёт вид с минусом. */
+  ratings?: Partial<Record<BlendKind, number>>
 }
 
 /** Значения по умолчанию из §7.3; ключи `audio.blend_*` разбирает `settings.ts`. */
@@ -153,6 +155,8 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
   next = $state.raw<NextPlan<T> | null>(null)
   /** Последняя ошибка фазы, мс (отладка). */
   phaseErrMs = $state(0)
+  /** Последний доведённый переход (B стал текущим) — его просят оценить 👍/👎. Новый объект на каждый переход. */
+  done = $state.raw<{ from: T; to: T; kind: BlendKind } | null>(null)
 
   private pair: Pair<T, D> | null = null
   private live: Live<D> | null = null
@@ -533,6 +537,7 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
     const deckA = this.pair!.deckA
     live.promoted = true
     this.phase = 'promoting'
+    this.done = { from: this.pair!.a, to: this.pair!.b, kind: this.pair!.plan.kind }
     this.host.promote(live.deckB!, (this.host.now() - live.bStartedAt) * 1000)
     this.later(CANCEL_SEC, () => this.releaseA(live, deckA))
   }

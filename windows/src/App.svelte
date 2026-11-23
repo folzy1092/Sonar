@@ -42,9 +42,11 @@
   import { initScRelogin } from './lib/sc-relogin'
   import { player } from './player/player.svelte'
   import FullPlayer from './player/FullPlayer.svelte'
+  import BlendDebug from './player/BlendDebug.svelte'
   import { lyrics } from './lyrics/lyrics.svelte'
   import { blendAnalysis } from './player/blend/analyze.svelte'
   import { party } from './player/blend/party.svelte'
+  import { blendRatings } from './player/blend/ratings.svelte'
   import { wave } from './player/my-wave.svelte'
   import { autoplay } from './player/autoplay.svelte'
   import { initTrackFx } from './lib/track-fx.svelte'
@@ -99,6 +101,7 @@
     lyrics.init()
     blendAnalysis.init()
     party.init()
+    blendRatings.init(() => player.blend.done)
     void library.load()
     updater.init()
     hotkeys.init()
@@ -265,6 +268,7 @@
 <UpdatePopup />
 <CrashNotice />
 <Toast />
+<BlendDebug />
 <Tooltip />
 
 <style>

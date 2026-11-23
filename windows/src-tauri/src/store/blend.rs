@@ -74,6 +74,15 @@ impl Store {
     Ok(())
   }
 
+  /// Перевес оценок по видам с `since_ms`: среднее ±1, то есть от −1 до 1 (§8.6). Вида без оценок нет в ответе.
+  pub fn blend_balance(&self, since_ms: i64) -> Result<HashMap<String, f64>> {
+    let mut st = self
+      .db
+      .prepare("SELECT kind, AVG(score) FROM blend_ratings WHERE at >= ?1 GROUP BY kind")?;
+    let rows = st.query_map(params![since_ms], |r| Ok((r.get::<_, String>(0)?, r.get::<_, f64>(1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+  }
+
   /// «Хранилище»: сколько треков проанализировано и сколько это байт.
   pub fn blend_usage(&self) -> Result<(i64, i64)> {
     Ok(self.db.query_row("SELECT COUNT(*), COALESCE(SUM(LENGTH(data_json)), 0) FROM blend_analysis", [], |r| {
@@ -125,6 +134,21 @@ mod tests {
     s.blend_rate("sc:1", "ym:2", "bass", 1).unwrap();
     assert!(s.blend_rate("sc:1", "ym:2", "wobble", 1).is_err());
     assert!(s.blend_rate("sc:1", "ym:2", "echo", 5).is_err());
+  }
+
+  #[test]
+  fn balance_averages_by_kind_since() {
+    let s = Store::memory().unwrap();
+    s.blend_rate("a", "b", "bass", 1).unwrap();
+    s.blend_rate("a", "b", "bass", -1).unwrap();
+    s.blend_rate("a", "b", "bass", -1).unwrap();
+    s.blend_rate("a", "b", "echo", 1).unwrap();
+    // старая оценка за окном не считается
+    s.db.execute("INSERT INTO blend_ratings (from_ref, to_ref, kind, score, at) VALUES ('a','b','drop',-1,5)", []).unwrap();
+    let b = s.blend_balance(1000).unwrap();
+    assert!((b["bass"] + 1.0 / 3.0).abs() < 1e-9);
+    assert_eq!(b["echo"], 1.0);
+    assert!(!b.contains_key("drop"));
   }
 
   #[test]

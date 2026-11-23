@@ -105,6 +105,12 @@ pub fn blend_rate(db: State<'_, Db>, from: String, to: String, kind: String, sco
   db.0.lock().unwrap().blend_rate(&from, &to, &kind, score).map_err(|e| e.to_string())
 }
 
+/// Перевес 👍/👎 по видам перехода с `since_ms` — его учитывает «Авто» (§8.6).
+#[tauri::command]
+pub fn blend_balance(db: State<'_, Db>, since_ms: i64) -> Res<HashMap<String, f64>> {
+  db.0.lock().unwrap().blend_balance(since_ms).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;

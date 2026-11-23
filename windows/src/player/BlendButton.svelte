@@ -4,13 +4,15 @@
   // подсвечена, на ней короткое имя вида. Открывается и закрывается только кликом, как SpeedButton.
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
+  import BlendRate from './BlendRate.svelte'
   import Ruler from '../components/Ruler.svelte'
   import Switch from '../components/settings/Switch.svelte'
   import { t } from '../lib/i18n.svelte'
   import { indicator } from '../lib/indicator'
-  import { pop, slide } from '../lib/motion'
+  import { pop, scale, slide } from '../lib/motion'
   import { settings } from '../lib/settings.svelte'
   import { blendAnalysis } from './blend/analyze.svelte'
+  import { blendRatings } from './blend/ratings.svelte'
   import { party } from './blend/party.svelte'
   import { BLEND_LENGTHS, BLEND_TYPES, blendSettings, CUT_MAX_SEC, CUT_RECOMMENDED_SEC } from './blend/settings'
   import { buttonLabel, cardFor, KIND_TEXT, LENGTH_TEXT } from './blend/view'
@@ -115,6 +117,9 @@
       </span>
     {/key}
   </button>
+  {#if blendRatings.ask && blendRatings.answer === null && !open}
+    <i class="ask" aria-hidden="true" transition:scale={{ duration: 200, start: 0.4 }}></i>
+  {/if}
 
   {#if open}
     <div class="pop" class:down style:max-height="{room}px" role="dialog" aria-label={t('Сведение')} in:pop={{ y: down ? -8 : 8 }} out:pop={{ y: down ? -8 : 8 }}>
@@ -124,6 +129,7 @@
         {on}
         onchange={setOn}
       />
+      <BlendRate />
 
       <span class="label">{t('Сведение::Вид')}</span>
       <div class="pills kinds" use:indicator={{ key: opts.type, kind: 'pill' }}>
@@ -206,6 +212,18 @@
 <style>
   .wrap {
     position: relative;
+  }
+  /* висит «Как прошлый переход?» — точка, пока не открыли */
+  .ask {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 2px var(--surface-1);
+    pointer-events: none;
   }
   .blend {
     display: grid;

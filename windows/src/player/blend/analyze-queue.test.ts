@@ -41,6 +41,7 @@ describe('очередь анализа', () => {
     await tick()
     await tick()
     expect(started).toEqual(['p1', 'p2', 'n1'])
+    expect(q.stats()).toEqual({ ready: 1, waiting: 1, running: 2, failed: 0, computed: 1 })
   })
 
   it('тот же трек не считается дважды, вечеринка поднимается до «сейчас»', async () => {
