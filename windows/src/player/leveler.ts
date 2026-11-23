@@ -46,6 +46,7 @@ export class Leveler {
   private since = 0
   private timer: ReturnType<typeof setInterval> | null = null
   private on = false
+  private held = false
 
   constructor(private ctx: AudioContext) {
     this.node = ctx.createGain()
@@ -73,13 +74,18 @@ export class Leveler {
     }
   }
 
+  /** Сведение (blend/controller): пока звучат два трека, оценка не копится и усиление стоит. */
+  hold(on: boolean) {
+    this.held = on
+  }
+
   /** Новый трек — первые секунды оценка догоняет быстрее. */
   trackChanged() {
     this.since = performance.now()
   }
 
   private step() {
-    if (!this.on || this.ctx.state !== 'running') return
+    if (!this.on || this.held || this.ctx.state !== 'running') return
     this.meter.getFloatTimeDomainData(this.frame)
     const db = rmsDb(this.frame)
     if (!Number.isFinite(db) || db < SILENCE_DB) return

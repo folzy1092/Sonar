@@ -93,6 +93,7 @@ class BlendAnalysisStore {
   init() {
     if (this.started || !isTauri) return
     this.started = true
+    player.blendAnalysisOf = (ref) => this.peek(ref) ?? null
     // сеть вернулась — треки, которые не скачались, можно пробовать снова
     onOfflineChanged((on) => {
       if (!on) this.queue.forgetFailures()

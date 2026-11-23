@@ -8,6 +8,9 @@ import { api, errorText, onMediaControl, type PlayerState, type Repeat, type Str
 import { eq } from './eq.svelte'
 import { Leveler } from './leveler'
 import { DeckChain } from './blend/deck-chain'
+import type { BlendAnalysis } from './blend/analysis'
+import { BlendController } from './blend/controller.svelte'
+import { createBlendHost, type PlayerDeck } from './blend/player-host'
 import { Effects } from './effects'
 import { pitchRatio, tempo } from './tempo.svelte'
 import { settings } from '../lib/settings.svelte'
@@ -25,6 +28,21 @@ import { toast } from '../lib/toast.svelte'
 const HEARTBEAT_MS = 30_000
 /** Затухание текущего трека, когда включили офлайн, а его нет на диске (с). */
 const OFFLINE_FADE_SEC = 1.2
+/** Кроссфейд-подстраховка, когда сведение не вышло, а свой кроссфейд выключен, мс (docs/BLEND.md §6.2). */
+const BLEND_FALLBACK_MS = 6000
+
+/** Поток в <audio> без старта: HLS — через hls.js, файл — прямо в элемент. */
+function mountStream(el: HTMLAudioElement, s: StreamUrl, atSec: number): Hls | null {
+  if (s.kind === 'hls' && Hls.isSupported()) {
+    const hls = new Hls({ startPosition: atSec })
+    hls.loadSource(s.url)
+    hls.attachMedia(el)
+    return hls
+  }
+  el.src = s.url
+  if (atSec) el.currentTime = atSec
+  return null
+}
 
 class Player {
   tracks = $state<Track[]>([])
@@ -121,6 +139,29 @@ class Player {
   /** Спектр звука для волны на странице плеера (Web Audio). */
   analyser: AnalyserNode | null = null
 
+  /** Готовый анализ трека для сведения — подставляет `blend/analyze.svelte.ts` (без него — кроссфейд). */
+  blendAnalysisOf: (ref: string) => BlendAnalysis | null = () => null
+  /** Идёт переход сведения: скоростью и тоном дек управляет контроллер, не меню скорости. */
+  private blendHeld = false
+  private readonly blendHost = createBlendHost({
+    ctx: () => this.ctx,
+    otherDeck: () => this.decks.find((d) => d !== this.audio) ?? null,
+    chain: (el) => this.chains.get(el),
+    analysis: (ref) => this.blendAnalysisOf(ref),
+    promote: (el, hls, s, track, listenedMs) => this.adoptDeck(el, hls, s, track, listenedMs),
+    hold: (on) => {
+      this.blendHeld = on
+      this.leveler?.hold(on)
+      if (!on) this.applySpeed()
+    },
+    deckError: (el) => {
+      if (!this.blend.onDeckError(el) && el === this.audio) void this.onMediaError('HLS')
+    },
+    mount: mountStream,
+  })
+  /** Сведение (DJ-переходы, docs/BLEND.md): ведёт переход вместо кроссфейда, когда есть анализ обоих треков. */
+  readonly blend = new BlendController<Track, PlayerDeck>(this.blendHost)
+
   /** Сам <audio> — тексту нужны его события для своих часов (lyrics/LyricsView). */
   get media(): HTMLAudioElement | null {
     return this.audio
@@ -196,7 +237,8 @@ class Player {
     addEventListener('error', () => {
       const message = a.error?.message || t('не удалось воспроизвести')
       if (a === this.audio) void this.onMediaError(message)
-      else this.onError(message)
+      // второй дек занят сведением — его ошибку разбирает контроллер (или загрузка B)
+      else if (!this.blend.onDeckError(a) && !this.blendHost.busy(a)) this.onError(message)
     })
   }
 
@@ -229,6 +271,7 @@ class Player {
 
   /** Полная остановка: при подмене модуля в dev (HMR), иначе старый <audio> играет «вторым потоком». */
   destroy() {
+    this.blend.abort()
     this.hls?.destroy()
     this.hls = null
     for (const d of this.decks) {
@@ -410,6 +453,9 @@ class Player {
   }
 
   async next(manual = true) {
+    // идёт сведение и B уже звучит — он сразу становится текущим (§6.4)
+    if (this.blend.started()) this.finishPlay(manual)
+    if (this.blend.finishNow()) return
     const p = nextPos(this.pos, this.order.length, this.repeat, manual)
     const last = this.current
     this.finishPlay(manual)
@@ -451,12 +497,14 @@ class Player {
     if (!this.audio.src) return this.load(true, this.positionMs)
     try {
       await this.audio.play()
+      this.blend.resume()
     } catch (e) {
       this.onError(errorText(e))
     }
   }
 
   pause() {
+    this.blend.pause()
     this.endFade()
     this.audio?.pause()
   }
@@ -470,6 +518,7 @@ class Player {
     if (!this.audio) return
     const max = this.durationMs || this.current?.duration_ms || 0
     const t = Math.max(0, Math.min(ms, max))
+    this.blend.cancel()
     this.endFade()
     this.place(t)
     if (this.audio.src) this.audio.currentTime = t / 1000
@@ -536,18 +585,20 @@ class Player {
    *  активного дека (затухающий дек при переходе держит тон своего трека). */
   private applySpeed() {
     if (!this.audio) return
+    this.effects?.setReverb(tempo.wet)
+    if (this.blendHeld) return
     const rate = tempo.rate
     this.audio.preservesPitch = !tempo.linked
     this.audio.defaultPlaybackRate = rate
     this.audio.playbackRate = rate
     void this.chains.get(this.audio)?.setUserPitch(tempo.linked ? 1 : pitchRatio(tempo.pitch))
-    this.effects?.setReverb(tempo.wet)
   }
 
   /** `crossfade` — зовёт кроссфейд: старый дек ещё затухает, громкость нового выставит сам переход.
    *  `fallbackSkips` — сколько треков подряд уже пропущено из-за «нужен резервный сервис». */
   private async load(autoplay: boolean, startMs = 0, crossfade = false, fallbackSkips = 0) {
     if (!crossfade) {
+      this.blend.abort()
       this.endFade()
       this.gainTo(this.audio, 1, 0)
     }
@@ -594,20 +645,14 @@ class Player {
   private async attach(s: StreamUrl, token: number, autoplay: boolean, startMs: number) {
     const a = this.audio
     if (!a) return
-    if (s.kind === 'hls' && Hls.isSupported()) {
-      const hls = new Hls({ startPosition: startMs / 1000 })
-      hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (data.fatal && token === this.loadToken) void this.onMediaError(`HLS: ${data.details}`)
-      })
-      hls.on(Hls.Events.MANIFEST_PARSED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.6))
-      hls.on(Hls.Events.FRAG_LOADED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.9))
-      hls.loadSource(s.url)
-      hls.attachMedia(a)
-      this.hls = hls
-    } else {
-      a.src = s.url
-      if (startMs) a.currentTime = startMs / 1000
-    }
+    // обработчики hls.js вешаются сразу после loadSource — события идут асинхронно, ничего не теряется
+    const hls = mountStream(a, s, startMs / 1000)
+    hls?.on(Hls.Events.ERROR, (_e, data) => {
+      if (data.fatal && token === this.loadToken) void this.onMediaError(`HLS: ${data.details}`)
+    })
+    hls?.on(Hls.Events.MANIFEST_PARSED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.6))
+    hls?.on(Hls.Events.FRAG_LOADED, () => token === this.loadToken && this.loadProgress !== null && this.stage(0.9))
+    this.hls = hls
     this.applySpeed()
     this.listenedMs = 0
     this.startedAt = Date.now()
@@ -697,13 +742,19 @@ class Player {
     if (this.crossing || this.loading || !this.playing || !this.ctx || this.repeat === 'one') return
     const dur = Number.isFinite(a.duration) && a.duration > 0 ? a.duration * 1000 : this.durationMs
     if (!dur || dur < 20_000) return
-    const cf = Math.max(0, Number(settings.get('audio.crossfade')) || 0)
-    const span = cf > 0 ? cf * 1000 : settings.get('audio.gapless') ? 250 : 0
-    if (!span) return
     const p = nextPos(this.pos, this.order.length, this.repeat, false)
-    if (p === null) return
-    const next = this.tracks[this.order[p]]
-    if (!next) return
+    const next = p === null ? null : (this.tracks[this.order[p]] ?? null)
+    const blendOn = settings.get('audio.blend')
+    const chain = this.chains.get(a)
+    const cur = this.current
+    if (cur && chain) {
+      const deckA = { el: a, chain }
+      const c = { a: cur, b: next, deckA, posMs: ms, durMs: dur, enabled: blendOn, rateA: tempo.rate, linkedA: tempo.linked }
+      if (this.blend.consider(c)) return
+    }
+    const cf = Math.max(0, Number(settings.get('audio.crossfade')) || 0)
+    const span = cf > 0 ? cf * 1000 : blendOn ? BLEND_FALLBACK_MS : settings.get('audio.gapless') ? 250 : 0
+    if (!span || p === null || !next) return
     const left = dur - ms
     if (left < span + 6000 && this.warmedFor !== next.ref) {
       this.warmedFor = next.ref
@@ -750,6 +801,41 @@ class Player {
     f.el.load()
     this.gainTo(f.el, 0, 0)
     this.gainTo(this.audio, 1, 0)
+  }
+
+  /** Сведение довело B до «текущего» (§6.5): плеер принимает уже играющий дек без `load()` — без щелчка,
+   *  без сброса позиции. Возвращает hls.js прежнего дека — его освободит контроллер вместе с деком. */
+  private adoptDeck(el: HTMLAudioElement, hls: Hls | null, s: StreamUrl, track: Track, listenedMs: number): Hls | null {
+    this.finishPlay(false)
+    const oldHls = this.hls
+    this.audio = el
+    this.hls = hls
+    this.pos = this.posOf(track)
+    ++this.loadToken
+    this.leveler?.trackChanged()
+    tempo.trackChanged(track.ref)
+    this.ended = false
+    this.error = null
+    this.fallbackNeeded = false
+    this.loading = false
+    this.durationMs = Number.isFinite(el.duration) && el.duration > 0 ? el.duration * 1000 : track.duration_ms
+    this.announce(s)
+    this.listenedMs = listenedMs
+    this.startedAt = Date.now() - listenedMs
+    this.lastTick = el.currentTime * 1000
+    this.place(this.lastTick)
+    this.clock.play(el.currentTime, performance.now(), el.playbackRate)
+    this.syncFrames()
+    this.setPlaying(true)
+    return oldHls
+  }
+
+  /** Где в порядке воспроизведения трек, который сведение сделало текущим (очередь могли поменять). */
+  private posOf(track: Track): number {
+    const p = nextPos(this.pos, this.order.length, this.repeat, false)
+    if (p !== null && this.tracks[this.order[p]]?.ref === track.ref) return p
+    const after = this.order.findIndex((i, k) => k > this.pos && this.tracks[i]?.ref === track.ref)
+    return after >= 0 ? after : (p ?? this.pos)
   }
 
   private onEnded() {

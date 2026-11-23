@@ -128,8 +128,8 @@ interface Candidate {
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x))
 const round = (x: number, digits: number) => Math.round(x * 10 ** digits) / 10 ** digits
 
-const barMs = (t: BlendAnalysis) => BEATS_PER_BAR * t.beatMs
-const barTime = (t: BlendAnalysis, bar: number) => t.firstBeatMs + (t.downbeat + BEATS_PER_BAR * bar) * t.beatMs
+export const barMs = (t: BlendAnalysis) => BEATS_PER_BAR * t.beatMs
+export const barTime = (t: BlendAnalysis, bar: number) => t.firstBeatMs + (t.downbeat + BEATS_PER_BAR * bar) * t.beatMs
 
 function mean(xs: number[], from: number, to: number): number {
   let sum = 0
