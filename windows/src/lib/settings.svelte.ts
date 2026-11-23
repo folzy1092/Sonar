@@ -148,6 +148,8 @@ export const DEFAULTS = {
   'audio.crossfade': 0 as number,
   /** Бесшовное: без кроссфейда следующий трек стыкуется без паузы (короткое перекрытие). */
   'audio.gapless': true,
+  /** Сведение: DJ-переход по долям вместо кроссфейда (player/blend/, docs/BLEND.md). */
+  'audio.blend': false,
   /** Тише во время звонков: пока другое приложение пишет с микрофона, музыка на 20 % (calls.rs). */
   'audio.duck_calls': true,
   /** Звук при запуске: аккорд рояля под волны заставки (index.html, public/splash-chord.wav). Выключен,

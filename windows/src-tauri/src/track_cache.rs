@@ -8,6 +8,9 @@
 //! Скачанное руками («Скачать», `downloads.rs`, `docs/OFFLINE.md` §8) лежит рядом, в `<кэш>/pinned`:
 //! тот же формат файлов, но без лимита и вытеснения, «Очистить кэш» его не трогает. Скачан — играет
 //! оттуда, копия в автокэше не нужна и не пишется.
+//!
+//! Временные файлы сведения (`<кэш>/blend-tmp`, `blend.rs`, `docs/BLEND.md` §4.1): трек для анализа, когда
+//! автокэш выключен. Индекс и лимит их не видят; удаляются после анализа и при запуске.
 
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
@@ -20,6 +23,8 @@ use std::time::SystemTime;
 static DIR: OnceLock<PathBuf> = OnceLock::new();
 /// Скачанное руками: `<кэш>/pinned` (обложки — `pinned/covers`).
 static PINNED: OnceLock<PathBuf> = OnceLock::new();
+/// Временные файлы для анализа сведения: `<кэш>/blend-tmp`.
+static BLEND: OnceLock<PathBuf> = OnceLock::new();
 static ENABLED: AtomicBool = AtomicBool::new(false);
 /// Лимит кэша в байтах (по умолчанию 2 ГБ).
 static LIMIT: AtomicU64 = AtomicU64::new(2 * 1024 * 1024 * 1024);
@@ -89,6 +94,26 @@ pub fn set_pinned_dir(dir: PathBuf) {
   prepare(&dir);
   let _ = fs::create_dir_all(dir.join("covers"));
   let _ = PINNED.set(dir);
+}
+
+/// Папка временных файлов сведения: при запуске пустая (прошлые — мусор).
+pub fn set_blend_dir(dir: PathBuf) {
+  let _ = fs::create_dir_all(&dir);
+  remove_files(&dir);
+  let _ = BLEND.set(dir);
+}
+
+/// Временный файл сведения: путь, тип, размер.
+pub fn blend_lookup(track_ref: &str) -> Option<(PathBuf, String, u64)> {
+  found(BLEND.get()?, track_ref)
+}
+
+/// Удалить временный файл сведения (анализ готов).
+pub fn blend_drop(track_ref: &str) {
+  let Some(dir) = BLEND.get() else { return };
+  let (audio, mime) = paths(dir, track_ref);
+  let _ = fs::remove_file(audio);
+  let _ = fs::remove_file(mime);
 }
 
 pub fn pinned_dir() -> Option<&'static PathBuf> {
@@ -217,6 +242,10 @@ pub fn parse_range(h: Option<&str>, total: u64) -> Option<(u64, u64)> {
 pub struct Writer {
   track_ref: String,
   pinned: bool,
+  /// Временный файл сведения: мимо индекса и лимита.
+  temp: bool,
+  /// Предел размера: больше — файл бросается.
+  cap: Option<u64>,
   part: PathBuf,
   audio: PathBuf,
   mime_path: PathBuf,
@@ -241,6 +270,27 @@ impl Writer {
     Self::open(PINNED.get()?, true, track_ref, mime, expect)
   }
 
+  /// Во временные файлы сведения (`<кэш>/blend-tmp`).
+  pub fn blend(track_ref: &str, mime: &str, expect: Option<u64>) -> Option<Self> {
+    let mut w = Self::open(BLEND.get()?, false, track_ref, mime, expect)?;
+    w.temp = true;
+    Some(w)
+  }
+
+  /// Не больше `bytes`: файл крупнее бросается (Content-Length больше — сразу).
+  pub fn capped(mut self, bytes: u64) -> Option<Self> {
+    if self.expect.is_some_and(|n| n > bytes) {
+      return None;
+    }
+    self.cap = Some(bytes);
+    Some(self)
+  }
+
+  /// Записано больше предела — дальше качать незачем.
+  pub fn over_cap(&self) -> bool {
+    self.cap.is_some_and(|c| self.written > c)
+  }
+
   fn open(dir: &Path, pinned: bool, track_ref: &str, mime: &str, expect: Option<u64>) -> Option<Self> {
     let (audio, mime_path) = paths(dir, track_ref);
     if audio.exists() {
@@ -252,15 +302,15 @@ impl Writer {
     let part = dir.join(format!("{}.{}-{n}.part", key(track_ref), std::process::id()));
     let file = File::create(&part).ok()?;
     let track_ref = track_ref.to_owned();
-    Some(Self { track_ref, pinned, part, audio, mime_path, mime: mime.to_owned(), file: Some(file), written: 0, expect, done: false })
+    Some(Self { track_ref, pinned, temp: false, cap: None, part, audio, mime_path, mime: mime.to_owned(), file: Some(file), written: 0, expect, done: false })
   }
 
   pub fn write(&mut self, chunk: &[u8]) {
     let ok = self.file.as_mut().is_some_and(|f| f.write_all(chunk).is_ok());
-    if !ok {
+    self.written += chunk.len() as u64;
+    if !ok || self.over_cap() {
       self.file = None;
     }
-    self.written += chunk.len() as u64;
   }
 
   /// Всё записано: проверить размер, переименовать, вытеснить лишнее. true — файл на месте.
@@ -279,6 +329,9 @@ impl Writer {
     }
     let _ = fs::write(&self.mime_path, &self.mime);
     self.done = true;
+    if self.temp {
+      return true;
+    }
     let (track_ref, mime) = (std::mem::take(&mut self.track_ref), std::mem::take(&mut self.mime));
     let pinned = self.pinned;
     notify(Change::Added { track_ref: track_ref.clone(), file: file_name(&self.audio), mime, bytes: self.written, pinned });
@@ -475,5 +528,35 @@ mod tests {
     assert!(dir.join("b.audio").exists() && dir.join("c.audio").exists());
     let _ = fs::remove_dir_all(&dir);
     assert_eq!(key("sc:12/3"), "sc_12_3");
+  }
+
+  /// Папка сведения — один раз на процесс (OnceLock), поэтому все проверки — в одном тесте.
+  #[test]
+  fn blend_temp_files() {
+    let dir = std::env::temp_dir().join(format!("sonar-blend-test-{}", std::process::id()));
+    let _ = fs::create_dir_all(&dir);
+    fs::write(dir.join("old.audio"), b"x").unwrap();
+    set_blend_dir(dir.clone());
+    assert!(!dir.join("old.audio").exists(), "остатки прошлого запуска удалены");
+
+    let mut w = Writer::blend("sc:1", "audio/mpeg", None).unwrap();
+    w.write(b"abc");
+    assert!(w.finish());
+    let (path, mime, len) = blend_lookup("sc:1").unwrap();
+    assert_eq!((mime.as_str(), len), ("audio/mpeg", 3));
+    assert!(path.starts_with(&dir));
+    blend_drop("sc:1");
+    assert!(blend_lookup("sc:1").is_none());
+
+    assert!(Writer::blend("sc:2", "audio/mpeg", Some(100)).unwrap().capped(10).is_none(), "заявлен больше предела");
+    let mut w = Writer::blend("sc:2", "audio/mpeg", None).unwrap().capped(4).unwrap();
+    w.write(b"abc");
+    assert!(!w.over_cap());
+    w.write(b"de");
+    assert!(w.over_cap());
+    assert!(!w.finish());
+    assert!(blend_lookup("sc:2").is_none());
+    assert_eq!(fs::read_dir(&dir).unwrap().count(), 0, "недописанный .part удалён");
+    let _ = fs::remove_dir_all(&dir);
   }
 }

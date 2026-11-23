@@ -1,5 +1,6 @@
 mod artist_graph;
 mod autostart;
+mod blend;
 mod commands;
 mod crashlog;
 mod discord;
@@ -114,6 +115,7 @@ pub fn run() {
         stream::set_cover_dir(cache.join("covers"));
         track_cache::set_dir(cache.join("tracks"));
         track_cache::set_pinned_dir(cache.join("pinned"));
+        track_cache::set_blend_dir(cache.join("blend-tmp"));
       }
       let port = tauri::async_runtime::block_on(stream::start(core.clone()))?;
 
@@ -209,6 +211,11 @@ pub fn run() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
+      blend::blend_source,
+      blend::blend_release,
+      blend::blend_get,
+      blend::blend_put,
+      blend::blend_rate,
       downloads::download_tracks,
       downloads::downloads_state,
       downloads::downloaded_refs,

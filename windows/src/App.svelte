@@ -43,6 +43,7 @@
   import { player } from './player/player.svelte'
   import FullPlayer from './player/FullPlayer.svelte'
   import { lyrics } from './lyrics/lyrics.svelte'
+  import { blendAnalysis } from './player/blend/analyze.svelte'
   import { wave } from './player/my-wave.svelte'
   import { autoplay } from './player/autoplay.svelte'
   import { initTrackFx } from './lib/track-fx.svelte'
@@ -95,6 +96,7 @@
     initTrackFx()
     theme.init()
     lyrics.init()
+    blendAnalysis.init()
     void library.load()
     updater.init()
     hotkeys.init()

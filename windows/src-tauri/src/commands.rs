@@ -1414,6 +1414,9 @@ pub struct StorageUsage {
   lyrics: i64,
   lyrics_bytes: i64,
   track_prefs: i64,
+  /// Анализ для сведения (`blend_analysis`).
+  blend: i64,
+  blend_bytes: i64,
   db_bytes: u64,
 }
 
@@ -1442,6 +1445,7 @@ pub fn storage_usage(app: tauri::AppHandle, db: State<'_, Db>) -> Res<StorageUsa
   let (downloaded, downloaded_bytes) = crate::track_cache::usage(true);
   let store = db.0.lock().unwrap();
   let (lyrics, lyrics_bytes) = store.lyrics_usage().map_err(err)?;
+  let (blend, blend_bytes) = store.blend_usage().map_err(err)?;
   let db_bytes = app
     .path()
     .app_data_dir()
@@ -1449,10 +1453,10 @@ pub fn storage_usage(app: tauri::AppHandle, db: State<'_, Db>) -> Res<StorageUsa
     .and_then(|d| std::fs::metadata(d.join("sonar.db")).ok())
     .map(|m| m.len())
     .unwrap_or(0);
-  Ok(StorageUsage { covers, covers_bytes, tracks, tracks_bytes, downloaded, downloaded_bytes, lyrics, lyrics_bytes, track_prefs: store.track_prefs_count().map_err(err)?, db_bytes })
+  Ok(StorageUsage { covers, covers_bytes, tracks, tracks_bytes, downloaded, downloaded_bytes, lyrics, lyrics_bytes, track_prefs: store.track_prefs_count().map_err(err)?, blend, blend_bytes, db_bytes })
 }
 
-/// Очистить: `covers` | `lyrics` | `track_prefs` | `all` (обложки и тексты).
+/// Очистить: `covers` | `tracks` | `lyrics` | `track_prefs` | `blend` | `all` (обложки, треки и тексты).
 #[tauri::command]
 pub fn clear_storage(db: State<'_, Db>, kind: String) -> Res<()> {
   let clear_covers = || {
@@ -1471,6 +1475,7 @@ pub fn clear_storage(db: State<'_, Db>, kind: String) -> Res<()> {
     "tracks" => crate::track_cache::clear(),
     "lyrics" => store.clear_lyrics_cache().map_err(err)?,
     "track_prefs" => store.reset_track_prefs().map_err(err)?,
+    "blend" => store.blend_clear().map_err(err)?,
     "all" => {
       clear_covers();
       crate::track_cache::clear();

@@ -209,6 +209,7 @@ pub async fn start(core: Arc<Core>) -> std::io::Result<u16> {
     .route("/hls", get(hls))
     .route("/seg", get(seg))
     .route("/cover", get(cover))
+    .route("/blend", get(blend_file))
     .with_state(core);
   tokio::spawn(async move {
     if let Err(e) = axum::serve(listener, app).await {
@@ -397,13 +398,33 @@ async fn serve_gvideo(core: &Core, url: &str, range: Option<&HeaderValue>, track
   }
 }
 
-/// Куда пишем: автокэш или скачанное (`track_cache`).
-fn writer(track_ref: &str, pinned: bool, mime: &str, expect: Option<u64>) -> Option<track_cache::Writer> {
-  if pinned {
-    track_cache::Writer::pinned(track_ref, mime, expect)
-  } else {
-    track_cache::Writer::new(track_ref, mime, expect)
+/// Куда кладём скачанный целиком трек (`track_cache`).
+#[derive(Clone, Copy)]
+pub enum Target {
+  /// Автокэш.
+  Cache,
+  /// Скачанное руками.
+  Pinned,
+  /// Временный файл сведения (`<кэш>/blend-tmp`).
+  Blend,
+}
+
+fn writer(track_ref: &str, to: Target, cap: Option<u64>, mime: &str, expect: Option<u64>) -> Result<track_cache::Writer, FetchErr> {
+  let w = match to {
+    Target::Cache => track_cache::Writer::new(track_ref, mime, expect),
+    Target::Pinned => track_cache::Writer::pinned(track_ref, mime, expect),
+    Target::Blend => track_cache::Writer::blend(track_ref, mime, expect),
   }
+  .ok_or_else(|| failed("файл не открылся"))?;
+  match cap {
+    Some(c) => w.capped(c).ok_or_else(|| failed("файл больше предела")),
+    None => Ok(w),
+  }
+}
+
+/// Записали больше предела — бросаем (`Drop` удалит недописанное).
+fn check_cap(w: &track_cache::Writer) -> Result<(), FetchErr> {
+  if w.over_cap() { Err(failed("файл больше предела")) } else { Ok(()) }
 }
 
 /// Почему трек не лёг на диск.
@@ -443,6 +464,7 @@ async fn write_body<E: std::fmt::Display>(
       return Err(FetchErr::Stopped);
     }
     w.write(&chunk.map_err(failed)?);
+    check_cap(&w)?;
   }
   // отменили на последнем куске — не класть файл в кэш и индекс
   if stop() {
@@ -452,9 +474,16 @@ async fn write_body<E: std::fmt::Display>(
 }
 
 /// HLS: скачать init-кусок и все куски по порядку и склеить в один файл.
-async fn write_hls(core: &Core, track_ref: &str, pinned: bool, playlist: &str, base: &url::Url, stop: &(dyn Fn() -> bool + Send + Sync)) -> Result<(), FetchErr> {
+async fn write_hls(
+  core: &Core,
+  track_ref: &str,
+  (to, cap): (Target, Option<u64>),
+  playlist: &str,
+  base: &url::Url,
+  stop: &(dyn Fn() -> bool + Send + Sync),
+) -> Result<(), FetchErr> {
   let (init, segs, mime) = track_cache::hls_parts(playlist, base).ok_or(FetchErr::Unsupported)?;
-  let mut w = writer(track_ref, pinned, mime, None).ok_or_else(|| failed("файл не открылся"))?;
+  let mut w = writer(track_ref, to, cap, mime, None)?;
   for u in init.into_iter().chain(segs) {
     if stop() {
       return Err(FetchErr::Stopped);
@@ -464,6 +493,7 @@ async fn write_hls(core: &Core, track_ref: &str, pinned: bool, playlist: &str, b
       return Err(failed(format!("CDN ответил {}", r.status())));
     }
     w.write(&r.bytes().await.map_err(failed)?);
+    check_cap(&w)?;
   }
   // отменили на последнем куске — не класть файл в кэш и индекс
   if stop() {
@@ -475,6 +505,17 @@ async fn write_hls(core: &Core, track_ref: &str, pinned: bool, playlist: &str, b
 /// Скачать трек целиком на диск: в автокэш (`pinned` = false) или в скачанное («Скачать», `downloads.rs`).
 /// Общая часть «волны офлайн» и очереди загрузок; занятость (`track_cache::claim`) — на вызывающем.
 pub async fn fetch_track(core: &Core, track_ref: &str, pinned: bool, stop: &(dyn Fn() -> bool + Send + Sync)) -> Result<(), FetchErr> {
+  fetch_into(core, track_ref, if pinned { Target::Pinned } else { Target::Cache }, None, stop).await
+}
+
+/// Скачать трек целиком в `to`; `cap` — предел размера в байтах (сведение, `blend.rs`).
+pub async fn fetch_into(
+  core: &Core,
+  track_ref: &str,
+  to: Target,
+  cap: Option<u64>,
+  stop: &(dyn Fn() -> bool + Send + Sync),
+) -> Result<(), FetchErr> {
   match core.resolve(track_ref, false).await.map_err(failed)? {
     Source::Hls { url, .. } => {
       let up = core.http().get(&url).header("User-Agent", ua_for(&url)).send().await.map_err(failed)?;
@@ -483,11 +524,11 @@ pub async fn fetch_track(core: &Core, track_ref: &str, pinned: bool, stop: &(dyn
       }
       let base = up.url().clone();
       let text = up.text().await.map_err(failed)?;
-      write_hls(core, track_ref, pinned, &text, &base, stop).await
+      write_hls(core, track_ref, (to, cap), &text, &base, stop).await
     }
     Source::File { url, .. } if gvideo::is_gvideo(&url) => {
       let o = gvideo::open(&core.http(), &url, None).await.map_err(|f| failed(format!("{f:?}")))?;
-      let w = writer(track_ref, pinned, &o.mime, Some(o.total)).ok_or_else(|| failed("файл не открылся"))?;
+      let w = writer(track_ref, to, cap, &o.mime, Some(o.total))?;
       write_body(w, o.body, stop).await
     }
     Source::File { url, .. } => {
@@ -496,7 +537,7 @@ pub async fn fetch_track(core: &Core, track_ref: &str, pinned: bool, stop: &(dyn
         return Err(failed(format!("CDN ответил {}", up.status())));
       }
       let mime = up.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("audio/mpeg").to_owned();
-      let w = writer(track_ref, pinned, &mime, up.content_length()).ok_or_else(|| failed("файл не открылся"))?;
+      let w = writer(track_ref, to, cap, &mime, up.content_length())?;
       write_body(w, Box::pin(up.bytes_stream()), stop).await
     }
   }
@@ -504,7 +545,7 @@ pub async fn fetch_track(core: &Core, track_ref: &str, pinned: bool, stop: &(dyn
 
 /// HLS SoundCloud в кэш при проигрывании: склеить весь трек в фоне (плейлист уже скачан).
 async fn cache_hls(core: Arc<Core>, track_ref: String, playlist: String, base: url::Url) {
-  if let Err(e) = write_hls(&core, &track_ref, false, &playlist, &base, &crate::offline::is_on).await {
+  if let Err(e) = write_hls(&core, &track_ref, (Target::Cache, None), &playlist, &base, &crate::offline::is_on).await {
     log::info!("кэш: HLS {track_ref} не склеился — {e}");
   }
   track_cache::release(&track_ref);
@@ -555,6 +596,14 @@ fn local_file(core: &Core, q: &RefQuery, headers: &HeaderMap) -> Response<Body> 
       app_cors(r, headers)
     }
     _ => local_plain(StatusCode::NOT_FOUND, "Файл не найден", headers),
+  }
+}
+
+/// Временный файл сведения (`blend.rs`): только с диска, в сеть не ходит.
+async fn blend_file(Query(q): Query<RefQuery>, headers: HeaderMap) -> Response<Body> {
+  match track_cache::blend_lookup(&q.ref_) {
+    Some((path, mime, total)) => serve_cached(&path, &mime, total, headers.get(header::RANGE)),
+    None => plain(StatusCode::NOT_FOUND, "Файл не найден"),
   }
 }
 

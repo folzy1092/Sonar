@@ -13,6 +13,7 @@
   import { searchHistory } from '../../lib/search-history.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { api, onOfflineIndexChanged, type StorageUsage } from '../../lib/api'
+  import { blendAnalysis } from '../../player/blend/analyze.svelte'
   import { downloads } from '../../lib/downloads.svelte'
   import { offline } from '../../lib/offline.svelte'
   import { slide } from '../../lib/motion'
@@ -29,6 +30,7 @@
 
   let usage = $state<StorageUsage | null>(null)
   let confirmPrefs = $state(false)
+  let confirmBlend = $state(false)
   let busy = $state(false)
   // Кэш треков — то, что играет без сети, поэтому по умолчанию не отмечен.
   let picked = $state<Record<Kind, boolean>>({ tracks: false, covers: true, lyrics: true })
@@ -124,6 +126,18 @@
       toast.show(String(e))
     }
     confirmPrefs = false
+    await refresh()
+  }
+
+  async function clearBlend() {
+    try {
+      await api.clearStorage('blend')
+      blendAnalysis.reset()
+      toast.show(t('Анализ для сведения очищен'))
+    } catch (e) {
+      toast.show(String(e))
+    }
+    confirmBlend = false
     await refresh()
   }
 
@@ -275,6 +289,17 @@
         <button class="pill danger" onclick={clearPrefs}>{t('Точно сбросить?')}</button>
       {:else}
         <button class="pill" disabled={!usage.track_prefs} onclick={() => (confirmPrefs = true)}>{t('Сбросить')}</button>
+      {/if}
+    </div>
+    <div class="row">
+      <span class="text">
+        <b>{t('Анализ для сведения')}</b>
+        <small>{usage.blend} {tn(usage.blend, ['трек', 'трека', 'треков'])} · {mbText(usage.blend_bytes)} — {t('доли, тональность и фразы; посчитается заново, когда понадобится')}</small>
+      </span>
+      {#if confirmBlend}
+        <button class="pill danger" onclick={clearBlend}>{t('Точно очистить?')}</button>
+      {:else}
+        <button class="pill" disabled={!usage.blend} onclick={() => (confirmBlend = true)}>{t('Очистить')}</button>
       {/if}
     </div>
   </Group>

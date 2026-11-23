@@ -13,6 +13,7 @@ const sources = import.meta.glob(['../**/*.{ts,svelte}', '!../**/*.test.ts', '!.
 const FETCH_ALLOWED: Record<string, string> = {
   './updater.svelte.ts': 'список изменений и релизы — только в сети, проверено в updater',
   './quick-core.ts': '`fetch` — параметр функции, не сеть',
+  '../player/blend/analyze.svelte.ts': 'файл трека целиком — с локального аудио-сервера (blend_source)',
 }
 
 /** Файлы, которым можно `x.src = …`: */

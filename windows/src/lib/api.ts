@@ -364,6 +364,15 @@ export interface StorageUsage {
   /** Скачанное (`downloads.rs`): не вытесняется и «Очистить» его не трогает. */
   downloaded: number
   downloaded_bytes: number
+  /** Анализ для сведения (`blend_analysis`). */
+  blend: number
+  blend_bytes: number
+}
+
+/** Откуда воркеру сведения взять файл трека (`blend.rs`): `temp` — временный, после анализа отпустить. */
+export interface BlendSource {
+  url: string
+  temp: boolean
 }
 
 /** Состояние трека в очереди скачивания (`downloads.rs` `Job`). Скачанный из очереди уходит. */
@@ -602,7 +611,12 @@ export const api = {
   allSettings: () => call<Record<string, unknown>>('all_settings'),
   resetSettings: () => call<void>('reset_settings'),
   storageUsage: () => call<StorageUsage>('storage_usage'),
-  clearStorage: (kind: 'covers' | 'tracks' | 'lyrics' | 'track_prefs' | 'all') => call<void>('clear_storage', { kind }),
+  clearStorage: (kind: 'covers' | 'tracks' | 'lyrics' | 'track_prefs' | 'blend' | 'all') => call<void>('clear_storage', { kind }),
+  /** Сведение (`blend.rs`): файл трека для анализа, сохранённые анализы, оценки переходов. */
+  blendSource: (trackRef: string) => call<BlendSource>('blend_source', { trackRef }),
+  blendRelease: (trackRef: string) => call<void>('blend_release', { trackRef }),
+  blendGet: (refs: string[]) => call<Record<string, { version: number; data: string }>>('blend_get', { refs }),
+  blendPut: (trackRef: string, version: number, json: string) => call<void>('blend_put', { trackRef, version, json }),
   addSearchHistory: (entry: import('./search-history.svelte').SearchEntry) => call<void>('add_search_history', { entry }),
   searchHistory: (limit = 20) => call<import('./search-history.svelte').SearchEntry[]>('search_history', { limit }),
   searchHistoryCount: () => call<number>('search_history_count'),

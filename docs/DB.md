@@ -370,6 +370,23 @@ CREATE TABLE offline_tracks (
 );
 CREATE INDEX offline_tracks_file ON offline_tracks(file);
 
+-- только клиент (Windows, миграция № 17): сведение (BLEND.md §5). В синк не идёт.
+CREATE TABLE blend_analysis (                   -- анализ трека: темп, сетка, такты, фразы, тональность, громкость
+  ref           TEXT PRIMARY KEY,
+  version       INTEGER NOT NULL,               -- ANALYSIS_VERSION; другая — пересчёт при следующем проигрывании
+  data_json     TEXT NOT NULL,                  -- BlendAnalysis (player/blend/analysis.ts)
+  analyzed_at   INTEGER NOT NULL                -- мс
+);
+CREATE TABLE blend_ratings (                    -- 👍/👎 прошлому переходу (BLEND.md §8.6)
+  id            INTEGER PRIMARY KEY,
+  from_ref      TEXT NOT NULL,
+  to_ref        TEXT NOT NULL,
+  kind          TEXT NOT NULL,                  -- bass | filter | echo | smooth | drop
+  score         INTEGER NOT NULL,               -- +1 / −1
+  at            INTEGER NOT NULL                -- мс
+);
+CREATE INDEX blend_ratings_kind ON blend_ratings(kind, at);
+
 -- Быстрые ссылки входа и репорты — схема в BOT.md §6 (auth_links, reports)
 
 -- Статус (SPEC §3.11), только на сервере

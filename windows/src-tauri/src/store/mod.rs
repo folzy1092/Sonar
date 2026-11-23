@@ -10,6 +10,7 @@ use std::path::Path;
 
 mod alias;
 mod artist_graph;
+mod blend;
 pub mod covers;
 mod dupes;
 mod local_files;
@@ -25,6 +26,7 @@ mod track_sound;
 mod wave;
 mod wave_events;
 pub use alias::TrackAlias;
+pub use blend::BlendRow;
 pub use dupes::{DupeList, Removed};
 pub use local_files::LocalFile;
 pub use offline::{KIND_CACHE as OFFLINE_KIND_CACHE, KIND_PINNED as OFFLINE_KIND_PINNED};
@@ -181,6 +183,15 @@ CREATE TABLE offline_tracks (
   kind TEXT NOT NULL, added_at INTEGER NOT NULL, last_played INTEGER, meta_json TEXT NOT NULL
 );
 CREATE INDEX offline_tracks_file ON offline_tracks(file);
+"#, r#"
+CREATE TABLE blend_analysis (
+  ref TEXT PRIMARY KEY, version INTEGER NOT NULL, data_json TEXT NOT NULL, analyzed_at INTEGER NOT NULL
+);
+CREATE TABLE blend_ratings (
+  id INTEGER PRIMARY KEY, from_ref TEXT NOT NULL, to_ref TEXT NOT NULL, kind TEXT NOT NULL,
+  score INTEGER NOT NULL, at INTEGER NOT NULL
+);
+CREATE INDEX blend_ratings_kind ON blend_ratings(kind, at);
 "#];
 
 pub fn now_ms() -> i64 {
