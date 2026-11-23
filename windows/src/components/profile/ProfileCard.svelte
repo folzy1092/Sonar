@@ -9,6 +9,7 @@
   import { subscriptionOf } from '../../lib/subscription'
   import { t } from '../../lib/i18n.svelte'
   import { linkLabel, type NickEffect, type ProfileLayout, type ProfileLink, type ShowcaseItem } from '../../lib/profile-look'
+  import { offline } from '../../lib/offline.svelte'
 
   interface Props {
     name: string
@@ -36,13 +37,13 @@
 </script>
 
 <article class="card lay-{p.layout}" style:--pc={p.color ?? 'var(--accent)'}>
-  {#if p.background}<div class="bg" style:background-image="url({p.background})"></div>{/if}
+  {#if p.background}<div class="bg" style:background-image="url({offline.src(p.background)})"></div>{/if}
   <div class="banner" class:empty={!p.banner}>
-    {#if p.banner}<img src={p.banner} alt="" draggable="false" />{/if}
+    {#if p.banner}<img src={offline.src(p.banner)} alt="" draggable="false" />{/if}
   </div>
   <header class="head">
     <span class="ava">
-      {#if p.avatar}<img src={p.avatar} alt="" draggable="false" />{:else}<b>{initial}</b>{/if}
+      {#if p.avatar}<img src={offline.src(p.avatar)} alt="" draggable="false" />{:else}<b>{initial}</b>{/if}
       <i class="online" title={t('В сети')}></i>
     </span>
     <div class="who">
@@ -65,7 +66,7 @@
       {#each p.showcase as s (s.kind + s.ref)}
         <span class="tile" title={s.subtitle ? `${s.title} — ${s.subtitle}` : s.title}>
           <span class="art" class:round={s.kind === 'artist'}>
-            {#if s.cover_url}<img src={s.cover_url} alt="" loading="lazy" draggable="false" />{:else}<Icon name={KIND_ICON[s.kind]} size={18} />{/if}
+            {#if s.cover_url}<img src={offline.src(s.cover_url)} alt="" loading="lazy" draggable="false" />{:else}<Icon name={KIND_ICON[s.kind]} size={18} />{/if}
           </span>
           <b>{s.title}</b>
         </span>

@@ -7,6 +7,7 @@
   import { settings } from '../lib/settings.svelte'
   import { t } from '../lib/i18n.svelte'
   import { floating } from '../lib/floating'
+  import { offline } from '../lib/offline.svelte'
 
   // «Плавающий» стиль: панель — капсула над окном, её тянут куда угодно (lib/floating); за неё окно
   // не таскается. Лежит вдоль, если в «Позиции» выбрано сверху / снизу.
@@ -65,7 +66,7 @@
     </button>
     <button class="avatar" aria-label={t('Профиль')} title={t('Профиль')} onclick={() => settingsPanel.show('account', 'profile')}>
       {#if settings.get('profile.avatar')}
-        <img class="me" src={settings.get('profile.avatar')} alt="" />
+        <img class="me" src={offline.src(settings.get('profile.avatar'))} alt="" />
       {:else}
         <NavIcon name="user" size={20} />
       {/if}

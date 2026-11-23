@@ -15,6 +15,7 @@
   import type { Layout } from '../../lib/artist-map/layout'
   import { artistRef, clusterMembers, connections } from '../../lib/artist-map/graph'
   import { artistsCount, clusterTitle, strengthLabel, whyText } from '../../lib/artist-map/why'
+  import { offline } from '../../lib/offline.svelte'
 
   interface Props {
     node: MapNode
@@ -85,7 +86,7 @@
   <header>
     <div class="ava" class:out={!node.discovered}>
       {#if node.avatar_url}
-        <img src={node.avatar_url} alt="" referrerpolicy="no-referrer" />
+        <img src={offline.src(node.avatar_url)} alt="" referrerpolicy="no-referrer" />
       {:else}
         <span>{(Array.from(node.name.trim())[0] ?? '?').toUpperCase()}</span>
       {/if}

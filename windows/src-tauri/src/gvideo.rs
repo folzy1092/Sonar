@@ -81,6 +81,10 @@ fn net(e: reqwest::Error) -> Fail {
 }
 
 async fn fetch(http: &reqwest::Client, url: &str, (a, b): (u64, u64)) -> Result<reqwest::Response, Fail> {
+  // клиент мог быть взят до включения офлайна — его пул ворота `net` не видят
+  if crate::offline::is_on() {
+    return Err(Fail::Net(crate::offline::MESSAGE.to_owned()));
+  }
   let r = http.get(url).header("User-Agent", UA).header(header::RANGE, format!("bytes={a}-{b}")).send().await.map_err(net)?;
   match r.status().as_u16() {
     206 => Ok(r),

@@ -25,6 +25,7 @@
   import { settings } from '../lib/settings.svelte'
   import { lyrics } from '../lyrics/lyrics.svelte'
   import { t } from '../lib/i18n.svelte'
+  import { offline } from '../lib/offline.svelte'
 
   /** `preview` — живой пример в настройках (MiniPreview.svelte): без всплывашки «Дальше». */
   let { preview = false }: { preview?: boolean } = $props()
@@ -105,7 +106,7 @@
     {#if settings.get('mini.background') === 'cover' && track?.cover_url}
       <!-- фон «Обложка» как у Dotify: сама обложка, чёткая, на всю ширину, затемнена для читаемости -->
       {#key track.cover_url}
-        <img class="cover-bg" src={track.cover_url} alt="" />
+        <img class="cover-bg" src={offline.src(track.cover_url)} alt="" />
       {/key}
       <span class="cover-shade"></span>
     {/if}
@@ -150,7 +151,7 @@
             <!-- мини-аватарка главного артиста перед именем (решение владельца 2026-11-16) -->
             {#if track.artists[0]?.avatar_url}
               {#key track.artists[0].avatar_url}
-                <img class="ava" src={track.artists[0].avatar_url} alt="" draggable="false" />
+                <img class="ava" src={offline.src(track.artists[0].avatar_url)} alt="" draggable="false" />
               {/key}
             {/if}
             {#each track.artists as a, i (a.ref + i)}{#if i},&nbsp;{/if}<span

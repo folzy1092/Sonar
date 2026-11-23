@@ -5,6 +5,7 @@
 // твоей части очереди — чтобы продолжение держалось темы плейлиста, а не уплывало по цепочке.
 // Тумблер — `general.similar_autoplay` (в панели «Далее» и в Настройки → Очередь); выключил —
 // ещё не игравшие похожие убираются. В своей волне не работает: она и так бесконечная.
+// В офлайне похожих не ищем: дописываются случайные треки из скачанного и локального (`docs/OFFLINE.md`).
 import { untrack } from 'svelte'
 import { api, type Track } from '../lib/api'
 import { settings } from '../lib/settings.svelte'
@@ -12,6 +13,8 @@ import { player } from './player.svelte'
 import { WAVE_CONTEXT, wave } from './my-wave.svelte'
 import { t } from '../lib/i18n.svelte'
 import { isLocalRef } from '../lib/services'
+import { offline } from '../lib/offline.svelte'
+import { autoplayFromPool } from '../lib/offline-core'
 
 /** Догружать, когда до конца очереди осталось меньше стольких треков. */
 const LEFT = 3
@@ -86,8 +89,9 @@ class Autoplay {
   private async fill() {
     if (this.loading) return
     const queue = player.order.map((i) => player.tracks[i]).filter(Boolean)
-    const key = `${player.context}|${queue.length}|${queue.at(-1)?.ref}`
+    const key = `${offline.on}|${player.context}|${queue.length}|${queue.at(-1)?.ref}`
     if (key === this.dead) return
+    if (offline.on) return this.fillOffline(key)
     const seeds = autoplaySeeds(queue, player.autoRefs)
     if (!seeds.length) return
     this.loading = true
@@ -97,6 +101,20 @@ class Autoplay {
       const now = player.order.map((i) => player.tracks[i])
       if (!this.on || now.at(-1)?.ref !== queue.at(-1)?.ref || player.context === WAVE_CONTEXT) return
       const next = freshSimilar(lists, new Set(player.tracks.map((t) => t.ref)), (r) => wave.isDisliked(r), BATCH)
+      if (next.length) await player.addToQueue(next, false, true)
+      else this.dead = key
+    } finally {
+      this.loading = false
+    }
+  }
+
+  /** Офлайн: продолжение из того, что есть на диске. */
+  private async fillOffline(key: string) {
+    this.loading = true
+    try {
+      const pool = await offline.pool()
+      if (!this.on || !offline.on) return
+      const next = autoplayFromPool(pool, new Set(player.tracks.map((t) => t.ref)), (r) => wave.isDisliked(r), BATCH)
       if (next.length) await player.addToQueue(next, false, true)
       else this.dead = key
     } finally {

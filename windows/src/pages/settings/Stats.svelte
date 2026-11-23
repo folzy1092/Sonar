@@ -10,6 +10,7 @@
   import { openRef } from '../../app/router.svelte'
   import { settingsPanel } from '../settings-section.svelte'
   import { player } from '../../player/player.svelte'
+  import { offline } from '../../lib/offline.svelte'
 
   const weekdays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
@@ -98,7 +99,7 @@
       {#each artists as a (a.name)}
         <button class="artist" onclick={() => openArtist(a.ref)} disabled={!a.ref}>
           <span class="av">
-            {#if a.avatar_url}<img class="fade-img" src={a.avatar_url} alt="" onload={(e) => e.currentTarget.classList.add('loaded')} />{:else}<Icon name="user" size={34} />{/if}
+            {#if a.avatar_url}<img class="fade-img" src={offline.src(a.avatar_url)} alt="" onload={(e) => e.currentTarget.classList.add('loaded')} />{:else}<Icon name="user" size={34} />{/if}
           </span>
           <b>{a.name}</b>
           <small>{timeText(a.ms)}</small>
@@ -113,7 +114,7 @@
     <div class="tracks" use:cascade={period}>
       {#each stats.top_tracks as tr, i (tr.ref)}
         <button class="track" onclick={() => playTop(i)}>
-          {#if tr.cover_url}<img class="fade-img" src={tr.cover_url} alt="" onload={(e) => e.currentTarget.classList.add('loaded')} />{:else}<span class="ph"></span>{/if}
+          {#if tr.cover_url}<img class="fade-img" src={offline.src(tr.cover_url)} alt="" onload={(e) => e.currentTarget.classList.add('loaded')} />{:else}<span class="ph"></span>{/if}
           <span class="name"><span class="dim">{tr.artist} —</span> {tr.title}</span>
           <span class="n">{tr.plays}</span>
         </button>

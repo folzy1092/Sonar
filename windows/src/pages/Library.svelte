@@ -31,9 +31,15 @@
   import ArtistMap from '../app/artist-map/ArtistMap.svelte'
   import MapBanner from '../app/artist-map/MapBanner.svelte'
   import { collage } from '../lib/covers'
+  import { offline } from '../lib/offline.svelte'
 
-  const tabs = ['Все', 'Плейлисты', 'Альбомы', 'Исполнители'] as const
-  let tab = $state<(typeof tabs)[number]>('Все')
+  const allTabs = ['Все', 'Плейлисты', 'Альбомы', 'Исполнители'] as const
+  // офлайн: альбомы и исполнители — каталог сервисов, без сети их нет (OFFLINE.md §15)
+  const tabs = $derived(offline.on ? allTabs.slice(0, 2) : allTabs)
+  let tab = $state<(typeof allTabs)[number]>('Все')
+  $effect(() => {
+    if (!tabs.includes(tab)) tab = 'Все'
+  })
 
   let status = $state<ServicesStatus | null>(null)
   let albums = $state<Album[]>([])
@@ -53,8 +59,32 @@
   const hasFolders = $derived(settings.get('storage.music_folders').length > 0)
   let newName = $state('')
 
-  const favCount = $derived([...library.liked].filter(isTrackRef).length)
-  const own = $derived(tab === 'Все' ? library.playlists.filter((p) => !p.hidden) : library.playlists)
+  const favRefs = $derived([...library.liked].filter(isTrackRef))
+  const favMeta = $derived(
+    offline.on ? offline.countText(favRefs.filter((r) => offline.refs.has(r)).length, favRefs.length) : tracksText(favRefs.length),
+  )
+  /** Офлайн: сколько треков каждого плейлиста играет без сети (id → доступно). Пустые плейлисты прячем. */
+  let availIn = $state<Record<string, number>>({})
+  const visibleOwn = $derived(library.playlists.filter((p) => !offline.on || (availIn[p.id] ?? 0) > 0))
+  const own = $derived(tab === 'Все' ? visibleOwn.filter((p) => !p.hidden) : visibleOwn)
+  const smart = $derived(smartLists.list.filter((p) => !offline.on || (availIn[p.id] ?? 0) > 0))
+  const metaOf = (id: string, total: number) => (offline.on ? offline.countText(availIn[id] ?? 0, total) : tracksText(total))
+
+  async function countOffline(ids: readonly string[], smartIds: readonly string[]) {
+    const lists = await Promise.all([
+      ...ids.map((id) => api.playlist(id).then((p) => [id, p.tracks ?? []] as const)),
+      ...smartIds.map((id) => api.smartPlaylist(id).then((p) => [id, p.tracks ?? []] as const)),
+    ]).catch((e) => (console.warn('офлайн: плейлисты не посчитались', e), []))
+    availIn = Object.fromEntries(lists.map(([id, tracks]) => [id, offline.only(tracks).length]))
+  }
+  $effect(() => {
+    if (!offline.on) return
+    offline.refs
+    void countOffline(
+      library.playlists.map((p) => p.id),
+      smartLists.list.filter((p) => !p.error).map((p) => p.id),
+    )
+  })
   const imported = $derived(new Set(library.playlists.map((p) => p.source_ref).filter(Boolean)))
   /** Исполнители — плитками или картой (переключатель «Список · Карта», запоминается). */
   const artistViews = [
@@ -145,7 +175,9 @@
     void smartLists.load()
   })
   void library.load()
-  void loadServices()
+  $effect(() => {
+    if (!offline.on) void loadServices()
+  })
 
   async function loadLocal() {
     try {
@@ -162,7 +194,7 @@
   function refresh() {
     void library.load(true)
     void loadSaved()
-    void loadServices()
+    if (!offline.on) void loadServices()
     void loadLocal()
   }
 
@@ -201,12 +233,14 @@
   {/each}
 </div>
 
-{#if accounts.length}
+{#if offline.on}
+  <p class="who"><Icon name="wifiOff" size={15} /> {t('Офлайн: только то, что есть на этом компьютере')}</p>
+{:else if accounts.length}
   <p class="who">
     {t('Вы вошли как')}
     <span class="avatars">
       {#each accounts as a, i (i)}
-        <span class="av">{#if a.avatar_url}<img src={a.avatar_url} alt="" />{:else}{(a.name ?? '?').slice(0, 1).toUpperCase()}{/if}</span>
+        <span class="av">{#if a.avatar_url}<img src={offline.src(a.avatar_url)} alt="" />{:else}{(a.name ?? '?').slice(0, 1).toUpperCase()}{/if}</span>
       {/each}
     </span>
     <b>{accounts.map((a) => a.name ?? t('аккаунт')).join(', ')}</b>
@@ -237,7 +271,7 @@
 
 {#snippet favArt()}<NavIcon name="heart" active size={44} />{/snippet}
 
-{#if tab === 'Все' || (tab === 'Исполнители' && !showMap)}
+{#if !offline.on && (tab === 'Все' || (tab === 'Исполнители' && !showMap))}
   <MapBanner imported={imported.size > 0} onopen={openMap} />
 {/if}
 
@@ -250,7 +284,7 @@
       <Tile
         title={t('Любимые')}
         subtitle={t('Лайкнутые треки')}
-        meta={tracksText(favCount)}
+        meta={favMeta}
         art={favArt}
         onclick={() => router.go('playlist', 'favorites')}
         oncontextmenu={(e) => {
@@ -262,7 +296,7 @@
         <Tile
           title={p.name}
           subtitle={p.hidden ? t('Скрыт') : 'Sonar'}
-          meta={tracksText(p.track_count)}
+          meta={metaOf(p.id, p.track_count)}
           covers={p.covers}
           dim={p.hidden}
           onclick={() => router.go('playlist', p.id)}
@@ -272,11 +306,11 @@
           }}
         />
       {/each}
-      {#each smartLists.list as p (p.id)}
+      {#each smart as p (p.id)}
         <Tile
           title={p.name}
           subtitle={t('Умный плейлист')}
-          meta={p.error ? t('Правила не читаются') : tracksText(p.track_count)}
+          meta={p.error ? t('Правила не читаются') : metaOf(p.id, p.track_count)}
           covers={p.covers}
           icon="sparkles"
           badge={smartBadge}
@@ -304,7 +338,8 @@
     </section>
   {/if}
 
-  <!-- плейлисты сервисов — свой ряд, сервис переключается по кругу кликом по названию -->
+  <!-- плейлисты сервисов — свой ряд, сервис переключается по кругу кликом по названию; в офлайне их нет -->
+  {#if !offline.on}
   <section class="block">
     <h2 class="svc-head">
       <button class="svc press" title={t('Следующий сервис')} onclick={nextService}>
@@ -339,9 +374,10 @@
     </div>
     {#if phantomError && tab === 'Плейлисты'}<p class="hint err">{phantomError}</p>{/if}
   </section>
+  {/if}
 {/if}
 
-{#if tab === 'Все' || tab === 'Альбомы'}
+{#if !offline.on && (tab === 'Все' || tab === 'Альбомы')}
   {#if albums.length || tab === 'Альбомы'}
     <section class="block">
       <h2>{t('Альбомы')} {#if tab === 'Все'}<button class="more" aria-label={t('Все альбомы')} onclick={() => (tab = 'Альбомы')}><Icon name="chevronRight" size={18} /></button>{/if}</h2>
@@ -358,7 +394,7 @@
   {/if}
 {/if}
 
-{#if tab === 'Все' || tab === 'Исполнители'}
+{#if !offline.on && (tab === 'Все' || tab === 'Исполнители')}
   <section class="block">
     <h2>
       {t('Исполнители')}
@@ -413,8 +449,10 @@
   {/if}
   <div class="actions">
     <button class:on={creating} aria-label={t('Создать плейлист')} title={t('Создать плейлист')} onclick={() => ((creating = !creating), (linking = false))}><NavIcon name="add" size={18} /></button>
-    <button class:on={linking} aria-label={t('Перенести по ссылке')} title={t('Перенести по ссылке')} onclick={() => ((linking = !linking), (creating = false))}><Icon name="link" size={18} /></button>
-    <button aria-label={t('Перенос плейлистов сервисов')} title={t('Перенос плейлистов сервисов')} onclick={() => (tab = 'Плейлисты')}><NavIcon name="transfer" size={18} /></button>
+    {#if !offline.on}
+      <button class:on={linking} aria-label={t('Перенести по ссылке')} title={t('Перенести по ссылке')} onclick={() => ((linking = !linking), (creating = false))}><Icon name="link" size={18} /></button>
+      <button aria-label={t('Перенос плейлистов сервисов')} title={t('Перенос плейлистов сервисов')} onclick={() => (tab = 'Плейлисты')}><NavIcon name="transfer" size={18} /></button>
+    {/if}
     <button aria-label={t('список::Обновить')} title={t('список::Обновить')} onclick={refresh}><NavIcon name="refresh" size={18} /></button>
   </div>
 </div>

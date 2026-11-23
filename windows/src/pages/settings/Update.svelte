@@ -14,6 +14,7 @@
   import { api } from '../../lib/api'
   import { toast } from '../../lib/toast.svelte'
   import { lang, t } from '../../lib/i18n.svelte'
+  import { offline } from '../../lib/offline.svelte'
 
   let now = $state(Date.now())
   onMount(() => {
@@ -59,7 +60,7 @@
 
 <div class="card" class:fresh>
   <div class="mark" class:spin={p === 'checking' || p === 'installing'}>
-    <img src={logo} alt="" />
+    <img src={offline.src(logo)} alt="" />
   </div>
   <div class="info">
     <b>

@@ -59,7 +59,12 @@ Discord RPC: ID приложения Discord пользователь **не в�
 
 Настройка `general.offline` («Офлайн-режим», ПК и iPhone): ни байта в сеть, играет только скачанное / кэшированное / локальное,
 остальное скрыто, не синхронизируется. Задание — `docs/OFFLINE.md` (этапы, механизм «ни байта», вопросы владельцу в разд. 15);
-код ещё не писался, ROADMAP — «Блок O».
+ROADMAP — «Блок O». **ПК сделан 2026-11-23 (этапы 0–1):** флаг держит Rust — `offline.rs` (`is_on`, событие
+`offline-changed`), все `reqwest`-клиенты — `net.rs` (`connector_layer` + клиент без пула в офлайне, `Core::http()`), сетевые команды —
+`offline::guard()`; что играет без сети — таблица `offline_tracks` (миграция № 16, `offline_index.rs` ← `track_cache`, `store/offline.rs`
+`offline_refs`); фронт — `lib/offline.svelte.ts` (зеркало, `allows`/`only`/`countText`) + чистые фильтры `lib/offline-core.ts`, главная —
+`pages/OfflineHome.svelte`; **каждый `<img>` — через `offline.src(url)`** (в офлайне — локальный `/cover`), сторож —
+`lib/offline-net.test.ts` (новый `fetch`/сокет/`<img>` мимо — красный тест). Дальше — этап 2 «Скачать», потом iPhone.
 
 ## Навыки агента и аудит
 

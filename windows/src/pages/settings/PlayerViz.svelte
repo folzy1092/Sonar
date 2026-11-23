@@ -5,6 +5,7 @@
   import { player } from '../../player/player.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { t } from '../../lib/i18n.svelte'
+  import { offline } from '../../lib/offline.svelte'
 
   type Viz = 'off' | 'bar' | 'cover' | 'slider'
   type VizStyle = 'wave' | 'bars'
@@ -32,7 +33,7 @@
 
 {#snippet vizTile(id: Viz, on: boolean)}
   <span class="mock">
-    <span class="cov" style:background-image={cover ? `url("${cover}")` : null}>
+    <span class="cov" style:background-image={cover ? `url("${offline.src(cover)}")` : null}>
       {#if id === 'cover'}<span class="over">{@render strip(on, vizStyle)}</span>{/if}
     </span>
     <span class="lines">

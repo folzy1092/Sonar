@@ -154,6 +154,7 @@ export const CATALOG: readonly CatalogEntry[] = [
     ['Скрывать при паузе', 'Плавно убирать плашку со стрима, когда трек остановлен', undefined, 'obs стрим'],
   ]),
   ...rows('system', 'general', [
+    ['Офлайн-режим', 'Sonar не выходит в интернет и показывает только скачанные и локальные треки', 'general.offline', 'офлайн роуминг без сети интернет offline'],
     ['Язык', 'Язык интерфейса', 'general.language', 'language english українська español deutsch polski idioma sprache język'],
     ['Платформа', 'Откуда главная берёт Sonar Mix и рекомендации', 'general.platform', 'моя волна sonar mix микс soundcloud яндекс'],
     ['Поиск сначала в', 'Чьи результаты единого поиска стоят сверху', 'search.preferred', 'единый поиск предпочтительный сервис'],

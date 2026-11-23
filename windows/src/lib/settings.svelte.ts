@@ -37,6 +37,8 @@ export const DEFAULTS = {
   'general.language': systemLang(preferredLanguages()) as Lang,
   'general.restore': 'queue' as 'none' | 'track' | 'queue',
   'general.similar_autoplay': true,
+  /** Офлайн-режим (docs/OFFLINE.md): ни байта в сеть. Владелец — Rust (offline.rs), в синк не идёт. */
+  'general.offline': false,
   'general.add_position': 'start' as 'start' | 'end',
   /** Тема: тёмная / светлая / как в системе (меняется на лету). */
   'appearance.mode': 'dark' as 'dark' | 'light' | 'system',

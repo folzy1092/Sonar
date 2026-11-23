@@ -354,6 +354,22 @@ CREATE TABLE artist_phantom_tracks (
 );
 -- iPhone — карты пока нет.
 
+-- только клиент (Windows, миграция № 16): что из сервисов лежит на диске и играет без сети (OFFLINE.md §7.1).
+-- Пишет кэш треков (track_cache → offline_index.rs), при запуске сверяется с папкой кэша. В синк не идёт.
+-- Доступно в офлайне (offline_refs) = offline_tracks ∪ local_files ∪ source_ref двойников (track_alias) из кэша.
+CREATE TABLE offline_tracks (
+  ref           TEXT PRIMARY KEY,               -- sc:… / ym:… — трек
+  file          TEXT NOT NULL,                  -- имя файла в папке кэша (<key>.audio)
+  mime          TEXT NOT NULL,
+  bytes         INTEGER NOT NULL,
+  quality       TEXT,                           -- пока не заполняется (этап 2)
+  kind          TEXT NOT NULL,                  -- cache — лёг сам; pinned — «Скачать» (этап 2)
+  added_at      INTEGER NOT NULL,               -- мс
+  last_played   INTEGER,
+  meta_json     TEXT NOT NULL                   -- снимок Track (API.md): офлайн-список показывает название, даже если tracks переписали
+);
+CREATE INDEX offline_tracks_file ON offline_tracks(file);
+
 -- Быстрые ссылки входа и репорты — схема в BOT.md §6 (auth_links, reports)
 
 -- Статус (SPEC §3.11), только на сервере

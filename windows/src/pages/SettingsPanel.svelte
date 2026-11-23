@@ -38,6 +38,7 @@
   import DevBadge from '../components/profile/DevBadge.svelte'
   import { cleanUsername } from '../lib/avatar'
   import { t } from '../lib/i18n.svelte'
+  import { offline } from '../lib/offline.svelte'
 
   let scroller: HTMLDivElement | undefined = $state()
   const sub = $derived(settingsPanel.sub)
@@ -138,7 +139,7 @@
       title={t('Профиль')}
     >
       <span class="ava">
-        {#if avatar}<img src={avatar} alt="" />{:else}{initial}{/if}
+        {#if avatar}<img src={offline.src(avatar)} alt="" />{:else}{initial}{/if}
       </span>
       <span class="who">
         <b>{name || t('Без имени')}</b>

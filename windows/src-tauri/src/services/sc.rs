@@ -18,7 +18,7 @@ pub struct ScProvider<'a> {
 impl ScProvider<'_> {
   /// Что исполнитель репостнул — раздел «Репосты» на его странице. Есть только у SoundCloud.
   pub(super) async fn artist_reposts(&self, id: &str, limit: u32) -> Result<Vec<Track>> {
-    let http = &self.core.http;
+    let http = &self.core.http();
     let raw =
       self.core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.user_reposts(id, limit).await }).await?;
     Ok(self.core.sc_keep(raw))
@@ -47,14 +47,14 @@ impl Provider for ScProvider<'_> {
   }
 
   async fn search_more(&self, q: &str, limit: u32) -> Result<SearchResults> {
-    let http = &self.core.http;
+    let http = &self.core.http();
     let (artists, albums, playlists) =
       self.core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.search_more(q, limit).await }).await?;
     Ok(SearchResults { tracks: vec![], artists, albums, playlists })
   }
 
   async fn artist_page(&self, id: &str) -> Result<ArtistPage> {
-    let http = &self.core.http;
+    let http = &self.core.http();
     let (user, top, albums) = self
       .core
       .with_sc(|c| async move {
@@ -68,7 +68,7 @@ impl Provider for ScProvider<'_> {
   }
 
   async fn artist_tracks(&self, id: &str) -> Result<Vec<ArtistTrack>> {
-    let http = &self.core.http;
+    let http = &self.core.http();
     let raw = self.core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.user_tracks(id, MAX).await }).await?;
     let extra: Vec<(Option<u64>, Option<String>)> = raw
       .iter()
@@ -93,25 +93,25 @@ impl Provider for ScProvider<'_> {
   }
 
   async fn artist_top(&self, id: &str, limit: u32) -> Result<Vec<Track>> {
-    let http = &self.core.http;
+    let http = &self.core.http();
     let raw = self.core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.top_tracks(id, limit).await }).await?;
     Ok(self.core.sc_keep(raw))
   }
 
   async fn artist_albums(&self, id: &str) -> Result<Vec<Album>> {
-    let http = &self.core.http;
+    let http = &self.core.http();
     self.core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.user_albums(id).await }).await
   }
 
   async fn album_page(&self, id: &str) -> Result<AlbumPage> {
-    let http = &self.core.http;
+    let http = &self.core.http();
     let (head, raw) = self.core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.playlist(id).await }).await?;
     let album = soundcloud::album_from_json(&head).ok_or_else(|| anyhow!("SoundCloud: альбом не найден"))?;
     Ok(AlbumPage { album, tracks: self.core.sc_keep(raw) })
   }
 
   async fn similar(&self, id: &str, limit: u32) -> Result<Vec<Track>> {
-    let http = &self.core.http;
+    let http = &self.core.http();
     let raw = self.core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.related(id, limit).await }).await?;
     Ok(self.core.sc_keep(raw))
   }
@@ -131,7 +131,7 @@ impl Provider for ScProvider<'_> {
       cover_url: None,
       track_count: 0,
     }];
-    let (http, uid) = (&core.http, uid.as_str());
+    let (http, uid) = (&core.http(), uid.as_str());
     out.extend(core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.user_playlists(uid).await }).await?);
     Ok(out)
   }
@@ -141,7 +141,7 @@ impl Provider for ScProvider<'_> {
     if id == "likes" {
       // через with_sc: на 401 — свежий client_id и тихий вход, а не голая ошибка
       let (_, uid) = core.sc_uid().await?.ok_or_else(|| anyhow!("Нужен OAuth-токен SoundCloud"))?;
-      let (http, uid) = (&core.http, uid.as_str());
+      let (http, uid) = (&core.http(), uid.as_str());
       let raw = core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.user_likes(uid, MAX_LIKES).await }).await?;
       let tracks = core.sc_keep(raw);
       let mut head = self.playlists().await.ok().and_then(|l| l.into_iter().next()).unwrap_or(ServicePlaylist {
@@ -155,7 +155,7 @@ impl Provider for ScProvider<'_> {
       head.cover_url = tracks.first().and_then(|t| t.cover_url.clone());
       return Ok(PlaylistPage { playlist: head, tracks });
     }
-    let http = &core.http;
+    let http = &core.http();
     let (head, raw) = core.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.playlist(id).await }).await?;
     let playlist = soundcloud::playlist_from_json(&head).ok_or_else(|| anyhow!("SoundCloud: плейлист не найден"))?;
     Ok(PlaylistPage { playlist, tracks: core.sc_keep(raw) })

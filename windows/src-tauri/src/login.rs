@@ -81,7 +81,7 @@ pub struct DeviceCode {
 pub async fn yandex_device(app: &AppHandle, core: &Arc<Core>, device_id: &str) -> Result<Option<ServiceStatus>> {
   let attempt = begin();
   let started = core
-    .http
+    .http()
     .post("https://oauth.yandex.ru/device/code")
     .form(&[("client_id", YM_CLIENT_ID), ("device_id", device_id), ("device_name", "Sonar (Windows)")])
     .send()
@@ -107,7 +107,7 @@ pub async fn yandex_device(app: &AppHandle, core: &Arc<Core>, device_id: &str) -
       bail!("Код устарел — нажми «Войти через Яндекс» ещё раз");
     }
     let r = core
-      .http
+      .http()
       .post("https://oauth.yandex.ru/token")
       .form(&[("grant_type", "device_code"), ("code", device_code), ("client_id", YM_CLIENT_ID), ("client_secret", YM_CLIENT_SECRET)])
       .send()
@@ -356,7 +356,7 @@ async fn wait_cookie(app: &AppHandle, label: &str, title: &str, url: &str, cooki
 
 pub async fn soundcloud(app: AppHandle, core: Arc<Core>) -> Result<ServiceStatus> {
   let token = wait_cookie(&app, "login-soundcloud", "Вход в SoundCloud", "https://soundcloud.com/signin", "https://soundcloud.com/", "oauth_token").await?;
-  let client_id = soundcloud::public_client_id(&core.http)
+  let client_id = soundcloud::public_client_id(&core.http())
     .await
     .map_err(|e| anyhow!("Вошёл, но не нашёл client_id SoundCloud: {e}"))?;
   core.connect_soundcloud(soundcloud::Creds { client_id, oauth_token: Some(token) }).await

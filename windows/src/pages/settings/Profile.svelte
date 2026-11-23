@@ -38,6 +38,7 @@
   import { router } from '../../app/router.svelte'
   import { home } from '../home-data.svelte'
   import { settingsPanel } from '../settings-section.svelte'
+  import { offline } from '../../lib/offline.svelte'
 
   const NAME_MAX = 40
   const STATUS_MAX = 80
@@ -170,7 +171,7 @@
   {#each PICTURES as pic (pic.key)}
     {@const url = settings.get(pic.key)}
     <div class="pic-row">
-      <span class="thumb {pic.key.slice(8)}">{#if url}<img src={url} alt="" />{:else}<Icon name={pic.key === 'profile.avatar' ? 'user' : 'photo'} size={16} />{/if}</span>
+      <span class="thumb {pic.key.slice(8)}">{#if url}<img src={offline.src(url)} alt="" />{:else}<Icon name={pic.key === 'profile.avatar' ? 'user' : 'photo'} size={16} />{/if}</span>
       <span class="text"><b>{t(pic.label)}</b><small>{t(pic.hint)}</small></span>
       <span class="acts">
         <button class="btn" onclick={() => choose(pic.key)}>{url ? t('Заменить') : t('Выбрать')}</button>
@@ -275,7 +276,7 @@
     {#each showcase as s (s.kind + s.ref)}
       <span class="slot" class:hidden-pl={!visibleShowcase([s], hidden).length} transition:slide={{ duration: 160 }}>
         <span class="art" class:round={s.kind === 'artist'}>
-          {#if s.cover_url}<img src={s.cover_url} alt="" loading="lazy" />{:else}<Icon name={s.kind === 'playlist' ? 'playlist' : 'music'} size={18} />{/if}
+          {#if s.cover_url}<img src={offline.src(s.cover_url)} alt="" loading="lazy" />{:else}<Icon name={s.kind === 'playlist' ? 'playlist' : 'music'} size={18} />{/if}
         </span>
         <span class="meta"><b>{s.title}</b><small>{s.subtitle || t(KIND_LABEL[s.kind])}</small></span>
         <button class="rm" title={t('Убрать из витрины')} onclick={() => settings.set('profile.showcase', removeShowcase(showcase, s.kind, s.ref))}><Icon name="x" size={12} /></button>

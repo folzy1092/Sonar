@@ -6,6 +6,7 @@
   import type { IconName } from './icons'
   import type { Snippet } from 'svelte'
   import { t } from '../lib/i18n.svelte'
+  import { offline } from '../lib/offline.svelte'
 
   interface Props {
     title: string
@@ -36,11 +37,11 @@
 <header class="head">
   <div class="cover" class:round class:heart={icon === 'heart'}>
     {#if image && !failed}
-      <img src={image} alt="" draggable="false" onerror={() => (failed = true)} />
+      <img src={offline.src(image)} alt="" draggable="false" onerror={() => (failed = true)} />
     {:else if covers.length >= 4}
-      <span class="collage">{#each covers.slice(0, 4) as c, i (i)}<img src={c} alt="" draggable="false" />{/each}</span>
+      <span class="collage">{#each covers.slice(0, 4) as c, i (i)}<img src={offline.src(c)} alt="" draggable="false" />{/each}</span>
     {:else if covers.length}
-      <img src={covers[0]} alt="" draggable="false" />
+      <img src={offline.src(covers[0])} alt="" draggable="false" />
     {:else}
       <Icon name={icon} size={56} filled={icon === 'heart'} stroke={1.5} />
     {/if}

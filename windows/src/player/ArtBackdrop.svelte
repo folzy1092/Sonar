@@ -8,6 +8,7 @@
   import { lyrics } from '../lyrics/lyrics.svelte'
   import { proxied } from '../theme/theme.svelte'
   import { ArtField } from './art-field'
+  import { offline } from '../lib/offline.svelte'
 
   let canvas: HTMLCanvasElement | undefined = $state()
   let field: ArtField | null = $state(null)
@@ -64,7 +65,7 @@
 <div class="bg" aria-hidden="true">
   {#if failed}
     {#key cover}
-      {#if cover}<img src={cover} alt="" transition:fade={{ duration: 600 }} />{/if}
+      {#if cover}<img src={offline.src(cover)} alt="" transition:fade={{ duration: 600 }} />{/if}
     {/key}
   {:else}
     <canvas bind:this={canvas}></canvas>

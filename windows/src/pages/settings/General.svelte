@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { t } from '../../lib/i18n.svelte'
-  // Приложение → Общее (SETTINGS_NEXT «Общее»): три карточки — язык и платформа, медиатека, запуск.
+  import { t, tn } from '../../lib/i18n.svelte'
+  // Приложение → Общее (SETTINGS_NEXT «Общее»): «Сеть» (офлайн-режим, docs/OFFLINE.md), язык и платформа,
+  // медиатека, запуск.
   // «О приложении» — отдельный пункт меню (About.svelte). «Продолжить с прошлого раза» и «Авто похожие» —
   // в Плеере, в блоке очереди.
   import { onMount } from 'svelte'
@@ -16,6 +17,7 @@
   import { ICONS, uniquifyIds } from '../../lib/service-icons'
   import { searchableServices } from '../../lib/unified-search'
   import { wave } from '../../player/my-wave.svelte'
+  import { offline } from '../../lib/offline.svelte'
 
   const LANGUAGES = [
     { id: 'ru' as const, label: 'Русский', flag: 'ru' },
@@ -63,6 +65,18 @@
     void api.setTrayMode(on).catch(() => {})
   }
 </script>
+
+<Card title={t('Сеть')}>
+  <Switch
+    title={t('Офлайн-режим')}
+    hint={t('Sonar не выходит в интернет и показывает только скачанные и локальные треки. Для роуминга и слабой сети')}
+    on={settings.get('general.offline')}
+    onchange={(v) => offline.set(v)}
+  />
+  {#if offline.on}
+    <p class="avail">{t('Доступно офлайн')}: {offline.refs.size} {tn(offline.refs.size, ['трек', 'трека', 'треков'])}</p>
+  {/if}
+</Card>
 
 <Card>
   <Select
@@ -130,6 +144,13 @@
 </Card>
 
 <style>
+  .avail {
+    margin: 0;
+    padding: 2px 0 11px;
+    font-size: calc(12px * var(--fs, 1));
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+  }
   .row {
     display: flex;
     align-items: center;

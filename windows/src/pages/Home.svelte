@@ -3,7 +3,6 @@
   // обложки следующих треков, большая кнопка); ниже по порядку — «Для тебя» (карточки подборок →
   // MixPage), «Релизы недели» тех, на кого стоят лайки, «Похоже на» трёх последних исполнителей;
   // потом тренды, плейлисты пользователей и чарты Sonar (с сервера, до него — заготовка).
-  import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
   import Tile from '../components/Tile.svelte'
   import Shelf from '../components/Shelf.svelte'
@@ -27,6 +26,8 @@
   import { t } from '../lib/i18n.svelte'
   import SonarField from '../components/SonarField.svelte'
   import { heroPhrase } from '../lib/hero-phrases'
+  import { offline } from '../lib/offline.svelte'
+  import OfflineHome from './OfflineHome.svelte'
 
   const partId = daypart(new Date().getHours())
   const part = DAYPART_TEXT[partId]
@@ -75,7 +76,9 @@
     ),
   )
 
-  onMount(() => {
+  // в офлайне сеть не трогаем; режим выключили, пока Главная открыта, — догружаем
+  $effect(() => {
+    if (offline.on) return
     void home.load().then(() => mixes.load())
     wave.ensureCovers()
   })
@@ -93,12 +96,15 @@
 
 </script>
 
+{#if offline.on}
+  <OfflineHome />
+{:else}
 <!-- Герой (решение владельца 2026-11-18): приветствие с аватаром, крупная фраза под время суток с
      акцентным словом, «Слушать» и настроение волны; справа — живое поле точек (слизь ⇄ знак Sonar). -->
 <section class="hero" class:on={wave.active}>
   <div class="hero-text">
     <div class="hi">
-      {#if me.avatar}<img src={me.avatar} alt="" />{/if}
+      {#if me.avatar}<img src={offline.src(me.avatar)} alt="" />{/if}
       <span>{me.name ? t('{hello}, {name}', { hello: t(hello), name: me.name }) : t(hello)}</span>
     </div>
     <h1 class="font-wave" data-fx-title>{t(phrase[0])} <em>{t(phrase[1])}</em></h1>
@@ -191,7 +197,7 @@
         <div class="seeds" use:cascade={home.similarArtists.map((a) => a.name).join('|')}>
           {#each home.similarArtists as a (a.name)}
             <button class="seed press" disabled={!a.ref} title={a.ref ? t('Открыть исполнителя') : a.name} onclick={() => openRef(a.ref)}>
-              {#if a.avatar_url}<img src={a.avatar_url} alt="" />{:else}<span class="seed-ph">{a.name.slice(0, 1).toUpperCase()}</span>{/if}
+              {#if a.avatar_url}<img src={offline.src(a.avatar_url)} alt="" />{:else}<span class="seed-ph">{a.name.slice(0, 1).toUpperCase()}</span>{/if}
               <span class="seed-name">{a.name}</span>
             </button>
           {/each}
@@ -232,6 +238,7 @@
   </div>
   {@render soon('chart', t('Треки, исполнители, альбомы и плейлисты, которые чаще всего слушают в Sonar.'))}
 </section>
+{/if}
 
 {#snippet soon(icon: 'trending' | 'playlist' | 'chart', text: string)}
   <div class="soon">

@@ -78,7 +78,7 @@ impl Core {
     let Some(s) = self.vk.read().await.clone() else { return Ok(None) };
     let uid = match s.account.uid.clone() {
       Some(u) => u,
-      None => vk::Vk { http: &self.http, creds: &s.creds }
+      None => vk::Vk { http: &self.http(), creds: &s.creds }
         .account()
         .await?
         .uid
@@ -99,19 +99,19 @@ impl Provider for VkProvider<'_> {
 
   async fn search(&self, q: &str, limit: u32) -> Result<Vec<Track>> {
     let s = self.core.vk_creds().await?;
-    let found = vk::Vk { http: &self.core.http, creds: &s.creds }.search(q, limit).await?;
+    let found = vk::Vk { http: &self.core.http(), creds: &s.creds }.search(q, limit).await?;
     Ok(self.core.vk_keep(found))
   }
 
   async fn search_more(&self, q: &str, limit: u32) -> Result<SearchResults> {
     let s = self.core.vk_creds().await?;
-    let (artists, albums, playlists) = vk::Vk { http: &self.core.http, creds: &s.creds }.search_more(q, limit).await?;
+    let (artists, albums, playlists) = vk::Vk { http: &self.core.http(), creds: &s.creds }.search_more(q, limit).await?;
     Ok(SearchResults { tracks: vec![], artists, albums, playlists })
   }
 
   async fn artist_page(&self, id: &str) -> Result<ArtistPage> {
     let s = self.core.vk_creds().await?;
-    let v = vk::Vk { http: &self.core.http, creds: &s.creds };
+    let v = vk::Vk { http: &self.core.http(), creds: &s.creds };
     let artist = v.artist(id).await?;
     let top = v.artist_tracks(id, TOP).await?;
     let albums = v.artist_albums(id, 50).await?;
@@ -120,31 +120,31 @@ impl Provider for VkProvider<'_> {
 
   async fn artist_tracks(&self, id: &str) -> Result<Vec<ArtistTrack>> {
     let s = self.core.vk_creds().await?;
-    let list = vk::Vk { http: &self.core.http, creds: &s.creds }.artist_tracks(id, MAX).await?;
+    let list = vk::Vk { http: &self.core.http(), creds: &s.creds }.artist_tracks(id, MAX).await?;
     Ok(self.core.vk_keep(list).into_iter().map(|track| ArtistTrack { track, likes: None, released: None }).collect())
   }
 
   async fn artist_top(&self, id: &str, limit: u32) -> Result<Vec<Track>> {
     let s = self.core.vk_creds().await?;
-    let list = vk::Vk { http: &self.core.http, creds: &s.creds }.artist_tracks(id, limit as usize).await?;
+    let list = vk::Vk { http: &self.core.http(), creds: &s.creds }.artist_tracks(id, limit as usize).await?;
     Ok(self.core.vk_keep(list))
   }
 
   async fn artist_albums(&self, id: &str) -> Result<Vec<Album>> {
     let s = self.core.vk_creds().await?;
-    vk::Vk { http: &self.core.http, creds: &s.creds }.artist_albums(id, 100).await
+    vk::Vk { http: &self.core.http(), creds: &s.creds }.artist_albums(id, 100).await
   }
 
   async fn album_page(&self, id: &str) -> Result<AlbumPage> {
     let s = self.core.vk_creds().await?;
-    let (head, list) = vk::Vk { http: &self.core.http, creds: &s.creds }.playlist(id, MAX_LIST).await?;
+    let (head, list) = vk::Vk { http: &self.core.http(), creds: &s.creds }.playlist(id, MAX_LIST).await?;
     let album = vk::album_from_json(&head).ok_or_else(|| anyhow!("VK Музыка: альбом не найден"))?;
     Ok(AlbumPage { album, tracks: self.core.vk_keep(list) })
   }
 
   async fn similar(&self, id: &str, limit: u32) -> Result<Vec<Track>> {
     let s = self.core.vk_creds().await?;
-    let list = vk::Vk { http: &self.core.http, creds: &s.creds }.similar(id, limit).await?;
+    let list = vk::Vk { http: &self.core.http(), creds: &s.creds }.similar(id, limit).await?;
     Ok(self.core.vk_keep(list))
   }
 
@@ -159,7 +159,7 @@ impl Provider for VkProvider<'_> {
     }
     let s = self.core.vk.read().await.clone().ok_or_else(|| anyhow!(NOT_CONNECTED_SHORT))?;
     let full = self.core.vk_full_id(id);
-    let found = vk::Vk { http: &self.core.http, creds: &s.creds }.by_id(&[full]).await?;
+    let found = vk::Vk { http: &self.core.http(), creds: &s.creds }.by_id(&[full]).await?;
     let audio = found.into_iter().next().ok_or_else(|| crate::providers::unplayable::unavailable("VK Музыка: трек не найден"))?;
     let url = audio.stream_url.clone().unwrap_or_default();
     self.core.vk_keep(vec![audio]);
@@ -176,7 +176,7 @@ impl Provider for VkProvider<'_> {
       cover_url: None,
       track_count: 0,
     }];
-    out.extend(vk::Vk { http: &core.http, creds: &creds }.playlists(&uid).await?);
+    out.extend(vk::Vk { http: &core.http(), creds: &creds }.playlists(&uid).await?);
     Ok(out)
   }
 
@@ -184,7 +184,7 @@ impl Provider for VkProvider<'_> {
     let core = self.core;
     if id == "likes" {
       let (creds, uid) = core.vk_uid().await?.ok_or_else(|| anyhow!(NOT_CONNECTED_SHORT))?;
-      let list = vk::Vk { http: &core.http, creds: &creds }.likes(&uid, MAX_LIKES).await?;
+      let list = vk::Vk { http: &core.http(), creds: &creds }.likes(&uid, MAX_LIKES).await?;
       let tracks = core.vk_keep(list);
       let playlist = ServicePlaylist {
         ref_: "vkpl:likes".into(),
@@ -199,7 +199,7 @@ impl Provider for VkProvider<'_> {
       return Err(anyhow!("плохой ref vkpl:{id}"));
     }
     let s = core.vk_creds().await?;
-    let (head, list) = vk::Vk { http: &core.http, creds: &s.creds }.playlist(id, MAX_LIST).await?;
+    let (head, list) = vk::Vk { http: &core.http(), creds: &s.creds }.playlist(id, MAX_LIST).await?;
     let playlist = vk::playlist_from_json(&head).ok_or_else(|| anyhow!("VK Музыка: плейлист не найден"))?;
     Ok(PlaylistPage { playlist, tracks: core.vk_keep(list) })
   }

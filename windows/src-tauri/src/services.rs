@@ -87,7 +87,10 @@ pub struct PlaylistPage {
 }
 
 pub struct Core {
-  pub http: reqwest::Client,
+  /// Клиент в сети (с пулом keep-alive); снаружи — только через `http()`.
+  live: reqwest::Client,
+  /// Клиент офлайна: без пула, каждое соединение — через ворота `net` (они откажут).
+  dead: reqwest::Client,
   sc: RwLock<Option<Stored<soundcloud::Creds>>>,
   ym: RwLock<Option<Stored<yandex::Creds>>>,
   /// Cookie входа YouTube Music (каталог и поток работают и без него).
@@ -150,14 +153,16 @@ fn status<C>(s: &Option<Stored<C>>) -> ServiceStatus {
 }
 
 impl Core {
+  /// HTTP-клиент Sonar. В офлайне — клиент без пула: старое keep-alive соединение не переиспользуется,
+  /// а новое не пускают ворота `net` (`docs/OFFLINE.md` §5.2).
+  pub fn http(&self) -> &reqwest::Client {
+    if crate::offline::is_on() { &self.dead } else { &self.live }
+  }
+
   pub fn new() -> Self {
-    let http = reqwest::Client::builder()
-      .connect_timeout(Duration::from_secs(10))
-      .gzip(true)
-      .build()
-      .expect("http client");
     Self {
-      http,
+      live: crate::net::client(false),
+      dead: crate::net::client(true),
       sc: RwLock::new(secrets::load(ServiceId::Sc.key())),
       ym: RwLock::new(secrets::load(ServiceId::Ym.key())),
       yt: RwLock::new(secrets::load(ServiceId::Yt.key())),
@@ -195,17 +200,17 @@ impl Core {
         return Ok((soundcloud::Creds { client_id: id, oauth_token: None }, true));
       }
     }
-    let id = soundcloud::public_client_id(&self.http).await?;
+    let id = soundcloud::public_client_id(&self.http()).await?;
     *self.sc_auto.write().await = Some(id.clone());
     Ok((soundcloud::Creds { client_id: id, oauth_token: None }, true))
   }
 
   async fn sc_search(&self, creds: &soundcloud::Creds, q: &str, limit: u32) -> Result<Vec<(Track, Value)>> {
-    soundcloud::SoundCloud { http: &self.http, creds }.search(q, limit).await
+    soundcloud::SoundCloud { http: &self.http(), creds }.search(q, limit).await
   }
 
   async fn sc_stream(&self, creds: &soundcloud::Creds, track_ref: &str, id: &str, fresh: bool) -> Result<Source> {
-    let sc = soundcloud::SoundCloud { http: &self.http, creds };
+    let sc = soundcloud::SoundCloud { http: &self.http(), creds };
     let cached = self.sc_raw.lock().unwrap().get(track_ref).cloned();
     let json = match cached {
       Some(j) if !fresh => j,
@@ -245,7 +250,8 @@ impl Core {
   #[cfg(test)]
   fn new_empty() -> Self {
     Self {
-      http: reqwest::Client::new(),
+      live: crate::net::client(false),
+      dead: crate::net::client(true),
       sc: RwLock::new(None),
       ym: RwLock::new(None),
       yt: RwLock::new(None),
@@ -303,7 +309,7 @@ impl Core {
     if creds.client_id.trim().len() < 20 {
       bail!("client_id SoundCloud — строка из 32 символов");
     }
-    let account = soundcloud::SoundCloud { http: &self.http, creds: &creds }.account().await?;
+    let account = soundcloud::SoundCloud { http: &self.http(), creds: &creds }.account().await?;
     let stored = Stored { creds, account };
     secrets::save(ServiceId::Sc.key(), &stored)?;
     *self.sc.write().await = Some(stored.clone());
@@ -316,7 +322,7 @@ impl Core {
     if creds.token.trim().is_empty() {
       bail!("Вставь токен Яндекс Музыки");
     }
-    let account = yandex::Yandex { http: &self.http, creds: &creds }.account().await?;
+    let account = yandex::Yandex { http: &self.http(), creds: &creds }.account().await?;
     let stored = Stored { creds, account };
     secrets::save(ServiceId::Ym.key(), &stored)?;
     *self.ym.write().await = Some(stored.clone());
@@ -327,7 +333,7 @@ impl Core {
   /// YouTube Music по cookie браузера: проверить вход (`account_menu`) и сохранить в keyring.
   pub async fn connect_youtube(&self, cookie: &str) -> Result<ServiceStatus> {
     let creds = youtube::Creds { cookie: youtube::auth::normalize_cookie(cookie)? };
-    let account = youtube::YouTube { http: &self.http, creds: Some(&creds) }.account().await?;
+    let account = youtube::YouTube { http: &self.http(), creds: Some(&creds) }.account().await?;
     let stored = Stored { creds, account };
     secrets::save(ServiceId::Yt.key(), &stored)?;
     *self.yt.write().await = Some(stored.clone());
@@ -345,7 +351,7 @@ impl Core {
     if creds.token.is_empty() {
       bail!("Вставь токен VK");
     }
-    let account = vk_api::Vk { http: &self.http, creds: &creds }.account().await?;
+    let account = vk_api::Vk { http: &self.http(), creds: &creds }.account().await?;
     let stored = Stored { creds, account };
     secrets::save(ServiceId::Vk.key(), &stored)?;
     *self.vk.write().await = Some(stored.clone());
@@ -452,7 +458,7 @@ impl Core {
     }
     let hooks = self.sc_hooks.get();
     let old_token = failed.oauth_token.clone();
-    let out = sc_repair::repair(&failed, err, f, || soundcloud::public_client_id(&self.http), || async move {
+    let out = sc_repair::repair(&failed, err, f, || soundcloud::public_client_id(&self.http()), || async move {
       match hooks {
         Some(h) => (h.relogin)(old_token).await,
         None => None,
@@ -536,7 +542,7 @@ impl Core {
   /// На кого подписан исполнитель SoundCloud (`sca:<id>`) — связи карты исполнителей.
   pub async fn sc_followings(&self, artist_ref: &str, max: usize) -> Result<Vec<Artist>> {
     let id = artist_ref.strip_prefix("sca:").ok_or_else(|| anyhow!("не исполнитель SoundCloud: {artist_ref}"))?;
-    let http = &self.http;
+    let http = &self.http();
     self.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.followings(id, max).await }).await
   }
 
@@ -544,7 +550,7 @@ impl Core {
   /// новое выходит треками, а не альбомами). Новые первыми.
   pub async fn sc_recent_tracks(&self, artist_ref: &str, limit: usize) -> Result<Vec<ArtistTrack>> {
     let id = artist_ref.strip_prefix("sca:").ok_or_else(|| anyhow!("не исполнитель SoundCloud: {artist_ref}"))?;
-    let http = &self.http;
+    let http = &self.http();
     let raw = self.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.user_tracks(id, limit).await }).await?;
     let dates: HashMap<String, String> = raw
       .iter()
@@ -584,7 +590,7 @@ impl Core {
   /// Новинки Яндекса — когда у любимых исполнителей свежего нет.
   pub async fn yandex_new_releases(&self, limit: usize) -> Result<Vec<Album>> {
     let s = self.ym_creds().await?;
-    yandex::Yandex { http: &self.http, creds: &s.creds }.new_releases(limit).await
+    yandex::Yandex { http: &self.http(), creds: &s.creds }.new_releases(limit).await
   }
 
   /// id своего аккаунта в сервисе: из сохранённого, иначе спросить у сервиса.
@@ -595,7 +601,7 @@ impl Core {
     }
     let uid = match s.account.uid.clone() {
       Some(u) => u,
-      None => soundcloud::SoundCloud { http: &self.http, creds: &s.creds }
+      None => soundcloud::SoundCloud { http: &self.http(), creds: &s.creds }
         .account()
         .await?
         .uid
@@ -608,7 +614,7 @@ impl Core {
     let Some(s) = self.ym.read().await.clone() else { return Ok(None) };
     let uid = match s.account.uid.clone() {
       Some(u) => u,
-      None => yandex::Yandex { http: &self.http, creds: &s.creds }
+      None => yandex::Yandex { http: &self.http(), creds: &s.creds }
         .account()
         .await?
         .uid
@@ -644,7 +650,7 @@ impl Core {
           RefKind::Track if svc.id == ServiceId::Ym => {
             let (_, id) = split_ref(&r).ok_or_else(|| anyhow!("плохая ссылка"))?;
             let s = self.ym_creds().await?;
-            let t = yandex::Yandex { http: &self.http, creds: &s.creds }.tracks(&[id.to_owned()]).await?;
+            let t = yandex::Yandex { http: &self.http(), creds: &s.creds }.tracks(&[id.to_owned()]).await?;
             let track = t.into_iter().next().ok_or_else(|| anyhow!("Яндекс Музыка: трек не найден"))?;
             Ok(LinkItem::Track { track })
           }
@@ -653,7 +659,7 @@ impl Core {
       }
       Link::Apple(url) => Ok(LinkItem::Import { head: self.apple_source(&url).await?.head }),
       Link::SoundCloud(url) => {
-        let http = &self.http;
+        let http = &self.http();
         let url = &url;
         let v = self.with_sc(|c| async move { soundcloud::SoundCloud { http, creds: &c }.resolve(url).await }).await?;
         let none = || anyhow!("SoundCloud: по ссылке ничего не нашлось");

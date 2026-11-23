@@ -8,6 +8,8 @@ const PARALLEL = 6
 /** Сколько заготовок держим; дальше выбрасываем самые старые. */
 const KEEP = 600
 
+import { offline } from '../offline.svelte'
+
 type Entry = { state: 'loading' } | { state: 'ready'; img: HTMLCanvasElement } | { state: 'failed' }
 
 export class AvatarCache {
@@ -19,7 +21,8 @@ export class AvatarCache {
 
   /** Готовая круглая заготовка или `null` (тогда рисуем букву); заодно ставит в очередь. */
   get(url: string | null): HTMLCanvasElement | null {
-    if (!url) return null
+    // офлайн: аватарки — с CDN, в сеть не ходим, на карте остаются буквы
+    if (!url || offline.on) return null
     const e = this.entries.get(url)
     if (e?.state === 'ready') return e.img
     if (!e) this.enqueue(url)

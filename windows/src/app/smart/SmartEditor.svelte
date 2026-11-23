@@ -17,6 +17,7 @@
   import { MAX_CONDITIONS, TEMPLATES, defaultCondition, normalizeRules, rulesProblem, type SmartCondition, type SmartField, type SortBy } from '../../lib/smart'
   import { smartLists, type SmartDraft } from '../../lib/smart-lists.svelte'
   import { router } from '../router.svelte'
+  import { offline } from '../../lib/offline.svelte'
 
   /** Пауза перед пересчётом предпросмотра, пока правила меняются (печать в поле). */
   const PREVIEW_DELAY_MS = 300
@@ -265,7 +266,7 @@
         {:else if preview?.error === 'source_missing'}
           <span class="warn">{t('Исходного плейлиста больше нет')}</span>
         {:else if preview}
-          <span class="covers">{#each preview.covers.slice(0, 3) as c, i (c + i)}<img src={c} alt="" draggable="false" />{/each}</span>
+          <span class="covers">{#each preview.covers.slice(0, 3) as c, i (c + i)}<img src={offline.src(c)} alt="" draggable="false" />{/each}</span>
           {#key preview.track_count}
             <span in:fade={{ duration: 160 }}>
               {preview.track_count ? t('Подходит: {tracks}, {time}', { tracks: tracksText(preview.track_count), time: durationText(preview.duration_ms) }) : t('Пока ни один трек не подходит')}

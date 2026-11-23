@@ -14,6 +14,7 @@ import { isFallbackError } from '../lib/services'
 import { fallbackToast, type Via } from '../lib/fallback'
 import { t } from '../lib/i18n.svelte'
 import { playableQueue } from '../lib/local'
+import { offline } from '../lib/offline.svelte'
 import { isLocalRef } from '../lib/services'
 import { Clock } from '../lyrics/core/clock'
 import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, fallbackSkipPos, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
@@ -21,6 +22,8 @@ import { toast } from '../lib/toast.svelte'
 
 
 const HEARTBEAT_MS = 30_000
+/** Затухание текущего трека, когда включили офлайн, а его нет на диске (с). */
+const OFFLINE_FADE_SEC = 1.2
 
 class Player {
   tracks = $state<Track[]>([])
@@ -104,6 +107,7 @@ class Player {
   private frameSubs = new Set<(ms: number) => void>()
   private raf = 0
   private offMedia: (() => void) | null = null
+  private offOffline: (() => void) | null = null
   private ctx: AudioContext | null = null
   /** Нормализация громкости (`audio.normalize`). */
   leveler: Leveler | null = null
@@ -204,6 +208,7 @@ class Player {
       else if (action.startsWith('seek:')) this.seek(Number(action.slice(5)))
     })
 
+    this.offOffline = offline.onChange((on) => on && this.goOffline())
     void this.restore()
     void eq.load()
     // нормализация громкости — включается и выключается сразу, без перезапуска трека
@@ -236,6 +241,7 @@ class Player {
     cancelAnimationFrame(this.raf)
     this.raf = 0
     this.offMedia?.()
+    this.offOffline?.()
     void this.ctx?.close()
   }
 
@@ -279,8 +285,8 @@ class Player {
 
   /** Играть список с трека `index`. `context` — откуда (search, favorites, playlist:<id>…). */
   async playList(all: Track[], start: number, context: string | null, title: string | null = null) {
-    // пропавшие файлы с компьютера в очередь не идут — на них плеер встал бы с ошибкой
-    const { tracks, index } = playableQueue(all, start)
+    // пропавшие файлы с компьютера в очередь не идут — на них плеер встал бы с ошибкой; в офлайне — и то, чего нет на диске
+    const { tracks, index } = playableQueue(all, start, offline.allows)
     if (!tracks.length) return
     this.finishPlay()
     this.tracks = tracks
@@ -304,7 +310,7 @@ class Player {
   /** «Следующим» (`next`) или «В очередь» (в конец, но перед похожими автоплея). Пустая очередь —
    *  сразу играет. `auto` — дописывает автоплей: в самый конец, с отметкой. */
   async addToQueue(all: Track[], next: boolean, auto = false) {
-    const { tracks } = playableQueue(all, 0)
+    const { tracks } = playableQueue(all, 0, offline.allows)
     if (!tracks.length) return
     if (!this.current) return this.playList(tracks, 0, 'queue')
     void api.cacheTracks(tracks).catch(() => {})
@@ -352,6 +358,18 @@ class Player {
     const dropped = this.dropEntries(drop, keep)
     if (dropped.length) this.saveState()
     return dropped
+  }
+
+  /** Включили офлайн-режим: из «Далее» уходит то, чего нет на диске; текущий такой трек затухает и встаёт
+   *  на паузу (следующий сам не включается — `docs/OFFLINE.md` §15). */
+  private goOffline() {
+    this.dropUpNext(0, (t) => !offline.allows(t))
+    const cur = this.current
+    if (!cur || offline.allows(cur) || !this.playing) return
+    this.gainTo(this.audio, 0, OFFLINE_FADE_SEC)
+    setTimeout(() => {
+      if (this.current === cur) this.pause()
+    }, OFFLINE_FADE_SEC * 1000)
   }
 
   /** Новые id для `n` элементов очереди. */
@@ -870,11 +888,14 @@ class Player {
       this.applySpeed()
       if (!saved || !saved.tracks.length || this.current || mode === 'none') return
       const { state } = saved
-      let tracks = saved.tracks
+      // в офлайне очередь — только из того, что играет без сети (зеркало `offline` ещё может не прогрузиться)
+      const offRefs = (await api.offlineState()) ? new Set(await api.offlineRefs()) : null
+      let tracks = offRefs ? saved.tracks.filter((t) => offRefs.has(t.ref)) : saved.tracks
       // «При запуске: трек» — только сам трек, без очереди
       if (mode === 'track') tracks = tracks.filter((t) => t.ref === state.ref).slice(0, 1)
       if (!tracks.length) return
-      const index = Math.max(0, tracks.findIndex((t) => t.ref === state.ref))
+      const found = tracks.findIndex((t) => t.ref === state.ref)
+      const index = Math.max(0, found)
       this.tracks = tracks
       this.entryIds = this.freshIds(tracks.length)
       this.context = state.context
@@ -883,7 +904,7 @@ class Player {
       this.order = makeOrder(tracks.length, index, state.shuffle)
       this.pos = state.shuffle ? 0 : index
       this.durationMs = tracks[index].duration_ms
-      this.place(state.position_ms)
+      this.place(found >= 0 ? state.position_ms : 0)
       this.updateMedia()
     } catch {
       // вне приложения (npm run dev) — просто пустой плеер

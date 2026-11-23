@@ -19,6 +19,7 @@
   import { t, tn, lang } from '../lib/i18n.svelte'
   import { ownSound } from '../lib/own-sound.svelte'
   import { pop } from '../lib/motion'
+  import { offline } from '../lib/offline.svelte'
 
   interface Props {
     track: Track
@@ -139,7 +140,7 @@
     {#if addedBy}
       {@const who = addedBy.display_name || addedBy.username}
       <span class="adder" title={t('Добавил(а) {name}', { name: who })}>
-        {#if addedBy.avatar_url}<img src={addedBy.avatar_url} alt="" loading="lazy" draggable="false" />{:else}{[...who][0].toUpperCase()}{/if}
+        {#if addedBy.avatar_url}<img src={offline.src(addedBy.avatar_url)} alt="" loading="lazy" draggable="false" />{:else}{[...who][0].toUpperCase()}{/if}
       </span>
     {/if}
     {#if variant !== 'album'}

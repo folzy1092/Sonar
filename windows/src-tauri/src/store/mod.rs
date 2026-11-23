@@ -13,6 +13,7 @@ mod artist_graph;
 pub mod covers;
 mod dupes;
 mod local_files;
+mod offline;
 mod recap;
 mod search;
 mod smart;
@@ -26,6 +27,7 @@ mod wave_events;
 pub use alias::TrackAlias;
 pub use dupes::{DupeList, Removed};
 pub use local_files::LocalFile;
+pub use offline::KIND_CACHE as OFFLINE_KIND_CACHE;
 pub use recap::{Recap, RecapPeriods, RecapSpan};
 pub use stats::Stats;
 pub use sync::{Change, Op, PlayUpload};
@@ -173,6 +175,12 @@ ALTER TABLE track_prefs ADD COLUMN sound_json TEXT;
 "#, r#"
 ALTER TABLE playlists ADD COLUMN collab_json TEXT;
 ALTER TABLE playlist_items ADD COLUMN added_by TEXT;
+"#, r#"
+CREATE TABLE offline_tracks (
+  ref TEXT PRIMARY KEY, file TEXT NOT NULL, mime TEXT NOT NULL, bytes INTEGER NOT NULL, quality TEXT,
+  kind TEXT NOT NULL, added_at INTEGER NOT NULL, last_played INTEGER, meta_json TEXT NOT NULL
+);
+CREATE INDEX offline_tracks_file ON offline_tracks(file);
 "#];
 
 pub fn now_ms() -> i64 {

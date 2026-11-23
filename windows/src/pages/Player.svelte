@@ -36,6 +36,7 @@
   import { openRef } from '../app/router.svelte'
   import { lyrics } from '../lyrics/lyrics.svelte'
   import { t } from '../lib/i18n.svelte'
+  import { offline } from '../lib/offline.svelte'
 
   const track = $derived(player.current)
   /** Кнопка скорости — плашка «Свой звук» открывает её всплывашку. */
@@ -100,7 +101,7 @@
     {#if settings.get('player.pip_cover') && track?.cover_url}
       <!-- «обложка в обложке»: маленькая чёткая копия в углу поверх большой -->
       {#key track.cover_url}
-        <img class="pip" src={track.cover_url} alt="" draggable="false" />
+        <img class="pip" src={offline.src(track.cover_url)} alt="" draggable="false" />
       {/key}
     {/if}
     {#if track}
@@ -129,7 +130,7 @@
     <div class="head" style:--align={align} style:--justify={align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'} use:replay={track?.ref}>
       <h1 class="selectable" data-fx-title title={track?.title}>{track?.title ?? t('Ничего не играет')}</h1>
       <p class="artist selectable">
-        {#if avatar}<img src={avatar} alt="" />{/if}
+        {#if avatar}<img src={offline.src(avatar)} alt="" />{/if}
         {#if track}
           {#each track.artists as a, i (a.ref + i)}{#if i},&nbsp;{/if}<span
               class="link"

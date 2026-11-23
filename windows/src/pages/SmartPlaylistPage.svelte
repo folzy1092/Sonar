@@ -18,6 +18,7 @@
   import { t, tn } from '../lib/i18n.svelte'
   import { parseRules } from '../lib/smart'
   import { smartLists } from '../lib/smart-lists.svelte'
+  import { offline } from '../lib/offline.svelte'
 
   const id = router.param ?? ''
   const context = `playlist:${id}`
@@ -31,12 +32,15 @@
   let tracksEl: HTMLDivElement | undefined = $state()
 
   const items = $derived(data?.tracks ?? [])
+  /** В офлайне — только то, что играет без сети. */
+  const avail = $derived(offline.only(items))
   const title = $derived(data?.name ?? '')
   const visible = $derived.by(() => {
     const q = filter.trim().toLowerCase()
-    return q ? items.filter((x) => `${x.title} ${x.artist}`.toLowerCase().includes(q)) : items
+    return q ? avail.filter((x) => `${x.title} ${x.artist}`.toLowerCase().includes(q)) : avail
   })
-  const total = $derived(items.reduce((s, x) => s + x.duration_ms, 0))
+  const total = $derived(avail.reduce((s, x) => s + x.duration_ms, 0))
+  const countMeta = $derived(offline.on ? offline.countText(avail.length, items.length) : tracksText(items.length))
   // окно списка: большой умный плейлист не рисуется целиком; новый фильтр — окно снова маленькое
   let limit = $state(LIST_WINDOW)
   $effect.pre(() => {
@@ -105,7 +109,7 @@
   titleIcon="sparkles"
   covers={data?.covers ?? []}
   icon="sparkles"
-  meta={loading || !data ? '' : `${tracksText(items.length)}${items.length ? `, ${durationText(total)}` : ''}`}
+  meta={loading || !data ? '' : `${countMeta}${avail.length ? `, ${durationText(total)}` : ''}`}
   {context}
   disabled={!visible.length}
   onplay={() => play(0)}
@@ -150,6 +154,8 @@
     <EmptyState icon="sparkles" title={t('Исходного плейлиста больше нет')} text={t('Выбери другой источник в «Изменить правила».')} />
   {:else if !items.length}
     <EmptyState icon="sparkles" title={t('Пока ни один трек не подходит')} text={t('Слушай и лайкай дальше — плейлист обновится сам. Или ослабь правила.')} />
+  {:else if !avail.length}
+    <EmptyState icon="wifiOff" title={t('Офлайн: здесь ничего нет')} text={t('Ни одного трека из «{title}» нет на этом компьютере.', { title })} />
   {:else if !visible.length}
     <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('В «{title}» нет «{query}».', { title, query: filter.trim() })} />
   {:else}

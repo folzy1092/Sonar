@@ -6,6 +6,7 @@
   import type { IconName } from './icons'
   import type { Snippet } from 'svelte'
   import { byId, serviceOf } from '../lib/services'
+  import { offline } from '../lib/offline.svelte'
 
   interface Props {
     title: string
@@ -49,13 +50,13 @@
 <button class="tile" class:ghost class:dim {onclick} {oncontextmenu} title={title}>
   <span class="cover" class:round class:empty={!(image && !failed) && !covers.length}>
     {#if image && !failed}
-      <img src={image} alt="" loading="lazy" draggable="false" class="fade-img" onload={(e) => e.currentTarget.classList.add('loaded')} onerror={() => (failed = true)} />
+      <img src={offline.src(image)} alt="" loading="lazy" draggable="false" class="fade-img" onload={(e) => e.currentTarget.classList.add('loaded')} onerror={() => (failed = true)} />
     {:else if covers.length >= 4}
       <span class="collage">
-        {#each covers.slice(0, 4) as c, i (i)}<img src={c} alt="" loading="lazy" draggable="false" />{/each}
+        {#each covers.slice(0, 4) as c, i (i)}<img src={offline.src(c)} alt="" loading="lazy" draggable="false" />{/each}
       </span>
     {:else if covers.length}
-      <img src={covers[0]} alt="" loading="lazy" draggable="false" />
+      <img src={offline.src(covers[0])} alt="" loading="lazy" draggable="false" />
     {:else if art}
       {@render art()}
     {:else}

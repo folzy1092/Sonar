@@ -196,7 +196,7 @@ fn cors(mut r: Response<Body>) -> Response<Body> {
 
 /// Проксирует ответ CDN: статус, нужные заголовки и тело потоком.
 async fn proxy(core: &Core, url: &str, range: Option<&HeaderValue>) -> Result<Response<Body>, reqwest::Error> {
-  let mut req = core.http.get(url).header("User-Agent", ua_for(url));
+  let mut req = core.http().get(url).header("User-Agent", ua_for(url));
   if let Some(r) = range {
     req = req.header(header::RANGE, r.as_bytes());
   }
@@ -269,7 +269,7 @@ fn serve_bytes(bytes: std::sync::Arc<Vec<u8>>, mime: &'static str, range: Option
 
 /// Как `proxy`, но если ответ — весь файл с начала, тело по пути пишется в кэш треков.
 async fn proxy_cached(core: &Core, url: &str, range: Option<&HeaderValue>, track_ref: &str) -> Result<Response<Body>, reqwest::Error> {
-  let mut req = core.http.get(url).header("User-Agent", ua_for(url));
+  let mut req = core.http().get(url).header("User-Agent", ua_for(url));
   if let Some(r) = range {
     req = req.header(header::RANGE, r.as_bytes());
   }
@@ -331,7 +331,7 @@ fn tee<E: Send + 'static>(
 /// YouTube Music: диапазон с `*.googlevideo.com` кусками; весь файл с начала — ещё и в кэш.
 async fn serve_gvideo(core: &Core, url: &str, range: Option<&HeaderValue>, track_ref: &str) -> Response<Body> {
   let asked = range.and_then(|h| h.to_str().ok());
-  match gvideo::open(&core.http, url, asked).await {
+  match gvideo::open(&core.http(), url, asked).await {
     Ok(o) => {
       let writer = if o.whole() { track_cache::Writer::new(track_ref, &o.mime, Some(o.total)) } else { None };
       let head = o.response(Body::empty());
@@ -352,7 +352,7 @@ async fn cache_hls(core: Arc<Core>, track_ref: String, playlist: String, base: u
     let (init, segs, mime) = track_cache::hls_parts(&playlist, &base)?;
     let mut w = track_cache::Writer::new(&track_ref, mime, None)?;
     for u in init.into_iter().chain(segs) {
-      let r = core.http.get(&u).header("User-Agent", ua_for(&u)).send().await.ok()?;
+      let r = core.http().get(&u).header("User-Agent", ua_for(&u)).send().await.ok()?;
       if !r.status().is_success() {
         return None;
       }
@@ -370,13 +370,18 @@ async fn cache_hls(core: Arc<Core>, track_ref: String, playlist: String, base: u
 /// Поколение заказа «волна офлайн»: новый заказ отменяет недокачанный старый.
 static PREFETCH_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// Отменить идущую подкачку (включили офлайн-режим): следующий трек заказ уже не возьмёт.
+pub fn cancel_prefetch() {
+  PREFETCH_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
 /// «Волна офлайн» (Система → Хранилище): заранее скачать следующие треки волны в кэш треков, по
 /// одному, чтобы не забивать сеть. Только при включённом кэше; уже лежащие на диске — мимо.
 pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
   use std::sync::atomic::Ordering;
   let ticket = PREFETCH_GEN.fetch_add(1, Ordering::SeqCst) + 1;
   for r in refs {
-    if PREFETCH_GEN.load(Ordering::SeqCst) != ticket || !track_cache::enabled() {
+    if PREFETCH_GEN.load(Ordering::SeqCst) != ticket || !track_cache::enabled() || crate::offline::is_on() {
       return;
     }
     // локальный файл и так на диске
@@ -388,7 +393,7 @@ pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
     }
     match core.resolve(&r, false).await {
       Ok(Source::Hls { url, .. }) => {
-        let up = core.http.get(&url).header("User-Agent", ua_for(&url)).send().await;
+        let up = core.http().get(&url).header("User-Agent", ua_for(&url)).send().await;
         match up {
           Ok(up) if up.status().is_success() => {
             let base = up.url().clone();
@@ -402,7 +407,7 @@ pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
       }
       Ok(Source::File { url, .. }) if gvideo::is_gvideo(&url) => {
         let ok = async {
-          let o = gvideo::open(&core.http, &url, None).await.ok()?;
+          let o = gvideo::open(&core.http(), &url, None).await.ok()?;
           let mut w = track_cache::Writer::new(&r, &o.mime, Some(o.total))?;
           use futures_util::StreamExt;
           let mut body = o.body;
@@ -419,7 +424,7 @@ pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
       }
       Ok(Source::File { url, .. }) => {
         let ok = async {
-          let up = core.http.get(&url).header("User-Agent", ua_for(&url)).send().await.ok()?;
+          let up = core.http().get(&url).header("User-Agent", ua_for(&url)).send().await.ok()?;
           if !up.status().is_success() {
             return None;
           }
@@ -554,7 +559,7 @@ async fn hls(State(core): State<Arc<Core>>, Query(q): Query<RefQuery>) -> Respon
       Ok(Source::File { .. }) => return plain(StatusCode::BAD_REQUEST, "этот трек — файл, нужен /file"),
       Err(e) => return plain(StatusCode::BAD_GATEWAY, e.to_string()),
     };
-    let up = match core.http.get(&url).header("User-Agent", ua_for(&url)).send().await {
+    let up = match core.http().get(&url).header("User-Agent", ua_for(&url)).send().await {
       Ok(r) => r,
       Err(e) => return plain(StatusCode::BAD_GATEWAY, e.to_string()),
     };
@@ -669,7 +674,7 @@ async fn cover(State(core): State<Arc<Core>>, Query(q): Query<CoverQuery>, heade
       return image(bytes);
     }
   }
-  let res = match core.http.get(&q.u).header("User-Agent", ua_for(&q.u)).send().await {
+  let res = match core.http().get(&q.u).header("User-Agent", ua_for(&q.u)).send().await {
     Ok(r) if r.status().is_success() => r,
     Ok(r) => return plain(StatusCode::BAD_GATEWAY, format!("HTTP {}", r.status().as_u16())),
     Err(e) => return plain(StatusCode::BAD_GATEWAY, e.to_string()),

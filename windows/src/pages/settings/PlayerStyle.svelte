@@ -5,6 +5,7 @@
   import { player } from '../../player/player.svelte'
   import { settings } from '../../lib/settings.svelte'
   import { t } from '../../lib/i18n.svelte'
+  import { offline } from '../../lib/offline.svelte'
 
   const style = $derived(settings.get('player.style'))
   const align = $derived(settings.get('player.title_align'))
@@ -18,9 +19,9 @@
   <div class="demo st-{style}" class:flip class:playing={player.playing} aria-hidden="true">
     <div class="art">
       {#if style === 'vinyl'}
-        <span class="disc"><span class="label" style:background-image={cover ? `url("${cover}")` : null}></span></span>
+        <span class="disc"><span class="label" style:background-image={cover ? `url("${offline.src(cover)}")` : null}></span></span>
       {:else}
-        <span class="img" style:background-image={cover ? `url("${cover}")` : null}></span>
+        <span class="img" style:background-image={cover ? `url("${offline.src(cover)}")` : null}></span>
       {/if}
     </div>
     <div class="meta" style:text-align={align}>

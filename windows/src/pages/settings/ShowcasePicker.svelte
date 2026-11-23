@@ -12,6 +12,7 @@
   import { cascade } from '../../lib/cascade'
   import { settings } from '../../lib/settings.svelte'
   import { canShowcase, showcaseAlbum, showcaseArtist, showcasePlaylist, showcaseTrack, type ShowcaseItem } from '../../lib/profile-look'
+  import { offline } from '../../lib/offline.svelte'
 
   interface Props {
     /** Что уже в витрине — такие строки отмечены. */
@@ -84,7 +85,7 @@
   {@const allowed = canShowcase(item, hidden)}
   <button class="row" class:on disabled={on || !allowed} onclick={() => onpick(item)} title={allowed ? '' : t('Плейлист скрыт от других — в витрину не ставится')}>
     <span class="art" class:round={item.kind === 'artist'}>
-      {#if item.cover_url}<img src={item.cover_url} alt="" loading="lazy" draggable="false" />{:else}<Icon name={item.kind === 'playlist' ? 'playlist' : 'music'} size={16} />{/if}
+      {#if item.cover_url}<img src={offline.src(item.cover_url)} alt="" loading="lazy" draggable="false" />{:else}<Icon name={item.kind === 'playlist' ? 'playlist' : 'music'} size={16} />{/if}
     </span>
     <span class="meta"><b>{item.title}</b>{#if item.subtitle || !allowed}<small>{allowed ? item.subtitle : t('Скрыт от других')}</small>{/if}</span>
     <span class="mark"><Icon name={on ? 'check' : allowed ? 'plus' : 'lock'} size={16} /></span>

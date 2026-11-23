@@ -38,6 +38,7 @@ pub struct ImportResult {
 /// по нему фильтруются события и работает `import_cancel`.
 #[tauri::command]
 pub async fn import_link(app: tauri::AppHandle, core: State<'_, Arc<Core>>, link: String, job: String) -> Result<ImportResult, String> {
+  crate::offline::guard()?;
   let read = tokio::time::timeout(READ_TIMEOUT, core.import_source(&link))
     .await
     .map_err(|_| "Сервис не ответил за минуту — попробуй ещё раз".to_string())

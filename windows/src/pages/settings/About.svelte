@@ -15,6 +15,7 @@
   import { settingsPanel } from '../settings-section.svelte'
   import { t } from '../../lib/i18n.svelte'
   import { SITE_URL as SITE } from '../../lib/site'
+  import { offline } from '../../lib/offline.svelte'
 
   const LINKS = [
     { label: 'Сайт', url: SITE },
@@ -100,7 +101,7 @@
 
 <div class="id">
   <button class="mark {mark}" aria-label={t('Проверить обновления')} title={t('Дважды нажми — проверю обновления')} onclick={tap}>
-    <img src={logo} alt="" draggable="false" />
+    <img src={offline.src(logo)} alt="" draggable="false" />
     <svg class="tick" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9" /></svg>
   </button>
   <b class="name">Sonar</b>

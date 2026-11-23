@@ -87,7 +87,8 @@ pub async fn background(app: AppHandle) {
 
 /// Один проход; если уже идёт — ничего не делаем.
 pub async fn run(app: &AppHandle) {
-  if RUNNING.swap(true, Ordering::AcqRel) {
+  // офлайн-режим: подписки и соседей не тянем, карта — из того, что уже в базе
+  if crate::offline::is_on() || RUNNING.swap(true, Ordering::AcqRel) {
     return;
   }
   let _running = RunningGuard;

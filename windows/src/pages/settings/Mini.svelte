@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { offline } from '../../lib/offline.svelte'
   // Интерфейс → Мини плеер (SETTINGS_NEXT «Мини плеер»): сверху — живой пример (настоящий мини плеер),
   // ниже карточки. Стиль и фон — превью с обложкой играющего трека, позиция — значки окна, прогресс —
   // можно несколько сразу, обложка и форма — две кнопки. Тонкое скругление — в «Ещё настройки».
@@ -18,7 +19,7 @@
   // живой пример: пока тянут ползунок — показываем значение под пальцем, отпустили — сохраняем
   let capLive = $state<number | null>(null)
   let coverLive = $state<number | null>(null)
-  const cover = $derived(player.current?.cover_url ?? null)
+  const cover = $derived(offline.src(player.current?.cover_url) ?? null)
   const progress = $derived(settings.get('mini.progress'))
   const coverRound = $derived(settings.get('mini.cover_round'))
   const shapeRound = $derived(settings.get('mini.shape_round'))

@@ -20,6 +20,7 @@
   import { colorOf } from '../theme/theme.svelte'
   import { css } from '../theme/palette'
   import { t } from '../lib/i18n.svelte'
+  import { offline } from '../lib/offline.svelte'
 
   const ref = router.param ?? ''
   let album = $state<Album | null>(null)
@@ -70,7 +71,7 @@
   <header class="head">
     <div class="cover">
       {#if al.cover_url && !failed}
-        <img class="fade-img" src={al.cover_url} alt="" draggable="false" onload={(e) => e.currentTarget.classList.add('loaded')} onerror={() => (failed = true)} />
+        <img class="fade-img" src={offline.src(al.cover_url)} alt="" draggable="false" onload={(e) => e.currentTarget.classList.add('loaded')} onerror={() => (failed = true)} />
       {:else}
         <Icon name="disc" size={56} stroke={1.5} />
       {/if}
@@ -79,7 +80,7 @@
       {#if date}<p class="date">{date}</p>{/if}
       <h1 class="selectable" title={al.title}>{al.title}</h1>
       <p class="artists">
-        {#if avatar}<img class="av fade-img" src={avatar} alt="" onload={(e) => e.currentTarget.classList.add('loaded')} />{:else}<span class="av ph"><Icon name="user" size={13} /></span>{/if}
+        {#if avatar}<img class="av fade-img" src={offline.src(avatar)} alt="" onload={(e) => e.currentTarget.classList.add('loaded')} />{:else}<span class="av ph"><Icon name="user" size={13} /></span>{/if}
         {#each al.artists as a, i (a.ref)}{#if i},&nbsp;{/if}<button class="artist" onclick={() => !hasSelection() && openRef(a.ref)}>{a.name}</button>{:else}<span class="artist">{al.artist}</span>{/each}
       </p>
       <p class="meta">{tracksText(tracks.length)}{#if tracks.length}, {durationLong(total)}{/if}</p>

@@ -43,6 +43,12 @@ describe('playableQueue', () => {
     expect(playableQueue(list, 4).index).toBe(2)
   })
 
+  it('applies an extra filter (offline mode) the same way', () => {
+    const q = playableQueue(list, 3, (x) => x.ref !== 'sc:3')
+    expect(refs(q)).toEqual(['sc:1', 'ym:4'])
+    expect(q.index).toBe(1)
+  })
+
   it('returns an empty queue when nothing can play', () => {
     expect(playableQueue([list[1], list[4]], 0)).toEqual({ tracks: [], index: 0 })
   })

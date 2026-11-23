@@ -32,7 +32,7 @@ impl Core {
     let creds = spotify::Creds { sp_dc };
     // новый ключ — старый токен не годится
     *self.sp_token.lock().await = None;
-    let account = Spotify { http: &self.http, creds: &creds, secret: &self.sp_totp, cache: &self.sp_token }.account().await;
+    let account = Spotify { http: &self.http(), creds: &creds, secret: &self.sp_totp, cache: &self.sp_token }.account().await;
     let account = match account {
       Ok(a) => a,
       Err(e) => {
@@ -51,7 +51,7 @@ impl Core {
   #[cfg(feature = "spotify-playback")]
   pub async fn spotify_ogg(&self, id: &str) -> Result<(std::sync::Arc<Vec<u8>>, String)> {
     let s = self.sp_stored().await?;
-    let token = Spotify { http: &self.http, creds: &s.creds, secret: &self.sp_totp, cache: &self.sp_token }.token(false).await?;
+    let token = Spotify { http: &self.http(), creds: &s.creds, secret: &self.sp_totp, cache: &self.sp_token }.token(false).await?;
     crate::spotify_play::ogg(&token, id, self.max_kbps.load(std::sync::atomic::Ordering::Relaxed)).await
   }
 
@@ -66,7 +66,7 @@ impl SpProvider<'_> {
   /// Клиент Web API на сохранённом ключе (токен — общий кэш ядра).
   fn api<'s>(&'s self, s: &'s Stored<spotify::Creds>) -> Spotify<'s> {
     let core = self.core;
-    Spotify { http: &core.http, creds: &s.creds, secret: &core.sp_totp, cache: &core.sp_token }
+    Spotify { http: &core.http(), creds: &s.creds, secret: &core.sp_totp, cache: &core.sp_token }
   }
 
   async fn likes_page(&self) -> Result<PlaylistPage> {

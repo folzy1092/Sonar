@@ -3,6 +3,7 @@
   import Icon from './Icon.svelte'
   import { xfade } from '../lib/motion'
   import { refKind, serviceOf } from '../lib/services'
+  import { offline } from '../lib/offline.svelte'
 
   interface Props {
     url: string | null | undefined
@@ -27,7 +28,7 @@
   {#key url && !failed ? url : ''}
     {#if url && !failed}
       <img
-        src={url}
+        src={offline.src(url)}
         alt=""
         loading="lazy"
         draggable="false"

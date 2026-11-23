@@ -54,6 +54,7 @@
   import { slide } from './lib/motion'
   import { notch } from './lib/notch'
   import { floating } from './lib/floating'
+  import { offline } from './lib/offline.svelte'
 
   const pages = {
     home: Home,
@@ -85,6 +86,7 @@
 
   onMount(() => {
     void settings.load()
+    offline.init()
     player.init()
     wave.init()
     autoplay.init()

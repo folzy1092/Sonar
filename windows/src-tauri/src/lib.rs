@@ -16,6 +16,9 @@ mod hotkeys;
 mod import_link;
 mod track_cache;
 mod mini;
+mod net;
+mod offline;
+mod offline_index;
 mod monitors;
 mod obs;
 mod providers;
@@ -76,9 +79,12 @@ pub fn run() {
       let dir = app.path().app_data_dir()?;
       std::fs::create_dir_all(&dir)?;
       let db = store::Store::open(&dir.join("sonar.db"))?;
+      // офлайн-режим — первым, до любой сетевой задачи (docs/OFFLINE.md §4.1)
+      offline::set_on(offline::from_setting(db.setting(offline::KEY)));
 
-      // тексты: неделя с прослушивания, у Любимых — две
-      if let Ok(n) = db.prune_lyrics(store::now_ms()) {
+      // тексты: неделя с прослушивания, у Любимых — две; в офлайне не чистим — нового текста не взять
+      let pruned = if offline::is_on() { Ok(0) } else { db.prune_lyrics(store::now_ms()) };
+      if let Ok(n) = pruned {
         if n > 0 {
           log::info!("[lyrics] удалено старых текстов: {n}");
         }
@@ -192,6 +198,8 @@ pub fn run() {
       app.manage(remote::Remote::new(app.handle().clone()));
       // папки с музыкой: индекс из базы, фоновый скан и слежка
       local::commands::init(app.handle());
+      // офлайн-индекс: сверка кэша треков с базой и подписка на его изменения
+      offline_index::init(app.handle());
       // синхронизация аккаунта: молчит, пока не подключён сервер Sonar
       tauri::async_runtime::spawn(sync::background(app.handle().clone()));
       // карта исполнителей: лайки сервисов и подписки SoundCloud — в фоне, пачками
@@ -249,6 +257,9 @@ pub fn run() {
       commands::record_play,
       commands::get_setting,
       commands::set_setting,
+      commands::offline_state,
+      commands::offline_refs,
+      commands::offline_tracks,
       commands::media_update,
       commands::search_more,
       commands::artist_page,

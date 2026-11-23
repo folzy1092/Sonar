@@ -3,6 +3,7 @@
   import Icon from '../components/Icon.svelte'
   import HistoryButton from './HistoryButton.svelte'
   import ReleasesBell from './ReleasesBell.svelte'
+  import { offline } from '../lib/offline.svelte'
   import { t } from '../lib/i18n.svelte'
   import { settings } from '../lib/settings.svelte'
   import { windowButtonsLook } from '../lib/window-buttons'
@@ -35,7 +36,7 @@
 <div class="controls">
   <!-- история прослушивания — как часы у Dotify -->
   {#if history}
-    {#if settings.get('notify.releases')}<ReleasesBell />{/if}
+    {#if settings.get('notify.releases') && !offline.on}<ReleasesBell />{/if}
     <HistoryButton />
   {/if}
   {#if mac}

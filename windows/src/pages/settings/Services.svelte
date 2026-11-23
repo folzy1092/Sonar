@@ -13,6 +13,7 @@
   import { listen } from '@tauri-apps/api/event'
   import { isTauri } from '../../lib/tauri'
   import { cascade } from '../../lib/cascade'
+  import { offline } from '../../lib/offline.svelte'
 
   let status = $state<ServicesStatus | null>(null)
   let loadError = $state<string | null>(null)
@@ -43,7 +44,12 @@
   <p class="note">{loadError}</p>
 {/if}
 
-<div class="cards" use:cascade={ACCOUNT_SERVICES.length}>
+{#if offline.on}
+  <p class="offline"><Icon name="wifiOff" size={16} /> {t('Недоступно в офлайне')} — {t('вход в сервисы работает только с сетью.')}</p>
+{/if}
+
+<!-- офлайн: карточки видны, но не нажимаются — вход и проверка ключей ходят в сеть -->
+<div class="cards" class:off={offline.on} inert={offline.on} use:cascade={ACCOUNT_SERVICES.length}>
   {#each ACCOUNT_SERVICES as s (s.id)}
     <ServiceCard info={s} state={statusOf(status, s)} onchange={(next) => update(s, next)} bind:lock />
   {/each}
@@ -59,6 +65,18 @@
     align-items: start;
     gap: 12px;
     margin-bottom: 14px;
+    transition: opacity 0.2s ease;
+  }
+  .cards.off {
+    opacity: 0.5;
+  }
+  .offline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    color: var(--text-2);
+    font-size: calc(13px * var(--fs, 1));
   }
   .safe {
     display: flex;

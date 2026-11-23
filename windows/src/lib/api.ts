@@ -613,6 +613,10 @@ export const api = {
   localRescan: () => call<LocalSummary>('local_rescan'),
   localTracks: () => call<Track[]>('local_tracks'),
   localSearch: (query: string, limit?: number) => call<Track[]>('local_search', { query, limit }),
+  /** Офлайн-режим (`docs/OFFLINE.md`): включён ли, что играет без сети, треки из кэша для офлайн-списков. */
+  offlineState: () => call<boolean>('offline_state'),
+  offlineRefs: () => call<string[]>('offline_refs'),
+  offlineTracks: () => call<Track[]>('offline_tracks'),
 
   mediaUpdate: (info: MediaInfo) => (isTauri ? invoke<void>('media_update', { info }) : Promise.resolve()),
 }
@@ -633,6 +637,20 @@ export interface LocalSummary {
 export function onLocalFilesChanged(cb: () => void): () => void {
   if (!isTauri) return () => {}
   const off = listen('local-files-changed', () => cb())
+  return () => void off.then((fn) => fn())
+}
+
+/** Офлайн-режим включили или выключили (offline.rs, событие `offline-changed`). */
+export function onOfflineChanged(cb: (on: boolean) => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen<boolean>('offline-changed', (e) => cb(e.payload))
+  return () => void off.then((fn) => fn())
+}
+
+/** В кэше треков что-то легло или ушло (offline_index.rs, событие `offline-index-changed`). */
+export function onOfflineIndexChanged(cb: () => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen('offline-index-changed', () => cb())
   return () => void off.then((fn) => fn())
 }
 

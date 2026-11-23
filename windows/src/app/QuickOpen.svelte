@@ -15,6 +15,7 @@
   import { jumpGroup, step } from '../lib/quick-core'
   import { QUICK_HINTS } from '../lib/quick-catalog'
   import { quick, type QuickItem } from '../lib/quick.svelte'
+  import { offline } from '../lib/offline.svelte'
 
   let input: HTMLInputElement | undefined = $state()
   let list: HTMLElement | undefined = $state()
@@ -107,7 +108,7 @@
   >
     <span class="art" class:round={item.group === 'artists'}>
       {#if item.cover}
-        <img src={item.cover} alt="" loading="lazy" draggable="false" />
+        <img src={offline.src(item.cover)} alt="" loading="lazy" draggable="false" />
       {:else}
         <Icon name={item.icon} size={18} />
       {/if}

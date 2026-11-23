@@ -20,11 +20,17 @@
   import { t } from '../lib/i18n.svelte'
   import { byId, type ServiceId } from '../lib/services'
   import { mergeMore, mergeTracks, searchOrder } from '../lib/unified-search'
+  import { offline } from '../lib/offline.svelte'
+  import { searchOffline } from '../lib/offline-core'
 
   /** Сколько файлов с компьютера показать в поиске. */
   const LOCAL_LIMIT = 20
+  /** Сколько треков показать в офлайн-поиске (docs/OFFLINE.md §8.3). */
+  const OFFLINE_LIMIT = 100
   const tabs = ['Все', 'Треки', 'Артисты', 'Альбомы', 'Плейлисты'] as const
   let tab = $state<(typeof tabs)[number]>('Все')
+  /** Какая вкладка на деле: в офлайне вкладок нет — только треки целиком. */
+  const view = $derived(offline.on ? 'Треки' : tab)
   const sourceName = $derived(search.source === 'all' ? t('подключённых сервисах') : t(byId(search.source)?.nameIn ?? 'Яндекс Музыке'))
 
   let results = $state<Track[]>([])
@@ -47,14 +53,16 @@
   }
 
   /** Вставили ссылку — вместо поиска карточка того, что за ней (SearchLink). */
-  const link = $derived(looksLikeLink(search.query) ? search.query.trim() : null)
+  // в офлайне ссылку не открыть — ищем её текст среди своего, как обычный запрос
+  const link = $derived(!offline.on && looksLikeLink(search.query) ? search.query.trim() : null)
 
   // Поиск с задержкой 350 мс после ввода; устаревшие ответы отбрасываются.
   $effect(() => {
     const q = search.query.trim()
     const src = search.source
+    const off = offline.on
     error = null
-    if (!q || looksLikeLink(q)) {
+    if (!q || (!off && looksLikeLink(q))) {
       results = []
       localHits = []
       more = { artists: [], albums: [], playlists: [] }
@@ -64,6 +72,10 @@
     const my = ++seq
     loading = true
     const timer = setTimeout(async () => {
+      if (off) {
+        await searchLocalOnly(q, my)
+        return
+      }
       api
         .localSearch(q, LOCAL_LIMIT)
         .then((found) => my === seq && (localHits = found))
@@ -130,6 +142,23 @@
     loading = false
   }
 
+  /** Офлайн: только скачанное и локальное, без сети и без вкладок сервисов. */
+  async function searchLocalOnly(q: string, my: number) {
+    localHits = []
+    more = { artists: [], albums: [], playlists: [] }
+    try {
+      const found = searchOffline(await offline.pool(), q, OFFLINE_LIMIT)
+      if (my === seq) results = found
+    } catch (e) {
+      if (my === seq) {
+        results = []
+        error = errorText(e)
+      }
+    } finally {
+      if (my === seq) loading = false
+    }
+  }
+
   function playLocal(i: number) {
     void player.playList(localHits, i, 'search')
   }
@@ -150,7 +179,7 @@
   {/if}
 {/snippet}
 
-{#if !link}
+{#if !link && !offline.on}
   <div class="chips" use:indicator={{ key: tab, kind: 'pill' }}>
     {#each tabs as tb (tb)}
       <button class="chip" class:on={tab === tb} onclick={() => (tab = tb)}>{t(tb)}</button>
@@ -160,6 +189,12 @@
 
 {#if link}
   <SearchLink url={link} />
+{:else if offline.on && (!search.query.trim() || (!loading && !results.length))}
+  <EmptyState
+    icon="wifiOff"
+    title={search.query.trim() ? t('Ничего не нашлось') : t('Офлайн-режим')}
+    text={t('В офлайне ищем только среди скачанного и локального.')}
+  />
 {:else if !search.query.trim()}
   <EmptyState icon="search" title={t('Что включить?')} text={t('Ищи треки в SoundCloud и Яндекс Музыке — или вставь ссылку на трек, альбом или плейлист.')} />
 {:else if error}
@@ -177,10 +212,10 @@
 {:else if !results.length && !localHits.length && !more.artists.length && !more.albums.length && !more.playlists.length}
   <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('По запросу «{query}» в {source} пусто.', { query: search.query.trim(), source: sourceName })} />
 {:else}
-  {@const all = tab === 'Все'}
-  {#key tab}<div class="tab-in">
-  {#if all || tab === 'Треки'}{@render localBlock(all)}{/if}
-  {#if (all || tab === 'Треки') && results.length}
+  {@const all = view === 'Все'}
+  {#key view}<div class="tab-in">
+  {#if all || view === 'Треки'}{@render localBlock(all)}{/if}
+  {#if (all || view === 'Треки') && results.length}
     <h2>{t('Треки')} {#if all && results.length > 5}<button class="more" onclick={() => (tab = 'Треки')}>{t('Показать все')}</button>{/if}</h2>
     <div class="list" class:stale={loading} use:cascade={results}>
       {#each all ? results.slice(0, 5) : results as t, i (t.ref)}
@@ -188,20 +223,20 @@
       {/each}
     </div>
   {/if}
-  {#if (all || tab === 'Артисты') && more.artists.length}
+  {#if (all || view === 'Артисты') && more.artists.length}
     <h2>{t('Артисты')}</h2>
     {@render rowOrGrid(all, artistsTiles)}
   {/if}
-  {#if (all || tab === 'Альбомы') && more.albums.length}
+  {#if (all || view === 'Альбомы') && more.albums.length}
     <h2>{t('Альбомы')}</h2>
     {@render rowOrGrid(all, albumsTiles)}
   {/if}
-  {#if (all || tab === 'Плейлисты') && more.playlists.length}
+  {#if (all || view === 'Плейлисты') && more.playlists.length}
     <h2>{t('Плейлисты')}</h2>
     {@render rowOrGrid(all, playlistsTiles)}
   {/if}
-  {#if !all && ((tab === 'Треки' && !results.length && !localHits.length) || (tab === 'Артисты' && !more.artists.length) || (tab === 'Альбомы' && !more.albums.length) || (tab === 'Плейлисты' && !more.playlists.length))}
-    <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('{what} по запросу «{query}» не нашлись.', { what: t(tab), query: search.query.trim() })} />
+  {#if !all && ((view === 'Треки' && !results.length && !localHits.length) || (view === 'Артисты' && !more.artists.length) || (view === 'Альбомы' && !more.albums.length) || (view === 'Плейлисты' && !more.playlists.length))}
+    <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('{what} по запросу «{query}» не нашлись.', { what: t(view), query: search.query.trim() })} />
   {/if}
   </div>{/key}
 {/if}

@@ -16,6 +16,7 @@
   import { autocompleteSource } from './autocomplete-source.svelte'
   import { canSuggest, decideKey, suggest, type FieldState } from '../lib/autocomplete'
   import { reducedMotion, fly } from '../lib/motion'
+  import { offline } from '../lib/offline.svelte'
 
   // недавнее под пустым полем: открывается кликом по полю, закрывается кликом мимо (или выбором)
   let open = $state(false)
@@ -35,7 +36,7 @@
   autocompleteSource.watchLikes()
 
   const fieldState = $derived<FieldState>({ value: search.query, selectionStart: caret.start, selectionEnd: caret.end, composing })
-  const hint = $derived(focused && dismissedFor !== search.query && canSuggest(fieldState) ? suggest(autocompleteSource.candidates, search.query) : null)
+  const hint = $derived(!offline.on && focused && dismissedFor !== search.query && canSuggest(fieldState) ? suggest(autocompleteSource.candidates, search.query) : null)
   const fadeMs = $derived(reducedMotion() ? 0 : 120)
 
   function syncCaret() {
@@ -190,30 +191,43 @@
     </div>
   {/if}
 
-  <div class="sources" role="radiogroup" aria-label={t('Источник поиска')}>
+  {#if offline.on}
+    <!-- офлайн: вместо сервисов — плашка; клик выключает режим (docs/OFFLINE.md §8) -->
     <button
-      class="src all"
-      class:on={search.source === 'all'}
-      role="radio"
-      aria-checked={search.source === 'all'}
-      title={t('Все сервисы сразу')}
-      onclick={() => (search.source = 'all')}
+      class="offline"
+      title={t('Выключить офлайн-режим')}
+      onclick={() => offline.set(false)}
+      in:fly={{ y: -4, duration: 200 }}
     >
-      {t('поиск::Все')}
+      <Icon name="wifiOff" size={15} />
+      {t('Офлайн')}
     </button>
-    {#each sources as s (s.id)}
+  {:else}
+    <div class="sources" role="radiogroup" aria-label={t('Источник поиска')}>
       <button
-        class="src"
-        class:on={search.source === s.id}
+        class="src all"
+        class:on={search.source === 'all'}
         role="radio"
-        aria-checked={search.source === s.id}
-        title={t(s.title)}
-        onclick={() => (search.source = s.id)}
+        aria-checked={search.source === 'all'}
+        title={t('Все сервисы сразу')}
+        onclick={() => (search.source = 'all')}
       >
-        <SourceIcon service={s.id} size={16} plain />
+        {t('поиск::Все')}
       </button>
-    {/each}
-  </div>
+      {#each sources as s (s.id)}
+        <button
+          class="src"
+          class:on={search.source === s.id}
+          role="radio"
+          aria-checked={search.source === s.id}
+          title={t(s.title)}
+          onclick={() => (search.source = s.id)}
+        >
+          <SourceIcon service={s.id} size={16} plain />
+        </button>
+      {/each}
+    </div>
+  {/if}
 
 </div>
 
@@ -404,5 +418,29 @@
   .src.on {
     background: var(--accent);
     color: var(--accent-ink);
+  }
+  .offline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 38px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: var(--plate);
+    border: 1px solid var(--border);
+    font-size: calc(12px * var(--fs, 1));
+    font-weight: 700;
+    color: var(--text-2);
+    transition:
+      color var(--fast) var(--ease),
+      background var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .offline:hover {
+    color: var(--text);
+    background: var(--surface-3);
+  }
+  .offline:active {
+    transform: scale(0.96);
   }
 </style>

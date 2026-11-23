@@ -8,6 +8,7 @@ import { relaunch } from '@tauri-apps/plugin-process'
 import { isTauri } from './tauri'
 import { settings } from './settings.svelte'
 import { t } from './i18n.svelte'
+import { offline } from './offline.svelte'
 import { compareVersions, isBeta, mergeReleases, noteLines, parseChangelog, type ChangelogEntry } from './update-core'
 
 export type UpdatePhase = 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'installing' | 'error'
@@ -55,13 +56,22 @@ class Updater {
 
   private async auto() {
     await settings.load()
-    if (!settings.get('update.auto_check') || this.busy || this.phase === 'ready') return
+    if (offline.on || !settings.get('update.auto_check') || this.busy || this.phase === 'ready') return
     await this.check(true)
   }
 
   /** `silent` — фоновая проверка: ошибки сети не показываем, нашли — всплывашка. */
   async check(silent = false) {
     if (this.busy) return
+    // офлайн: ни запроса — плагин обновлений ходит в сеть своим клиентом, мимо ворот Rust
+    if (offline.on) {
+      if (!silent) {
+        this.phase = 'error'
+        this.failedAt = 'check'
+        this.error = t('Нет доступа к сети: включён офлайн-режим')
+      }
+      return
+    }
     this.phase = 'checking'
     this.error = ''
     try {
@@ -88,6 +98,7 @@ class Updater {
 
   async download() {
     if (this.phase !== 'available' && this.phase !== 'error') return
+    if (offline.on) return void this.check()
     if (!this.update && isTauri) return void this.check()
     this.phase = 'downloading'
     this.got = 0
@@ -134,7 +145,7 @@ class Updater {
   }
 
   async loadChangelog() {
-    if (this.changelog) return
+    if (this.changelog || offline.on) return
     try {
       // changelog.json — версии с названием; релизы GitHub — все авто-патчи (0.1.42, 0.1.55 …)
       const [log, rel] = await Promise.all([

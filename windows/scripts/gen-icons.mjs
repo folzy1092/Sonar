@@ -29,7 +29,7 @@ const MAP = {
   photo: 'pic', vinyl: 'disc', maximize: 'fullscreen-2', line: 'minimize', bars: 'chart-bar',
   waveform: 'audio-waveform', cloudUp: 'upload-2', cloudDown: 'download-3', compress: 'fullscreen-exit',
   stack: 'layers', hash: 'hashtag', layout: 'layout', user2: 'user-2', login: 'entrance',
-  phone: 'cellphone', wifi: 'wifi', unlink: 'unlink', bell: 'notification',
+  phone: 'cellphone', wifi: 'wifi', wifiOff: 'wifi-off', unlink: 'unlink', bell: 'notification',
 }
 
 /** Знаки брендов — Simple Icons (CC0), одна заливка: и контур, и `filled` одинаковые. */

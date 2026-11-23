@@ -22,6 +22,7 @@ const DAY: i64 = 24 * 3600 * 1000;
 /// Настройки, которые остаются на устройстве (SETTINGS.md, столбец sync = «нет», и всё системное).
 const LOCAL_SETTINGS: &[&str] = &[
   "general.language",
+  "general.offline",
   "audio.quality",
   "audio.sc_via_yandex",
   "audio.output_device",

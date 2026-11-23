@@ -24,6 +24,7 @@
   import { settingsPanel } from './settings-section.svelte'
   import { onDestroy } from 'svelte'
   import { PixelCollage } from '../lib/pixel-collage.svelte'
+  import { offline } from '../lib/offline.svelte'
 
   const id = router.param ?? 'favorites'
   const kind: 'favorites' | 'own' | 'service' | 'local' =
@@ -57,9 +58,11 @@
   let importing = $state(false)
 
   const sort = $derived(sorts[sortIdx])
+  /** В офлайне — только то, что играет без сети (OFFLINE.md §6: недоступное скрыто, не серое). */
+  const avail = $derived(offline.only(items))
   const visible = $derived.by(() => {
     const q = filter.trim().toLowerCase()
-    let list = q ? items.filter((t) => `${t.title} ${t.artist}`.toLowerCase().includes(q)) : items.slice()
+    let list = q ? avail.filter((t) => `${t.title} ${t.artist}`.toLowerCase().includes(q)) : avail.slice()
     if (sort.id === 'title') list.sort((a, b) => a.title.localeCompare(b.title, 'ru'))
     else if (sort.id === 'artist') list.sort((a, b) => a.artist.localeCompare(b.artist, 'ru'))
     else if (sort.id === 'duration') list.sort((a, b) => a.duration_ms - b.duration_ms)
@@ -73,12 +76,19 @@
     limit = LIST_WINDOW
   })
   const shown = $derived(visible.length > limit ? visible.slice(0, limit) : visible)
-  const total = $derived(items.reduce((s, t) => s + t.duration_ms, 0))
+  const total = $derived(avail.reduce((s, t) => s + t.duration_ms, 0))
+  const countMeta = $derived(offline.on ? offline.countText(avail.length, items.length) : tracksText(items.length))
   const context = kind === 'favorites' ? 'favorites' : kind === 'local' ? 'local' : `playlist:${id}`
-  const canReorder = $derived(kind === 'own' && sort.id === 'custom' && !filter.trim())
+  // в офлайне часть треков скрыта — индексы на экране не совпадают с плейлистом, порядок не трогаем
+  const canReorder = $derived(kind === 'own' && sort.id === 'custom' && !filter.trim() && !offline.on)
 
   async function load() {
     error = null
+    // плейлист сервиса — только из сети (OFFLINE.md §5.1)
+    if (kind === 'service' && offline.on) {
+      loading = false
+      return
+    }
     try {
       if (kind === 'favorites') {
         items = await api.favorites()
@@ -114,7 +124,9 @@
     library.version
     void load()
   })
-  if (kind === 'service') void load()
+  $effect(() => {
+    if (kind === 'service' && !offline.on) void load()
+  })
   // локальные — заново после скана папок (новый файл, правка тегов, удаление)
   if (kind === 'local') onDestroy(onLocalFilesChanged(() => void load()))
 
@@ -200,7 +212,7 @@
   {image}
   {covers}
   icon={kind === 'favorites' ? 'heart' : kind === 'local' ? 'monitor' : 'music'}
-  meta={loading ? '' : `${tracksText(items.length)}${items.length ? `, ${durationText(total)}` : ''}`}
+  meta={loading ? '' : `${countMeta}${avail.length ? `, ${durationText(total)}` : ''}`}
   {context}
   disabled={!visible.length}
   onplay={() => play(0)}
@@ -267,7 +279,9 @@
      горизонтальная «палочка» под кнопками (вертикальной полосы справа нет) -->
 <ScrollStick target={tracksEl} />
 <div class="tracks" id="tracks" bind:this={tracksEl}>
-  {#if error}
+  {#if kind === 'service' && offline.on && !items.length}
+    <EmptyState icon="wifiOff" title={t('Недоступно в офлайне')} text={t('Плейлисты сервисов открываются только с сетью.')} />
+  {:else if error}
     <EmptyState icon="key" title={t('Не получилось открыть')} text={error} />
   {:else if loading}
     <div class="skeleton">{#each { length: 8 } as _, i (i)}<div class="sk"></div>{/each}</div>
@@ -281,6 +295,8 @@
           ? t('Добавь папку с музыкой в Настройках → Хранилище — mp3, flac, m4a, ogg, opus и wav появятся здесь.')
           : t('Добавляй треки через меню трека: «Добавить в плейлист».')}
     />
+  {:else if !avail.length}
+    <EmptyState icon="wifiOff" title={t('Офлайн: здесь ничего нет')} text={t('Ни одного трека из «{title}» нет на этом компьютере.', { title: heading })} />
   {:else if !visible.length}
     <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('В «{title}» нет «{query}».', { title: heading, query: filter.trim() })} />
   {:else}

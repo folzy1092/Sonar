@@ -14,6 +14,7 @@
   import type { OverlayLook } from '../lib/overlay'
   import { settings } from '../lib/settings.svelte'
   import { t } from '../lib/i18n.svelte'
+  import { offline } from '../lib/offline.svelte'
 
   let { kind = 'mini' }: { kind?: 'mini' | 'overlay' } = $props()
 
@@ -28,6 +29,8 @@
   const cmd = (c: MiniCmd) => void emit('mini:cmd', c)
 
   onMount(() => {
+    // отдельное окно — свой флаг офлайна: обложки в офлайне только из кэша
+    offline.init()
     // язык интерфейса — из настроек (t() читает general.language); вид оверлея — пока не пришёл свой
     void settings.load().then(() => {
       if (kind === 'overlay' && !look) {
@@ -69,7 +72,7 @@
 {#snippet art(size: number)}
   <button class="art" style:--size="{size}px" title={t('Открыть Sonar (двойной клик)')} ondblclick={() => invoke('show_main')}>
     {#key s.cover_url}
-      {#if s.cover_url}<img src={s.cover_url} alt="" draggable="false" />{:else}<span class="ph"><Icon name="music" size={size * 0.4} /></span>{/if}
+      {#if s.cover_url}<img src={offline.src(s.cover_url)} alt="" draggable="false" />{:else}<span class="ph"><Icon name="music" size={size * 0.4} /></span>{/if}
     {/key}
   </button>
 {/snippet}

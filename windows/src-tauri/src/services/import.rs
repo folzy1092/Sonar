@@ -116,7 +116,7 @@ impl Core {
   }
 
   pub(super) async fn apple_source(&self, url: &str) -> Result<ImportSource> {
-    let p = apple::fetch(&self.http, url).await?;
+    let p = apple::fetch(&self.http(), url).await?;
     let head = ImportHead {
       service: APPLE.into(),
       album: p.album,

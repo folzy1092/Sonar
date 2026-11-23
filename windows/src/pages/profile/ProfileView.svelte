@@ -1,5 +1,6 @@
 <script lang="ts" module>
   import type { NickEffect, ProfileLayout, ProfileLink, ShowcaseItem } from '../../lib/profile-look'
+  import { offline } from '../../lib/offline.svelte'
   /** Вид профиля (SETTINGS_NEXT «Профиль»): с ним шапка — та же карточка, что превью в настройках. */
   export interface ProfileLook {
     banner: string
@@ -55,7 +56,7 @@
 
 {#snippet cover(url: string | null, size: number)}
   <span class="cover" style:--size="{size}px">
-    {#if url}<img src={url} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="music" size={Math.round(size / 2.4)} />{/if}
+    {#if url}<img src={offline.src(url)} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="music" size={Math.round(size / 2.4)} />{/if}
   </span>
 {/snippet}
 
@@ -78,7 +79,7 @@
   {:else}
   <header class="hero">
     <span class="ava">
-      {#if profile.avatar_url}<img src={profile.avatar_url} alt="" draggable="false" class="fade-img" onload={loaded} />{:else}<span class="initial">{initial}</span>{/if}
+      {#if profile.avatar_url}<img src={offline.src(profile.avatar_url)} alt="" draggable="false" class="fade-img" onload={loaded} />{:else}<span class="initial">{initial}</span>{/if}
     </span>
     <div class="who">
       <span class="kind">{t('Профиль Sonar')}</span>
@@ -154,9 +155,9 @@
               <li class="card">
                 <span class="collage" class:four={pl.covers.length >= 4}>
                   {#if pl.covers.length >= 4}
-                    {#each pl.covers as url, i (i)}<img src={url} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{/each}
+                    {#each pl.covers as url, i (i)}<img src={offline.src(url)} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{/each}
                   {:else if pl.covers[0]}
-                    <img src={pl.covers[0]} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />
+                    <img src={offline.src(pl.covers[0])} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />
                   {:else}
                     <Icon name="playlist" size={28} />
                   {/if}
@@ -177,7 +178,7 @@
             {#each profile.top_artists as artist (artist.name)}
               <li>
                 <span class="art">
-                  {#if artist.avatar_url}<img src={artist.avatar_url} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="user" size={26} />{/if}
+                  {#if artist.avatar_url}<img src={offline.src(artist.avatar_url)} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="user" size={26} />{/if}
                 </span>
                 <b>{artist.name}</b>
                 <small>{artist.plays} {tn(artist.plays, ['прослушивание', 'прослушивания', 'прослушиваний'])}</small>

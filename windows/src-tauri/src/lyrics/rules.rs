@@ -116,6 +116,9 @@ pub fn current() -> Arc<Rules> {
 
 /// Перечитать файл правил, если пора (раз в сутки, после сбоя — через час). Ждать не надо: в фоне.
 pub fn refresh_in_background(http: &reqwest::Client) {
+  if crate::offline::is_on() {
+    return;
+  }
   {
     let mut next = STORE.next_check.lock().unwrap();
     let now = Instant::now();

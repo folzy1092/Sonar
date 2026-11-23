@@ -9,6 +9,7 @@
   import { player } from '../player/player.svelte'
   import { settings } from '../lib/settings.svelte'
   import { fade } from 'svelte/transition'
+  import { offline } from '../lib/offline.svelte'
 
   /** `url` — обложка трека: для варианта `color` поверх кладутся её ч/б и цветная копии. */
   /** `demo` — показать на примере (экран «Стиль»): свой прогресс вместо плеера, без задержки 150 мс. */
@@ -39,8 +40,8 @@
   {#if look === 'color'}
     <span class="ld color" out:fade={{ duration: 320 }} class:unknown style:--ld-p="{pct}%" style:--p-num={pct / 100} aria-hidden="true">
       {#if url}
-        <img class="bw" src={url} alt="" draggable="false" />
-        <img class="tint" src={url} alt="" draggable="false" />
+        <img class="bw" src={offline.src(url)} alt="" draggable="false" />
+        <img class="tint" src={offline.src(url)} alt="" draggable="false" />
       {/if}
       <span class="edge"></span>
     </span>

@@ -264,7 +264,7 @@ impl Core {
       (Some(j), _, _) => Some(j),
       (None, Some(id), None) => {
         let creds = self.sc_creds(false).await.ok()?.0;
-        soundcloud::SoundCloud { http: &self.http, creds: &creds }.track_json(id).await.ok()
+        soundcloud::SoundCloud { http: &self.http(), creds: &creds }.track_json(id).await.ok()
       }
       _ => None,
     };

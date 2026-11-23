@@ -5207,6 +5207,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tokio",
  "tokio-tungstenite",
+ "tower",
  "url",
  "urlencoding",
  "windows 0.62.2",

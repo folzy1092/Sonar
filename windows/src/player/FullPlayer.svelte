@@ -32,6 +32,7 @@
   import { hasSelection } from '../lib/selection'
   import { openRef } from '../app/router.svelte'
   import { t } from '../lib/i18n.svelte'
+  import { offline } from '../lib/offline.svelte'
 
   const track = $derived(player.current)
   const liked = $derived(library.isLiked(track?.ref))
@@ -156,7 +157,7 @@
         use:fitTitle={{ lines: withText ? COMPACT_LINES : FULL_LINES, text: track?.title ?? '' }}
       >{track?.title ?? ''}</h1>
       <p class="artist selectable" use:replay={track?.ref}>
-        {#if avatar}<img src={avatar} alt="" />{/if}
+        {#if avatar}<img src={offline.src(avatar)} alt="" />{/if}
         {#if track}
           {#each track.artists as a, i (a.ref + i)}{#if i},&nbsp;{/if}<span
               class="link"

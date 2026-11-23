@@ -8,6 +8,7 @@ import { player } from '../player/player.svelte'
 import { lang, t } from '../lib/i18n.svelte'
 import { toast } from '../lib/toast.svelte'
 import { isTauri } from '../lib/tauri'
+import { offline } from '../lib/offline.svelte'
 import { clampOffset, fromMs, toMs } from './core/offset'
 import type { Lyrics } from './core/types'
 
@@ -232,6 +233,11 @@ class LyricsStore {
     const hit = this.trCache.get(key)
     if (hit) {
       this.translation = hit
+      return
+    }
+    // перевод ходит в сеть; офлайн — не пытаемся
+    if (offline.on) {
+      if (!quiet) toast.show(t('Нет доступа к сети: включён офлайн-режим'))
       return
     }
     this.translating = true

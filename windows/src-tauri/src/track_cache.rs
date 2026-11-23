@@ -5,7 +5,7 @@
 //! склеенных в один файл (fMP4 с init-куском или mp3; MPEG-TS не склеиваем — `<audio>` его не играет).
 //! Лимит — по размеру, вытесняются давно не игравшие (время изменения файла обновляется при чтении).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -19,6 +19,42 @@ static ENABLED: AtomicBool = AtomicBool::new(false);
 static LIMIT: AtomicU64 = AtomicU64::new(2 * 1024 * 1024 * 1024);
 /// Треки, которые сейчас скачиваются (HLS) — не качать дважды.
 static BUSY: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+
+/// Что поменялось на диске — для офлайн-индекса (`offline_index.rs`, `docs/OFFLINE.md` §7.1).
+pub enum Change {
+  /// Трек лёг целиком: ref, имя файла, тип, размер.
+  Added { track_ref: String, file: String, mime: String, bytes: u64 },
+  /// Файл вытеснен (имя файла).
+  Removed(String),
+  /// Кэш очищен.
+  Cleared,
+}
+
+static HOOK: OnceLock<Box<dyn Fn(Change) + Send + Sync>> = OnceLock::new();
+
+/// Подписка на изменения кэша (одна, ставится при запуске).
+pub fn on_change(f: impl Fn(Change) + Send + Sync + 'static) {
+  let _ = HOOK.set(Box::new(f));
+}
+
+fn notify(c: Change) {
+  if let Some(f) = HOOK.get() {
+    f(c);
+  }
+}
+
+/// Готовые файлы кэша по имени: (размер, тип) — для сверки индекса при запуске.
+pub fn disk_files() -> HashMap<String, (u64, String)> {
+  let Some(dir) = DIR.get() else { return HashMap::new() };
+  entries(dir)
+    .into_iter()
+    .filter_map(|(p, len, _)| {
+      let name = p.file_name()?.to_string_lossy().into_owned();
+      let mime = fs::read_to_string(p.with_extension("mime")).unwrap_or_else(|_| "audio/mpeg".into());
+      Some((name, (len, mime.trim().to_owned())))
+    })
+    .collect()
+}
 
 pub fn set_dir(dir: PathBuf) {
   let _ = fs::create_dir_all(&dir);
@@ -101,6 +137,7 @@ pub fn parse_range(h: Option<&str>, total: u64) -> Option<(u64, u64)> {
 /// Запись трека в кэш: пишется во временный `.part`, готовый — переименовывается. Брошенный на
 /// середине (перемотали, закрыли) — удаляется.
 pub struct Writer {
+  track_ref: String,
   part: PathBuf,
   audio: PathBuf,
   mime_path: PathBuf,
@@ -124,7 +161,7 @@ impl Writer {
     }
     let part = dir.join(format!("{}.{}.part", key(track_ref), std::process::id()));
     let file = File::create(&part).ok()?;
-    Some(Self { part, audio, mime_path, mime: mime.to_owned(), file: Some(file), written: 0, expect, done: false })
+    Some(Self { track_ref: track_ref.to_owned(), part, audio, mime_path, mime: mime.to_owned(), file: Some(file), written: 0, expect, done: false })
   }
 
   pub fn write(&mut self, chunk: &[u8]) {
@@ -145,6 +182,9 @@ impl Writer {
     if fs::rename(&self.part, &self.audio).is_ok() {
       let _ = fs::write(&self.mime_path, &self.mime);
       self.done = true;
+      let file = self.audio.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+      let (track_ref, mime) = (std::mem::take(&mut self.track_ref), std::mem::take(&mut self.mime));
+      notify(Change::Added { track_ref, file, mime, bytes: self.written });
       evict();
     }
   }
@@ -206,6 +246,9 @@ pub fn evict_in(dir: &Path, limit: u64) {
     }
     let _ = fs::remove_file(&p);
     let _ = fs::remove_file(p.with_extension("mime"));
+    if let Some(name) = p.file_name() {
+      notify(Change::Removed(name.to_string_lossy().into_owned()));
+    }
     total = total.saturating_sub(len);
   }
 }
@@ -224,6 +267,7 @@ pub fn clear() {
       let _ = fs::remove_file(e.path());
     }
   }
+  notify(Change::Cleared);
 }
 
 /// Список кусков HLS для склейки: (init-кусок или None, куски, тип). MPEG-TS — None (не склеиваем).

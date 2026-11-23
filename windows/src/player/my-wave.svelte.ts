@@ -17,6 +17,7 @@ import { library } from '../lib/library.svelte'
 import { t } from '../lib/i18n.svelte'
 import { artistKey, reward } from './reward'
 import { SkipSeries } from './skip-series'
+import { offline } from '../lib/offline.svelte'
 
 export const WAVE_CONTEXT = 'wave'
 
@@ -107,7 +108,8 @@ class Wave {
     player.onTrackEnd((t, listened, skipped) => this.onEnd(t, listened, skipped))
     // «Похожие после очереди» (`general.similar_autoplay`): очередь кончилась — волна по последнему треку
     player.onQueueEnd = (last) => {
-      if (player.context === WAVE_CONTEXT || player.repeat !== 'off' || !settings.get('general.similar_autoplay')) return false
+      // в офлайне волны нет — продолжение из скачанного дописывает автоплей (autoplay.svelte.ts)
+      if (offline.on || player.context === WAVE_CONTEXT || player.repeat !== 'off' || !settings.get('general.similar_autoplay')) return false
       void this.start(last, false)
       return true
     }

@@ -1,6 +1,7 @@
 <script lang="ts" module>
   import type { Track } from '../../lib/api'
   import type { TasteMatch } from '../../lib/taste-match'
+  import { offline } from '../../lib/offline.svelte'
   /** Кто с кем сравнивается: владелец профиля и тот, кто смотрит. */
   export interface TastePerson {
     name: string
@@ -41,7 +42,7 @@
 
 {#snippet face(person: TastePerson)}
   <span class="face" title={person.name}>
-    {#if person.avatar_url}<img src={person.avatar_url} alt="" draggable="false" class="fade-img" onload={loaded} />{:else}<span>{initial(person)}</span>{/if}
+    {#if person.avatar_url}<img src={offline.src(person.avatar_url)} alt="" draggable="false" class="fade-img" onload={loaded} />{:else}<span>{initial(person)}</span>{/if}
   </span>
 {/snippet}
 
@@ -60,7 +61,7 @@
           <li>
             <button class="row" onclick={() => play(i)} title={t('Слушать')}>
               <span class="cover">
-                {#if track.cover_url}<img src={track.cover_url} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="music" size={16} />{/if}
+                {#if track.cover_url}<img src={offline.src(track.cover_url)} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="music" size={16} />{/if}
                 <span class="hover-play"><Icon name="play" size={16} filled /></span>
               </span>
               <span class="meta"><b>{track.title}</b><small>{track.artist}</small></span>
@@ -80,7 +81,7 @@
           <li>
             <button class="artist" disabled={!artist.ref} onclick={() => artist.ref && openRef(artist.ref)}>
               <span class="art">
-                {#if artist.avatar_url}<img src={artist.avatar_url} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="user" size={22} />{/if}
+                {#if artist.avatar_url}<img src={offline.src(artist.avatar_url)} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="user" size={22} />{/if}
               </span>
               <b>{artist.name}</b>
             </button>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { offline } from '../../lib/offline.svelte'
   // Интерфейс → Оверлей (SETTINGS_NEXT «Оверлей», решение владельца 2026-11-18): плашка поверх других
   // программ и игр (mini.rs, окно `overlay`). Режим — живые превью, место — схема всех мониторов, как они
   // стоят в Windows (MonitorScheme, lib/monitor-layout.ts): выбрал монитор, нажал точку или утащил плашку —
@@ -33,7 +34,7 @@
   const mode = $derived(settings.get('overlay.mode'))
   const shape = $derived(settings.get('overlay.shape'))
   const anchor = $derived(settings.get('overlay.position'))
-  const cover = $derived(player.current?.cover_url ?? null)
+  const cover = $derived(offline.src(player.current?.cover_url) ?? null)
   const off = $derived(mode === 'off')
   const layout = $derived(overlayLayout(mode === 'off' ? 'card' : mode, num('width'), num('height'), num('scale'), anchor))
   const combo = $derived(settings.get('hotkeys.map').overlay ?? '')

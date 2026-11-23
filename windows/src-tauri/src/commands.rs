@@ -32,11 +32,13 @@ pub async fn connect_soundcloud(
   client_id: String,
   oauth_token: Option<String>,
 ) -> Res<ServiceStatus> {
+  crate::offline::guard()?;
   core.connect_soundcloud(sc_creds(&client_id, oauth_token.as_deref())).await.map_err(err)
 }
 
 #[tauri::command]
 pub async fn connect_yandex(core: State<'_, Arc<Core>>, token: String) -> Res<ServiceStatus> {
+  crate::offline::guard()?;
   core.connect_yandex(ym_creds(&token)).await.map_err(err)
 }
 
@@ -87,6 +89,7 @@ pub async fn services_list(core: State<'_, Arc<Core>>) -> Res<Vec<ServiceEntry>>
 /// Подключить сервис по вставленному ключу (`service` — `sc` или `soundcloud` и т. д.).
 #[tauri::command]
 pub async fn connect_service_key(core: State<'_, Arc<Core>>, service: String, fields: HashMap<String, String>) -> Res<ServiceStatus> {
+  crate::offline::guard()?;
   let info = by_key(&service).ok_or_else(|| format!("Неизвестный сервис: {service}"))?;
   match key_creds(info, &fields)? {
     KeyCreds::Sc(creds) => core.connect_soundcloud(creds).await,
@@ -101,6 +104,7 @@ pub async fn connect_service_key(core: State<'_, Arc<Core>>, service: String, fi
 /// Подключить сервис в один клик: окно входа самого сервиса, ключи Sonar забирает сам (login.rs).
 #[tauri::command]
 pub async fn login_service(app: tauri::AppHandle, core: State<'_, Arc<Core>>, db: State<'_, Db>, service: String) -> Res<ServiceStatus> {
+  crate::offline::guard()?;
   let core = core.inner().clone();
   match by_key(&service).map(|s| s.key).unwrap_or(service.as_str()) {
     // Яндекс — в браузере по умолчанию по коду; вход по коду недоступен — прежнее окно
@@ -141,6 +145,7 @@ pub async fn search(
   src: String,
   limit: Option<u32>,
 ) -> Res<Vec<Track>> {
+  crate::offline::guard()?;
   let tracks = core.search(q.trim(), &src, limit.unwrap_or(30)).await.map_err(err)?;
   db.0.lock().unwrap().upsert_tracks(&tracks).map_err(err)?;
   Ok(tracks)
@@ -168,7 +173,7 @@ pub async fn stream_url(
   track: Option<Track>,
 ) -> Res<StreamUrl> {
   // трек в кэше на диске — играет файлом оттуда (и HLS, уже склеенный)
-  if let Some((_, mime, _)) = crate::track_cache::lookup(&track_ref) {
+  if let Some((_, mime, _)) = cached_file(&db, &track_ref) {
     let quality = match mime.as_str() {
       "audio/flac" | "audio/x-flac" => "FLAC · кэш",
       "audio/mp4" | "audio/aac" => "AAC · кэш",
@@ -178,7 +183,30 @@ pub async fn stream_url(
     let url = crate::stream::track_url(port.0, "file", &track_ref);
     return Ok(StreamUrl { kind: "file", url, quality: quality.into(), via: None });
   }
+  // офлайн: свои файлы с диска играют, всё прочее — только из кэша (выше)
+  if crate::offline::is_on() && !crate::local::is_local_ref(&track_ref) {
+    return Err(OFFLINE_MISSING.into());
+  }
   playable_url(&core, &db, port.0, &track_ref, track, false).await
+}
+
+/// Ошибка плеера в офлайне: трека нет на диске (не сетевая — `docs/OFFLINE.md` §6.6).
+const OFFLINE_MISSING: &str = "Нет в офлайне — скачай трек, пока есть сеть";
+
+/// Файл трека в кэше. В офлайне ещё и под ref замены из другого сервиса (`track_alias`): кэш хранит файл
+/// под исходным ref, но сыгранный когда-то резерв мог лечь под своим.
+fn cached_file(db: &Db, track_ref: &str) -> Option<(std::path::PathBuf, String, u64)> {
+  if let Some(hit) = crate::track_cache::lookup(track_ref) {
+    return Some(hit);
+  }
+  if !crate::offline::is_on() {
+    return None;
+  }
+  let aliases = db.0.lock().unwrap().track_aliases(track_ref).unwrap_or_else(|e| {
+    log::warn!("[offline] track_alias {track_ref}: {e}");
+    Vec::new()
+  });
+  aliases.iter().filter_map(|a| a.alias_ref.as_deref()).find_map(crate::track_cache::lookup)
 }
 
 /// Свой поток открылся, но не играет (ошибка `<audio>` после повтора) — тот же трек из резервного
@@ -191,6 +219,7 @@ pub async fn stream_fallback(
   track_ref: String,
   track: Option<Track>,
 ) -> Res<StreamUrl> {
+  crate::offline::guard()?;
   playable_url(&core, &db, port.0, &track_ref, track, true).await
 }
 
@@ -234,7 +263,7 @@ async fn playable_url(core: &Core, db: &Db, port: u16, track_ref: &str, track: O
 /// отменяет старый). Кэш выключен — ничего не делает.
 #[tauri::command]
 pub fn prefetch_tracks(core: State<'_, Arc<Core>>, refs: Vec<String>) {
-  if !crate::track_cache::enabled() {
+  if !crate::track_cache::enabled() || crate::offline::is_on() {
     return;
   }
   let refs: Vec<String> = refs.into_iter().take(20).collect();
@@ -278,6 +307,7 @@ pub fn get_setting(db: State<'_, Db>, key: String) -> Res<Option<serde_json::Val
 
 #[tauri::command]
 pub fn set_setting(
+  app: tauri::AppHandle,
   core: State<'_, Arc<Core>>,
   discord: State<'_, Arc<crate::discord::Discord>>,
   obs: State<'_, Arc<crate::obs::Obs>>,
@@ -324,18 +354,43 @@ pub fn set_setting(
     core.yt_high.store(crate::services::yt_high(value.as_str()), Ordering::Relaxed);
     core.forget_streams();
   }
-  db.0.lock().unwrap().set_setting(&key, &value).map_err(err)
+  db.0.lock().unwrap().set_setting(&key, &value).map_err(err)?;
+  // офлайн-режим — после записи: флаг и база не расходятся, если запись упала
+  if key == crate::offline::KEY {
+    crate::offline::switch(&app, crate::offline::from_setting::<String>(Ok(Some(value))));
+  }
+  Ok(())
+}
+
+/// Включён ли офлайн-режим (`general.offline`) — для зеркала `lib/offline.svelte.ts` при запуске.
+#[tauri::command]
+pub fn offline_state() -> bool {
+  crate::offline::is_on()
+}
+
+/// Что играет без сети: ref'ы кэша, локальных файлов и треков, чей двойник в кэше. Меняется — событие `offline-index-changed`.
+#[tauri::command]
+pub fn offline_refs(db: State<'_, Db>) -> Res<Vec<String>> {
+  db.0.lock().unwrap().offline_refs().map_err(err)
+}
+
+/// Треки из кэша (снимки) — офлайн-поиск и списки; локальные файлы — `local_tracks`.
+#[tauri::command]
+pub fn offline_tracks(db: State<'_, Db>) -> Res<Vec<Track>> {
+  db.0.lock().unwrap().offline_cached_tracks().map_err(err)
 }
 
 // ——— каталог: поиск артистов/альбомов/плейлистов, страницы ———
 
 #[tauri::command]
 pub async fn search_more(core: State<'_, Arc<Core>>, q: String, src: String, limit: Option<u32>) -> Res<SearchResults> {
+  crate::offline::guard()?;
   core.search_more(q.trim(), &src, limit.unwrap_or(12)).await.map_err(err)
 }
 
 #[tauri::command]
 pub async fn artist_page(core: State<'_, Arc<Core>>, db: State<'_, Db>, artist_ref: String) -> Res<ArtistPage> {
+  crate::offline::guard()?;
   let page = core.artist_page(&artist_ref).await.map_err(err)?;
   let mut store = db.0.lock().unwrap();
   let _ = store.put_catalog(&page.artist.ref_, "artist", &serde_json::to_value(&page.artist).map_err(err)?);
@@ -345,6 +400,7 @@ pub async fn artist_page(core: State<'_, Arc<Core>>, db: State<'_, Db>, artist_r
 
 #[tauri::command]
 pub async fn album_page(core: State<'_, Arc<Core>>, db: State<'_, Db>, album_ref: String) -> Res<AlbumPage> {
+  crate::offline::guard()?;
   let page = core.album_page(&album_ref).await.map_err(err)?;
   let mut store = db.0.lock().unwrap();
   let _ = store.put_catalog(&page.album.ref_, "album", &serde_json::to_value(&page.album).map_err(err)?);
@@ -354,11 +410,13 @@ pub async fn album_page(core: State<'_, Arc<Core>>, db: State<'_, Db>, album_ref
 
 #[tauri::command]
 pub async fn service_playlists(core: State<'_, Arc<Core>>, service: String) -> Res<Vec<ServicePlaylist>> {
+  crate::offline::guard()?;
   core.service_playlists(&service).await.map_err(err)
 }
 
 #[tauri::command]
 pub async fn service_playlist(core: State<'_, Arc<Core>>, db: State<'_, Db>, pl_ref: String) -> Res<PlaylistPage> {
+  crate::offline::guard()?;
   let page = core.service_playlist(&pl_ref).await.map_err(err)?;
   db.0.lock().unwrap().upsert_tracks(&page.tracks).map_err(err)?;
   Ok(page)
@@ -368,6 +426,7 @@ pub async fn service_playlist(core: State<'_, Arc<Core>>, db: State<'_, Db>, pl_
 /// Уже перенесённый — обновляется до текущего состава сервиса не создаётся второй раз.
 #[tauri::command]
 pub async fn import_playlist(core: State<'_, Arc<Core>>, db: State<'_, Db>, pl_ref: String, name: Option<String>) -> Res<Playlist> {
+  crate::offline::guard()?;
   let page = core.service_playlist(&pl_ref).await.map_err(err)?;
   let title = name.filter(|n| !n.trim().is_empty()).unwrap_or(page.playlist.title);
   let mut store = db.0.lock().unwrap();
@@ -555,7 +614,11 @@ pub async fn lyrics(
       None => {}
     }
   }
-  let found = lyrics::fetch_track(&core.http, &track, refresh == Some(true)).await.map_err(err)?;
+  // офлайн: только кэш (выше); нет в кэше — «Текст не найден», без ошибки
+  if crate::offline::is_on() {
+    return Ok(None);
+  }
+  let found = lyrics::fetch_track(&core.http(), &track, refresh == Some(true)).await.map_err(err)?;
   let json = found.as_ref().map(|l| serde_json::to_string(l)).transpose().map_err(err)?;
   db.0
     .lock()
@@ -567,7 +630,7 @@ pub async fn lyrics(
 
 /// Фон для `lyrics`: синхронный текст нашёлся — в кэш и событие [`LYRICS_UPGRADED_EVENT`]; нет — остаётся прежний.
 async fn upgrade_to_synced(app: tauri::AppHandle, core: Arc<Core>, track: Track) {
-  let fresh = match lyrics::fetch_track(&core.http, &track, false).await {
+  let fresh = match lyrics::fetch_track(&core.http(), &track, false).await {
     Ok(Some(l)) if l.is_synced => l,
     Ok(_) => return,
     Err(e) => return log::warn!("[lyrics] фоновая перепроверка {}: {e}", track.ref_),
@@ -586,14 +649,16 @@ async fn upgrade_to_synced(app: tauri::AppHandle, core: Arc<Core>, track: Track)
 /// Аннотации Genius к тексту трека (строки фрагмента + пояснение). Нет на Genius — пустой список.
 #[tauri::command]
 pub async fn lyrics_annotations(core: State<'_, Arc<Core>>, track: Track) -> Res<Vec<lyrics::genius::Annotation>> {
+  crate::offline::guard()?;
   let m = lyrics::Meta::of(&track);
-  lyrics::genius::annotations(&core.http, &m.artist, &m.title).await.map_err(err)
+  lyrics::genius::annotations(&core.http(), &m.artist, &m.title).await.map_err(err)
 }
 
 /// Перевод строк текста на язык интерфейса (меню текста → «Перевести»).
 #[tauri::command]
 pub async fn lyrics_translate(core: State<'_, Arc<Core>>, lines: Vec<String>, to: String) -> Res<lyrics::translate::Translation> {
-  lyrics::translate::translate(&core.http, &lines, &to).await.map_err(err)
+  crate::offline::guard()?;
+  lyrics::translate::translate(&core.http(), &lines, &to).await.map_err(err)
 }
 
 #[tauri::command]
@@ -664,6 +729,7 @@ pub struct WaveRequest {
 /// Ссылка в строке поиска → что это (трек кладётся в кэш, чтобы лайк и плейлист его знали).
 #[tauri::command]
 pub async fn resolve_link(core: State<'_, Arc<Core>>, db: State<'_, Db>, url: String) -> Res<crate::services::LinkItem> {
+  crate::offline::guard()?;
   // ответа нет 20 с — честная ошибка вместо вечной загрузки
   let item = tokio::time::timeout(std::time::Duration::from_secs(20), core.resolve_link(&url))
     .await
@@ -723,6 +789,7 @@ pub fn show_main(app: tauri::AppHandle) {
 /// Все треки исполнителя (вкладка «Треки» на его странице): сначала самые прослушиваемые.
 #[tauri::command]
 pub async fn artist_tracks(core: State<'_, Arc<Core>>, db: State<'_, Db>, artist_ref: String) -> Res<Vec<crate::providers::ArtistTrack>> {
+  crate::offline::guard()?;
   let list = core.artist_tracks(&artist_ref).await.map_err(err)?;
   let tracks: Vec<Track> = list.iter().map(|t| t.track.clone()).collect();
   db.0.lock().unwrap().upsert_tracks(&tracks).map_err(err)?;
@@ -732,6 +799,7 @@ pub async fn artist_tracks(core: State<'_, Arc<Core>>, db: State<'_, Db>, artist
 /// Репосты исполнителя SoundCloud (раздел «Репосты» на его странице); у других сервисов — пусто.
 #[tauri::command]
 pub async fn artist_reposts(core: State<'_, Arc<Core>>, db: State<'_, Db>, artist_ref: String) -> Res<Vec<Track>> {
+  crate::offline::guard()?;
   let list = core.artist_reposts(&artist_ref, REPOSTS_LIMIT).await.map_err(err)?;
   db.0.lock().unwrap().upsert_tracks(&list).map_err(err)?;
   Ok(list)
@@ -744,7 +812,8 @@ const REPOSTS_LIMIT: u32 = 50;
 /// «ещё не подключён».
 #[tauri::command]
 pub async fn sync_now(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<crate::sync::SyncReport> {
-  crate::sync::sync_now(&core.http, &db.0).await.map_err(err)
+  crate::offline::guard()?;
+  crate::sync::sync_now(&core.http(), &db.0).await.map_err(err)
 }
 
 /// Отчёт прошлого запуска (было падение или ошибки) — для плашки «Sonar закрылся с ошибкой».
@@ -756,8 +825,9 @@ pub fn report_pending() -> Option<crate::crashlog::Pending> {
 /// «Отправить лог»: в Telegram ботом отчётов (или в «Загрузки», если бот не вшит в сборку).
 #[tauri::command]
 pub async fn report_send(core: State<'_, Arc<Core>>, db: State<'_, Db>, context: Option<crate::crashlog::Context>) -> Res<crate::crashlog::Sent> {
+  crate::offline::guard()?;
   let device = db.0.lock().unwrap().device_id().map_err(err)?;
-  let sent = crate::crashlog::send(&core.http, &device, &context.unwrap_or_default()).await.map_err(err)?;
+  let sent = crate::crashlog::send(&core.http(), &device, &context.unwrap_or_default()).await.map_err(err)?;
   if let crate::crashlog::Sent::Saved { path } = &sent {
     // показать файл в Проводнике — его останется переслать
     let _ = std::process::Command::new("explorer").arg(format!("/select,{path}")).spawn();
@@ -832,6 +902,7 @@ fn platform_service(platform: Option<&str>, has_ym: bool, has_vk: bool) -> Servi
 
 #[tauri::command]
 pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: WaveRequest) -> Res<Vec<serde_json::Value>> {
+  crate::offline::guard()?;
   use crate::store::ServedEvent;
   use crate::wave::{artist_key, pick_with, tag_set, Filter, Origin, Rng, Session, PORTION};
   let mut rng = Rng::new(crate::store::now_ms() as u64);
@@ -1152,6 +1223,7 @@ pub fn disliked_refs(db: State<'_, Db>) -> Res<Vec<String>> {
 /// Похожие на трек — ряд «Похожее» на главной.
 #[tauri::command]
 pub async fn similar_tracks(core: State<'_, Arc<Core>>, db: State<'_, Db>, track_ref: String, limit: Option<u32>) -> Res<Vec<Track>> {
+  crate::offline::guard()?;
   let banned: std::collections::HashSet<String> = db.0.lock().unwrap().disliked_refs().map_err(err)?.into_iter().collect();
   let tracks: Vec<Track> = similar_cached(&core, &db, &track_ref, limit.unwrap_or(20))
     .await
@@ -1189,6 +1261,7 @@ pub fn daypart_mix(db: State<'_, Db>, tz_min: Option<i64>, limit: Option<usize>)
 /// `released`, неделю отсекает клиент); пусто — новинки Яндекса.
 #[tauri::command]
 pub async fn home_releases(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<Vec<crate::providers::Album>> {
+  crate::offline::guard()?;
   let artists = db.0.lock().unwrap().release_artist_refs(16).map_err(err)?;
   let has_ym = core.has_yandex().await;
   let artists: Vec<String> = artists.into_iter().filter(|r| has_ym || is_kind(r, ServiceId::Sc, RefKind::Artist)).collect();
@@ -1229,6 +1302,7 @@ pub struct ReleaseItem {
 /// уже видели и что свежее недели — решает клиент.
 #[tauri::command]
 pub async fn release_feed(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<Vec<ReleaseItem>> {
+  crate::offline::guard()?;
   let artists = db.0.lock().unwrap().release_artist_refs(24).map_err(err)?;
   let has_ym = core.has_yandex().await;
   let artists: Vec<String> = artists.into_iter().filter(|r| has_ym || is_kind(r, ServiceId::Sc, RefKind::Artist)).collect();
@@ -1300,7 +1374,14 @@ pub fn all_settings(db: State<'_, Db>) -> Res<std::collections::HashMap<String, 
 
 #[tauri::command]
 pub fn reset_settings(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<()> {
-  db.0.lock().unwrap().reset_settings().map_err(err)?;
+  {
+    let store = db.0.lock().unwrap();
+    store.reset_settings().map_err(err)?;
+    // офлайн-режим сброс не выключает: в роуминге «Сбросить всё» не должно молча пустить в сеть
+    if crate::offline::is_on() {
+      store.set_setting(crate::offline::KEY, &serde_json::json!(true)).map_err(err)?;
+    }
+  }
   core.sc_via_yandex.store(false, Ordering::Relaxed);
   core.fallback.enabled.store(true, Ordering::Relaxed);
   core.fallback.set_order(crate::services::fallback::default_order());
@@ -1414,6 +1495,7 @@ pub fn set_track_cache(on: bool, limit_mb: u64) {
 /// Открыть ссылку в браузере (только https; «О приложении»: канал, сайт).
 #[tauri::command]
 pub fn open_url(url: String) -> Res<()> {
+  crate::offline::guard()?;
   crate::login::open_in_browser(&url).map_err(err)
 }
 

@@ -160,7 +160,7 @@ pub async fn background(app: tauri::AppHandle) {
     if configured(&db.0).is_none() {
       continue;
     }
-    if let Err(e) = sync_now(&core.http, &db.0).await {
+    if let Err(e) = sync_now(&core.http(), &db.0).await {
       log::warn!("синхронизация: {e}");
     }
   }
