@@ -70,10 +70,19 @@ pub struct Pending {
   pub last: String,
 }
 
+/// Безвредные «ошибки» браузера: не сбой, а предупреждение движка (ResizeObserver не успел
+/// разослать все уведомления за кадр). В журнал не пишем, в отчётах прошлых версий не считаем.
+const BENIGN_UI: [&str; 2] = ["ResizeObserver loop completed with undelivered notifications", "ResizeObserver loop limit exceeded"];
+
+fn is_benign(msg: &str) -> bool {
+  BENIGN_UI.iter().any(|b| msg.contains(b))
+}
+
 /// Разобрать прошлый журнал: сколько ошибок, было ли падение, последняя ошибка.
 pub fn summarize(log: &str) -> Pending {
   let crashed = log.contains(" PANIC ");
-  let errors: Vec<&str> = log.lines().filter(|l| l.contains(" ERROR ") || l.contains(" PANIC ")).collect();
+  let errors: Vec<&str> =
+    log.lines().filter(|l| (l.contains(" ERROR ") || l.contains(" PANIC ")) && !is_benign(l)).collect();
   let last = errors.last().map(|l| l.get(13..).unwrap_or(l).trim().chars().take(140).collect()).unwrap_or_default();
   Pending { crashed, errors: errors.len(), last }
 }
@@ -117,6 +126,9 @@ fn os_line() -> String {
 
 /// Ошибка из интерфейса (необработанное исключение, отказ промиса).
 pub fn frontend(level: &str, msg: &str) {
+  if is_benign(msg) {
+    return;
+  }
   let level = if level == "error" { "ERROR" } else { "WARN" };
   if level == "ERROR" && FRONT_ERRORS.fetch_add(1, Ordering::Relaxed) >= MAX_FRONT_ERRORS {
     return;
@@ -173,6 +185,79 @@ fn caption(p: &Pending, device: &str, ctx: &Context) -> String {
   )
 }
 
+/// Бот отчётов из сборки. Секреты CI чистим от пробелов и переводов строк: chat_id с хвостовым
+/// `\n` Telegram не узнаёт и отвечает 400 (на iPhone так же — `ReportBot.from`).
+struct ReportBot {
+  token: &'static str,
+  chat: &'static str,
+  thread: Option<&'static str>,
+}
+
+fn clean(v: Option<&'static str>) -> Option<&'static str> {
+  v.map(str::trim).filter(|s| !s.is_empty())
+}
+
+fn report_bot() -> Option<ReportBot> {
+  Some(ReportBot {
+    token: clean(option_env!("SONAR_REPORT_BOT_TOKEN"))?,
+    chat: clean(option_env!("SONAR_REPORT_CHAT"))?,
+    thread: clean(option_env!("SONAR_REPORT_THREAD")),
+  })
+}
+
+/// Отказ Telegram: код и описание из ответа (`{"ok":false,"description":"Bad Request: …"}`).
+#[derive(Debug)]
+struct Rejected {
+  status: u16,
+  description: Option<String>,
+}
+
+impl Rejected {
+  /// Тема удалена, закрыта или id темы не тот — можно отправить в общий чат.
+  fn thread_problem(&self) -> bool {
+    self.description.as_deref().is_some_and(|d| {
+      let d = d.to_lowercase();
+      d.contains("thread") || d.contains("topic")
+    })
+  }
+
+  fn message(&self) -> String {
+    match &self.description {
+      Some(d) => format!("Telegram не принял отчёт: {d} ({})", self.status),
+      None => format!("Telegram не принял отчёт ({})", self.status),
+    }
+  }
+}
+
+fn telegram_description(body: &str) -> Option<String> {
+  serde_json::from_str::<serde_json::Value>(body).ok()?.get("description")?.as_str().map(str::to_owned)
+}
+
+async fn send_document(
+  http: &reqwest::Client,
+  bot: &ReportBot,
+  thread: Option<&str>,
+  caption: &str,
+  name: &str,
+  body: &[u8],
+) -> Result<std::result::Result<(), Rejected>> {
+  let mut form = reqwest::multipart::Form::new()
+    .text("chat_id", bot.chat.to_owned())
+    .text("caption", caption.chars().take(1000).collect::<String>())
+    .part("document", reqwest::multipart::Part::bytes(body.to_vec()).file_name(name.to_owned()).mime_str("text/plain")?);
+  if let Some(thread) = thread {
+    form = form.text("message_thread_id", thread.to_owned());
+  }
+  let r = http.post(format!("https://api.telegram.org/bot{}/sendDocument", bot.token)).multipart(form).send().await?;
+  let status = r.status();
+  if status.is_success() {
+    return Ok(Ok(()));
+  }
+  let description = telegram_description(&r.text().await.unwrap_or_default());
+  write("WARN", &format!("отчёт: Telegram {} — {}", status.as_u16(), description.as_deref().unwrap_or("без описания")));
+  Ok(Err(Rejected { status: status.as_u16(), description }))
+}
+
 /// Отправить отчёт: в Telegram ботом отчётов, а в сборке без него — сохранить в «Загрузки».
 pub async fn send(http: &reqwest::Client, device: &str, ctx: &Context) -> Result<Sent> {
   let report = path("report.log").ok_or_else(|| anyhow!("журнал не запущен"))?;
@@ -180,23 +265,18 @@ pub async fn send(http: &reqwest::Client, device: &str, ctx: &Context) -> Result
   let p = summarize(&String::from_utf8_lossy(&body));
   let caption = caption(&p, device, ctx);
   let name = format!("sonar-{}-{}.log", env!("CARGO_PKG_VERSION"), crate::store::now_ms());
-  match (option_env!("SONAR_REPORT_BOT_TOKEN"), option_env!("SONAR_REPORT_CHAT")) {
-    (Some(token), Some(chat)) if !token.is_empty() && !chat.is_empty() => {
-      let mut form = reqwest::multipart::Form::new()
-        .text("chat_id", chat.to_owned())
-        .text("caption", caption.chars().take(1000).collect::<String>())
-        .part("document", reqwest::multipart::Part::bytes(body).file_name(name).mime_str("text/plain")?);
-      if let Some(thread) = option_env!("SONAR_REPORT_THREAD").filter(|t| !t.is_empty()) {
-        form = form.text("message_thread_id", thread.to_owned());
+  match report_bot() {
+    Some(bot) => {
+      let mut sent = send_document(http, &bot, bot.thread, &caption, &name, &body).await?;
+      // тема сломалась — лучше отчёт в общем чате, чем никакого
+      if matches!(&sent, Err(e) if bot.thread.is_some() && e.thread_problem()) {
+        sent = send_document(http, &bot, None, &caption, &name, &body).await?;
       }
-      let r = http.post(format!("https://api.telegram.org/bot{token}/sendDocument")).multipart(form).send().await?;
-      if !r.status().is_success() {
-        return Err(anyhow!("Telegram не принял отчёт ({})", r.status()));
-      }
+      sent.map_err(|e| anyhow!(e.message()))?;
       dismiss();
       Ok(Sent::Telegram)
     }
-    _ => {
+    None => {
       let dir = std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join("Downloads")).filter(|d| d.is_dir());
       let dir = dir.or_else(|| DIR.get().cloned()).ok_or_else(|| anyhow!("некуда сохранить"))?;
       let out = dir.join(name);
@@ -232,5 +312,31 @@ mod tests {
     assert!(p.last.starts_with("PANIC called"), "{}", p.last);
     let calm = summarize("12:00:00.000 INFO  Sonar\n12:00:01.000 WARN  [x] y");
     assert_eq!(calm, Pending { crashed: false, errors: 0, last: String::new() });
+  }
+
+  #[test]
+  fn resize_observer_noise_is_not_an_error() {
+    let log = "12:00:00.000 INFO  Sonar\n12:00:01.000 ERROR [ui] ResizeObserver loop completed with undelivered notifications. @ :0\n12:00:02.000 ERROR [ui] ResizeObserver loop limit exceeded";
+    assert_eq!(summarize(log).errors, 0);
+    assert!(is_benign("ResizeObserver loop completed with undelivered notifications."));
+    assert!(!is_benign("TypeError: x is undefined"));
+  }
+
+  #[test]
+  fn secrets_are_trimmed() {
+    assert_eq!(clean(Some(" -1002276939424\n")), Some("-1002276939424"));
+    assert_eq!(clean(Some("  \n")), None);
+    assert_eq!(clean(None), None);
+  }
+
+  #[test]
+  fn telegram_rejection_reads_description() {
+    let d = telegram_description(r#"{"ok":false,"error_code":400,"description":"Bad Request: message thread not found"}"#);
+    let e = Rejected { status: 400, description: d };
+    assert!(e.thread_problem());
+    assert_eq!(e.message(), "Telegram не принял отчёт: Bad Request: message thread not found (400)");
+    let chat = Rejected { status: 400, description: Some("Bad Request: chat not found".into()) };
+    assert!(!chat.thread_problem());
+    assert_eq!(Rejected { status: 502, description: telegram_description("<html>") }.message(), "Telegram не принял отчёт (502)");
   }
 }

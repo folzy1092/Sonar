@@ -5,8 +5,11 @@ import { api } from './api'
 let last = ''
 let count = 0
 
+/** Предупреждение движка, а не сбой: ResizeObserver не успел разослать уведомления за кадр. */
+const isBenign = (message: string) => message.includes('ResizeObserver loop')
+
 function report(message: string, level: 'error' | 'warn' = 'error') {
-  if (!message || message === last || count >= 60) return
+  if (!message || message === last || count >= 60 || isBenign(message)) return
   last = message
   count++
   void api.logFrontend(level, message).catch(() => {})
