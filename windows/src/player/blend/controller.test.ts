@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlendAnalysis } from './analysis'
 import type { ChainLike } from './automation'
-import { BLEND_DEFAULTS, type BlendDeck, BlendController, type BlendSettings, type MediaLike } from './controller.svelte'
+import { BLEND_DEFAULTS, type BlendDeck, BlendController, type BlendSettings, type MediaLike, startBar } from './controller.svelte'
 import { BEATS_PER_BAR, type Phrase } from './structure'
 
 const STEP = 0.05
@@ -103,6 +103,7 @@ interface Track {
 interface Setup {
   settings?: Partial<BlendSettings>
   loadDelaySec?: number
+  bpmA?: number
   bpmB?: number
   /** Громкость B, LUFS (у A −10): разница даёт поправку громкости B. */
   loudB?: number
@@ -135,7 +136,7 @@ function setup(over: Setup = {}) {
     return deck
   }
   const analyses = new Map([
-    ['a', track('a')],
+    ['a', track('a', over.bpmA ?? 128)],
     ['b', { ...track('b', over.bpmB ?? 128), loudness: over.loudB ?? -10, key: over.keyB ?? 0 }],
   ])
   const log = {
@@ -488,17 +489,19 @@ describe('BlendController', () => {
     expect(s.ctl.next!.plan).not.toBe(before)
   })
 
-  it('«К переходу»: A встаёт за 8 с до начала, план тот же', async () => {
-    const s = setup()
+  it.each([128, 64])('«К переходу» на %i BPM: A встаёт за 8 с до старта B, план тот же', async (bpm) => {
+    const s = setup({ bpmA: bpm, bpmB: bpm })
     s.deckA.el.currentTime = 30
     await s.advance(STEP)
     const plan = s.ctl.next!.plan
     const at = s.ctl.previewAtMs()!
-    expect(at).toBe(plan.outMs - 8000)
+    const barMs = (4 * 60000) / bpm
+    expect(at).toBeCloseTo(plan.outMs + startBar(plan, track('b', bpm)) * barMs - 8000, 6)
     s.ctl.cancel()
     s.deckA.el.currentTime = at / 1000
     await s.advance(STEP)
     expect(s.ctl.next!.plan.outMs).toBe(plan.outMs)
+    expect(s.ctl.failedFor('a', 'b')).toBe(false)
   })
 
   it('после перехода «Другой момент» и «К переходу» не работают', async () => {

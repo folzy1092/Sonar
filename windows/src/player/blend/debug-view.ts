@@ -22,7 +22,7 @@ export const PART_TEXT: Record<ScorePart, string> = {
   phrases: 'Отладка::фразы',
   cut: 'Отладка::срез',
   vocal: 'Отладка::вокал',
-  fit: 'Отладка::длина',
+  fit: 'Отладка::уместность',
   rating: 'Отладка::оценки',
 }
 

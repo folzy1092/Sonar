@@ -358,11 +358,13 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
     return false
   }
 
-  /** «К переходу»: куда перемотать A (мс файла), чтобы до начала перехода осталось 8 с. */
+  /** «К переходу»: куда перемотать A (мс файла), чтобы до старта B осталось 8 с. Синк запускает B на
+   *  `LEAD_BARS` тактов раньше выхода — на медленном треке это дольше 8 с, считать от выхода нельзя. */
   previewAtMs(): number | null {
     const p = this.pair
     if (!p || this.started()) return null
-    return Math.max(0, p.plan.outMs - PREVIEW_SEC * 1000 * p.rateA)
+    const startMs = p.plan.outMs + startBar(p.plan, p.anB) * barMs(p.anA)
+    return Math.max(0, startMs - PREVIEW_SEC * 1000 * p.rateA)
   }
 
   /** Для пары не нашлось плана или B не загрузился — будет кроссфейд. */

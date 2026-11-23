@@ -3,6 +3,8 @@
 // паузы — снова «Слушать», но продолжает с того же места, а не начинает список заново. Подборка
 // доиграла до конца — «Слушать» начинает её с первого трека.
 
+import { isPartyContext, partyBase } from '../player/blend/party-core'
+
 /** Что сделает нажатие: поставить на паузу, продолжить с места или начать подборку с начала. */
 export type ListenAction = 'pause' | 'resume' | 'start'
 
@@ -18,7 +20,9 @@ export interface ListenState {
 
 /** Действие кнопки «Слушать» страницы с контекстом `page` (нет контекста — всегда «начать»). */
 export function listenAction(page: string | null | undefined, { context, playing, hasCurrent, ended = false }: ListenState): ListenAction {
-  const ours = !!page && page === context && hasCurrent && !ended
+  // вечеринка играет ту же подборку с приставкой `party:` — это всё ещё «эта» подборка
+  const source = isPartyContext(context) ? partyBase(context) : context
+  const ours = !!page && page === source && hasCurrent && !ended
   if (!ours) return 'start'
   return playing ? 'pause' : 'resume'
 }

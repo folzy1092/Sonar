@@ -30,6 +30,8 @@ class PartyStore {
   #queued: string | null = null
   #elapsedMs = 0
   #scores = new Map<string, number>()
+  /** Настройки, под которые посчитаны `#scores`. */
+  #scoresFor = ''
   #started = false
 
   /** Начать с плейлиста: случайный из первых 10, дальше — по ходу. */
@@ -70,6 +72,9 @@ class PartyStore {
         const ctx = player.context
         untrack(() => {
           if (this.active && !isPartyContext(ctx)) this.#reset()
+          // перезапуск Sonar поднял очередь вечеринки, а самой вечеринки уже нет — снимаем приставку,
+          // иначе сведение остаётся включённым насильно, а переключатель мёртв
+          else if (!this.active && isPartyContext(ctx)) player.context = partyBase(ctx)
         })
       })
       $effect(() => {
@@ -134,10 +139,16 @@ class PartyStore {
   #score(curRef: string, next: BlendAnalysis): number {
     const a = blendAnalysis.peek(curRef)
     if (!a) return UNKNOWN_SCORE
+    const opts = { ...currentBlendSettings(), rateA: tempo.rate, linkedA: tempo.linked, rateB: 1, linkedB: tempo.linked }
+    // сменились настройки сведения, скорость или оценки посреди вечеринки — старые баллы не годятся
+    const optsKey = JSON.stringify(opts)
+    if (optsKey !== this.#scoresFor) {
+      this.#scores = new Map()
+      this.#scoresFor = optsKey
+    }
     const key = `${curRef}>${next.ref}`
     const known = this.#scores.get(key)
     if (known !== undefined) return known
-    const opts = { ...currentBlendSettings(), rateA: tempo.rate, linkedA: tempo.linked, rateB: 1, linkedB: tempo.linked }
     const score = plan(a, next, opts)[0]?.score ?? 0
     this.#scores.set(key, score)
     return score

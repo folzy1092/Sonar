@@ -10,6 +10,10 @@ describe('listenAction', () => {
     expect(listenAction('favorites', { context: 'favorites', playing: false, hasCurrent: true })).toBe('resume')
   })
 
+  it('вечеринка из этой подборки — пауза, а не новый старт', () => {
+    expect(listenAction('playlist:7', { context: 'party:playlist:7', playing: true, hasCurrent: true })).toBe('pause')
+  })
+
   it('играет другая подборка — начать эту', () => {
     expect(listenAction('album:ym:1', { context: 'playlist:7', playing: true, hasCurrent: true })).toBe('start')
   })
