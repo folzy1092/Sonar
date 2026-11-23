@@ -16,6 +16,8 @@
   import { wave } from '../player/my-wave.svelte'
   import { waveWhyText } from '../lib/wave-why'
   import { t, lang } from '../lib/i18n.svelte'
+  import { downloads } from '../lib/downloads.svelte'
+  import { isLocalRef } from '../lib/services'
 
   const W = 280
   let el: HTMLElement | undefined = $state()
@@ -34,6 +36,8 @@
   /** «Почему этот трек» — у треков Sonar Mix: откуда он пришёл (не зависит от тумблера строки в плеере). */
   const why = $derived(target ? waveWhyText(target.track.why) : '')
   const playlists = $derived(library.playlists.filter((p) => p.id !== target?.playlistId))
+  /** Скачивание (`docs/OFFLINE.md` §8): файлу с компьютера не нужно — он и так на диске. */
+  const dl = $derived(target && !isLocalRef(target.track.ref) ? downloads.stateOf(target.track.ref) : undefined)
 
   $effect(() => {
     if (!target) return
@@ -152,6 +156,18 @@
         {@const pid = target.playlistId}
         {@const iid = target.itemId}
         {@render item('trash', t('Убрать из плейлиста'), () => library.removeFromPlaylist(pid, [iid]))}
+      {/if}
+      {#if dl === 'done'}
+        {@render item('trash', t('Удалить из скачанного'), () => downloads.remove([target.track.ref]))}
+      {:else if dl === 'queued' || dl === 'active'}
+        {@render item('x', t('Отменить скачивание'), () => downloads.cancel([target.track.ref]))}
+      {:else if dl === 'unsupported'}
+        <div class="item off" role="menuitem" aria-disabled="true">
+          <Icon name="cloudDown" size={17} />
+          <span>{t('Этот трек нельзя скачать')}</span>
+        </div>
+      {:else if dl !== undefined}
+        {@render item('cloudDown', t('Скачать'), () => downloads.download([target.track]))}
       {/if}
       <hr />
       {#each target.track.artists.slice(0, 3) as a (a.ref)}
@@ -280,6 +296,14 @@
   .item:hover {
     background: var(--hover);
     color: var(--text);
+  }
+  .item.off {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .item.off:hover {
+    background: none;
+    color: var(--text-2);
   }
   .back {
     color: var(--text);

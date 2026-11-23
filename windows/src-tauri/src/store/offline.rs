@@ -9,26 +9,48 @@ use anyhow::Result;
 use rusqlite::params;
 use std::collections::{HashMap, HashSet};
 
-/// Файл в кэше, который лёг сам (прослушан или подкачан). Скачанное руками (`pinned`) — этап 2.
+/// Файл в кэше, который лёг сам (прослушан или подкачан).
 pub const KIND_CACHE: &str = "cache";
+/// Скачанное руками («Скачать», `downloads.rs`): лежит в `<кэш>/pinned`, не вытесняется.
+pub const KIND_PINNED: &str = "pinned";
 
 impl Store {
   /// Файл лёг в кэш: строка со снимком трека (если трек уже есть в `tracks`).
+  /// Скачанное копией из автокэша не перезаписывается; снимка нет — остаётся прежний.
   pub fn offline_put(&self, track_ref: &str, file: &str, mime: &str, bytes: u64, kind: &str) -> Result<()> {
     let meta = self.tracks(&[track_ref.to_owned()])?.into_iter().next();
     let meta_json = serde_json::to_string(&meta)?;
     self.db.execute(
       "INSERT INTO offline_tracks (ref, file, mime, bytes, kind, added_at, meta_json) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-       ON CONFLICT(ref) DO UPDATE SET file = ?2, mime = ?3, bytes = ?4, kind = ?5, meta_json = ?7",
-      params![track_ref, file, mime, bytes as i64, kind, now_ms(), meta_json],
+       ON CONFLICT(ref) DO UPDATE SET file = ?2, mime = ?3, bytes = ?4, kind = ?5,
+         meta_json = CASE WHEN ?7 = 'null' THEN offline_tracks.meta_json ELSE ?7 END
+       WHERE NOT (offline_tracks.kind = ?8 AND ?5 = ?9)",
+      params![track_ref, file, mime, bytes as i64, kind, now_ms(), meta_json, KIND_PINNED, KIND_CACHE],
     )?;
     Ok(())
   }
 
-  /// Файл ушёл из кэша (вытеснен).
-  pub fn offline_drop_file(&self, file: &str) -> Result<()> {
-    self.db.execute("DELETE FROM offline_tracks WHERE file = ?1", [file])?;
+  /// Файл ушёл (вытеснен из кэша или удалён из скачанного). `kind` — из какой папки: одноимённая строка
+  /// другого вида (трек скачан, а из автокэша ушла старая копия) остаётся.
+  pub fn offline_drop_file(&self, file: &str, kind: &str) -> Result<()> {
+    self.db.execute("DELETE FROM offline_tracks WHERE file = ?1 AND kind = ?2", params![file, kind])?;
     Ok(())
+  }
+
+  /// Скачанные руками треки.
+  pub fn offline_pinned_refs(&self) -> Result<Vec<String>> {
+    let mut st = self.db.prepare("SELECT ref FROM offline_tracks WHERE kind = ?1")?;
+    let rows = st.query_map([KIND_PINNED], |r| r.get::<_, String>(0))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+  }
+
+  /// Обложки скачанного: адреса из снимков (для чистки папки обложек скачанного).
+  pub fn offline_pinned_covers(&self) -> Result<HashSet<String>> {
+    let mut st = self.db.prepare(
+      "SELECT json_extract(meta_json, '$.cover_url') FROM offline_tracks WHERE kind = ?1 AND json_extract(meta_json, '$.cover_url') IS NOT NULL",
+    )?;
+    let rows = st.query_map([KIND_PINNED], |r| r.get::<_, String>(0))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
   }
 
   /// Кэш очищен целиком.
@@ -63,18 +85,18 @@ impl Store {
     Ok(out)
   }
 
-  /// Сверка с папкой кэша при запуске. `files` — имена `.audio` на диске с размером и типом.
-  /// Строки без файла уходят; файл без строки (лёг до миграции) находит свой ref по ключу среди `tracks`.
-  /// Возвращает, поменялось ли что-то.
-  pub fn offline_reconcile(&self, files: &HashMap<String, (u64, String)>, key: fn(&str) -> String) -> Result<bool> {
+  /// Сверка с папкой кэша (`kind` — автокэш или скачанное) при запуске. `files` — имена `.audio` на диске
+  /// с размером и типом. Строки без файла уходят; файл без строки (лёг до миграции или запись в базу не
+  /// успела) находит свой ref по ключу среди `tracks`. Возвращает, поменялось ли что-то.
+  pub fn offline_reconcile(&self, files: &HashMap<String, (u64, String)>, key: fn(&str) -> String, kind: &str) -> Result<bool> {
     let known: Vec<String> = {
       let mut st = self.db.prepare("SELECT file FROM offline_tracks WHERE kind = ?1")?;
-      let rows = st.query_map([KIND_CACHE], |r| r.get::<_, String>(0))?;
+      let rows = st.query_map([kind], |r| r.get::<_, String>(0))?;
       rows.collect::<rusqlite::Result<_>>()?
     };
     let mut changed = false;
     for f in known.iter().filter(|f| !files.contains_key(*f)) {
-      self.offline_drop_file(f)?;
+      self.offline_drop_file(f, kind)?;
       changed = true;
     }
     let known: HashSet<&String> = known.iter().collect();
@@ -90,7 +112,7 @@ impl Store {
     for r in refs {
       let file = format!("{}.audio", key(&r));
       if let Some((bytes, mime)) = orphans.get(&file).and_then(|f| files.get(*f)) {
-        self.offline_put(&r, &file, mime, *bytes, KIND_CACHE)?;
+        self.offline_put(&r, &file, mime, *bytes, kind)?;
         changed = true;
       }
     }
@@ -133,7 +155,9 @@ mod tests {
     assert_eq!(s.offline_cached_tracks().unwrap()[0].title, "Первый");
     assert_eq!(s.offline_refs().unwrap(), vec!["sc:1".to_owned()]);
 
-    s.offline_drop_file("sc_1.audio").unwrap();
+    s.offline_drop_file("sc_1.audio", KIND_PINNED).unwrap();
+    assert_eq!(s.offline_refs().unwrap().len(), 1, "чужой вид не трогаем");
+    s.offline_drop_file("sc_1.audio", KIND_CACHE).unwrap();
     assert!(s.offline_refs().unwrap().is_empty());
   }
 
@@ -157,8 +181,38 @@ mod tests {
       ("sc_1.audio".to_owned(), (42, "audio/mp4".to_owned())),
       ("chuzhoy.audio".to_owned(), (1, "audio/mpeg".to_owned())),
     ]);
-    assert!(s.offline_reconcile(&disk, key).unwrap());
+    assert!(s.offline_reconcile(&disk, key, KIND_CACHE).unwrap());
     assert_eq!(s.offline_refs().unwrap(), vec!["sc:1".to_owned()]);
-    assert!(!s.offline_reconcile(&disk, key).unwrap(), "второй проход ничего не меняет");
+    assert!(!s.offline_reconcile(&disk, key, KIND_CACHE).unwrap(), "второй проход ничего не меняет");
+    // сверка скачанного не трогает строки автокэша
+    assert!(!s.offline_reconcile(&HashMap::new(), key, KIND_PINNED).unwrap());
+    assert_eq!(s.offline_refs().unwrap(), vec!["sc:1".to_owned()]);
+  }
+
+  #[test]
+  fn pinned_is_not_downgraded_by_cache_copy() {
+    let mut s = Store::memory().unwrap();
+    let mut t = track("sc:1", "Скачан");
+    t.cover_url = Some("https://i1.sndcdn.com/a.jpg".into());
+    s.upsert_tracks(&[t]).unwrap();
+    s.offline_put("sc:1", "sc_1.audio", "audio/mpeg", 10, KIND_CACHE).unwrap();
+    s.offline_put("sc:1", "sc_1.audio", "audio/mp4", 20, KIND_PINNED).unwrap();
+    // старая копия автокэша легла позже — скачанное остаётся скачанным
+    s.offline_put("sc:1", "sc_1.audio", "audio/mpeg", 10, KIND_CACHE).unwrap();
+    assert_eq!(s.offline_pinned_refs().unwrap(), vec!["sc:1".to_owned()]);
+    assert!(s.offline_pinned_covers().unwrap().contains("https://i1.sndcdn.com/a.jpg"));
+    s.offline_drop_kind(KIND_CACHE).unwrap();
+    assert_eq!(s.offline_pinned_refs().unwrap().len(), 1);
+  }
+
+  #[test]
+  fn pinned_lyrics_survive_prune() {
+    let s = Store::memory().unwrap();
+    s.put_lyrics("sc:1", Some("{}"), Some("lrclib")).unwrap();
+    s.put_lyrics("sc:2", Some("{}"), Some("lrclib")).unwrap();
+    s.offline_put("sc:1", "sc_1.audio", "audio/mpeg", 10, KIND_PINNED).unwrap();
+    let later = now_ms() + 60 * 86_400_000;
+    assert_eq!(s.prune_lyrics(later).unwrap(), 1);
+    assert!(s.lyrics_cached("sc:1").unwrap().is_some());
   }
 }

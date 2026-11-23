@@ -55,8 +55,12 @@ impl Store {
     Ok(self.db.query_row("SELECT COUNT(*), COALESCE(SUM(LENGTH(json)), 0) FROM lyrics_cache", [], |r| Ok((r.get(0)?, r.get(1)?)))?)
   }
 
+  /// «Очистить тексты»: тексты скачанных треков — часть скачанного, их не трогаем.
   pub fn clear_lyrics_cache(&self) -> Result<()> {
-    self.db.execute("DELETE FROM lyrics_cache", [])?;
+    self.db.execute(
+      "DELETE FROM lyrics_cache WHERE ref NOT IN (SELECT ref FROM offline_tracks WHERE kind = ?1)",
+      [super::OFFLINE_KIND_PINNED],
+    )?;
     Ok(())
   }
 

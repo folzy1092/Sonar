@@ -20,6 +20,7 @@
   import { ownSound } from '../lib/own-sound.svelte'
   import { pop } from '../lib/motion'
   import { offline } from '../lib/offline.svelte'
+  import { downloads } from '../lib/downloads.svelte'
 
   interface Props {
     track: Track
@@ -47,6 +48,11 @@
   const target = $derived({ track, addedAt, playlistId, itemId, queueAt })
   /** Файл с этого компьютера пропал — серая строка «Файл не найден» и «Найти в сервисах». */
   const missing = $derived(isMissingLocal(track))
+  /** Скачивание (`docs/OFFLINE.md` §8.2): в очереди, качается, скачано или не скачалось. */
+  const dl = $derived(downloads.stateOf(track.ref))
+  const dlTitle = $derived(
+    dl === 'queued' ? t('В очереди на скачивание') : dl === 'active' ? t('Скачивается') : dl === 'done' ? t('Скачано') : t('Не скачалось'),
+  )
   const LOCALES = { ru: 'ru-RU', en: 'en-US', uk: 'uk-UA', es: 'es-ES', de: 'de-DE', pl: 'pl-PL' } as const
 
   /** Пропавший файл — тот же трек в сервисах: запрос «исполнитель название» в поиске. */
@@ -161,6 +167,9 @@
     {#if ownSound.refs.has(track.ref)}
       <!-- свой звук трека («Для этого трека») — скорость, тон, реверб или эквалайзер только у него -->
       <span class="own" title={t('Свой звук трека')} transition:pop={{ scale: 0.6 }}><Icon name="adjustments" size={13} /></span>
+    {/if}
+    {#if dl && dl !== 'unsupported'}
+      <span class="dl {dl}" title={dlTitle} transition:pop={{ scale: 0.6 }}><Icon name={dl === 'failed' ? 'x' : 'cloudDown'} size={13} /></span>
     {/if}
     {#if variant === 'list'}
       <span class="dur">{formatTime(track.duration_ms)}</span>
@@ -417,6 +426,40 @@
     flex: none;
     color: var(--accent);
     opacity: 0.85;
+  }
+  .dl {
+    display: grid;
+    place-items: center;
+    flex: none;
+    color: var(--text-3);
+    transition: color 0.3s var(--ease), opacity 0.3s var(--ease);
+  }
+  .dl.queued {
+    opacity: 0.5;
+  }
+  .dl.active {
+    color: var(--accent);
+    animation: dl-breathe 1.4s var(--ease) infinite alternate;
+  }
+  .dl.done {
+    color: var(--accent);
+    opacity: 0.85;
+  }
+  .dl.failed {
+    color: var(--danger);
+  }
+  @keyframes dl-breathe {
+    from {
+      opacity: 0.45;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dl.active {
+      animation: none;
+    }
   }
   .dur {
     min-width: 36px;

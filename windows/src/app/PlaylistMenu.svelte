@@ -25,6 +25,7 @@
   import ExportItems from './ExportItems.svelte'
   import type { ExportFormat } from '../lib/export'
   import { saveExport } from '../lib/export-save'
+  import { downloads } from '../lib/downloads.svelte'
 
   const W = 260
   let el: HTMLElement | undefined = $state()
@@ -296,6 +297,7 @@
           playlistMenu.close()
           router.go('dupes', 'favorites')
         })}
+        {@render item('cloudDown', t('Скачать все Любимые'), () => withFav((list) => downloads.download(list)))}
         {@render exportEntry()}
         <hr />
         <button class="item danger" role="menuitem" onclick={clearFav}>
@@ -358,6 +360,7 @@
           <Icon name="user" size={17} />
           <span>{t('Пригласить друга')}</span>
         </button>
+        {@render item('cloudDown', t('Скачать плейлист'), () => withOwn((list) => downloads.download(list)))}
         {@render exportEntry()}
         <hr />
         {@render item(own.hidden ? 'eye' : 'eyeOff', own.hidden ? t('Показать плейлист') : t('Скрыть плейлист'), toggleHidden)}
@@ -408,6 +411,7 @@
         <hr />
         {@render item('playlistAdd', t('Перенести в Sonar'), importIt)}
         {@render item('copy', t('Копировать название'), copyTitle)}
+        {@render item('cloudDown', t('Скачать плейлист'), () => withTracks((list) => downloads.download(list)))}
         {@render exportEntry()}
         {#if webUrl}
           {@const url = webUrl}

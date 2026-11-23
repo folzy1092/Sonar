@@ -27,7 +27,7 @@ mod wave_events;
 pub use alias::TrackAlias;
 pub use dupes::{DupeList, Removed};
 pub use local_files::LocalFile;
-pub use offline::KIND_CACHE as OFFLINE_KIND_CACHE;
+pub use offline::{KIND_CACHE as OFFLINE_KIND_CACHE, KIND_PINNED as OFFLINE_KIND_PINNED};
 pub use recap::{Recap, RecapPeriods, RecapSpan};
 pub use stats::Stats;
 pub use sync::{Change, Op, PlayUpload};
@@ -803,14 +803,16 @@ impl Store {
   }
 
   /// Тексты хранятся на компьютере **неделю** с последнего прослушивания, у треков из Любимых —
-  /// **две недели** (решение владельца 2026-11-15). Вызывается при запуске; возвращает, сколько удалено.
+  /// **две недели** (решение владельца 2026-11-15); тексты скачанного (`offline_tracks`, `pinned`) — навсегда,
+  /// пока трек скачан (`docs/OFFLINE.md` §8.2). Вызывается при запуске; возвращает, сколько удалено.
   pub fn prune_lyrics(&self, now: i64) -> Result<usize> {
     const DAY: i64 = 86_400_000;
     Ok(self.db.execute(
-      "DELETE FROM lyrics_cache WHERE COALESCE(used_at, fetched_at) < ?1
-         OR (COALESCE(used_at, fetched_at) < ?2
-             AND ref NOT IN (SELECT ref FROM likes WHERE user_id = ?3 AND deleted = 0))",
-      params![now - 14 * DAY, now - 7 * DAY, LOCAL_USER],
+      "DELETE FROM lyrics_cache WHERE ref NOT IN (SELECT ref FROM offline_tracks WHERE kind = ?4)
+         AND (COALESCE(used_at, fetched_at) < ?1
+              OR (COALESCE(used_at, fetched_at) < ?2
+                  AND ref NOT IN (SELECT ref FROM likes WHERE user_id = ?3 AND deleted = 0)))",
+      params![now - 14 * DAY, now - 7 * DAY, LOCAL_USER, offline::KIND_PINNED],
     )?)
   }
 

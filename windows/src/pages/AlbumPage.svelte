@@ -21,6 +21,7 @@
   import { css } from '../theme/palette'
   import { t } from '../lib/i18n.svelte'
   import { offline } from '../lib/offline.svelte'
+  import { downloads } from '../lib/downloads.svelte'
 
   const ref = router.param ?? ''
   let album = $state<Album | null>(null)
@@ -101,6 +102,7 @@
         <span class="ic" use:pulse={liked}><Icon name="bookmark" size={16} filled={liked} /></span>
       </button>
     </span>
+    <button class="round" aria-label={t('Скачать альбом')} title={t('Скачать альбом')} disabled={!tracks.length} onclick={() => downloads.download(tracks)}><Icon name="cloudDown" size={16} /></button>
     {#if al.url}
       <button class="round" aria-label={t('Поделиться')} title={t('Скопировать ссылку')} onclick={share}><Icon name="share" size={16} /></button>
     {/if}

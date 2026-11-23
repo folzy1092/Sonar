@@ -7,7 +7,7 @@ use std::sync::mpsc;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::commands::Db;
-use crate::store::{Store, OFFLINE_KIND_CACHE};
+use crate::store::{Store, OFFLINE_KIND_CACHE, OFFLINE_KIND_PINNED};
 use crate::track_cache::{self, Change};
 
 /// Событие для интерфейса: набор доступного офлайн поменялся.
@@ -15,9 +15,18 @@ pub const EVENT: &str = "offline-index-changed";
 
 /// Сверить индекс с диском и подписаться на кэш. Вызывать после `app.manage(Db)`.
 pub fn init(app: &AppHandle) {
-  let files = track_cache::disk_files();
-  if let Err(e) = app.state::<Db>().0.lock().unwrap().offline_reconcile(&files, track_cache::key) {
-    log::warn!("офлайн-индекс: сверка с диском не прошла — {e}");
+  {
+    let db = app.state::<Db>();
+    let store = db.0.lock().unwrap();
+    for (pinned, kind) in [(false, OFFLINE_KIND_CACHE), (true, OFFLINE_KIND_PINNED)] {
+      if let Err(e) = store.offline_reconcile(&track_cache::disk_files(pinned), track_cache::key, kind) {
+        log::warn!("офлайн-индекс: сверка с диском ({kind}) не прошла — {e}");
+      }
+    }
+    match store.offline_pinned_covers() {
+      Ok(urls) => crate::stream::prune_pinned_covers(&urls),
+      Err(e) => log::warn!("офлайн-индекс: обложки скачанного не прочитаны — {e}"),
+    }
   }
   let (tx, rx) = mpsc::channel::<Change>();
   track_cache::on_change(move |c| {
@@ -45,8 +54,16 @@ pub fn init(app: &AppHandle) {
 
 fn apply(store: &Store, c: Change) -> anyhow::Result<()> {
   match c {
-    Change::Added { track_ref, file, mime, bytes } => store.offline_put(&track_ref, &file, &mime, bytes, OFFLINE_KIND_CACHE),
-    Change::Removed(file) => store.offline_drop_file(&file),
-    Change::Cleared => store.offline_drop_kind(OFFLINE_KIND_CACHE),
+    Change::Added { track_ref, file, mime, bytes, pinned } => store.offline_put(&track_ref, &file, &mime, bytes, kind(pinned)),
+    Change::Removed { file, pinned } => store.offline_drop_file(&file, kind(pinned)),
+    Change::Cleared { pinned } => store.offline_drop_kind(kind(pinned)),
+  }
+}
+
+fn kind(pinned: bool) -> &'static str {
+  if pinned {
+    OFFLINE_KIND_PINNED
+  } else {
+    OFFLINE_KIND_CACHE
   }
 }

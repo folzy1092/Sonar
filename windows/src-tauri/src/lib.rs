@@ -3,6 +3,7 @@ mod autostart;
 mod commands;
 mod crashlog;
 mod discord;
+mod downloads;
 mod dupes;
 mod export;
 mod login;
@@ -112,6 +113,7 @@ pub fn run() {
       if let Ok(cache) = app.path().app_cache_dir() {
         stream::set_cover_dir(cache.join("covers"));
         track_cache::set_dir(cache.join("tracks"));
+        track_cache::set_pinned_dir(cache.join("pinned"));
       }
       let port = tauri::async_runtime::block_on(stream::start(core.clone()))?;
 
@@ -207,6 +209,16 @@ pub fn run() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
+      downloads::download_tracks,
+      downloads::downloads_state,
+      downloads::downloaded_refs,
+      downloads::downloads_pause,
+      downloads::downloads_retry,
+      downloads::downloads_cancel,
+      downloads::downloads_remove,
+      downloads::downloads_clear,
+      downloads::downloads_reveal,
+      downloads::disk_free,
       glass::set_glass,
       hotkeys::set_hotkeys,
       remote::remote_set_enabled,

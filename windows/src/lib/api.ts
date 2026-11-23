@@ -361,6 +361,20 @@ export interface StorageUsage {
   lyrics_bytes: number
   track_prefs: number
   db_bytes: number
+  /** Скачанное (`downloads.rs`): не вытесняется и «Очистить» его не трогает. */
+  downloaded: number
+  downloaded_bytes: number
+}
+
+/** Состояние трека в очереди скачивания (`downloads.rs` `Job`). Скачанный из очереди уходит. */
+export type DownloadJob = { state: 'queued' } | { state: 'active' } | { state: 'failed'; error: string } | { state: 'unsupported' }
+
+/** Очередь скачивания целиком (`downloads.rs` `Snapshot`): `done` — скачано в текущей пачке, `left` — ещё в работе. */
+export interface DownloadsSnapshot {
+  paused: boolean
+  done: number
+  left: number
+  jobs: Record<string, DownloadJob>
 }
 
 export interface MediaInfo {
@@ -617,6 +631,18 @@ export const api = {
   offlineState: () => call<boolean>('offline_state'),
   offlineRefs: () => call<string[]>('offline_refs'),
   offlineTracks: () => call<Track[]>('offline_tracks'),
+  /** Скачивание (`downloads.rs`, `docs/OFFLINE.md` §8): поставить в очередь (вернёт, сколько добавлено), очередь,
+   *  что скачано, пауза, повтор упавших, отмена, удалить скачанное, удалить всё, открыть папку, свободно на диске. */
+  downloadTracks: (tracks: Track[]) => call<number>('download_tracks', { tracks }),
+  downloadsState: () => call<DownloadsSnapshot>('downloads_state'),
+  downloadedRefs: () => call<string[]>('downloaded_refs'),
+  downloadsPause: (paused: boolean) => call<void>('downloads_pause', { paused }),
+  downloadsRetry: () => call<void>('downloads_retry'),
+  downloadsCancel: (refs: string[]) => call<void>('downloads_cancel', { refs }),
+  downloadsRemove: (refs: string[]) => call<void>('downloads_remove', { refs }),
+  downloadsClear: () => call<void>('downloads_clear'),
+  downloadsReveal: () => call<void>('downloads_reveal'),
+  diskFree: () => call<number | null>('disk_free'),
 
   mediaUpdate: (info: MediaInfo) => (isTauri ? invoke<void>('media_update', { info }) : Promise.resolve()),
 }
@@ -651,6 +677,13 @@ export function onOfflineChanged(cb: (on: boolean) => void): () => void {
 export function onOfflineIndexChanged(cb: () => void): () => void {
   if (!isTauri) return () => {}
   const off = listen('offline-index-changed', () => cb())
+  return () => void off.then((fn) => fn())
+}
+
+/** Очередь скачивания поменялась (downloads.rs, событие `downloads-changed`). */
+export function onDownloadsChanged(cb: (s: DownloadsSnapshot) => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen<DownloadsSnapshot>('downloads-changed', (e) => cb(e.payload))
   return () => void off.then((fn) => fn())
 }
 

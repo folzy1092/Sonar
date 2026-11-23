@@ -3,15 +3,19 @@
   // «Что очистить?» (галочки, размер, полоска доли), внизу кнопка «Очистить N MB» на сумму отмеченного.
   // Ниже — кеширование треков отдельной карточкой, папки с музыкой и «Данные» (история поиска,
   // настройки треков). Размеры — storage_usage, очистка — clear_storage (track_cache.rs, commands.rs).
-  import { onMount } from 'svelte'
+  import { onDestroy, onMount } from 'svelte'
   import Group from '../../components/settings/Group.svelte'
+  import Icon from '../../components/Icon.svelte'
   import CountUp from '../../components/CountUp.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Choice from '../../components/settings/Choice.svelte'
   import MusicFolders from '../../components/settings/MusicFolders.svelte'
   import { searchHistory } from '../../lib/search-history.svelte'
   import { settings } from '../../lib/settings.svelte'
-  import { api, type StorageUsage } from '../../lib/api'
+  import { api, onOfflineIndexChanged, type StorageUsage } from '../../lib/api'
+  import { downloads } from '../../lib/downloads.svelte'
+  import { offline } from '../../lib/offline.svelte'
+  import { slide } from '../../lib/motion'
   import { t, tn } from '../../lib/i18n.svelte'
   import { toast } from '../../lib/toast.svelte'
 
@@ -33,7 +37,7 @@
     b < 1_048_576 ? t('{n} КБ', { n: Math.max(1, Math.round(b / 1024)) }) : t('{n} МБ', { n: mb(b) < 10 ? mb(b).toFixed(1) : Math.round(mb(b)) })
   const bytes = (u: StorageUsage, k: Kind) => (k === 'tracks' ? u.tracks_bytes : k === 'covers' ? u.covers_bytes : u.lyrics_bytes)
   const count = (u: StorageUsage, k: Kind) => (k === 'tracks' ? u.tracks : k === 'covers' ? u.covers : u.lyrics)
-  const total = $derived(usage ? usage.tracks_bytes + usage.covers_bytes + usage.lyrics_bytes + usage.db_bytes : 0)
+  const total = $derived(usage ? usage.tracks_bytes + usage.covers_bytes + usage.lyrics_bytes + usage.downloaded_bytes + usage.db_bytes : 0)
   const share = (b: number) => (total ? b / total : 0)
   const selected = $derived(usage ? KINDS.filter((k) => picked[k]).reduce((sum, k) => sum + bytes(usage!, k), 0) : 0)
 
@@ -44,7 +48,11 @@
   /** Дуги кольца: доли по порядку, между ними зазор; самая малая доля всё равно видна. */
   const arcs = $derived.by(() => {
     if (!usage || !total) return []
-    const parts = [...KINDS.map((k) => ({ id: k as string, b: bytes(usage!, k) })), { id: 'db', b: usage.db_bytes }].filter((p) => p.b > 0)
+    const parts = [
+      ...KINDS.map((k) => ({ id: k as string, b: bytes(usage!, k) })),
+      { id: 'downloaded', b: usage.downloaded_bytes },
+      { id: 'db', b: usage.db_bytes },
+    ].filter((p) => p.b > 0)
     let offset = 0
     return parts.map((p) => {
       const len = Math.max(2, share(p.b) * RING - RING_GAP)
@@ -63,6 +71,24 @@
     historyCount = await api.searchHistoryCount().catch(() => 0)
   }
   onMount(refresh)
+  // скачалось или удалилось — размер «Скачанного» и кольцо обновляются сами
+  onDestroy(onOfflineIndexChanged(() => void refresh()))
+
+  /** Очередь скачивания видна, пока есть что качать или что не скачалось. */
+  const queueShown = $derived(downloads.queue.left > 0 || downloads.failed > 0)
+  const queueText = $derived.by(() => {
+    const left = downloads.queue.left
+    if (!left) return t('Не скачалось: {n}', { n: downloads.failed })
+    const rest = t('осталось {n}', { n: left })
+    if (offline.on) return `${t('Офлайн-режим — продолжится, когда он выключится')} · ${rest}`
+    if (downloads.queue.paused) return `${t('Пауза')} · ${rest}`
+    return `${t('Скачивается')} · ${rest}`
+  })
+
+  async function clearDownloads() {
+    if (!usage || !(await downloads.clear(usage.downloaded, usage.downloaded_bytes))) return
+    await refresh()
+  }
 
   async function clearPicked() {
     if (busy || !selected) return
@@ -160,6 +186,43 @@
         on={settings.get('storage.wave_offline')}
         onchange={(v) => settings.set('storage.wave_offline', v)}
       />
+    {/if}
+  </section>
+
+  <section class="card dl">
+    <div class="row">
+      <span class="text">
+        <b>{t('Скачанное')}</b>
+        <small>
+          {usage.downloaded} {tn(usage.downloaded, ['трек', 'трека', 'треков'])} · {mbText(usage.downloaded_bytes)} — {t('играет без сети, кэш его не вытесняет')}
+        </small>
+      </span>
+      <button class="pill" disabled={!usage.downloaded} onclick={downloads.reveal}>{t('Показать в папке')}</button>
+      <button class="pill" disabled={!usage.downloaded} onclick={clearDownloads}>{t('Удалить все')}</button>
+    </div>
+    {#if queueShown}
+      <div class="queue" transition:slide>
+        <div class="qline">
+          <small>{queueText}</small>
+          {#if downloads.failed}
+            <button class="pill" onclick={downloads.retry}>{t('Повторить')}</button>
+          {/if}
+          {#if downloads.queue.left}
+            <button
+              class="pill icon"
+              aria-label={downloads.queue.paused ? t('Продолжить') : t('Пауза')}
+              title={downloads.queue.paused ? t('Продолжить') : t('Пауза')}
+              onclick={() => downloads.pause(!downloads.queue.paused)}
+            >
+              <Icon name={downloads.queue.paused ? 'play' : 'pause'} size={14} />
+            </button>
+            <button class="pill icon" aria-label={t('Отменить скачивание')} title={t('Отменить скачивание')} onclick={downloads.cancelAll}>
+              <Icon name="x" size={14} />
+            </button>
+          {/if}
+        </div>
+        <div class="bar" class:idle={downloads.queue.paused || offline.on}><i style:width="{downloads.share * 100}%"></i></div>
+      </div>
     {/if}
   </section>
 
@@ -376,6 +439,51 @@
   }
   .db {
     stroke: var(--text-3);
+  }
+  .downloaded {
+    stroke: var(--accent);
+    opacity: 0.45;
+  }
+  .dl .row {
+    padding: 0;
+  }
+  .queue {
+    padding-top: 12px;
+  }
+  .qline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .qline small {
+    flex: 1;
+    font-size: calc(12px * var(--fs, 1));
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .pill.icon {
+    display: grid;
+    place-items: center;
+    padding: 6px;
+  }
+  .bar {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--hover);
+    overflow: hidden;
+  }
+  .bar i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+    transition:
+      width 0.5s var(--ease),
+      opacity 0.3s var(--ease);
+  }
+  .bar.idle i {
+    opacity: 0.4;
   }
   .clear {
     grid-column: 1 / -1;

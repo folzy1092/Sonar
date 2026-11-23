@@ -64,7 +64,10 @@ ROADMAP — «Блок O». **ПК сделан 2026-11-23 (этапы 0–1):**
 `offline::guard()`; что играет без сети — таблица `offline_tracks` (миграция № 16, `offline_index.rs` ← `track_cache`, `store/offline.rs`
 `offline_refs`); фронт — `lib/offline.svelte.ts` (зеркало, `allows`/`only`/`countText`) + чистые фильтры `lib/offline-core.ts`, главная —
 `pages/OfflineHome.svelte`; **каждый `<img>` — через `offline.src(url)`** (в офлайне — локальный `/cover`), сторож —
-`lib/offline-net.test.ts` (новый `fetch`/сокет/`<img>` мимо — красный тест). Дальше — этап 2 «Скачать», потом iPhone.
+`lib/offline-net.test.ts` (новый `fetch`/сокет/`<img>` мимо — красный тест). **«Скачать» на ПК (этап 2) сделан 2026-11-23:** очередь —
+`downloads.rs` (в памяти, по 2, пауза/повтор/отмена, офлайн держит очередь), файлы — `<кэш>/pinned` (`kind = pinned`, LRU не трогает) +
+`pinned/covers` + текст в `lyrics_cache` (чистка его не трогает); фронт — `lib/downloads.svelte.ts` + `lib/downloads-core.ts`, «Скачанное» —
+`pages/settings/Storage.svelte`. Дальше — iPhone (этап 3).
 
 ## Навыки агента и аудит
 

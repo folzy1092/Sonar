@@ -1396,6 +1396,9 @@ pub struct StorageUsage {
   covers_bytes: u64,
   tracks: u64,
   tracks_bytes: u64,
+  /// Скачанное руками («Скачать»).
+  downloaded: u64,
+  downloaded_bytes: u64,
   lyrics: i64,
   lyrics_bytes: i64,
   track_prefs: i64,
@@ -1423,7 +1426,8 @@ fn dir_usage(dir: &std::path::Path) -> (u64, u64) {
 pub fn storage_usage(app: tauri::AppHandle, db: State<'_, Db>) -> Res<StorageUsage> {
   use tauri::Manager;
   let (covers, covers_bytes) = crate::stream::cover_dir().map(|d| dir_usage(d)).unwrap_or((0, 0));
-  let (tracks, tracks_bytes) = crate::track_cache::usage();
+  let (tracks, tracks_bytes) = crate::track_cache::usage(false);
+  let (downloaded, downloaded_bytes) = crate::track_cache::usage(true);
   let store = db.0.lock().unwrap();
   let (lyrics, lyrics_bytes) = store.lyrics_usage().map_err(err)?;
   let db_bytes = app
@@ -1433,7 +1437,7 @@ pub fn storage_usage(app: tauri::AppHandle, db: State<'_, Db>) -> Res<StorageUsa
     .and_then(|d| std::fs::metadata(d.join("sonar.db")).ok())
     .map(|m| m.len())
     .unwrap_or(0);
-  Ok(StorageUsage { covers, covers_bytes, tracks, tracks_bytes, lyrics, lyrics_bytes, track_prefs: store.track_prefs_count().map_err(err)?, db_bytes })
+  Ok(StorageUsage { covers, covers_bytes, tracks, tracks_bytes, downloaded, downloaded_bytes, lyrics, lyrics_bytes, track_prefs: store.track_prefs_count().map_err(err)?, db_bytes })
 }
 
 /// Очистить: `covers` | `lyrics` | `track_prefs` | `all` (обложки и тексты).

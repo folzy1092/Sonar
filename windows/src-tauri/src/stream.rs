@@ -92,6 +92,42 @@ pub fn cover_dir() -> Option<&'static PathBuf> {
   COVER_DIR.get()
 }
 
+/// Имя файла обложки по адресу: `md5(адрес)`.
+pub fn cover_key(url: &str) -> String {
+  format!("{:x}", md5::compute(url.as_bytes()))
+}
+
+/// Обложку скачанного трека — в `pinned/covers`: из общего кэша обложек, если там есть, иначе с CDN
+/// (только разрешённые хосты, как у `/cover`). Не вышло — трек всё равно скачан, обложка не обязательна.
+pub async fn pin_cover(core: &Core, url: &str) -> anyhow::Result<()> {
+  let dir = track_cache::pinned_covers_dir().ok_or_else(|| anyhow::anyhow!("нет папки"))?;
+  let to = dir.join(cover_key(url));
+  if to.exists() || crate::local::cover_name_from_url(url).is_some() {
+    return Ok(());
+  }
+  if let Some(bytes) = cover_dir().and_then(|d| std::fs::read(d.join(cover_key(url))).ok()) {
+    std::fs::write(&to, bytes)?;
+    return Ok(());
+  }
+  anyhow::ensure!(cover_host_allowed(url), "чужой адрес");
+  let r = core.http().get(url).header("User-Agent", ua_for(url)).send().await?;
+  anyhow::ensure!(r.status().is_success(), "HTTP {}", r.status().as_u16());
+  std::fs::write(&to, r.bytes().await?)?;
+  Ok(())
+}
+
+/// Убрать обложки скачанного, на которые больше не ссылается ни один скачанный трек (при запуске).
+pub fn prune_pinned_covers(urls: &std::collections::HashSet<String>) {
+  let Some(dir) = track_cache::pinned_covers_dir() else { return };
+  let keep: std::collections::HashSet<String> = urls.iter().map(|u| cover_key(u)).collect();
+  let Ok(rd) = std::fs::read_dir(&dir) else { return };
+  for e in rd.flatten() {
+    if !e.file_name().to_str().is_some_and(|n| keep.contains(n)) {
+      let _ = std::fs::remove_file(e.path());
+    }
+  }
+}
+
 #[derive(Deserialize)]
 struct CoverQuery {
   u: String,
@@ -361,23 +397,115 @@ async fn serve_gvideo(core: &Core, url: &str, range: Option<&HeaderValue>, track
   }
 }
 
-/// HLS SoundCloud в кэш: скачать init-кусок и все куски по порядку и склеить в один файл (в фоне).
-async fn cache_hls(core: Arc<Core>, track_ref: String, playlist: String, base: url::Url) {
-  let fetch_all = async {
-    let (init, segs, mime) = track_cache::hls_parts(&playlist, &base)?;
-    let mut w = track_cache::Writer::new(&track_ref, mime, None)?;
-    for u in init.into_iter().chain(segs) {
-      let r = core.http().get(&u).header("User-Agent", ua_for(&u)).send().await.ok()?;
-      if !r.status().is_success() {
-        return None;
-      }
-      w.write(&r.bytes().await.ok()?);
+/// Куда пишем: автокэш или скачанное (`track_cache`).
+fn writer(track_ref: &str, pinned: bool, mime: &str, expect: Option<u64>) -> Option<track_cache::Writer> {
+  if pinned {
+    track_cache::Writer::pinned(track_ref, mime, expect)
+  } else {
+    track_cache::Writer::new(track_ref, mime, expect)
+  }
+}
+
+/// Почему трек не лёг на диск.
+#[derive(Debug)]
+pub enum FetchErr {
+  /// Такой поток не сохранить (MPEG-TS, зашифрованный HLS).
+  Unsupported,
+  /// Оборвали (`stop`) — не ошибка, трек можно взять снова.
+  Stopped,
+  /// Сеть, сервис или диск.
+  Failed(String),
+}
+
+impl std::fmt::Display for FetchErr {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      FetchErr::Unsupported => f.write_str("такой поток не сохранить"),
+      FetchErr::Stopped => f.write_str("остановлено"),
+      FetchErr::Failed(e) => f.write_str(e),
     }
-    w.finish();
-    Some(())
-  };
-  if fetch_all.await.is_none() {
-    log::info!("кэш: HLS {track_ref} не склеился");
+  }
+}
+
+fn failed(e: impl std::fmt::Display) -> FetchErr {
+  FetchErr::Failed(e.to_string())
+}
+
+/// Тело ответа — в файл, кусками (FLAC бывает за 40 МБ). `stop` обрывает: недописанный файл удалит `Drop`.
+async fn write_body<E: std::fmt::Display>(
+  mut w: track_cache::Writer,
+  mut body: impl futures_util::Stream<Item = Result<axum::body::Bytes, E>> + Unpin,
+  stop: &(dyn Fn() -> bool + Send + Sync),
+) -> Result<(), FetchErr> {
+  use futures_util::StreamExt;
+  while let Some(chunk) = body.next().await {
+    if stop() {
+      return Err(FetchErr::Stopped);
+    }
+    w.write(&chunk.map_err(failed)?);
+  }
+  // отменили на последнем куске — не класть файл в кэш и индекс
+  if stop() {
+    return Err(FetchErr::Stopped);
+  }
+  if w.finish() { Ok(()) } else { Err(failed("файл не сошёлся по размеру")) }
+}
+
+/// HLS: скачать init-кусок и все куски по порядку и склеить в один файл.
+async fn write_hls(core: &Core, track_ref: &str, pinned: bool, playlist: &str, base: &url::Url, stop: &(dyn Fn() -> bool + Send + Sync)) -> Result<(), FetchErr> {
+  let (init, segs, mime) = track_cache::hls_parts(playlist, base).ok_or(FetchErr::Unsupported)?;
+  let mut w = writer(track_ref, pinned, mime, None).ok_or_else(|| failed("файл не открылся"))?;
+  for u in init.into_iter().chain(segs) {
+    if stop() {
+      return Err(FetchErr::Stopped);
+    }
+    let r = core.http().get(&u).header("User-Agent", ua_for(&u)).send().await.map_err(failed)?;
+    if !r.status().is_success() {
+      return Err(failed(format!("CDN ответил {}", r.status())));
+    }
+    w.write(&r.bytes().await.map_err(failed)?);
+  }
+  // отменили на последнем куске — не класть файл в кэш и индекс
+  if stop() {
+    return Err(FetchErr::Stopped);
+  }
+  if w.finish() { Ok(()) } else { Err(failed("файл не записался")) }
+}
+
+/// Скачать трек целиком на диск: в автокэш (`pinned` = false) или в скачанное («Скачать», `downloads.rs`).
+/// Общая часть «волны офлайн» и очереди загрузок; занятость (`track_cache::claim`) — на вызывающем.
+pub async fn fetch_track(core: &Core, track_ref: &str, pinned: bool, stop: &(dyn Fn() -> bool + Send + Sync)) -> Result<(), FetchErr> {
+  match core.resolve(track_ref, false).await.map_err(failed)? {
+    Source::Hls { url, .. } => {
+      let up = core.http().get(&url).header("User-Agent", ua_for(&url)).send().await.map_err(failed)?;
+      if !up.status().is_success() {
+        return Err(failed(format!("CDN ответил {}", up.status())));
+      }
+      let base = up.url().clone();
+      let text = up.text().await.map_err(failed)?;
+      write_hls(core, track_ref, pinned, &text, &base, stop).await
+    }
+    Source::File { url, .. } if gvideo::is_gvideo(&url) => {
+      let o = gvideo::open(&core.http(), &url, None).await.map_err(|f| failed(format!("{f:?}")))?;
+      let w = writer(track_ref, pinned, &o.mime, Some(o.total)).ok_or_else(|| failed("файл не открылся"))?;
+      write_body(w, o.body, stop).await
+    }
+    Source::File { url, .. } => {
+      let up = core.http().get(&url).header("User-Agent", ua_for(&url)).send().await.map_err(failed)?;
+      if !up.status().is_success() {
+        return Err(failed(format!("CDN ответил {}", up.status())));
+      }
+      let mime = up.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("audio/mpeg").to_owned();
+      let w = writer(track_ref, pinned, &mime, up.content_length()).ok_or_else(|| failed("файл не открылся"))?;
+      write_body(w, Box::pin(up.bytes_stream()), stop).await
+    }
+  }
+}
+
+/// HLS SoundCloud в кэш при проигрывании: склеить весь трек в фоне (плейлист уже скачан).
+async fn cache_hls(core: Arc<Core>, track_ref: String, playlist: String, base: url::Url) {
+  if let Err(e) = write_hls(&core, &track_ref, false, &playlist, &base, &crate::offline::is_on).await {
+    log::info!("кэш: HLS {track_ref} не склеился — {e}");
   }
   track_cache::release(&track_ref);
 }
@@ -395,79 +523,18 @@ pub fn cancel_prefetch() {
 pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
   use std::sync::atomic::Ordering;
   let ticket = PREFETCH_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+  // офлайн включили или пришёл новый заказ — обрываем посреди трека
+  let stop = move || crate::offline::is_on() || PREFETCH_GEN.load(Ordering::SeqCst) != ticket;
   for r in refs {
-    if PREFETCH_GEN.load(Ordering::SeqCst) != ticket || !track_cache::enabled() || crate::offline::is_on() {
+    if stop() || !track_cache::enabled() {
       return;
     }
     // локальный файл и так на диске
-    if crate::local::is_local_ref(&r) {
+    if crate::local::is_local_ref(&r) || !track_cache::claim(&r) {
       continue;
     }
-    if !track_cache::claim(&r) {
-      continue;
-    }
-    match core.resolve(&r, false).await {
-      Ok(Source::Hls { url, .. }) => {
-        let up = core.http().get(&url).header("User-Agent", ua_for(&url)).send().await;
-        match up {
-          Ok(up) if up.status().is_success() => {
-            let base = up.url().clone();
-            let text = up.text().await.unwrap_or_default();
-            // cache_hls сам отпустит трек
-            cache_hls(core.clone(), r.clone(), text, base).await;
-            continue;
-          }
-          _ => {}
-        }
-      }
-      Ok(Source::File { url, .. }) if gvideo::is_gvideo(&url) => {
-        let ok = async {
-          let o = gvideo::open(&core.http(), &url, None).await.ok()?;
-          let mut w = track_cache::Writer::new(&r, &o.mime, Some(o.total))?;
-          use futures_util::StreamExt;
-          let mut body = o.body;
-          while let Some(chunk) = body.next().await {
-            // офлайн включили посреди подкачки — обрываем, недописанный файл удалит `Drop`
-            if crate::offline::is_on() {
-              return None;
-            }
-            w.write(&chunk.ok()?);
-          }
-          w.finish();
-          Some(())
-        }
-        .await;
-        if ok.is_none() {
-          log::info!("волна офлайн: {r} не скачался");
-        }
-      }
-      Ok(Source::File { url, .. }) => {
-        let ok = async {
-          let up = core.http().get(&url).header("User-Agent", ua_for(&url)).send().await.ok()?;
-          if !up.status().is_success() {
-            return None;
-          }
-          let mime = up.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or("audio/mpeg").to_owned();
-          let mut w = track_cache::Writer::new(&r, &mime, up.content_length())?;
-          // потоком, а не целиком в память: FLAC бывает за 40 МБ
-          use futures_util::StreamExt;
-          let mut body = up.bytes_stream();
-          while let Some(chunk) = body.next().await {
-            // офлайн включили посреди подкачки — обрываем, недописанный файл удалит `Drop`
-            if crate::offline::is_on() {
-              return None;
-            }
-            w.write(&chunk.ok()?);
-          }
-          w.finish();
-          Some(())
-        }
-        .await;
-        if ok.is_none() {
-          log::info!("волна офлайн: {r} не скачался");
-        }
-      }
-      Err(e) => log::info!("волна офлайн: {r}: {e}"),
+    if let Err(e) = fetch_track(&core, &r, false, &stop).await {
+      log::info!("волна офлайн: {r} — {e}");
     }
     track_cache::release(&r);
   }
@@ -683,7 +750,7 @@ async fn cover(State(core): State<Arc<Core>>, Query(q): Query<CoverQuery>, heade
   if !cover_host_allowed(&q.u) {
     return plain(StatusCode::FORBIDDEN, "чужой адрес");
   }
-  let path = cover_dir().map(|d| d.join(format!("{:x}", md5::compute(q.u.as_bytes()))));
+  let path = cover_dir().map(|d| d.join(cover_key(&q.u)));
   let image = |bytes: Vec<u8>| {
     let mut r = Response::new(Body::from(bytes));
     r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("image/jpeg"));
@@ -694,6 +761,12 @@ async fn cover(State(core): State<Arc<Core>>, Query(q): Query<CoverQuery>, heade
     if let Ok(bytes) = tokio::fs::read(p).await {
       let p = p.clone();
       tokio::task::spawn_blocking(move || touch(&p));
+      return image(bytes);
+    }
+  }
+  // обложка скачанного трека: лежит отдельно, общий предел обложек её не вытесняет
+  if let Some(p) = track_cache::pinned_covers_dir().map(|d| d.join(cover_key(&q.u))) {
+    if let Ok(bytes) = tokio::fs::read(p).await {
       return image(bytes);
     }
   }

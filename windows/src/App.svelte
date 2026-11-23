@@ -55,6 +55,7 @@
   import { notch } from './lib/notch'
   import { floating } from './lib/floating'
   import { offline } from './lib/offline.svelte'
+  import { downloads } from './lib/downloads.svelte'
 
   const pages = {
     home: Home,
@@ -87,6 +88,7 @@
   onMount(() => {
     void settings.load()
     offline.init()
+    downloads.init()
     player.init()
     wave.init()
     autoplay.init()

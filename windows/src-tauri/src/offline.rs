@@ -24,11 +24,15 @@ pub fn set_on(on: bool) {
   ON.store(on, Ordering::SeqCst);
 }
 
-/// Включить или выключить и сказать интерфейсу. Включение отменяет фоновую подкачку треков.
+/// Включить или выключить и сказать интерфейсу. Включение отменяет фоновую подкачку, выключение будит очередь скачивания.
 pub fn switch(app: &AppHandle, on: bool) {
   let was = ON.swap(on, Ordering::SeqCst);
   if on && !was {
     crate::stream::cancel_prefetch();
+  }
+  // очередь скачивания в офлайне стоит (начатое оборвалось само) — при выходе продолжаем
+  if !on && was {
+    crate::downloads::pump(app);
   }
   if let Err(e) = app.emit(EVENT, on) {
     eprintln!("офлайн: событие {EVENT} не ушло — {e}");

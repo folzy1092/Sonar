@@ -4,6 +4,10 @@
 //! проигрывания, если он прочитан с начала до конца; HLS SoundCloud — отдельной загрузкой всех кусков,
 //! склеенных в один файл (fMP4 с init-куском или mp3; MPEG-TS не склеиваем — `<audio>` его не играет).
 //! Лимит — по размеру, вытесняются давно не игравшие (время изменения файла обновляется при чтении).
+//!
+//! Скачанное руками («Скачать», `downloads.rs`, `docs/OFFLINE.md` §8) лежит рядом, в `<кэш>/pinned`:
+//! тот же формат файлов, но без лимита и вытеснения, «Очистить кэш» его не трогает. Скачан — играет
+//! оттуда, копия в автокэше не нужна и не пишется.
 
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
@@ -14,6 +18,8 @@ use std::sync::{Mutex, OnceLock};
 use std::time::SystemTime;
 
 static DIR: OnceLock<PathBuf> = OnceLock::new();
+/// Скачанное руками: `<кэш>/pinned` (обложки — `pinned/covers`).
+static PINNED: OnceLock<PathBuf> = OnceLock::new();
 static ENABLED: AtomicBool = AtomicBool::new(false);
 /// Лимит кэша в байтах (по умолчанию 2 ГБ).
 static LIMIT: AtomicU64 = AtomicU64::new(2 * 1024 * 1024 * 1024);
@@ -21,13 +27,14 @@ static LIMIT: AtomicU64 = AtomicU64::new(2 * 1024 * 1024 * 1024);
 static BUSY: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 
 /// Что поменялось на диске — для офлайн-индекса (`offline_index.rs`, `docs/OFFLINE.md` §7.1).
+/// `pinned` — скачанное руками, иначе автокэш.
 pub enum Change {
   /// Трек лёг целиком: ref, имя файла, тип, размер.
-  Added { track_ref: String, file: String, mime: String, bytes: u64 },
-  /// Файл вытеснен (имя файла).
-  Removed(String),
-  /// Кэш очищен.
-  Cleared,
+  Added { track_ref: String, file: String, mime: String, bytes: u64, pinned: bool },
+  /// Файл вытеснен или удалён (имя файла).
+  Removed { file: String, pinned: bool },
+  /// Папка очищена.
+  Cleared { pinned: bool },
 }
 
 static HOOK: OnceLock<Box<dyn Fn(Change) + Send + Sync>> = OnceLock::new();
@@ -43,9 +50,13 @@ fn notify(c: Change) {
   }
 }
 
-/// Готовые файлы кэша по имени: (размер, тип) — для сверки индекса при запуске.
-pub fn disk_files() -> HashMap<String, (u64, String)> {
-  let Some(dir) = DIR.get() else { return HashMap::new() };
+fn dir_of(pinned: bool) -> Option<&'static PathBuf> {
+  if pinned { PINNED.get() } else { DIR.get() }
+}
+
+/// Готовые файлы по имени: (размер, тип) — для сверки индекса при запуске.
+pub fn disk_files(pinned: bool) -> HashMap<String, (u64, String)> {
+  let Some(dir) = dir_of(pinned) else { return HashMap::new() };
   entries(dir)
     .into_iter()
     .filter_map(|(p, len, _)| {
@@ -56,17 +67,37 @@ pub fn disk_files() -> HashMap<String, (u64, String)> {
     .collect()
 }
 
-pub fn set_dir(dir: PathBuf) {
-  let _ = fs::create_dir_all(&dir);
-  // недописанные файлы прошлого запуска
-  if let Ok(rd) = fs::read_dir(&dir) {
+/// Создать папку и убрать недописанные файлы прошлого запуска.
+fn prepare(dir: &Path) {
+  let _ = fs::create_dir_all(dir);
+  if let Ok(rd) = fs::read_dir(dir) {
     for e in rd.flatten() {
       if e.path().extension().is_some_and(|x| x == "part") {
         let _ = fs::remove_file(e.path());
       }
     }
   }
+}
+
+pub fn set_dir(dir: PathBuf) {
+  prepare(&dir);
   let _ = DIR.set(dir);
+}
+
+/// Папка скачанного (`<кэш>/pinned`) и её обложек.
+pub fn set_pinned_dir(dir: PathBuf) {
+  prepare(&dir);
+  let _ = fs::create_dir_all(dir.join("covers"));
+  let _ = PINNED.set(dir);
+}
+
+pub fn pinned_dir() -> Option<&'static PathBuf> {
+  PINNED.get()
+}
+
+/// Обложки скачанного: `/cover` ищет здесь, если в общем кэше обложек файла нет.
+pub fn pinned_covers_dir() -> Option<PathBuf> {
+  PINNED.get().map(|d| d.join("covers"))
 }
 
 pub fn enabled() -> bool {
@@ -92,19 +123,66 @@ fn paths(dir: &Path, track_ref: &str) -> (PathBuf, PathBuf) {
   (dir.join(format!("{k}.audio")), dir.join(format!("{k}.mime")))
 }
 
-/// Трек в кэше: путь, тип и размер. Чтение освежает «время последнего использования».
-pub fn lookup(track_ref: &str) -> Option<(PathBuf, String, u64)> {
-  let dir = DIR.get()?;
+fn found(dir: &Path, track_ref: &str) -> Option<(PathBuf, String, u64)> {
   let (audio, mime) = paths(dir, track_ref);
   let len = fs::metadata(&audio).ok()?.len();
   if len == 0 {
     return None;
   }
   let mime = fs::read_to_string(mime).unwrap_or_else(|_| "audio/mpeg".into());
-  if let Ok(f) = File::options().write(true).open(&audio) {
+  Some((audio, mime.trim().to_owned(), len))
+}
+
+/// Трек на диске (сначала скачанное, потом автокэш): путь, тип и размер. Чтение из автокэша освежает
+/// «время последнего использования».
+pub fn lookup(track_ref: &str) -> Option<(PathBuf, String, u64)> {
+  if let Some(hit) = PINNED.get().and_then(|d| found(d, track_ref)) {
+    return Some(hit);
+  }
+  let hit = found(DIR.get()?, track_ref)?;
+  if let Ok(f) = File::options().write(true).open(&hit.0) {
     let _ = f.set_modified(SystemTime::now());
   }
-  Some((audio, mime.trim().to_owned(), len))
+  Some(hit)
+}
+
+/// Трек скачан руками.
+pub fn is_pinned(track_ref: &str) -> bool {
+  PINNED.get().is_some_and(|d| found(d, track_ref).is_some())
+}
+
+/// Перенести копию из автокэша в скачанное (без сети). false — в автокэше трека нет.
+pub fn pin(track_ref: &str) -> bool {
+  let (Some(cache), Some(pinned)) = (DIR.get(), PINNED.get()) else { return false };
+  let (from_audio, from_mime) = paths(cache, track_ref);
+  let (to_audio, to_mime) = paths(pinned, track_ref);
+  let Ok(bytes) = fs::metadata(&from_audio).map(|m| m.len()) else { return false };
+  if bytes == 0 {
+    return false;
+  }
+  let mime = fs::read_to_string(&from_mime).map(|m| m.trim().to_owned()).unwrap_or_else(|_| "audio/mpeg".into());
+  if fs::rename(&from_audio, &to_audio).is_err() {
+    return false;
+  }
+  let _ = fs::write(&to_mime, &mime);
+  let _ = fs::remove_file(&from_mime);
+  let file = file_name(&to_audio);
+  notify(Change::Added { track_ref: track_ref.to_owned(), file, mime, bytes, pinned: true });
+  true
+}
+
+/// Убрать из скачанного (файл удаляется).
+pub fn unpin(track_ref: &str) {
+  let Some(dir) = PINNED.get() else { return };
+  let (audio, mime) = paths(dir, track_ref);
+  if fs::remove_file(&audio).is_ok() {
+    notify(Change::Removed { file: file_name(&audio), pinned: true });
+  }
+  let _ = fs::remove_file(mime);
+}
+
+fn file_name(p: &Path) -> String {
+  p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
 /// Кусок файла `[start, end]` (включительно, не больше 8 МБ за раз) — для ответа на Range.
@@ -138,6 +216,7 @@ pub fn parse_range(h: Option<&str>, total: u64) -> Option<(u64, u64)> {
 /// середине (перемотали, закрыли) — удаляется.
 pub struct Writer {
   track_ref: String,
+  pinned: bool,
   part: PathBuf,
   audio: PathBuf,
   mime_path: PathBuf,
@@ -149,19 +228,31 @@ pub struct Writer {
 }
 
 impl Writer {
-  /// `expect` — ожидаемый размер (Content-Length), если известен.
+  /// В автокэш. `expect` — ожидаемый размер (Content-Length), если известен. Трек уже скачан — None.
   pub fn new(track_ref: &str, mime: &str, expect: Option<u64>) -> Option<Self> {
-    if !enabled() {
+    if !enabled() || is_pinned(track_ref) {
       return None;
     }
-    let dir = DIR.get()?;
+    Self::open(DIR.get()?, false, track_ref, mime, expect)
+  }
+
+  /// В скачанное (без лимита, автокэш может быть выключен).
+  pub fn pinned(track_ref: &str, mime: &str, expect: Option<u64>) -> Option<Self> {
+    Self::open(PINNED.get()?, true, track_ref, mime, expect)
+  }
+
+  fn open(dir: &Path, pinned: bool, track_ref: &str, mime: &str, expect: Option<u64>) -> Option<Self> {
     let (audio, mime_path) = paths(dir, track_ref);
     if audio.exists() {
       return None;
     }
-    let part = dir.join(format!("{}.{}.part", key(track_ref), std::process::id()));
+    // разные части на процесс и на запись: скачивание и проигрывание могут писать одно и то же
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let n = SEQ.fetch_add(1, Ordering::Relaxed);
+    let part = dir.join(format!("{}.{}-{n}.part", key(track_ref), std::process::id()));
     let file = File::create(&part).ok()?;
-    Some(Self { track_ref: track_ref.to_owned(), part, audio, mime_path, mime: mime.to_owned(), file: Some(file), written: 0, expect, done: false })
+    let track_ref = track_ref.to_owned();
+    Some(Self { track_ref, pinned, part, audio, mime_path, mime: mime.to_owned(), file: Some(file), written: 0, expect, done: false })
   }
 
   pub fn write(&mut self, chunk: &[u8]) {
@@ -172,21 +263,31 @@ impl Writer {
     self.written += chunk.len() as u64;
   }
 
-  /// Всё записано: проверить размер, переименовать, вытеснить лишнее.
-  pub fn finish(mut self) {
-    let Some(f) = self.file.take() else { return };
+  /// Всё записано: проверить размер, переименовать, вытеснить лишнее. true — файл на месте.
+  pub fn finish(mut self) -> bool {
+    let Some(f) = self.file.take() else { return false };
     drop(f);
     if self.written == 0 || self.expect.is_some_and(|n| n != self.written) {
-      return;
+      return false;
     }
-    if fs::rename(&self.part, &self.audio).is_ok() {
-      let _ = fs::write(&self.mime_path, &self.mime);
-      self.done = true;
-      let file = self.audio.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-      let (track_ref, mime) = (std::mem::take(&mut self.track_ref), std::mem::take(&mut self.mime));
-      notify(Change::Added { track_ref, file, mime, bytes: self.written });
+    // пока писался в автокэш, трек скачали — копия не нужна
+    if !self.pinned && is_pinned(&self.track_ref) {
+      return false;
+    }
+    if fs::rename(&self.part, &self.audio).is_err() {
+      return false;
+    }
+    let _ = fs::write(&self.mime_path, &self.mime);
+    self.done = true;
+    let (track_ref, mime) = (std::mem::take(&mut self.track_ref), std::mem::take(&mut self.mime));
+    let pinned = self.pinned;
+    notify(Change::Added { track_ref: track_ref.clone(), file: file_name(&self.audio), mime, bytes: self.written, pinned });
+    if pinned {
+      drop_cached(&track_ref);
+    } else {
       evict();
     }
+    true
   }
 }
 
@@ -206,6 +307,16 @@ pub fn claim(track_ref: &str) -> bool {
   }
   let mut g = BUSY.lock().unwrap();
   g.get_or_insert_with(HashSet::new).insert(track_ref.to_owned())
+}
+
+/// Копия в автокэше рядом со скачанным — лишняя.
+fn drop_cached(track_ref: &str) {
+  let Some(dir) = DIR.get() else { return };
+  let (audio, mime) = paths(dir, track_ref);
+  if fs::remove_file(&audio).is_ok() {
+    notify(Change::Removed { file: file_name(&audio), pinned: false });
+  }
+  let _ = fs::remove_file(mime);
 }
 
 pub fn release(track_ref: &str) {
@@ -246,28 +357,39 @@ pub fn evict_in(dir: &Path, limit: u64) {
     }
     let _ = fs::remove_file(&p);
     let _ = fs::remove_file(p.with_extension("mime"));
-    if let Some(name) = p.file_name() {
-      notify(Change::Removed(name.to_string_lossy().into_owned()));
-    }
+    notify(Change::Removed { file: file_name(&p), pinned: false });
     total = total.saturating_sub(len);
   }
 }
 
-/// Сколько треков и байт в кэше.
-pub fn usage() -> (u64, u64) {
-  let Some(dir) = DIR.get() else { return (0, 0) };
+/// Сколько треков и байт: в автокэше (`pinned` = false) или в скачанном.
+pub fn usage(pinned: bool) -> (u64, u64) {
+  let Some(dir) = dir_of(pinned) else { return (0, 0) };
   let list = entries(dir);
   (list.len() as u64, list.iter().map(|e| e.1).sum())
 }
 
+/// Очистить автокэш. Скачанное не трогает.
 pub fn clear() {
   let Some(dir) = DIR.get() else { return };
+  remove_files(dir);
+  notify(Change::Cleared { pinned: false });
+}
+
+/// Удалить всё скачанное (с обложками).
+pub fn clear_pinned() {
+  let Some(dir) = PINNED.get() else { return };
+  remove_files(dir);
+  remove_files(&dir.join("covers"));
+  notify(Change::Cleared { pinned: true });
+}
+
+fn remove_files(dir: &Path) {
   if let Ok(rd) = fs::read_dir(dir) {
-    for e in rd.flatten() {
+    for e in rd.flatten().filter(|e| e.path().is_file()) {
       let _ = fs::remove_file(e.path());
     }
   }
-  notify(Change::Cleared);
 }
 
 /// Список кусков HLS для склейки: (init-кусок или None, куски, тип). MPEG-TS — None (не склеиваем).
