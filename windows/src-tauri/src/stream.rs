@@ -207,7 +207,22 @@ async fn proxy(core: &Core, url: &str, range: Option<&HeaderValue>) -> Result<Re
       res = res.header(h, v.as_bytes());
     }
   }
-  Ok(cors(res.body(Body::from_stream(up.bytes_stream())).unwrap_or_else(|_| Response::new(Body::empty()))))
+  Ok(cors(res.body(Body::from_stream(cut_offline(up.bytes_stream()))).unwrap_or_else(|_| Response::new(Body::empty()))))
+}
+
+/// Офлайн включили посреди загрузки (`docs/OFFLINE.md` §5.2): соединение уже открыто, ворота `net.rs` его не видят,
+/// поэтому тело само смотрит на флаг перед каждым куском и обрывается ошибкой. Перед `tee` — недописанный файл
+/// в кэш не попадёт (его удалит `Drop` у `Writer`).
+fn cut_offline<E: Into<Box<dyn std::error::Error + Send + Sync>>>(
+  body: impl futures_util::Stream<Item = Result<axum::body::Bytes, E>> + Send + 'static,
+) -> impl futures_util::Stream<Item = Result<axum::body::Bytes, std::io::Error>> + Send + 'static {
+  use futures_util::StreamExt;
+  body.map(|chunk| {
+    if crate::offline::is_on() {
+      return Err(std::io::Error::other(crate::offline::MESSAGE));
+    }
+    chunk.map_err(std::io::Error::other)
+  })
 }
 
 /// Трек из кэша на диске: без Range — целиком, с Range — кусками до 8 МБ (206).
@@ -293,9 +308,9 @@ async fn proxy_cached(core: &Core, url: &str, range: Option<&HeaderValue>, track
     }
   }
   let Some(w) = writer else {
-    return Ok(cors(res.body(Body::from_stream(up.bytes_stream())).unwrap_or_else(|_| Response::new(Body::empty()))));
+    return Ok(cors(res.body(Body::from_stream(cut_offline(up.bytes_stream()))).unwrap_or_else(|_| Response::new(Body::empty()))));
   };
-  Ok(cors(res.body(Body::from_stream(tee(up.bytes_stream(), w))).unwrap_or_else(|_| Response::new(Body::empty()))))
+  Ok(cors(res.body(Body::from_stream(tee(cut_offline(up.bytes_stream()), w))).unwrap_or_else(|_| Response::new(Body::empty()))))
 }
 
 /// Тело ответа, которое по пути пишется в кэш треков; дошло до конца — файл готов, оборвалось —
@@ -336,8 +351,8 @@ async fn serve_gvideo(core: &Core, url: &str, range: Option<&HeaderValue>, track
       let writer = if o.whole() { track_cache::Writer::new(track_ref, &o.mime, Some(o.total)) } else { None };
       let head = o.response(Body::empty());
       let body = match writer {
-        Some(w) => Body::from_stream(tee(o.body, w)),
-        None => Body::from_stream(o.body),
+        Some(w) => Body::from_stream(tee(cut_offline(o.body), w)),
+        None => Body::from_stream(cut_offline(o.body)),
       };
       let (parts, _) = head.into_parts();
       cors(Response::from_parts(parts, body))
@@ -412,6 +427,10 @@ pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
           use futures_util::StreamExt;
           let mut body = o.body;
           while let Some(chunk) = body.next().await {
+            // офлайн включили посреди подкачки — обрываем, недописанный файл удалит `Drop`
+            if crate::offline::is_on() {
+              return None;
+            }
             w.write(&chunk.ok()?);
           }
           w.finish();
@@ -434,6 +453,10 @@ pub async fn prefetch(core: Arc<Core>, refs: Vec<String>) {
           use futures_util::StreamExt;
           let mut body = up.bytes_stream();
           while let Some(chunk) = body.next().await {
+            // офлайн включили посреди подкачки — обрываем, недописанный файл удалит `Drop`
+            if crate::offline::is_on() {
+              return None;
+            }
             w.write(&chunk.ok()?);
           }
           w.finish();

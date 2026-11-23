@@ -61,6 +61,8 @@ pub async fn ogg(token: &str, id: &str, max_kbps: u32) -> Result<(Arc<Vec<u8>>, 
   {
     return Ok((bytes, quality));
   }
+  // librespot ходит в сеть мимо `net.rs` (свои сокеты) — ворота офлайна здесь
+  crate::offline::guard().map_err(|e| anyhow!(e))?;
   let (bytes, quality) = download(token, id, max_kbps).await?;
   let bytes = Arc::new(bytes);
   *LAST.lock().unwrap() = Some((id.to_owned(), bytes.clone(), quality.clone()));

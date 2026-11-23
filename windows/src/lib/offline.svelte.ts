@@ -11,26 +11,33 @@ class Offline {
   refs = $state<ReadonlySet<string>>(new Set())
   /** Порт локального сервера — для картинок в офлайне (`src`). */
   private port = $state<number | null>(null)
-  private started = false
+  private started: Promise<void> | null = null
   private seq = 0
   private listeners: Array<(on: boolean) => void> = []
 
-  init() {
-    if (this.started) return
-    this.started = true
-    api
+  /**
+   * Читает флаг и порт из Rust. `main.ts` ждёт его до монтирования интерфейса: иначе первые `<img>` успели бы
+   * взять адреса CDN, пока флаг ещё «выключен» (`docs/OFFLINE.md` §5.3 — ни байта и после перезапуска).
+   */
+  init(): Promise<void> {
+    if (this.started) return this.started
+    const flag = api
       .offlineState()
       .then((on) => this.apply(on, false))
       .catch((e) => console.warn('офлайн: флаг не прочитался', e))
-    void this.refresh()
-    api
+    const port = api
       .streamPort()
-      .then((p) => (this.port = p))
+      .then((p) => {
+        this.port = p
+      })
       .catch((e) => console.warn('офлайн: порт локального сервера не прочитался', e))
+    void this.refresh()
     this.hideDeadImages()
     onOfflineChanged((on) => this.apply(on))
     onOfflineIndexChanged(() => void this.refresh())
     onLocalFilesChanged(() => void this.refresh())
+    this.started = Promise.all([flag, port]).then(() => undefined)
+    return this.started
   }
 
   /** Включить или выключить: настройка уходит в Rust, он переключает ворота и присылает событие. */

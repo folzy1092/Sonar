@@ -15,6 +15,7 @@ import { lyrics } from './lyrics/lyrics.svelte'
 import { settings } from './lib/settings.svelte'
 import { catchErrors } from './lib/errors'
 import { isTauri } from './lib/tauri'
+import { offline } from './lib/offline.svelte'
 
 // ошибки интерфейса — в журнал сессии (после сбоя при следующем запуске предложим отправить лог)
 if (isTauri) catchErrors()
@@ -31,6 +32,9 @@ if (plaque) {
   document.documentElement.classList.add('mini-window')
   document.getElementById('splash')?.remove()
 }
+
+// офлайн-режим: флаг из Rust — до первого кадра интерфейса, чтобы ни одна картинка не ушла на CDN
+if (isTauri) await offline.init()
 
 // новинки исполнителей — только в главном окне (колокольчик в чёлке)
 if (!plaque) newReleases.start()
