@@ -1,7 +1,7 @@
 <script lang="ts">
   // Приложение → Аудио (SETTINGS_NEXT «Аудио»): «Куда выводить звук?» и «Какое качество?» — строками,
   // у качества справа крупно число и мелко kbps; YouTube Music — тем же видом; «Громкость и переходы» вместе
-  // с «Тише во время звонков»; плюс своё — «Резервный сервис» (порядок перетаскиванием) и «SoundCloud
+  // с «Тише во время звонков»; «Переход между треками» — обычный, кроссфейд или сведение (docs/BLEND.md §10.2); плюс своё — «Резервный сервис» (порядок перетаскиванием) и «SoundCloud
   // в качестве Яндекса» (тот же механизм резерва, services/fallback.rs).
   import { onMount } from 'svelte'
   import { settingsPanel } from '../settings-section.svelte'
@@ -12,6 +12,9 @@
   import Group from '../../components/settings/Group.svelte'
   import More from '../../components/settings/More.svelte'
   import FallbackOrder from '../../components/settings/FallbackOrder.svelte'
+  import Choice from '../../components/settings/Choice.svelte'
+  import BlendSettings from './BlendSettings.svelte'
+  import { applyMode, transitionMode, type TransitionMode } from '../../player/blend/settings'
   import { api } from '../../lib/api'
   import { settings } from '../../lib/settings.svelte'
   import { player } from '../../player/player.svelte'
@@ -82,6 +85,14 @@
     void api.setSetting('audio.sc_via_yandex', on).catch(() => {})
   }
 
+  const mode = $derived(transitionMode(settings.get('audio.blend'), settings.get('audio.crossfade')))
+
+  function setMode(m: TransitionMode) {
+    const next = applyMode(m, settings.get('audio.crossfade'))
+    settings.set('audio.blend', next.blend)
+    settings.set('audio.crossfade', next.crossfade)
+  }
+
   function setDevice(id: string) {
     settings.set('audio.output_device', id)
     void player.setOutput(id)
@@ -133,15 +144,32 @@
     on={settings.get('audio.gapless')}
     onchange={(v) => settings.set('audio.gapless', v)}
   />
-  <Switch
-    title={t('Кроссфейд')}
-    hint={t('Плавное затухание в конце трека и нарастание в начале следующего')}
-    on={settings.get('audio.crossfade') > 0}
-    onchange={(v) => settings.set('audio.crossfade', v ? 6 : 0)}
+  <Choice
+    title={t('Переход между треками')}
+    hint={t('Обычный — трек за треком, кроссфейд — затухание, сведение — переход по долям, как у диджея')}
+    value={mode}
+    options={[
+      { id: 'normal', label: t('Обычный') },
+      { id: 'crossfade', label: t('Кроссфейд') },
+      { id: 'blend', label: t('Сведение'), icon: 'vinyl' },
+    ]}
+    onchange={setMode}
   />
-  {#if settings.get('audio.crossfade') > 0}
+  {#if mode === 'crossfade'}
     <div transition:slide={{ duration: 220 }}>
-      <Slider title={t('Длительность кроссфейда')} value={settings.get('audio.crossfade')} min={1} max={12} unit=" {t('с')}" onchange={(v) => settings.set('audio.crossfade', v)} />
+      <Slider
+        title={t('Кроссфейд')}
+        hint={t('Сколько секунд один трек затухает, а следующий нарастает')}
+        value={settings.get('audio.crossfade')}
+        min={1}
+        max={12}
+        unit=" {t('с')}"
+        onchange={(v) => settings.set('audio.crossfade', v)}
+      />
+    </div>
+  {:else if mode === 'blend'}
+    <div transition:slide={{ duration: 220 }}>
+      <BlendSettings />
     </div>
   {/if}
   <Switch

@@ -20,6 +20,7 @@
   import Switch from '../components/settings/Switch.svelte'
   import { autoplay } from '../player/autoplay.svelte'
   import SeekBar from '../player/SeekBar.svelte'
+  import BlendButton from '../player/BlendButton.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
   import OwnSoundChip from '../player/OwnSoundChip.svelte'
   import SleepButton from '../player/SleepButton.svelte'
@@ -218,6 +219,7 @@
         />
       </div>
       <div class="panel extra">
+        <BlendButton />
         <SpeedButton bind:this={speed} />
         <!-- таймер сна — только по тумблеру (Интерфейс → Плеер); уже запущенный видно, чтобы отменить -->
         {#if settings.get('player.sleep_button') || sleep.active}<SleepButton />{/if}

@@ -37,7 +37,7 @@ export interface BlendSettings {
   keyShift: boolean
 }
 
-/** Значения по умолчанию из §7.3 (ключи настроек появятся в Э5). */
+/** Значения по умолчанию из §7.3; ключи `audio.blend_*` разбирает `settings.ts`. */
 export const BLEND_DEFAULTS: BlendSettings = { type: 'auto', lengthSec: 10, cutSec: 16, tempoTolPct: 8, keyShift: true }
 
 export interface BlendHost<T extends { ref: string }, D extends BlendDeck> {
@@ -80,6 +80,8 @@ const MIN_LEAD_SEC = 1.5
 const PLAY_LEAD_SEC = 0.15
 /** На сколько тактов раньше входа B начинает играть молча (синк успевает сойтись). */
 const LEAD_BARS = 2
+/** «К переходу»: столько секунд A до начала перехода. */
+const PREVIEW_SEC = 8
 export const MIN_TRACK_MS = 60_000
 const PHASE_OK_MS = 8
 export const PHASE_SEEK_MS = 120
@@ -114,6 +116,20 @@ interface Pair<T, D> {
   bStartBar: number
 }
 
+type PairBase<T, D> = Omit<Pair<T, D>, 'plan' | 'curves' | 'gainMul' | 'bStartBar'>
+
+/** Запланированный переход для карточки «Следующий переход»: место плана в топе планировщика. */
+export interface NextPlan<T> {
+  from: T
+  to: T
+  plan: TransitionPlan
+  /** 1…total. */
+  rank: number
+  total: number
+}
+
+const sameMoment = (x: TransitionPlan, y: TransitionPlan) => x.kind === y.kind && x.outMs === y.outMs && x.inMs === y.inMs
+
 interface Live<D> {
   deckB: D | null
   bPlaying: boolean
@@ -133,13 +149,19 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
   phase = $state<BlendPhase>('idle')
   /** Что сейчас сводим (для кнопки и отладки). */
   current = $state.raw<{ from: T; to: T; plan: TransitionPlan } | null>(null)
+  /** Что запланировано (до и во время перехода). */
+  next = $state.raw<NextPlan<T> | null>(null)
   /** Последняя ошибка фазы, мс (отладка). */
   phaseErrMs = $state(0)
 
   private pair: Pair<T, D> | null = null
   private live: Live<D> | null = null
   private preparing: string | null = null
-  private failed: string | null = null
+  private failed = $state<string | null>(null)
+  /** Топ планировщика для текущей пары (по нему ходит «Другой момент»). */
+  private options: TransitionPlan[] = []
+  /** Момент, выбранный «Другим моментом»: переживает перемотку и пересчёт пары. */
+  private prefer: { pairKey: string; plan: TransitionPlan } | null = null
   private token = 0
   private timer: ReturnType<typeof setTimeout> | null = null
   /** Отложенные освобождения дек: новый преролл выполняет их сразу, чтобы старый таймер не убил свежий B. */
@@ -270,14 +292,15 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
       .then((soundB) => {
         if (token !== this.token || this.preparing !== key) return
         this.preparing = null
-        this.pair = this.choose({ ...c, b }, key, anA, anB, soundB)
-        if (this.pair) this.phase = 'planned'
+        const pair = this.choose({ ...c, b }, key, anA, anB, soundB)
+        this.setPair(pair)
+        if (pair) this.phase = 'planned'
         else this.failed = pairKey
       })
     return true
   }
 
-  /** Первый из топа, у которого старт B ещё впереди (§7.1). */
+  /** Первый из топа, у которого старт B ещё впереди (§7.1), или момент, выбранный «Другим моментом». */
   private choose(c: Consider<T, D> & { b: T }, key: string, anA: BlendAnalysis, anB: BlendAnalysis, soundB: OwnSound) {
     const plans = planTransitions(anA, anB, {
       ...this.host.settings(),
@@ -286,15 +309,61 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
       linkedA: c.linkedA,
       linkedB: soundB.linked,
     })
-    for (const plan of plans) {
-      const bStartBar = startBar(plan, anB)
-      const startMs = plan.outMs + bStartBar * barMs(anA)
-      if (startMs - c.posMs < MIN_LEAD_SEC * 1000 * c.rateA) continue
-      const curves = curvesFor(plan, this.host.nyquist)
-      const gainMul = 10 ** (plan.gainDb / 20)
-      return { a: c.a, b: c.b, deckA: c.deckA, anA, anB, key, rateA: c.rateA, soundB, plan, curves, gainMul, bStartBar }
+    this.options = plans
+    const fits = plans.filter((plan) => ahead(plan, anA, anB, c.posMs, c.rateA))
+    const prefer = this.prefer
+    const want = prefer?.pairKey === `${c.a.ref}>${c.b.ref}` ? fits.find((plan) => sameMoment(plan, prefer.plan)) : undefined
+    const plan = want ?? fits[0]
+    if (!plan) return null
+    return this.build({ a: c.a, b: c.b, deckA: c.deckA, anA, anB, key, rateA: c.rateA, soundB }, plan)
+  }
+
+  private build(base: PairBase<T, D>, plan: TransitionPlan): Pair<T, D> {
+    const { a, b, deckA, anA, anB, key, rateA, soundB } = base
+    const curves = curvesFor(plan, this.host.nyquist)
+    return { a, b, deckA, anA, anB, key, rateA, soundB, plan, curves, gainMul: 10 ** (plan.gainDb / 20), bStartBar: startBar(plan, anB) }
+  }
+
+  private setPair(pair: Pair<T, D> | null) {
+    this.pair = pair
+    this.next = pair && {
+      from: pair.a,
+      to: pair.b,
+      plan: pair.plan,
+      rank: this.options.indexOf(pair.plan) + 1,
+      total: this.options.length,
     }
-    return null
+  }
+
+  /** «Другой момент»: следующий план из топа (по кругу), у которого старт ещё впереди. Только до перехода. */
+  another(): boolean {
+    const p = this.pair
+    if (!p || this.started()) return false
+    const plans = this.options
+    const posMs = p.deckA.el.currentTime * 1000
+    const from = plans.indexOf(p.plan)
+    for (let k = 1; k < plans.length; k++) {
+      const plan = plans[(from + k) % plans.length]
+      if (!ahead(plan, p.anA, p.anB, posMs, p.rateA)) continue
+      this.prefer = { pairKey: `${p.a.ref}>${p.b.ref}`, plan }
+      // B уже грузится под прежний момент — забыть пару, следующий `consider` соберёт её с новым
+      if (this.live) this.drop()
+      else this.setPair(this.build(p, plan))
+      return true
+    }
+    return false
+  }
+
+  /** «К переходу»: куда перемотать A (мс файла), чтобы до начала перехода осталось 8 с. */
+  previewAtMs(): number | null {
+    const p = this.pair
+    if (!p || this.started()) return null
+    return Math.max(0, p.plan.outMs - PREVIEW_SEC * 1000 * p.rateA)
+  }
+
+  /** Для пары не нашлось плана или B не загрузился — будет кроссфейд. */
+  failedFor(a: string, b: string): boolean {
+    return this.failed === `${a}>${b}`
   }
 
   private prerollDue(posMs: number): boolean {
@@ -537,7 +606,7 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
     const held = !!this.live && this.live.settleFrom === null
     this.token++
     this.stopTimer()
-    this.pair = null
+    this.setPair(null)
     this.live = null
     this.preparing = null
     this.current = null
@@ -549,6 +618,12 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
 
 function setRate(el: MediaLike, rate: number) {
   if (Math.abs(el.playbackRate - rate) > RATE_EPS) el.playbackRate = rate
+}
+
+/** Старт B ещё хотя бы за `MIN_LEAD_SEC` от позиции A. */
+function ahead(plan: TransitionPlan, anA: BlendAnalysis, anB: BlendAnalysis, posMs: number, rateA: number): boolean {
+  const startMs = plan.outMs + startBar(plan, anB) * barMs(anA)
+  return startMs - posMs >= MIN_LEAD_SEC * 1000 * rateA
 }
 
 /** Где должен быть B (мс файла) на такте перехода. */

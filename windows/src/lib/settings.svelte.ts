@@ -150,6 +150,18 @@ export const DEFAULTS = {
   'audio.gapless': true,
   /** Сведение: DJ-переход по долям вместо кроссфейда (player/blend/, docs/BLEND.md). */
   'audio.blend': false,
+  /** Вид перехода сведения: авто или один из пяти (player/blend/planner.ts). */
+  'audio.blend_type': 'auto' as 'auto' | 'bass' | 'filter' | 'echo' | 'smooth' | 'drop',
+  /** Длина перехода сведения, с: 6 · 10 · 16. */
+  'audio.blend_length': 10 as number,
+  /** Сколько можно срезать у конца A и начала B, с (0–45). */
+  'audio.blend_cut': 16 as number,
+  /** Допуск темпа для сведения бит в бит, % (0–12). */
+  'audio.blend_tempo': 8 as number,
+  /** Подгонять тональность B под A на ±2 полутона. */
+  'audio.blend_key': true,
+  /** Отладочная панель сведения (видна только подписке Dev). */
+  'audio.blend_debug': false,
   /** Тише во время звонков: пока другое приложение пишет с микрофона, музыка на 20 % (calls.rs). */
   'audio.duck_calls': true,
   /** Звук при запуске: аккорд рояля под волны заставки (index.html, public/splash-chord.wav). Выключен,

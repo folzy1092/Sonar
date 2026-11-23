@@ -453,6 +453,67 @@ describe('BlendController', () => {
     expect(s.log.released).toContain(s.deckB())
   })
 
+  it('«Другой момент» берёт следующий план и не теряет его после перемотки', async () => {
+    const s = setup()
+    s.deckA.el.currentTime = 60
+    await s.advance(STEP)
+    const first = s.ctl.next!
+    expect(first.rank).toBe(1)
+    expect(first.total).toBeGreaterThan(1)
+    expect(s.ctl.another()).toBe(true)
+    const second = s.ctl.next!
+    expect(second.rank).toBeGreaterThan(1)
+    expect([second.plan.kind, second.plan.outMs, second.plan.inMs]).not.toEqual([first.plan.kind, first.plan.outMs, first.plan.inMs])
+    // перемотка сбрасывает план, следующий расчёт берёт выбранный момент
+    s.ctl.cancel()
+    expect(s.ctl.next).toBeNull()
+    s.deckA.el.currentTime = 61
+    await s.advance(STEP)
+    expect(s.ctl.next!.plan.outMs).toBe(second.plan.outMs)
+    expect(s.ctl.next!.plan.inMs).toBe(second.plan.inMs)
+  })
+
+  it('«Другой момент» в прероллe забывает загруженный B и собирает пару заново', async () => {
+    const s = setup()
+    await s.toPreroll()
+    const before = s.ctl.next!.plan
+    expect(s.ctl.another()).toBe(true)
+    expect(s.ctl.phase).toBe('idle')
+    await s.advance(STEP)
+    expect(s.ctl.next!.plan).not.toBe(before)
+  })
+
+  it('«К переходу»: A встаёт за 8 с до начала, план тот же', async () => {
+    const s = setup()
+    s.deckA.el.currentTime = 30
+    await s.advance(STEP)
+    const plan = s.ctl.next!.plan
+    const at = s.ctl.previewAtMs()!
+    expect(at).toBe(plan.outMs - 8000)
+    s.ctl.cancel()
+    s.deckA.el.currentTime = at / 1000
+    await s.advance(STEP)
+    expect(s.ctl.next!.plan.outMs).toBe(plan.outMs)
+  })
+
+  it('после перехода «Другой момент» и «К переходу» не работают', async () => {
+    const s = setup()
+    await s.toPreroll()
+    await s.until(() => s.ctl.phase === 'running')
+    expect(s.ctl.another()).toBe(false)
+    expect(s.ctl.previewAtMs()).toBeNull()
+  })
+
+  it('ошибка B помечает пару для карточки «будет кроссфейд»', async () => {
+    const s = setup()
+    await s.toPreroll()
+    await s.until(s.bPlaying)
+    expect(s.ctl.failedFor('a', 'b')).toBe(false)
+    s.ctl.onDeckError(s.deckB()!.el)
+    expect(s.ctl.failedFor('a', 'b')).toBe(true)
+    expect(s.ctl.failedFor('a', 'c')).toBe(false)
+  })
+
   it('выключили сведение до старта B — план тихо забыт', async () => {
     const s = setup({ loadDelaySec: 5 })
     await s.toPreroll()

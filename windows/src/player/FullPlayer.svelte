@@ -21,6 +21,7 @@
   import SeekBar from './SeekBar.svelte'
   import Wave from './Wave.svelte'
   import WhyLine from './WhyLine.svelte'
+  import BlendButton from './BlendButton.svelte'
   import SpeedButton from './SpeedButton.svelte'
   import OwnSoundChip from './OwnSoundChip.svelte'
   import ArtBackdrop from './ArtBackdrop.svelte'
@@ -228,8 +229,8 @@
         oninput={(e) => player.setVolume(Number(e.currentTarget.value))}
       />
     </div>
-    <!-- скорость и звук трека: плашка «Свой звук» открывает эту всплывашку -->
-    <div class="speed-slot"><SpeedButton bind:this={speed} /></div>
+    <!-- сведение, скорость и звук трека: плашка «Свой звук» открывает всплывашку скорости -->
+    <div class="speed-slot"><BlendButton /><SpeedButton bind:this={speed} /></div>
   </footer>
 
   {#if menuAt}
@@ -586,13 +587,15 @@
   /* кнопка скорости на тёмном фоне — светлая, всплывашка остаётся в теме приложения */
   .speed-slot {
     justify-self: end;
+    display: flex;
+    gap: 4px;
   }
-  .speed-slot :global(.speed) {
+  .speed-slot :global(:is(.speed, .blend)) {
     color: rgba(255, 255, 255, 0.6);
   }
-  .speed-slot :global(.speed:hover),
-  .speed-slot :global(.speed.open),
-  .speed-slot :global(.speed.active) {
+  .speed-slot :global(:is(.speed, .blend):hover),
+  .speed-slot :global(:is(.speed, .blend).open),
+  .speed-slot :global(:is(.speed, .blend).active) {
     color: #fff;
   }
   .speed-slot :global(.speed.active) {

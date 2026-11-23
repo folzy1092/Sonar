@@ -4,10 +4,12 @@
 
 import Hls from 'hls.js'
 import { api, type StreamUrl, type Track, type TrackSound } from '../../lib/api'
+import { settings } from '../../lib/settings.svelte'
 import { tempo } from '../tempo.svelte'
 import type { BlendAnalysis } from './analysis'
-import { BLEND_DEFAULTS, type BlendHost, type OwnSound } from './controller.svelte'
+import type { BlendHost, OwnSound } from './controller.svelte'
 import type { DeckChain } from './deck-chain'
+import { blendSettings } from './settings'
 
 export interface PlayerDeck {
   el: HTMLAudioElement
@@ -122,7 +124,14 @@ export function createBlendHost(side: HostSide): BlendHost<Track, PlayerDeck> {
     get nyquist() {
       return (side.ctx()?.sampleRate ?? 48_000) / 2
     },
-    settings: () => BLEND_DEFAULTS,
+    settings: () =>
+      blendSettings({
+        type: settings.get('audio.blend_type'),
+        length: settings.get('audio.blend_length'),
+        cut: settings.get('audio.blend_cut'),
+        tempo: settings.get('audio.blend_tempo'),
+        key: settings.get('audio.blend_key'),
+      }),
     analysis: (ref) => side.analysis(ref),
     sound: async (ref) => {
       const cur = { rate: tempo.rate, pitch: tempo.pitch, linked: tempo.linked }

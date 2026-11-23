@@ -10,6 +10,7 @@
   import NextUp from '../components/NextUp.svelte'
   import Cover from '../components/Cover.svelte'
   import PlayPause from '../components/PlayPause.svelte'
+  import BlendButton from '../player/BlendButton.svelte'
   import SpeedButton from '../player/SpeedButton.svelte'
   import OwnSoundChip from '../player/OwnSoundChip.svelte'
   import EqButton from '../player/EqButton.svelte'
@@ -202,6 +203,7 @@
     <span class="mini-leds" data-fx-leds aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     <div class="capsule">
       <EqButton />
+      <BlendButton />
       <SpeedButton bind:this={speed} />
       <Volume />
       <!-- правая панель: текста нет — очередь, текст найден — «Т» (app/side-pane.svelte.ts); открывает вид
