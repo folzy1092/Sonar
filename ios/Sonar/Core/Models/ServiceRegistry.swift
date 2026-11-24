@@ -84,8 +84,8 @@ enum ServiceRegistry {
             id: .vk, key: "vk", name: "VK Музыка", color: "#0077FF",
             icon: "vk.svg", iconMono: "vk-mono.svg",
             prefixes: ServicePrefixes(track: "vk", album: "vkalb", artist: "vka", playlist: "vkpl"),
-            caps: ServiceCaps(search: true, stream: true, library: true, playlists: true, similar: true, login: true, key: true),
-            implemented: true
+            caps: ServiceCaps(search: false, stream: false, library: false, playlists: false, similar: false, login: false, key: false),
+            implemented: false
         ),
         ServiceInfo(
             id: .sp, key: "spotify", name: "Spotify", color: "#1ED760",
@@ -133,14 +133,18 @@ enum ServiceRegistry {
         parse(ref: ref)?.info.id
     }
 
-    /// Работающие сервисы в порядке показа: SoundCloud, Яндекс, YouTube Music, VK.
+    /// Убранные сервисы (VK — 2026-11-25, решение владельца): префиксы остаются, чтобы старые треки в
+    /// медиатеке разбирались и показывали значок, но ничего не открывается — играет резервный сервис.
+    static let retired: Set<ServiceID> = [.vk]
+
+    /// Работающие сервисы в порядке показа: SoundCloud, Яндекс, YouTube Music, Spotify.
     static var implemented: [ServiceInfo] {
         all.filter(\.implemented)
     }
 
     /// Лучший звук — первым: кого оставить среди дублей (`DupeFinder`). Тот же порядок — `QUALITY_ORDER`
-    /// в `providers/registry.rs`: Яндекс (FLAC) > свой файл > Spotify > VK > YouTube Music > SoundCloud.
-    static let qualityOrder: [ServiceID] = [.ym, .local, .sp, .vk, .yt, .sc]
+    /// в `providers/registry.rs`: Яндекс (FLAC) > свой файл > Spotify > YouTube Music > SoundCloud > убранный VK.
+    static let qualityOrder: [ServiceID] = [.ym, .local, .sp, .yt, .sc, .vk]
 
     /// Место трека по качеству звука: меньше — лучше; ref без сервиса — последним.
     static func qualityRank(_ ref: String) -> Int {

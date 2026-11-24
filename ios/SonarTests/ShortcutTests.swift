@@ -38,7 +38,7 @@ final class ShortcutTests: XCTestCase {
         XCTAssertEqual(QuickPlaylist(setting: "scpl:12345"), .service("scpl:12345"))
         XCTAssertEqual(QuickPlaylist(setting: "ympl:42:1003"), .service("ympl:42:1003"))
         XCTAssertEqual(QuickPlaylist(setting: " ympl:likes "), .service("ympl:likes"))
-        XCTAssertEqual(QuickPlaylist(setting: "vkpl:-2000_9_ab"), .service("vkpl:-2000_9_ab"))
+        XCTAssertEqual(QuickPlaylist(setting: "vkpl:-2000_9_ab"), .liked, "VK убран — плейлист VK больше не цель")
         XCTAssertEqual(QuickPlaylist(setting: "vkpl:"), .liked)
         // пусто, обрывок или чужое — Любимые
         XCTAssertEqual(QuickPlaylist(setting: ""), .liked)

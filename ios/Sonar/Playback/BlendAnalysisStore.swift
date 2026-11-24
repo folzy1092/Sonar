@@ -6,7 +6,7 @@ import Foundation
 // `blend_analysis`). Расчёт: скачанный или кэшированный файл, иначе прямой поток трека (в офлайне — нет), декод в
 // моно 11025 Гц через `AVAssetReader`, дальше `BlendAnalyzer` — тот же, что в тестах с векторами ПК.
 // HLS SoundCloud склеивается в файл тем же путём, что «Скачать» (`CoreDownloadFetcher`), анализируется и остаётся
-// в `BlendStitchCache` — со сведением дек играет его; HLS других сервисов (VK) — нет, там обычный кроссфейд.
+// в `BlendStitchCache` — со сведением дек играет его; HLS других сервисов — нет, там обычный кроссфейд.
 
 enum BlendAnalysisError: Error {
     case noTrack, hls, offline, tooBig, tooLong, decode
@@ -190,8 +190,7 @@ enum BlendAnalysisStore {
 
     private nonisolated static func download(_ url: URL) async throws -> URL {
         if OfflineFlag.isOn { throw BlendAnalysisError.offline }
-        var request = URLRequest(url: url)
-        if VK.isCDN(url) { request.setValue(VK.userAgent, forHTTPHeaderField: "User-Agent") }
+        let request = URLRequest(url: url)
         let session = URLSession(configuration: Net.configuration())
         defer { session.finishTasksAndInvalidate() }
         let (file, response) = try await session.download(for: request)

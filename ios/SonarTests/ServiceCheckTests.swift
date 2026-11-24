@@ -45,23 +45,23 @@ final class ServiceCheckTests: XCTestCase {
 
     func testOrderFollowsRegistryNotAnswers() async {
         // Яндекс отвечает последним, SoundCloud — первым, а список всё равно в порядке реестра.
-        let connected: Set<ServiceID> = [.sp, .ym, .sc, .vk]
+        let connected: Set<ServiceID> = [.sp, .ym, .sc, .yt]
         let result = await ServiceChecker.run(connected: connected) { id in
-            let delay: [ServiceID: Int] = [.sc: 0, .vk: 10, .sp: 20, .ym: 40]
+            let delay: [ServiceID: Int] = [.sc: 0, .yt: 10, .sp: 20, .ym: 40]
             try await Task.sleep(for: .milliseconds(delay[id] ?? 0))
         }
         let expected = ServiceRegistry.implemented.map(\.id).filter(connected.contains)
         XCTAssertEqual(result.map(\.service), expected)
-        XCTAssertEqual(result.map(\.service), [.sc, .ym, .vk, .sp])
+        XCTAssertEqual(result.map(\.service), [.sc, .ym, .yt, .sp])
     }
 
     func testServicesRunInParallel() async {
         let clock = ContinuousClock()
         let started = clock.now
-        _ = await ServiceChecker.run(connected: [.sc, .ym, .yt, .vk]) { _ in
+        _ = await ServiceChecker.run(connected: [.sc, .ym, .yt]) { _ in
             try await Task.sleep(for: .milliseconds(300))
         }
-        XCTAssertLessThan(clock.now - started, .milliseconds(1000), "четыре по 300 мс — параллельно, не 1.2 с")
+        XCTAssertLessThan(clock.now - started, .milliseconds(1000), "три по 300 мс — параллельно, не 0.9 с")
     }
 
     func testSecondsFormatLikeDesktop() {

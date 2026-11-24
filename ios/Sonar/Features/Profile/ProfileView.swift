@@ -48,7 +48,6 @@ struct ProfileView: View {
                     divider
                     link("YouTube Music", Service.youtube.icon) { ServicesView(only: .youtube) }
                     divider
-                    link(Service.vk.title, Service.vk.icon) { ServicesView(only: .vk) }
                 }
                 section("Интеграции", 5) {
                     link("Ключ API", .link) {

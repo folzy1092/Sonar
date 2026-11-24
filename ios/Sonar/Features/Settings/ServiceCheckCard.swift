@@ -101,7 +101,6 @@ struct ServiceCheckCard: View {
         if status.soundCloud != nil { ids.insert(.sc) }
         if status.yandex != nil { ids.insert(.ym) }
         if status.youtube != nil { ids.insert(.yt) }
-        if status.vk != nil { ids.insert(.vk) }
         if await SpotifyCore.shared.account != nil { ids.insert(.sp) }
         return ids
     }

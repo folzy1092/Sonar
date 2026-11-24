@@ -63,7 +63,7 @@ extension FallbackSettings {
 /// Чистая логика резерва: порядок по реестру, кандидаты, текст тоста. Без сети — под XCTest.
 enum FallbackPlan {
     static let enabledKey = "audio.fallback"
-    /// Порядок — id через запятую (`yt,ym,sc,vk`): `SettingValue` без массивов; на ПК — массив JSON.
+    /// Порядок — id через запятую (`yt,ym,sc`): `SettingValue` без массивов; на ПК — массив JSON.
     static let orderKey = "audio.fallback_order"
 
     /// Может быть резервом: работает в Sonar, ищет и отдаёт поток (Spotify без потока и локальные файлы — нет).

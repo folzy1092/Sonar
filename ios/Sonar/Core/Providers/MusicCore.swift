@@ -41,12 +41,6 @@ actor MusicCore {
     private var soundCloud: StoredService<SoundCloudCreds>?
     /// Яндекс, сырой JSON SoundCloud, `withSoundCloud` — ещё и для резерва в `MusicCore+Fallback.swift` (не private).
     var yandex: StoredService<YandexCreds>?
-    /// VK и что он отдал вместе с треками — в `MusicCore+VK.swift` (поэтому не private).
-    var vk: StoredService<VKCreds>?
-    /// Ссылки на поток, которые VK отдал вместе с треками, и когда (живут `streamTTL`).
-    var vkSeen: [String: (url: String, at: Date)] = [:]
-    /// access_key треков VK — на диске, переживают перезапуск (`VKKeyStore`).
-    var vkKeys = VKKeyStore(file: VKKeyStore.defaultFile)
     /// Публичный client_id с soundcloud.com — когда своих ключей нет (поиск и открытые треки).
     private var publicClientId: String?
     /// Тихий вход SoundCloud (скрытый WKWebView, `SoundCloudSilentLogin`) — ставит приложение, у ядра
@@ -84,7 +78,6 @@ actor MusicCore {
         soundCloud = ServiceVault.load(Service.soundcloud.info.key)
         yandex = ServiceVault.load(Service.yandex.info.key)
         youtube = ServiceVault.load(Service.youtube.info.key)
-        vk = ServiceVault.load(Service.vk.info.key)
     }
 
     // MARK: - Подключение
@@ -93,11 +86,10 @@ actor MusicCore {
         var soundCloud: ServiceAccount?
         var yandex: ServiceAccount?
         var youtube: ServiceAccount?
-        var vk: ServiceAccount? = nil
     }
 
     func status() -> Status {
-        Status(soundCloud: soundCloud?.account, yandex: yandex?.account, youtube: youtube?.account, vk: vk?.account)
+        Status(soundCloud: soundCloud?.account, yandex: yandex?.account, youtube: youtube?.account)
     }
 
     func configure(maxKbps: Int, soundCloudViaYandex: Bool, youTubeHigh: Bool? = nil, fallback: FallbackSettings? = nil) {
@@ -176,9 +168,6 @@ actor MusicCore {
         case .soundcloud: soundCloud = nil
         case .yandex: yandex = nil
         case .youtube: youtube = nil
-        case .vk:
-            vk = nil
-            vkSeen.removeAll()
         }
         ServiceVault.delete(service.info.key)
         streams.removeAll()
@@ -328,8 +317,6 @@ actor MusicCore {
             return try await yandexClient().search(query, limit: limit)
         case .youtube:
             return try await youTubeClient().search(query, limit: limit)
-        case .vk:
-            return try await vkSearch(query, limit: limit)
         }
     }
 
@@ -338,7 +325,6 @@ actor MusicCore {
         case .soundcloud: try await withSoundCloud { try await $0.searchMore(query, limit: limit) }
         case .yandex: try await yandexClient().searchMore(query, limit: limit)
         case .youtube: try await youTubeClient().searchMore(query, limit: limit)
-        case .vk: try await vkClient().searchMore(query, limit: limit)
         }
         return SearchResults(tracks: [], artists: found.artists, albums: found.albums, playlists: found.playlists)
     }
@@ -393,7 +379,6 @@ actor MusicCore {
         case "sc": return keep(try await withSoundCloud { try await $0.related(parts[1], limit: limit) })
         case "ym": return try await yandexClient().similar(parts[1])
         case "yt": return Array(try await youTubeClient().similar(parts[1]).prefix(limit))
-        case "vk": return try await vkSimilar(parts[1], limit: limit)
         default: return []
         }
     }
@@ -403,10 +388,22 @@ actor MusicCore {
     private static func split(_ ref: String) throws -> (kind: String, id: String) {
         let parts = ref.split(separator: ":", maxSplits: 1).map(String.init)
         guard parts.count == 2, !parts[1].isEmpty else { throw ServiceError(message: "Неверная ссылка \(ref)") }
+        try rejectRetired(ref)
         return (parts[0], parts[1])
     }
 
-    /// Страница исполнителя (`sca:` / `yma:` / `yta:` / `vka:` / `spa:`): шапка, популярные треки, альбомы и синглы.
+    /// Убранный сервис (VK, 2026-11-25): старые ссылки разбираются, но не открываются — «нет на сервисе»,
+    /// поэтому трек сыграет резервный сервис (как `retired` в `services.rs`).
+    static func retiredError(_ ref: String) -> Unplayable? {
+        guard let id = ServiceRegistry.service(of: ref), ServiceRegistry.retired.contains(id) else { return nil }
+        return Unplayable(reason: .unavailable, message: "\(ServiceRegistry.info(id).name) убрана из Sonar")
+    }
+
+    private static func rejectRetired(_ ref: String) throws {
+        if let gone = retiredError(ref) { throw gone }
+    }
+
+    /// Страница исполнителя (`sca:` / `yma:` / `yta:` / `spa:`): шапка, популярные треки, альбомы и синглы.
     func artist(_ ref: String) async throws -> (artist: Artist, tracks: [Track], albums: [Album]) {
         let (kind, id) = try Self.split(ref)
         switch kind {
@@ -425,8 +422,6 @@ actor MusicCore {
         case "yta":
             let page = try await youTubeClient().artist(id)
             return (page.artist, page.top, page.albums)
-        case "vka":
-            return try await vkArtist(id)
         case "spa":
             return try await SpotifyCore.shared.artist(id)
         default:
@@ -434,7 +429,7 @@ actor MusicCore {
         }
     }
 
-    /// Альбом или релиз (`scalb:` / `ymalb:` / `ytalb:` / `vkalb:` / `spalb:`) с треками.
+    /// Альбом или релиз (`scalb:` / `ymalb:` / `ytalb:` / `spalb:`) с треками.
     func album(_ ref: String) async throws -> (album: Album, tracks: [Track]) {
         let (kind, id) = try Self.split(ref)
         switch kind {
@@ -446,8 +441,6 @@ actor MusicCore {
             return try await yandexClient().album(id)
         case "ytalb":
             return try await youTubeClient().album(id)
-        case "vkalb":
-            return try await vkAlbum(id)
         case "spalb":
             return try await SpotifyCore.shared.album(id)
         default:
@@ -462,7 +455,6 @@ actor MusicCore {
         case "sca": return keep(try await withSoundCloud { try await $0.topTracks(id, limit: limit) })
         case "yma": return Array(try await yandexClient().artist(id).top.prefix(limit))
         case "yta": return Array(try await youTubeClient().artist(id).top.prefix(limit))
-        case "vka": return try await vkArtistTop(id, limit: limit)
         case "spa": return Array(try await SpotifyCore.shared.artist(id).tracks.prefix(limit))
         default: throw ServiceError(message: "Неизвестный исполнитель \(ref)")
         }
@@ -482,7 +474,6 @@ actor MusicCore {
         case "sca": return try await withSoundCloud { try await $0.userAlbums(id) }
         case "yma": return try await yandexClient().artist(id).albums
         case "yta": return try await youTubeClient().artist(id).albums
-        case "vka": return try await vkClient().artistAlbums(id, limit: 100)
         case "spa": return try await SpotifyCore.shared.artistAlbums(id)
         default: throw ServiceError(message: "Неизвестный исполнитель \(ref)")
         }
@@ -501,8 +492,7 @@ actor MusicCore {
 
     /// Свои плейлисты подключённых сервисов для Медиатеки: сначала SoundCloud (первым — «Лайки
     /// SoundCloud», нужен OAuth-токен), потом Яндекс («Мне нравится» первым), потом YouTube Music
-    /// («Лайки YouTube Music» первыми, нужен вход), потом VK («Моя музыка» первой), Spotify («Любимые треки»
-    /// первыми) — последним. Ошибка одного сервиса не мешает другому.
+    /// («Лайки YouTube Music» первыми, нужен вход), Spotify («Любимые треки» первыми) — последним. Ошибка одного сервиса не мешает другому.
     func myPlaylists() async -> [ServicePlaylist] {
         var out: [ServicePlaylist] = []
         if let soundCloud, soundCloud.creds.oauthToken?.isEmpty == false, let uid = soundCloud.account.uid {
@@ -520,7 +510,6 @@ actor MusicCore {
             out.append(ServicePlaylist(ref: Self.youTubeLikesRef, title: YouTube.likesTitle, owner: youtube.account.name ?? "", coverURL: nil, trackCount: 0))
             out += (try? await YouTube(creds: youtube.creds).libraryPlaylists()) ?? []
         }
-        out += await vkPlaylists()
         return out + (await SpotifyCore.shared.playlists())
     }
 
@@ -530,7 +519,7 @@ actor MusicCore {
     static let maxYouTubePlaylist = 1000
 
     /// Плейлист сервиса с треками: `scpl:<id>`, `scpl:likes`, `ympl:<uid>:<kind>`, `ympl:likes`,
-    /// `ytpl:<id>`, `ytpl:likes`, `vkpl:…`, `sppl:<id>`, `sppl:likes`.
+    /// `ytpl:<id>`, `ytpl:likes`, `sppl:<id>`, `sppl:likes`.
     func playlist(_ ref: String) async throws -> (head: ServicePlaylist, tracks: [Track]) {
         let (kind, id) = try Self.split(ref)
         switch (kind, id) {
@@ -564,8 +553,6 @@ actor MusicCore {
         case ("ytpl", _):
             let page = try await youTubeClient().playlist(id, max: Self.maxYouTubePlaylist)
             return (page.playlist, page.tracks)
-        case ("vkpl", _):
-            return try await vkPlaylist(id)
         case ("sppl", _):
             return try await SpotifyCore.shared.playlist(id, max: Self.maxServiceLikes)
         default:
@@ -632,19 +619,19 @@ actor MusicCore {
 
     // MARK: - Поток
 
-    /// Свой поток трека `sc:123` / `ym:456` / `yt:<videoId>` / `vk:<owner>_<id>` — без резерва (его даёт
+    /// Свой поток трека `sc:123` / `ym:456` / `yt:<videoId>` — без резерва (его даёт
     /// `playable`). fresh — не брать из кэша (ссылка протухла). safe — запасной путь, если поток не открылся:
     /// без FLAC (Яндекс — mp3 до 320), YouTube — с новой visitorData. Не играет — `Unplayable` с причиной.
     func stream(_ ref: String, fresh: Bool = false, safe: Bool = false) async throws -> StreamSource {
         // Spotify на iPhone не играет — трек сыграет резервный сервис
         if ServiceRegistry.service(of: ref) == .sp { throw Unplayable(reason: .premium, message: Spotify.needsFallback) }
+        try Self.rejectRetired(ref)
         if safe {
             let parts = ref.split(separator: ":", maxSplits: 1).map(String.init)
             guard parts.count == 2 else { throw ServiceError(message: "Неверный трек \(ref)") }
             let source = switch parts[0] {
             case "ym": try await yandexClient().stream(parts[1], maxKbps: min(maxKbps, 320))
             case "yt": try await youTubeStream(parts[1], fresh: true)
-            case "vk": try await vkStream(parts[1], fresh: true)
             default: try await soundCloudStream(ref, id: parts[1], fresh: true)
             }
             streams[ref] = (source, Date())
@@ -663,8 +650,6 @@ actor MusicCore {
             source = try await yandexClient().stream(parts[1], maxKbps: maxKbps)
         case "yt":
             source = try await youTubeStream(parts[1], fresh: fresh)
-        case "vk":
-            source = try await vkStream(parts[1], fresh: fresh)
         default:
             throw ServiceError(message: "Неизвестный источник в \(ref)")
         }

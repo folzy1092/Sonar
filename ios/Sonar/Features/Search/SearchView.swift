@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Поиск (`IMG_6767`): поле-капсула, справа круг сервиса (SoundCloud → Яндекс → YouTube Music → VK → Spotify, если
+/// Поиск (`IMG_6767`): поле-капсула, справа круг сервиса (SoundCloud → Яндекс → YouTube Music → Spotify, если
 /// подключён) и круг «ссылка из буфера»;
 /// чипы Всё · Треки · Альбомы · Артисты · Плейлисты. Пустой запрос — «Недавнее» (история поиска, по
 /// одному убирается ✕, «Очистить» — всё). Ссылка SoundCloud / Яндекса — сразу карточка «что за ней».
@@ -15,13 +15,12 @@ struct SearchView: View {
         var id: String { rawValue }
     }
 
-    /// Где искать. Сырые значения SoundCloud, Яндекса, YouTube Music и VK — как у `Service` (настройка
-    /// `search.source`), Spotify — только метаданные: найденный трек сыграет резервный сервис.
+    /// Где искать. Сырые значения SoundCloud, Яндекса и YouTube Music — как у `Service` (настройка
+    /// `search.source`; сохранённый убранный `vk` читается как SoundCloud), Spotify — только метаданные: найденный трек сыграет резервный сервис.
     enum Source: String, Sendable {
         case soundcloud
         case yandex
         case youtube
-        case vk
         case spotify
 
         /// Свой клиент в `MusicCore`; у Spotify — `SpotifyCore`, поэтому nil.
@@ -29,13 +28,12 @@ struct SearchView: View {
 
         var title: String { service?.title ?? ServiceRegistry.info(.sp).name }
 
-        /// Следующий по кругу (SoundCloud → Яндекс → YouTube Music → VK → Spotify); Spotify — только подключённый.
+        /// Следующий по кругу (SoundCloud → Яндекс → YouTube Music → Spotify); Spotify — только подключённый.
         func next(spotifyConnected: Bool) -> Source {
             switch self {
             case .soundcloud: .yandex
             case .yandex: .youtube
-            case .youtube: .vk
-            case .vk: spotifyConnected ? .spotify : .soundcloud
+            case .youtube: spotifyConnected ? .spotify : .soundcloud
             case .spotify: .soundcloud
             }
         }

@@ -14,7 +14,7 @@ protocol MusicSource: Sendable {
     func search(_ query: String, in service: Service, limit: Int) async throws -> [Track]
 }
 
-/// Один клиент стримингового сервиса: SoundCloud, Яндекс, YouTube Music, VK, Spotify; новые сервисы реестра
+/// Один клиент стримингового сервиса: SoundCloud, Яндекс, YouTube Music, Spotify; новые сервисы реестра
 /// (`ServiceRegistry`) подключаются сюда же. `MusicCore` пока выбирает клиента сам, по строке сервиса.
 protocol MusicProvider: Sendable {
     /// Строка реестра этого клиента.
@@ -35,10 +35,6 @@ extension Yandex: MusicProvider {
 
 extension YouTube: MusicProvider {
     static var serviceID: ServiceID { .yt }
-}
-
-extension VK: MusicProvider {
-    static var serviceID: ServiceID { .vk }
 }
 
 /// Spotify — только метаданные (на iPhone не играет, `stream` даёт «нужен резервный сервис»).

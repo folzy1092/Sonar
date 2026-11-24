@@ -77,6 +77,7 @@ enum PlaylistExport {
         case .ym: return "https://music.yandex.ru/track/\(id)"
         case .yt: return "https://music.youtube.com/watch?v=\(id)"
         case .sp: return "https://open.spotify.com/track/\(id)"
+        // VK убран, но старые треки в плейлистах остались — ссылка на них в выгрузке пусть живёт
         case .vk: return "https://vk.com/audio\(id)"
         case .sc, .local: return nil
         }

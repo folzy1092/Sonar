@@ -72,13 +72,12 @@ extension MusicCore {
         }
     }
 
-    /// Можно ли сейчас искать в сервисе: SoundCloud и YouTube — без входа, Яндекс и VK — если подключены.
+    /// Можно ли сейчас искать в сервисе: SoundCloud и YouTube — без входа, Яндекс — если подключён.
     func canSearch(_ service: ServiceID) -> Bool {
         switch service {
         case .sc, .yt: true
         case .ym: yandex != nil
-        case .vk: vk != nil
-        case .sp, .local: false
+        case .vk, .sp, .local: false
         }
     }
 

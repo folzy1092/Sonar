@@ -15,14 +15,14 @@ final class FallbackTests: XCTestCase {
     // MARK: - Порядок
 
     func testDefaultOrderComesFromRegistry() {
-        XCTAssertEqual(FallbackPlan.defaultOrder, [.sc, .ym, .yt, .vk])
+        XCTAssertEqual(FallbackPlan.defaultOrder, [.sc, .ym, .yt], "VK убран — в резерве его нет")
         XCTAssertFalse(FallbackPlan.defaultOrder.contains(.sp))
         XCTAssertFalse(FallbackPlan.defaultOrder.contains(.local))
     }
 
     func testSavedOrderDropsUnknownAndRepeatsAndAppendsForgotten() {
-        XCTAssertEqual(FallbackPlan.order("yt,yandex,sp,yt,nope"), [.yt, .ym, .sc, .vk])
-        XCTAssertEqual(FallbackPlan.order(" vk , sc "), [.vk, .sc, .ym, .yt])
+        XCTAssertEqual(FallbackPlan.order("yt,yandex,sp,yt,nope"), [.yt, .ym, .sc])
+        XCTAssertEqual(FallbackPlan.order(" vk , sc "), [.sc, .ym, .yt], "сохранённый VK отбрасывается")
     }
 
     func testEmptyOrderIsDefault() {
@@ -31,22 +31,23 @@ final class FallbackTests: XCTestCase {
     }
 
     func testEncodeRoundTrips() {
-        let order: [ServiceID] = [.yt, .vk, .sc, .ym]
-        XCTAssertEqual(FallbackPlan.encode(order), "yt,vk,sc,ym")
+        let order: [ServiceID] = [.yt, .sc, .ym]
+        XCTAssertEqual(FallbackPlan.encode(order), "yt,sc,ym")
         XCTAssertEqual(FallbackPlan.order(FallbackPlan.encode(order)), order)
     }
 
     func testSettingsInitParsesOrder() {
         let settings = FallbackSettings(enabled: false, saved: "ym")
         XCTAssertFalse(settings.enabled)
-        XCTAssertEqual(settings.order, [.ym, .sc, .yt, .vk])
+        XCTAssertEqual(settings.order, [.ym, .sc, .yt])
         XCTAssertEqual(FallbackSettings(), FallbackSettings(enabled: true, saved: ""))
     }
 
     func testCandidatesSkipSourceAndTried() {
-        let order: [ServiceID] = [.sc, .ym, .yt, .vk]
-        XCTAssertEqual(FallbackPlan.candidates(order: order, from: .sc, skip: []), [.ym, .yt, .vk])
-        XCTAssertEqual(FallbackPlan.candidates(order: order, from: .sp, skip: [.ym]), [.sc, .yt, .vk])
+        let order: [ServiceID] = [.sc, .ym, .yt]
+        XCTAssertEqual(FallbackPlan.candidates(order: order, from: .sc, skip: []), [.ym, .yt])
+        XCTAssertEqual(FallbackPlan.candidates(order: order, from: .sp, skip: [.ym]), [.sc, .yt])
+        XCTAssertEqual(FallbackPlan.candidates(order: order, from: .vk, skip: []), [.sc, .ym, .yt], "старый трек VK уходит в резерв")
     }
 
     func testMovedReturnsNewList() {

@@ -524,9 +524,7 @@ final class PlaybackEngine {
         switch source {
         case let .file(link, _), let .hls(link, _): url = link
         }
-        // CDN VK отдаёт поток только клиенту с тем же User-Agent, что и у API (Kate Mobile)
-        let options: [String: Any] = VK.isCDN(url) ? [AVURLAssetHTTPUserAgentKey: VK.userAgent] : [:]
-        let item = AVPlayerItem(asset: AVURLAsset(url: url, options: options))
+        let item = AVPlayerItem(asset: AVURLAsset(url: url))
         item.audioTimePitchAlgorithm = pitchAlgorithm
         // буфер вперёд — чтобы мобильная сеть не рвала звук
         item.preferredForwardBufferDuration = 30

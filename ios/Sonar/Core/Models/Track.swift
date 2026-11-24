@@ -4,7 +4,7 @@ import Foundation
 // когда появится сервер, клиент получит их же. ref: `sc:<id>` / `ym:<id>` — трек, `sca:` / `yma:` —
 // исполнитель, `scalb:` / `ymalb:` — альбом, `scpl:<id>` / `ympl:<uid>:<kind>` — плейлист сервиса;
 // YouTube Music — `yt:` / `yta:` / `ytalb:` / `ytpl:`;
-// VK — `vk:<owner>_<id>`, `vka:`, `vkalb:` / `vkpl:<owner>_<id>[_<access_key>]`.
+// Старые треки убранного VK (`vk:` …) разбираются реестром, но клиента у них нет.
 // Все префиксы — в реестре `ServiceRegistry.swift` (docs/API.md «Префиксы ref»).
 
 struct Track: Codable, Hashable, Sendable, Identifiable {
@@ -33,7 +33,7 @@ struct Track: Codable, Hashable, Sendable, Identifiable {
         case coverURL = "cover_url"
     }
 
-    /// Источник по ref: SoundCloud, Яндекс или VK.
+    /// Источник по ref: SoundCloud, Яндекс или YouTube Music.
     var service: Service? { Service(ref: ref) }
 }
 
@@ -119,7 +119,6 @@ enum Service: String, Codable, Sendable, CaseIterable {
     case soundcloud
     case yandex
     case youtube
-    case vk
 
     /// Короткий id в реестре.
     var id: ServiceID {
@@ -127,25 +126,22 @@ enum Service: String, Codable, Sendable, CaseIterable {
         case .soundcloud: .sc
         case .yandex: .ym
         case .youtube: .yt
-        case .vk: .vk
         }
     }
 
     var info: ServiceInfo { ServiceRegistry.info(id) }
 
-    /// `.sc` — SoundCloud, `.ym` — Яндекс, `.yt` — YouTube Music, `.vk` — VK Музыка; у остальных сервисов реестра пока нет клиента.
+    /// `.sc` — SoundCloud, `.ym` — Яндекс, `.yt` — YouTube Music; у остальных сервисов реестра (и убранного VK) клиента нет.
     init?(id: ServiceID) {
         switch id {
         case .sc: self = .soundcloud
         case .ym: self = .yandex
         case .yt: self = .youtube
-        case .vk: self = .vk
-        case .sp, .local: return nil
+        case .vk, .sp, .local: return nil
         }
     }
 
-    /// По префиксу ref из реестра: `sc:`, `sca:`, `scalb:`, `scpl:` — SoundCloud, `ym…:` — Яндекс, `yt…:` — YouTube Music,
-    /// `vk…:` — VK.
+    /// По префиксу ref из реестра: `sc:`, `sca:`, `scalb:`, `scpl:` — SoundCloud, `ym…:` — Яндекс, `yt…:` — YouTube Music.
     init?(ref: String) {
         guard let service = ServiceRegistry.service(of: ref).flatMap(Service.init(id:)) else { return nil }
         self = service
@@ -153,7 +149,7 @@ enum Service: String, Codable, Sendable, CaseIterable {
 
     var title: String { info.name }
 
-    /// Следующий сервис по кругу — кнопка сервиса в Поиске (SoundCloud → Яндекс → YouTube Music → VK → …).
+    /// Следующий сервис по кругу — кнопка сервиса в Поиске (SoundCloud → Яндекс → YouTube Music → …).
     var next: Service {
         let all = Service.allCases
         let index = all.firstIndex(of: self) ?? 0
@@ -166,7 +162,6 @@ enum Service: String, Codable, Sendable, CaseIterable {
         case .soundcloud: .soundcloud
         case .yandex: .yandexMusic
         case .youtube: .youtubeMusic
-        case .vk: .vk
         }
     }
 }
@@ -206,7 +201,7 @@ extension Track {
     /// Главный артист — по нему лимиты разнообразия волны, пауза, подборки.
     var artistKey: String { artistKeys[0] }
 
-    /// Префиксы исполнителей работающих сервисов: `sca:`, `yma:`, `vka:`.
+    /// Префиксы исполнителей работающих сервисов: `sca:`, `yma:`, `yta:`.
     private static let artistPrefixes = Service.allCases.map { $0.info.prefixes.artist! + ":" }
     /// У SoundCloud без id пользователя приходит `sca:0` — такого исполнителя нет.
     private static let missingArtist = Service.soundcloud.info.prefixes.artist! + ":0"

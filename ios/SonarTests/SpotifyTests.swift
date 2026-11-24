@@ -93,9 +93,9 @@ final class SpotifyTests: XCTestCase {
         typealias Source = SearchView.Source
         XCTAssertEqual(Source.soundcloud.next(spotifyConnected: false), .yandex)
         XCTAssertEqual(Source.yandex.next(spotifyConnected: false), .youtube)
-        XCTAssertEqual(Source.youtube.next(spotifyConnected: false), .vk)
-        XCTAssertEqual(Source.vk.next(spotifyConnected: false), .soundcloud)
-        XCTAssertEqual(Source.vk.next(spotifyConnected: true), .spotify)
+        XCTAssertEqual(Source.youtube.next(spotifyConnected: false), .soundcloud)
+        XCTAssertEqual(Source.youtube.next(spotifyConnected: true), .spotify)
+        XCTAssertEqual(Source(rawValue: "vk"), nil, "сохранённый VK в поиске — уже не источник")
         XCTAssertEqual(Source.spotify.next(spotifyConnected: true), .soundcloud)
         // сырые значения SoundCloud и Яндекса — как у Service: старая настройка search.source читается
         XCTAssertEqual(Source(rawValue: Service.yandex.rawValue), .yandex)

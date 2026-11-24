@@ -28,7 +28,6 @@ struct LibraryView: View {
         case soundcloud = "SoundCloud"
         case yandex = "Яндекс Музыка"
         case youtube = "YouTube Music"
-        case vk = "VK Музыка"
 
         func keeps(_ ref: String) -> Bool {
             switch self {
@@ -36,7 +35,6 @@ struct LibraryView: View {
             case .soundcloud: ServiceRegistry.service(of: ref) == .sc
             case .yandex: ServiceRegistry.service(of: ref) == .ym
             case .youtube: ServiceRegistry.service(of: ref) == .yt
-            case .vk: ServiceRegistry.service(of: ref) == .vk
             }
         }
     }
@@ -254,7 +252,7 @@ struct LibraryView: View {
     private func reloadPlaylists(force: Bool) async {
         guard !offline.isOn else { return }
         let status = await MusicCore.shared.status()
-        let key = [status.soundCloud, status.yandex, status.youtube, status.vk].map { $0?.uid ?? $0?.name ?? "-" }.joined(separator: "|")
+        let key = [status.soundCloud, status.yandex, status.youtube].map { $0?.uid ?? $0?.name ?? "-" }.joined(separator: "|")
         guard force || key != loadedFor || Date().timeIntervalSince(loadedAt) > 300, !loadingPlaylists else { return }
         loadingPlaylists = true
         defer { loadingPlaylists = false }

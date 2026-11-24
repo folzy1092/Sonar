@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Сервисы с плейлистами, по порядку реестра: SoundCloud, Яндекс, YouTube Music, VK, Spotify.
+/// Сервисы с плейлистами, по порядку реестра: SoundCloud, Яндекс, YouTube Music, Spotify.
 @MainActor
 enum LibraryServices {
     static var all: [ServiceInfo] {

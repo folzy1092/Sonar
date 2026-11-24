@@ -22,7 +22,7 @@ final class ServiceRegistryTests: XCTestCase {
         Row(id: .yt, key: "youtube", name: "YouTube Music", color: "#FF0033", icon: "youtube-music.svg", iconMono: "youtube-music-mono.svg",
             prefixes: ServicePrefixes(track: "yt", album: "ytalb", artist: "yta", playlist: "ytpl"), implemented: true),
         Row(id: .vk, key: "vk", name: "VK Музыка", color: "#0077FF", icon: "vk.svg", iconMono: "vk-mono.svg",
-            prefixes: ServicePrefixes(track: "vk", album: "vkalb", artist: "vka", playlist: "vkpl"), implemented: true),
+            prefixes: ServicePrefixes(track: "vk", album: "vkalb", artist: "vka", playlist: "vkpl"), implemented: false),
         Row(id: .sp, key: "spotify", name: "Spotify", color: "#1ED760", icon: "spotify.svg", iconMono: "spotify-mono.svg",
             prefixes: ServicePrefixes(track: "sp", album: "spalb", artist: "spa", playlist: "sppl"), implemented: true),
         Row(id: .local, key: "local", name: "Локальные файлы", color: "#8E8E93", icon: nil, iconMono: nil,
@@ -49,7 +49,9 @@ final class ServiceRegistryTests: XCTestCase {
         XCTAssertFalse(spotify.similar)
         let local = ServiceRegistry.info(.local).caps
         XCTAssertEqual(local, ServiceCaps(search: false, stream: true, library: true, playlists: false, similar: false, login: false, key: false))
-        XCTAssertEqual(ServiceRegistry.implemented.map(\.id), [.sc, .ym, .yt, .vk, .sp])
+        XCTAssertEqual(ServiceRegistry.implemented.map(\.id), [.sc, .ym, .yt, .sp])
+        XCTAssertEqual(ServiceRegistry.info(.vk).caps, ServiceCaps(search: false, stream: false, library: false, playlists: false, similar: false, login: false, key: false), "VK убран — только значок старых треков")
+        XCTAssertEqual(ServiceRegistry.retired, [.vk])
         XCTAssertTrue(ServiceRegistry.info(.yt).caps.key, "cookie YouTube Music вручную")
     }
 
@@ -119,10 +121,9 @@ final class ServiceRegistryTests: XCTestCase {
         XCTAssertEqual(Service.youtube.id, .yt)
         XCTAssertEqual(Service.youtube.info.key, "youtube")
         XCTAssertEqual(Service.youtube.title, "YouTube Music")
-        XCTAssertEqual(Service(id: .vk), .vk)
-        XCTAssertEqual(Service(ref: "vkpl:1_2"), .vk)
-        XCTAssertEqual(Service.vk.info.key, "vk")
-        XCTAssertEqual(Service.vk.title, "VK Музыка")
+        XCTAssertNil(Service(id: .vk), "VK убран — не подключается")
+        XCTAssertNil(Service(ref: "vkpl:1_2"))
+        XCTAssertEqual(ServiceRegistry.service(of: "vkpl:1_2"), .vk, "но ref разбирается — значок у старых треков")
         XCTAssertNil(Service(id: .sp))
         XCTAssertEqual(Service.soundcloud.id, .sc)
         XCTAssertEqual(Service.yandex.info.key, "yandex")
@@ -138,11 +139,11 @@ final class ServiceRegistryTests: XCTestCase {
         track.artists = [ArtistRef(ref: "yta:1", name: "A")]
         XCTAssertEqual(track.mainArtistRef, "yta:1")
         track.artists = [ArtistRef(ref: "vka:9", name: "A")]
-        XCTAssertEqual(track.mainArtistRef, "vka:9")
+        XCTAssertNil(track.mainArtistRef, "VK убран — страницы артиста VK нет")
     }
 
     func testAllCasesUnchanged() {
-        XCTAssertEqual(Service.allCases, [.soundcloud, .yandex, .youtube, .vk])
+        XCTAssertEqual(Service.allCases, [.soundcloud, .yandex, .youtube])
         XCTAssertEqual(Service.youtube.rawValue, "youtube")
         XCTAssertEqual(Service.soundcloud.rawValue, "soundcloud")
         XCTAssertEqual(Service.yandex.rawValue, "yandex")
@@ -154,8 +155,7 @@ final class ServiceRegistryTests: XCTestCase {
     func testSearchSourceCycles() {
         XCTAssertEqual(Service.soundcloud.next, .yandex)
         XCTAssertEqual(Service.yandex.next, .youtube)
-        XCTAssertEqual(Service.youtube.next, .vk)
-        XCTAssertEqual(Service.vk.next, .soundcloud)
+        XCTAssertEqual(Service.youtube.next, .soundcloud)
     }
 
     func testServiceAccountDecodesWithoutPremium() throws {

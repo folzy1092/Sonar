@@ -11,7 +11,7 @@ struct FallbackSettingsCard: View {
 
     var body: some View {
         PlayerCard(title: t("Резервный сервис"),
-                   footer: t("Где искать трек сначала — порядок меняют стрелки. Яндекс Музыка и VK Музыка ищутся, только если подключены.")) {
+                   footer: t("Где искать трек сначала — порядок меняют стрелки. Яндекс Музыка ищется, только если подключена.")) {
             PlayerToggleRow(icon: .transfer, title: t("Резервный сервис"),
                             subtitle: t("Трек недоступен, есть только отрывок или нужна подписка — Sonar найдёт его в другом сервисе (исполнитель, название и длительность совпадают) и скажет, откуда играет."),
                             isOn: Binding(get: { enabled }, set: { settings.set(FallbackPlan.enabledKey, $0) }))
