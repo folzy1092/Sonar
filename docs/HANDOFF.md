@@ -5,7 +5,7 @@ iPhone. Сделано, влито в `main`; проверено сборкой 
 кросс-проверка `cargo check --target x86_64-pc-windows-gnu`), **вживую — нет**.
 
 **Что где:**
-- Один скрипт на всё — `brand/app-icons/build.mjs` (`npm install && node build.mjs`): SVG десяти значков, основной значок бренда
+- Один скрипт на всё — `brand/app-icons/build.mjs` (`npm install && node build.mjs`): SVG двенадцати значков, основной значок бренда
   (`brand/icon/sonar_icon_dark.*`, `sonar_icon_windows.svg`), `site/public/apple-touch-icon.png`, PNG для Windows
   (`windows/src-tauri/icons/app/<id>-64|32.png`, `windows/public/app-icons/<id>.png`), наборы iOS (`AppIcon`, `AppIcon-<Имя>`,
   `IconPreview-<id>`) и `icons.json`. Значки exe — отдельно: `cd windows && npx tauri icon ../brand/icon/sonar_icon_windows.svg`.

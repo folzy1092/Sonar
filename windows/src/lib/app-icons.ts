@@ -14,6 +14,8 @@ export const APP_ICONS = [
   { id: 'chrome', title: 'значок::Хром' },
   { id: 'carved', title: 'значок::Вдавленный' },
   { id: 'light', title: 'значок::Светлый' },
+  { id: 'black', title: 'значок::Чёрный' },
+  { id: 'white', title: 'значок::Белый' },
 ] as const
 
 export type AppIconId = (typeof APP_ICONS)[number]['id']

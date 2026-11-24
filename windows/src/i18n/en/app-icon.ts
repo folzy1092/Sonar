@@ -2,7 +2,7 @@
 export default {
   'Значок приложения': 'App icon',
   'Меняет значок окна, панели задач и трея. Ярлыки и закреплённая кнопка на панели задач остаются прежними — их значок берёт Windows из самого exe': 'Changes the icon of the window, the taskbar and the tray. Shortcuts and a pinned taskbar button keep the old icon — Windows takes it from the exe itself',
-  'Окно, панель задач и трей: десять значков на выбор': 'Window, taskbar and tray: ten icons to choose from',
+  'Окно, панель задач и трей: двенадцать значков на выбор': 'Window, taskbar and tray: twelve icons to choose from',
   'значок::Стекло': 'Glass',
   'значок::Плоский': 'Flat',
   'значок::Фаска': 'Bevel',
@@ -13,4 +13,6 @@ export default {
   'значок::Хром': 'Chrome',
   'значок::Вдавленный': 'Inset',
   'значок::Светлый': 'Light',
+  'значок::Чёрный': 'Black',
+  'значок::Белый': 'White',
 }

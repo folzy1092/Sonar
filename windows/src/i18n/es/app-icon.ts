@@ -2,7 +2,7 @@
 export default {
   'Значок приложения': 'Icono de la aplicación',
   'Меняет значок окна, панели задач и трея. Ярлыки и закреплённая кнопка на панели задач остаются прежними — их значок берёт Windows из самого exe': 'Cambia el icono de la ventana, de la barra de tareas y de la bandeja. Los accesos directos y el botón anclado en la barra de tareas conservan el anterior: Windows toma su icono del propio exe',
-  'Окно, панель задач и трей: десять значков на выбор': 'Ventana, barra de tareas y bandeja: diez iconos a elegir',
+  'Окно, панель задач и трей: двенадцать значков на выбор': 'Ventana, barra de tareas y bandeja: doce iconos a elegir',
   'значок::Стекло': 'Cristal',
   'значок::Плоский': 'Plano',
   'значок::Фаска': 'Bisel',
@@ -13,4 +13,6 @@ export default {
   'значок::Хром': 'Cromo',
   'значок::Вдавленный': 'Hundido',
   'значок::Светлый': 'Claro',
+  'значок::Чёрный': 'Negro',
+  'значок::Белый': 'Blanco',
 }

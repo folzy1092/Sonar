@@ -39,6 +39,8 @@ const ICONS: &[Entry] = &[
   icon!("chrome"),
   icon!("carved"),
   icon!("light"),
+  icon!("black"),
+  icon!("white"),
 ];
 
 /// Значок по id; незнакомый (настройка из другой сборки) — основной.

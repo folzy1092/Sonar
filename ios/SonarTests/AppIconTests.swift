@@ -7,7 +7,7 @@ import XCTest
 final class AppIconTests: XCTestCase {
     func testSameIconsAsWindowsInTheSameOrder() {
         XCTAssertEqual(AppIcon.allCases.map(\.rawValue),
-                       ["glass", "flat", "bevel", "puff", "block", "echo", "well", "chrome", "carved", "light"])
+                       ["glass", "flat", "bevel", "puff", "block", "echo", "well", "chrome", "carved", "light", "black", "white"])
     }
 
     func testPrimaryIsTheOnlyOneWithoutAlternateName() {

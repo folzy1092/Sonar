@@ -50,6 +50,16 @@
       "id": "light",
       "title": "Светлый",
       "set": "AppIcon-Light"
+    },
+    {
+      "id": "black",
+      "title": "Чёрный",
+      "set": "AppIcon-Black"
+    },
+    {
+      "id": "white",
+      "title": "Белый",
+      "set": "AppIcon-White"
     }
   ]
 }

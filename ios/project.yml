@@ -50,12 +50,12 @@ targets:
         PRODUCT_NAME: Sonar
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Sonar/Resources/Info.plist
-        # иконка — Resources/Assets.xcassets/AppIcon («Стекло», как у exe) и девять альтернативных на выбор
+        # иконка — Resources/Assets.xcassets/AppIcon («Стекло», как у exe) и одиннадцать альтернативных на выбор
         # (Интерфейс → Вид → «Значок приложения», `Core/Settings/AppIcon.swift`); всё делает brand/app-icons/build.mjs.
         # Список — те же наборы `AppIcon-<Имя>`, что в каталоге; Info.plist (CFBundleAlternateIcons) собирает Xcode,
         # а тест `AppIconTests` и шаг «Сборка IPA» в ios.yml сверяют его с этим списком.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Flat AppIcon-Bevel AppIcon-Puff AppIcon-Block AppIcon-Echo AppIcon-Well AppIcon-Chrome AppIcon-Carved AppIcon-Light"
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Flat AppIcon-Bevel AppIcon-Puff AppIcon-Block AppIcon-Echo AppIcon-Well AppIcon-Chrome AppIcon-Carved AppIcon-Light AppIcon-Black AppIcon-White"
     info:
       path: Sonar/Resources/Info.plist
       properties:

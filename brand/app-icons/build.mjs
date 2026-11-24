@@ -1,4 +1,4 @@
-// Значки приложения Sonar: основной («Стекло», решение владельца 2026-11-24) и ещё девять на выбор —
+// Значки приложения Sonar: основной («Стекло», решение владельца 2026-11-24) и ещё одиннадцать на выбор —
 // Интерфейс → Вид → «Значок приложения» на ПК и iPhone. Один генератор делает всё:
 //   brand/app-icons/<id>.svg            — исходники, квадрат 1024 (как плитка iOS)
 //   brand/icon/sonar_icon_*.svg/png     — основной значок бренда («Стекло»); site/public/apple-touch-icon.png — оттуда же
@@ -146,6 +146,30 @@ add('light', 'Светлый', 'Светлая плита и мягкая вмя
     'url(#slab)',
   ))
 
+// 6а. Чёрный — белая буква врезана в чёрную плиту, как эмаль в металл
+add('black', 'Чёрный', 'Чёрная плита и белая буква, врезанная в неё: тень сверху слева, светлая кромка плиты снизу справа.',
+  frame(
+    [
+      blur('lip', 1.6),
+      inset('ci', { dx: 9, dy: 13, blur: 11, color: '#4a4a56', op: 0.85 }, { dx: -4, dy: -6, blur: 4, color: '#ffffff', op: 0.9 }),
+      `    <linearGradient id="inlay" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dedee5"/></linearGradient>`,
+    ].join('\n'),
+    mark(`<g transform="translate(5 8)" filter="url(#lip)" opacity=".42">${use('all', 'fill="#9a9aaa"')}</g>\n    ${use('all', 'fill="url(#inlay)" filter="url(#ci)"')}`),
+  ))
+
+// 6б. Белый — чёрная буква врезана в белую плиту
+add('white', 'Белый', 'Белая плита и чёрная буква, врезанная в неё: тень сверху слева, светлая кромка внизу справа.',
+  frame(
+    [
+      blur('lip', 2.2),
+      inset('ci', { dx: 10, dy: 16, blur: 12, color: '#000000', op: 1 }, { dx: -5, dy: -8, blur: 5, color: '#8c8c9a', op: 0.75 }),
+      `    <linearGradient id="slab" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbfcfd"/><stop offset="1" stop-color="#e0e3e9"/></linearGradient>`,
+      `    <linearGradient id="pit" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#050506"/><stop offset="1" stop-color="#202026"/></linearGradient>`,
+    ].join('\n'),
+    mark(`<g transform="translate(-5 -6)" filter="url(#lip)" opacity=".38">${use('all', 'fill="#7d8597"')}</g>\n    ${use('all', 'fill="url(#pit)" filter="url(#ci)"')}`),
+    'url(#slab)',
+  ))
+
 // 7. Колодец сонара — плита вогнута чашей, по дну идут кольца, знак вздут над ней
 {
   const rings = [150, 245, 340, 430].map((r, i) => `<circle cx="512" cy="512" r="${r}" fill="none" stroke="#ffffff" stroke-opacity="${(0.15 - i * 0.03).toFixed(2)}" stroke-width="2.5"/>`).join('')
@@ -193,7 +217,7 @@ add('echo', 'Эхо', 'Лопасти выпуклые, а «эхо» — вда
 add('flat', 'Плоский', 'Прежний значок: белая S без объёма.', frame('', mark(use('all', 'fill="#ffffff"'))))
 
 // --- вывод ---
-const ORDER = ['glass', 'flat', 'bevel', 'puff', 'block', 'echo', 'well', 'chrome', 'carved', 'light']
+const ORDER = ['glass', 'flat', 'bevel', 'puff', 'block', 'echo', 'well', 'chrome', 'carved', 'light', 'black', 'white']
 const DEFAULT = 'glass'
 const byId = Object.fromEntries(variants.map((v) => [v.id, v]))
 const icons = ORDER.map((id) => byId[id])

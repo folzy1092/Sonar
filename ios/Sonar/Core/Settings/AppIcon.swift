@@ -7,7 +7,7 @@ import Foundation
 /// `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` в `project.yml` (тест сверяет его с Info.plist).
 /// Что выбрано, помнит сама iOS (`alternateIconName`), своей настройки нет — у каждого устройства свой значок.
 enum AppIcon: String, CaseIterable, Identifiable, Sendable {
-    case glass, flat, bevel, puff, block, echo, well, chrome, carved, light
+    case glass, flat, bevel, puff, block, echo, well, chrome, carved, light, black, white
 
     var id: String { rawValue }
 
@@ -40,6 +40,8 @@ enum AppIcon: String, CaseIterable, Identifiable, Sendable {
         case .chrome: "значок::Хром"
         case .carved: "значок::Вдавленный"
         case .light: "значок::Светлый"
+        case .black: "значок::Чёрный"
+        case .white: "значок::Белый"
         }
     }
 
