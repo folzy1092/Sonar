@@ -29,6 +29,7 @@
   import Remote from './settings/Remote.svelte'
   import Storage from './settings/Storage.svelte'
   import Update from './settings/Update.svelte'
+  import History from './settings/History.svelte'
   import About from './settings/About.svelte'
   import Mini from './settings/Mini.svelte'
   import Overlay from './settings/Overlay.svelte'
@@ -225,6 +226,8 @@
               <Storage />
             {:else if sub === 'update'}
               <Update />
+            {:else if sub === 'history'}
+              <History />
             {:else if sub === 'notifications'}
               <Notifications />
             {:else if sub === 'about'}

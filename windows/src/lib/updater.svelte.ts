@@ -9,7 +9,7 @@ import { isTauri } from './tauri'
 import { settings } from './settings.svelte'
 import { t } from './i18n.svelte'
 import { offline } from './offline.svelte'
-import { compareVersions, isBeta, mergeReleases, noteLines, parseChangelog, type ChangelogEntry } from './update-core'
+import { compareVersions, isBeta, mergeReleases, parseChangelog, releaseNotes, type ChangelogEntry } from './update-core'
 
 export type UpdatePhase = 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'installing' | 'error'
 
@@ -180,7 +180,7 @@ async function find(): Promise<Found | null> {
     if (!u) return null
     // бета приходит только тем, кто выбрал канал «Бета»; стабильному — ничего не предлагаем
     if (isBeta(u.version) && settings.get('update.channel') !== 'beta') return null
-    return { raw: u, version: u.version, date: u.date ?? '', notes: noteLines(u.body) }
+    return { raw: u, version: u.version, date: u.date ?? '', notes: releaseNotes(u.body) }
   }
   // Превью интерфейса в браузере (npm run dev): показываем пример, чтобы видеть все состояния.
   if (!import.meta.env.DEV) return null

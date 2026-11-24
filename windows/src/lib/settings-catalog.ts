@@ -187,8 +187,8 @@ export const CATALOG: readonly CatalogEntry[] = [
   ...rows('system', 'update', [
     ['Проверять обновления', 'При запуске и раз в 6 часов', 'update.auto_check', 'версия update'],
     ['Скачивать в фоне', 'Обновление скачается само, установится только по кнопке «Установить»', 'update.auto_download'],
-    ['История версий', undefined, undefined, 'changelog что нового'],
   ]),
+  ...rows('system', 'history', [['История версий', undefined, undefined, 'changelog что нового версии изменения']]),
   ...rows('system', 'about', [
     ['Версия', undefined, undefined, 'версия обновление о программе about'],
     ['Бета-версии', 'Получать обновления раньше всех — они могут быть сырыми', 'update.channel', 'beta канал обновлений'],
@@ -230,6 +230,7 @@ export const SUB_LEADS: Readonly<Record<string, string>> = {
   hotkeys: 'Сочетания для плеера, навигации и окон — в Sonar или по всей системе',
   remote: 'Телефон как пульт: музыка играет здесь, управление — с iPhone',
   update: 'Как Sonar находит и ставит новые версии',
+  history: 'Что менялось в каждой версии Sonar',
   storage: 'Кеш треков и место на диске',
   about: 'Версия, бета-версии, ссылки и сброс настроек',
 }

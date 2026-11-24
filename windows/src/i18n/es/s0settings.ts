@@ -50,5 +50,6 @@ export default {
   'Язык, источник Sonar Mix и что делает Sonar при запуске': 'Idioma, origen de Sonar Mix y qué hace Sonar al iniciar',
   'Управление музыкой с клавиатуры, даже когда окно спрятано': 'Controla la música con el teclado, incluso con la ventana oculta',
   'Как Sonar находит и ставит новые версии': 'Cómo Sonar encuentra e instala nuevas versiones',
+  'Что менялось в каждой версии Sonar': 'Qué cambió en cada versión de Sonar',
   'Кеш треков и место на диске': 'Caché de canciones y espacio en disco',
 } satisfies Record<string, string>

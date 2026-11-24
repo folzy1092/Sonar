@@ -54,6 +54,7 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
     { id: 'hotkeys', title: 'Клавиши', icon: 'keyboard' },
     { id: 'remote', title: 'Пульт', icon: 'phone' },
     { id: 'update', title: 'Обновления', icon: 'download' },
+    { id: 'history', title: 'История версий', icon: 'history' },
     { id: 'storage', title: 'Хранилище', icon: 'database' },
     { id: 'about', title: 'О приложении', icon: 'info' },
   ],
@@ -104,6 +105,7 @@ export const NAV: NavGroup[] = [
     title: 'Sonar',
     items: [
       { tab: 'system', sub: 'update' },
+      { tab: 'system', sub: 'history' },
       { tab: 'system', sub: 'about' },
     ],
   },

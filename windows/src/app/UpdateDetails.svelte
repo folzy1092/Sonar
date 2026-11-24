@@ -29,7 +29,7 @@
   function allVersions() {
     onclose()
     updater.popup = false
-    settingsPanel.show('system', 'update')
+    settingsPanel.show('system', 'history')
   }
 </script>
 

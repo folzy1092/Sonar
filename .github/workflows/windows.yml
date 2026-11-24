@@ -104,10 +104,13 @@ jobs:
           else
             echo "release=true" >> "$GITHUB_OUTPUT"
           fi
-          # заметки: сообщения коммитов клиента с прошлого windows-релиза
+          # заметки: сообщения коммитов клиента с прошлого windows-релиза, без служебных (объявления сборок iOS,
+          # [skip ci], доки, чистка) — тот же фильтр, что cleanChange в src/lib/update-core.ts
           PREV=$(git tag -l 'windows-v*' --sort=-v:refname | head -1)
           RANGE=${PREV:+$PREV..}HEAD
-          git log "$RANGE" --no-merges --pretty='- %s' -n 30 -- . ../updates > ../commit-notes.md || true
+          git log "$RANGE" --no-merges --pretty='- %s' -n 60 -- . ../updates \
+            | grep -viE '^- (updates|docs|chore|ci|build|test|style)([(:!]|$)|\[skip ci\]' \
+            | head -n 30 > ../commit-notes.md || true
 
       - name: Сборка
         run: |

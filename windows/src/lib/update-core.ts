@@ -68,11 +68,30 @@ export function mergeReleases(log: ChangelogEntry[], releases: GhRelease[]): Cha
       version: m[1],
       date: (r.published_at ?? '').slice(0, 10),
       platform: 'windows',
-      // авто-патч: первая строка коммита — заголовок, остальное — пункты
-      changes: noteLines(r.body).slice(0, 14),
+      // авто-патч: заметки — сообщения коммитов; служебные (объявления сборок, доки) — мимо
+      changes: releaseNotes(r.body).slice(0, 14),
     })
   }
   return [...log, ...extra].sort((a, b) => compareVersions(b.version, a.version))
+}
+
+/** Служебный коммит, а не изменение для людей: объявления сборок iOS, `[skip ci]`, слияния, доки и чистка. */
+const SERVICE = /^(?:updates|docs|chore|ci|build|test|style|merge)\b|\[skip ci\]|^Merge /i
+/** Тип коммита в начале строки: `feat: `, `fix(ios): `, `refactor!: `. */
+const KIND = /^(?:feat|fix|perf|refactor|revert)(?:\([^)]*\))?!?:\s*/i
+
+/** Строка заметок → пункт истории версий: служебное — `null`, у остального снят тип коммита и первая буква
+ *  заглавная («fix: сведение — …» → «Сведение — …»). */
+export function cleanChange(line: string): string | null {
+  const text = line.trim()
+  if (!text || SERVICE.test(text)) return null
+  const bare = text.replace(KIND, '')
+  return bare ? bare.charAt(0).toUpperCase() + bare.slice(1) : null
+}
+
+/** Заметки релиза → пункты для людей (история версий и «Что нового»): без служебных коммитов. */
+export function releaseNotes(notes: string | undefined | null): string[] {
+  return noteLines(notes).map(cleanChange).filter((c): c is string => c !== null)
 }
 
 /** Заметки релиза (`notes` в latest.json) → пункты списка: строки «- …», «• …» или просто строки. */

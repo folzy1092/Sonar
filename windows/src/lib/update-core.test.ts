@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agoText, compareVersions, isBeta, mergeReleases, noteLines, parseChangelog, pendingEntries, sizeText } from './update-core'
+import { agoText, cleanChange, compareVersions, isBeta, mergeReleases, noteLines, parseChangelog, pendingEntries, releaseNotes, sizeText } from './update-core'
 
 describe('compareVersions', () => {
   it('сравнивает Г.О.Ф по частям', () => {
@@ -74,8 +74,27 @@ describe('история версий из релизов', () => {
       { tag_name: 'windows-v0.1.42', published_at: '2026-11-16T10:00:00Z', body: '' },
     ])
     expect(all.map((e) => e.version)).toEqual(['0.1.55', '0.1.42', '0.1.1'])
-    expect(all[0].changes).toEqual(['windows: эквалайзер', 'вкладки'])
+    expect(all[0].changes).toEqual(['Windows: эквалайзер', 'Вкладки'])
     expect(all[0].date).toBe('2026-11-16')
     expect(all[2].title).toBe('Плавнее')
+  })
+})
+
+describe('пункты для людей', () => {
+  it('служебные коммиты мимо, тип коммита снят, первая буква заглавная', () => {
+    expect(cleanChange('updates: iOS — объявлена сборка 0.1.0 (655) [skip ci]')).toBeNull()
+    expect(cleanChange('docs: сведение отмечено [skip ci]')).toBeNull()
+    expect(cleanChange('Merge remote-tracking branch origin/main')).toBeNull()
+    expect(cleanChange('chore(deps): обновить зависимости')).toBeNull()
+    expect(cleanChange('feat: «Сведение» в составе Sonar Deep — ПК, iPhone, сайт')).toBe('«Сведение» в составе Sonar Deep — ПК, iPhone, сайт')
+    expect(cleanChange('fix(ios): сведение анализирует HLS')).toBe('Сведение анализирует HLS')
+    expect(cleanChange('feat!: новый плеер')).toBe('Новый плеер')
+    expect(cleanChange('feat: ')).toBeNull()
+    expect(cleanChange('Плавнее переходы')).toBe('Плавнее переходы')
+  })
+
+  it('заметки релиза как на скрине владельца', () => {
+    const body = '- feat: «Сведение» в составе Sonar Deep — ПК, iPhone, сайт\n- updates: iOS — объявлена сборка 0.1.0 (655) [skip ci]'
+    expect(releaseNotes(body)).toEqual(['«Сведение» в составе Sonar Deep — ПК, iPhone, сайт'])
   })
 })
