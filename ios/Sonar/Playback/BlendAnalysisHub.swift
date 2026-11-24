@@ -53,9 +53,31 @@ final class BlendAnalysisHub {
         queue.forgetFailures()
     }
 
-    /// Хранилище → «Сведение»: стереть анализы с диска и из памяти.
+    /// Уже решали, склеивать ли трек заранее, — в эту сессию не повторять (и не листать папку на каждом тике).
+    @ObservationIgnored private var stitchTried: Set<String> = []
+
+    /// Следующий трек со сведением: анализ есть, а склеенного файла нет — склеить заранее, чтобы дек сыграл
+    /// файл (`BlendStitchCache`). Пока анализа нет, склейку сделает сам анализ.
+    func prefetchStitch(_ track: Track) {
+        let ref = track.ref
+        // по сотовой с «Только по Wi‑Fi» или в офлайне — не отмечаем: попробуем снова, когда сеть сменится
+        let mayDownload = !SettingsStore.shared.bool(DownloadStore.wifiOnlyKey) || NetworkStatus.shared.isUnmetered
+        guard mayDownload, !OfflineFlag.isOn, !stitchTried.contains(ref), queue.peek(ref) != nil else { return }
+        stitchTried.insert(ref)
+        let hasFile = DownloadStore.shared.localURL(ref) != nil || WaveCache.shared.localURL(ref) != nil
+            || BlendStitchCache.shared.localURL(ref) != nil
+        guard BlendStitchPlan.shouldPrefetch(ref: ref, durationMs: track.durationMs, offline: false,
+                                             mayDownload: true, hasFile: hasFile, attempted: false) else { return }
+        Task.detached(priority: .utility) { await BlendAnalysisStore.prefetchStitch(track) }
+    }
+
+    /// Хранилище → «Сведение»: стереть анализы и склеенные файлы с диска и из памяти.
     func clear() {
         queue.reset()
-        Task.detached(priority: .utility) { BlendAnalysisFiles.clear() }
+        stitchTried = []
+        Task.detached(priority: .utility) {
+            BlendAnalysisFiles.clear()
+            BlendStitchCache.shared.clear()
+        }
     }
 }

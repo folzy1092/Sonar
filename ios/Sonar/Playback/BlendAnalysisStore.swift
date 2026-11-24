@@ -5,8 +5,8 @@ import Foundation
 // снаружи. Готовый анализ лежит JSON по треку в `Application Support/Sonar/blend/analysis/` (на ПК — таблица
 // `blend_analysis`). Расчёт: скачанный или кэшированный файл, иначе прямой поток трека (в офлайне — нет), декод в
 // моно 11025 Гц через `AVAssetReader`, дальше `BlendAnalyzer` — тот же, что в тестах с векторами ПК.
-// HLS SoundCloud склеивается во временный файл тем же путём, что «Скачать» (`CoreDownloadFetcher`), и тоже
-// анализируется; HLS других сервисов (VK) — нет, там обычный кроссфейд.
+// HLS SoundCloud склеивается в файл тем же путём, что «Скачать» (`CoreDownloadFetcher`), анализируется и остаётся
+// в `BlendStitchCache` — со сведением дек играет его; HLS других сервисов (VK) — нет, там обычный кроссфейд.
 
 enum BlendAnalysisError: Error {
     case noTrack, hls, offline, tooBig, tooLong, decode
@@ -114,7 +114,8 @@ enum BlendAnalysisStore {
                 Task.detached(priority: .utility) {
                     let result: Result<BlendAnalysis, Error>
                     do {
-                        result = .success(try await compute(item, local: local))
+                        let own = local ?? BlendStitchCache.shared.localURL(ref)
+                        result = .success(try await compute(item, local: own))
                     } catch {
                         result = .failure(error)
                     }
@@ -132,15 +133,39 @@ enum BlendAnalysisStore {
         if OfflineFlag.isOn { throw BlendAnalysisError.offline }
         if BlendAnalysisFiles.isTooLong(track.durationMs) { throw BlendAnalysisError.tooLong }
         let playable = try await MusicCore.shared.playable(track)
-        let temp: URL
         switch BlendAnalysisFetch.of(playable.source, ref: track.ref) {
-        case .local(let url): return try await analyze(file: url, ref: track.ref)
-        case .direct(let url): temp = try await download(url)
-        case .stitch: temp = try await stitch(track.ref)
-        case .unsupported: throw BlendAnalysisError.hls
+        case .local(let url):
+            return try await analyze(file: url, ref: track.ref)
+        case .direct(let url):
+            let temp = try await download(url)
+            defer { try? FileManager.default.removeItem(at: temp) }
+            return try await analyze(file: temp, ref: track.ref)
+        case .stitch:
+            // склеенный файл не стираем: со сведением дек играет его, а не поток (`BlendStitchCache`)
+            let file = try await stitched(track.ref)
+            return try await analyze(file: file, ref: track.ref)
+        case .unsupported:
+            throw BlendAnalysisError.hls
         }
-        defer { try? FileManager.default.removeItem(at: temp) }
-        return try await analyze(file: temp, ref: track.ref)
+    }
+
+    /// Анализ уже есть, а склеенного файла нет — только склеить, для игры. HLS ли трек, говорит сервис:
+    /// прямой файл и так играет через `AudioTap`, склеивать нечего.
+    nonisolated static func prefetchStitch(_ track: Track) async {
+        guard let playable = try? await MusicCore.shared.playable(track),
+              BlendAnalysisFetch.of(playable.source, ref: track.ref) == .stitch else { return }
+        _ = try? await stitched(track.ref)
+    }
+
+    /// Склеить HLS SoundCloud и положить в кэш склеенных; не легло — временный файл стирается.
+    nonisolated static func stitched(_ ref: String) async throws -> URL {
+        let temp = try await stitch(ref)
+        do {
+            return try BlendStitchCache.shared.put(ref, file: temp)
+        } catch {
+            try? FileManager.default.removeItem(at: temp)
+            throw error
+        }
     }
 
     /// HLS SoundCloud → временный файл: источник и склейка — те же, что у «Скачать» (там прямой mp3 и

@@ -24,7 +24,8 @@ struct BlendSheet: View {
                 }
                 optionsCard
                 partyButton
-                // HLS играет мимо `AudioTap`: анализ есть, но из перехода слышна только громкость (BLEND §13)
+                // HLS играет мимо `AudioTap`: из перехода слышна только громкость (BLEND §13). Склеенный файл
+                // SoundCloud играет как файл (`isHLS` = false) — тогда подсказки нет
                 if engine.blendOn, engine.isHLS {
                     HintCard(icon: .info, text: t("Этот трек идёт потоком HLS — в переходе слышна только громкость, без фильтров и эха"))
                         .transition(.opacity)

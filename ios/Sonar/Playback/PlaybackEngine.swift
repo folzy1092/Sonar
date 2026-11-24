@@ -537,7 +537,10 @@ final class PlaybackEngine {
     /// протухла) — из сети.
     /// Не играет со своего сервиса — тот же трек из резервного (`MusicCore.playable`), broken — свой
     /// поток уже не открылся в плеере.
-    private static func source(for track: Track, fresh: Bool, safe: Bool = false, broken: Bool = false) async throws -> MusicCore.Playable {
+    /// blend — сведение включено: для SoundCloud вместо HLS берётся склеенный файл, если он уже есть
+    /// (`BlendStitchCache`, BLEND §13) — тогда звук идёт через `AudioTap` и в переходе слышны фильтры и эхо.
+    private static func source(for track: Track, fresh: Bool, safe: Bool = false, broken: Bool = false,
+                               blend: Bool = false) async throws -> MusicCore.Playable {
         // офлайн: AVPlayer ходит в сеть мимо сторожа — поэтому только файл, остальное не играет (OFFLINE.md §5)
         let offline = OfflineFlag.isOn
         if offline || (!fresh && !safe), let local = DownloadStore.shared.localURL(track.ref) {
@@ -545,6 +548,11 @@ final class PlaybackEngine {
         }
         if offline || (!fresh && !safe), let cached = WaveCache.shared.localURL(track.ref) {
             return .init(source: .file(url: cached, quality: WaveCache.shared.quality(track.ref) ?? "Офлайн"), via: nil)
+        }
+        let stitched = blend ? BlendStitchCache.shared.localURL(track.ref, touch: true) : nil
+        if let file = BlendStitchPlan.source(ref: track.ref, blendOn: blend, fresh: !offline && (fresh || safe),
+                                             stitched: stitched) {
+            return .init(source: file, via: nil)
         }
         if offline { throw ServiceError(message: t("Нет в офлайне — скачай трек, пока есть сеть")) }
         return try await MusicCore.shared.playable(track, fresh: fresh, safe: safe, broken: broken)
@@ -630,7 +638,7 @@ final class PlaybackEngine {
         nowPlaying.update()
         Task {
             do {
-                let playable = try await Self.source(for: track, fresh: fresh, safe: safe, broken: broken)
+                let playable = try await Self.source(for: track, fresh: fresh, safe: safe, broken: broken, blend: self.blendOn)
                 guard token == self.loadToken else { return }
                 let source = playable.source
                 if let toast = FallbackPlan.toast(playable.via) { self.message = toast }
@@ -781,7 +789,7 @@ final class PlaybackEngine {
         preloading = true
         Task {
             defer { if token == self.loadToken { self.preloading = false } }
-            guard let playable = try? await Self.source(for: track, fresh: false),
+            guard let playable = try? await Self.source(for: track, fresh: false, blend: self.blendOn),
                   token == self.loadToken, self.currentItem === currentItem, self.preloaded == nil, self.outgoing == nil else { return }
             let source = playable.source
             let item = self.makeItem(source)
@@ -1349,6 +1357,8 @@ extension PlaybackEngine: BlendHost {
             let hub = BlendAnalysisHub.shared
             if hub.peek(track.ref) == nil { hub.request(track.ref) }
             if let next, hub.peek(next) == nil { hub.request(next) }
+            // анализ следующего уже был, а склеенного файла нет — склеить, чтобы дек B играл файл, а не HLS
+            if let upcoming = upNext.first { hub.prefetchStitch(upcoming) }
         }
         return blend.consider(BlendConsider(
             a: track.ref, b: next,
@@ -1412,7 +1422,7 @@ extension PlaybackEngine: BlendHost {
         stopOutgoing()
         let token = loadToken
         Task {
-            guard let playable = try? await Self.source(for: track, fresh: false), token == self.loadToken else {
+            guard let playable = try? await Self.source(for: track, fresh: false, blend: self.blendOn), token == self.loadToken else {
                 done(nil)
                 return
             }
