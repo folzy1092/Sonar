@@ -30,6 +30,8 @@ struct FullPlayerView: View {
     @State private var scrubbing: Double?
     @State private var showQueue = false
     @State private var showSpeed = false
+    /// Шторка «Сведение» (docs/BLEND.md §10.1).
+    @State private var showBlend = false
     @State private var dragDown: CGFloat = 0
     /// Текст песни на весь экран (`IMG_6787..6790`); держится между открытиями плеера.
     @AppStorage("player.lyrics_open") private var showLyrics = false
@@ -219,6 +221,11 @@ struct FullPlayerView: View {
             SpeedSheet()
                 // тон, реверб и «Для этого трека» — выше; таймер сна по настройке `player.sleep_button` — ещё выше
                 .presentationDetents([.height(settings.bool("player.sleep_button") ? 700 : 600), .large])
+                .presentationBackground(.ultraThinMaterial)
+        }
+        .sheet(isPresented: $showBlend) {
+            BlendSheet()
+                .presentationDetents([.fraction(0.8), .large])
                 .presentationBackground(.ultraThinMaterial)
         }
         .overlay(alignment: .top) {
@@ -553,7 +560,7 @@ struct FullPlayerView: View {
     /// Простой в тексте: ~2,5 с без касаний, музыка играет, никаких листов и жестов — прячем всё, кроме текста.
     private func idleCheck() {
         guard showLyrics, !chromeHidden, engine.isPlaying, !showLyricsMenu, trackMenu == nil, !showQueue,
-              !showSpeed, !showDevices, dragDown == 0, scrubbing == nil else { return }
+              !showSpeed, !showBlend, !showDevices, dragDown == 0, scrubbing == nil else { return }
         if Date().timeIntervalSince(lastTouch) > 2.5 { chromeHidden = true }
     }
 
@@ -910,6 +917,29 @@ struct FullPlayerView: View {
         }
     }
 
+    /// Сведение (`BlendButton.svelte`): включено или идёт вечеринка — значок акцентом; ждёт оценка — точка в углу.
+    private var blendButton: some View {
+        let ratings = BlendRatings.shared
+        let asking = ratings.ask != nil && ratings.answer == nil
+        return Button { showBlend = true } label: {
+            SonarIcon(.crossfade, size: 26)
+                .foregroundStyle(engine.blendOn ? Theme.accent : Theme.text)
+                .overlay(alignment: .topTrailing) {
+                    if asking {
+                        Circle()
+                            .fill(Theme.accent)
+                            .frame(width: 7, height: 7)
+                            .offset(x: 4, y: -3)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                .animation(Motion.spring, value: asking)
+        }
+        .accessibilityLabel(engine.blendOn
+            ? t("Сведение") + " · " + t(BlendView.buttonLabel(on: true, type: engine.settings().type))
+            : t("Сведение"))
+    }
+
     /// Низ (`player.jpg`): слева капсула ♥ · + · ⤓, справа — T (текст) и ползунки (скорость).
     private var bottomRow: some View {
         HStack {
@@ -932,7 +962,7 @@ struct FullPlayerView: View {
                 .background(.ultraThinMaterial, in: Capsule())
             }
             Spacer()
-            HStack(spacing: 26) {
+            HStack(spacing: 20) {
                 Button { showDevices = true } label: {
                     SonarIcon(.computer, size: 26)
                         .foregroundStyle(Theme.text)
@@ -953,6 +983,7 @@ struct FullPlayerView: View {
                     .accessibilityAddTraits(.isButton)
                     .accessibilityLabel("Текст песни")
                     .accessibilityAction(named: "Меню текста") { showLyricsMenu = true }
+                blendButton
                 Button { showSpeed = true } label: {
                     SonarIcon(.sliders, size: 26)
                         .foregroundStyle(engine.rate == 1 && engine.sleep == nil ? Theme.text : Theme.accent)

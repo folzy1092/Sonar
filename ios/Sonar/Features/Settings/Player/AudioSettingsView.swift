@@ -23,6 +23,11 @@ struct AudioSettingsView: View {
 
     private var crossfade: Int { PlayerPrefs.crossfade(settings) }
 
+    /// «Переход между треками» поверх `audio.blend` и `audio.crossfade` (как на ПК).
+    private var mode: TransitionMode {
+        BlendPrefs.transitionMode(blend: settings.bool("audio.blend"), crossfadeSec: Double(crossfade))
+    }
+
     private var equalizerSummary: String {
         guard settings.bool(Equalizer.enabledKey) else { return "Выключен" }
         let gains = Equalizer.parse(settings.string(Equalizer.gainsKey))
@@ -74,16 +79,19 @@ struct AudioSettingsView: View {
                                 subtitle: "Следующий трек подгружается заранее и начинается без паузы",
                                 isOn: flag("audio.gapless"))
                 PlayerRowDivider()
-                PlayerToggleRow(icon: .crossfade, title: "Кроссфейд",
-                                subtitle: "Следующий начинается поверх конца текущего: один плавно затихает, другой нарастает",
-                                isOn: Binding(get: { crossfade > 0 }, set: { settings.set("audio.crossfade", .int($0 ? 6 : 0)) }))
-                if crossfade > 0 {
+                transitionPicker
+                if mode == .crossfade {
                     crossfadeSlider
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            .animation(Motion.spring, value: crossfade > 0)
+            .animation(Motion.spring, value: mode)
             .cascade(4)
+
+            if mode == .blend {
+                BlendSettingsCard()
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
 
             PlayerCard(title: "Звук") {
                 PlayerPickRow(title: "Эквалайзер", value: equalizerSummary, icon: .sliders) { showEqualizer = true }
@@ -99,6 +107,7 @@ struct AudioSettingsView: View {
                 .padding(.horizontal, 6)
                 .cascade(6)
         }
+        .animation(Motion.spring, value: mode)
         .choiceSheet(item: $picker, height: { _ in ChoiceSheet.height(InterruptionMode.allCases.count, subtitles: true) }) { _ in
             ChoiceSheet(title: "После звонка и Siri",
                         items: InterruptionMode.allCases.map { ChoiceItem(id: $0.rawValue, icon: $0.icon, title: $0.title, subtitle: $0.subtitle) },
@@ -116,7 +125,32 @@ struct AudioSettingsView: View {
     private var transitionsFooter: String {
         "Эквалайзер и выравнивание на лету слышны на файлах: Яндекс, SoundCloud через Яндекс, скачанные треки. Потоки HLS "
             + "SoundCloud iPhone проигрывает мимо обработки звука — там тембр как есть. Громкость R128 Яндекса работает везде. "
-            + "Кроссфейд — две деки, как на ПК: треки накладываются; выключен — бесшовно, без тишины между треками."
+            + "Кроссфейд — две деки, как на ПК: треки накладываются; выключен — бесшовно, без тишины между треками. "
+            + t("Сведение слушает доли и тональность треков-файлов; у потоков HLS анализа нет — там переход кроссфейдом.")
+    }
+
+    private var transitionPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(t("Переход между треками"))
+                .font(.system(size: 17))
+                .foregroundStyle(Theme.text)
+            ChoiceTiles(items: [
+                ChoiceItem(id: TransitionMode.normal.rawValue, icon: .music, title: t("Обычный")),
+                ChoiceItem(id: TransitionMode.crossfade.rawValue, icon: .crossfade, title: t("Кроссфейд")),
+                ChoiceItem(id: TransitionMode.blend.rawValue, icon: .disc, title: t("Сведение")),
+            ], selected: mode.rawValue, height: 84) { raw in
+                guard let picked = TransitionMode(rawValue: raw) else { return }
+                let next = BlendPrefs.applyMode(picked, crossfadeSec: Double(crossfade))
+                settings.set("audio.blend", next.blend)
+                settings.set("audio.crossfade", .int(Int(next.crossfade)))
+            }
+            Text(t("Обычный — трек за треком, кроссфейд — затухание, сведение — переход по долям, как у диджея"))
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
     }
 
     private var crossfadeSlider: some View {

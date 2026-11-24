@@ -18,11 +18,12 @@ enum AudioTap {
     /// тогда `tracks` у файла уже есть. Уже подключено или дорожки нет — ничего.
     /// leveler — выравнивать громкость на лету; у трека с громкостью от сервиса (R128 Яндекса) — нет:
     /// его уже выровняла громкость плеера (`Loudness`), второй раз не надо.
+    /// blend — дек сведения (docs/BLEND.md §13): его цепочка стоит в тапе первой, без перехода — обход.
     @MainActor
-    static func attach(to item: AVPlayerItem, leveler: Bool = true) {
+    static func attach(to item: AVPlayerItem, leveler: Bool = true, blend: BlendDeckDSP? = nil) {
         guard item.audioMix == nil,
               let track = item.tracks.compactMap(\.assetTrack).first(where: { $0.mediaType == .audio }) else { return }
-        guard let tap = makeTap(TapContext(params: params, leveler: leveler)) else { return }
+        guard let tap = makeTap(TapContext(params: params, leveler: leveler, blend: blend)) else { return }
         let input = AVMutableAudioMixInputParameters(track: track)
         input.audioTapProcessor = tap
         let mix = AVMutableAudioMix()
@@ -52,10 +53,12 @@ enum AudioTap {
                 Unmanaged<TapContext>.fromOpaque(MTAudioProcessingTapGetStorage(tap)).takeUnretainedValue().unprepare()
             },
             process: { tap, frames, _, buffers, framesOut, flagsOut in
-                let status = MTAudioProcessingTapGetSourceAudio(tap, frames, buffers, flagsOut, nil, framesOut)
+                // кусок файла этого блока — по нему дек сведения знает такт перехода
+                var range = CMTimeRange.invalid
+                let status = MTAudioProcessingTapGetSourceAudio(tap, frames, buffers, flagsOut, &range, framesOut)
                 guard status == noErr else { return }
                 Unmanaged<TapContext>.fromOpaque(MTAudioProcessingTapGetStorage(tap)).takeUnretainedValue()
-                    .process(buffers, frames: Int(framesOut.pointee))
+                    .process(buffers, frames: Int(framesOut.pointee), range: range)
             }
         )
         var unmanaged: Unmanaged<MTAudioProcessingTap>?
@@ -120,6 +123,7 @@ private final class TapContext: @unchecked Sendable {
     private let params: AudioTapParams
     /// Выравниватель для этого трека (нет — громкость уже выровнена по R128).
     private let useLeveler: Bool
+    private let blend: BlendDeckDSP?
     private var version = -1
     private var sampleRate: Double = 44100
     private var ready = false
@@ -138,9 +142,10 @@ private final class TapContext: @unchecked Sendable {
     private let active = UnsafeMutablePointer<Bool>.allocate(capacity: TapContext.bands)
     private let states = UnsafeMutablePointer<BiquadState>.allocate(capacity: TapContext.bands * TapContext.maxChannels)
 
-    init(params: AudioTapParams, leveler: Bool) {
+    init(params: AudioTapParams, leveler: Bool, blend: BlendDeckDSP?) {
         self.params = params
         self.useLeveler = leveler
+        self.blend = blend
         coefficients.initialize(repeating: FloatBiquad(.identity), count: Self.bands)
         active.initialize(repeating: false, count: Self.bands)
         states.initialize(repeating: BiquadState(), count: Self.bands * Self.maxChannels)
@@ -153,7 +158,7 @@ private final class TapContext: @unchecked Sendable {
     }
 
     /// Работаем только с float32 PCM (так AVPlayer отдаёт почти всегда); иное — пропускаем как есть.
-    func prepare(format: AudioStreamBasicDescription, maxFrames _: Int) {
+    func prepare(format: AudioStreamBasicDescription, maxFrames: Int) {
         let isFloat = format.mFormatID == AudioFormatID(kAudioFormatLinearPCM)
             && format.mFormatFlags & AudioFormatFlags(kAudioFormatFlagIsFloat) != 0
             && format.mBitsPerChannel == 32
@@ -165,10 +170,12 @@ private final class TapContext: @unchecked Sendable {
         let count = ready ? channels : 0
         shifters = (0 ..< count).map { _ in PitchShifter() }
         reverbs = (0 ..< count).map { Reverb(sampleRate: sampleRate, channel: $0) }
+        if ready { blend?.prepare(sampleRate: sampleRate, channels: channels, maxFrames: maxFrames) }
     }
 
     func unprepare() {
         ready = false
+        blend?.unprepare()
     }
 
     private func refresh() {
@@ -198,11 +205,13 @@ private final class TapContext: @unchecked Sendable {
         }
     }
 
-    func process(_ list: UnsafeMutablePointer<AudioBufferList>, frames: Int) {
+    func process(_ list: UnsafeMutablePointer<AudioBufferList>, frames: Int, range: CMTimeRange) {
         guard ready, frames > 0 else { return }
         refresh()
+        let blending = blend?.begin(startMs: Self.ms(range.start), durationMs: Self.ms(range.duration) ?? 0,
+                                    frames: frames) == true
         let levelerBusy = normalize || abs(leveler.gain - 1) > 0.001
-        let effectsOn = pitchOn || reverbOn
+        let effectsOn = pitchOn || reverbOn || blending
         guard eqOn || effectsOn || levelerBusy else { return }
         let buffers = UnsafeMutableAudioBufferListPointer(list)
         var sum: Double = 0
@@ -221,9 +230,11 @@ private final class TapContext: @unchecked Sendable {
                 let reverb = reverbOn && channel < reverbs.count ? reverbs[channel] : nil
                 let ratio = pitchRatio
                 let amount = reverbAmount
+                let deck = blending ? blend : nil
                 var i = c
-                for _ in 0 ..< length {
+                for frame in 0 ..< length {
                     var x = data[i]
+                    if let deck { x = deck.process(x, channel: channel, frame: frame) }
                     if eqOn {
                         for band in 0 ..< Self.bands where active[band] {
                             x = state[band].process(x, coefficients[band])
@@ -262,6 +273,13 @@ private final class TapContext: @unchecked Sendable {
                 i += stride
             }
         }
+    }
+
+    /// Время в мс; неизвестное или бесконечное — nil.
+    private static func ms(_ time: CMTime) -> Double? {
+        guard time.isValid, time.isNumeric else { return nil }
+        let sec = time.seconds
+        return sec.isFinite ? sec * 1000 : nil
     }
 
     /// Мягкий предел выше 0.9: усиленный эквалайзером или выравнивателем звук не хрипит.

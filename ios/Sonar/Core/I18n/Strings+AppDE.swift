@@ -395,5 +395,9 @@ extension I18n {
         "Меняет значок на экране «Домой». iOS сама покажет уведомление о смене — это нормально": "Ändert das Symbol auf dem Home-Bildschirm. iOS zeigt dazu selbst einen Hinweis — das ist normal",
         "На этом устройстве значок сменить нельзя": "Auf diesem Gerät lässt sich das Symbol nicht ändern",
         "Не получилось сменить значок": "Das Symbol konnte nicht geändert werden",
+        // Сведение (Strings+Blend.swift)
+        "Закончить вечеринку": "Party beenden",
+        "Этот трек идёт потоком HLS — анализа нет, переход будет кроссфейдом": "Dieser Titel läuft als HLS-Stream – keine Analyse, der Übergang wird ein Crossfade",
+        "Сведение слушает доли и тональность треков-файлов; у потоков HLS анализа нет — там переход кроссфейдом.": "Der Mix hört auf Beats und Tonart von Datei-Titeln; HLS-Streams werden nicht analysiert und bekommen einen Crossfade.",
     ]
 }

@@ -318,6 +318,9 @@ final class BlendController {
         return max(0, Self.prerollAtMs(pair))
     }
 
+    /// Переход идёт (B играет или уже текущий).
+    var isActive: Bool { started() }
+
     func failedFor(_ a: String, _ b: String) -> Bool {
         failed == "\(a)>\(b)"
     }

@@ -110,6 +110,8 @@ final class PlaybackEngine {
         var hls: Bool
         /// Играет из резервного сервиса — тост при переходе.
         var via: FallbackVia?
+        /// Второй дек сведения: сбрасывать — через контроллер.
+        var forBlend = false
     }
     @ObservationIgnored private var preloaded: Preloaded?
     @ObservationIgnored private var preloading = false
@@ -163,11 +165,18 @@ final class PlaybackEngine {
     @ObservationIgnored private var lastSnapshot = Date.distantPast
     /// Последние применённые качество и «SoundCloud через Яндекс» — чтобы не дёргать MusicCore зря.
     @ObservationIgnored private var appliedQuality: (kbps: Int, viaYandex: Bool, youTubeHigh: Bool, fallback: FallbackSettings)?
+    /// Сведение (docs/BLEND.md §13): контроллер, деки поверх элементов и «держим скорость и тон» на время перехода.
+    @ObservationIgnored private(set) lazy var blend = BlendController(host: self)
+    @ObservationIgnored private var blendHold = false
+    @ObservationIgnored private var blendDecks: [ObjectIdentifier: BlendPlayerDeck] = [:]
 
     init() {
         waveMode = WaveMode.stored(SettingsStore.shared.string("wave.mode"))
         restore()
         observeSettings()
+        BlendAnalysisHub.shared.trackOf = { [weak self] ref in
+            self?.tracks.first { $0.ref == ref } ?? BlendPartyStore.shared.track(ref)
+        }
         for (index, deck) in decks.enumerated() {
             deck.automaticallyWaitsToMinimizeStalling = true
             timeObservers.append(deck.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.25, preferredTimescale: 600), queue: .main) { [weak self] time in
@@ -252,16 +261,21 @@ final class PlaybackEngine {
         }
         if let sleep, sleep.isDue(now: Date()) { self.sleep = nil }
         activateSession()
-        player.playImmediately(atRate: rate)
+        player.playImmediately(atRate: blendHold ? player.defaultRate : rate)
+        blend.resume()
     }
 
     /// Пауза; идёт кроссфейд — уходящий трек замолкает сразу.
     func pause() {
         stopOutgoing()
+        // B уже текущий — довести переход сразу, иначе — часы перехода и B на паузу
+        if blend.phase == .promoting { blend.abort() } else { blend.pause() }
         player.pause()
     }
 
     func next() {
+        // идёт сведение — «Следующий» сразу переводит на B
+        if blend.isActive && blend.finishNow() { return }
         guard let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode, manual: true) else { return }
         finishPlay(skipped: true)
         pos = target
@@ -293,6 +307,7 @@ final class PlaybackEngine {
         // восстановленный трек ещё не загружен — начнётся с этой секунды
         if currentItem == nil, let track = current { pendingStart = (track.ref, position) }
         stopOutgoing()
+        blend.cancel()
         fadeIn = nil
         player.seek(to: CMTime(seconds: position, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         nowPlaying.update()
@@ -326,6 +341,11 @@ final class PlaybackEngine {
 
     private func applyRate(_ value: Float) {
         rate = (min(2, max(0.5, value)) * 100).rounded() / 100
+        // скоростью дек сейчас правит сведение — вернётся в `hold(false)`
+        guard !blendHold else {
+            nowPlaying.update()
+            return
+        }
         player.defaultRate = rate
         if isPlaying { player.rate = rate }
         nowPlaying.update()
@@ -446,6 +466,7 @@ final class PlaybackEngine {
     /// Тон и реверб — в обработку звука; связанный тон — алгоритм AVPlayer у всех элементов обеих дек.
     private func applyTempo() {
         AudioTap.params.updateEffects(pitchRatio: pitchLinked ? 1 : TrackSound.pitchRatio(pitch), reverb: reverb)
+        guard !blendHold else { return }
         let algorithm = pitchAlgorithm
         for deck in decks {
             for item in deck.items() where item.audioTimePitchAlgorithm != algorithm {
@@ -532,6 +553,7 @@ final class PlaybackEngine {
     /// Офлайн включили (`OfflineMode`, OFFLINE.md §9): из «Далее» уходит недоступное; играет недоступный —
     /// затихает и встаёт на паузу (следующий сам не стартует).
     func offlineChanged() {
+        if !OfflineFlag.isOn { BlendAnalysisHub.shared.forgetFailures() }
         guard OfflineFlag.isOn, !order.isEmpty else { return }
         dropPreload()
         let pruned = OfflineQueue.prune(order: order, pos: pos) { Self.isLocal(self.tracks[$0].ref) }
@@ -591,6 +613,7 @@ final class PlaybackEngine {
         // откуда начать: свежая ссылка — с того же места, восстановленный трек — с запомненной секунды
         let start = fresh ? position : (pendingStart?.ref == track.ref ? pendingStart?.seconds ?? 0 : 0)
         pendingStart = nil
+        blend.abort()
         dropPreload()
         stopOutgoing()
         fadeIn = nil
@@ -652,9 +675,13 @@ final class PlaybackEngine {
                         let seconds = item.duration.seconds
                         if seconds.isFinite, seconds > 0 { self.duration = seconds }
                         // эквалайзер и выравниватель — у файла (HLS их не пропускает)
-                        if !self.isHLS { AudioTap.attach(to: item, leveler: self.current?.loudness == nil) }
+                        if !self.isHLS {
+                            let deck = self.blendDeck(for: item, on: self.player, hls: false)
+                            AudioTap.attach(to: item, leveler: self.current?.loudness == nil, blend: deck.dsp)
+                        }
                         self.nowPlaying.update()
                     case .failed:
+                        if let deck = self.blendDecks[ObjectIdentifier(item)], self.blend.onDeckError(deck) { return }
                         guard let track = self.current else { return }
                         if !self.retried {
                             self.retried = true
@@ -698,7 +725,14 @@ final class PlaybackEngine {
 
     private func dropPreload() {
         if let preloaded {
-            if preloaded.onStandby { standby.removeAllItems() } else { player.remove(preloaded.item) }
+            if preloaded.forBlend, blend.phase != .idle {
+                // это B сведения: затихнет и отпустится сам (`release`)
+                blend.cancel()
+            } else if preloaded.onStandby {
+                standby.removeAllItems()
+            } else {
+                player.remove(preloaded.item)
+            }
         }
         preloaded = nil
         preloading = false
@@ -714,6 +748,9 @@ final class PlaybackEngine {
         position = seconds
         saveSnapshot()
         guard duration > 0 else { return }
+        // сведение ведёт переход само — обычная подгрузка и кроссфейд не нужны
+        if considerBlend(seconds: seconds) { return }
+        let crossfade = overlapSec
         if duration - seconds < max(Self.preloadLead, crossfade + 10) {
             preloadNext()
         }
@@ -734,6 +771,7 @@ final class PlaybackEngine {
     /// выключено (и нет кроссфейда) — следующий грузится, когда текущий кончился, с короткой паузой.
     /// Таймер сна «конец трека» — следующий не подгружается.
     private func preloadNext() {
+        let crossfade = overlapSec
         guard gapless || crossfade > 0, preloaded == nil, !preloading, outgoing == nil, repeatMode != .one,
               sleep?.isEndOfTrack != true, let currentItem,
               let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode, manual: false), target != pos else { return }
@@ -764,7 +802,9 @@ final class PlaybackEngine {
                     .receive(on: DispatchQueue.main)
                     .sink { [weak item] status in
                         MainActor.assumeIsolated {
-                            if status == .readyToPlay, let item { AudioTap.attach(to: item, leveler: leveler) }
+                            guard status == .readyToPlay, let item else { return }
+                            let deck = self.blendDeck(for: item, on: self.standbyOrPlayer(holding: item), hls: false)
+                            AudioTap.attach(to: item, leveler: leveler, blend: deck.dsp)
                         }
                     }
             }
@@ -826,6 +866,8 @@ final class PlaybackEngine {
 
     private func itemEnded(_ id: ObjectIdentifier?) {
         guard let id, let currentItem, ObjectIdentifier(currentItem) == id else { return }
+        // A доиграл посреди сведения — сразу на B
+        if blend.isActive && blend.finishNow() { return }
         finishPlay(skipped: false)
         if repeatMode == .one {
             seek(to: 0)
@@ -1096,7 +1138,7 @@ final class PlaybackEngine {
         gapless = settings.bool("audio.gapless")
         normalize = settings.bool("audio.normalize")
         // подгруженный лежит не там, где нужен новому режиму (очередь деки ⇄ вторая дека) — подгрузить заново
-        if let preloaded, preloaded.onStandby != (crossfade > 0) || (!gapless && crossfade == 0) { dropPreload() }
+        if let preloaded, preloaded.onStandby != (overlapSec > 0) || (!gapless && overlapSec == 0) { dropPreload() }
         // громкость — вне слежения за настройками (иначе оно подписалось бы на позицию и очередь)
         if wasCrossfade != crossfade || wasNormalize != normalize { Task { self.updateFades() } }
         let offline = settings.bool("storage.wave_offline")
@@ -1154,7 +1196,11 @@ final class PlaybackEngine {
     private func applyVolumes() {
         let now = Date()
         let sleepFactor = sleep?.factor(now: now, position: currentSeconds(), duration: duration) ?? 1
-        player.volume = Float(fadeFactor(now: now) * sleepFactor)
+        let volume = fadeFactor(now: now) * sleepFactor
+        // HLS в сведении: громкость кривых — у плеера, поверх обычной (`BlendPlayerDeck`)
+        let deck = currentItem.flatMap { blendDecks[ObjectIdentifier($0)] }
+        deck?.baseGain = volume
+        player.volume = Float(volume * (deck?.hlsGain ?? 1))
         if let outgoing {
             let t = outgoing.span > 0 ? now.timeIntervalSince(outgoing.start) / outgoing.span : 1
             if t >= 1 {
@@ -1263,6 +1309,193 @@ final class PlaybackEngine {
         }
         snapshotFile.save(PlaybackSnapshot(tracks: tracks, order: order, pos: pos, position: position, context: contextTitle,
                                            shuffle: shuffle, repeatMode: repeatMode, autoRefs: Array(autoRefs)))
+    }
+}
+
+// MARK: - Сведение (docs/BLEND.md §13)
+
+// shortcut: хост в том же файле, что и движок, — ему нужны закрытые деки, подгрузка и `advance`. Общие тон и реверб
+// `AudioTap.params` на время перехода звучат на обоих деках (на ПК — свои у каждого); свой звук B — со смены.
+extension PlaybackEngine: BlendHost {
+    /// Сведение включено (или идёт вечеринка) — переходам нужен второй дек даже без кроссфейда.
+    var blendOn: Bool { SettingsStore.shared.bool("audio.blend") || BlendPartyStore.shared.isActive }
+
+    /// Длина наложения для обычного перехода: кроссфейд из настроек, а со сведением — запасной, если пара не сложится.
+    fileprivate var overlapSec: Double {
+        crossfade > 0 ? crossfade : (blendOn ? BlendPrefs.crossfadeDefaultSec : 0)
+    }
+
+    /// Дек сведения у элемента: один на элемент, отпущенные выбрасываются.
+    fileprivate func blendDeck(for item: AVPlayerItem, on player: AVQueuePlayer, hls: Bool) -> BlendPlayerDeck {
+        blendDecks = blendDecks.filter { $0.value.isLoaded }
+        if let deck = blendDecks[ObjectIdentifier(item)] { return deck }
+        let deck = BlendPlayerDeck(player: player, item: item, hls: hls)
+        blendDecks[ObjectIdentifier(item)] = deck
+        return deck
+    }
+
+    fileprivate func standbyOrPlayer(holding item: AVPlayerItem) -> AVQueuePlayer {
+        decks.first { $0.items().contains { $0 === item } } ?? player
+    }
+
+    /// Тик текущего трека → контроллер. true — переход ведёт сведение.
+    fileprivate func considerBlend(seconds: Double) -> Bool {
+        guard let track = current, let currentItem, repeatMode != .one else { return false }
+        BlendPartyStore.shared.step()
+        let next = upNext.first?.ref
+        let on = blendOn
+        if on {
+            // анализ текущего и следующего — заранее, к моменту перехода он уже готов
+            let hub = BlendAnalysisHub.shared
+            if hub.peek(track.ref) == nil { hub.request(track.ref) }
+            if let next, hub.peek(next) == nil { hub.request(next) }
+        }
+        return blend.consider(BlendConsider(
+            a: track.ref, b: next,
+            deckA: blendDeck(for: currentItem, on: player, hls: isHLS),
+            posMs: seconds * 1000, durMs: duration * 1000,
+            enabled: on && sleep?.isEndOfTrack != true && outgoing == nil,
+            rateA: Double(rate), linkedA: pitchLinked
+        ))
+    }
+
+    func now() -> Double {
+        ProcessInfo.processInfo.systemUptime
+    }
+
+    func after(_ sec: Double, _ run: @escaping @MainActor () -> Void) -> BlendTimer {
+        BlendTaskTimer(sec, run)
+    }
+
+    func settings() -> BlendSettings {
+        let store = SettingsStore.shared
+        func raw(_ key: String) -> Any? {
+            switch store.value(key) {
+            case .bool(let v)?: return v as Any
+            case .int(let v)?: return v as Any
+            case .double(let v)?: return v as Any
+            case .string(let v)?: return v as Any
+            case nil: return nil
+            }
+        }
+        var settings = BlendPrefs.blendSettings(BlendKeys(
+            type: raw("audio.blend_type"), length: raw("audio.blend_length"), cut: raw("audio.blend_cut"),
+            tempo: raw("audio.blend_tempo"), key: raw("audio.blend_key")
+        ))
+        settings.ratings = BlendRatings.shared.balance
+        return settings
+    }
+
+    func analysis(_ ref: String) -> BlendAnalysis? {
+        let hub = BlendAnalysisHub.shared
+        if let found = hub.peek(ref) { return found }
+        hub.request(ref)
+        return nil
+    }
+
+    func sound(_ ref: String) -> BlendSound {
+        if let own = LibraryStore.shared.sound(for: ref) {
+            return BlendSound(rate: own.rate, pitch: own.pitch, linked: own.linked)
+        }
+        let settings = SettingsStore.shared
+        return BlendSound(rate: 1, pitch: settings.double("player.pitch"), linked: settings.bool("player.pitch_linked"))
+    }
+
+    func load(_ ref: String, startSec: Double, done: @escaping @MainActor ((any BlendDeckControl)?) -> Void) {
+        guard let target = QueueMath.nextPos(pos, length: order.count, repeat: repeatMode, manual: false),
+              target != pos, tracks[order[target]].ref == ref else {
+            done(nil)
+            return
+        }
+        let track = tracks[order[target]]
+        dropPreload()
+        stopOutgoing()
+        let token = loadToken
+        Task {
+            guard let playable = try? await Self.source(for: track, fresh: false), token == self.loadToken else {
+                done(nil)
+                return
+            }
+            let source = playable.source
+            let item = self.makeItem(source)
+            let hls = Self.streamsHLS(source)
+            let standby = self.standby
+            standby.pause()
+            standby.removeAllItems()
+            standby.volume = 0
+            standby.insert(item, after: nil)
+            self.preloaded = Preloaded(pos: target, item: item, onStandby: true, quality: Self.label(source), hls: hls,
+                                       via: playable.via, forBlend: true)
+            let deck = self.blendDeck(for: item, on: standby, hls: hls)
+            guard await Self.blendReady(item), token == self.loadToken, self.preloaded?.item === item else {
+                if self.preloaded?.item === item { self.release(deck) }
+                done(nil)
+                return
+            }
+            if !hls { AudioTap.attach(to: item, leveler: track.loudness == nil, blend: deck.dsp) }
+            await item.seek(to: CMTime(seconds: max(0, startSec), preferredTimescale: 600),
+                            toleranceBefore: .zero, toleranceAfter: .zero)
+            guard token == self.loadToken, self.preloaded?.item === item else {
+                done(nil)
+                return
+            }
+            deck.baseGain = Loudness.gain(lufs: track.loudness, enabled: self.normalize)
+            standby.volume = Float(deck.baseGain)
+            done(deck)
+        }
+    }
+
+    /// Ждать готовности элемента второго дека не дольше стольких секунд.
+    private static let blendReadySec = 10.0
+    private static let blendReadyPollNs: UInt64 = 100_000_000
+
+    private static func blendReady(_ item: AVPlayerItem) async -> Bool {
+        let deadline = Date().addingTimeInterval(blendReadySec)
+        while Date() < deadline {
+            switch item.status {
+            case .readyToPlay: return true
+            case .failed: return false
+            default: try? await Task.sleep(nanoseconds: blendReadyPollNs)
+            }
+        }
+        return false
+    }
+
+    func promote(_ deck: any BlendDeckControl, listenedMs: Double) {
+        guard let next = preloaded, next.forBlend, (deck as? BlendPlayerDeck)?.item === next.item else { return }
+        finishPlay(skipped: false)
+        preloaded = nil
+        preloadStatus = nil
+        active = 1 - active
+        advance(to: next)
+        self.listenedMs = listenedMs
+        isPlaying = true
+        updateFades()
+        if let done = blend.done { BlendRatings.shared.open(done) }
+    }
+
+    func release(_ deck: any BlendDeckControl) {
+        guard let deck = deck as? BlendPlayerDeck else { return }
+        if preloaded?.item === deck.item {
+            preloaded = nil
+            preloadStatus = nil
+        }
+        deck.stop()
+        // текущий трек не трогаем: отпускают только ушедший A или так и не ставший текущим B
+        if deck.item !== currentItem {
+            if deck.player.currentItem === deck.item { deck.player.pause() }
+            deck.player.remove(deck.item)
+        }
+        blendDecks[ObjectIdentifier(deck.item)] = nil
+    }
+
+    func hold(_ on: Bool) {
+        guard on != blendHold else { return }
+        blendHold = on
+        guard !on else { return }
+        // переход кончился: скорость и тон — снова те, что выбраны для текущего трека
+        applyRate(rate)
+        applyTempo()
     }
 }
 

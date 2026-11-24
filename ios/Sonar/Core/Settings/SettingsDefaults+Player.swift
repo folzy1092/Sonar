@@ -11,6 +11,14 @@ extension SettingsDefaults {
             "audio.normalize": .bool(true),
             // кроссфейд, секунды: 0 — выключен (как на ПК)
             "audio.crossfade": .int(0),
+            // сведение (docs/BLEND.md §7.3, зеркало ПК): выключено; длина 6 · 10 · 16 с, срез до 45 с, темп ±12 %
+            "audio.blend": .bool(false),
+            "audio.blend_type": .string(BlendType.auto.rawValue),
+            "audio.blend_length": .int(10),
+            "audio.blend_cut": .int(16),
+            "audio.blend_tempo": .int(8),
+            "audio.blend_key": .bool(true),
+            "audio.blend_debug": .bool(false),
             "audio.on_interruption": .string(InterruptionMode.fallback.rawValue),
             // эквалайзер: 12 чисел через запятую, пусто — ровно
             "audio.eq": .string(""),

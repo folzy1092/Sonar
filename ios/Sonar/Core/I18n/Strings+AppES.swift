@@ -395,5 +395,9 @@ extension I18n {
         "Меняет значок на экране «Домой». iOS сама покажет уведомление о смене — это нормально": "Cambia el icono de la pantalla de inicio. iOS mostrará su propio aviso del cambio: es normal",
         "На этом устройстве значок сменить нельзя": "En este dispositivo no se puede cambiar el icono",
         "Не получилось сменить значок": "No se pudo cambiar el icono",
+        // Сведение (Strings+Blend.swift)
+        "Закончить вечеринку": "Terminar la fiesta",
+        "Этот трек идёт потоком HLS — анализа нет, переход будет кроссфейдом": "Esta pista se reproduce como flujo HLS: sin análisis, la transición será un fundido cruzado",
+        "Сведение слушает доли и тональность треков-файлов; у потоков HLS анализа нет — там переход кроссфейдом.": "La mezcla escucha los tiempos y la tonalidad de las pistas en archivo; los flujos HLS no se analizan, así que usan fundido cruzado.",
     ]
 }
