@@ -102,8 +102,10 @@ final class SyncService {
         } catch RemoteSyncError.refused("not_paired") {
             // ключ пульта больше не подходит — не стучимся каждые 2 минуты, пока не привяжут заново
             if case let .lan(pcID) = target { RemoteSyncPC.forget(pcID) }
-            lastError = RemoteSyncError.refused("not_paired").localizedDescription
+            lastError = t(RemoteSyncError.refused("not_paired").russian)
             stop()
+        } catch let error as RemoteSyncError {
+            lastError = t(error.russian)
         } catch {
             lastError = error.localizedDescription
         }

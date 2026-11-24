@@ -185,5 +185,6 @@ enum RemoteSyncError: LocalizedError, Equatable {
         }
     }
 
-    var errorDescription: String? { t(russian) }
+    /// Без перевода: ошибка рождается вне главного актора, а `t` живёт на нём. Переводит `SyncService`.
+    var errorDescription: String? { russian }
 }
