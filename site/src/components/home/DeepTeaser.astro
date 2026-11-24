@@ -19,7 +19,6 @@ const fromPrice = Math.min(...PLANS.map((p) => p.monthly))
 <section class="section deep" aria-labelledby="deep-title">
   <div class="wrap">
     <div class="deep__card card" data-reveal>
-      <div class="deep__glow" aria-hidden="true"></div>
       <div class="deep__text">
         <span class="pill pill--deep">
           <Icon name="mc:diamond-line" size={14} />
@@ -61,17 +60,6 @@ const fromPrice = Math.min(...PLANS.map((p) => p.monthly))
     padding: clamp(24px, 5vw, 56px);
     overflow: hidden;
     border-color: color-mix(in srgb, var(--deep) 22%, var(--border));
-  }
-  .deep__glow {
-    position: absolute;
-    inset: -40% -20% auto 30%;
-    height: 140%;
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--deep) 16%, transparent), transparent);
-    pointer-events: none;
-    animation: drift 14s ease-in-out infinite alternate;
-  }
-  @keyframes drift {
-    to { transform: translate(-12%, 8%) scale(1.1); }
   }
   .deep__text { position: relative; display: grid; gap: 18px; justify-items: start; }
   .deep__cta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }

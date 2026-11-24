@@ -97,17 +97,6 @@ const LOGO_VIEWBOX = logoRaw.match(/viewBox="([^"]+)"/)?.[1] ?? '0 0 100 100'
     padding-block: clamp(40px, 7vw, 96px) clamp(48px, 7vw, 88px);
     overflow: hidden;
   }
-  .hero::before {
-    content: '';
-    position: absolute;
-    inset: -20% -10% auto auto;
-    width: 70vw;
-    height: 70vw;
-    max-width: 900px;
-    max-height: 900px;
-    background: radial-gradient(closest-side, rgba(255, 255, 255, 0.06), transparent 70%);
-    pointer-events: none;
-  }
   .hero__inner {
     position: relative;
     display: grid;

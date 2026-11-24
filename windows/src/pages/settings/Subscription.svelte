@@ -45,7 +45,7 @@
 
 {#if sub.tier === 'dev'}
   <section class="dev-card" aria-label={t('Твоя подписка')}>
-    <span class="dev-mark" aria-hidden="true"><Icon name="sparkles" size={20} /></span>
+    <span class="dev-mark" aria-hidden="true"><Icon name="waveform" size={20} /></span>
     <div class="dev-text">
       <span class="dev-title">
         <b>{SUB_NAME}</b>
@@ -116,7 +116,7 @@
     padding: 16px 18px;
     border-radius: 16px;
     border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--card-line));
-    background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 14%, var(--plate)), var(--plate) 70%);
+    background: var(--plate);
     box-shadow: var(--sheen);
     animation: dev-card-in var(--normal, 0.26s) var(--ease) both;
   }

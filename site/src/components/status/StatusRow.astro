@@ -62,7 +62,6 @@ const [kind, id] = row.icon.split(':')
   .row[data-state='ok'] { --state-color: var(--ok); }
   .row[data-state='degraded'] { --state-color: var(--warn); }
   .row[data-state='down'] { --state-color: var(--down); }
-  .row[data-state='ok'] .dot { animation: ping 2.4s var(--ease) infinite; }
   .row[data-state='degraded'] .row__state, .row[data-state='down'] .row__state { color: var(--text); }
 
   .bars {
@@ -89,13 +88,8 @@ const [kind, id] = row.icon.split(':')
   .row__foot { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--text-3); }
   .row__hint { flex: 1; text-align: center; color: var(--text-2); font-variant-numeric: tabular-nums; }
 
-  @keyframes ping {
-    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--state-color) 55%, transparent); }
-    70%, 100% { box-shadow: 0 0 0 7px transparent; }
-  }
 
   @media (prefers-reduced-motion: reduce) {
-    .row[data-state='ok'] .dot { animation: none; }
     :global(.js) .row .bar, :global(.js) :global(.is-in) .row .bar { transform: none; }
     .bars:hover .bar:hover { transform: none; }
   }

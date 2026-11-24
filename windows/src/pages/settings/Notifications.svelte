@@ -22,7 +22,7 @@
   const KINDS: { icon: IconName; title: string; text: string; group: Exclude<Filter, 'all'> }[] = [
     { icon: 'user2', title: 'Заявки в друзья', text: 'Принять или отклонить — прямо здесь', group: 'friends' },
     { icon: 'music', title: 'Треки от друзей', text: 'Что тебе скинули в личные сообщения', group: 'friends' },
-    { icon: 'sparkles', title: 'Sonar Deep', text: 'Подписка включилась или скоро закончится', group: 'other' },
+    { icon: 'waveform', title: 'Sonar Deep', text: 'Подписка включилась или скоро закончится', group: 'other' },
     { icon: 'download', title: 'Обновления Sonar', text: 'Что нового в свежей версии', group: 'other' },
   ]
 

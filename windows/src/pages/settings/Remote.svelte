@@ -229,8 +229,7 @@
     transition: background var(--normal) var(--ease);
   }
   .dot.on {
-    background: #3ecf6e;
-    box-shadow: 0 0 0 3px color-mix(in srgb, #3ecf6e 22%, transparent);
+    background: var(--online);
   }
   .connect {
     display: flex;

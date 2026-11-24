@@ -214,7 +214,9 @@
   .fill {
     position: absolute;
     inset: 0 auto 0 0;
-    width: 46%;
+    width: 100%;
+    transform: scaleX(0.46);
+    transform-origin: left;
     background: color-mix(in srgb, var(--text) 9%, transparent);
   }
   .fill.line {
@@ -288,12 +290,13 @@
   .solo.live .fill {
     animation: run 2.4s var(--ease) infinite alternate;
   }
+  /* через transform, не width: ширина в анимации пересчитывает раскладку каждый кадр */
   @keyframes run {
     from {
-      width: 22%;
+      transform: scaleX(0.22);
     }
     to {
-      width: 78%;
+      transform: scaleX(0.78);
     }
   }
   @media (prefers-reduced-motion: reduce) {

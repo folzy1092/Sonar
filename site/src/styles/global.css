@@ -132,10 +132,8 @@ p { margin: 0; text-wrap: pretty; }
 .section { padding-block: clamp(56px, 9vw, 112px); }
 
 .eyebrow {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-3);
 }
 

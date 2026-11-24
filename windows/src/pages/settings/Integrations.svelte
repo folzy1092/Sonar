@@ -194,7 +194,6 @@
   }
   .state.on .dot {
     background: var(--online);
-    box-shadow: 0 0 10px var(--online);
   }
   .state.wait .dot {
     background: #f5b942;

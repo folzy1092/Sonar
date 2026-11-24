@@ -36,9 +36,9 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
     { id: 'notifications', title: 'Уведомления', icon: 'bell' },
     { id: 'stats', title: 'Статистика', icon: 'bars' },
   ],
-  subscription: [{ id: 'plans', title: 'Sonar Deep', icon: 'sparkles' }],
+  subscription: [{ id: 'plans', title: 'Sonar Deep', icon: 'waveform' }],
   interface: [
-    { id: 'style', title: 'Стиль', icon: 'sparkles' },
+    { id: 'style', title: 'Стиль', icon: 'layout' },
     { id: 'look', title: 'Вид', icon: 'palette' },
   ],
   player: [
