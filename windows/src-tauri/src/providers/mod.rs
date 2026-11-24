@@ -7,6 +7,7 @@ pub mod matching;
 pub mod registry;
 pub mod soundcloud;
 pub mod spotify;
+pub mod spotify_gql;
 pub mod unplayable;
 pub mod vk;
 pub mod yandex;

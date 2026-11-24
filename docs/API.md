@@ -280,10 +280,21 @@ Sonar, после возврата на `music.youtube.com` забираются
   `default_totp`, iPhone `Spotify.TotpSecret.default`), потом — с сервера: `GET /config` → `spotify_totp: {ver, cipher}`.
   Ответ `400` или тело с `totp` → «Spotify: ключ веб-плеера устарел — нужно обновление Sonar»; `isAnonymous: true`
   или без `accessToken` → «Spotify: ключ sp_dc не подошёл — войди заново». Токен общий на все запросы, живёт до
-  `accessTokenExpirationTimestampMs` минус минута; `401` Web API — один повтор со свежим токеном.
-- **Метаданные** — только Web API `https://api.spotify.com/v1` с `Bearer`: `search` (track/artist/album/playlist),
-  `me`, `me/tracks`, `me/playlists`, `playlists/{id}` (+ `/tracks`, строки `track` или `item`), `artists/{id}`
-  (+ `/top-tracks`, `/albums`), `albums/{id}` (+ `/tracks`). Локальные файлы и эпизоды подкастов пропускаются.
+  `accessTokenExpirationTimestampMs` минус минута; `401` — один повтор со свежим токеном.
+- **Метаданные** — внутренний GraphQL веб-плеера («Pathfinder», с 2026-11-24): `POST
+  https://api-partner.spotify.com/pathfinder/v2/query` с `Bearer`, `App-Platform: WebPlayer` и телом
+  `{variables, operationName, extensions: {persistedQuery: {version: 1, sha256Hash}}}`. Открытый Web API
+  (`api.spotify.com/v1`) с декабря 2025 отвечает на токен веб-плеера `429` на любой запрос — им не пользуемся.
+  Операции: `profileAttributes` + `accountAttributes` (аккаунт, `product == "PREMIUM"`), `searchTracks`,
+  `searchDesktop` (исполнители, альбомы, плейлисты), `fetchLibraryTracks` («Любимые»), `libraryV3` (плейлисты,
+  фильтр `Playlists`, папки раскрыты), `fetchPlaylist`, `queryArtistOverview` (+ популярные),
+  `queryArtistDiscographyAll` (сборники мимо), `getAlbum` (с `offset` — следующие треки). Страницы — по `offset`
+  до `totalCount`, по 50. Хэши вшиты (ПК `providers/spotify_gql.rs`, iPhone `SpotifyGQL.swift`); устаревший
+  сервер отвергает `412 "Invalid query hash"` — клиент скачивает open.spotify.com, основной скрипт
+  `web-player.*.js` и куски `xpui-routes-search` / `xpui-routes-artist` (по карте webpack в основном скрипте),
+  вынимает пары `"имя","query","sha256"` и повторяет запрос (не чаще раза в 10 минут). Ответы — `fixtures/spotify/`
+  (публичные сняты вживую анонимным токеном, ответы аккаунта — по коду веб-плеера). Локальные файлы, эпизоды и
+  «не найдено» пропускаются.
 - **Поток.** ПК с Premium — librespot за cargo-фичей `spotify-playback` (по умолчанию выключена: librespot-core 0.8
   тянет зависимости, которые надо проверить на windows-latest): провайдер отдаёт `Source::File` с меткой
   `librespot:<id>`, локальный аудио-сервер её не проксирует, а скачивает трек librespot'ом (Ogg Vorbis) и отдаёт

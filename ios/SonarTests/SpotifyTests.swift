@@ -1,20 +1,10 @@
 import XCTest
 @testable import Sonar
 
-/// Spotify без сети — те же случаи, что Rust-тесты `providers/spotify.rs`; живая проверка — только с
+/// Spotify без сети — токен, TOTP и ключ, как Rust-тесты `providers/spotify.rs` (разбор ответов — `SpotifyGQLTests`);
+/// живая проверка — только с
 /// `SP_DC` в окружении схемы тестов (ключ не печатается).
 final class SpotifyTests: XCTestCase {
-    private func json(_ text: String) throws -> JSONValue {
-        try JSONValue(data: Data(text.utf8))
-    }
-
-    private let trackJSON = #"""
-    {"id": "t1", "type": "track", "name": "Song", "duration_ms": 201000, "explicit": true,
-     "artists": [{"id": "a1", "name": "A"}, {"id": "a2", "name": "B"}],
-     "album": {"id": "al1", "name": "LP", "images": [{"url": "https://i.scdn.co/image/small", "width": 64}, {"url": "https://i.scdn.co/image/big", "width": 640}]},
-     "external_urls": {"spotify": "https://open.spotify.com/track/t1"}}
-    """#
-
     func testTotpRFC6238Vectors() {
         let key = Data("12345678901234567890".utf8)
         XCTAssertEqual(Spotify.totp(key: key, unixSeconds: 59), "287082")
@@ -110,63 +100,6 @@ final class SpotifyTests: XCTestCase {
         // сырые значения SoundCloud и Яндекса — как у Service: старая настройка search.source читается
         XCTAssertEqual(Source(rawValue: Service.yandex.rawValue), .yandex)
         XCTAssertEqual(Source(rawValue: Service.soundcloud.rawValue), .soundcloud)
-    }
-
-    func testTrackMapping() throws {
-        let track = try XCTUnwrap(Spotify.parseTrack(try json(trackJSON)))
-        XCTAssertEqual(track.ref, "sp:t1")
-        XCTAssertEqual(track.artist, "A, B")
-        XCTAssertEqual(track.artists[1].ref, "spa:a2")
-        XCTAssertEqual(track.album, AlbumRef(ref: "spalb:al1", title: "LP"))
-        XCTAssertEqual(track.coverURL, "https://i.scdn.co/image/big")
-        XCTAssertTrue(track.explicit)
-        XCTAssertTrue(track.available)
-        XCTAssertEqual(track.durationMs, 201_000)
-        XCTAssertEqual(track.url, "https://open.spotify.com/track/t1")
-        XCTAssertEqual(ServiceRegistry.service(of: track.ref), .sp)
-    }
-
-    func testLocalFilesAndEpisodesSkipped() throws {
-        XCTAssertNil(Spotify.parseTrack(try json(#"{"id": null, "is_local": true, "name": "x"}"#)))
-        XCTAssertNil(Spotify.parseTrack(try json(#"{"id": "e", "type": "episode", "name": "x"}"#)))
-    }
-
-    func testPlaylistRowsTrackOrItem() throws {
-        let page = try json(#"{"items": [{"track": \#(trackJSON)}, {"item": \#(trackJSON)}, {"track": null}]}"#)
-        XCTAssertEqual(page["items"].items.compactMap(Spotify.itemTrack).count, 2)
-    }
-
-    func testAlbumArtistPlaylistAccountMapping() throws {
-        let album = try XCTUnwrap(Spotify.parseAlbum(try json(#"{"id": "al1", "name": "LP", "release_date": "2021-03-05", "total_tracks": 12, "artists": [{"id": "a1", "name": "A"}], "images": []}"#)))
-        XCTAssertEqual(album.ref, "spalb:al1")
-        XCTAssertEqual(album.year, 2021)
-        XCTAssertEqual(album.released, "2021-03-05")
-        XCTAssertEqual(album.trackCount, 12)
-        let yearOnly = try XCTUnwrap(Spotify.parseAlbum(try json(#"{"id": "x", "name": "Y", "release_date": "1999"}"#)))
-        XCTAssertEqual(yearOnly.year, 1999)
-        XCTAssertNil(yearOnly.released)
-
-        let artist = try XCTUnwrap(Spotify.parseArtist(try json(#"{"id": "a1", "name": "A", "followers": {"total": 7}, "images": [{"url": "https://i.scdn.co/image/av", "width": 320}]}"#)))
-        XCTAssertEqual(artist.ref, "spa:a1")
-        XCTAssertEqual(artist.followers, 7)
-        XCTAssertEqual(artist.avatarURL, "https://i.scdn.co/image/av")
-
-        let playlist = try XCTUnwrap(Spotify.parsePlaylist(try json(#"{"id": "p1", "name": "Mix", "owner": {"id": "u", "display_name": "Folzy"}, "images": null, "tracks": {"total": 3}}"#)))
-        XCTAssertEqual(playlist, ServicePlaylist(ref: "sppl:p1", title: "Mix", owner: "Folzy", coverURL: nil, trackCount: 3))
-        let newShape = try XCTUnwrap(Spotify.parsePlaylist(try json(#"{"id": "p2", "name": "New", "owner": {"id": "u"}, "items": {"total": 9}}"#)))
-        XCTAssertEqual(newShape.owner, "u")
-        XCTAssertEqual(newShape.trackCount, 9)
-
-        let me = Spotify.parseAccount(try json(#"{"id": "u1", "display_name": "F", "product": "premium", "images": []}"#))
-        XCTAssertEqual(me, ServiceAccount(name: "F", avatarURL: nil, uid: "u1", premium: true))
-        XCTAssertEqual(Spotify.parseAccount(try json(#"{"id": "u2", "product": "free"}"#)).premium, false)
-    }
-
-    func testAlbumTracksTakeOuterAlbum() throws {
-        let album = try json(#"{"id": "al9", "name": "EP", "images": [{"url": "https://i.scdn.co/image/c", "width": 300}]}"#)
-        let track = try XCTUnwrap(Spotify.parseTrack(try json(#"{"id": "t9", "name": "N", "artists": []}"#), album: album))
-        XCTAssertEqual(track.album?.ref, "spalb:al9")
-        XCTAssertEqual(track.coverURL, "https://i.scdn.co/image/c")
     }
 
     func testCredsKeepRustFieldName() throws {

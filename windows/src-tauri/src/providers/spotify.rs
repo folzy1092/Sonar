@@ -1,5 +1,7 @@
-//! Spotify: ключ `sp_dc` (cookie open.spotify.com) → токен веб-плеера → Web API (поиск, лайки,
-//! плейлисты, исполнитель, альбом). Рекомендаций не берём (их эндпоинты закрыты и не нужны волне).
+//! Spotify: ключ `sp_dc` (cookie open.spotify.com) → токен веб-плеера → внутренний GraphQL веб-плеера
+//! (`spotify_gql.rs`: поиск, лайки, плейлисты, исполнитель, альбом). Открытый Web API (`api.spotify.com/v1`)
+//! с декабря 2025 отвечает на такой токен 429 на любой запрос — им больше не пользуемся (проверено
+//! 2026-11-24). Рекомендаций не берём (не нужны волне).
 //! Поток Spotify отдаёт только Premium через librespot (фича `spotify-playback`, docs/API.md
 //! «Spotify»); без неё трек Spotify — «нужен резервный сервис» (резерв — этап 4).
 //!
@@ -8,19 +10,19 @@
 //! его при первом токене после запуска и при отказе «ключ устарел» (`TotpStore`), вшитый —
 //! запасной. `sp_dc` не попадает ни в ошибки, ни в лог.
 
-use super::{http_error, Account, Album, AlbumRef, Artist, ArtistRef, ServicePlaylist, Track, UA};
+use super::spotify_gql::{self as gql, Op};
+use super::{http_error, Account, Album, Artist, ArtistRef, ServicePlaylist, Track, UA};
 use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 
-const API: &str = "https://api.spotify.com/v1";
 const TOKEN_URL: &str = "https://open.spotify.com/api/token";
-/// Сколько треков отдаёт одна страница Web API.
-const PAGE: usize = 50;
-/// Предел страниц треков одного альбома (по `PAGE`): `next`, указывающий на себя, не крутит вечно.
-const ALBUM_MAX_PAGES: usize = 40;
+/// Предел страниц одного списка: сервер, который не даёт `totalCount`, не крутит вечно.
+const MAX_PAGES: usize = 60;
+/// Треков в одном альбоме (сборники на сотни треков).
+const ALBUM_MAX_TRACKS: usize = 2000;
 /// Токен обновляем за минуту до конца.
 const TOKEN_MARGIN_MS: u64 = 60_000;
 /// Шаг TOTP веб-плеера, секунд.
@@ -38,6 +40,8 @@ const TOTP_RECHECK: std::time::Duration = std::time::Duration::from_secs(60);
 const TOTP_MAX_LEN: usize = 128;
 /// Токен выдан анонимно: cookie `sp_dc` протух или чужой.
 pub const SP_DC_BAD: &str = "Spotify: ключ sp_dc не подошёл — войди заново";
+/// Хэш запроса веб-плеера устарел, а свежий из веб-плеера не вынулся.
+pub const GQL_STALE: &str = "Spotify обновил веб-плеер — Sonar не смог подхватить новые запросы, попробуй позже";
 pub const NOT_CONNECTED: &str = "Spotify не подключён — открой Настройки → Сервисы";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -236,142 +240,9 @@ async fn fetch_token(http: &reqwest::Client, creds: &Creds, secret: &TotpSecret)
   parse_token(status, &body)
 }
 
-/// Полный адрес Web API: путь от `API` или готовая ссылка (`next`), но только на api.spotify.com —
-/// токен веб-плеера не уходит на чужие адреса из ответа.
-pub fn api_url(path: &str) -> Option<String> {
-  if path.starts_with('/') {
-    return Some(format!("{API}{path}"));
-  }
-  path.starts_with(&format!("{API}/")).then(|| path.to_owned())
-}
-
-/// Ссылка на следующую страницу (`next`), если она ведёт в Web API.
-fn next_url(page: &Value) -> Option<String> {
-  page["next"].as_str().and_then(api_url)
-}
-
-// --- разбор JSON Web API ---
-
-/// Самая крупная картинка (Spotify отдаёт по убыванию, но не обещает).
-pub fn best_image(images: &Value) -> Option<String> {
-  images
-    .as_array()?
-    .iter()
-    .filter_map(|i| Some((i["width"].as_u64().unwrap_or(0), i["url"].as_str()?)))
-    .max_by_key(|(w, _)| *w)
-    .map(|(_, u)| u.to_owned())
-}
-
-fn spotify_url(v: &Value) -> Option<String> {
-  v["external_urls"]["spotify"].as_str().map(str::to_owned)
-}
-
-fn artist_refs(v: &Value) -> Vec<ArtistRef> {
-  v["artists"]
-    .as_array()
-    .map(|a| {
-      a.iter()
-        .filter_map(|x| Some(ArtistRef { ref_: format!("spa:{}", x["id"].as_str()?), name: x["name"].as_str()?.to_owned(), avatar_url: None }))
-        .collect()
-    })
-    .unwrap_or_default()
-}
-
-fn joined(artists: &[ArtistRef]) -> String {
-  artists.iter().map(|a| a.name.as_str()).collect::<Vec<_>>().join(", ")
-}
-
-/// Год из `release_date` («2021», «2021-03», «2021-03-05»).
-fn year_of(date: Option<&str>) -> Option<u32> {
-  date?.get(..4)?.parse().ok()
-}
-
-/// Трек; `album` — альбом снаружи (у треков альбома своего `album` нет). Локальные файлы
-/// пользователя в плейлистах (`is_local`, без id) пропускаются.
-pub fn track_from(v: &Value, album: Option<&Value>) -> Option<Track> {
-  if v["is_local"].as_bool() == Some(true) || v["type"].as_str().is_some_and(|t| t != "track") {
-    return None;
-  }
-  let id = v["id"].as_str()?;
-  let alb = album.unwrap_or(&v["album"]);
-  let artists = artist_refs(v);
-  Some(Track {
-    ref_: format!("sp:{id}"),
-    title: v["name"].as_str()?.to_owned(),
-    artist: joined(&artists),
-    artists,
-    album: alb["id"].as_str().map(|a| AlbumRef { ref_: format!("spalb:{a}"), title: alb["name"].as_str().unwrap_or("").to_owned() }),
-    duration_ms: v["duration_ms"].as_u64().unwrap_or(0),
-    cover_url: best_image(&alb["images"]),
-    url: spotify_url(v),
-    explicit: v["explicit"].as_bool().unwrap_or(false),
-    // играет через резервный сервис — для очереди трек доступен
-    available: true,
-    plays: None,
-    tags: None,
-  })
-}
-
-pub fn album_from(v: &Value) -> Option<Album> {
-  let artists = artist_refs(v);
-  let date = v["release_date"].as_str();
-  let full_date = date.filter(|d| d.len() == 10).map(str::to_owned);
-  Some(Album {
-    ref_: format!("spalb:{}", v["id"].as_str()?),
-    title: v["name"].as_str()?.to_owned(),
-    artist: joined(&artists),
-    artists,
-    cover_url: best_image(&v["images"]),
-    year: year_of(date),
-    released: full_date,
-    track_count: v["total_tracks"].as_u64().unwrap_or(0) as u32,
-    url: spotify_url(v),
-  })
-}
-
-pub fn artist_from(v: &Value) -> Option<Artist> {
-  Some(Artist {
-    ref_: format!("spa:{}", v["id"].as_str()?),
-    name: v["name"].as_str()?.to_owned(),
-    avatar_url: best_image(&v["images"]),
-    followers: v["followers"]["total"].as_u64(),
-    url: spotify_url(v),
-  })
-}
-
-/// Плейлист; число треков — в `tracks.total` (старый ответ) или `items.total` (новый).
-pub fn playlist_from(v: &Value) -> Option<ServicePlaylist> {
-  let total = v["tracks"]["total"].as_u64().or(v["items"]["total"].as_u64()).unwrap_or(0);
-  Some(ServicePlaylist {
-    ref_: format!("sppl:{}", v["id"].as_str()?),
-    title: v["name"].as_str()?.to_owned(),
-    owner: v["owner"]["display_name"].as_str().or(v["owner"]["id"].as_str()).unwrap_or("").to_owned(),
-    cover_url: best_image(&v["images"]),
-    track_count: total as u32,
-  })
-}
-
-/// `GET /me`: имя, аватар, id и Premium (`product == "premium"`).
-pub fn account_from(v: &Value) -> Account {
-  Account {
-    name: v["display_name"].as_str().or(v["id"].as_str()).map(str::to_owned),
-    avatar_url: best_image(&v["images"]),
-    uid: v["id"].as_str().map(str::to_owned),
-    premium: v["product"].as_str().map(|p| p == "premium"),
-  }
-}
-
-/// Строка плейлиста или «Любимых»: трек лежит в `track` (старый ответ) или `item` (новый).
-pub fn item_track(row: &Value) -> Option<Track> {
-  let t = if row["track"].is_object() { &row["track"] } else { &row["item"] };
-  track_from(t, None)
-}
-
-fn list<T>(v: &Value, f: impl Fn(&Value) -> Option<T>) -> Vec<T> {
-  v.as_array().map(|a| a.iter().filter_map(&f).collect()).unwrap_or_default()
-}
-
-/// Клиент Web API. Токен общий на ядро (`cache`), 401 — один повтор со свежим токеном.
+/// Клиент: токен веб-плеера общий на ядро (`cache`), запросы — внутренний GraphQL веб-плеера
+/// (`spotify_gql.rs`): 401 — один повтор со свежим токеном, 412 «хэш устарел» — перечитать хэши из
+/// веб-плеера и повторить.
 pub struct Spotify<'a> {
   pub http: &'a reqwest::Client,
   pub creds: &'a Creds,
@@ -404,119 +275,186 @@ impl Spotify<'_> {
     }
   }
 
-  async fn send(&self, url: &str, query: &[(&str, String)], token: &str) -> Result<reqwest::Response> {
-    Ok(self.http.get(url).query(query).bearer_auth(token).header("Accept-Language", "ru").send().await?)
+  async fn send(&self, op: Op, variables: &Value, token: &str) -> Result<reqwest::Response> {
+    let body = gql::body(op, &gql::HASHES.get(op), variables.clone());
+    let r = self
+      .http
+      .post(gql::ENDPOINT)
+      .bearer_auth(token)
+      .header("App-Platform", "WebPlayer")
+      .header("Accept", "application/json")
+      .header("Accept-Language", "ru")
+      .header("User-Agent", UA)
+      .json(&body)
+      .send()
+      .await
+      .map_err(|_| anyhow!("Spotify: api-partner.spotify.com недоступен"))?;
+    Ok(r)
   }
 
-  async fn get(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
-    let url = api_url(path).ok_or_else(|| anyhow!("Spotify: непонятный ответ веб-плеера"))?;
-    let mut r = self.send(&url, query, &self.token(false).await?).await?;
+  /// Операция → `data` ответа.
+  async fn query(&self, op: Op, variables: Value) -> Result<Value> {
+    let mut r = self.send(op, &variables, &self.token(false).await?).await?;
     if r.status() == reqwest::StatusCode::UNAUTHORIZED {
-      r = self.send(&url, query, &self.token(true).await?).await?;
+      r = self.send(op, &variables, &self.token(true).await?).await?;
     }
-    if !r.status().is_success() {
-      return Err(http_error("Spotify", r.status()));
+    if r.status() == reqwest::StatusCode::PRECONDITION_FAILED && gql::HASHES.refresh(self.http, op).await {
+      r = self.send(op, &variables, &self.token(false).await?).await?;
     }
-    Ok(r.json().await?)
+    match r.status() {
+      s if s.is_success() => {}
+      reqwest::StatusCode::PRECONDITION_FAILED => bail!(GQL_STALE),
+      s => return Err(http_error("Spotify", s)),
+    }
+    let v: Value = r.json().await.map_err(|_| anyhow!("Spotify: непонятный ответ веб-плеера"))?;
+    gql_data(v)
   }
 
-  /// Все страницы списка (`next`) до `max` строк.
-  async fn pages(&self, path: &str, max: usize) -> Result<Vec<Value>> {
+  /// Страницы списка по `offset`, пока не кончатся или не наберётся `max` строк. `parse` → (строки,
+  /// сколько элементов было на странице, всего).
+  async fn paged<T>(&self, op: Op, max: usize, vars: impl Fn(u32) -> Value, parse: impl Fn(&Value) -> (Vec<T>, usize, Option<u64>)) -> Result<Vec<T>> {
     let mut out = Vec::new();
-    let mut page = self.get(path, &[("limit", PAGE.to_string())]).await?;
-    loop {
-      out.extend(page["items"].as_array().cloned().unwrap_or_default());
-      match next_url(&page) {
-        Some(n) if out.len() < max => page = self.get(&n, &[]).await?,
-        _ => break,
+    let mut offset = 0u32;
+    for _ in 0..MAX_PAGES {
+      let (rows, seen, total) = parse(&self.query(op, vars(offset)).await?);
+      out.extend(rows);
+      offset += seen as u32;
+      let done = seen == 0 || total.is_some_and(|t| u64::from(offset) >= t) || out.len() >= max;
+      if done {
+        break;
       }
     }
     out.truncate(max);
     Ok(out)
   }
 
+  /// Профиль и подписка (подписка не пришла — `premium: None`, вход всё равно удался).
   pub async fn account(&self) -> Result<Account> {
-    Ok(account_from(&self.get("/me", &[]).await?))
+    let profile = self.query(Op::Profile, json!({})).await?;
+    if profile["me"]["profile"].is_null() {
+      bail!(SP_DC_BAD);
+    }
+    let acc = self.query(Op::Account, json!({})).await.ok();
+    Ok(gql::account(&profile, acc.as_ref()))
   }
 
   pub async fn search(&self, q: &str, limit: u32) -> Result<Vec<Track>> {
-    let v = self.search_raw(q, "track", limit).await?;
-    Ok(list(&v["tracks"]["items"], |t| track_from(t, None)))
+    let vars = json!({
+      "searchTerm": q, "offset": 0, "limit": limit.clamp(1, gql::PAGE), "numberOfTopResults": 5,
+      "includeAudiobooks": false, "includePreReleases": false, "includeAuthors": false,
+    });
+    Ok(gql::search_tracks(&self.query(Op::SearchTracks, vars).await?))
   }
 
   pub async fn search_more(&self, q: &str, limit: u32) -> Result<(Vec<Artist>, Vec<Album>, Vec<ServicePlaylist>)> {
-    let v = self.search_raw(q, "artist,album,playlist", limit).await?;
-    Ok((list(&v["artists"]["items"], artist_from), list(&v["albums"]["items"], album_from), list(&v["playlists"]["items"], playlist_from)))
+    let vars = json!({
+      "searchTerm": q, "offset": 0, "limit": limit.clamp(1, gql::PAGE), "numberOfTopResults": 5,
+      "includeAudiobooks": false, "includeArtistHasConcertsField": false, "includePreReleases": false,
+      "includeAlbumPreReleases": false, "includeAuthors": false, "includeEpisodeContentRatingsV2": false,
+      "isPrefix": null, "sectionFilters": ["GENERIC"],
+    });
+    Ok(gql::search_more(&self.query(Op::SearchDesktop, vars).await?))
   }
 
-  async fn search_raw(&self, q: &str, types: &str, limit: u32) -> Result<Value> {
-    let query = [("q", q.to_owned()), ("type", types.to_owned()), ("limit", limit.clamp(1, PAGE as u32).to_string()), ("market", "from_token".into())];
-    self.get("/search", &query).await
-  }
-
-  /// «Любимые треки» аккаунта (`me/tracks`).
+  /// «Любимые треки» аккаунта.
   pub async fn likes(&self, max: usize) -> Result<Vec<Track>> {
-    Ok(self.pages("/me/tracks", max).await?.iter().filter_map(item_track).collect())
+    self.paged(Op::LibraryTracks, max, |offset| json!({ "offset": offset, "limit": gql::PAGE }), gql::library_tracks).await
   }
 
+  /// Плейлисты библиотеки (папки раскрыты).
   pub async fn playlists(&self) -> Result<Vec<ServicePlaylist>> {
-    Ok(self.pages("/me/playlists", 500).await?.iter().filter_map(playlist_from).collect())
+    let vars = |offset: u32| {
+      json!({
+        "filters": ["Playlists"], "order": null, "textFilter": null, "features": [], "limit": gql::PAGE, "offset": offset,
+        "flatten": true, "expandedFolders": [], "folderUri": null, "includeFoldersWhenFlattening": false,
+      })
+    };
+    self.paged(Op::LibraryV3, 500, vars, gql::library_playlists).await
   }
 
   pub async fn playlist(&self, id: &str, max: usize) -> Result<(ServicePlaylist, Vec<Track>)> {
-    let head = self.get(&format!("/playlists/{id}"), &[]).await?;
-    let mut playlist = playlist_from(&head).ok_or_else(|| anyhow!("Spotify: плейлист не найден"))?;
-    let rows = self.pages(&format!("/playlists/{id}/tracks"), max).await?;
-    let tracks: Vec<Track> = rows.iter().filter_map(item_track).collect();
+    let uri = format!("spotify:playlist:{id}");
+    let vars = |offset: u32| {
+      json!({ "uri": uri, "offset": offset, "limit": gql::PAGE, "enableWatchFeedEntrypoint": false, "includeEpisodeContentRatingsV2": false })
+    };
+    let head = std::sync::Mutex::new(None);
+    let tracks = self
+      .paged(Op::Playlist, max, vars, |data| {
+        let (p, tracks, seen, total) = gql::playlist_page(data);
+        let mut h = head.lock().unwrap_or_else(|e| e.into_inner());
+        if h.is_none() {
+          *h = p;
+        }
+        (tracks, seen, total)
+      })
+      .await?;
+    let mut playlist = head.into_inner().unwrap_or_else(|e| e.into_inner()).ok_or_else(|| anyhow!("Spotify: плейлист не найден"))?;
     playlist.track_count = playlist.track_count.max(tracks.len() as u32);
     Ok((playlist, tracks))
   }
 
-  /// Шапка, популярные (`top-tracks`) и альбомы исполнителя.
+  /// Шапка, популярные и альбомы исполнителя.
   pub async fn artist(&self, id: &str) -> Result<(Artist, Vec<Track>, Vec<Album>)> {
-    let artist = artist_from(&self.get(&format!("/artists/{id}"), &[]).await?).ok_or_else(|| anyhow!("Spotify: исполнитель не найден"))?;
-    let top = self.get(&format!("/artists/{id}/top-tracks"), &[("market", "from_token".into())]).await?;
-    let albums = self.artist_albums(id).await?;
-    Ok((artist, list(&top["tracks"], |t| track_from(t, None)), albums))
+    let vars = json!({ "uri": format!("spotify:artist:{id}"), "locale": "", "preReleaseV2": false, "includeMusicVideoPreviews": false });
+    let (artist, top) = gql::artist_overview(&self.query(Op::ArtistOverview, vars).await?).ok_or_else(|| anyhow!("Spotify: исполнитель не найден"))?;
+    let by = ArtistRef { ref_: artist.ref_.clone(), name: artist.name.clone(), avatar_url: None };
+    let albums = self.discography(id, Some(&by)).await?;
+    Ok((artist, top, albums))
   }
 
   pub async fn artist_albums(&self, id: &str) -> Result<Vec<Album>> {
-    let rows = self.pages(&format!("/artists/{id}/albums?include_groups=album,single"), 200).await?;
-    Ok(rows.iter().filter_map(album_from).collect())
+    self.discography(id, None).await
   }
 
-  /// Треки альбомов исполнителя (до 20 альбомов одним запросом) с датой выхода — вкладка «Треки».
+  async fn discography(&self, id: &str, by: Option<&ArtistRef>) -> Result<Vec<Album>> {
+    let uri = format!("spotify:artist:{id}");
+    let vars = |offset: u32| json!({ "uri": uri, "offset": offset, "limit": gql::PAGE, "order": "DATE_DESC" });
+    self.paged(Op::Discography, 200, vars, |d| gql::discography(d, by)).await
+  }
+
+  /// Треки альбомов исполнителя (до 20 альбомов, по 4 запроса разом) с датой выхода — вкладка «Треки».
   pub async fn artist_tracks(&self, id: &str, max: usize) -> Result<Vec<(Track, Option<String>)>> {
     let albums = self.artist_albums(id).await?;
     let ids: Vec<&str> = albums.iter().take(20).map(|a| a.ref_.trim_start_matches("spalb:")).collect();
-    if ids.is_empty() {
-      return Ok(vec![]);
+    let mut pages: Vec<(Album, Vec<Track>)> = Vec::new();
+    for batch in ids.chunks(4) {
+      pages.extend(futures_util::future::try_join_all(batch.iter().map(|id| self.album(id))).await?);
     }
-    let v = self.get("/albums", &[("ids", ids.join(","))]).await?;
-    let mut out = Vec::new();
-    for alb in v["albums"].as_array().into_iter().flatten() {
-      let released = alb["release_date"].as_str().map(str::to_owned);
-      let tracks = alb["tracks"]["items"].as_array().into_iter().flatten();
-      out.extend(tracks.filter_map(|t| track_from(t, Some(alb))).map(|t| (t, released.clone())));
-    }
+    let mut out: Vec<(Track, Option<String>)> =
+      pages.into_iter().flat_map(|(album, tracks)| tracks.into_iter().map(move |t| (t, album.released.clone()))).collect();
     out.truncate(max);
     Ok(out)
   }
 
   pub async fn album(&self, id: &str) -> Result<(Album, Vec<Track>)> {
-    let v = self.get(&format!("/albums/{id}"), &[]).await?;
-    let album = album_from(&v).ok_or_else(|| anyhow!("Spotify: альбом не найден"))?;
-    let mut tracks: Vec<Track> = list(&v["tracks"]["items"], |t| track_from(t, Some(&v)));
-    // длинные альбомы: остальные страницы треков
-    let mut next = next_url(&v["tracks"]);
-    for _ in 0..ALBUM_MAX_PAGES {
-      let Some(n) = next else { break };
-      let page = self.get(&n, &[]).await?;
-      tracks.extend(list(&page["items"], |t| track_from(t, Some(&v))));
-      next = next_url(&page);
-    }
+    let uri = format!("spotify:album:{id}");
+    let vars = |offset: u32| json!({ "uri": uri, "locale": "", "offset": offset, "limit": gql::PAGE });
+    let head = std::sync::Mutex::new(None);
+    let tracks = self
+      .paged(Op::Album, ALBUM_MAX_TRACKS, vars, |data| match gql::album_page(data) {
+        Some((album, tracks, seen, total)) => {
+          head.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert(album);
+          (tracks, seen, total)
+        }
+        None => (vec![], 0, None),
+      })
+      .await?;
+    let album = head.into_inner().unwrap_or_else(|e| e.into_inner()).ok_or_else(|| anyhow!("Spotify: альбом не найден"))?;
     Ok((album, tracks))
   }
+}
+
+/// Ответ GraphQL → `data`; ошибки без данных — понятным текстом (без ключей и адресов).
+pub fn gql_data(mut v: Value) -> Result<Value> {
+  let data = v.get_mut("data").map(Value::take).unwrap_or(Value::Null);
+  if data.is_object() {
+    return Ok(data);
+  }
+  let msg = v["errors"][0]["message"].as_str().unwrap_or("");
+  if msg.contains("not authorized") {
+    bail!(SP_DC_BAD);
+  }
+  bail!("Spotify: непонятный ответ веб-плеера")
 }
 
 #[cfg(test)]
@@ -590,18 +528,6 @@ mod tests {
   }
 
   #[test]
-  fn api_url_only_spotify_web_api() {
-    assert_eq!(api_url("/me").as_deref(), Some("https://api.spotify.com/v1/me"));
-    let next = "https://api.spotify.com/v1/albums/1/tracks?offset=50&limit=50";
-    assert_eq!(api_url(next).as_deref(), Some(next));
-    assert_eq!(api_url("https://attacker.example/x"), None);
-    assert_eq!(api_url("https://api.spotify.com.attacker.example/v1/x"), None);
-    assert_eq!(api_url("http://api.spotify.com/v1/me"), None);
-    assert_eq!(next_url(&json!({ "next": "https://evil.example/v1" })), None);
-    assert_eq!(next_url(&json!({ "next": null })), None);
-  }
-
-  #[test]
   fn parse_token_ok_and_errors() {
     let ok = parse_token(200, r#"{"clientId":"c","accessToken":"BQ1","accessTokenExpirationTimestampMs":1700000000000,"isAnonymous":false}"#).unwrap();
     assert_eq!(ok, WebToken { access_token: "BQ1".into(), expires_at_ms: 1_700_000_000_000 });
@@ -618,63 +544,12 @@ mod tests {
     assert_eq!(lucky.access_token, "BQxTOTPy");
   }
 
-  fn track_json() -> Value {
-    json!({
-      "id": "t1", "type": "track", "name": "Song", "duration_ms": 201000, "explicit": true,
-      "artists": [{"id": "a1", "name": "A"}, {"id": "a2", "name": "B"}],
-      "album": {"id": "al1", "name": "LP", "images": [{"url": "https://i.scdn.co/image/small", "width": 64}, {"url": "https://i.scdn.co/image/big", "width": 640}]},
-      "external_urls": {"spotify": "https://open.spotify.com/track/t1"}
-    })
-  }
-
   #[test]
-  fn track_mapping() {
-    let t = track_from(&track_json(), None).unwrap();
-    assert_eq!(t.ref_, "sp:t1");
-    assert_eq!(t.artist, "A, B");
-    assert_eq!(t.artists[1].ref_, "spa:a2");
-    assert_eq!(t.album.as_ref().map(|a| (a.ref_.as_str(), a.title.as_str())), Some(("spalb:al1", "LP")));
-    assert_eq!(t.cover_url.as_deref(), Some("https://i.scdn.co/image/big"));
-    assert!(t.explicit && t.available);
-    assert_eq!(t.duration_ms, 201000);
-    assert_eq!(t.url.as_deref(), Some("https://open.spotify.com/track/t1"));
-  }
-
-  #[test]
-  fn local_files_and_episodes_skipped() {
-    assert!(track_from(&json!({"id": null, "is_local": true, "name": "x"}), None).is_none());
-    assert!(track_from(&json!({"id": "e", "type": "episode", "name": "x"}), None).is_none());
-  }
-
-  #[test]
-  fn playlist_rows_track_or_item() {
-    let page = json!({"items": [{"track": track_json()}, {"item": track_json()}, {"track": null}]});
-    assert_eq!(list(&page["items"], item_track).len(), 2);
-  }
-
-  #[test]
-  fn album_artist_playlist_account_mapping() {
-    let a = album_from(&json!({"id": "al1", "name": "LP", "release_date": "2021-03-05", "total_tracks": 12, "artists": [{"id": "a1", "name": "A"}], "images": []})).unwrap();
-    assert_eq!((a.ref_.as_str(), a.year, a.released.as_deref(), a.track_count), ("spalb:al1", Some(2021), Some("2021-03-05"), 12));
-    let y = album_from(&json!({"id": "x", "name": "Y", "release_date": "1999"})).unwrap();
-    assert_eq!((y.year, y.released), (Some(1999), None));
-    let ar = artist_from(&json!({"id": "a1", "name": "A", "followers": {"total": 7}, "images": [{"url": "https://i.scdn.co/image/av", "width": 320}]})).unwrap();
-    assert_eq!((ar.ref_.as_str(), ar.followers, ar.avatar_url.as_deref()), ("spa:a1", Some(7), Some("https://i.scdn.co/image/av")));
-    let p = playlist_from(&json!({"id": "p1", "name": "Mix", "owner": {"id": "u", "display_name": "Folzy"}, "images": null, "tracks": {"total": 3}})).unwrap();
-    assert_eq!((p.ref_.as_str(), p.owner.as_str(), p.track_count, p.cover_url), ("sppl:p1", "Folzy", 3, None));
-    let p2 = playlist_from(&json!({"id": "p2", "name": "New", "owner": {"id": "u"}, "items": {"total": 9}})).unwrap();
-    assert_eq!((p2.owner.as_str(), p2.track_count), ("u", 9));
-    let me = account_from(&json!({"id": "u1", "display_name": "F", "product": "premium", "images": []}));
-    assert_eq!((me.name.as_deref(), me.uid.as_deref(), me.premium), (Some("F"), Some("u1"), Some(true)));
-    assert_eq!(account_from(&json!({"id": "u2", "product": "free"})).premium, Some(false));
-  }
-
-  #[test]
-  fn album_tracks_take_outer_album() {
-    let alb = json!({"id": "al9", "name": "EP", "images": [{"url": "https://i.scdn.co/image/c", "width": 300}]});
-    let t = track_from(&json!({"id": "t9", "name": "N", "artists": []}), Some(&alb)).unwrap();
-    assert_eq!(t.album.unwrap().ref_, "spalb:al9");
-    assert_eq!(t.cover_url.as_deref(), Some("https://i.scdn.co/image/c"));
+  fn gql_data_or_clear_error() {
+    assert_eq!(gql_data(json!({ "data": { "me": null } })).unwrap(), json!({ "me": null }));
+    let unauthorized = json!({ "data": null, "errors": [{ "message": "Exception while fetching data (/me) : User is not authorized" }] });
+    assert_eq!(gql_data(unauthorized).unwrap_err().to_string(), SP_DC_BAD);
+    assert_eq!(gql_data(json!("Invalid query hash")).unwrap_err().to_string(), "Spotify: непонятный ответ веб-плеера");
   }
 }
 
@@ -704,5 +579,13 @@ mod live {
     println!("любимые: {}", likes.len());
     let lists = sp.playlists().await.unwrap();
     println!("плейлисты: {}", lists.len());
+    if let Some(p) = lists.first() {
+      let (head, rows) = sp.playlist(p.ref_.trim_start_matches("sppl:"), 120).await.unwrap();
+      println!("плейлист: {} строк из {}", rows.len(), head.track_count);
+    }
+    let (artist, top, albums) = sp.artist("7dGJo4pcD2V6oG8kP0tJRR").await.unwrap();
+    println!("исполнитель {}: популярных {}, альбомов {}", artist.name, top.len(), albums.len());
+    let (album, tracks) = sp.album("6t7956yu5zYf5A829XRiHC").await.unwrap();
+    println!("альбом {}: {} треков", album.title, tracks.len());
   }
 }
