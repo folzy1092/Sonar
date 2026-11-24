@@ -399,15 +399,6 @@ CREATE TABLE hub_rows (                         -- копия строк син�
 );
 CREATE INDEX hub_rows_rev ON hub_rows(rev);
 CREATE TABLE hub_ops (op_id TEXT PRIMARY KEY);  -- виденные op_id: повтор не применяется
-CREATE TABLE hub_plays (                        -- прослушивания телефонов, в статистику ПК не смешиваются
-  id            INTEGER PRIMARY KEY,
-  device_id     TEXT NOT NULL,
-  ref           TEXT NOT NULL,
-  played_at     INTEGER NOT NULL,
-  listened_ms   INTEGER NOT NULL,
-  context       TEXT,
-  UNIQUE (device_id, ref, played_at)
-);
 CREATE TABLE hub_peers (                        -- когда телефон последний раз синкался («Система → Пульт»)
   device_id     TEXT PRIMARY KEY,
   last_sync     INTEGER NOT NULL                -- секунды

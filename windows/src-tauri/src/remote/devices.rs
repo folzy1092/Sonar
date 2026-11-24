@@ -76,12 +76,12 @@ impl Vault {
     Self { devices: self.devices.iter().filter(|x| x.id != id).cloned().collect(), ..self.clone() }
   }
 
-  /// Телефон с этим id и ключом привязан.
   /// Телефон всё ещё привязан (его могли отвязать, пока связь открыта).
   pub fn has(&self, id: &str) -> bool {
     self.devices.iter().any(|x| x.id == id)
   }
 
+  /// Телефон с этим id и ключом привязан.
   pub fn verify(&self, id: &str, key: &str) -> bool {
     self.devices.iter().any(|x| x.id == id && key_matches(key, &x.key_hash))
   }

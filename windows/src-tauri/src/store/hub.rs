@@ -3,13 +3,12 @@
 //! применяется дважды, настройки — «побеждает позднее» по `client_ts`. Хаб хранит свою копию строк
 //! (`hub_rows`), а не правит библиотеку ПК напрямую: ПК — такой же участник и меняется с хабом через
 //! `sync_once` (`remote/sync_hub.rs`), поэтому правила слияния везде одни.
-//! Прослушивания телефона лежат отдельно (`hub_plays`) — в статистику ПК не смешиваются, иначе потом
-//! уехали бы на сервер дважды.
+//! Прослушиваний телефона хаб не принимает: переслать их на сервер ПК не может, телефон держит их до сервера.
 
 use super::{Change, Op, Store};
 use anyhow::Result;
 use rusqlite::{params, OptionalExtension};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -20,17 +19,6 @@ pub struct HubPull {
   pub rev: i64,
   pub changes: Vec<Change>,
   pub more: bool,
-}
-
-/// Прослушивание с телефона (`plays`).
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct HubPlay {
-  #[serde(rename = "ref")]
-  pub ref_: String,
-  pub played_at: i64,
-  pub listened_ms: i64,
-  #[serde(default)]
-  pub context: Option<String>,
 }
 
 /// Сколько байт сверх значения считаем на одно изменение (тип, ключ, rev, обвязка JSON).
@@ -99,20 +87,6 @@ impl Store {
     Ok(out)
   }
 
-  /// `plays`: прослушивания телефона; повтор (то же устройство, трек и время) не пишется. Вернёт, сколько
-  /// принято — все, повтор тоже считается принятым, как у сервера.
-  pub fn hub_add_plays(&mut self, device: &str, plays: &[HubPlay]) -> Result<usize> {
-    let tx = self.db.transaction()?;
-    for p in plays {
-      tx.execute(
-        "INSERT OR IGNORE INTO hub_plays (device_id, ref, played_at, listened_ms, context) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![device, p.ref_, p.played_at, p.listened_ms, p.context],
-      )?;
-    }
-    tx.commit()?;
-    Ok(plays.len())
-  }
-
   /// Телефон только что обменялся с хабом.
   pub fn hub_touch(&self, device: &str, now: i64) -> Result<()> {
     self.db.execute(
@@ -127,11 +101,6 @@ impl Store {
     let mut st = self.db.prepare("SELECT device_id, last_sync FROM hub_peers")?;
     let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
-  }
-
-  #[cfg(test)]
-  pub fn hub_play_count(&self, device: &str) -> Result<i64> {
-    Ok(self.db.query_row("SELECT COUNT(*) FROM hub_plays WHERE device_id = ?1", [device], |r| r.get(0))?)
   }
 }
 
@@ -209,11 +178,8 @@ mod tests {
   }
 
   #[test]
-  fn plays_dedupe_and_peers_remember_last_sync() {
-    let mut s = Store::memory().unwrap();
-    let p = HubPlay { ref_: "sc:1".into(), played_at: 10, listened_ms: 5000, context: None };
-    assert_eq!(s.hub_add_plays("phone", &[p.clone(), p.clone()]).unwrap(), 2);
-    assert_eq!(s.hub_play_count("phone").unwrap(), 1);
+  fn peers_remember_last_sync() {
+    let s = Store::memory().unwrap();
     s.hub_touch("phone", 100).unwrap();
     s.hub_touch("phone", 200).unwrap();
     assert_eq!(s.hub_peers().unwrap().get("phone"), Some(&200));

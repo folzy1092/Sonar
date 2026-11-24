@@ -5,7 +5,7 @@
 
 use crate::providers::registry::{parse_ref, RefKind};
 use crate::providers::Track;
-use crate::store::{HubPlay, Op};
+use crate::store::Op;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -96,12 +96,12 @@ pub enum Incoming {
   Sync(SyncRequest),
 }
 
-/// Запрос синка — то же, что `POST /sync/push`, `GET /sync/pull`, `POST /plays` у сервера.
+/// Запрос синка — то же, что `POST /sync/push` и `GET /sync/pull` у сервера. Прослушиваний (`plays`) здесь
+/// нет: ПК не переслал бы их на сервер, телефон держит их у себя до сервера.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SyncRequest {
   Push(Vec<Op>),
   Pull { since: i64 },
-  Plays(Vec<HubPlay>),
 }
 
 /// Команда плееру ПК — уходит в интерфейс событием `remote-command` в этом же виде.
@@ -184,7 +184,6 @@ fn parse_body(kind: &str, body: &Value) -> Result<Incoming, ParseError> {
       };
       Ok(Incoming::Sync(SyncRequest::Pull { since }))
     }
-    "plays" => sync_plays(body),
     "toggle" => cmd(Command::Toggle),
     "next" => cmd(Command::Next),
     "prev" => cmd(Command::Prev),
@@ -249,20 +248,6 @@ fn sync_push(body: &Value) -> Result<Incoming, ParseError> {
     ops.push(op);
   }
   Ok(Incoming::Sync(SyncRequest::Push(ops)))
-}
-
-fn sync_plays(body: &Value) -> Result<Incoming, ParseError> {
-  let raw = body.get("plays").and_then(Value::as_array).filter(|a| a.len() <= MAX_SYNC_BATCH).ok_or(ParseError::BadBody("plays"))?;
-  let mut plays = Vec::with_capacity(raw.len());
-  for p in raw {
-    let play: HubPlay = serde_json::from_value(p.clone()).map_err(|_| ParseError::BadBody("play"))?;
-    let ok = is_track_ref(&play.ref_) && play.played_at >= 0 && play.listened_ms >= 0 && play.context.as_ref().is_none_or(|c| c.len() <= MAX_REF);
-    if !ok {
-      return Err(ParseError::BadBody("play"));
-    }
-    plays.push(play);
-  }
-  Ok(Incoming::Sync(SyncRequest::Plays(plays)))
 }
 
 /// Влезает ли сообщение в предел своего типа: синк — до `MAX_SYNC_MESSAGE` (это держит сокет), остальное — до
@@ -446,14 +431,9 @@ mod tests {
   }
 
   #[test]
-  fn plays_need_track_ref_and_sane_numbers() {
-    let ok = json!({ "plays": [{ "ref": "sc:1", "played_at": 10, "listened_ms": 5000 }] });
-    let SyncRequest::Plays(p) = sync("plays", ok).unwrap() else { panic!() };
-    assert_eq!(p[0].ref_, "sc:1");
-    let bad = json!({ "plays": [{ "ref": "не трек", "played_at": 10, "listened_ms": 5000 }] });
-    assert_eq!(sync("plays", bad).unwrap_err(), ParseError::BadBody("play"));
-    let negative = json!({ "plays": [{ "ref": "sc:1", "played_at": 10, "listened_ms": -1 }] });
-    assert_eq!(sync("plays", negative).unwrap_err(), ParseError::BadBody("play"));
+  fn plays_are_not_taken_over_lan() {
+    let plays = json!({ "plays": [{ "ref": "sc:1", "played_at": 10, "listened_ms": 5000 }] });
+    assert_eq!(parse(&env("plays", plays)).unwrap_err(), ParseError::Unknown("plays".into()));
   }
 
   #[test]

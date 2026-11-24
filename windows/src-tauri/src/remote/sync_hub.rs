@@ -60,23 +60,18 @@ pub struct Answer {
 /// Ответить на запрос синка привязанного телефона `device`.
 pub async fn answer(db: &Mutex<Store>, device: &str, req: SyncRequest, re: Option<&str>, now: i64) -> Result<Answer> {
   let _turn = TURN.lock().await;
-  let mut applied_on_pc = 0;
-  let reply = match req {
+  let (reply, applied_on_pc) = match req {
     SyncRequest::Push(ops) => {
       let (rev, applied) = db.lock().unwrap().hub_push(&ops)?;
       // телефонное — сразу в библиотеку ПК
-      applied_on_pc = participate(db).await?;
-      protocol::message("sync_push", json!({ "rev": rev, "applied": applied }), re)
+      let on_pc = participate(db).await?;
+      (protocol::message("sync_push", json!({ "rev": rev, "applied": applied }), re), on_pc)
     }
     SyncRequest::Pull { since } => {
       // сначала своё — в хаб, чтобы телефон забрал и его
-      applied_on_pc = participate(db).await?;
+      let on_pc = participate(db).await?;
       let pull = db.lock().unwrap().hub_pull(since, PULL_BUDGET)?;
-      protocol::message("sync_pull", serde_json::to_value(&pull)?, re)
-    }
-    SyncRequest::Plays(plays) => {
-      let accepted = db.lock().unwrap().hub_add_plays(device, &plays)?;
-      protocol::message("plays", json!({ "accepted": accepted }), re)
+      (protocol::message("sync_pull", serde_json::to_value(&pull)?, re), on_pc)
     }
   };
   db.lock().unwrap().hub_touch(device, now)?;
@@ -86,7 +81,7 @@ pub async fn answer(db: &Mutex<Store>, device: &str, req: SyncRequest, re: Optio
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::store::{HubPlay, Play};
+  use crate::store::Play;
   use serde_json::Value;
 
   fn block<F: std::future::Future>(f: F) -> F::Output {
@@ -156,17 +151,6 @@ mod tests {
     let again = push(&pc, vec![op]);
     assert_eq!(body(&again.reply)["applied"], json!(["ph:like:3"]));
     assert_eq!(again.applied_on_pc, 0, "повтор не применяется дважды");
-  }
-
-  #[test]
-  fn phone_plays_stay_out_of_pc_stats() {
-    let pc = Mutex::new(Store::memory().unwrap());
-    let play = HubPlay { ref_: "sc:1".into(), played_at: 10, listened_ms: 60_000, context: None };
-    let a = block(answer(&pc, "phone", SyncRequest::Plays(vec![play]), Some("m1"), 100)).unwrap();
-    assert_eq!(body(&a.reply)["accepted"], 1);
-    let s = pc.lock().unwrap();
-    assert_eq!(s.hub_play_count("phone").unwrap(), 1);
-    assert!(s.plays_to_upload(10).unwrap().is_empty(), "в свою статистику ПК не смешали");
   }
 
   #[test]
