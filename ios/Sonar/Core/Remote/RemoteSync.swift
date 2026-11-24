@@ -39,7 +39,12 @@ enum RemoteSync {
 
     /// `sync_pull` страницами: пока ПК отвечает `more`, просим дальше с нового `rev`; всё складываем в один
     /// ответ, как у сервера. ПК, который не двигает `rev`, не держит нас в цикле.
-    static func pullAll(since: Int, page: (Int) async throws -> (SyncPullReply, more: Bool)) async throws -> SyncPullReply {
+    /// `isolation` — страницы просит тот же актор, что вызвал (транспорт на главном): замыкание никуда не переходит.
+    static func pullAll(
+        since: Int,
+        isolation: isolated (any Actor)? = #isolation,
+        page: (Int) async throws -> (SyncPullReply, more: Bool)
+    ) async throws -> SyncPullReply {
         var rev = since
         var changes: [SyncChange] = []
         for _ in 0..<maxPages {
