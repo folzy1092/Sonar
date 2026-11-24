@@ -150,7 +150,8 @@ final class OfflineTests: XCTestCase {
         ]
         for key in keys {
             for lang in [Lang.en, .uk, .es, .de, .pl] {
-                XCTAssertNotEqual(I18n.translate(key, lang: lang), key, "\(lang): \(key)")
+                // своя строка языка; по-украински «Офлайн-режим» пишется так же, как по-русски
+                XCTAssertNotNil(I18n.dictionaries[lang]?[key], "\(lang): \(key)")
             }
         }
     }

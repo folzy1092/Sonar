@@ -29,7 +29,7 @@ final class OfflineGuard: URLProtocol, @unchecked Sendable {
 }
 
 /// Свои `URLSession` — только с этой конфигурацией: сторож офлайна первым в цепочке.
-/// Сторож-тест (`OfflineTests`) ловит `URLSession(configuration:` без неё.
+/// Сторож-тест (`OfflineTests`) ловит свои сессии, собранные без неё.
 enum Net {
     static func configuration(_ base: URLSessionConfiguration = .default) -> URLSessionConfiguration {
         base.protocolClasses = [OfflineGuard.self] + (base.protocolClasses ?? [])
