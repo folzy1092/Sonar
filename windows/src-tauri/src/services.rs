@@ -59,6 +59,19 @@ pub struct ServiceStatus {
   pub premium: Option<bool>,
 }
 
+/// Итог «Проверить сервисы» по одному сервису: `service` — ключ реестра (`soundcloud`, `vk`…).
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct ServiceCheck {
+  pub service: &'static str,
+  pub ok: bool,
+  pub ms: u64,
+  pub error: Option<String>,
+}
+
+/// Проверка сервиса — обычный поиск этой строки.
+const CHECK_QUERY: &str = "music";
+const CHECK_TIMEOUT: Duration = Duration::from_secs(15);
+
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct ServicesStatus {
   pub soundcloud: ServiceStatus,
@@ -284,6 +297,31 @@ impl Core {
       vk: status(&*self.vk.read().await),
       spotify: status(&*self.sp.read().await),
     }
+  }
+
+  /// «Проверить сервисы»: у каждого подключённого — настоящий поиск на одну строку (ключ, сеть и сам
+  /// сервис разом), все параллельно, не дольше `CHECK_TIMEOUT`. Не подключённые не трогаем.
+  pub async fn check_services(&self) -> Vec<ServiceCheck> {
+    let st = self.status().await;
+    let connected = |id: ServiceId| match id {
+      ServiceId::Sc => st.soundcloud.connected,
+      ServiceId::Ym => st.yandex.connected,
+      ServiceId::Yt => st.youtube.connected,
+      ServiceId::Vk => st.vk.connected,
+      ServiceId::Sp => st.spotify.connected,
+      _ => false,
+    };
+    let jobs = REGISTRY.iter().filter(|i| i.implemented && connected(i.id)).map(|info| async move {
+      let started = Instant::now();
+      let res = tokio::time::timeout(CHECK_TIMEOUT, self.search(CHECK_QUERY, info.id.as_str(), 1)).await;
+      let error = match res {
+        Ok(Ok(_)) => None,
+        Ok(Err(e)) => Some(e.to_string()),
+        Err(_) => Some(format!("{}: не ответил за {} с", info.name, CHECK_TIMEOUT.as_secs())),
+      };
+      ServiceCheck { service: info.key, ok: error.is_none(), ms: started.elapsed().as_millis() as u64, error }
+    });
+    futures_util::future::join_all(jobs).await
   }
 
   /// Все сервисы реестра по порядку; у работающих — подключён ли и чей аккаунт.
@@ -1051,6 +1089,12 @@ mod tests {
       account: Account { premium: Some(true), ..Account::default() },
     });
     assert_eq!(err_text(core.resolve("sp:4uLU6hMCjMI75M1A2tKUQC", true).await), spotify::NEEDS_FALLBACK);
+  }
+
+  /// Без подключённых сервисов проверять нечего — и в сеть не ходим.
+  #[tokio::test]
+  async fn check_services_skips_disconnected() {
+    assert!(Core::new_empty().check_services().await.is_empty());
   }
 
   #[tokio::test]

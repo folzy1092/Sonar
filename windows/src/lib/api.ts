@@ -447,9 +447,18 @@ export interface CrashReport {
   last: string
 }
 export type ReportSent = { kind: 'telegram' } | { kind: 'saved'; path: string }
+/** Итог «Проверить сервисы» по одному подключённому сервису (services.rs `ServiceCheck`). */
+export interface ServiceCheck {
+  service: ServiceKey
+  ok: boolean
+  ms: number
+  error: string | null
+}
 
 export const api = {
   servicesStatus: () => call<ServicesStatus>('services_status'),
+  /** Поиск на одну строку в каждом подключённом сервисе: жив ли ключ и отвечает ли сервис. */
+  checkServices: () => call<ServiceCheck[]>('check_services'),
   /** Все сервисы реестра в порядке показа, с состоянием подключения. */
   servicesList: () => call<ServiceState[]>('services_list'),
   /** «Вставить ключ»: поля по сервису (sc: client_id, oauth_token; ym: token; yt: cookie). Значения в ошибках не возвращаются. */

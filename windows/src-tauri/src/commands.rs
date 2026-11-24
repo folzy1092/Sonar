@@ -26,6 +26,13 @@ pub async fn services_status(core: State<'_, Arc<Core>>) -> Res<ServicesStatus> 
   Ok(core.status().await)
 }
 
+/// Настройки → Сервисы → «Проверить»: живы ли ключи и отвечают ли сервисы прямо сейчас.
+#[tauri::command]
+pub async fn check_services(core: State<'_, Arc<Core>>) -> Res<Vec<crate::services::ServiceCheck>> {
+  crate::offline::guard()?;
+  Ok(core.check_services().await)
+}
+
 #[tauri::command]
 pub async fn connect_soundcloud(
   core: State<'_, Arc<Core>>,

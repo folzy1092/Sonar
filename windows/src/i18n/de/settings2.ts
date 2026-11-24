@@ -276,4 +276,8 @@ export default {
   'Строгие края и чёткие линии, минимум украшений': 'Klare Kanten und scharfe Linien, kaum Schmuck',
   'Выпуклые кнопки, которые нажимаются по-настоящему': 'Erhabene Tasten, die sich wirklich drücken',
   'Сплошные тёмные блоки, сдержанно и плотно': 'Massive dunkle Blöcke, zurückhaltend und dicht',
+  'Проверка сервисов': 'Dienste prüfen',
+  'Каждый подключённый сервис ищет одну строку — видно, жив ли ключ и отвечает ли сервис': 'Jeder verbundene Dienst sucht eine Zeile – so siehst du, ob der Schlüssel noch gilt und der Dienst antwortet',
+  'Ни один сервис не подключён': 'Kein Dienst verbunden',
+  'Работает · {sec} с': 'Läuft · {sec} s',
 } satisfies Record<string, string>
