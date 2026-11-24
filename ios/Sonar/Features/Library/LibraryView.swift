@@ -368,7 +368,7 @@ struct LibraryView: View {
                 ForEach(Array(smartLists.enumerated()), id: \.element.id) { index, list in
                     LibraryTile(title: list.name,
                                 subtitle: list.parsed == nil ? t("Правила не читаются") : t("Умный плейлист"),
-                                icon: .sparkles) {
+                                icon: .sliders) {
                         router.push(.smartPlaylist(id: list.id), on: .library, chrome: chrome)
                     }
                     .cascade(index + 2 + own.count)

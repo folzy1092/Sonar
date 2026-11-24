@@ -248,10 +248,8 @@
   }
   h4 {
     margin: 2px 0 -4px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    font-size: 12px;
+    font-weight: 600;
     color: var(--text-3);
   }
   ul {

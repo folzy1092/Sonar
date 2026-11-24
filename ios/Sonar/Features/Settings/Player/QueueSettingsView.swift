@@ -37,7 +37,7 @@ struct QueueSettingsView: View {
                                 subtitle: "За 10 секунд до конца — «Дальше» с названием следующего в мини-плеере и плеере",
                                 isOn: flag("queue.preview"))
                 PlayerRowDivider()
-                PlayerToggleRow(icon: .sparkles, title: "Авто похожие",
+                PlayerToggleRow(icon: .listExpand, title: "Авто похожие",
                                 subtitle: "Как в SoundCloud: после любой очереди — поиска, Любимых, плейлиста — играют похожие треки",
                                 isOn: flag("general.similar_autoplay"))
                 PlayerRowDivider()
@@ -53,7 +53,7 @@ struct QueueSettingsView: View {
                                 subtitle: "Подкачивать следующие треки волны на Wi‑Fi",
                                 isOn: flag("storage.wave_offline"))
                 PlayerRowDivider()
-                PlayerToggleRow(icon: .sparkles, title: "Почему этот трек",
+                PlayerToggleRow(icon: .info, title: "Почему этот трек",
                                 subtitle: "Строка под названием в плеере: «Похож на …», «Ты лайкал …»",
                                 isOn: flag("player.wave_why"))
             }

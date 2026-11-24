@@ -31,7 +31,7 @@
   <div class="chips" use:cascade>
     {#each years as p (`y${p.year}`)}
       <button class="chip year" onclick={() => open(p)}>
-        <Icon name="sparkles" size={16} />{t('Итоги года')} · {periodTitle(p)}
+        <Icon name="chart" size={16} />{t('Итоги года')} · {periodTitle(p)}
       </button>
     {/each}
     {#each months as p (`m${p.year}-${p.month}`)}

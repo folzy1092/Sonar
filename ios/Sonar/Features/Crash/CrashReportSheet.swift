@@ -81,7 +81,7 @@ struct CrashReportSheet: View {
             .background(done ? Color.white : Theme.raised, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(done ? t("Отправлено, спасибо!") : t("Sonar закрылся с ошибкой"))
+                Text(done ? t("Отправлено, спасибо") : t("Sonar закрылся с ошибкой"))
                     .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(Theme.text)
                     .contentTransition(.opacity)

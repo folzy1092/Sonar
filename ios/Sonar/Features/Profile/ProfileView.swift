@@ -23,7 +23,7 @@ struct ProfileView: View {
                     divider
                     link("Приватность", .shield) { PrivacySettingsView() }
                     divider
-                    link("Подписка", .sparkles, value: SonarDeep.name) { SonarDeepView() }
+                    link("Подписка", .waveLine, value: SonarDeep.name) { SonarDeepView() }
                 }
                 section("Интерфейс", 2) {
                     link("Вид", .palette) { LookSettingsView() }

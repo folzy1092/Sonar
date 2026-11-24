@@ -62,7 +62,7 @@ struct SmartPlaylistScreen: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, 34)
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    SonarIcon(.sparkles, filled: true, size: 30)
+                    SonarIcon(.sliders, filled: true, size: 30)
                         .foregroundStyle(Theme.accent)
                     Text(title)
                         .font(.system(size: 44, weight: .bold))
@@ -158,7 +158,7 @@ struct SmartPlaylistScreen: View {
     private var artwork: some View {
         let covers = SonarPlaylist.covers(of: tracks)
         if covers.isEmpty {
-            SonarIcon(.sparkles, filled: true, size: 92)
+            SonarIcon(.sliders, filled: true, size: 92)
                 .foregroundStyle(Theme.text.opacity(0.92))
                 .frame(height: 100)
         } else {
@@ -181,7 +181,7 @@ struct SmartPlaylistScreen: View {
             .disabled(tracks.isEmpty)
             CircleButton(icon: .shuffle, label: t("Перемешать")) { play(shuffle: true) }
                 .disabled(tracks.isEmpty)
-            CircleButton(icon: .sparkles, label: t("Изменить правила"), action: openEditor)
+            CircleButton(icon: .sliders, label: t("Изменить правила"), action: openEditor)
             CircleButton(icon: .copy, label: t("Сохранить как обычный плейлист"), action: snapshot)
                 .disabled(tracks.isEmpty)
         }
@@ -245,7 +245,7 @@ struct SmartPlaylistScreen: View {
     }
 
     private func hint(_ title: String, _ text: String) -> some View {
-        HintCard(icon: .sparkles, text: title + "\n" + text)
+        HintCard(icon: .sliders, text: title + "\n" + text)
             .transition(.opacity)
     }
 

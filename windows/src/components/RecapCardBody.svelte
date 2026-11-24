@@ -103,9 +103,7 @@
     margin: 0 0 8px;
     color: var(--rc-accent);
     font-size: calc(14px * var(--fs, 1));
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    font-weight: 600;
   }
   .hero {
     margin-bottom: 12px;

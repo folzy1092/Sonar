@@ -106,9 +106,9 @@
 
 <CollectionHeader
   {title}
-  titleIcon="sparkles"
+  titleIcon="adjustments"
   covers={data?.covers ?? []}
-  icon="sparkles"
+  icon="adjustments"
   meta={loading || !data ? '' : `${countMeta}${avail.length ? `, ${durationText(total)}` : ''}`}
   {context}
   disabled={!visible.length}
@@ -122,7 +122,7 @@
   {#snippet actions()}
     {#if data}
       <button class="tool" onclick={() => data && smartLists.editExisting(data)}>
-        <Icon name="sparkles" size={16} /> {t('Изменить правила')}
+        <Icon name="adjustments" size={16} /> {t('Изменить правила')}
       </button>
       <button class="tool" disabled={saving || !items.length} onclick={snapshot}>
         <Icon name="copy" size={16} /> {saving ? t('Сохраняю…') : t('Сохранить как обычный плейлист')}
@@ -149,11 +149,11 @@
   {:else if loading}
     <div class="skeleton">{#each { length: 8 } as _, i (i)}<div class="sk"></div>{/each}</div>
   {:else if data?.error === 'invalid'}
-    <EmptyState icon="sparkles" title={t('Правила этого плейлиста не читаются')} text={t('Похоже, их сохранила более новая версия Sonar. Открой «Изменить правила» и собери их заново.')} />
+    <EmptyState icon="adjustments" title={t('Правила этого плейлиста не читаются')} text={t('Похоже, их сохранила более новая версия Sonar. Открой «Изменить правила» и собери их заново.')} />
   {:else if data?.error === 'source_missing'}
-    <EmptyState icon="sparkles" title={t('Исходного плейлиста больше нет')} text={t('Выбери другой источник в «Изменить правила».')} />
+    <EmptyState icon="adjustments" title={t('Исходного плейлиста больше нет')} text={t('Выбери другой источник в «Изменить правила».')} />
   {:else if !items.length}
-    <EmptyState icon="sparkles" title={t('Пока ни один трек не подходит')} text={t('Слушай и лайкай дальше — плейлист обновится сам. Или ослабь правила.')} />
+    <EmptyState icon="adjustments" title={t('Пока ни один трек не подходит')} text={t('Слушай и лайкай дальше — плейлист обновится сам. Или ослабь правила.')} />
   {:else if !avail.length}
     <EmptyState icon="wifiOff" title={t('Офлайн: здесь ничего нет')} text={t('Ни одного трека из «{title}» нет на этом компьютере.', { title })} />
   {:else if !visible.length}

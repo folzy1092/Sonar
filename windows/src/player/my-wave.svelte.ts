@@ -34,7 +34,7 @@ export const WAVE_MODES = [
   { id: 'night', title: 'Ночное', sub: 'синтвейв, трип-хоп, дип-хаус', icon: 'moon' },
   { id: 'sleep', title: 'Сон', sub: 'эмбиент, тихо, без слов', icon: 'eyeClosed' },
   { id: 'popular', title: 'Популярное', sub: 'хиты и тренды', icon: 'trending' },
-  { id: 'focus', title: 'Концентрация', sub: 'инструментал, лоу-фай, классика', icon: 'sparkles' },
+  { id: 'focus', title: 'Концентрация', sub: 'инструментал, лоу-фай, классика', icon: 'headphones' },
 ] as const
 export type WaveMode = (typeof WAVE_MODES)[number]['id']
 

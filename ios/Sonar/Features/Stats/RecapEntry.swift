@@ -39,7 +39,7 @@ struct RecapInvite: View {
 
     private func card(_ ref: RecapRef) -> some View {
         HStack(spacing: 14) {
-            SonarIcon(.sparkles, filled: true, size: 22)
+            SonarIcon(.chart, filled: true, size: 22)
                 .foregroundStyle(Theme.accentInk)
                 .frame(width: 46, height: 46)
                 .background(Theme.accent, in: Circle())
@@ -123,7 +123,7 @@ private struct FlowChips: View {
         let year = ref.kind == .year
         return HStack(spacing: 6) {
             if year {
-                SonarIcon(.sparkles, filled: true, size: 15)
+                SonarIcon(.chart, filled: true, size: 15)
                     .foregroundStyle(Theme.accent)
                 Text("\(t("Итоги года")) · \(RecapText.periodTitle(ref))")
             } else {

@@ -25,7 +25,7 @@
 
 {#if invite}
   <section class="invite" in:rise={{ delay: 120 }} out:pop={{ y: 0, scale: 0.98 }}>
-    <span class="mark"><Icon name="sparkles" size={26} /></span>
+    <span class="mark"><Icon name="chart" size={26} /></span>
     <button class="text" onclick={() => recap.open(invite)}>
       <b>{recapKindTitle(invite)} · {periodTitle(invite)}</b>
       <small>{invite.kind === 'year' ? t('Твой год в музыке — листай карточки') : t('Твой месяц в музыке — листай карточки')}</small>

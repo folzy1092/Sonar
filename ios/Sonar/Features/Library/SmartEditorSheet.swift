@@ -73,7 +73,7 @@ struct SmartEditorSheet: View {
             CircleButton(icon: .close, label: t("Отмена")) { dismiss() }
             Spacer()
             HStack(spacing: 6) {
-                SonarIcon(.sparkles, filled: true, size: 18).foregroundStyle(Theme.accent)
+                SonarIcon(.sliders, filled: true, size: 18).foregroundStyle(Theme.accent)
                 Text(editing == nil ? t("Умный плейлист") : t("Правила плейлиста"))
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Theme.text)
@@ -122,7 +122,6 @@ struct SmartEditorSheet: View {
             Text(title)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.textSecondary)
-                .textCase(.uppercase)
             content()
         }
     }
@@ -290,7 +289,7 @@ struct SmartEditorSheet: View {
 
     private var preview: some View {
         HStack(spacing: 10) {
-            SonarIcon(.sparkles, filled: true, size: 18).foregroundStyle(problem == nil ? Theme.accent : Theme.danger)
+            SonarIcon(.sliders, filled: true, size: 18).foregroundStyle(problem == nil ? Theme.accent : Theme.danger)
             Text(previewText)
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(problem == nil ? Theme.text : Theme.danger)

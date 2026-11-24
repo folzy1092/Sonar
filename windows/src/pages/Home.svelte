@@ -68,7 +68,7 @@
   let chartPeriod = $state<(typeof CHART_PERIODS)[number]['id']>('week')
 
   /** Значок пустой мозаики подборки. */
-  const MIX_ICON: Record<MixId, IconName> = { daypart: 'clock', recent: 'history', new: 'sparkles', fresh: 'trending', like: 'music' }
+  const MIX_ICON: Record<MixId, IconName> = { daypart: 'clock', recent: 'history', new: 'disc', fresh: 'trending', like: 'music' }
   // какие подборки показывать: пустые сетевые — пока грузятся, «Похоже на трек» — всегда, когда есть история
   const forYou = $derived(
     (['daypart', 'recent', 'new', 'fresh', 'like'] as const).filter((id) =>

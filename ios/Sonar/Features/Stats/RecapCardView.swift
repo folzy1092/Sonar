@@ -25,9 +25,8 @@ struct RecapCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             visual
                 .appear(0, live: live)
-            Text(text.eyebrow.uppercased())
-                .font(.system(size: 13, weight: .heavy))
-                .kerning(1.2)
+            Text(text.eyebrow)
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(accent)
                 .padding(.top, 18)
                 .appear(1, live: live)
@@ -76,7 +75,7 @@ struct RecapCardView: View {
     @ViewBuilder
     private var visual: some View {
         switch card {
-        case .intro: badge(.sparkles)
+        case .intro: badge(.chart)
         case .minutes: badge(.headphone)
         case .tracks: badge(.music)
         case .artists: badge(.trophy)

@@ -169,7 +169,7 @@ struct TrackSheet: View {
     /// «Почему этот трек» — у треков Sonar Mix: откуда он пришёл.
     private func whyNote(_ reason: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
-            SonarIcon(.sparkles, size: 16)
+            SonarIcon(.info, size: 16)
                 .foregroundStyle(Theme.accent)
             VStack(alignment: .leading, spacing: 2) {
                 Text(t("Почему этот трек"))

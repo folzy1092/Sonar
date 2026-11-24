@@ -53,7 +53,7 @@
 {#if show}
   <div class="banner" in:rise={{ y: 12 }} out:pop={{ y: 6 }}>
     <button class="body" onclick={open}>
-      <span class="mark"><Icon name="sparkles" size={20} /></span>
+      <span class="mark"><Icon name="world" size={20} /></span>
       <span class="text">
         <b>{t('Вот твоя музыкальная карта')}</b>
         <small>{t('Кто с кем связан — по фитам, подпискам и общим соавторам')}</small>

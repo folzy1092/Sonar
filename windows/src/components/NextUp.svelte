@@ -74,10 +74,8 @@
     line-height: 1.25;
   }
   small {
-    font-size: calc(10px * var(--fs, 1));
+    font-size: calc(11px * var(--fs, 1));
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
     color: var(--accent);
   }
   b,

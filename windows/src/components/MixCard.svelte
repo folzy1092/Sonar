@@ -18,7 +18,7 @@
     icon?: IconName
     onclick: () => void
   }
-  let { title, tracks, loading = false, hint, icon = 'sparkles', onclick }: Props = $props()
+  let { title, tracks, loading = false, hint, icon = 'music', onclick }: Props = $props()
 
   // одинаковые картинки под разными адресами (SoundCloud) — тоже повтор: сверяем по пикселям
   const pc = new PixelCollage()

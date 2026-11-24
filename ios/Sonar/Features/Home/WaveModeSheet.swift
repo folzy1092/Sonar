@@ -99,7 +99,7 @@ struct WaveModeSheet: View {
         case .night: .moon
         case .sleep: .eyeClosed
         case .popular: .fire
-        case .focus: .sparkles
+        case .focus: .headphone
         }
     }
 

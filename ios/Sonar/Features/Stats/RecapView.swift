@@ -173,7 +173,7 @@ struct RecapView: View {
     @ViewBuilder
     private var content: some View {
         if model.loading {
-            message(t("Собираю итоги…"), icon: .sparkles)
+            message(t("Собираю итоги…"), icon: .chart)
         } else if model.cards.isEmpty {
             message(t("Мало данных за этот период — послушай ещё немного"), icon: .headphone)
         } else {

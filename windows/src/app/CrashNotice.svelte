@@ -61,7 +61,7 @@
       </span>
       <div class="txt">
         <b>
-          {#if phase === 'sent'}{t('Отправлено, спасибо!')}{:else if phase === 'saved'}{t('Лог сохранён')}{:else if report.crashed}{t('Sonar закрылся с ошибкой')}{:else}{t('В прошлый раз были ошибки')}{/if}
+          {#if phase === 'sent'}{t('Отправлено, спасибо')}{:else if phase === 'saved'}{t('Лог сохранён')}{:else if report.crashed}{t('Sonar закрылся с ошибкой')}{:else}{t('В прошлый раз были ошибки')}{/if}
         </b>
         <small>
           {#if phase === 'sent'}{t('Разберёмся и починим')}

@@ -194,8 +194,6 @@
     gap: 6px;
     font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
   }
   h1 {
     margin: 0;

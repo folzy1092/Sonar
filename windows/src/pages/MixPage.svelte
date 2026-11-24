@@ -69,9 +69,9 @@
 
 <CollectionHeader
   {title}
-  titleIcon="sparkles"
+  titleIcon="playlist"
   covers={pc.covers}
-  icon="sparkles"
+  icon="playlist"
   meta={loading ? '' : `${tracksText(items.length)}${items.length ? `, ${durationText(total)}` : ''}`}
   {context}
   disabled={!visible.length}
@@ -113,9 +113,9 @@
     {#if id === 'like' && !mixes.seed}
       <EmptyState icon="music" title={t('Выбери трек')} text={t('Нажми «Выбрать трек» — соберу похожее на него.')} />
     {:else if id === 'fresh'}
-      <EmptyState icon="sparkles" title={t('Пока никого не нашлось')} text={t('Свежих артистов ищу по счётчику прослушиваний SoundCloud. Слушай и лайкай больше — подборка обновится завтра.')} />
+      <EmptyState icon="music" title={t('Пока никого не нашлось')} text={t('Свежих артистов ищу по счётчику прослушиваний SoundCloud. Слушай и лайкай больше — подборка обновится завтра.')} />
     {:else}
-      <EmptyState icon="sparkles" title={t('Подборка пока пустая')} text={t('Слушай и лайкай дальше — здесь соберутся треки под твой вкус.')} />
+      <EmptyState icon="music" title={t('Подборка пока пустая')} text={t('Слушай и лайкай дальше — здесь соберутся треки под твой вкус.')} />
     {/if}
   {:else if !visible.length}
     <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('В «{title}» нет «{query}».', { title, query: filter.trim() })} />

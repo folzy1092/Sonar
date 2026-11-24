@@ -47,7 +47,7 @@ struct SonarDeepView: View {
     /// «Sonar Deep · Dev · без срока»: всё открыто, тарифы ниже — для остальных.
     private var devCard: some View {
         HStack(alignment: .top, spacing: 12) {
-            SystemBadgeIcon(icon: .sparkles, size: 40)
+            SystemBadgeIcon(icon: .waveLine, size: 40)
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Text(verbatim: SonarDeep.name)
@@ -129,7 +129,7 @@ struct SonarDeepView: View {
                     .foregroundStyle(Theme.textTertiary)
                     .contentTransition(.opacity)
                 HStack(spacing: 10) {
-                    SystemBadgeIcon(icon: .sparkles, size: 40)
+                    SystemBadgeIcon(icon: .waveLine, size: 40)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(verbatim: "\(SonarDeep.name) \(plan.name)")
                             .font(.system(size: 20, weight: .bold))

@@ -254,10 +254,8 @@
   h3 {
     margin: 0;
     padding: 8px 10px 4px;
-    font-size: calc(11px * var(--fs, 1));
+    font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--text-3);
   }
   .row {

@@ -43,7 +43,6 @@ struct DrumRuler: View {
                     .fill(abs(value - reset) < step / 2 ? Theme.text : Theme.accent)
                     .frame(width: 3, height: height * 0.6)
                     .offset(y: -height * 0.1)
-                    .shadow(color: Theme.accent.opacity(abs(value - reset) < step / 2 ? 0 : 0.5), radius: 6)
             }
             .frame(width: w, height: proxy.size.height)
             .background(Theme.raised.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))

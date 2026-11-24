@@ -140,7 +140,7 @@
       out:pop={{ y: 6 }}
       onsubmit={(e) => (e.preventDefault(), save())}
     >
-      <h2 id="smart-title"><Icon name="sparkles" size={20} /> {draft.id ? t('Правила плейлиста') : t('Умный плейлист')}</h2>
+      <h2 id="smart-title"><Icon name="adjustments" size={20} /> {draft.id ? t('Правила плейлиста') : t('Умный плейлист')}</h2>
 
       {#if !draft.id}
         <div class="templates">
@@ -360,9 +360,7 @@
     align-items: center;
     gap: 10px;
     font-size: calc(12px * var(--fs, 1));
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-weight: 600;
     color: var(--text-3);
   }
   .row {

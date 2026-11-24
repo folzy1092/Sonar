@@ -2,7 +2,7 @@
 export default {
   'Закрыть настройки': 'Close settings',
   'Отчёт об ошибке': 'Error report',
-  'Отправлено, спасибо!': 'Sent, thanks!',
+  'Отправлено, спасибо': 'Sent, thanks',
   'Лог сохранён': 'Log saved',
   'Sonar закрылся с ошибкой': 'Sonar crashed',
   'В прошлый раз были ошибки': 'There were errors last time',

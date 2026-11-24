@@ -76,7 +76,7 @@ struct BlendSettingsCard: View {
 
     private static func icon(_ type: BlendType) -> IconName {
         switch type {
-        case .auto: .sparkles
+        case .auto: .crossfade
         case .bass: .volume
         case .filter: .filter
         case .echo: .waveLine

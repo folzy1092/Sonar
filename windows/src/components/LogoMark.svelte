@@ -28,10 +28,8 @@
     display: block;
     width: var(--s);
     height: var(--s);
-    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 35%, transparent)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
-    transition:
-      rotate 0.9s cubic-bezier(0.34, 1.3, 0.5, 1),
-      filter 0.6s var(--ease);
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+    transition: rotate 0.9s cubic-bezier(0.34, 1.3, 0.5, 1);
   }
   svg {
     display: block;
@@ -52,11 +50,10 @@
   }
   .mark.spin:hover {
     rotate: 180deg;
-    filter: drop-shadow(0 0 14px color-mix(in srgb, var(--accent) 55%, transparent)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
   }
   @media (prefers-reduced-motion: reduce) {
     .mark {
-      transition: filter 0.3s linear;
+      transition: none;
     }
     .mark.spin:hover {
       rotate: none;

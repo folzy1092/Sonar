@@ -213,7 +213,7 @@ struct EqualizerSheet: View {
             .padding(.horizontal, 8)
 
             if engine.hasTrackSound {
-                HintCard(icon: .sparkles, text: t("У этого трека свой звук — кривая сохранится только для него"))
+                HintCard(icon: .sliders, text: t("У этого трека свой звук — кривая сохранится только для него"))
             }
 
             if engine.isHLS, engine.current != nil {

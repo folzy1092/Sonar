@@ -276,7 +276,7 @@
   />
 {/snippet}
 
-{#snippet smartBadge()}<Icon name="sparkles" size={15} />{/snippet}
+{#snippet smartBadge()}<Icon name="adjustments" size={15} />{/snippet}
 
 {#snippet favArt()}<NavIcon name="heart" active size={44} />{/snippet}
 
@@ -321,7 +321,7 @@
           subtitle={t('Умный плейлист')}
           meta={p.error ? t('Правила не читаются') : metaOf(p.id, p.track_count)}
           covers={p.covers}
-          icon="sparkles"
+          icon="adjustments"
           badge={smartBadge}
           onclick={() => router.go('playlist', p.id)}
         />
@@ -475,7 +475,7 @@
         <button type="button" class="ghost" onclick={() => (creating = false)}>{t('Отмена')}</button>
         <button type="submit" class="primary" disabled={!newName.trim()}>{t('Создать')}</button>
       </div>
-      <button type="button" class="smart" onclick={createSmart}><Icon name="sparkles" size={15} /> {t('Умный плейлист — по правилам')}</button>
+      <button type="button" class="smart" onclick={createSmart}><Icon name="adjustments" size={15} /> {t('Умный плейлист — по правилам')}</button>
     </form>
   {/if}
   {#if linking}

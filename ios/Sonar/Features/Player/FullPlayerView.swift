@@ -669,7 +669,7 @@ struct FullPlayerView: View {
             // «Почему этот трек» — у треков волны, одной строкой
             if let reason = engine.waveReason(for: track) {
                 HStack(spacing: 5) {
-                    SonarIcon(.sparkles, size: 13)
+                    SonarIcon(.info, size: 13)
                     Text(reason)
                         .lineLimit(1)
                         .truncationMode(.tail)

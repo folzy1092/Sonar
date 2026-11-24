@@ -123,7 +123,7 @@
     </div>
     {#if why && view === 'main'}
       <div class="why" role="note" aria-label={t('Почему этот трек')}>
-        <Icon name="sparkles" size={15} />
+        <Icon name="info" size={15} />
         <span><small>{t('Почему этот трек')}</small>{why}</span>
       </div>
     {/if}
