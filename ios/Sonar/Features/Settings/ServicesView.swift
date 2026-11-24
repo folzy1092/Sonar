@@ -183,6 +183,11 @@ struct ServicesView: View {
             }
             .cascade(5)
             }
+
+            if only == nil {
+                ServiceCheckCard()
+                    .cascade(6)
+            }
             }
             .disabled(offline.isOn)
             .opacity(offline.isOn ? 0.5 : 1)

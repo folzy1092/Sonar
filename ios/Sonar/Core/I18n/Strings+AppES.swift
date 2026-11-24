@@ -405,5 +405,6 @@ extension I18n {
         "Не удалось прочитать звук трека": "No se pudo leer el audio de la pista",
         "Трек пропал из очереди": "La pista salió de la cola",
         "Не удалось скачать трек для анализа": "No se pudo descargar la pista para analizarla",
+        "Не ответил за {sec} с": "Sin respuesta en {sec} s",
     ]
 }

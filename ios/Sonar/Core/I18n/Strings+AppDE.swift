@@ -405,5 +405,6 @@ extension I18n {
         "Не удалось прочитать звук трека": "Der Ton des Titels ließ sich nicht lesen",
         "Трек пропал из очереди": "Der Titel ist nicht mehr in der Warteschlange",
         "Не удалось скачать трек для анализа": "Der Titel ließ sich für die Analyse nicht laden",
+        "Не ответил за {sec} с": "Keine Antwort in {sec} s",
     ]
 }
