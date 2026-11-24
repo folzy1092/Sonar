@@ -256,7 +256,7 @@
 {#if lyrics.fullscreen}
   <FullPlayer />
 {/if}
-<svelte:window onmousedown={mouseNav} onmouseup={mouseNav} onkeydown={onKey} onfocus={() => (focused = true)} onblur={() => (focused = false)} />
+<svelte:window onmousedown={mouseNav} onmouseup={mouseNav} onkeydown={onKey} onkeyup={(e) => hotkeys.handleKeyUp(e)} onfocus={() => (focused = true)} onblur={() => (focused = false)} />
 <svelte:document onvisibilitychange={() => (hidden = document.hidden)} />
 
 <TrackMenu />

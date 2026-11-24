@@ -34,7 +34,8 @@ export default {
   'Поверх окон': 'Over windows',
   'Везде': 'Everywhere',
   'Вернуть все': 'Reset all',
-  'Клик по клавише — нажми новую. Esc — отмена, Backspace — убрать. Навигации хватит одной клавиши, остальному нужен Ctrl, Alt или Win.': 'Click a key and press a new one. Esc cancels, Backspace clears. Navigation can use a single key, everything else needs Ctrl, Alt or Win.',
+  'Клик по клавише — нажми новую. Esc — отмена, Backspace — убрать. Одна клавиша (например, пробел) работает только внутри окна Sonar, по всей системе нужен Ctrl, Alt или Win.':
+    'Click a key and press a new one. Esc cancels, Backspace clears. A single key (like Space) works only inside the Sonar window; system-wide shortcuts need Ctrl, Alt or Win.',
   'Как было': 'Restore default',
   'Нажми клавиши…': 'Press keys…',
   'Навигация': 'Navigation',

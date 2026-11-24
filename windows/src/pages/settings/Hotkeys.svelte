@@ -17,6 +17,7 @@
     hotkeys,
     isLocalAction,
     isOutsideAction,
+    windowOnly,
     type HotkeyAction,
     type HotkeyScope,
   } from '../../lib/hotkeys.svelte'
@@ -61,11 +62,22 @@
       assign(listening, '')
       return
     }
-    const combo = comboFrom(e, listening !== 'quick' && isLocalAction(listening))
+    // одна клавиша (пробел и т. п.) — любому действию, кроме «Показать / скрыть окно»: она работает внутри окна
+    const combo = comboFrom(e, listening !== 'quick' && !isOutsideAction(listening))
     if (combo) assign(listening, combo)
   }
 
+  /** Пробел и Enter «нажимают» кнопку-колпачок на отпускании — после записи сочетания это снова включило бы запись. */
+  let eatUp: string | null = null
+  function release(e: KeyboardEvent) {
+    if (e.code !== eatUp) return
+    eatUp = null
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
   function assign(target: Target, combo: string) {
+    eatUp = combo.split('+').at(-1) ?? null
     if (target === 'quick') hotkeys.setQuick(combo)
     else hotkeys.set(target, combo)
     listening = null
@@ -74,13 +86,13 @@
   /** Подсказка под строкой: не встало, или где действие не сработает при выбранной области. */
   function note(id: HotkeyAction): { text: string; bad?: boolean } | null {
     if (hotkeys.failed.includes(id)) return { text: 'Не встало: сочетание занято другой программой', bad: true }
-    if (isLocalAction(id) && scope !== 'app') return { text: 'Только внутри окна Sonar' }
+    if ((isLocalAction(id) || windowOnly(map[id] ?? '')) && scope !== 'app') return { text: 'Только внутри окна Sonar' }
     if (isOutsideAction(id) && scope === 'app') return { text: 'Работает поверх окон или везде' }
     return null
   }
 </script>
 
-<svelte:window onkeydowncapture={capture} onblur={() => (listening = null)} />
+<svelte:window onkeydowncapture={capture} onkeyupcapture={release} onblur={() => (listening = null)} />
 
 <Card>
   <Choice
@@ -125,7 +137,7 @@
   </Card>
 {/each}
 
-<p class="hint">{t('Клик по клавише — нажми новую. Esc — отмена, Backspace — убрать. Навигации хватит одной клавиши, остальному нужен Ctrl, Alt или Win.')}</p>
+<p class="hint">{t('Клик по клавише — нажми новую. Esc — отмена, Backspace — убрать. Одна клавиша (например, пробел) работает только внутри окна Sonar, по всей системе нужен Ctrl, Alt или Win.')}</p>
 
 {#snippet row(id: Target, title: string, combo: string, dirty: boolean, n: { text: string; bad?: boolean } | null, reset: () => void)}
   <div class="row">

@@ -17,7 +17,7 @@ import { lyricsAvail, sidePane } from '../app/side-pane.svelte'
 import { settingsPanel } from '../pages/settings-section.svelte'
 import { actionFor, comboFrom, globalMap, hasCommandMod, withCombo, withoutCombo, type HotkeyAction } from './hotkeys-core'
 
-export { comboFrom, comboLabel, HOTKEY_ACTIONS, isLocalAction, isOutsideAction, type HotkeyAction, type HotkeyScope } from './hotkeys-core'
+export { comboFrom, comboLabel, HOTKEY_ACTIONS, isLocalAction, isOutsideAction, windowOnly, type HotkeyAction, type HotkeyScope } from './hotkeys-core'
 
 const SEEK_STEP_MS = 5000
 const VOLUME_STEP = 0.05
@@ -42,6 +42,8 @@ class Hotkeys {
   private global = $state<Record<string, string>>({})
   /** Громкость до «Без звука» — второе нажатие её возвращает. */
   private unmuted: number | null = null
+  /** Клавиша, нажатие которой стало командой: её отпускание не должно «нажать» кнопку в фокусе (пробел, Enter). */
+  private eatUp: string | null = null
   private started = false
 
   init() {
@@ -75,10 +77,18 @@ class Hotkeys {
     const action = actionFor(effectiveMap(), combo)
     if (!action || this.global[action] === combo) return false
     e.preventDefault()
+    this.eatUp = e.code
     // зажатая клавиша повторяется: громкость и перемотку — пусть, остальное — один раз
     if (e.repeat && !['volume_up', 'volume_down', 'seek_back', 'seek_fwd'].includes(action)) return true
     this.run(action)
     return true
+  }
+
+  /** Отпускание клавиши-команды (App.svelte): пробел на кнопке в фокусе срабатывает на отпускании — гасим. */
+  handleKeyUp(e: KeyboardEvent) {
+    if (e.code !== this.eatUp) return
+    this.eatUp = null
+    e.preventDefault()
   }
 
   run(action: string) {

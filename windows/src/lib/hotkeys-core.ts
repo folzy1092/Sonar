@@ -65,12 +65,16 @@ export function comboFrom(e: Pick<KeyboardEvent, 'ctrlKey' | 'altKey' | 'shiftKe
 /** В сочетании есть Ctrl, Alt или Win — такое срабатывает и во время набора текста. */
 export const hasCommandMod = (combo: string) => /(^|\+)(Ctrl|Alt|Win)\+/.test(combo)
 
+/** Одна клавиша без Ctrl, Alt и Win (пробел, `/`, Shift+… тоже): по всей системе её не ставим — она перехватила
+ *  бы набор текста во всех программах, — работает только внутри окна Sonar. */
+export const windowOnly = (combo: string) => !!combo && !hasCommandMod(combo)
+
 /** Что отдать Rust на регистрацию по всей системе: при «Везде» — всегда, при «Поверх окон» — пока открыто
  *  окно поверх остальных; действия «только внутри окна» — никогда. Новая карта, исходная не меняется. */
 export function globalMap(map: Readonly<Record<string, string>>, scope: HotkeyScope, onTopOpen: boolean): Record<string, string> {
   const on = scope === 'global' || (scope === 'top' && onTopOpen)
   if (!on) return {}
-  return Object.fromEntries(Object.entries(map).filter(([id, combo]) => combo && !LOCAL.has(id)))
+  return Object.fromEntries(Object.entries(map).filter(([id, combo]) => combo && !LOCAL.has(id) && !windowOnly(combo)))
 }
 
 /** Действие для нажатия внутри окна: `null` — ничего (или сочетание у действия «только по всей системе»). */

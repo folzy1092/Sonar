@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { actionFor, comboFrom, comboLabel, globalMap, hasCommandMod, HOTKEY_ACTIONS, isLocalAction, withCombo, withoutCombo } from './hotkeys-core'
+import { actionFor, comboFrom, comboLabel, globalMap, hasCommandMod, HOTKEY_ACTIONS, isLocalAction, windowOnly, withCombo, withoutCombo } from './hotkeys-core'
 import { DEFAULTS } from './settings.svelte'
 
 type Mods = Partial<Record<'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey', boolean>>
@@ -61,6 +61,17 @@ describe('горячие клавиши', () => {
     expect(globalMap(map, 'top', true)).toEqual({ toggle: 'Ctrl+Alt+Space' })
     expect(globalMap(map, 'global', false)).toEqual({ toggle: 'Ctrl+Alt+Space' })
     expect(map.search).toBe('Slash')
+  })
+
+  it('одна клавиша (пробел) — любой команде, но только внутри окна: по всей системе не ставится', () => {
+    expect(comboFrom(press('Space', ' '), true)).toBe('Space')
+    expect(windowOnly('Space')).toBe(true)
+    expect(windowOnly('Shift+Space')).toBe(true)
+    expect(windowOnly('Ctrl+Alt+Space')).toBe(false)
+    expect(windowOnly('')).toBe(false)
+    const map = { toggle: 'Space', next: 'Ctrl+Alt+ArrowRight' }
+    expect(globalMap(map, 'global', false)).toEqual({ next: 'Ctrl+Alt+ArrowRight' })
+    expect(actionFor(map, 'Space')).toBe('toggle')
   })
 
   it('нажатие внутри окна находит действие, кроме «только по всей системе»', () => {
