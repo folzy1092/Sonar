@@ -142,6 +142,17 @@ describe('plan', () => {
     expect(auto.every((p) => !p.sync)).toBe(true)
   })
 
+  it('бас-свап ищет момент, где басы меняются на дропе B', () => {
+    const b = { ...track('ym:b'), phrases: [{ bar: 0, kind: 'body' as const }, { bar: 8, kind: 'drop' as const }] }
+    const noDrop = { ...b, phrases: [{ bar: 0, kind: 'body' as const }] }
+    const opts = { ...OPTS, type: 'bass' as const, lengthSec: 15, cutSec: 20 }
+    // 8 тактов, свап на 4-м: вход на 4-м такте B — басы меняются ровно на дропе (8-й)
+    const onDrop = (bb: typeof b) => plan(track('sc:a'), bb, opts).find((p) => p.inMs === 4 * 1875)
+    const hit = onDrop(b)
+    expect(hit).toBeDefined()
+    expect(hit!.parts.phrases).toBeGreaterThan(onDrop(noDrop)?.parts.phrases ?? 0)
+  })
+
   it('A доигрывает свою часть перехода до конца файла: `ended` не оборвёт переход', () => {
     // музыка до самого конца файла — такт «за концом музыки» вышел бы за файл
     const a = track('sc:a', { tailMs: 0 })

@@ -22,18 +22,21 @@ extension BlendMix {
     }
 
     static func bass(_ plan: TransitionPlan) -> (BlendDeckCurves, BlendDeckCurves) {
-        let f = Double(plan.bars) / bassGrid
-        let swap = Double(plan.bars) / 2
+        let n = Double(plan.bars)
+        let swap = n / 2
+        // «такт» перехода: на длинных — один такт, на коротких — меньше
+        let d = min(1, n / 8)
+        let fadeFrom = swap + (n - swap) / 2
         let a: BlendDeckCurves = [
-            .gain: [key(7 * f, 1), key(8 * f, 0, .eq)],
+            .gain: [key(swap, 1), key(swap + d, bassHold), key(fadeFrom, bassHold), key(n, 0, .eq)],
             .low: step(plan, swap, 0, offDb, swapSec),
-            .mid: [key(4 * f, 0), key(7 * f, -12)],
-            .high: [key(2 * f, 0), key(4 * f, -6), key(7 * f, offDb)],
+            .high: [key(swap, 0), key(swap + d, bassHighDb), key(fadeFrom, offDb)],
         ]
+        // B входит без низа и без верха — одна середина, верх подтягивается ко второй половине разгона
         let b: BlendDeckCurves = [
-            .gain: [key(0, 0), key(2 * f, 1, .eq)],
+            .gain: [key(0, 0), key(d, 0.2), key(swap / 2, bassHold, .eq), key(swap, bassHold), key(swap + d, 1)],
             .low: step(plan, swap, offDb, 0, swapSec),
-            .mid: [key(2 * f, -6), key(4 * f, 0)],
+            .high: [key(swap / 2, offDb), key(swap, bassHighDb), key(swap + d, 0)],
         ]
         return (a, b)
     }

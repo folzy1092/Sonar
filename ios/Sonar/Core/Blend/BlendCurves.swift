@@ -123,7 +123,10 @@ enum BlendMix {
     static let swapSec = 0.008
     static let dropSec = 0.005
     /// Бас-свап расписан на 8 тактов; длиннее или короче — те же доли.
-    static let bassGrid = 8.0
+    /// Бас-свап: B до свапа звучит на 0.8 одной серединой, A после свапа держится на 0.8 и гаснет второй половиной
+    /// остатка; верх A после свапа сразу −20 дБ — две пары тарелок не звенят вместе.
+    static let bassHold = 0.8
+    static let bassHighDb = -20.0
     static let filterHpTo = 1200.0
     static let filterQTo = 3.0
     static let filterLpFrom = 300.0

@@ -41,8 +41,10 @@ const Q_REST = Math.SQRT1_2
 /** Длительности резких мест (§8), с. */
 const SWAP_SEC = 0.008
 const DROP_SEC = 0.005
-/** Бас-свап расписан на 8 тактов; длиннее или короче — те же доли. */
-const BASS_GRID = 8
+/** Бас-свап: B до свапа звучит на 0.8 одной серединой, A после свапа держится на 0.8 и гаснет второй половиной
+ *  остатка; верх A после свапа сразу −20 дБ — две пары тарелок не звенят вместе. */
+const BASS_HOLD = 0.8
+const BASS_HIGH_DB = -20
 const FILTER_HP_TO = 1200
 const FILTER_Q_TO = 3
 const FILTER_LP_FROM = 300
@@ -85,19 +87,22 @@ function step(plan: TransitionPlan, bar: number, from: number, to: number, sec: 
 }
 
 function bass(plan: TransitionPlan): Pick<BlendCurves, 'a' | 'b'> {
-  const f = plan.bars / BASS_GRID
-  const swap = plan.bars / 2
+  const n = plan.bars
+  const swap = n / 2
+  // «такт» перехода: на длинных — один такт, на коротких — меньше
+  const d = Math.min(1, n / 8)
+  const fadeFrom = swap + (n - swap) / 2
   return {
     a: {
-      gain: [k(7 * f, 1), k(8 * f, 0, 'eq')],
+      gain: [k(swap, 1), k(swap + d, BASS_HOLD), k(fadeFrom, BASS_HOLD), k(n, 0, 'eq')],
       low: step(plan, swap, 0, OFF_DB, SWAP_SEC),
-      mid: [k(4 * f, 0), k(7 * f, -12)],
-      high: [k(2 * f, 0), k(4 * f, -6), k(7 * f, OFF_DB)],
+      high: [k(swap, 0), k(swap + d, BASS_HIGH_DB), k(fadeFrom, OFF_DB)],
     },
     b: {
-      gain: [k(0, 0), k(2 * f, 1, 'eq')],
+      // B входит без низа и без верха — одна середина, верх подтягивается ко второй половине разгона
+      gain: [k(0, 0), k(d, 0.2), k(swap / 2, BASS_HOLD, 'eq'), k(swap, BASS_HOLD), k(swap + d, 1)],
       low: step(plan, swap, OFF_DB, 0, SWAP_SEC),
-      mid: [k(2 * f, -6), k(4 * f, 0)],
+      high: [k(swap / 2, OFF_DB), k(swap, BASS_HIGH_DB), k(swap + d, 0)],
     },
   }
 }

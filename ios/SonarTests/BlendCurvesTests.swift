@@ -62,6 +62,20 @@ final class BlendCurvesTests: XCTestCase {
         }
     }
 
+    func testBassBMidsOnlyBeforeSwapAHoldsThenFades() {
+        let c = curves(F.planOf(.bass))
+        // 8 тактов: свап на 4, «такт» = 1, A гаснет с 6
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: 1).b.high, BlendChain.isoMinDb)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: 1).b.low, BlendChain.isoMinDb)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: 3.9).b.gain, 0.8, accuracy: 0.5e-9)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: 5).b.gain, 1)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: 5).b.high, 0)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: 5).a.high, -20)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: 6).a.gain, 0.8, accuracy: 0.5e-9)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: 6).a.high, BlendChain.isoMinDb)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: 8).a.gain, 0)
+    }
+
     func testDropBFullRightOnDrop() {
         let plan = F.planOf(.drop)
         let c = curves(plan)
@@ -191,8 +205,8 @@ final class BlendCurvesTests: XCTestCase {
 
     func testCurvedParamsOnlyWithCurves() {
         let c = curves(F.planOf(.bass))
-        XCTAssertEqual(BlendTimeline.curvedParams(c, side: .a), [.gain, .low, .mid, .high])
-        XCTAssertEqual(BlendTimeline.curvedParams(c, side: .b), [.gain, .low, .mid])
+        XCTAssertEqual(BlendTimeline.curvedParams(c, side: .a), [.gain, .low, .high])
+        XCTAssertEqual(BlendTimeline.curvedParams(c, side: .b), [.gain, .low, .high])
     }
 
     func testSpanBarsSamplesAndKeyBarsInOrder() {

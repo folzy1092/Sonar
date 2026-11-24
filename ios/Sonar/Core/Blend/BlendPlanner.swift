@@ -98,6 +98,8 @@ enum BlendPlanner {
     /// Длина перехода в тактах — целая, чтобы «Коротко · Норм · Длинно» не слипались ни при каком темпе.
     static let minBars = 2
     static let maxBars = 32
+    /// С такой длины (тактов) — только чётные: при 3–4 тактах на медленном темпе иначе слипаются длины.
+    static let evenFrom = 3.5
     /// «Плавный» — вдвое длиннее выбранной длины.
     static let smoothFactor = 2
     /// «Эхо»: сколько тактов эхо набирается до «раз» (при длине от 6 тактов — 2).
@@ -130,11 +132,12 @@ enum BlendPlanner {
         t.firstBeatMs + Double(t.downbeat + beatsPerBar * bar) * t.beatMs
     }
 
-    /// Длина перехода в тактах: секунды при темпе A, округлённые до целого такта (2…32).
+    /// Длина перехода в тактах: секунды при темпе A, до целого такта, от 4 тактов — до чётного (ровнее по фразам), 2…32.
     static func lengthBars(_ lengthSec: Double, tempo: Double) -> Int {
         let bars = (lengthSec * tempo) / 60 / Double(beatsPerBar)
         guard bars.isFinite else { return minBars }
-        return min(maxBars, max(minBars, BlendMath.jsRoundInt(bars)))
+        let whole = bars < evenFrom ? BlendMath.jsRoundInt(bars) : 2 * BlendMath.jsRoundInt(bars / 2)
+        return min(maxBars, max(minBars, whole))
     }
 
     /// B ближе к удвоенному или половинному темпу A, чем к тому же, — считаем его в такой сетке.

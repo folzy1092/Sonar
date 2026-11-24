@@ -23,6 +23,8 @@ export const TOP_PLANS = 8
 /** Длина перехода в тактах — целая, чтобы «Коротко · Норм · Длинно» не слипались ни при каком темпе. */
 const MIN_BARS = 2
 const MAX_BARS = 32
+/** С такой длины (тактов) — только чётные: при 3–4 тактах на медленном темпе иначе слипаются длины. */
+const EVEN_FROM = 3.5
 /** «Плавный» — вдвое длиннее выбранной длины. */
 const SMOOTH_FACTOR = 2
 /** «Эхо»: сколько тактов эхо набирается до «раз» (при длине от 6 тактов — 2). */
@@ -142,10 +144,11 @@ function mean(xs: number[], from: number, to: number): number {
   return n > 0 ? sum / n : 0
 }
 
-/** Длина перехода в тактах: секунды при темпе A, округлённые до целого такта (2…32). */
+/** Длина перехода в тактах: секунды при темпе A, до целого такта, от 4 тактов — до чётного (ровнее по фразам), 2…32. */
 export function lengthBars(lengthSec: number, tempo: number): number {
   const bars = (lengthSec * tempo) / 60 / BEATS_PER_BAR
-  return clamp(Math.round(bars), MIN_BARS, MAX_BARS)
+  const whole = bars < EVEN_FROM ? Math.round(bars) : 2 * Math.round(bars / 2)
+  return clamp(whole, MIN_BARS, MAX_BARS)
 }
 
 /** B ближе к удвоенному или половинному темпу A, чем к тому же, — считаем его в такой сетке. */
@@ -310,6 +313,15 @@ function evaluate(p: Pair, c: Candidate): TransitionPlan | null {
   const cutOutMs = Math.max(0, a.endMs - endAMs)
   const cutInMs = Math.max(0, inMs - b.startMs)
   const cutMs = opts.cutSec * 1000
+  // у бас-свапа B входит тихо, а слышно, где меняются басы: свап на начале фразы B (лучше всего — на дропе)
+  // ценится не меньше входа на интро
+  const inPhrase =
+    c.kind === 'bass'
+      ? Math.max(
+          inScore(p.phrasesB, c.entry, c.kind),
+          inScore(p.phrasesB, c.entry + Math.round((shape.bars / 2) * p.beatRatio), 'drop'),
+        )
+      : inScore(p.phrasesB, c.entry, c.kind)
   const phraseA =
     shape.inAtBar === 0
       ? (startScore(p.phrasesA, outBar) + endScore(p.phrasesA, nA, c.anchor)) / 2
@@ -328,7 +340,7 @@ function evaluate(p: Pair, c: Candidate): TransitionPlan | null {
     tempo: p.tempoScore,
     key: key.term,
     energy: 1 - Math.abs(energyA - energyB),
-    phrases: (phraseA + inScore(p.phrasesB, c.entry, c.kind)) / 2,
+    phrases: (phraseA + inPhrase) / 2,
     cut: cutMs > 0 ? 1 - (cutOutMs + cutInMs) / (2 * cutMs) : 1,
     vocal: OVERLAP_KINDS.has(c.kind) ? 1 - clamp((Math.min(midA, midB) - VOCAL_FROM) * 2, 0, 1) : 1,
     fit: kindFit(c.kind, facts),

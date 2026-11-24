@@ -124,6 +124,14 @@ extension BlendPlanner {
         let cutOutMs = max(0, a.endMs - endAMs)
         let cutInMs = max(0, inMs - b.startMs)
         let cutMs = p.opts.cutSec * 1000
+        // у бас-свапа B входит тихо, а слышно, где меняются басы: свап на начале фразы B (лучше всего — на дропе)
+        // ценится не меньше входа на интро
+        let inPhrase = kind == .bass
+            ? max(
+                inScore(p.phrasesB, entry, kind: kind),
+                inScore(p.phrasesB, entry + BlendMath.jsRoundInt(Double(shape.bars) / 2 * p.beatRatio), kind: .drop)
+            )
+            : inScore(p.phrasesB, entry, kind: kind)
         let phraseA = shape.inAtBar == 0
             ? (startScore(p.phrasesA, outBar) + endScore(p.phrasesA, nBars: nA, anchor)) / 2
             : endScore(p.phrasesA, nBars: nA, anchor)
@@ -143,7 +151,7 @@ extension BlendPlanner {
             .tempo: p.tempoScore,
             .key: key.term,
             .energy: 1 - abs(energyA - energyB),
-            .phrases: (phraseA + inScore(p.phrasesB, entry, kind: kind)) / 2,
+            .phrases: (phraseA + inPhrase) / 2,
             .cut: cutMs > 0 ? 1 - (cutOutMs + cutInMs) / (2 * cutMs) : 1,
             .vocal: overlapKinds.contains(kind) ? 1 - BlendMath.clamp((min(midA, midB) - vocalFrom) * 2, 0, 1) : 1,
             .fit: kindFit(kind, facts),

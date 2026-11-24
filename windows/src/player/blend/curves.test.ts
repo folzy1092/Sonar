@@ -77,6 +77,20 @@ describe('curvesFor', () => {
     }
   })
 
+  it('bass: B до свапа — одна середина на 0.8, A после свапа держится на 0.8 и гаснет второй половиной', () => {
+    const c = curvesFor(planOf('bass'), NYQUIST)
+    // 8 тактов: свап на 4, «такт» = 1, A гаснет с 6
+    expect(paramsAt(c, 1).b.high).toBe(ISO_MIN_DB)
+    expect(paramsAt(c, 1).b.low).toBe(ISO_MIN_DB)
+    expect(paramsAt(c, 3.9).b.gain).toBeCloseTo(0.8, 9)
+    expect(paramsAt(c, 5).b.gain).toBe(1)
+    expect(paramsAt(c, 5).b.high).toBe(0)
+    expect(paramsAt(c, 5).a.high).toBe(-20)
+    expect(paramsAt(c, 6).a.gain).toBeCloseTo(0.8, 9)
+    expect(paramsAt(c, 6).a.high).toBe(ISO_MIN_DB)
+    expect(paramsAt(c, 8).a.gain).toBe(0)
+  })
+
   it('drop: B на полной громкости сразу на дропе', () => {
     const plan = planOf('drop')
     const c = curvesFor(plan, NYQUIST)

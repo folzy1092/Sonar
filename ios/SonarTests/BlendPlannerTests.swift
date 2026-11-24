@@ -91,6 +91,22 @@ final class BlendPlannerTests: XCTestCase {
         XCTAssertTrue(auto.allSatisfy { !$0.sync })
     }
 
+    func testBassSwapLooksForBDrop() throws {
+        let base = F.track("ym:b")
+        func with(_ phrases: [BlendPhrase]) -> BlendAnalysis {
+            var t = base
+            t.phrases = phrases
+            return t
+        }
+        let b = with([BlendPhrase(bar: 0, kind: .body), BlendPhrase(bar: 8, kind: .drop)])
+        let noDrop = with([BlendPhrase(bar: 0, kind: .body)])
+        let opts = F.opts { $0.type = .bass; $0.lengthSec = 15; $0.cutSec = 20 }
+        // 8 тактов, свап на 4-м: вход на 4-м такте B — басы меняются ровно на дропе (8-й)
+        func onDrop(_ t: BlendAnalysis) -> TransitionPlan? { plan(F.track("sc:a"), t, opts).first { $0.inMs == 4 * 1875 } }
+        let hit = try XCTUnwrap(onDrop(b))
+        XCTAssertGreaterThan(hit.parts[.phrases] ?? 0, onDrop(noDrop)?.parts[.phrases] ?? 0)
+    }
+
     func testAPlaysItsPartBeforeFileEnds() {
         // музыка до самого конца файла — такт «за концом музыки» вышел бы за файл
         let a = F.track("sc:a", tailMs: 0)
