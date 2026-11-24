@@ -31,6 +31,7 @@ export default {
   'Подписка на {period}': 'Subskrypcja na {period}',
   'Объёмный звук 3D · 8D · 12D · 16D': 'Dźwięk przestrzenny 3D · 8D · 12D · 16D',
   'Реверб и пространство: зал, клуб, собор': 'Pogłos i przestrzeń: sala, klub, katedra',
+  'Сведение: DJ-переходы между треками и режим вечеринки': 'Miksowanie: przejścia jak u DJ-a między utworami i tryb imprezy',
   'Перейти к оплате': 'Przejdź do płatności',
   'Оплата откроется на сайте Sonar. Подписка придёт на аккаунт, с которого ты её оформил.': 'Płatność otworzy się na stronie Sonar. Subskrypcja trafi na konto, z którego ją kupiłeś.',
   'Дополнительные возможности Sonar — музыка играет и без подписки': 'Dodatkowe funkcje Sonar — muzyka gra także bez subskrypcji',

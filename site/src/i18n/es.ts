@@ -361,6 +361,7 @@ const es: Dict = {
   "VK Музыка": "VK Music",
   "Объёмный звук 3D · 8D · 12D · 16D": "Sonido envolvente 3D · 8D · 12D · 16D",
   "Реверб и пространство: зал, клуб, собор": "Reverberación y espacio: sala, club, catedral",
+  "Сведение: DJ-переходы между треками и режим вечеринки": "Mezcla: transiciones de DJ entre pistas y modo fiesta",
   "Перевод текстов песен": "Traducción de letras",
   "Кэш треков без лимита": "Caché de temas sin límite",
   "Плейлисты без лимита": "Listas sin límite",
@@ -401,7 +402,7 @@ const es: Dict = {
   "Больше умных плейлистов": "Más listas inteligentes",
   "Свои темы оверлея и OBS-плашки": "Temas propios para la superposición y el widget de OBS",
   "Приоритет у баг-репортов и идей в боте": "Prioridad para informes de errores e ideas en el bot",
-  "Скорость Slowed / Sped up и кроссфейд — бесплатно. Эквалайзер, объёмный звук 3D · 8D · 12D · 16D и реверб — в Sonar Deep.": "Slowed / Sped up y el fundido cruzado son gratis. El ecualizador, el sonido envolvente 3D · 8D · 12D · 16D y la reverberación están en Sonar Deep.",
+  "Скорость Slowed / Sped up и кроссфейд — бесплатно. Эквалайзер, объёмный звук 3D · 8D · 12D · 16D, реверб и сведение как у диджея — в Sonar Deep.": "Slowed / Sped up y el fundido cruzado son gratis. El ecualizador, el sonido envolvente 3D · 8D · 12D · 16D, la reverberación y la mezcla al estilo DJ están en Sonar Deep.",
 }
 
 export default es

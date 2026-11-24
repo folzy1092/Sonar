@@ -361,6 +361,7 @@ const pl: Dict = {
   "VK Музыка": "VK Music",
   "Объёмный звук 3D · 8D · 12D · 16D": "Dźwięk przestrzenny 3D · 8D · 12D · 16D",
   "Реверб и пространство: зал, клуб, собор": "Pogłos i przestrzeń: sala, klub, katedra",
+  "Сведение: DJ-переходы между треками и режим вечеринки": "Miksowanie: przejścia jak u DJ-a między utworami i tryb imprezy",
   "Перевод текстов песен": "Tłumaczenie tekstów piosenek",
   "Кэш треков без лимита": "Pamięć podręczna utworów bez limitu",
   "Плейлисты без лимита": "Playlisty bez limitu",
@@ -401,7 +402,7 @@ const pl: Dict = {
   "Больше умных плейлистов": "Więcej inteligentnych playlist",
   "Свои темы оверлея и OBS-плашки": "Własne motywy nakładki i widżetu OBS",
   "Приоритет у баг-репортов и идей в боте": "Pierwszeństwo dla zgłoszeń błędów i pomysłów w bocie",
-  "Скорость Slowed / Sped up и кроссфейд — бесплатно. Эквалайзер, объёмный звук 3D · 8D · 12D · 16D и реверб — в Sonar Deep.": "Slowed / Sped up i przenikanie są za darmo. Korektor, dźwięk przestrzenny 3D · 8D · 12D · 16D i pogłos są w Sonar Deep.",
+  "Скорость Slowed / Sped up и кроссфейд — бесплатно. Эквалайзер, объёмный звук 3D · 8D · 12D · 16D, реверб и сведение как у диджея — в Sonar Deep.": "Slowed / Sped up i przenikanie są za darmo. Korektor, dźwięk przestrzenny 3D · 8D · 12D · 16D, pogłos i miksowanie jak u DJ-a są w Sonar Deep.",
 }
 
 export default pl

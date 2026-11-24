@@ -12,7 +12,7 @@ const { lang } = Astro.props
 const { t } = useT(lang)
 
 /** Главные плюсы для витрины — по номеру в `plans.json` (полный список — на /pay). */
-const TEASER_PERKS = [0, 1, 3, 8, 9].map((i) => PERKS[i]).filter(Boolean)
+const TEASER_PERKS = [0, 1, 4, 9, 10].map((i) => PERKS[i]).filter(Boolean)
 const fromPrice = Math.min(...PLANS.map((p) => p.monthly))
 ---
 

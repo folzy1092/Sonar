@@ -398,6 +398,6 @@ extension I18n {
         // Сведение (Strings+Blend.swift)
         "Закончить вечеринку": "Party beenden",
         "Этот трек идёт потоком HLS — анализа нет, переход будет кроссфейдом": "Dieser Titel läuft als HLS-Stream – keine Analyse, der Übergang wird ein Crossfade",
-        "Сведение слушает доли и тональность треков-файлов; у потоков HLS анализа нет — там переход кроссфейдом.": "Der Mix hört auf Beats und Tonart von Datei-Titeln; HLS-Streams werden nicht analysiert und bekommen einen Crossfade.",
+        "Сведение слушает доли и тональность треков-файлов; у потоков HLS анализа нет — там переход кроссфейдом.": "Der Übergang hört auf Beats und Tonart von Datei-Titeln; HLS-Streams werden nicht analysiert und bekommen einen Crossfade.",
     ]
 }

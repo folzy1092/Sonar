@@ -1304,6 +1304,7 @@ extension I18n {
         "Разреженные буквы": "Weite Buchstaben",
         "Ранее": "Früher",
         "Реверб и пространство: зал, клуб, собор": "Hall und Raum: Saal, Club, Kathedrale",
+        "Сведение: DJ-переходы между треками и режим вечеринки": "Übergang: DJ-Mixe zwischen Titeln und Party-Modus",
         "Реверберация": "Hall",
         "Реверберация ✦": "Hall ✦",
         "Режим": "Modus",
