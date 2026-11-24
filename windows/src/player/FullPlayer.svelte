@@ -640,7 +640,8 @@
   .win,
   .notch.left,
   .controls,
-  .volume {
+  .volume,
+  .speed-slot {
     transition:
       opacity 0.35s var(--ease),
       transform 0.35s var(--ease);
@@ -649,7 +650,8 @@
   .away .notch.left,
   .away .on-cover,
   .away .controls,
-  .away .volume {
+  .away .volume,
+  .away .speed-slot:not(:has(.open)) {
     opacity: 0;
     pointer-events: none;
   }

@@ -290,6 +290,7 @@
 <div
   class="lyrics anim-{anim}"
   class:synced
+  class:paused={!player.playing}
   class:words={wordsOn}
   style:--lyrics-size="{sizeRem[lyrics.size]}rem"
   role="region"
@@ -468,6 +469,11 @@
   .line.pause.active .dots i {
     opacity: 0.85;
     animation: dot-wave 1.2s ease-in-out infinite;
+  }
+  /* трек на паузе — точки стоят ровно, а не продолжают «петь» */
+  .paused .line.pause.active .dots i {
+    animation: none;
+    transform: none;
   }
   .line.pause.active .dots i:nth-child(2) {
     animation-delay: 0.15s;
