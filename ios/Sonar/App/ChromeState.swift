@@ -55,6 +55,20 @@ final class ChromeState {
     }
 }
 
+/// Что делает тап по значку вкладки в нижней панели. Тап по текущей вкладке — в её корень (в настройках —
+/// к началу списка), и в свёрнутой панели тоже: левый круг не просто разворачивает панель, а ведёт на
+/// вкладку, как значок в развёрнутой (панель при этом разворачивается).
+enum TabTap: Equatable {
+    case select
+    case popToRoot
+    case expandAndPopToRoot
+
+    static func of(_ tab: Tab, current: Tab, collapsed: Bool) -> TabTap {
+        if tab != current { return .select }
+        return collapsed ? .expandAndPopToRoot : .popToRoot
+    }
+}
+
 /// Вкладки нижней панели (SPEC §4.5): Главная · Медиатека · Поиск · Профиль.
 enum Tab: String, CaseIterable, Identifiable {
     case home, library, search, profile

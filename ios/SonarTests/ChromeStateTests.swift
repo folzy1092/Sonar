@@ -35,6 +35,24 @@ final class ChromeStateTests: XCTestCase {
     }
 }
 
+final class TabTapTests: XCTestCase {
+    func testOtherTabIsSelected() {
+        XCTAssertEqual(TabTap.of(.library, current: .home, collapsed: false), .select)
+        XCTAssertEqual(TabTap.of(.search, current: .profile, collapsed: true), .select)
+    }
+
+    func testCurrentTabGoesToRoot() {
+        XCTAssertEqual(TabTap.of(.profile, current: .profile, collapsed: false), .popToRoot)
+    }
+
+    func testCollapsedCircleGoesToRootAndExpands() {
+        for tab in Tab.allCases {
+            XCTAssertEqual(TabTap.of(tab, current: tab, collapsed: true), .expandAndPopToRoot,
+                           "левый круг свёрнутой панели ведёт в корень вкладки, а не только разворачивает панель")
+        }
+    }
+}
+
 @MainActor
 final class ChromeExpandTests: XCTestCase {
     func testExpandButtonDoesNotRecollapseAtOnce() {
