@@ -187,7 +187,7 @@ mod tests {
 
   #[test]
   fn switching_sync_target_resets_cursors() {
-    let s = Store::memory().unwrap();
+    let mut s = Store::memory().unwrap();
     s.sync_target("lan").unwrap();
     s.set_pulled_rev(7).unwrap();
     s.mark_pushed(5).unwrap();
@@ -196,5 +196,23 @@ mod tests {
     s.sync_target("server").unwrap();
     assert_eq!(s.pulled_rev().unwrap(), 0);
     assert!(s.pending_ops(10).is_ok());
+  }
+
+  #[test]
+  fn switching_sync_target_resends_rows_that_came_back_as_echo() {
+    let mut s = Store::memory().unwrap();
+    s.sync_target("server").unwrap();
+    s.set_like("sc:1", true).unwrap();
+    let plan = s.pending_ops(10).unwrap();
+    s.mark_pushed(plan.upto).unwrap();
+    // сервер вернул наше же изменение: строка стала rev = 0, как пришедшая
+    let echo = Change { kind: "like".into(), key: "sc:1".into(), value: Some(json!({ "kind": "track", "added_at": 1 })), rev: 3 };
+    s.apply_changes(&[echo]).unwrap();
+    assert!(s.pending_ops(10).unwrap().ops.is_empty());
+    s.sync_target("lan").unwrap();
+    let again = s.pending_ops(10).unwrap();
+    assert_eq!(again.ops.iter().map(|o| o.key.as_str()).collect::<Vec<_>>(), vec!["sc:1"], "новая сторона получит всё");
+    s.mark_pushed(again.upto).unwrap();
+    assert!(s.pending_ops(10).unwrap().ops.is_empty(), "после отправки снова тихо");
   }
 }

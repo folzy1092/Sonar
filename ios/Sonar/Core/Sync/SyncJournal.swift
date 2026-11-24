@@ -62,9 +62,11 @@ struct SyncJournal: Codable, Equatable, Sendable {
         try c.encodeIfPresent(target, forKey: .target)
     }
 
-    /// Сменить сторону обмена. Новая не видела ни нашего `pushedRev`, ни своего `rev` — отправляем всё своё
-    /// заново и забираем всё её (повтор безопасен: сервер и ПК узнают `op_id`). Прослушивания не трогаем —
-    /// ПК их не берёт, метка `playsUploadedAt` только про сервер. Вернёт, сменилась ли сторона.
+    /// Сменить сторону обмена. Новая не видела ни нашего `pushedRev`, ни своего `rev` — отправляем всё
+    /// заново и забираем всё её (повтор безопасен: сторона узнаёт значение). Строки с `rev = 0` — пришедшие
+    /// и наше же эхо от прежней стороны — получают свежий `rev`, иначе сброс `pushedRev` их не поднимет
+    /// (как `Store::sync_target` на ПК). Прослушивания не трогаем — ПК их не берёт, метка `playsUploadedAt`
+    /// только про сервер. Вернёт, сменилась ли сторона.
     @discardableResult
     mutating func use(target tag: String) -> Bool {
         if (target ?? "server") == tag {
@@ -72,6 +74,10 @@ struct SyncJournal: Codable, Equatable, Sendable {
             return false
         }
         target = tag
+        for key in rows.keys.sorted() where rows[key]?.rev == 0 {
+            rev += 1
+            rows[key]?.rev = rev
+        }
         pushedRev = 0
         pulledRev = 0
         return true

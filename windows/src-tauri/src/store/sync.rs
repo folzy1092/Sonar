@@ -19,6 +19,9 @@ use serde_json::{json, Value};
 
 const DAY: i64 = 24 * 3600 * 1000;
 
+/// Таблицы, строки которых уходят в синк (`pending_ops`): у каждой свой `rev`.
+const SYNCED_TABLES: &[&str] = &["likes", "playlists", "playlist_items", "settings", "dislikes", "track_prefs", "wave_events"];
+
 /// Настройки, которые остаются на устройстве (SETTINGS.md, столбец sync = «нет», и всё системное).
 const LOCAL_SETTINGS: &[&str] = &[
   "general.language",
@@ -287,10 +290,22 @@ impl Store {
 
   /// С кем синхронизируемся: `server` (сервер Sonar) или `lan` (ПК сам себе хаб по Wi‑Fi, `store/hub.rs`).
   /// Сменился — курсоры обнуляются: новой стороне нужна вся история, а не хвост после чужого `rev`.
-  pub fn sync_target(&self, target: &str) -> Result<()> {
+  /// Строки с `rev = 0` (пришедшие и наше же эхо от прежней стороны) получают свежий `rev` — иначе сброс
+  /// `pushed_rev` их не поднимет и новая сторона их не увидит. Повтор безопасен: сторона узнаёт значение.
+  pub fn sync_target(&mut self, target: &str) -> Result<()> {
     if self.state("sync_target")?.as_deref() == Some(target) {
       return Ok(());
     }
+    let tx = self.db.transaction()?;
+    for table in SYNCED_TABLES {
+      let ids: Vec<i64> =
+        tx.prepare(&format!("SELECT rowid FROM {table} WHERE rev = 0 ORDER BY rowid"))?.query_map([], |r| r.get(0))?.collect::<Result<_, _>>()?;
+      for id in ids {
+        let rev: i64 = tx.query_row("UPDATE sync_rev SET value = value + 1 WHERE id = 1 RETURNING value", [], |r| r.get(0))?;
+        tx.execute(&format!("UPDATE {table} SET rev = ?1 WHERE rowid = ?2"), params![rev, id])?;
+      }
+    }
+    tx.commit()?;
     self.set_state("pushed_rev", "0")?;
     self.set_state("pulled_rev", "0")?;
     self.set_state("sync_target", target)
