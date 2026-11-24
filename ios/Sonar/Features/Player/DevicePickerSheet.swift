@@ -52,6 +52,11 @@ struct DevicePickerSheet: View {
                     codeEntry
                         .transition(.opacity.combined(with: .offset(y: 10)))
                 }
+                if let pc = syncPC {
+                    LANSyncCard(pc: pc)
+                        .padding(.top, 14)
+                        .transition(.opacity.combined(with: .offset(y: 10)))
+                }
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 24)
@@ -69,6 +74,12 @@ struct DevicePickerSheet: View {
             codeFocused = phase == .needsCode
             if phase == .connected { code = "" }
         }
+    }
+
+    /// ПК, с которым идёт синк по Wi‑Fi (пока нет сервера), — для карточки синка.
+    private var syncPC: RemoteSyncPC? {
+        guard let pc = RemoteSyncPC.load(), SyncService.shared.currentTarget() == .lan(pcID: pc.id) else { return nil }
+        return pc
     }
 
     /// Что с выбранным ПК.

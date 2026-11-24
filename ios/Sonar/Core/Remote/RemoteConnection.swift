@@ -16,12 +16,12 @@ final class RemoteConnection {
     private let onEvent: @MainActor (Event) -> Void
     private var closed = false
 
-    init(to pc: RemotePC, onEvent: @escaping @MainActor (Event) -> Void) {
+    /// `maxMessage` — пульту хватает 64 КБ (как MAX_MESSAGE на ПК), синку нужно больше (`RemoteSync.maxMessage`).
+    init(to pc: RemotePC, maxMessage: Int = 64 * 1024, onEvent: @escaping @MainActor (Event) -> Void) {
         self.onEvent = onEvent
         let websocket = NWProtocolWebSocket.Options()
         websocket.autoReplyPing = true
-        // как MAX_MESSAGE на ПК
-        websocket.maximumMessageSize = 64 * 1024
+        websocket.maximumMessageSize = maxMessage
         let parameters = NWParameters.tcp
         parameters.includePeerToPeer = false
         parameters.defaultProtocolStack.applicationProtocols.insert(websocket, at: 0)

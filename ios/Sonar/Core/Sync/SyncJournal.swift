@@ -25,9 +25,11 @@ struct SyncJournal: Codable, Equatable, Sendable {
     var pulledRev = 0
     /// Прослушивания до этого момента (мс) уже ушли в `POST /plays`.
     var playsUploadedAt: Int64 = 0
+    /// С кем идёт обмен (`SyncTarget.tag`: сервер или ПК по Wi‑Fi). `nil` — журнал до синка по Wi‑Fi, был только сервер.
+    private(set) var target: String?
 
     enum CodingKeys: String, CodingKey {
-        case rows, rev, pushedRev, pulledRev, playsUploadedAt
+        case rows, rev, pushedRev, pulledRev, playsUploadedAt, target
     }
 
     init() {}
@@ -47,6 +49,7 @@ struct SyncJournal: Codable, Equatable, Sendable {
         pushedRev = try c.decodeIfPresent(Int.self, forKey: .pushedRev) ?? 0
         pulledRev = try c.decodeIfPresent(Int.self, forKey: .pulledRev) ?? 0
         playsUploadedAt = try c.decodeIfPresent(Int64.self, forKey: .playsUploadedAt) ?? 0
+        target = try c.decodeIfPresent(String.self, forKey: .target)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -56,6 +59,22 @@ struct SyncJournal: Codable, Equatable, Sendable {
         try c.encode(pushedRev, forKey: .pushedRev)
         try c.encode(pulledRev, forKey: .pulledRev)
         try c.encode(playsUploadedAt, forKey: .playsUploadedAt)
+        try c.encodeIfPresent(target, forKey: .target)
+    }
+
+    /// Сменить сторону обмена. Новая не видела ни нашего `pushedRev`, ни своего `rev` — отправляем всё своё
+    /// заново и забираем всё её (повтор безопасен: сервер и ПК узнают `op_id`). Прослушивания не трогаем —
+    /// ПК их не берёт, метка `playsUploadedAt` только про сервер. Вернёт, сменилась ли сторона.
+    @discardableResult
+    mutating func use(target tag: String) -> Bool {
+        if (target ?? "server") == tag {
+            target = tag
+            return false
+        }
+        target = tag
+        pushedRev = 0
+        pulledRev = 0
+        return true
     }
 
     // MARK: чтение

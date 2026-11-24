@@ -238,6 +238,9 @@ final class RemoteControl {
     }
 
     private func loggedIn(_ pc: RemotePCInfo) {
+        // пока нет сервера, синк идёт с этим ПК (SyncService → LANSyncTransport)
+        RemoteSyncPC.save(RemoteSyncPC(id: pc.id, name: pc.name))
+        SyncService.shared.start()
         phase = .connected
         retries = 0
         codeError = nil
@@ -256,7 +259,10 @@ final class RemoteControl {
         disconnect()
         switch code {
         case "not_paired":
-            if let pc = target { Keychain.set(nil, service: Self.keychainService, account: Self.keyAccount(pc.id)) }
+            if let pc = target {
+                Keychain.set(nil, service: Self.keychainService, account: Self.keyAccount(pc.id))
+                RemoteSyncPC.forget(pc.id)
+            }
             state = nil
             phase = .needsCode
         case "bad_code", "no_code", "code_expired", "code_burned":
@@ -274,6 +280,7 @@ final class RemoteControl {
         state = nil
         if reason == "unpaired", let pc = target {
             Keychain.set(nil, service: Self.keychainService, account: Self.keyAccount(pc.id))
+            RemoteSyncPC.forget(pc.id)
             phase = .needsCode
             PlaybackEngine.shared.message = t("{name} отвязал этот телефон", ["name": pc.name])
         } else {
@@ -329,12 +336,13 @@ final class RemoteControl {
 
     private static func keyAccount(_ pcID: String) -> String { "key.\(pcID)" }
 
-    private static func key(for pcID: String) -> String? {
+    /// Ключ входа к этому ПК (пульт и синк по Wi‑Fi — `LANSyncTransport`).
+    static func key(for pcID: String) -> String? {
         Keychain.string(service: keychainService, account: keyAccount(pcID)).flatMap { RemoteProtocol.isKey($0) ? $0 : nil }
     }
 
     /// Этот телефон для ПК: постоянный id (из Связки ключей) и имя устройства.
-    private static var device: RemoteDevice {
+    static var device: RemoteDevice {
         RemoteDevice(id: deviceID(), name: RemoteProtocol.cleanName(UIDevice.current.name))
     }
 

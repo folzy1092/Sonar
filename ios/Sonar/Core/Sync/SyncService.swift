@@ -1,9 +1,10 @@
 import Foundation
 import Observation
 
-/// Синк в приложении: обмен раз в 2 минуты и через несколько секунд после своей правки — **только
-/// если `AccountStore.serverEnabled` и вошли**. Без сервера не делает ничего (ни одного запроса, журнал
-/// не ведётся). Запуск — `SyncService.shared.start()` при старте приложения.
+/// Синк в приложении: обмен раз в 2 минуты и через несколько секунд после своей правки. С кем — `SyncTarget`:
+/// сервер Sonar, если он включён и вошли; пока сервера нет — ПК, к которому телефон привязан пультом (синк по
+/// Wi‑Fi, `LANSyncTransport`); ни того ни другого или офлайн-режим — не делает ничего (ни одного запроса).
+/// Запуск — `SyncService.shared.start()` при старте приложения и после входа пульта.
 @MainActor
 @Observable
 final class SyncService {
@@ -16,6 +17,8 @@ final class SyncService {
     private(set) var lastSyncAt: Date?
     private(set) var lastReport: SyncReport?
     private(set) var lastError: String?
+    /// С кем был последний обмен (для настроек).
+    private(set) var target: SyncTarget = .none
 
     /// Неотправленных строк.
     var pending: Int { engine?.journal.pendingCount ?? 0 }
@@ -29,12 +32,18 @@ final class SyncService {
         self.account = account ?? .shared
     }
 
-    /// Поднять синк, если сервер включён и вошли; иначе — ничего. Можно звать повторно (вход / выход).
+    /// С кем синкаться сейчас.
+    func currentTarget() -> SyncTarget {
+        SyncTarget.choose(serverReady: account.enabled() && account.signedIn, offline: OfflineFlag.isOn,
+                          pc: RemoteSyncPC.load(), hasKey: { RemoteControl.key(for: $0) != nil })
+    }
+
+    /// Поднять синк, если есть с кем; иначе — ничего. Можно звать повторно (вход / выход, привязка пульта).
     func start() {
         account.onSessionChange = { [weak self] signedIn in
             if signedIn { self?.start() } else { self?.stopAndForget() }
         }
-        guard account.enabled(), account.signedIn else {
+        guard currentTarget() != .none else {
             stop()
             return
         }
@@ -66,16 +75,35 @@ final class SyncService {
 
     /// Обмен сейчас (кнопка «Синхронизировать»).
     func syncNow() async {
-        guard !syncing, let engine, let base = account.apiBaseURL, let token = account.sessionToken else { return }
+        let target = currentTarget()
+        guard !syncing, let engine, let tag = target.tag else { return }
         syncing = true
         defer { syncing = false }
+        engine.use(target: tag)
+        self.target = target
         do {
-            let report = try await engine.syncOnce(HTTPSyncTransport(client: APIClient(base: base, token: token)))
-            lastReport = report
+            switch target {
+            case .server:
+                guard let base = account.apiBaseURL, let token = account.sessionToken else { return }
+                lastReport = try await engine.syncOnce(HTTPSyncTransport(client: APIClient(base: base, token: token)))
+            case let .lan(pcID):
+                guard let key = RemoteControl.key(for: pcID) else { return }
+                let transport = LANSyncTransport(pcID: pcID, key: key, device: RemoteControl.device,
+                                                 known: RemoteControl.shared.target)
+                defer { transport.close() }
+                lastReport = try await engine.syncOnce(transport)
+            case .none:
+                return
+            }
             lastSyncAt = Date()
             lastError = nil
         } catch let error as APIError where error.isUnauthorized {
             account.signedOut()
+        } catch RemoteSyncError.refused("not_paired") {
+            // ключ пульта больше не подходит — не стучимся каждые 2 минуты, пока не привяжут заново
+            if case let .lan(pcID) = target { RemoteSyncPC.forget(pcID) }
+            lastError = RemoteSyncError.refused("not_paired").localizedDescription
+            stop()
         } catch {
             lastError = error.localizedDescription
         }

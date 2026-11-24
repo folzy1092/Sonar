@@ -18,6 +18,12 @@ protocol SyncTransport: Sendable {
     func push(_ ops: [SyncOp]) async throws -> SyncPushReply
     func pull(since: Int) async throws -> SyncPullReply
     func plays(_ plays: [PlayUpload]) async throws -> Int
+    /// Шлёт ли эта сторона прослушивания. ПК по Wi‑Fi — нет: они ждут сервер (`LANSyncTransport`).
+    var sendsPlays: Bool { get }
+}
+
+extension SyncTransport {
+    var sendsPlays: Bool { true }
 }
 
 /// Обмен с сервером — порт `sync_once` (Windows `sync.rs`): отправить своё пачками, отправить
@@ -122,7 +128,7 @@ final class SyncEngine {
             markPushed(plan.upto)
             if plan.ops.count < Self.pushBatch { break }
         }
-        if let playsSource {
+        if let playsSource, transport.sendsPlays {
             while true {
                 let batch = Array(playsSource(journal.playsUploadedAt).prefix(Self.playsBatch))
                 guard let last = batch.last?.playedAt else { break }
@@ -140,6 +146,11 @@ final class SyncEngine {
             save()
         }
         return report
+    }
+
+    /// С кем обмен (`SyncTarget.tag`): сменилась сторона — курсоры с нуля.
+    func use(target tag: String) {
+        if journal.use(target: tag) { save() }
     }
 
     /// Выход из аккаунта.
