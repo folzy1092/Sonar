@@ -95,8 +95,8 @@ pub fn run() {
 
       let core = Arc::new(Core::new());
       set_sc_hooks(&core, app.handle());
-      // access_key треков VK: без него чужой трек VK после перезапуска не играет
-      core.open_vk_keys(dir.join("vk-keys.json"));
+      // VK убран (2026-11-25): access_key его треков больше не нужны
+      let _ = std::fs::remove_file(dir.join("vk-keys.json"));
       if let Ok(Some(v)) = db.setting("audio.sc_via_yandex") {
         core.sc_via_yandex.store(v.as_bool().unwrap_or(false), std::sync::atomic::Ordering::Relaxed);
       }

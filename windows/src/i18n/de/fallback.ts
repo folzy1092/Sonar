@@ -8,7 +8,8 @@ export default {
   'Порядок резервных сервисов': 'Reihenfolge der Ersatzdienste',
   'Где искать трек сначала — перетащи сервисы': 'Wo der Titel zuerst gesucht wird – zieh die Dienste',
   'Трек недоступен, есть только отрывок или нужна подписка — Sonar найдёт его в другом сервисе (исполнитель, название и длительность совпадают) и скажет, откуда играет.': 'Ist ein Titel nicht verfügbar, nur als Ausschnitt oder nur mit Abo da, sucht Sonar ihn in einem anderen Dienst (gleicher Künstler, Titel und Länge) und sagt dir, woher er läuft.',
-  'Где искать трек сначала — перетащи сервисы. Яндекс Музыка и VK Музыка ищутся, только если подключены.': 'Wo der Titel zuerst gesucht wird – zieh die Dienste. Yandex Music und VK Music werden nur durchsucht, wenn sie verbunden sind.',
+  'Где искать трек сначала — перетащи сервисы. Яндекс Музыка ищется, только если подключена.':
+    'Wo der Titel zuerst gesucht wird – zieh die Dienste. Yandex Music wird nur durchsucht, wenn es verbunden ist.',
   'Настройки → Аудио': 'Einstellungen → Audio',
   'SoundCloud: доступен только отрывок': 'SoundCloud: nur ein Ausschnitt verfügbar',
   'Яндекс Музыка: доступно только превью': 'Yandex Music: nur eine Vorschau verfügbar',

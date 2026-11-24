@@ -14,7 +14,8 @@ export default {
   'Не нашёлся': 'Nie znaleziono',
   'Как есть': 'Bez zmian',
   'Перенести по ссылке': 'Przenieś z linku',
-  'Плейлист или альбом Spotify, YouTube Music, VK, Яндекса, SoundCloud или Apple Music — Sonar найдёт треки в твоих сервисах.': 'Playlista lub album ze Spotify, YouTube Music, VK, Yandex, SoundCloud albo Apple Music — Sonar znajdzie utwory w twoich serwisach.',
+  'Плейлист или альбом Spotify, YouTube Music, Яндекса, SoundCloud или Apple Music — Sonar найдёт треки в твоих сервисах.':
+    'Playlista lub album ze Spotify, YouTube Music, Yandex, SoundCloud albo Apple Music — Sonar znajdzie utwory w twoich serwisach.',
   'Перенести': 'Przenieś',
   'Перенести с подбором': 'Przenieś z dopasowaniem',
   'Каждому треку — пара в подключённых сервисах': 'Dopasuj każdy utwór w połączonych serwisach',
@@ -29,6 +30,5 @@ export default {
   'Apple Music: не разобрал страницу': 'Apple Music: nie udało się odczytać strony',
   'Apple Music: на странице нет шапки плейлиста': 'Apple Music: na stronie nie ma nagłówka playlisty',
   'YouTube Music: ссылки на отдельные треки пока не открываются — вставь ссылку на плейлист или альбом': 'YouTube Music: linki do pojedynczych utworów jeszcze się nie otwierają — wklej link do playlisty lub albumu',
-  'VK Музыка: ссылки на отдельные треки пока не открываются — вставь ссылку на плейлист или альбом': 'VK Music: linki do pojedynczych utworów jeszcze się nie otwierają — wklej link do playlisty lub albumu',
   'Spotify: ссылки на отдельные треки пока не открываются — вставь ссылку на плейлист или альбом': 'Spotify: linki do pojedynczych utworów jeszcze się nie otwierają — wklej link do playlisty lub albumu',
 } satisfies Record<string, string>

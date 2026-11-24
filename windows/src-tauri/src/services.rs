@@ -3,9 +3,9 @@
 
 use crate::providers::registry::{by_key, parse_ref, split_ref, RefKind, ServiceId, ServiceInfo, REGISTRY};
 use crate::providers::{
-  soundcloud, spotify, vk as vk_api, yandex, youtube, Account, Album, AlbumPage, Artist, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track,
+  soundcloud, spotify, yandex, youtube, Account, Album, AlbumPage, Artist, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track,
 };
-use crate::providers::unplayable::{preview_of, Unplayable};
+use crate::providers::unplayable::{preview_of, unavailable, Unplayable};
 use crate::secrets;
 use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
@@ -23,13 +23,11 @@ mod provider;
 mod sc;
 mod sc_repair;
 mod sp;
-mod vk;
-mod vk_keys;
 mod ym;
 mod yt;
 pub use provider::{AnyProvider, Provider};
 
-/// Ссылки SoundCloud, Яндекса и VK живут минуты — держим чуть меньше, при 403 берём заново.
+/// Ссылки SoundCloud и Яндекса живут минуты — держим чуть меньше, при 403 берём заново.
 const STREAM_TTL: Duration = Duration::from_secs(240);
 
 /// Что нашлось по ссылке из строки поиска.
@@ -59,13 +57,18 @@ pub struct ServiceStatus {
   pub premium: Option<bool>,
 }
 
-/// Итог «Проверить сервисы» по одному сервису: `service` — ключ реестра (`soundcloud`, `vk`…).
+/// Итог «Проверить сервисы» по одному сервису: `service` — ключ реестра (`soundcloud`, `yandex`…).
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct ServiceCheck {
   pub service: &'static str,
   pub ok: bool,
   pub ms: u64,
   pub error: Option<String>,
+}
+
+/// Ошибка убранного сервиса (VK, решение владельца 2026-11-25): «недоступен», чтобы резерв нашёл трек в другом.
+fn retired(id: ServiceId) -> anyhow::Error {
+  unavailable(format!("{} убрана из Sonar", crate::providers::registry::info(id).name))
 }
 
 /// Проверка сервиса — обычный поиск этой строки.
@@ -77,7 +80,6 @@ pub struct ServicesStatus {
   pub soundcloud: ServiceStatus,
   pub yandex: ServiceStatus,
   pub youtube: ServiceStatus,
-  pub vk: ServiceStatus,
   pub spotify: ServiceStatus,
 }
 
@@ -112,11 +114,6 @@ pub struct Core {
   yt_visitor: RwLock<Option<String>>,
   /// «YouTube Music: Высокое» (`audio.yt_quality`, по умолчанию): Opus вместо AAC 128.
   pub yt_high: AtomicBool,
-  vk: RwLock<Option<Stored<vk_api::Creds>>>,
-  /// Ссылки на поток, которые VK отдал вместе с треками, и когда (services/vk.rs).
-  vk_seen: Mutex<HashMap<String, (String, Instant)>>,
-  /// access_key треков VK — на диске, переживают перезапуск (services/vk_keys.rs).
-  vk_keys: Mutex<vk_keys::VkKeys>,
   sp: RwLock<Option<Stored<spotify::Creds>>>,
   /// Токен веб-плеера Spotify (живёт около часа) — общий для всех запросов.
   sp_token: tokio::sync::Mutex<Option<spotify::WebToken>>,
@@ -181,9 +178,6 @@ impl Core {
       yt: RwLock::new(secrets::load(ServiceId::Yt.key())),
       yt_visitor: RwLock::new(None),
       yt_high: AtomicBool::new(yt_high(None)),
-      vk: RwLock::new(secrets::load(ServiceId::Vk.key())),
-      vk_seen: Mutex::new(HashMap::new()),
-      vk_keys: Mutex::new(vk_keys::VkKeys::memory()),
       sp: RwLock::new(secrets::load(ServiceId::Sp.key())),
       sp_token: tokio::sync::Mutex::new(None),
       sp_totp: spotify::TotpStore::default(),
@@ -270,9 +264,6 @@ impl Core {
       yt: RwLock::new(None),
       yt_visitor: RwLock::new(None),
       yt_high: AtomicBool::new(yt_high(None)),
-      vk: RwLock::new(None),
-      vk_seen: Mutex::new(HashMap::new()),
-      vk_keys: Mutex::new(vk_keys::VkKeys::memory()),
       sp: RwLock::new(None),
       sp_token: tokio::sync::Mutex::new(None),
       sp_totp: spotify::TotpStore::default(),
@@ -294,7 +285,6 @@ impl Core {
       soundcloud: status(&*self.sc.read().await),
       yandex: status(&*self.ym.read().await),
       youtube: status(&*self.yt.read().await),
-      vk: status(&*self.vk.read().await),
       spotify: status(&*self.sp.read().await),
     }
   }
@@ -307,7 +297,6 @@ impl Core {
       ServiceId::Sc => st.soundcloud.connected,
       ServiceId::Ym => st.yandex.connected,
       ServiceId::Yt => st.youtube.connected,
-      ServiceId::Vk => st.vk.connected,
       ServiceId::Sp => st.spotify.connected,
       _ => false,
     };
@@ -326,7 +315,7 @@ impl Core {
 
   /// Все сервисы реестра по порядку; у работающих — подключён ли и чей аккаунт.
   pub async fn list(&self) -> Vec<ServiceEntry> {
-    let ServicesStatus { soundcloud, yandex, youtube, vk, spotify } = self.status().await;
+    let ServicesStatus { soundcloud, yandex, youtube, spotify } = self.status().await;
     REGISTRY
       .iter()
       .map(|info| {
@@ -334,7 +323,6 @@ impl Core {
           ServiceId::Sc => soundcloud.clone(),
           ServiceId::Ym => yandex.clone(),
           ServiceId::Yt => youtube.clone(),
-          ServiceId::Vk => vk.clone(),
           ServiceId::Sp => spotify.clone(),
           _ => ServiceStatus::default(),
         };
@@ -383,44 +371,25 @@ impl Core {
     self.streams.lock().unwrap().clear();
   }
 
-  /// Токен VK (`vk1.a.…`): проверяем, что он живой и что ему открыта музыка, и кладём в keyring.
-  pub async fn connect_vk(&self, creds: vk_api::Creds) -> Result<ServiceStatus> {
-    let creds = vk_api::Creds { token: creds.token.trim().to_owned() };
-    if creds.token.is_empty() {
-      bail!("Вставь токен VK");
-    }
-    let account = vk_api::Vk { http: &self.http(), creds: &creds }.account().await?;
-    let stored = Stored { creds, account };
-    secrets::save(ServiceId::Vk.key(), &stored)?;
-    *self.vk.write().await = Some(stored.clone());
-    self.streams.lock().unwrap().clear();
-    self.vk_seen.lock().unwrap().clear();
-    Ok(status(&Some(stored)))
-  }
-
   pub async fn disconnect(&self, service: &str) -> Result<()> {
     let Some(info) = by_key(service) else { bail!("неизвестный сервис {service}") };
     match info.id {
       ServiceId::Sc => *self.sc.write().await = None,
       ServiceId::Ym => *self.ym.write().await = None,
       ServiceId::Yt => *self.yt.write().await = None,
-      ServiceId::Vk => {
-        *self.vk.write().await = None;
-        self.vk_seen.lock().unwrap().clear();
-      }
       ServiceId::Sp => self.forget_spotify().await,
       _ => bail!("неизвестный сервис {service}"),
     }
     secrets::delete(info.key)
   }
 
-  /// Клиент сервиса по id (реализованы все сервисы реестра).
+  /// Клиент сервиса по id; убранный сервис (VK) — «недоступен», чтобы трек ушёл в резерв.
   pub fn provider(&self, id: ServiceId) -> Result<AnyProvider<'_>> {
     match id {
       ServiceId::Sc => Ok(AnyProvider::Sc(sc::ScProvider { core: self })),
       ServiceId::Ym => Ok(AnyProvider::Ym(ym::YmProvider { core: self })),
       ServiceId::Yt => Ok(AnyProvider::Yt(yt::YtProvider { core: self })),
-      ServiceId::Vk => Ok(AnyProvider::Vk(vk::VkProvider { core: self })),
+      ServiceId::Vk => Err(retired(id)),
       ServiceId::Local => Ok(AnyProvider::Local(local::LocalProvider { core: self })),
       ServiceId::Sp => Ok(AnyProvider::Sp(sp::SpProvider { core: self })),
     }
@@ -432,12 +401,13 @@ impl Core {
     self.provider(info.id)
   }
 
-  /// Сервис и id объекта по ref вида `kind`. Без `:` — «плохой ref», чужой вид или
-  /// неработающий сервис — `{unknown} {ref}`.
+  /// Сервис и id объекта по ref вида `kind`. Без `:` — «плохой ref», убранный сервис — «недоступен»
+  /// (резерв ищет трек в другом сервисе), чужой вид или неработающий сервис — `{unknown} {ref}`.
   fn route<'r>(&self, r: &'r str, kind: RefKind, unknown: &str) -> Result<(AnyProvider<'_>, &'r str)> {
     let (_, id) = split_ref(r).ok_or_else(|| anyhow!("плохой ref {r}"))?;
     match parse_ref(r) {
       Some((s, k)) if k == kind && s.implemented => Ok((self.provider(s.id)?, id)),
+      Some((s, k)) if k == kind && s.id == ServiceId::Vk => Err(retired(s.id)),
       _ => bail!("{unknown} {r}"),
     }
   }
@@ -614,11 +584,6 @@ impl Core {
     self.ym.read().await.is_some()
   }
 
-  /// VK подключён — его лайки и треки годятся для волны.
-  pub async fn has_vk(&self) -> bool {
-    self.vk.read().await.is_some()
-  }
-
   /// Альбомы исполнителя (для «Релизов» на главной).
   pub async fn artist_albums(&self, artist_ref: &str) -> Result<Vec<Album>> {
     let (p, id) = self.route(artist_ref, RefKind::Artist, "неизвестный исполнитель")?;
@@ -665,6 +630,9 @@ impl Core {
   /// `service` — короткий id (`sc`) или ключ (`soundcloud`).
   pub async fn service_playlists(&self, service: &str) -> Result<Vec<ServicePlaylist>> {
     let info = by_key(service).ok_or_else(|| anyhow!("неизвестный сервис {service}"))?;
+    if !info.implemented {
+      return Ok(Vec::new());
+    }
     self.provider(info.id)?.playlists().await
   }
 
@@ -824,7 +792,7 @@ mod tests {
     assert_eq!(core.provider(ServiceId::Sc).unwrap().id(), ServiceId::Sc);
     assert_eq!(core.provider(ServiceId::Ym).unwrap().id(), ServiceId::Ym);
     assert_eq!(core.provider(ServiceId::Yt).unwrap().id(), ServiceId::Yt);
-    assert_eq!(core.provider(ServiceId::Vk).unwrap().id(), ServiceId::Vk);
+    assert!(core.provider(ServiceId::Vk).is_err(), "VK убран");
     assert_eq!(core.provider(ServiceId::Local).unwrap().id(), ServiceId::Local);
     assert_eq!(core.provider(ServiceId::Sp).unwrap().id(), ServiceId::Sp);
   }
@@ -917,83 +885,20 @@ mod tests {
     assert_eq!(err_text(core.resolve("ym:1", true).await), "Яндекс Музыка не подключена");
   }
 
-  /// Без VK ветки vk доходят до своего провайдера и отвечают без сети.
+  /// Убранный VK: старые `vk:` и `vkpl:` не ходят в сеть, а отвечают «недоступен» — резерв берёт трек
+  /// в другом сервисе; поиск по VK — неизвестный источник.
   #[tokio::test]
-  async fn vk_dispatch_without_account() {
+  async fn retired_vk_is_unavailable() {
     let core = Core::new_empty();
-    let not_connected = "VK Музыка не подключена — открой Настройки → Сервисы";
-    assert_eq!(err_text(core.search("x", "vk", 5).await), not_connected);
-    assert_eq!(err_text(core.search_more("x", "vk", 5).await), not_connected);
-    assert_eq!(err_text(core.artist_page("vka:1").await), not_connected);
-    assert_eq!(err_text(core.artist_tracks("vka:1").await), not_connected);
-    assert_eq!(err_text(core.artist_albums("vka:1").await), not_connected);
-    assert_eq!(err_text(core.album_page("vkalb:-1_2_ab").await), not_connected);
-    assert_eq!(err_text(core.similar("vk:1_2", 5).await), not_connected);
-    assert_eq!(err_text(core.service_playlist("vkpl:1_2").await), not_connected);
-    assert_eq!(err_text(core.service_playlist("vkpl:likes").await), "VK Музыка не подключена");
-    assert_eq!(err_text(core.service_playlist("vkpl:x").await), "плохой ref vkpl:x");
-    assert_eq!(err_text(core.resolve("vk:1_2", false).await), "VK Музыка не подключена");
-    assert_eq!(err_text(core.resolve("vk:1_2_key", true).await), "плохой ref vk:1_2_key");
+    let gone = "VK Музыка убрана из Sonar";
+    let e = core.resolve_own("vk:-1_2", false).await.unwrap_err();
+    assert_eq!(e.to_string(), gone);
+    assert_eq!(crate::providers::unplayable::reason_of(&e), crate::providers::unplayable::Reason::Unavailable, "резерв видит причину");
+    assert_eq!(err_text(core.service_playlist("vkpl:1_2").await), gone);
+    assert_eq!(err_text(core.album_page("vkalb:-1_2_ab").await), gone);
+    assert_eq!(err_text(core.search("x", "vk", 5).await), gone);
     assert!(core.service_playlists("vk").await.unwrap().is_empty());
-    assert_eq!(core.status().await.vk.connected, false);
-  }
-
-  /// Ссылка из поиска играет без второго запроса к VK; протухла (`fresh`) — идём в VK.
-  #[tokio::test]
-  async fn vk_stream_uses_seen_url() {
-    let core = Core::new_empty();
-    let audio = |url: &str| vk_api::audio_from_json(&serde_json::json!({
-      "id": 2, "owner_id": -1, "title": "t", "artist": "a", "access_key": "k", "url": url
-    })).unwrap();
-    let tracks = core.vk_keep(vec![audio("https://cs1.vkuseraudio.net/s/v1/ac/x/index.m3u8")]);
-    assert_eq!(tracks[0].ref_, "vk:-1_2");
-    assert!(matches!(core.resolve("vk:-1_2", false).await.unwrap(), Source::Hls { .. }));
-    // fresh — к VK, а он не подключён
-    assert_eq!(err_text(core.resolve("vk:-1_2", true).await), "VK Музыка не подключена");
-    core.vk_keep(vec![audio("https://vk.com/mp3/audio_api_unavailable.mp3")]);
-    core.streams.lock().unwrap().clear();
-    assert_eq!(err_text(core.resolve("vk:-1_2", false).await), "VK Музыка: VK не отдал ссылку на трек");
-  }
-
-  /// Ссылка старше `STREAM_TTL` не берётся — идём в VK.
-  #[tokio::test]
-  async fn vk_seen_url_expires() {
-    let core = Core::new_empty();
-    let Some(old) = Instant::now().checked_sub(STREAM_TTL + Duration::from_secs(1)) else { return };
-    core.vk_seen.lock().unwrap().insert("vk:-1_2".into(), ("https://cs1.vkuseraudio.net/s/v1/ac/x/index.m3u8".into(), old));
-    assert_eq!(err_text(core.resolve("vk:-1_2", false).await), "VK Музыка не подключена");
-  }
-
-  /// После перезапуска (пустой `vk_seen`, новое ядро) access_key трека берётся с диска.
-  #[test]
-  fn vk_key_survives_restart() {
-    let dir = std::env::temp_dir().join(format!("sonar-vkrestart-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    let file = dir.join("vk-keys.json");
-    let before = Core::new_empty();
-    before.open_vk_keys(file.clone());
-    let audio = vk_api::audio_from_json(&serde_json::json!({
-      "id": 2, "owner_id": -1, "title": "t", "artist": "a", "access_key": "k7", "url": "https://cs1.vkuseraudio.net/a.mp3"
-    }))
-    .unwrap();
-    before.vk_keep(vec![audio]);
-    drop(before);
-
-    let after = Core::new_empty();
-    after.open_vk_keys(file);
-    assert!(after.vk_seen.lock().unwrap().is_empty());
-    assert_eq!(after.vk_full_id("-1_2"), "-1_2_k7");
-    assert_eq!(after.vk_full_id("-1_3"), "-1_3");
-    let _ = std::fs::remove_dir_all(&dir);
-  }
-
-  #[tokio::test]
-  async fn connect_vk_rejects_empty_token() {
-    let core = Core::new_empty();
-    let e = err_text(core.connect_vk(vk_api::Creds { token: "  ".into() }).await);
-    assert_eq!(e, "Вставь токен VK");
-    assert!(!core.status().await.vk.connected);
+    assert!(core.disconnect("vk").await.is_err());
   }
 
   #[tokio::test]
@@ -1031,7 +936,7 @@ mod tests {
     assert_eq!(json[0]["prefixes"]["playlist"], "scpl");
     assert_eq!(json[2]["caps"]["key"], true);
     assert_eq!(json[2]["implemented"], true);
-    assert_eq!(json[3]["implemented"], true);
+    assert_eq!(json[3]["implemented"], false, "VK убран");
     assert_eq!(json[4]["implemented"], true);
     assert_eq!(json[5]["icon"], Value::Null);
     assert_eq!(json[5]["prefixes"]["album"], Value::Null);

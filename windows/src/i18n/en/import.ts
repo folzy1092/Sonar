@@ -15,8 +15,8 @@ export default {
   'Не нашёлся': 'Not found',
   'Как есть': 'As is',
   'Перенести по ссылке': 'Import from a link',
-  'Плейлист или альбом Spotify, YouTube Music, VK, Яндекса, SoundCloud или Apple Music — Sonar найдёт треки в твоих сервисах.':
-    'A Spotify, YouTube Music, VK, Yandex, SoundCloud or Apple Music playlist or album — Sonar will find the tracks in your services.',
+  'Плейлист или альбом Spotify, YouTube Music, Яндекса, SoundCloud или Apple Music — Sonar найдёт треки в твоих сервисах.':
+    'A Spotify, YouTube Music, Yandex, SoundCloud or Apple Music playlist or album — Sonar will find the tracks in your services.',
   'Перенести': 'Import',
   'Перенести с подбором': 'Import with matching',
   'Каждому треку — пара в подключённых сервисах': 'Match every track in your connected services',
@@ -32,8 +32,6 @@ export default {
   'Apple Music: на странице нет шапки плейлиста': 'Apple Music: the page has no playlist header',
   'YouTube Music: ссылки на отдельные треки пока не открываются — вставь ссылку на плейлист или альбом':
     'YouTube Music: single-track links don’t open yet — paste a playlist or album link',
-  'VK Музыка: ссылки на отдельные треки пока не открываются — вставь ссылку на плейлист или альбом':
-    'VK Music: single-track links don’t open yet — paste a playlist or album link',
   'Spotify: ссылки на отдельные треки пока не открываются — вставь ссылку на плейлист или альбом':
     'Spotify: single-track links don’t open yet — paste a playlist or album link',
 }

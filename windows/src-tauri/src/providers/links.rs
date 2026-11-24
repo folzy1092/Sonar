@@ -1,7 +1,7 @@
 //! Ссылка из буфера в строке поиска (решение владельца 2026-11-16) и «Перенести по ссылке» в
 //! медиатеке (этап 5): трек, альбом, артист или плейлист SoundCloud, Яндекс Музыки, Spotify,
-//! YouTube / YouTube Music, VK и Apple Music → что это.
-//! Яндекс, Spotify, YouTube и VK разбираются по адресу; SoundCloud — через `resolve` его API (адрес —
+//! YouTube / YouTube Music и Apple Music → что это.
+//! Яндекс, Spotify и YouTube разбираются по адресу; SoundCloud — через `resolve` его API (адрес —
 //! имя пользователя и трека, id в нём нет), короткие `on.soundcloud.com` раскрываются переходом;
 //! Apple Music своего сервиса в Sonar не имеет — его страница читается только для импорта.
 
@@ -10,7 +10,7 @@ use url::Url;
 /// Что за ссылка, до похода в сеть.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Link {
-  /// Готовый ref Sonar: `ym:…`, `ymalb:…`, `sppl:…`, `ytpl:…`, `vkpl:<owner>_<id>[_<key>]` и т. д.
+  /// Готовый ref Sonar: `ym:…`, `ymalb:…`, `sppl:…`, `ytpl:…` и т. д.
   Ref(String),
   /// Ссылка SoundCloud — узнать, что за ней, можно только у API (`resolve`).
   SoundCloud(String),
@@ -21,7 +21,7 @@ pub enum Link {
 /// Хосты, по которым строка поиска узнаёт ссылку без `https://` (тот же список — в api.ts `LINK_HOSTS`).
 #[cfg(test)]
 const LINK_HOSTS: &[&str] =
-  &["soundcloud.com/", "music.yandex.", "open.spotify.com/", "youtube.com/", "youtu.be/", "vk.com/", "music.apple.com/"];
+  &["soundcloud.com/", "music.yandex.", "open.spotify.com/", "youtube.com/", "youtu.be/", "music.apple.com/"];
 
 /// Похоже ли на ссылку (то же решает строка поиска в api.ts `looksLikeLink`; здесь — для тестов).
 #[cfg(test)]
@@ -52,7 +52,6 @@ pub fn parse(raw: &str) -> Option<Link> {
   match host.as_str() {
     "open.spotify.com" | "play.spotify.com" => spotify(&parts),
     "youtube.com" | "music.youtube.com" | "youtu.be" => youtube(&host, &parts, &url),
-    "vk.com" | "vk.ru" => vk(&parts, &url),
     "music.apple.com" => apple(&parts).then(|| Link::Apple(without_query(&url))),
     _ => None,
   }
@@ -145,32 +144,6 @@ fn youtube(host: &str, parts: &[&str], url: &Url) -> Option<Link> {
   }
 }
 
-/// `<owner>_<id>[_<key>]` VK: числа и ключ из букв и цифр.
-fn vk_id(s: &str) -> Option<String> {
-  crate::providers::vk::PlaylistId::parse(s).map(|_| s.to_owned())
-}
-
-fn vk(parts: &[&str], url: &Url) -> Option<Link> {
-  // `vk.com/music?z=audio_playlist-2000_123/abc` — старый вид ссылки на плейлист
-  if let Some((_, z)) = url.query_pairs().find(|(k, _)| k == "z") {
-    if let Some(rest) = z.strip_prefix("audio_playlist") {
-      let id = rest.replacen('/', "_", 1);
-      return vk_id(&id).and_then(|id| r("vkpl", &id));
-    }
-  }
-  match parts {
-    ["music", "playlist", id, ..] => vk_id(id).and_then(|id| r("vkpl", &id)),
-    ["music", "album", id, ..] => vk_id(id).and_then(|id| r("vkalb", &id)),
-    ["artist", id, ..] => r("vka", id),
-    [one] if one.starts_with("audio_playlist") => vk_id(&one["audio_playlist".len()..]).and_then(|id| r("vkpl", &id)),
-    [one] if one.starts_with("audio") => {
-      let id = &one["audio".len()..];
-      crate::providers::vk::is_audio_id(id).then(|| Link::Ref(format!("vk:{id}")))
-    }
-    _ => None,
-  }
-}
-
 /// `music.apple.com/<страна>/playlist|album/<имя>/<id>` — с id, без библиотеки пользователя.
 fn apple(parts: &[&str]) -> bool {
   matches!(parts, [_, "playlist" | "album", _, id, ..] if !id.is_empty())
@@ -237,15 +210,10 @@ mod tests {
   }
 
   #[test]
-  fn vk_links() {
-    assert_eq!(parse("https://vk.com/music/playlist/-2000123_456_ab12cd"), r("vkpl:-2000123_456_ab12cd"));
-    assert_eq!(parse("https://vk.com/music/album/-2000123_456_ab12cd"), r("vkalb:-2000123_456_ab12cd"));
-    assert_eq!(parse("https://vk.com/music?z=audio_playlist-2000123_456/ab12cd"), r("vkpl:-2000123_456_ab12cd"));
-    assert_eq!(parse("https://vk.com/audio_playlist123_7"), r("vkpl:123_7"));
-    assert_eq!(parse("https://vk.com/audio-2001_456"), r("vk:-2001_456"));
-    assert_eq!(parse("https://vk.com/artist/zemfira"), r("vka:zemfira"));
-    assert_eq!(parse("https://vk.com/music/playlist/abc"), None);
-    assert_eq!(parse("https://vk.com/id1"), None);
+  fn vk_links_are_not_recognized() {
+    // VK убран (2026-11-25): его ссылки — не музыка Sonar
+    assert_eq!(parse("https://vk.com/music/playlist/-2000123_456_ab12cd"), None);
+    assert!(!looks_like_link("vk.com/music/playlist/1_2"));
   }
 
   #[test]
@@ -265,7 +233,6 @@ mod tests {
     assert!(looks_like_link("open.spotify.com/track/1"));
     assert!(looks_like_link("spotify:track:1"));
     assert!(looks_like_link("youtu.be/abc"));
-    assert!(looks_like_link("vk.com/music/playlist/1_2"));
     assert!(!looks_like_link("lil peep star shopping"));
   }
 }

@@ -1,7 +1,7 @@
-//! Общий вид сервиса музыки. Реализации — `sc.rs`, `ym.rs`, `yt.rs`, `vk.rs`, `sp.rs` и `local.rs`; Core выбирает
+//! Общий вид сервиса музыки. Реализации — `sc.rs`, `ym.rs`, `yt.rs`, `sp.rs` и `local.rs`; Core выбирает
 //! нужную через `AnyProvider` (перечисление, а не `dyn`: набор сервисов известен заранее).
 
-use super::{local, sc, sp, vk, ym, yt, PlaylistPage};
+use super::{local, sc, sp, ym, yt, PlaylistPage};
 use crate::providers::registry::ServiceId;
 use crate::providers::{Album, AlbumPage, ArtistPage, ArtistTrack, SearchResults, ServicePlaylist, Source, Track};
 use anyhow::Result;
@@ -30,7 +30,6 @@ pub enum AnyProvider<'a> {
   Sc(sc::ScProvider<'a>),
   Ym(ym::YmProvider<'a>),
   Yt(yt::YtProvider<'a>),
-  Vk(vk::VkProvider<'a>),
   Sp(sp::SpProvider<'a>),
   Local(local::LocalProvider<'a>),
 }
@@ -41,7 +40,6 @@ impl Provider for AnyProvider<'_> {
       AnyProvider::Sc(p) => p.id(),
       AnyProvider::Ym(p) => p.id(),
       AnyProvider::Yt(p) => p.id(),
-      AnyProvider::Vk(p) => p.id(),
       AnyProvider::Sp(p) => p.id(),
       AnyProvider::Local(p) => p.id(),
     }
@@ -52,7 +50,6 @@ impl Provider for AnyProvider<'_> {
       AnyProvider::Sc(p) => p.search(q, limit).await,
       AnyProvider::Ym(p) => p.search(q, limit).await,
       AnyProvider::Yt(p) => p.search(q, limit).await,
-      AnyProvider::Vk(p) => p.search(q, limit).await,
       AnyProvider::Sp(p) => p.search(q, limit).await,
       AnyProvider::Local(p) => p.search(q, limit).await,
     }
@@ -63,7 +60,6 @@ impl Provider for AnyProvider<'_> {
       AnyProvider::Sc(p) => p.search_more(q, limit).await,
       AnyProvider::Ym(p) => p.search_more(q, limit).await,
       AnyProvider::Yt(p) => p.search_more(q, limit).await,
-      AnyProvider::Vk(p) => p.search_more(q, limit).await,
       AnyProvider::Sp(p) => p.search_more(q, limit).await,
       AnyProvider::Local(p) => p.search_more(q, limit).await,
     }
@@ -74,7 +70,6 @@ impl Provider for AnyProvider<'_> {
       AnyProvider::Sc(p) => p.artist_page(id).await,
       AnyProvider::Ym(p) => p.artist_page(id).await,
       AnyProvider::Yt(p) => p.artist_page(id).await,
-      AnyProvider::Vk(p) => p.artist_page(id).await,
       AnyProvider::Sp(p) => p.artist_page(id).await,
       AnyProvider::Local(p) => p.artist_page(id).await,
     }
@@ -85,7 +80,6 @@ impl Provider for AnyProvider<'_> {
       AnyProvider::Sc(p) => p.artist_tracks(id).await,
       AnyProvider::Ym(p) => p.artist_tracks(id).await,
       AnyProvider::Yt(p) => p.artist_tracks(id).await,
-      AnyProvider::Vk(p) => p.artist_tracks(id).await,
       AnyProvider::Sp(p) => p.artist_tracks(id).await,
       AnyProvider::Local(p) => p.artist_tracks(id).await,
     }
@@ -96,7 +90,6 @@ impl Provider for AnyProvider<'_> {
       AnyProvider::Sc(p) => p.artist_top(id, limit).await,
       AnyProvider::Ym(p) => p.artist_top(id, limit).await,
       AnyProvider::Yt(p) => p.artist_top(id, limit).await,
-      AnyProvider::Vk(p) => p.artist_top(id, limit).await,
       AnyProvider::Sp(p) => p.artist_top(id, limit).await,
       AnyProvider::Local(p) => p.artist_top(id, limit).await,
     }
@@ -107,7 +100,6 @@ impl Provider for AnyProvider<'_> {
       AnyProvider::Sc(p) => p.artist_albums(id).await,
       AnyProvider::Ym(p) => p.artist_albums(id).await,
       AnyProvider::Yt(p) => p.artist_albums(id).await,
-      AnyProvider::Vk(p) => p.artist_albums(id).await,
       AnyProvider::Sp(p) => p.artist_albums(id).await,
       AnyProvider::Local(p) => p.artist_albums(id).await,
     }
@@ -118,7 +110,6 @@ impl Provider for AnyProvider<'_> {
       AnyProvider::Sc(p) => p.album_page(id).await,
       AnyProvider::Ym(p) => p.album_page(id).await,
       AnyProvider::Yt(p) => p.album_page(id).await,
-      AnyProvider::Vk(p) => p.album_page(id).await,
       AnyProvider::Sp(p) => p.album_page(id).await,
       AnyProvider::Local(p) => p.album_page(id).await,
     }
@@ -129,7 +120,6 @@ impl Provider for AnyProvider<'_> {
       AnyProvider::Sc(p) => p.similar(id, limit).await,
       AnyProvider::Ym(p) => p.similar(id, limit).await,
       AnyProvider::Yt(p) => p.similar(id, limit).await,
-      AnyProvider::Vk(p) => p.similar(id, limit).await,
       AnyProvider::Sp(p) => p.similar(id, limit).await,
       AnyProvider::Local(p) => p.similar(id, limit).await,
     }
@@ -140,7 +130,6 @@ impl Provider for AnyProvider<'_> {
       AnyProvider::Sc(p) => p.stream(id, fresh).await,
       AnyProvider::Ym(p) => p.stream(id, fresh).await,
       AnyProvider::Yt(p) => p.stream(id, fresh).await,
-      AnyProvider::Vk(p) => p.stream(id, fresh).await,
       AnyProvider::Sp(p) => p.stream(id, fresh).await,
       AnyProvider::Local(p) => p.stream(id, fresh).await,
     }
@@ -151,7 +140,6 @@ impl Provider for AnyProvider<'_> {
       AnyProvider::Sc(p) => p.playlists().await,
       AnyProvider::Ym(p) => p.playlists().await,
       AnyProvider::Yt(p) => p.playlists().await,
-      AnyProvider::Vk(p) => p.playlists().await,
       AnyProvider::Sp(p) => p.playlists().await,
       AnyProvider::Local(p) => p.playlists().await,
     }
@@ -162,7 +150,6 @@ impl Provider for AnyProvider<'_> {
       AnyProvider::Sc(p) => p.playlist(id).await,
       AnyProvider::Ym(p) => p.playlist(id).await,
       AnyProvider::Yt(p) => p.playlist(id).await,
-      AnyProvider::Vk(p) => p.playlist(id).await,
       AnyProvider::Sp(p) => p.playlist(id).await,
       AnyProvider::Local(p) => p.playlist(id).await,
     }

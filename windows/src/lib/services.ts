@@ -67,6 +67,7 @@ export interface ServiceInfo {
 }
 
 const ALL_CAPS: ServiceCaps = { search: true, stream: true, library: true, playlists: true, similar: true, login: true, key: true }
+const NO_CAPS: ServiceCaps = { search: false, stream: false, library: false, playlists: false, similar: false, login: false, key: false }
 
 const MALE_STATUS = { connectedAs: 'Подключён как {name}', connected: 'Подключён', disconnected: 'Не подключён' }
 const FEMALE_STATUS = { connectedAs: 'Подключена как {name}', connected: 'Подключена', disconnected: 'Не подключена' }
@@ -185,31 +186,27 @@ export const SERVICES: readonly ServiceInfo[] = Object.freeze([
     keyReplaceLabel: 'Заменить cookie',
   },
   {
+    // убран 2026-11-25: после лимитов VK вход больше не проходит. Строка остаётся, чтобы старые `vk:` из
+    // медиатеки разбирались (играют через резерв), но в интерфейсе VK нигде не показывается.
     id: 'vk',
     key: 'vk',
     name: 'VK Музыка',
     short: 'VK',
     color: '#0077FF',
     prefixes: prefixes('vk'),
-    caps: ALL_CAPS,
-    implemented: true,
+    caps: NO_CAPS,
+    implemented: false,
     gender: 'f',
     nameIn: 'VK Музыке',
-    openIn: 'Открыть в VK',
+    openIn: null,
     status: FEMALE_STATUS,
-    loginLabel: 'Войти через VK',
-    loginBusyLabel: LOGIN_BUSY,
-    reloginLabel: RELOGIN,
+    loginLabel: null,
+    loginBusyLabel: null,
+    reloginLabel: null,
     reloginWhen: 'connected',
-    keyFields: [{ name: 'token', label: 'Токен', secret: true, optional: false, placeholder: 'vk1.a.…' }],
-    keyHint: [
-      { text: 'Токен вида' },
-      { raw: ' ' },
-      { code: 'vk1.a.…' },
-      { raw: ' — ' },
-      { text: 'ключ Kate Mobile с доступом к музыке. Проще войти кнопкой выше: ключ Sonar возьмёт сам.' },
-    ],
-    keyReplaceLabel: 'Заменить токен',
+    keyFields: [],
+    keyHint: null,
+    keyReplaceLabel: null,
   },
   {
     id: 'sp',
@@ -303,10 +300,11 @@ export function refKind(ref: string | null | undefined): RefKind | null {
   return parseRef(ref)?.kind ?? null
 }
 
-/** Трек реализованного сервиса (лайки, счётчики «Мне нравится»): `sc:…` / `ym:…` / `local:…`. */
+/** Трек любого сервиса реестра (лайки, счётчики «Мне нравится»): `sc:…` / `ym:…` / `local:…`; старые `vk:` от
+ *  убранного VK — тоже, они остаются в медиатеке и играют через резерв. */
 export function isTrackRef(ref: string | null | undefined): boolean {
   const parsed = parseRef(ref)
-  return parsed !== null && parsed.kind === 'track' && parsed.service.implemented
+  return parsed !== null && parsed.kind === 'track'
 }
 
 /** Подключённые сервисы с аккаунтом, в порядке реестра. */
@@ -314,7 +312,7 @@ export function connected(list: readonly ServiceState[]): ServiceInfo[] {
   return ACCOUNT_SERVICES.filter((s) => list.some((row) => row.connected && (row.id === s.id || row.key === s.key)))
 }
 
-/** Статус сервиса из `services_status` по ключу (soundcloud / yandex / youtube / vk / spotify). */
+/** Статус сервиса из `services_status` по ключу (soundcloud / yandex / youtube / spotify). */
 export function statusOf(status: ServicesStatus | null | undefined, service: ServiceInfo): ServiceStatus | null {
   const byKey: Partial<Record<ServiceKey, ServiceStatus>> | null | undefined = status
   return byKey?.[service.key] ?? null
@@ -328,9 +326,6 @@ export function playlistWebUrl(ref: string): string | null {
   if (ref === 'ytpl:likes') return 'https://music.youtube.com/playlist?list=LM'
   const yt = /^ytpl:([\w-]+)$/.exec(ref)
   if (yt) return `https://music.youtube.com/playlist?list=${yt[1]}`
-  if (ref === 'vkpl:likes') return 'https://vk.com/audio'
-  const vk = /^vkpl:(-?\d+_\d+(?:_[0-9a-z]+)?)$/i.exec(ref)
-  if (vk) return `https://vk.com/music/playlist/${vk[1]}`
   if (ref === 'sppl:likes') return 'https://open.spotify.com/collection/tracks'
   const sp = /^sppl:([A-Za-z0-9]+)$/.exec(ref)
   if (sp) return `https://open.spotify.com/playlist/${sp[1]}`

@@ -10,11 +10,12 @@
   import { t } from '../../lib/i18n.svelte'
   import { api, errorText, type ServiceCheck, type ServiceStatus, type ServicesStatus } from '../../lib/api'
   import { slide } from '../../lib/motion'
-  import { ACCOUNT_SERVICES, statusOf, type ServiceInfo } from '../../lib/services'
+  import { ACCOUNT_SERVICES, serviceOf, statusOf, type ServiceInfo } from '../../lib/services'
   import { listen } from '@tauri-apps/api/event'
   import { isTauri } from '../../lib/tauri'
   import { cascade } from '../../lib/cascade'
   import { offline } from '../../lib/offline.svelte'
+  import { library } from '../../lib/library.svelte'
 
   let status = $state<ServicesStatus | null>(null)
   let loadError = $state<string | null>(null)
@@ -36,6 +37,10 @@
       checking = false
     }
   }
+
+  /** VK убран (2026-11-25): плашку видят те, у кого в Любимых остались его треки — им и важно, куда они делись. */
+  const hasVkTracks = $derived([...library.liked].some((r) => serviceOf(r) === 'vk'))
+
   const nameOf = (key: string) => ACCOUNT_SERVICES.find((s) => s.key === key)?.name ?? key
   const secText = (ms: number) => (ms / 1000).toFixed(1)
 
@@ -66,6 +71,10 @@
 
 {#if offline.on}
   <p class="offline"><Icon name="wifiOff" size={16} /> {t('Недоступно в офлайне')} — {t('вход в сервисы работает только с сетью.')}</p>
+{/if}
+
+{#if hasVkTracks}
+  <p class="retired" transition:slide={{ duration: 200 }}><Icon name="info" size={16} /> {t('VK Музыка убрана из Sonar: после лимитов VK вход больше не проходит. Треки VK, что уже в медиатеке, играют через резервный сервис.')}</p>
 {/if}
 
 <!-- офлайн: карточки видны, но не нажимаются — вход и проверка ключей ходят в сеть -->
@@ -129,6 +138,23 @@
     margin: 0 0 12px;
     color: var(--text-2);
     font-size: calc(13px * var(--fs, 1));
+  }
+  .retired {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--plate);
+    border: 1px solid var(--card-line);
+    color: var(--text-2);
+    font-size: calc(13px * var(--fs, 1));
+    line-height: 1.4;
+  }
+  .retired :global(svg) {
+    flex: none;
+    margin-top: 1px;
   }
   .safe {
     display: flex;

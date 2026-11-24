@@ -113,7 +113,7 @@ fn erase(v: &impl Vault, name: &str) -> Result<()> {
 
 /// Записи интеграций, которых больше нет (Last.fm — docs/LASTFM_EXIT.md). Стираются при запуске, если
 /// остались: после первого раза записи уже нет, и это одно чтение keyring.
-const RETIRED: [&str; 1] = ["lastfm"];
+const RETIRED: [&str; 2] = ["lastfm", "vk"];
 
 pub fn forget_retired() {
   for name in RETIRED {

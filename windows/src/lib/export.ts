@@ -29,7 +29,7 @@ export function trackWebUrl(track: Pick<Track, 'ref' | 'url'>): string | null {
       return `https://music.youtube.com/watch?v=${id}`
     case 'sp':
       return `https://open.spotify.com/track/${id}`
-    case 'vk':
+    case 'vk': // VK убран, но старые треки в выгрузке — со ссылкой на VK
       return `https://vk.com/audio${id}`
     default:
       return null

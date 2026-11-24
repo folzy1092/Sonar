@@ -89,7 +89,7 @@
     onchange={(v) => settings.set('audio.fallback', v)}
   />
   <div class="order" class:off={!enabled}>
-    <p class="hint">{t('Где искать трек сначала — перетащи сервисы. Яндекс Музыка и VK Музыка ищутся, только если подключены.')}</p>
+    <p class="hint">{t('Где искать трек сначала — перетащи сервисы. Яндекс Музыка ищется, только если подключена.')}</p>
     <div class="list" role="listbox" aria-label={t('Порядок резервных сервисов')} bind:this={listEl} use:cascade={'fallback'}>
       {#each shown as id, i (id)}
         {@const info = byId(id)}

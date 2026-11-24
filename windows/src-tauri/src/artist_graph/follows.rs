@@ -124,7 +124,6 @@ async fn refresh_phantoms(core: &Core, db: &Db) -> bool {
     (ServiceId::Sc, st.soundcloud.connected),
     (ServiceId::Ym, st.yandex.connected),
     (ServiceId::Yt, st.youtube.connected),
-    (ServiceId::Vk, st.vk.connected),
     (ServiceId::Sp, st.spotify.connected),
   ];
   let mut changed = false;

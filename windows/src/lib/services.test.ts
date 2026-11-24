@@ -26,7 +26,7 @@ const TABLE = [
   { id: 'sc', key: 'soundcloud', name: 'SoundCloud', short: 'SC', color: '#FF5500', pre: ['sc', 'scalb', 'sca', 'scpl'], caps: '1111111', implemented: true },
   { id: 'ym', key: 'yandex', name: 'Яндекс Музыка', short: 'Я', color: '#FFBC0D', pre: ['ym', 'ymalb', 'yma', 'ympl'], caps: '1111111', implemented: true },
   { id: 'yt', key: 'youtube', name: 'YouTube Music', short: 'YT', color: '#FF0033', pre: ['yt', 'ytalb', 'yta', 'ytpl'], caps: '1111111', implemented: true },
-  { id: 'vk', key: 'vk', name: 'VK Музыка', short: 'VK', color: '#0077FF', pre: ['vk', 'vkalb', 'vka', 'vkpl'], caps: '1111111', implemented: true },
+  { id: 'vk', key: 'vk', name: 'VK Музыка', short: 'VK', color: '#0077FF', pre: ['vk', 'vkalb', 'vka', 'vkpl'], caps: '0000000', implemented: false },
   { id: 'sp', key: 'spotify', name: 'Spotify', short: 'SP', color: '#1ED760', pre: ['sp', 'spalb', 'spa', 'sppl'], caps: '1011011', implemented: true },
   { id: 'local', key: 'local', name: 'Локальные файлы', short: '♪', color: '#8E8E93', pre: ['local', null, null, null], caps: '0110000', implemented: true },
 ] as const
@@ -155,12 +155,12 @@ describe('byId', () => {
 })
 
 describe('IMPLEMENTED', () => {
-  it('sc, ym, yt, vk, sp и локальные файлы, в порядке таблицы', () => {
-    expect(IMPLEMENTED.map((s) => s.id)).toEqual(['sc', 'ym', 'yt', 'vk', 'sp', 'local'])
+  it('sc, ym, yt, sp и локальные файлы, в порядке таблицы (VK убран)', () => {
+    expect(IMPLEMENTED.map((s) => s.id)).toEqual(['sc', 'ym', 'yt', 'sp', 'local'])
   })
 
   it('сервисы с аккаунтом — без локальных файлов', () => {
-    expect(ACCOUNT_SERVICES.map((s) => s.id)).toEqual(['sc', 'ym', 'yt', 'vk', 'sp'])
+    expect(ACCOUNT_SERVICES.map((s) => s.id)).toEqual(['sc', 'ym', 'yt', 'sp'])
     expect(Object.isFrozen(ACCOUNT_SERVICES)).toBe(true)
   })
 })
@@ -177,8 +177,8 @@ describe('isLocalRef', () => {
 describe('connected', () => {
   it('только сервисы с аккаунтом и подключённые, в порядке реестра; local игнорируется', () => {
     const list = [row('yt', true), row('ym', true), row('vk', true), row('sc', true), row('local', true)]
-    expect(connected(list).map((s) => s.id)).toEqual(['sc', 'ym', 'yt', 'vk'])
-    expect(connected([...list, row('sp', true)]).map((s) => s.id)).toEqual(['sc', 'ym', 'yt', 'vk', 'sp'])
+    expect(connected(list).map((s) => s.id)).toEqual(['sc', 'ym', 'yt'])
+    expect(connected([...list, row('sp', true)]).map((s) => s.id)).toEqual(['sc', 'ym', 'yt', 'sp'])
   })
 
   it('неподключённые отбрасываются', () => {
@@ -193,14 +193,12 @@ describe('statusOf', () => {
     const sc = { connected: true, name: 'dj', avatar_url: null }
     const ym = { connected: false, name: null, avatar_url: null }
     const yt = { connected: true, name: 'me', avatar_url: null }
-    const vk = { connected: true, name: 'Иван', avatar_url: null }
     const sp = { connected: true, name: 'folk', avatar_url: null }
-    const status = { soundcloud: sc, yandex: ym, youtube: yt, vk, spotify: sp }
+    const status = { soundcloud: sc, yandex: ym, youtube: yt, spotify: sp }
     expect(statusOf(status, byId('sp')!)).toBe(sp)
     expect(statusOf(status, byId('sc')!)).toBe(sc)
     expect(statusOf(status, byId('ym')!)).toBe(ym)
     expect(statusOf(status, byId('yt')!)).toBe(yt)
-    expect(statusOf(status, byId('vk')!)).toBe(vk)
     expect(statusOf(status, byId('local')!)).toBeNull()
     expect(statusOf(null, byId('sc')!)).toBeNull()
   })
@@ -235,11 +233,9 @@ describe('playlistWebUrl', () => {
     expect(playlistWebUrl('ytpl:a/b')).toBeNull()
   })
 
-  it('VK: плейлист по id с ключом и «Моя музыка»', () => {
-    expect(playlistWebUrl('vkpl:-2000_9_ab12')).toBe('https://vk.com/music/playlist/-2000_9_ab12')
-    expect(playlistWebUrl('vkpl:1_15')).toBe('https://vk.com/music/playlist/1_15')
-    expect(playlistWebUrl('vkpl:likes')).toBe('https://vk.com/audio')
-    expect(playlistWebUrl('vkpl:x/y')).toBeNull()
+  it('VK убран: ссылок на его плейлисты нет', () => {
+    expect(playlistWebUrl('vkpl:-2000_9_ab12')).toBeNull()
+    expect(playlistWebUrl('vkpl:likes')).toBeNull()
   })
 
   it('Spotify: «Любимые треки» и плейлист', () => {

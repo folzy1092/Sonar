@@ -450,7 +450,7 @@ pub fn hls_parts(playlist: &str, base: &url::Url) -> Option<(Option<String>, Vec
   let mut init = None;
   let mut segs = Vec::new();
   for line in playlist.lines().map(str::trim) {
-    // зашифрованные куски (HLS VK, AES-128) склейкой не сохранить — такой трек не кэшируем
+    // зашифрованные куски (AES-128) склейкой не сохранить — такой трек не кэшируем
     if line.starts_with("#EXT-X-KEY:") && !line.contains("METHOD=NONE") {
       return None;
     }
@@ -504,7 +504,7 @@ mod tests {
 
   #[test]
   fn hls_parts_skips_encrypted() {
-    let base = url::Url::parse("https://cs1.vkuseraudio.net/s/v1/ac/x/").unwrap();
+    let base = url::Url::parse("https://cf-hls-media.sndcdn.com/x/").unwrap();
     let aes = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.pub\"\n#EXTINF:5,\nseg1.mp3\n";
     assert!(hls_parts(aes, &base).is_none());
     let plain = "#EXTM3U\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:5,\nseg1.mp3\n";

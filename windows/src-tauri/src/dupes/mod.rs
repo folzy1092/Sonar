@@ -10,7 +10,7 @@
 //! название без мусора должно совпасть целиком.
 //!
 //! В группе первым стоит тот, кого оставить по умолчанию: играет (доступен) > лучше звук
-//! (`registry::QUALITY_ORDER`: Яндекс > свой файл > Spotify > VK > YouTube Music > SoundCloud) >
+//! (`registry::QUALITY_ORDER`: Яндекс > свой файл > Spotify > YouTube Music > SoundCloud > старые треки VK) >
 //! добавлен раньше > выше в списке. Остальные — по порядку списка.
 
 pub mod commands;
@@ -291,13 +291,13 @@ mod tests {
       item("a1", "sc:1", "A", "Song", 100_000, 2),
       item("x2", "yt:10", "X", "Late", 50_000, 3),
       item("a2", "yt:1", "A", "Song", 102_500, 4),
-      item("a3", "vk:1", "A", "Song", 105_000, 5),
+      item("a3", "sp:1", "A", "Song", 105_000, 5),
     ];
     let g = find_groups(&list);
     assert_eq!(g.len(), 2);
     assert_eq!(g[0].keep, "x2", "YouTube Music лучше SoundCloud");
     // a1 ~ a2 (2.5 с), a2 ~ a3 (2.5 с) — одна группа, хоть a1 и a3 разошлись на 5 с
-    assert_eq!(g[1].keep, "a3", "VK лучше YouTube Music и SoundCloud");
+    assert_eq!(g[1].keep, "a3", "Spotify лучше YouTube Music и SoundCloud");
     assert_eq!(ids(&g[1]), ["a3", "a1", "a2"]);
   }
 

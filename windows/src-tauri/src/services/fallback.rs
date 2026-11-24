@@ -248,8 +248,7 @@ impl Core {
     match id {
       ServiceId::Sc | ServiceId::Yt => true,
       ServiceId::Ym => self.ym.read().await.is_some(),
-      ServiceId::Vk => self.vk.read().await.is_some(),
-      ServiceId::Sp | ServiceId::Local => false,
+      ServiceId::Sp | ServiceId::Vk | ServiceId::Local => false,
     }
   }
 
@@ -338,7 +337,8 @@ mod tests {
 
   #[test]
   fn default_order_follows_registry_and_skips_non_streaming() {
-    assert_eq!(default_order(), vec![ServiceId::Sc, ServiceId::Ym, ServiceId::Yt, ServiceId::Vk]);
+    assert_eq!(default_order(), vec![ServiceId::Sc, ServiceId::Ym, ServiceId::Yt]);
+    assert!(!can_back_up(ServiceId::Vk), "VK убран");
     assert!(!can_back_up(ServiceId::Sp));
     assert!(!can_back_up(ServiceId::Local));
   }
@@ -346,7 +346,7 @@ mod tests {
   #[test]
   fn parse_order_keeps_user_order_and_appends_missing() {
     let v = serde_json::json!(["yt", "yandex", "sp", "yt", "nope", 5]);
-    assert_eq!(parse_order(Some(&v)), vec![ServiceId::Yt, ServiceId::Ym, ServiceId::Sc, ServiceId::Vk]);
+    assert_eq!(parse_order(Some(&v)), vec![ServiceId::Yt, ServiceId::Ym, ServiceId::Sc]);
     assert_eq!(parse_order(None), default_order());
     assert_eq!(parse_order(Some(&serde_json::json!("sc"))), default_order());
   }

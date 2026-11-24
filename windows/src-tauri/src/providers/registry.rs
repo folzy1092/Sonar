@@ -95,9 +95,13 @@ pub struct ServiceInfo {
   pub icon_mono: Option<&'static str>,
   pub prefixes: Prefixes,
   pub caps: Caps,
-  /// Сервис уже работает в Sonar. Нереализованные в интерфейсе не показываются.
+  /// Сервис уже работает в Sonar. Нереализованные в интерфейсе не показываются; убранный (VK) остаётся
+  /// в реестре без возможностей, чтобы старые ref в медиатеке узнавались и играли через резерв.
   pub implemented: bool,
 }
+
+/// Убранный сервис: ни поиска, ни потока, ни входа.
+const NO_CAPS: Caps = Caps { search: false, stream: false, library: false, playlists: false, similar: false, login: false, key: false };
 
 const ALL_CAPS: Caps = Caps { search: true, stream: true, library: true, playlists: true, similar: true, login: true, key: true };
 
@@ -144,8 +148,9 @@ pub const REGISTRY: &[ServiceInfo] = &[
     icon: Some("vk.svg"),
     icon_mono: Some("vk-mono.svg"),
     prefixes: Prefixes { track: "vk", album: Some("vkalb"), artist: Some("vka"), playlist: Some("vkpl") },
-    caps: ALL_CAPS,
-    implemented: true,
+    // убран 2026-11-25: после лимитов VK вход через Kate Mobile не проходит; старые `vk:` — через резерв
+    caps: NO_CAPS,
+    implemented: false,
   },
   ServiceInfo {
     id: ServiceId::Sp,
@@ -207,25 +212,25 @@ pub fn is_kind(r: &str, id: ServiceId, kind: RefKind) -> bool {
   matches!(parse_ref(r), Some((s, k)) if s.id == id && k == kind)
 }
 
-/// Лайки аккаунта как плейлист: `scpl:likes` / `ympl:likes` / `ytpl:likes` / `vkpl:likes` / `sppl:likes`. У остальных пока нет.
+/// Лайки аккаунта как плейлист: `scpl:likes` / `ympl:likes` / `ytpl:likes` / `sppl:likes`. У остальных пока нет.
 pub fn likes_ref(id: ServiceId) -> Option<String> {
   match id {
-    ServiceId::Sc | ServiceId::Ym | ServiceId::Yt | ServiceId::Vk | ServiceId::Sp => info(id).prefixes.playlist.map(|p| format!("{p}:likes")),
+    ServiceId::Sc | ServiceId::Ym | ServiceId::Yt | ServiceId::Sp => info(id).prefixes.playlist.map(|p| format!("{p}:likes")),
     _ => None,
   }
 }
 
-/// Сервисы, которые уже работают в Sonar (SoundCloud, Яндекс Музыка, YouTube Music, VK Музыка, Spotify, локальные файлы).
+/// Сервисы, которые уже работают в Sonar (SoundCloud, Яндекс Музыка, YouTube Music, Spotify, локальные файлы).
 #[allow(dead_code)] // часть API реестра (как в services.ts); в Rust пока зовут только тесты
 pub fn implemented() -> impl Iterator<Item = &'static ServiceInfo> {
   REGISTRY.iter().filter(|s| s.implemented)
 }
 
 /// Сервисы от лучшего звука к худшему — кого оставлять из дублей (этап 7 NEXT_PROMPT): Яндекс
-/// (до FLAC) > свой файл > Spotify (Ogg 320) > VK (MP3 320) > YouTube Music (AAC/Opus) > SoundCloud.
-/// Тот же порядок — `QUALITY_ORDER` в `ServiceRegistry.swift`.
+/// (до FLAC) > свой файл > Spotify (Ogg 320) > YouTube Music (AAC/Opus) > SoundCloud > убранный VK
+/// (сам не играет). Тот же порядок — `QUALITY_ORDER` в `ServiceRegistry.swift`.
 pub const QUALITY_ORDER: &[ServiceId] =
-  &[ServiceId::Ym, ServiceId::Local, ServiceId::Sp, ServiceId::Vk, ServiceId::Yt, ServiceId::Sc];
+  &[ServiceId::Ym, ServiceId::Local, ServiceId::Sp, ServiceId::Yt, ServiceId::Sc, ServiceId::Vk];
 
 /// Место трека по качеству звука: меньше — лучше; ref без сервиса — последним.
 pub fn quality_rank(r: &str) -> usize {
@@ -263,8 +268,8 @@ mod tests {
     (
       (ServiceId::Vk, "vk", "VK Музыка", "#0077FF", Some("vk.svg"), Some("vk-mono.svg")),
       ("vk", Some("vkalb"), Some("vka"), Some("vkpl")),
-      [true, true, true, true, true, true, true],
-      true,
+      [false, false, false, false, false, false, false],
+      false,
     ),
     (
       (ServiceId::Sp, "spotify", "Spotify", "#1ED760", Some("spotify.svg"), Some("spotify-mono.svg")),
@@ -393,7 +398,7 @@ mod tests {
     assert_eq!(likes_ref(ServiceId::Sc).as_deref(), Some("scpl:likes"));
     assert_eq!(likes_ref(ServiceId::Ym).as_deref(), Some("ympl:likes"));
     assert_eq!(likes_ref(ServiceId::Yt).as_deref(), Some("ytpl:likes"));
-    assert_eq!(likes_ref(ServiceId::Vk).as_deref(), Some("vkpl:likes"));
+    assert_eq!(likes_ref(ServiceId::Vk), None, "VK убран");
     assert_eq!(likes_ref(ServiceId::Sp).as_deref(), Some("sppl:likes"));
     assert_eq!(likes_ref(ServiceId::Local), None);
   }
@@ -408,13 +413,14 @@ mod tests {
     assert!(quality_rank("ym:1") < quality_rank("sp:1"));
     assert!(quality_rank("sp:1") < quality_rank("yt:1"));
     assert!(quality_rank("yt:1") < quality_rank("sc:1"));
+    assert!(quality_rank("sc:1") < quality_rank("vk:1"), "убранный VK — последним");
     assert_eq!(quality_rank("pl_x"), QUALITY_ORDER.len());
   }
 
   #[test]
-  fn implemented_is_sc_ym_yt_vk_sp_and_local() {
+  fn implemented_is_sc_ym_yt_sp_and_local() {
     let ids: Vec<ServiceId> = implemented().map(|s| s.id).collect();
-    assert_eq!(ids, [ServiceId::Sc, ServiceId::Ym, ServiceId::Yt, ServiceId::Vk, ServiceId::Sp, ServiceId::Local]);
+    assert_eq!(ids, [ServiceId::Sc, ServiceId::Ym, ServiceId::Yt, ServiceId::Sp, ServiceId::Local]);
   }
 
   #[test]
@@ -429,8 +435,8 @@ mod tests {
     assert!(!info(ServiceId::Sp).caps.stream, "Spotify сам не играет — нужен резервный сервис");
     let local = info(ServiceId::Local).caps;
     assert!(!local.search && local.stream && !local.login && !local.key);
-    // у каждого сервиса с плейлистами есть префикс плейлиста, у каждого с library — трек
-    for s in REGISTRY {
+    // у каждого работающего сервиса с плейлистами есть префикс плейлиста
+    for s in implemented() {
       assert_eq!(s.caps.playlists, s.prefixes.playlist.is_some(), "{}", s.key);
     }
   }

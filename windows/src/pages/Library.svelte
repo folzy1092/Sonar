@@ -108,8 +108,7 @@
     settings.set('library.artists_view', 'map')
   }
   /** Сервисы блока «плейлисты сервисов» по кругу (решение владельца 2026-11-16): клик по названию —
-   *  следующий, ряд уезжает свайпом. Сервисы — реализованные из реестра (lib/services): Spotify и
-   *  VK Музыка встанут сюда сами, когда их включат. */
+   *  следующий, ряд уезжает свайпом. Сервисы — реализованные из реестра (lib/services). */
   let svc = $state<ServiceId>(ACCOUNT_SERVICES[0].id)
   /** Куда едет свайп: 1 — следующий справа налево. */
   let dir = $state(1)
@@ -481,7 +480,7 @@
   {#if linking}
     <form class="create link-form" onsubmit={(e) => (e.preventDefault(), openLink())} in:pop={{ y: 8 }} out:pop={{ y: 8 }}>
       <b>{t('Перенести по ссылке')}</b>
-      <small>{t('Плейлист или альбом Spotify, YouTube Music, VK, Яндекса, SoundCloud или Apple Music — Sonar найдёт треки в твоих сервисах.')}</small>
+      <small>{t('Плейлист или альбом Spotify, YouTube Music, Яндекса, SoundCloud или Apple Music — Sonar найдёт треки в твоих сервисах.')}</small>
       <!-- svelte-ignore a11y_autofocus -->
       <input placeholder="https://…" bind:value={linkText} autofocus spellcheck="false" onkeydown={(e) => e.key === 'Escape' && (linking = false)} />
       <div class="btns">

@@ -296,11 +296,12 @@ impl Collab {
   }
 }
 
-/// Вид лайка по префиксу ref (реестр сервисов, только работающие): `sc:`/`ym:` трек,
+/// Вид лайка по префиксу ref (реестр сервисов, и убранные тоже): `sc:`/`ym:` трек,
 /// `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист. Плейлисты и прочее — None.
 pub fn like_kind(r: &str) -> Option<&'static str> {
   use crate::providers::registry::{parse_ref, RefKind};
-  match parse_ref(r).filter(|(s, _)| s.implemented)?.1 {
+  // убранные сервисы (VK) — тоже: старый лайк должен сниматься и приезжать синком
+  match parse_ref(r)?.1 {
     RefKind::Track => Some("track"),
     RefKind::Album => Some("album"),
     RefKind::Artist => Some("artist"),

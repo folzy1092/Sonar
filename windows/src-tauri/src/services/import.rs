@@ -1,5 +1,5 @@
 //! Импорт плейлиста по любой ссылке (docs/NEXT_PROMPT.md, этап 5): Spotify, YouTube / YouTube Music,
-//! VK, Яндекс, SoundCloud и Apple Music. Прочитать список треков → каждому найти пару в подключённых
+//! Яндекс, SoundCloud и Apple Music. Прочитать список треков → каждому найти пару в подключённых
 //! сервисах (той же сверкой, что и резервный сервис: `Core::search_twin`, этап 4) → итог «нашлось
 //! N из M». Трек сервиса, который сам играет в Sonar, остаётся как есть; Spotify (без потока) и
 //! Apple Music (своего сервиса нет) ищутся в сервисах по порядку `audio.fallback_order`.
@@ -240,7 +240,7 @@ mod tests {
     assert!(keeps_own("sc:1"));
     assert!(keeps_own("ym:2"));
     assert!(keeps_own("yt:dQw4w9WgXcQ"));
-    assert!(keeps_own("vk:1_2"));
+    assert!(!keeps_own("vk:1_2"), "VK убран — треку ищется пара");
     // Spotify без потока и Apple Music без сервиса — ищутся
     assert!(!keeps_own("sp:4uLU6hMCjMI75M1A2tKUQC"));
     assert!(!keeps_own("am:6822497774"));

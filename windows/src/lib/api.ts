@@ -221,7 +221,6 @@ export interface ServicesStatus {
   yandex: ServiceStatus
   /** YouTube Music: подключён — есть cookie аккаунта (каталог работает и без него). */
   youtube: ServiceStatus
-  vk: ServiceStatus
   spotify: ServiceStatus
 }
 
@@ -435,7 +434,7 @@ export type LinkItem =
   | { kind: 'import'; head: ImportHead }
 
 /** Адреса сервисов, которые узнаёт links.rs, и без `https://` (вставили «open.spotify.com/…»). */
-const LINK_HOSTS = ['soundcloud.com/', 'music.yandex.', 'open.spotify.com/', 'youtube.com/', 'youtu.be/', 'vk.com/', 'music.apple.com/']
+const LINK_HOSTS = ['soundcloud.com/', 'music.yandex.', 'open.spotify.com/', 'youtube.com/', 'youtu.be/', 'music.apple.com/']
 
 /** Похоже на ссылку музыкального сервиса, а не на поисковый запрос (как links.rs `looks_like_link`). */
 export function looksLikeLink(s: string): boolean {

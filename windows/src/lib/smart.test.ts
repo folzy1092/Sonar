@@ -13,7 +13,7 @@ import {
   type SmartField,
 } from './smart'
 
-const SERVICES = ['sc', 'ym', 'yt', 'vk', 'sp', 'local']
+const SERVICES = ['sc', 'ym', 'yt', 'sp', 'local']
 
 describe('умные плейлисты: шаблоны', () => {
   it('пять шаблонов из спеки, все правила корректны', () => {

@@ -9,8 +9,8 @@ export default {
   'Где искать трек сначала — перетащи сервисы': 'Where to look for the track first — drag the services',
   'Трек недоступен, есть только отрывок или нужна подписка — Sonar найдёт его в другом сервисе (исполнитель, название и длительность совпадают) и скажет, откуда играет.':
     'If a track is unavailable, only a preview, or needs a subscription, Sonar finds it on another service (same artist, title and length) and tells you where it’s playing from.',
-  'Где искать трек сначала — перетащи сервисы. Яндекс Музыка и VK Музыка ищутся, только если подключены.':
-    'Where to look for the track first — drag the services. Yandex Music and VK Music are searched only when connected.',
+  'Где искать трек сначала — перетащи сервисы. Яндекс Музыка ищется, только если подключена.':
+    'Where to look for the track first — drag the services. Yandex Music is searched only when connected.',
   'Настройки → Аудио': 'Settings → Audio',
   'SoundCloud: доступен только отрывок': 'SoundCloud: only a preview is available',
   'Яндекс Музыка: доступно только превью': 'Yandex Music: only a preview is available',

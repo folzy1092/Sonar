@@ -3,7 +3,7 @@
 use crate::lyrics::{self, Lyrics};
 use crate::media::{self, Media, MediaInfo};
 use crate::providers::registry::{by_key, is_kind, likes_ref, RefKind, ServiceId, ServiceInfo};
-use crate::providers::{soundcloud, vk, yandex, AlbumPage, ArtistPage, SearchResults, ServicePlaylist, Source, Track};
+use crate::providers::{soundcloud, yandex, AlbumPage, ArtistPage, SearchResults, ServicePlaylist, Source, Track};
 use crate::services::{Core, PlaylistPage, ServiceEntry, ServiceStatus, ServicesStatus};
 use crate::store::{like_kind, ListTrack, Play, PlayerState, Playlist, Store};
 use serde::Serialize;
@@ -68,7 +68,6 @@ enum KeyCreds {
   Ym(yandex::Creds),
   /// Cookie music.youtube.com как вставили; разбирает и проверяет `Core::connect_youtube`.
   Yt(String),
-  Vk(vk::Creds),
   /// Cookie `sp_dc` как есть: разбор и проверка — в Core::connect_spotify.
   Sp(String),
 }
@@ -81,7 +80,6 @@ fn key_creds(info: &ServiceInfo, fields: &HashMap<String, String>) -> Res<KeyCre
     ServiceId::Sc => Ok(KeyCreds::Sc(sc_creds(field("client_id").unwrap_or(""), field("oauth_token")))),
     ServiceId::Ym => Ok(KeyCreds::Ym(ym_creds(field("token").unwrap_or("")))),
     ServiceId::Yt => Ok(KeyCreds::Yt(field("cookie").unwrap_or("").to_owned())),
-    ServiceId::Vk => Ok(KeyCreds::Vk(vk::Creds { token: field("token").unwrap_or("").trim().to_owned() })),
     ServiceId::Sp => Ok(KeyCreds::Sp(field("sp_dc").unwrap_or("").to_owned())),
     _ => Err(format!("{}: пока не поддерживается", info.name)),
   }
@@ -102,7 +100,6 @@ pub async fn connect_service_key(core: State<'_, Arc<Core>>, service: String, fi
     KeyCreds::Sc(creds) => core.connect_soundcloud(creds).await,
     KeyCreds::Ym(creds) => core.connect_yandex(creds).await,
     KeyCreds::Yt(cookie) => core.connect_youtube(&cookie).await,
-    KeyCreds::Vk(creds) => core.connect_vk(creds).await,
     KeyCreds::Sp(sp_dc) => core.connect_spotify(&sp_dc).await,
   }
   .map_err(err)
@@ -125,7 +122,6 @@ pub async fn login_service(app: tauri::AppHandle, core: State<'_, Arc<Core>>, db
     }
     "soundcloud" => crate::login::soundcloud(app, core).await,
     "youtube" => crate::login::youtube(app, core).await,
-    "vk" => crate::login::vk(app, core).await,
     "spotify" => crate::login::spotify(app, core).await,
     _ => Err(anyhow::anyhow!("Неизвестный сервис: {service}")),
   }
@@ -910,12 +906,11 @@ async fn similar_cached(core: &Core, db: &Db, r: &str, limit: u32) -> anyhow::Re
   Ok(list)
 }
 
-/// Сервис, от которого стартует волна (`general.platform`): Яндекс или VK — если выбран и подключён,
-/// иначе SoundCloud.
-fn platform_service(platform: Option<&str>, has_ym: bool, has_vk: bool) -> ServiceId {
+/// Сервис, от которого стартует волна (`general.platform`): Яндекс — если выбран и подключён,
+/// иначе SoundCloud (и для оставшегося в настройках `vk` — VK убран).
+fn platform_service(platform: Option<&str>, has_ym: bool) -> ServiceId {
   match platform {
     Some(k) if has_ym && k == ServiceId::Ym.key() => ServiceId::Ym,
-    Some(k) if has_vk && k == ServiceId::Vk.key() => ServiceId::Vk,
     _ => ServiceId::Sc,
   }
 }
@@ -1033,19 +1028,19 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
   };
 
   let has_ym = core.has_yandex().await;
-  let has_vk = core.has_vk().await;
+  // старые лайки VK похожих не дают — сервис убран
   let mut seeds: Vec<String> = seedable(seeds)
     .into_iter()
-    .filter(|r| (has_ym || !is_kind(r, ServiceId::Ym, RefKind::Track)) && (has_vk || !is_kind(r, ServiceId::Vk, RefKind::Track)))
+    .filter(|r| (has_ym || !is_kind(r, ServiceId::Ym, RefKind::Track)) && !is_kind(r, ServiceId::Vk, RefKind::Track))
     .collect();
-  let platform = platform_service(platform.as_deref(), has_ym, has_vk);
+  let platform = platform_service(platform.as_deref(), has_ym);
   let mut taste = taste;
   // Новичок: в Sonar ни лайков, ни прослушиваний — волна стартует от лайков (а если их нет —
   // от плейлистов) в выбранном сервисе. Их артисты считаются любимыми.
   if seeds.is_empty() {
     let id = platform;
     let svc = id.key();
-    let pl = likes_ref(id).expect("sc/ym/vk have likes");
+    let pl = likes_ref(id).expect("sc/ym have likes");
     let mut pool: Vec<Track> = core.service_playlist(&pl).await.map(|p| p.tracks).unwrap_or_default();
     if pool.is_empty() {
       if let Ok(lists) = core.service_playlists(svc).await {
@@ -1642,12 +1637,11 @@ mod tests {
 
   #[test]
   fn wave_platform_needs_connected_service() {
-    assert_eq!(platform_service(Some("vk"), false, true), ServiceId::Vk);
-    assert_eq!(platform_service(Some("vk"), true, false), ServiceId::Sc);
-    assert_eq!(platform_service(Some("yandex"), true, true), ServiceId::Ym);
-    assert_eq!(platform_service(Some("yandex"), false, true), ServiceId::Sc);
-    assert_eq!(platform_service(Some("soundcloud"), true, true), ServiceId::Sc);
-    assert_eq!(platform_service(None, true, true), ServiceId::Sc);
+    assert_eq!(platform_service(Some("vk"), true), ServiceId::Sc, "VK убран");
+    assert_eq!(platform_service(Some("yandex"), true), ServiceId::Ym);
+    assert_eq!(platform_service(Some("yandex"), false), ServiceId::Sc);
+    assert_eq!(platform_service(Some("soundcloud"), true), ServiceId::Sc);
+    assert_eq!(platform_service(None, true), ServiceId::Sc);
   }
 
   #[test]
@@ -1672,8 +1666,7 @@ mod tests {
     assert_eq!(c.token, "t");
     let KeyCreds::Ym(c) = key_creds(info(ServiceId::Ym), &fields(&[("client_id", "x")])).unwrap() else { panic!("ожидался Яндекс") };
     assert_eq!(c.token, "");
-    let KeyCreds::Vk(c) = key_creds(info(ServiceId::Vk), &fields(&[("token", " vk1.a.t \n")])).unwrap() else { panic!("ожидался VK") };
-    assert_eq!(c.token, "vk1.a.t");
+    assert_eq!(key_creds(info(ServiceId::Vk), &fields(&[("token", "vk1.a.t")])).unwrap_err(), "VK Музыка: пока не поддерживается");
     let KeyCreds::Sp(v) = key_creds(info(ServiceId::Sp), &fields(&[("sp_dc", "sp_dc=AQ")])).unwrap() else { panic!("ожидался Spotify") };
     assert_eq!(v, "sp_dc=AQ");
   }
@@ -1713,7 +1706,5 @@ mod tests {
     let KeyCreds::Sp(raw) = key_creds(info(ServiceId::Sp), &fields(&[("sp_dc", secret)])).unwrap() else { panic!("ожидался Spotify") };
     let e = core.connect_spotify(&raw).await.map_err(err).unwrap_err();
     assert!(!e.contains(secret), "{e}");
-    let KeyCreds::Vk(creds) = key_creds(info(ServiceId::Vk), &fields(&[("token", " ")])).unwrap() else { panic!("ожидался VK") };
-    assert_eq!(core.connect_vk(creds).await.map_err(err).unwrap_err(), "Вставь токен VK");
   }
 }
