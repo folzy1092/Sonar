@@ -87,8 +87,6 @@ export const NAV: NavGroup[] = [
       { tab: 'integrations', sub: 'apps' },
       { tab: 'system', sub: 'hotkeys' },
       { tab: 'system', sub: 'remote' },
-      { tab: 'system', sub: 'update' },
-      { tab: 'system', sub: 'about' },
     ],
   },
   {
@@ -99,6 +97,14 @@ export const NAV: NavGroup[] = [
       { tab: 'player', sub: 'view' },
       { tab: 'player', sub: 'mini' },
       { tab: 'player', sub: 'overlay' },
+    ],
+  },
+  {
+    // сама программа: версия, обновления, ссылки (решение владельца 2026-11-24 — отдельно, под «Интерфейсом»)
+    title: 'Sonar',
+    items: [
+      { tab: 'system', sub: 'update' },
+      { tab: 'system', sub: 'about' },
     ],
   },
 ]
