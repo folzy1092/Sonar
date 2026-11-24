@@ -146,7 +146,7 @@ TasteMatch = {percent: 0…100, level: "very" | "similar" | "different",
 | `sc` | `soundcloud` | SoundCloud | `sc:<id>` | `scalb:<id>` | `sca:<id>` | `scpl:<id>` | да |
 | `ym` | `yandex` | Яндекс Музыка | `ym:<id>` | `ymalb:<id>` | `yma:<id>` | `ympl:<uid>:<kind>` | да |
 | `yt` | `youtube` | YouTube Music | `yt:<videoId>` | `ytalb:<browseId>` | `yta:<channelId>` | `ytpl:<playlistId>` | да |
-| `vk` | `vk` | VK Музыка | `vk:<owner>_<id>` | `vkalb:<owner>_<id>[_<key>]` | `vka:<id>` | `vkpl:<owner>_<id>[_<key>]` | да |
+| `vk` | `vk` | VK Музыка | `vk:<owner>_<id>` | `vkalb:<owner>_<id>[_<key>]` | `vka:<id>` | `vkpl:<owner>_<id>[_<key>]` | **нет — убран 2026-11-25** |
 | `sp` | `spotify` | Spotify | `sp:<id>` | `spalb:<id>` | `spa:<id>` | `sppl:<id>` | да (медиатека; поток — ПК с Premium) |
 | `local` | `local` | Локальные файлы | `local:<sha1 пути>` | — | — | — | да (только ПК, §3а) |
 
@@ -157,6 +157,8 @@ TasteMatch = {percent: 0…100, level: "very" | "similar" | "different",
 Music — «Понравившаяся музыка», до 2000 треков, обычный плейлист YouTube — до 1000; VK — «Моя музыка»; Spotify — «Любимые треки», `me/tracks`);
 `ympl:<uid>:<kind>` — плейлист пользователя Яндекса; `scpl:<id>` — плейлист SoundCloud. Формат ref не меняется.
 
+**VK убран 2026-11-25** (решение владельца): префиксы остаются, чтобы старые ref разбирались и синкались; играть `vk:` —
+ошибка «недоступен», дальше резерв из другого сервиса (§ «Резерв»). Ключей `vk-keys.json` больше нет, ниже — как было.
 VK (2026-11-18): `<owner>` бывает отрицательным (`vk:-2001234567_456239017`), `<key>` — `access_key` VK (буквы и
 цифры), без него чужой альбом или плейлист не открыть. У трека `access_key` в ref не входит: клиент запоминает
 его **на диске** — `vk-keys.json` (Windows — папка данных рядом с `sonar.db`, iOS — `Application Support/Sonar/`;
