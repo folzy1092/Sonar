@@ -5,15 +5,41 @@ import Foundation
 // снаружи. Готовый анализ лежит JSON по треку в `Application Support/Sonar/blend/analysis/` (на ПК — таблица
 // `blend_analysis`). Расчёт: скачанный или кэшированный файл, иначе прямой поток трека (в офлайне — нет), декод в
 // моно 11025 Гц через `AVAssetReader`, дальше `BlendAnalyzer` — тот же, что в тестах с векторами ПК.
-// HLS-поток файлом не скачать — такой трек не анализируется, сведение для него не планируется (обычный кроссфейд).
+// HLS SoundCloud склеивается во временный файл тем же путём, что «Скачать» (`CoreDownloadFetcher`), и тоже
+// анализируется; HLS других сервисов (VK) — нет, там обычный кроссфейд.
 
 enum BlendAnalysisError: Error {
-    case noTrack, hls, offline, tooBig, decode
+    case noTrack, hls, offline, tooBig, tooLong, decode
+}
+
+/// Откуда брать звук для анализа, если своего файла нет.
+enum BlendAnalysisFetch: Equatable {
+    /// Файл уже на телефоне.
+    case local(URL)
+    /// Прямая ссылка — скачать как есть.
+    case direct(URL)
+    /// HLS SoundCloud — склеить куски в файл (`MusicCore.downloadSource` + `CoreDownloadFetcher`).
+    case stitch
+    /// HLS, который склеить нечем.
+    case unsupported
+
+    static func of(_ source: StreamSource, ref: String) -> BlendAnalysisFetch {
+        switch source {
+        case let .file(url, _): return url.isFileURL ? .local(url) : .direct(url)
+        case .hls: return ServiceRegistry.service(of: ref) == .sc ? .stitch : .unsupported
+        }
+    }
 }
 
 enum BlendAnalysisFiles {
     /// Больше не качаем: длинный микс или битая ссылка.
     static let maxDownloadBytes = 60 * 1024 * 1024
+    /// Длиннее не анализируем: микс на час — это сотни МБ отсчётов в памяти телефона.
+    static let maxDurationMs = 20 * 60 * 1000
+
+    static func isTooLong(_ durationMs: Int) -> Bool {
+        durationMs > maxDurationMs
+    }
 
     static var directory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -104,12 +130,37 @@ enum BlendAnalysisStore {
     nonisolated static func compute(_ track: Track, local: URL?) async throws -> BlendAnalysis {
         if let local { return try await analyze(file: local, ref: track.ref) }
         if OfflineFlag.isOn { throw BlendAnalysisError.offline }
+        if BlendAnalysisFiles.isTooLong(track.durationMs) { throw BlendAnalysisError.tooLong }
         let playable = try await MusicCore.shared.playable(track)
-        guard case .file(let url, _) = playable.source else { throw BlendAnalysisError.hls }
-        if url.isFileURL { return try await analyze(file: url, ref: track.ref) }
-        let temp = try await download(url)
+        let temp: URL
+        switch BlendAnalysisFetch.of(playable.source, ref: track.ref) {
+        case .local(let url): return try await analyze(file: url, ref: track.ref)
+        case .direct(let url): temp = try await download(url)
+        case .stitch: temp = try await stitch(track.ref)
+        case .unsupported: throw BlendAnalysisError.hls
+        }
         defer { try? FileManager.default.removeItem(at: temp) }
         return try await analyze(file: temp, ref: track.ref)
+    }
+
+    /// HLS SoundCloud → временный файл: источник и склейка — те же, что у «Скачать» (там прямой mp3 и
+    /// Яндекс-двойник идут первыми, HLS — последним).
+    private nonisolated static func stitch(_ ref: String) async throws -> URL {
+        let fetcher = CoreDownloadFetcher()
+        let source = try await MusicCore.shared.downloadSource(ref)
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("blend-\(UUID().uuidString).\(source.fileExtension)")
+        try await fetcher.fetch(source, to: file) { _ in }
+        if OfflineFlag.isOn {
+            try? FileManager.default.removeItem(at: file)
+            throw BlendAnalysisError.offline
+        }
+        let size = (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int) ?? 0
+        guard size <= BlendAnalysisFiles.maxDownloadBytes else {
+            try? FileManager.default.removeItem(at: file)
+            throw BlendAnalysisError.tooBig
+        }
+        return file
     }
 
     private nonisolated static func download(_ url: URL) async throws -> URL {

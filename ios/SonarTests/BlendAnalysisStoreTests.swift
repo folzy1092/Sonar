@@ -3,7 +3,7 @@ import XCTest
 @testable import Sonar
 
 // Файлы анализа сведения (docs/BLEND.md §4.1): разные ref — разные имена, запись читается обратно, чужой ref в
-// файле не подхватывается, разбор LRLR на каналы.
+// файле не подхватывается, разбор LRLR на каналы, откуда брать звук (HLS SoundCloud — склейкой), предел длины.
 
 final class BlendAnalysisStoreTests: XCTestCase {
     private func sample(_ ref: String) -> BlendAnalysis {
@@ -56,5 +56,21 @@ final class BlendAnalysisStoreTests: XCTestCase {
         BlendAnalysisStore.deinterleave([1, 2, 3, 4, 5], left: &left, right: &right)
         XCTAssertEqual(left, [9, 1, 3])
         XCTAssertEqual(right, [8, 2, 4])
+    }
+
+    func testFetchRoutesBySource() {
+        let web = URL(string: "https://cdn.example/a.mp3")!
+        let file = URL(fileURLWithPath: "/tmp/a.mp3")
+        let playlist = URL(string: "https://cf-hls-media.sndcdn.com/playlist/a.m3u8")!
+        XCTAssertEqual(BlendAnalysisFetch.of(.file(url: web, quality: "MP3 320"), ref: "ym:1"), .direct(web))
+        XCTAssertEqual(BlendAnalysisFetch.of(.file(url: file, quality: "MP3"), ref: "sc:1"), .local(file))
+        XCTAssertEqual(BlendAnalysisFetch.of(.hls(url: playlist, quality: "AAC 160"), ref: "sc:1"), .stitch)
+        XCTAssertEqual(BlendAnalysisFetch.of(.hls(url: playlist, quality: "HLS"), ref: "vk:1_2"), .unsupported)
+    }
+
+    func testLongMixIsSkipped() {
+        XCTAssertFalse(BlendAnalysisFiles.isTooLong(0))
+        XCTAssertFalse(BlendAnalysisFiles.isTooLong(BlendAnalysisFiles.maxDurationMs))
+        XCTAssertTrue(BlendAnalysisFiles.isTooLong(BlendAnalysisFiles.maxDurationMs + 1))
     }
 }
