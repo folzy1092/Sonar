@@ -1,10 +1,10 @@
 {
   "enabled": true,
-  "build": 655,
+  "build": 658,
   "version": "0.1.0",
   "minimum_build": 0,
   "title": "Обновление Sonar для iPhone",
   "notes": "Плавный переход между треками и без пауз, выравнивание громкости, таймер сна, офлайн-волна и «почему этот трек». Виджет на рабочий стол и команды Siri, быстрый плейлист. Свои смешанные плейлисты, сохранение альбомов и подписки на исполнителей, кривая эквалайзера и свои пресеты. Точки волны играют от касания, три точки перед строкой дышат, текст не уезжает влево, код входа Яндекса приходит пушем.",
-  "ipa_url": "https://github.com/folzy1092/Sonar/releases/download/ios-build-655/Sonar.ipa",
-  "url": "https://github.com/folzy1092/Sonar/releases/tag/ios-build-655"
+  "ipa_url": "https://github.com/folzy1092/Sonar/releases/download/ios-build-658/Sonar.ipa",
+  "url": "https://github.com/folzy1092/Sonar/releases/tag/ios-build-658"
 }
