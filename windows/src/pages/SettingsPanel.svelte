@@ -40,6 +40,11 @@
   import { cleanUsername } from '../lib/avatar'
   import { t } from '../lib/i18n.svelte'
   import { offline } from '../lib/offline.svelte'
+  import { updater } from '../lib/updater.svelte'
+  import logoMark from '../assets/logo-mark.svg'
+
+  /** Вышла новая версия — отметка у группы «Sonar» и номер у «Обновлений». */
+  const hasUpdate = $derived(['available', 'downloading', 'ready'].includes(updater.phase))
 
   let scroller: HTMLDivElement | undefined = $state()
   const sub = $derived(settingsPanel.sub)
@@ -154,7 +159,17 @@
     <div class="groups">
       {#each NAV as g (g.title)}
         <div class="group">
-          <b class="gtitle">{t(g.title)}</b>
+          {#if g.title === 'Sonar'}
+            <!-- сама программа: знак, установленная версия и отметка, если вышла новая -->
+            <b class="gtitle app">
+              <img src={offline.src(logoMark)} alt="" />
+              <span>Sonar</span>
+              <small>{updater.current}</small>
+              {#if hasUpdate}<i class="fresh" title={t('Доступна версия {version}', { version: updater.version })}></i>{/if}
+            </b>
+          {:else}
+            <b class="gtitle">{t(g.title)}</b>
+          {/if}
           <div class="items">
             {#each g.items as it (it.tab + it.sub)}
               {@const info = navSub(it.tab, it.sub)}
@@ -169,6 +184,7 @@
                 >
                   <Icon name={info.icon} size={17} />
                   <span>{t(info.title)}</span>
+                  {#if it.sub === 'update' && hasUpdate}<em class="new">{updater.version}</em>{/if}
                 </button>
               {/if}
             {/each}
@@ -418,6 +434,52 @@
     display: block;
     margin: 0 4px 6px;
     font-size: calc(14px * var(--fs, 1));
+  }
+  .gtitle.app {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .gtitle.app img {
+    width: 16px;
+    height: 16px;
+  }
+  .gtitle.app small {
+    font-size: calc(11.5px * var(--fs, 1));
+    font-weight: 500;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .gtitle.app .fresh {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: fresh-in var(--normal) var(--ease) both;
+  }
+  .item .new {
+    margin-left: auto;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: calc(10.5px * var(--fs, 1));
+    font-style: normal;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    animation: fresh-in var(--normal) var(--ease) both;
+  }
+  @keyframes fresh-in {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .gtitle.app .fresh,
+    .item .new {
+      animation-name: none;
+    }
   }
   .items {
     display: flex;
