@@ -36,7 +36,7 @@ export default {
   'Сам выбирает вид под пару треков': 'Wählt die Art für jedes Titelpaar selbst',
   'Басы меняются местами на сильную долю': 'Die Bässe tauschen auf der Eins',
   'Трек уходит в фильтр, следующий раскрывается из глухого': 'Der Titel verschwindet im Filter, der nächste öffnet sich aus dem Dumpfen',
-  'Трек обрывается в эхо, следующий входит на «раз»': 'Der Titel bricht ins Echo ab, der nächste setzt auf der Eins ein',
+  'Трек тонет в эхо, следующий входит на «раз»': 'Der Titel versinkt im Echo, der nächste setzt auf der Eins ein',
   'Длинное наложение без резких мест': 'Lange Überlappung ohne harte Stellen',
   'Короткий разгон и сразу дроп следующего': 'Kurzer Aufbau und direkt in den Drop des nächsten',
   'Коротко': 'Kurz',

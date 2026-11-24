@@ -121,7 +121,6 @@ enum BlendMix {
     static let qRest = 0.5.squareRoot()
     /// Длительности резких мест (§8), с.
     static let swapSec = 0.008
-    static let dryCutSec = 0.012
     static let dropSec = 0.005
     /// Бас-свап расписан на 8 тактов; длиннее или короче — те же доли.
     static let bassGrid = 8.0
@@ -131,9 +130,13 @@ enum BlendMix {
     static let filterBLowDb = -12.0
     /// Пока HPF у A ниже этой частоты, бас B приглушён: два баса не дерутся.
     static let filterBassHandoffHz = 150.0
-    static let echoFeedback = 0.5
+    static let echoFeedback = 0.55
     static let echoFeedbackTail = 0.3
-    static let echoTailBars = 2.0
+    /// B у «Эха» выходит в полную громкость за такт, бас — за два: не стена звука на «раз».
+    static let echoBInBars = 1.0
+    static let echoBBassBars = 2.0
+    /// «На дроп»: последний такт разгона A уходит в эхо, хвост звенит поверх дропа B.
+    static let dropEchoFeedback = 0.45
     static let dropHpTo = 800.0
     static let dropGain = pow(10, -3.0 / 20)
     static let dropMidDb = 3.0
@@ -162,7 +165,8 @@ enum BlendMix {
         return BlendCurves(
             a: a,
             b: b,
-            promoteBar: Double(plan.kind == .echo ? plan.inAtBar : plan.bars),
+            // A играет, пока не замолк: у «Эха» — ещё полтакта затухания после «раз»
+            promoteBar: plan.kind == .echo ? Double(plan.inAtBar) + BlendPlanner.echoDryFadeBars : Double(plan.bars),
             endBar: max(Double(plan.bars), lastKey),
             echoDelaySec: (0.75 * 60) / plan.tempoA,
             rest: restValues(nyquist: nyquist)

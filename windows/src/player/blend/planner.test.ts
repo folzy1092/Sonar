@@ -4,7 +4,8 @@
 import { describe, expect, it } from 'vitest'
 import type { BlendAnalysis } from './analysis'
 import { BEATS_PER_BAR, type Phrase } from './structure'
-import { kindsFor, lengthBars, plan, type PlanOpts, TOP_PLANS } from './planner'
+import { BLEND_KINDS, ECHO_DRY_FADE_BARS, kindsFor, lengthBars, plan, type PlanOpts, shapeOf, TOP_PLANS } from './planner'
+import { BLEND_LENGTHS } from './settings'
 
 interface TrackSpec {
   bpm?: number
@@ -64,24 +65,40 @@ const OPTS: PlanOpts = {
 const idOf = (p: { kind: string; outMs: number; inMs: number }) => `${p.kind}:${p.outMs}:${p.inMs}`
 
 describe('lengthBars', () => {
-  it('секунды при темпе A → ближайшее из 4 / 8 / 16 тактов', () => {
-    expect(lengthBars(16, 128)).toBe(8)
+  it('секунды при темпе A → целые такты, 2…32', () => {
+    expect(lengthBars(15, 128)).toBe(8)
     expect(lengthBars(30, 128)).toBe(16)
-    expect(lengthBars(4, 128)).toBe(4)
+    expect(lengthBars(1, 128)).toBe(2)
+    expect(lengthBars(120, 128)).toBe(32)
+  })
+
+  it('«Коротко · Норм · Длинно» дают разную длину при любом темпе', () => {
+    for (const bpm of [60, 70, 93, 128, 145, 174]) {
+      const [s, n, l] = BLEND_LENGTHS.map((sec) => lengthBars(sec, bpm))
+      expect(s).toBeLessThan(n)
+      expect(n).toBeLessThan(l)
+    }
+  })
+
+  it('длина меняет каждый вид', () => {
+    for (const kind of BLEND_KINDS) {
+      const bars = BLEND_LENGTHS.map((sec) => shapeOf(kind, lengthBars(sec, 145)).bars)
+      expect(bars[0]).toBeLessThan(bars[2])
+    }
   })
 })
 
 describe('kindsFor', () => {
-  it('«Авто» без синка — только «Эхо» и «Плавный»', () => {
+  it('«Авто» без синка — фильтр, эхо и плавный (бас-свап и дроп на двух сетках — каша)', () => {
     expect(kindsFor('auto', true)).toEqual(['bass', 'filter', 'echo', 'smooth', 'drop'])
-    expect(kindsFor('auto', false)).toEqual(['echo', 'smooth'])
+    expect(kindsFor('auto', false)).toEqual(['filter', 'echo', 'smooth'])
   })
 
-  it('ручной вид с синком без синка откатывается на «Эхо», «Плавный» остаётся', () => {
-    expect(kindsFor('bass', false)).toEqual(['echo'])
-    expect(kindsFor('drop', false)).toEqual(['echo'])
-    expect(kindsFor('smooth', false)).toEqual(['smooth'])
-    expect(kindsFor('filter', true)).toEqual(['filter'])
+  it('ручной вид — всегда он, и без синка тоже', () => {
+    for (const kind of BLEND_KINDS) {
+      expect(kindsFor(kind, false)).toEqual([kind])
+      expect(kindsFor(kind, true)).toEqual([kind])
+    }
   })
 })
 
@@ -112,22 +129,47 @@ describe('plan', () => {
     expect(best.beatRatio).toBe(1)
   })
 
-  it('темп вне допуска: ручной бас-свап откатывается на «Эхо», «Авто» тоже выбирает «Эхо»', () => {
-    const a = track('sc:a', { bpm: 128 })
-    const b = track('ym:b', { bpm: 140 })
-    const manual = plan(a, b, { ...OPTS, type: 'bass' })
-    expect(manual.length).toBeGreaterThan(0)
-    expect(manual.every((p) => p.kind === 'echo' && !p.sync)).toBe(true)
+  it('темп вне допуска: выбранный вид остаётся, но без синка; «Авто» берёт фильтр', () => {
+    const a = track('sc:a', { bpm: 145 })
+    const b = track('ym:b', { bpm: 93 })
+    for (const type of ['bass', 'filter', 'drop', 'echo'] as const) {
+      const manual = plan(a, b, { ...OPTS, type })
+      expect(manual.length).toBeGreaterThan(0)
+      expect(manual.every((p) => p.kind === type && !p.sync)).toBe(true)
+    }
     const auto = plan(a, b, OPTS)
-    expect(auto[0].kind).toBe('echo')
+    expect(auto[0].kind).toBe('filter')
     expect(auto.every((p) => !p.sync)).toBe(true)
+  })
+
+  it('A доигрывает свою часть перехода до конца файла: `ended` не оборвёт переход', () => {
+    // музыка до самого конца файла — такт «за концом музыки» вышел бы за файл
+    const a = track('sc:a', { tailMs: 0 })
+    for (const type of ['auto', 'echo', 'bass', 'filter', 'smooth', 'drop'] as const) {
+      for (const p of plan(a, track('ym:b'), { ...OPTS, type, cutSec: 20 })) {
+        const silentMs = p.endAMs + (p.kind === 'echo' ? ECHO_DRY_FADE_BARS * 1875 : 0)
+        expect(silentMs).toBeLessThanOrEqual(a.durationMs - 300)
+      }
+    }
+  })
+
+  it('шире «Можно срезать» — можно уйти до аутро A', () => {
+    const a = track('sc:a', { nBars: 64 })
+    const b = track('ym:b')
+    const outro = 48 * 1875
+    const narrow = plan(a, b, { ...OPTS, type: 'filter', cutSec: 8 })
+    const wide = plan(a, b, { ...OPTS, type: 'filter', cutSec: 45 })
+    expect(narrow.some((p) => p.endAMs === outro)).toBe(false)
+    expect(wide.some((p) => p.endAMs === outro)).toBe(true)
   })
 
   it('неустойчивая сетка — ни одного плана с синком', () => {
     const plans = plan(track('sc:a'), track('ym:b', { gridStable: false }), OPTS)
     expect(plans.length).toBeGreaterThan(0)
     expect(plans.some((p) => p.sync)).toBe(false)
-    expect(plan(track('sc:a', { gridStable: false }), track('ym:b'), { ...OPTS, type: 'filter' })[0].kind).toBe('echo')
+    const filter = plan(track('sc:a', { gridStable: false }), track('ym:b'), { ...OPTS, type: 'filter' })[0]
+    expect(filter.kind).toBe('filter')
+    expect(filter.sync).toBe(false)
   })
 
   it('половинный темп B сводится в двойной сетке', () => {
@@ -147,12 +189,13 @@ describe('plan', () => {
     }
   })
 
-  it('«Эхо» стартует B на втором такте и без синка', () => {
+  it('«Эхо» набирается 2 такта (на коротком — 1), B входит после них, без синка', () => {
+    expect(shapeOf('echo', 4).inAtBar).toBe(1)
     const plans = plan(track('sc:a'), track('ym:b'), { ...OPTS, type: 'echo' })
     expect(plans.length).toBeGreaterThan(0)
     for (const p of plans) {
       expect(p.kind).toBe('echo')
-      expect(p.inAtBar).toBe(1)
+      expect(p.inAtBar).toBe(2)
       expect(p.sync).toBe(false)
       expect(p.endAMs).toBeGreaterThan(p.outMs)
     }

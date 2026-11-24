@@ -23,12 +23,19 @@ extension BlendPlanner {
         var spectrumGap: Bool
     }
 
+    /// Форма вида при длине `base` тактов: все виды растут с настройкой длины.
     static func shapeOf(_ kind: BlendKind, base: Int) -> PlanShape {
-        let short = base >= 8 ? longShortBars : shortBars
         switch kind {
-        case .echo: return PlanShape(bars: 1 + short, lead: 1, inAtBar: 1)
-        case .drop: return PlanShape(bars: short, lead: short, inAtBar: short)
-        case .smooth: return PlanShape(bars: max(smoothMinBars, base), lead: max(smoothMinBars, base), inAtBar: 0)
+        case .echo:
+            // эхо набирается `lead` тактов до «раз», хвост — половина длины
+            let lead = base >= echoLeadLongFrom ? 2 : 1
+            return PlanShape(bars: lead + max(minBars, BlendMath.jsRoundInt(Double(base) / 2)), lead: lead, inAtBar: lead)
+        case .drop:
+            let bars = max(minBars, Int((Double(base) / 2).rounded(.up)))
+            return PlanShape(bars: bars, lead: bars, inAtBar: bars)
+        case .smooth:
+            let bars = min(maxBars, base * smoothFactor)
+            return PlanShape(bars: bars, lead: bars, inAtBar: 0)
         case .bass, .filter: return PlanShape(bars: base, lead: base, inAtBar: 0)
         }
     }
@@ -48,7 +55,8 @@ extension BlendPlanner {
     }
 
     static func endScore(_ phrases: [Int: PhraseKind], nBars: Int, _ bar: Int) -> Double {
-        if bar == nBars { return 1 }
+        // замолкнуть к концу музыки или прямо перед аутро (аутро срезаем — для этого и «Можно срезать»)
+        if bar == nBars || phrases[bar] == .outro { return 1 }
         if bar > nBars { return 0.6 }
         if phrases[bar] != nil { return 0.9 }
         return bar % 4 == 0 ? 0.4 : 0.1
@@ -71,11 +79,13 @@ extension BlendPlanner {
     static func kindFit(_ kind: BlendKind, _ f: Facts) -> Double {
         let fit: Double
         switch kind {
-        case .echo: fit = !f.syncOk || f.clash ? 1 : 0.3
+        // эхо — для несовместимых тональностей; просто разный темп мягче проходит фильтром
+        case .echo: fit = f.clash ? 1 : 0.3
         case .smooth: fit = f.calm ? 1 : 0.4
         case .bass: fit = f.outroA && f.introB ? 1 : 0.5
         case .drop: fit = f.dropB ? (f.loud ? 1 : 0.6) : 0.1
-        case .filter: fit = f.spectrumGap ? 1 : 0.5
+        // без синка фильтр — самый мягкий: сетки расходятся, но басы и верх не дерутся
+        case .filter: fit = f.syncOk ? (f.spectrumGap ? 1 : 0.5) : 0.7
         }
         return overlapKinds.contains(kind) && f.clash ? fit * clashFit : fit
     }
@@ -98,6 +108,9 @@ extension BlendPlanner {
         let outBar = anchor - shape.lead
         let outMs = barTime(a, outBar)
         if outBar < 0 || outMs < a.startMs { return nil }
+        // где A замолкает на самом деле: у «Эха» сухой A ещё гаснет полтакта после «раз»
+        let silentMs = barTime(a, anchor) + (kind == .echo ? echoDryFadeBars * barMs(a) : 0)
+        if silentMs > a.durationMs - endSafeMs { return nil }
         let sync = kind == .echo ? false : p.syncOk
         let nA = a.bars.energy.count
         let overlapB = max(1, Int(BlendMath.jsRound(Double(shape.bars) * p.beatRatio)))

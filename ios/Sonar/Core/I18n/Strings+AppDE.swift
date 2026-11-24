@@ -397,7 +397,13 @@ extension I18n {
         "Не получилось сменить значок": "Das Symbol konnte nicht geändert werden",
         // Сведение (Strings+Blend.swift)
         "Закончить вечеринку": "Party beenden",
-        "Этот трек идёт потоком HLS — анализа нет, переход будет кроссфейдом": "Dieser Titel läuft als HLS-Stream – keine Analyse, der Übergang wird ein Crossfade",
-        "Сведение слушает доли и тональность треков-файлов; у потоков HLS анализа нет — там переход кроссфейдом.": "Der Übergang hört auf Beats und Tonart von Datei-Titeln; HLS-Streams werden nicht analysiert und bekommen einen Crossfade.",
+        "Этот трек идёт потоком HLS — в переходе слышна только громкость, без фильтров и эха": "Dieser Titel läuft als HLS-Stream – im Übergang ändert sich nur die Lautstärke, ohne Filter und Echo",
+        "Сведение слушает доли и тональность треков; у потоков HLS в переходе работает только громкость — фильтры и эхо только у файлов.": "Der Übergang hört auf Beats und Tonart der Titel; bei HLS-Streams bewegt sich im Übergang nur die Lautstärke – Filter und Echo gibt es nur bei Dateien.",
+        "Поток этого сервиса не разобрать": "Der Stream dieses Dienstes lässt sich nicht lesen",
+        "Офлайн — у трека нет своего файла": "Offline – dieser Titel hat keine eigene Datei",
+        "Трек слишком длинный для анализа": "Der Titel ist zu lang für die Analyse",
+        "Не удалось прочитать звук трека": "Der Ton des Titels ließ sich nicht lesen",
+        "Трек пропал из очереди": "Der Titel ist nicht mehr in der Warteschlange",
+        "Не удалось скачать трек для анализа": "Der Titel ließ sich für die Analyse nicht laden",
     ]
 }

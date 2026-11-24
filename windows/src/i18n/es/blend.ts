@@ -36,7 +36,7 @@ export default {
   'Сам выбирает вид под пару треков': 'Elige el estilo para cada par de pistas',
   'Басы меняются местами на сильную долю': 'Los bajos se intercambian en el tiempo fuerte',
   'Трек уходит в фильтр, следующий раскрывается из глухого': 'La pista se va con un filtro y la siguiente se abre desde apagada',
-  'Трек обрывается в эхо, следующий входит на «раз»': 'La pista se corta en eco y la siguiente entra en el «uno»',
+  'Трек тонет в эхо, следующий входит на «раз»': 'La pista se hunde en el eco y la siguiente entra en el «uno»',
   'Длинное наложение без резких мест': 'Una superposición larga sin cortes bruscos',
   'Короткий разгон и сразу дроп следующего': 'Una subida corta y directo al drop de la siguiente',
   'Коротко': 'Corta',

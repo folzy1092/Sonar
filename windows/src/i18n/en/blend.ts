@@ -36,7 +36,7 @@ export default {
   'Сам выбирает вид под пару треков': 'Picks the style for each pair of tracks',
   'Басы меняются местами на сильную долю': 'The basslines swap on the downbeat',
   'Трек уходит в фильтр, следующий раскрывается из глухого': 'The track fades into a filter, the next one opens up from muffled',
-  'Трек обрывается в эхо, следующий входит на «раз»': 'The track cuts into an echo, the next one comes in on the one',
+  'Трек тонет в эхо, следующий входит на «раз»': 'The track sinks into an echo, the next one comes in on the one',
   'Длинное наложение без резких мест': 'A long overlap with no sharp edges',
   'Короткий разгон и сразу дроп следующего': 'A short build-up straight into the next drop',
   'Коротко': 'Short',

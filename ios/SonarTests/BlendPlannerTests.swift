@@ -2,7 +2,7 @@ import XCTest
 @testable import Sonar
 
 // Планировщик сведения (docs/BLEND.md §7, §14) — порт `planner.test.ts`, менять — в обоих местах: детерминизм,
-// откат на «Эхо» вне допуска темпа и без устойчивой сетки, срез не больше настройки, топ-8 без повторов.
+// выбранный вид без синка остаётся собой, срез не больше настройки, A доигрывает до конца файла, топ-8 без повторов.
 
 final class BlendPlannerTests: XCTestCase {
     private typealias F = BlendFixtures
@@ -17,22 +17,39 @@ final class BlendPlannerTests: XCTestCase {
         BlendPlanner.plan(a, b, opts: opts)
     }
 
-    func testLengthBarsNearestOfOptions() {
-        XCTAssertEqual(BlendPlanner.lengthBars(16, tempo: 128), 8)
+    func testLengthBarsWholeBarsTwoToThirtyTwo() {
+        XCTAssertEqual(BlendPlanner.lengthBars(15, tempo: 128), 8)
         XCTAssertEqual(BlendPlanner.lengthBars(30, tempo: 128), 16)
-        XCTAssertEqual(BlendPlanner.lengthBars(4, tempo: 128), 4)
+        XCTAssertEqual(BlendPlanner.lengthBars(1, tempo: 128), 2)
+        XCTAssertEqual(BlendPlanner.lengthBars(120, tempo: 128), 32)
     }
 
-    func testAutoWithoutSyncOnlyEchoAndSmooth() {
+    func testShortNormLongDifferAtAnyTempo() {
+        for bpm in [60.0, 70, 93, 128, 145, 174] {
+            let bars = BlendPrefs.lengths.map { BlendPlanner.lengthBars($0, tempo: bpm) }
+            XCTAssertLessThan(bars[0], bars[1], "\(bpm)")
+            XCTAssertLessThan(bars[1], bars[2], "\(bpm)")
+        }
+    }
+
+    func testLengthChangesEveryKind() {
+        for kind in BlendKind.allCases {
+            let bars = BlendPrefs.lengths.map { BlendPlanner.shapeOf(kind, base: BlendPlanner.lengthBars($0, tempo: 145)).bars }
+            XCTAssertLessThan(bars[0], bars[2], "\(kind)")
+        }
+    }
+
+    func testAutoWithoutSyncFilterEchoSmooth() {
         XCTAssertEqual(BlendPlanner.kindsFor(.auto, syncOk: true), [.bass, .filter, .echo, .smooth, .drop])
-        XCTAssertEqual(BlendPlanner.kindsFor(.auto, syncOk: false), [.echo, .smooth])
+        XCTAssertEqual(BlendPlanner.kindsFor(.auto, syncOk: false), [.filter, .echo, .smooth])
     }
 
-    func testManualSyncKindFallsBackToEcho() {
-        XCTAssertEqual(BlendPlanner.kindsFor(.bass, syncOk: false), [.echo])
-        XCTAssertEqual(BlendPlanner.kindsFor(.drop, syncOk: false), [.echo])
-        XCTAssertEqual(BlendPlanner.kindsFor(.smooth, syncOk: false), [.smooth])
-        XCTAssertEqual(BlendPlanner.kindsFor(.filter, syncOk: true), [.filter])
+    func testManualKindAlwaysItself() {
+        for kind in BlendKind.allCases {
+            guard let type = BlendType(rawValue: kind.rawValue) else { return XCTFail("\(kind)") }
+            XCTAssertEqual(BlendPlanner.kindsFor(type, syncOk: false), [kind])
+            XCTAssertEqual(BlendPlanner.kindsFor(type, syncOk: true), [kind])
+        }
     }
 
     func testDeterministic() {
@@ -61,23 +78,47 @@ final class BlendPlannerTests: XCTestCase {
         XCTAssertEqual(best.beatRatio, 1)
     }
 
-    func testTempoOutOfToleranceFallsBackToEcho() throws {
-        let a = F.track("sc:a", bpm: 128)
-        let b = F.track("ym:b", bpm: 140)
-        let manual = plan(a, b, F.opts { $0.type = .bass })
-        XCTAssertGreaterThan(manual.count, 0)
-        XCTAssertTrue(manual.allSatisfy { $0.kind == .echo && !$0.sync })
+    func testTempoOutOfToleranceKeepsChosenKindWithoutSync() throws {
+        let a = F.track("sc:a", bpm: 145)
+        let b = F.track("ym:b", bpm: 93)
+        for type in [BlendType.bass, .filter, .drop, .echo] {
+            let manual = plan(a, b, F.opts { $0.type = type })
+            XCTAssertGreaterThan(manual.count, 0, "\(type)")
+            XCTAssertTrue(manual.allSatisfy { $0.kind == type.kind && !$0.sync }, "\(type)")
+        }
         let auto = plan(a, b)
-        XCTAssertEqual(try XCTUnwrap(auto.first).kind, .echo)
+        XCTAssertEqual(try XCTUnwrap(auto.first).kind, .filter)
         XCTAssertTrue(auto.allSatisfy { !$0.sync })
+    }
+
+    func testAPlaysItsPartBeforeFileEnds() {
+        // музыка до самого конца файла — такт «за концом музыки» вышел бы за файл
+        let a = F.track("sc:a", tailMs: 0)
+        for type in BlendType.allCases {
+            for p in plan(a, F.track("ym:b"), F.opts { $0.type = type; $0.cutSec = 20 }) {
+                let silentMs = p.endAMs + (p.kind == .echo ? BlendPlanner.echoDryFadeBars * 1875 : 0)
+                XCTAssertLessThanOrEqual(silentMs, a.durationMs - 300, "\(type)")
+            }
+        }
+    }
+
+    func testWiderCutCanLeaveBeforeOutro() {
+        let a = F.track("sc:a", nBars: 64)
+        let b = F.track("ym:b")
+        let outro = 48.0 * 1875
+        let narrow = plan(a, b, F.opts { $0.type = .filter; $0.cutSec = 8 })
+        let wide = plan(a, b, F.opts { $0.type = .filter; $0.cutSec = 45 })
+        XCTAssertFalse(narrow.contains { $0.endAMs == outro })
+        XCTAssertTrue(wide.contains { $0.endAMs == outro })
     }
 
     func testUnstableGridNeverSyncs() throws {
         let plans = plan(F.track("sc:a"), F.track("ym:b", gridStable: false))
         XCTAssertGreaterThan(plans.count, 0)
         XCTAssertFalse(plans.contains { $0.sync })
-        let filter = plan(F.track("sc:a", gridStable: false), F.track("ym:b"), F.opts { $0.type = .filter })
-        XCTAssertEqual(try XCTUnwrap(filter.first).kind, .echo)
+        let filter = try XCTUnwrap(plan(F.track("sc:a", gridStable: false), F.track("ym:b"), F.opts { $0.type = .filter }).first)
+        XCTAssertEqual(filter.kind, .filter)
+        XCTAssertFalse(filter.sync)
     }
 
     func testHalfTempoBSyncsInDoubleGrid() throws {
@@ -97,12 +138,13 @@ final class BlendPlannerTests: XCTestCase {
         }
     }
 
-    func testEchoStartsBOnSecondBarWithoutSync() {
+    func testEchoBuildsTwoBarsThenBWithoutSync() {
+        XCTAssertEqual(BlendPlanner.shapeOf(.echo, base: 4).inAtBar, 1)
         let plans = plan(F.track("sc:a"), F.track("ym:b"), F.opts { $0.type = .echo })
         XCTAssertGreaterThan(plans.count, 0)
         for p in plans {
             XCTAssertEqual(p.kind, .echo)
-            XCTAssertEqual(p.inAtBar, 1)
+            XCTAssertEqual(p.inAtBar, 2)
             XCTAssertFalse(p.sync)
             XCTAssertGreaterThan(p.endAMs, p.outMs)
         }

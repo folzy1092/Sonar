@@ -397,7 +397,13 @@ extension I18n {
         "Не получилось сменить значок": "No se pudo cambiar el icono",
         // Сведение (Strings+Blend.swift)
         "Закончить вечеринку": "Terminar la fiesta",
-        "Этот трек идёт потоком HLS — анализа нет, переход будет кроссфейдом": "Esta pista se reproduce como flujo HLS: sin análisis, la transición será un fundido cruzado",
-        "Сведение слушает доли и тональность треков-файлов; у потоков HLS анализа нет — там переход кроссфейдом.": "La mezcla escucha los tiempos y la tonalidad de las pistas en archivo; los flujos HLS no se analizan, así que usan fundido cruzado.",
+        "Этот трек идёт потоком HLS — в переходе слышна только громкость, без фильтров и эха": "Esta pista llega por HLS: en la transición solo cambia el volumen, sin filtros ni eco",
+        "Сведение слушает доли и тональность треков; у потоков HLS в переходе работает только громкость — фильтры и эхо только у файлов.": "La mezcla escucha los tiempos y la tonalidad de las pistas; en los flujos HLS solo cambia el volumen durante la transición: filtros y eco, solo con archivos.",
+        "Поток этого сервиса не разобрать": "No se puede leer el flujo de este servicio",
+        "Офлайн — у трека нет своего файла": "Sin conexión: esta pista no tiene archivo propio",
+        "Трек слишком длинный для анализа": "La pista es demasiado larga para analizarla",
+        "Не удалось прочитать звук трека": "No se pudo leer el audio de la pista",
+        "Трек пропал из очереди": "La pista salió de la cola",
+        "Не удалось скачать трек для анализа": "No se pudo descargar la pista para analizarla",
     ]
 }

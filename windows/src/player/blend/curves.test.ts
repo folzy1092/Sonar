@@ -77,10 +77,32 @@ describe('curvesFor', () => {
     }
   })
 
-  it.each(['echo', 'drop'] as const)('%s: B на полной громкости за одну долю после входа', (kind) => {
-    const plan = planOf(kind)
+  it('drop: B на полной громкости сразу на дропе', () => {
+    const plan = planOf('drop')
     const c = curvesFor(plan, NYQUIST)
     expect(paramsAt(c, plan.inAtBar + 0.25).b.gain).toBeCloseTo(1, 9)
+  })
+
+  it('drop: разгон A уходит в эхо, хвост звенит после дропа и к концу глохнет', () => {
+    const plan = planOf('drop')
+    const c = curvesFor(plan, NYQUIST)
+    expect(paramsAt(c, plan.bars - 1).a.echoSend).toBe(0)
+    expect(paramsAt(c, plan.bars - 0.25).a.echoSend).toBe(1)
+    expect(paramsAt(c, plan.bars + 1).a.feedback).toBeGreaterThan(0)
+    expect(paramsAt(c, plan.bars + 1).a.gain).toBe(0)
+    expect(c.endBar).toBe(plan.bars + 2)
+    expect(paramsAt(c, c.endBar).a.echoSend).toBe(0)
+  })
+
+  it('echo: B выходит в полную громкость за такт, бас — за два, а не стеной на «раз»', () => {
+    const plan = planOf('echo')
+    const c = curvesFor(plan, NYQUIST)
+    const one = plan.inAtBar
+    expect(paramsAt(c, one + 0.25).b.gain).toBeGreaterThan(0)
+    expect(paramsAt(c, one + 0.25).b.gain).toBeLessThan(1)
+    expect(paramsAt(c, one + 1).b.gain).toBeCloseTo(1, 9)
+    expect(paramsAt(c, one + 1).b.low).toBeLessThan(0)
+    expect(paramsAt(c, one + 2).b.low).toBe(0)
   })
 
   it.each(KINDS)('%s: каждое изменение не короче 5 мс даже при разгоне темпа', (kind) => {
@@ -101,16 +123,23 @@ describe('curvesFor', () => {
     }
   })
 
-  it('эхо: петля открывается на последней доле, сухой A гаснет на «раз», задержка ¾ доли', () => {
+  it('эхо: петля набирается с начала перехода до последней доли, сухой A гаснет полтакта после «раз»', () => {
     const plan = planOf('echo')
     const c = curvesFor(plan, NYQUIST)
-    expect(paramsAt(c, 0.5).a.echoSend).toBe(0)
+    expect(paramsAt(c, 0).a.echoSend).toBe(0)
+    const half = paramsAt(c, 0.375).a.echoSend
+    expect(half).toBeGreaterThan(0)
+    expect(half).toBeLessThan(1)
     expect(paramsAt(c, 0.75).a.echoSend).toBe(1)
-    expect(paramsAt(c, 0.75).a.feedback).toBe(0.5)
+    expect(paramsAt(c, 0.75).a.feedback).toBeCloseTo(0.55, 9)
     expect(paramsAt(c, 1).a.gain).toBe(1)
+    // не обрыв: через четверть такта после «раз» сухой A ещё слышен
+    expect(paramsAt(c, 1.25).a.gain).toBeGreaterThan(0.5)
+    expect(paramsAt(c, 1.5).a.gain).toBe(0)
     expect(paramsAt(c, 3).a.feedback).toBeCloseTo(0.3, 9)
     expect(c.echoDelaySec).toBeCloseTo((0.75 * 60) / 128, 9)
-    expect(c.promoteBar).toBe(1)
+    // A отпускают только когда он замолк
+    expect(c.promoteBar).toBe(1.5)
     expect(c.endBar).toBe(3)
   })
 

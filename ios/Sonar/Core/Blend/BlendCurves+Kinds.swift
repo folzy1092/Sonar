@@ -59,19 +59,18 @@ extension BlendMix {
         let one = Double(plan.inAtBar)
         let n = Double(plan.bars)
         let lastBeat = one - beat
+        let dryEnd = one + BlendPlanner.echoDryFadeBars
         let open = barsOf(plan, dropSec)
-        let tailTo = min(n, one + echoTailBars)
-        // сухой A гаснет на «раз»; эхо питается после громкости дека — новых повторов нет, хвост крутится в петле
+        // эхо набирается от начала перехода до последней доли, сухой A гаснет полтакта после «раз»; эхо питается
+        // после громкости дека — новых повторов нет, хвост крутится в петле до конца перехода
         let a: BlendDeckCurves = [
-            .gain: [key(one, 1), key(one + barsOf(plan, dryCutSec), 0)],
-            .echoSend: [key(lastBeat - open, 0), key(lastBeat, 1), key(n - open, 1), key(n, 0)],
-            .feedback: [
-                key(lastBeat - open, 0), key(lastBeat, echoFeedback), key(one, echoFeedback), key(tailTo, echoFeedbackTail),
-            ],
+            .gain: [key(one, 1), key(dryEnd, 0, .eq)],
+            .echoSend: [key(0, 0), key(lastBeat, 1), key(n - open, 1), key(n, 0)],
+            .feedback: [key(0, 0), key(lastBeat, echoFeedback), key(dryEnd, echoFeedback), key(n, echoFeedbackTail)],
         ]
         let b: BlendDeckCurves = [
-            .gain: [key(one, 0), key(one + beat, 1, .eq)],
-            .low: [key(one, offDb), key(one + 1, 0)],
+            .gain: [key(one, 0), key(one + echoBInBars, 1, .eq)],
+            .low: [key(one, offDb), key(one + echoBBassBars, 0)],
         ]
         return (a, b)
     }
@@ -96,10 +95,14 @@ extension BlendMix {
     static func drop(_ plan: TransitionPlan) -> (BlendDeckCurves, BlendDeckCurves) {
         let n = Double(plan.bars)
         let cut = barsOf(plan, dropSec)
+        let tail = n + 2
         let a: BlendDeckCurves = [
             .gain: [key(0, 1), key(n, dropGain), key(n + cut, 0)],
             .hpHz: [key(0, hpFrom), key(n, dropHpTo, .exp)],
             .mid: [key(n - 1, 0), key(n, dropMidDb)],
+            // разгон уходит в эхо: A срезается на дропе, а хвост ещё два такта звенит поверх B
+            .echoSend: [key(n - 1, 0), key(n - beat, 1), key(tail - cut, 1), key(tail, 0)],
+            .feedback: [key(n - 1, 0), key(n - beat, dropEchoFeedback), key(tail, 0)],
         ]
         let b: BlendDeckCurves = [.gain: [key(n, 0), key(n + cut, 1)]]
         return (a, b)

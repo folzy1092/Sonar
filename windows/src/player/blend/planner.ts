@@ -16,17 +16,21 @@ export const BLEND_KINDS = ['bass', 'filter', 'echo', 'smooth', 'drop'] as const
 export type BlendKind = (typeof BLEND_KINDS)[number]
 export type BlendType = 'auto' | BlendKind
 
-/** Без бит-синка эти виды не звучат: вне допуска темпа — «Эхо» (§6.3). */
-const SYNC_KINDS: ReadonlySet<BlendKind> = new Set(['bass', 'filter', 'drop'])
 /** Долгое наложение двух треков — тут важна тональность и вокал. */
 const OVERLAP_KINDS: ReadonlySet<BlendKind> = new Set(['bass', 'filter', 'smooth'])
 
 export const TOP_PLANS = 8
-const LENGTH_BARS = [4, 8, 16]
-const SMOOTH_MIN_BARS = 16
-/** Короткие виды («Эхо» — хвост, «На дроп» — разгон): 4 такта при длинном переходе, иначе 2. */
-const SHORT_BARS = 2
-const LONG_SHORT_BARS = 4
+/** Длина перехода в тактах — целая, чтобы «Коротко · Норм · Длинно» не слипались ни при каком темпе. */
+const MIN_BARS = 2
+const MAX_BARS = 32
+/** «Плавный» — вдвое длиннее выбранной длины. */
+const SMOOTH_FACTOR = 2
+/** «Эхо»: сколько тактов эхо набирается до «раз» (при длине от 6 тактов — 2). */
+const ECHO_LEAD_LONG_FROM = 6
+/** Сухой A после «раз» у «Эха» гаснет за полтакта, а не обрывается (такты). Зеркало в curves.ts. */
+export const ECHO_DRY_FADE_BARS = 0.5
+/** A должен доиграть до конца своей части перехода с запасом: иначе `ended` оборвёт переход. */
+const END_SAFE_MS = 300
 const MAX_GAIN_DB = 9
 /** Тактов по краям наложения для энергии. */
 const EDGE_BARS = 2
@@ -94,7 +98,7 @@ export interface TransitionPlan {
   parts: Record<ScorePart, number>
 }
 
-interface Shape {
+export interface Shape {
   bars: number
   /** Тактов A до якоря. */
   lead: number
@@ -138,10 +142,10 @@ function mean(xs: number[], from: number, to: number): number {
   return n > 0 ? sum / n : 0
 }
 
-/** Длина перехода в тактах: секунды при темпе A, ближайшее из 4 / 8 / 16 (по отношению, не по разнице). */
+/** Длина перехода в тактах: секунды при темпе A, округлённые до целого такта (2…32). */
 export function lengthBars(lengthSec: number, tempo: number): number {
   const bars = (lengthSec * tempo) / 60 / BEATS_PER_BAR
-  return LENGTH_BARS.reduce((best, n) => (Math.abs(Math.log2(bars / n)) < Math.abs(Math.log2(bars / best)) ? n : best))
+  return clamp(Math.round(bars), MIN_BARS, MAX_BARS)
 }
 
 /** B ближе к удвоенному или половинному темпу A, чем к тому же, — считаем его в такой сетке. */
@@ -183,25 +187,32 @@ function pairOf(a: BlendAnalysis, b: BlendAnalysis, opts: PlanOpts): Pair {
   }
 }
 
-function shapeOf(kind: BlendKind, base: number): Shape {
-  const short = base >= 8 ? LONG_SHORT_BARS : SHORT_BARS
-  if (kind === 'echo') return { bars: 1 + short, lead: 1, inAtBar: 1 }
-  if (kind === 'drop') return { bars: short, lead: short, inAtBar: short }
-  const bars = kind === 'smooth' ? Math.max(SMOOTH_MIN_BARS, base) : base
+/** Форма вида при длине `base` тактов: все виды растут с настройкой длины. */
+export function shapeOf(kind: BlendKind, base: number): Shape {
+  if (kind === 'echo') {
+    // эхо набирается `lead` тактов до «раз», хвост — половина длины
+    const lead = base >= ECHO_LEAD_LONG_FROM ? 2 : 1
+    return { bars: lead + Math.max(MIN_BARS, Math.round(base / 2)), lead, inAtBar: lead }
+  }
+  if (kind === 'drop') {
+    const bars = Math.max(MIN_BARS, Math.ceil(base / 2))
+    return { bars, lead: bars, inAtBar: bars }
+  }
+  const bars = kind === 'smooth' ? Math.min(MAX_BARS, base * SMOOTH_FACTOR) : base
   return { bars, lead: bars, inAtBar: 0 }
 }
 
-/** Какие виды пробовать: ручной вид без синка откатывается на «Эхо», «Плавный» идёт без синка (§6.3). */
+/** Какие виды пробовать. Ручной вид — всегда он (без синка — на своих скоростях, §6.3); «Авто» без синка
+ *  не берёт бас-свап и дроп: две разные сетки на одном басу — каша. */
 export function kindsFor(type: BlendType, syncOk: boolean): BlendKind[] {
-  if (type === 'auto') return syncOk ? [...BLEND_KINDS] : ['echo', 'smooth']
-  if (SYNC_KINDS.has(type) && !syncOk) return ['echo']
+  if (type === 'auto') return syncOk ? [...BLEND_KINDS] : ['filter', 'echo', 'smooth']
   return [type]
 }
 
-/** Такты A, где он может замолкнуть: от `endMs − cut` до конца файла (или такт за концом музыки). */
+/** Такты A, где он может замолкнуть: от `endMs − cut` до такта за концом музыки, но не за концом файла. */
 function anchorsOf(a: BlendAnalysis, cutMs: number): number[] {
   const from = a.endMs - cutMs
-  const to = Math.max(a.durationMs, a.endMs + barMs(a))
+  const to = Math.min(a.durationMs, a.endMs + barMs(a))
   const out: number[] = []
   for (let k = 0; barTime(a, k) <= to; k++) if (barTime(a, k) >= from) out.push(k)
   return out
@@ -223,7 +234,8 @@ function startScore(phrases: Map<number, PhraseKind>, bar: number): number {
 }
 
 function endScore(phrases: Map<number, PhraseKind>, nBars: number, bar: number): number {
-  if (bar === nBars) return 1
+  // замолкнуть к концу музыки или прямо перед аутро (аутро срезаем — для этого и «Можно срезать»)
+  if (bar === nBars || phrases.get(bar) === 'outro') return 1
   if (bar > nBars) return 0.6
   if (phrases.has(bar)) return 0.9
   return bar % 4 === 0 ? 0.4 : 0.1
@@ -257,11 +269,13 @@ interface Facts {
 /** Насколько вид подходит паре (§7.5): не правило, а бонус. */
 function kindFit(kind: BlendKind, f: Facts): number {
   let fit: number
-  if (kind === 'echo') fit = !f.syncOk || f.clash ? 1 : 0.3
+  // эхо — для несовместимых тональностей; просто разный темп мягче проходит фильтром
+  if (kind === 'echo') fit = f.clash ? 1 : 0.3
   else if (kind === 'smooth') fit = f.calm ? 1 : 0.4
   else if (kind === 'bass') fit = f.outroA && f.introB ? 1 : 0.5
   else if (kind === 'drop') fit = f.dropB ? (f.loud ? 1 : 0.6) : 0.1
-  else fit = f.spectrumGap ? 1 : 0.5
+  // без синка фильтр — самый мягкий: сетки расходятся, но басы и верх не дерутся
+  else fit = f.syncOk ? (f.spectrumGap ? 1 : 0.5) : 0.7
   return OVERLAP_KINDS.has(kind) && f.clash ? fit * CLASH_FIT : fit
 }
 
@@ -280,6 +294,9 @@ function evaluate(p: Pair, c: Candidate): TransitionPlan | null {
   const outBar = c.anchor - shape.lead
   const outMs = barTime(a, outBar)
   if (outBar < 0 || outMs < a.startMs) return null
+  // где A замолкает на самом деле: у «Эха» сухой A ещё гаснет полтакта после «раз»
+  const silentMs = barTime(a, c.anchor) + (c.kind === 'echo' ? ECHO_DRY_FADE_BARS * barMs(a) : 0)
+  if (silentMs > a.durationMs - END_SAFE_MS) return null
   const sync = c.kind === 'echo' ? false : p.syncOk
   const nA = a.bars.energy.length
   const overlapB = Math.max(1, Math.round(shape.bars * p.beatRatio))

@@ -24,9 +24,9 @@ struct BlendSheet: View {
                 }
                 optionsCard
                 partyButton
-                // HLS играет мимо `AudioTap`: анализа нет — честно говорим, что будет кроссфейд
+                // HLS играет мимо `AudioTap`: анализ есть, но из перехода слышна только громкость (BLEND §13)
                 if engine.blendOn, engine.isHLS {
-                    HintCard(icon: .info, text: t("Этот трек идёт потоком HLS — анализа нет, переход будет кроссфейдом"))
+                    HintCard(icon: .info, text: t("Этот трек идёт потоком HLS — в переходе слышна только громкость, без фильтров и эха"))
                         .transition(.opacity)
                 }
                 if showDebug {
@@ -88,10 +88,15 @@ struct BlendSheet: View {
                 Text(t(state))
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Theme.text)
+                if card == .noAnalysis { failureLines }
             }
             HStack(spacing: 8) {
-                pill(t("Другой момент"), selected: false, enabled: Self.canSwap(card)) {
-                    _ = engine.blend.another()
+                if card == .noAnalysis {
+                    pill(t("Повторить"), selected: false) { retryAnalysis() }
+                } else {
+                    pill(t("Другой момент"), selected: false, enabled: Self.canSwap(card)) {
+                        _ = engine.blend.another()
+                    }
                 }
                 pill(t("К переходу"), selected: false, enabled: previewMs != nil) {
                     if let ms = engine.blend.previewAtMs() { engine.seek(to: ms / 1000) }
@@ -101,6 +106,39 @@ struct BlendSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    /// Сырые причины сбоя анализа играющего и следующего трека (без повторов).
+    private var failures: [String] {
+        var out: [String] = []
+        for ref in [engine.current?.ref, engine.upNext.first?.ref].compactMap({ $0 }) {
+            if let raw = hub.failure(ref), !out.contains(raw) { out.append(raw) }
+        }
+        return out
+    }
+
+    /// Почему нет анализа — человеческими словами; Dev видит и саму ошибку.
+    private var failureLines: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(failures, id: \.self) { raw in
+                Text(t(BlendView.failureText(raw)))
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.textSecondary)
+                if showDebug {
+                    Text(raw)
+                        .font(.system(size: 11).monospaced())
+                        .foregroundStyle(Theme.textSecondary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    /// Забыть сбои и посчитать играющий и следующий заново (сеть вернулась, сервис ожил).
+    private func retryAnalysis() {
+        hub.forgetFailures()
+        for ref in [engine.current?.ref, engine.upNext.first?.ref].compactMap({ $0 }) { hub.request(ref) }
     }
 
     private static func canSwap(_ card: BlendView.Card) -> Bool {

@@ -62,12 +62,33 @@ final class BlendCurvesTests: XCTestCase {
         }
     }
 
-    func testEchoAndDropBFullWithinOneBeat() {
-        for kind in [BlendKind.echo, .drop] {
-            let plan = F.planOf(kind)
-            let c = curves(plan)
-            XCTAssertEqual(BlendMix.paramsAt(c, bar: Double(plan.inAtBar) + 0.25).b.gain, 1, accuracy: 0.5e-9, "\(kind)")
-        }
+    func testDropBFullRightOnDrop() {
+        let plan = F.planOf(.drop)
+        let c = curves(plan)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: Double(plan.inAtBar) + 0.25).b.gain, 1, accuracy: 0.5e-9)
+    }
+
+    func testDropRiserEchoRingsOverDrop() {
+        let plan = F.planOf(.drop)
+        let c = curves(plan)
+        let n = Double(plan.bars)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: n - 1).a.echoSend, 0)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: n - 0.25).a.echoSend, 1)
+        XCTAssertGreaterThan(BlendMix.paramsAt(c, bar: n + 1).a.feedback, 0)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: n + 1).a.gain, 0)
+        XCTAssertEqual(c.endBar, n + 2)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: c.endBar).a.echoSend, 0)
+    }
+
+    func testEchoBFadesInOverBarBassOverTwo() {
+        let plan = F.planOf(.echo)
+        let c = curves(plan)
+        let one = Double(plan.inAtBar)
+        XCTAssertGreaterThan(BlendMix.paramsAt(c, bar: one + 0.25).b.gain, 0)
+        XCTAssertLessThan(BlendMix.paramsAt(c, bar: one + 0.25).b.gain, 1)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: one + 1).b.gain, 1, accuracy: 0.5e-9)
+        XCTAssertLessThan(BlendMix.paramsAt(c, bar: one + 1).b.low, 0)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: one + 2).b.low, 0)
     }
 
     func testEveryChangeAtLeastFiveMsEvenWhenTempoRises() {
@@ -92,15 +113,22 @@ final class BlendCurvesTests: XCTestCase {
         }
     }
 
-    func testEchoLoopOpensOnLastBeatDryAStopsOnOne() {
+    func testEchoBuildsUpDryAFadesHalfBarAfterOne() {
         let c = curves(F.planOf(.echo))
-        XCTAssertEqual(BlendMix.paramsAt(c, bar: 0.5).a.echoSend, 0)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: 0).a.echoSend, 0)
+        let half = BlendMix.paramsAt(c, bar: 0.375).a.echoSend
+        XCTAssertGreaterThan(half, 0)
+        XCTAssertLessThan(half, 1)
         XCTAssertEqual(BlendMix.paramsAt(c, bar: 0.75).a.echoSend, 1)
-        XCTAssertEqual(BlendMix.paramsAt(c, bar: 0.75).a.feedback, 0.5)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: 0.75).a.feedback, 0.55, accuracy: 0.5e-9)
         XCTAssertEqual(BlendMix.paramsAt(c, bar: 1).a.gain, 1)
+        // не обрыв: через четверть такта после «раз» сухой A ещё слышен
+        XCTAssertGreaterThan(BlendMix.paramsAt(c, bar: 1.25).a.gain, 0.5)
+        XCTAssertEqual(BlendMix.paramsAt(c, bar: 1.5).a.gain, 0)
         XCTAssertEqual(BlendMix.paramsAt(c, bar: 3).a.feedback, 0.3, accuracy: 0.5e-9)
         XCTAssertEqual(c.echoDelaySec, (0.75 * 60) / 128, accuracy: 0.5e-9)
-        XCTAssertEqual(c.promoteBar, 1)
+        // A отпускают только когда он замолк
+        XCTAssertEqual(c.promoteBar, 1.5)
         XCTAssertEqual(c.endBar, 3)
     }
 

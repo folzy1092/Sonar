@@ -95,11 +95,17 @@ struct TransitionPlan: Codable, Hashable, Sendable {
 
 enum BlendPlanner {
     static let topPlans = 8
-    static let lengthBarsOptions = [4, 8, 16]
-    static let smoothMinBars = 16
-    /// Короткие виды («Эхо» — хвост, «На дроп» — разгон): 4 такта при длинном переходе, иначе 2.
-    static let shortBars = 2
-    static let longShortBars = 4
+    /// Длина перехода в тактах — целая, чтобы «Коротко · Норм · Длинно» не слипались ни при каком темпе.
+    static let minBars = 2
+    static let maxBars = 32
+    /// «Плавный» — вдвое длиннее выбранной длины.
+    static let smoothFactor = 2
+    /// «Эхо»: сколько тактов эхо набирается до «раз» (при длине от 6 тактов — 2).
+    static let echoLeadLongFrom = 6
+    /// Сухой A после «раз» у «Эха» гаснет за полтакта, а не обрывается (такты). Зеркало в `BlendMix`.
+    static let echoDryFadeBars = 0.5
+    /// A должен доиграть до конца своей части перехода с запасом: иначе конец файла оборвёт переход.
+    static let endSafeMs = 300.0
     static let maxGainDb = 9.0
     /// Тактов по краям наложения для энергии.
     static let edgeBars = 2
@@ -112,8 +118,6 @@ enum BlendPlanner {
     static let beatRatios: [Double] = [0.5, 1, 2]
     /// Громкость тишины (~LUFS) — как `SILENT_LUFS` в `loudness.ts`.
     static let silentLufs = -70.0
-    /// Без бит-синка эти виды не звучат: вне допуска темпа — «Эхо» (§6.3).
-    static let syncKinds: Set<BlendKind> = [.bass, .filter, .drop]
     /// Долгое наложение двух треков — тут важна тональность и вокал.
     static let overlapKinds: Set<BlendKind> = [.bass, .filter, .smooth]
     static let weightSum = ScorePart.allCases.reduce(0.0) { $0 + $1.weight }
@@ -126,13 +130,11 @@ enum BlendPlanner {
         t.firstBeatMs + Double(t.downbeat + beatsPerBar * bar) * t.beatMs
     }
 
-    /// Длина перехода в тактах: секунды при темпе A, ближайшее из 4 / 8 / 16 (по отношению, не по разнице).
+    /// Длина перехода в тактах: секунды при темпе A, округлённые до целого такта (2…32).
     static func lengthBars(_ lengthSec: Double, tempo: Double) -> Int {
         let bars = (lengthSec * tempo) / 60 / Double(beatsPerBar)
-        let distance = { (n: Int) in abs(log2(bars / Double(n))) }
-        return lengthBarsOptions.dropFirst().reduce(lengthBarsOptions[0]) { best, n in
-            distance(n) < distance(best) ? n : best
-        }
+        guard bars.isFinite else { return minBars }
+        return min(maxBars, max(minBars, BlendMath.jsRoundInt(bars)))
     }
 
     /// B ближе к удвоенному или половинному темпу A, чем к тому же, — считаем его в такой сетке.
@@ -141,10 +143,10 @@ enum BlendPlanner {
         return beatRatios.dropFirst().reduce(beatRatios[0]) { best, k in distance(k) < distance(best) ? k : best }
     }
 
-    /// Какие виды пробовать: ручной вид без синка откатывается на «Эхо», «Плавный» идёт без синка (§6.3).
+    /// Какие виды пробовать. Ручной вид — всегда он (без синка — на своих скоростях, §6.3); «Авто» без синка
+    /// не берёт бас-свап и дроп: две разные сетки на одном басу — каша.
     static func kindsFor(_ type: BlendType, syncOk: Bool) -> [BlendKind] {
-        guard let kind = type.kind else { return syncOk ? BlendKind.allCases : [.echo, .smooth] }
-        if syncKinds.contains(kind) && !syncOk { return [.echo] }
+        guard let kind = type.kind else { return syncOk ? BlendKind.allCases : [.filter, .echo, .smooth] }
         return [kind]
     }
 
@@ -182,7 +184,7 @@ enum BlendPlanner {
     /// Такты A, где он может замолкнуть: от `endMs − cut` до конца файла (или такт за концом музыки).
     private static func anchorsOf(_ a: BlendAnalysis, cutMs: Double) -> [Int] {
         let from = a.endMs - cutMs
-        let to = max(a.durationMs, a.endMs + barMs(a))
+        let to = min(a.durationMs, a.endMs + barMs(a))
         var out: [Int] = []
         var k = 0
         while barTime(a, k) <= to {

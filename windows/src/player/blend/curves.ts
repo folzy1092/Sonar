@@ -7,7 +7,7 @@
 // ни при каком темпе перехода.
 
 import { HP_REST_HZ, ISO_MIN_DB } from './deck-chain'
-import type { TransitionPlan } from './planner'
+import { ECHO_DRY_FADE_BARS, type TransitionPlan } from './planner'
 
 export const DECK_PARAMS = ['gain', 'low', 'mid', 'high', 'hpHz', 'hpQ', 'lpHz', 'echoSend', 'feedback'] as const
 export type DeckParam = (typeof DECK_PARAMS)[number]
@@ -40,7 +40,6 @@ const OFF_DB = ISO_MIN_DB
 const Q_REST = Math.SQRT1_2
 /** Длительности резких мест (§8), с. */
 const SWAP_SEC = 0.008
-const DRY_CUT_SEC = 0.012
 const DROP_SEC = 0.005
 /** Бас-свап расписан на 8 тактов; длиннее или короче — те же доли. */
 const BASS_GRID = 8
@@ -50,9 +49,13 @@ const FILTER_LP_FROM = 300
 const FILTER_B_LOW_DB = -12
 /** Пока HPF у A ниже этой частоты, бас B приглушён: два баса не дерутся. */
 const FILTER_BASS_HANDOFF_HZ = 150
-const ECHO_FEEDBACK = 0.5
+const ECHO_FEEDBACK = 0.55
 const ECHO_FEEDBACK_TAIL = 0.3
-const ECHO_TAIL_BARS = 2
+/** B у «Эха» выходит в полную громкость за такт, бас — за два: не стена звука на «раз». */
+const ECHO_B_IN_BARS = 1
+const ECHO_B_BASS_BARS = 2
+/** «На дроп»: последний такт разгона A уходит в эхо, хвост звенит поверх дропа B. */
+const DROP_ECHO_FEEDBACK = 0.45
 const DROP_HP_TO = 800
 const DROP_GAIN = 10 ** (-3 / 20)
 const DROP_MID_DB = 3
@@ -120,18 +123,19 @@ function filter(plan: TransitionPlan, nyquist: number): Pick<BlendCurves, 'a' | 
 function echo(plan: TransitionPlan): Pick<BlendCurves, 'a' | 'b'> {
   const one = plan.inAtBar
   const lastBeat = one - BEAT
+  const dryEnd = one + ECHO_DRY_FADE_BARS
   const open = barsOf(plan, DROP_SEC)
-  const tailTo = Math.min(plan.bars, one + ECHO_TAIL_BARS)
   return {
     a: {
-      // сухой A гаснет на «раз»; эхо питается после громкости дека — новых повторов нет, хвост крутится в петле
-      gain: [k(one, 1), k(one + barsOf(plan, DRY_CUT_SEC), 0)],
-      echoSend: [k(lastBeat - open, 0), k(lastBeat, 1), k(plan.bars - open, 1), k(plan.bars, 0)],
-      feedback: [k(lastBeat - open, 0), k(lastBeat, ECHO_FEEDBACK), k(one, ECHO_FEEDBACK), k(tailTo, ECHO_FEEDBACK_TAIL)],
+      // эхо набирается от начала перехода до последней доли, сухой A гаснет полтакта после «раз»; эхо питается
+      // после громкости дека — новых повторов нет, хвост крутится в петле до конца перехода
+      gain: [k(one, 1), k(dryEnd, 0, 'eq')],
+      echoSend: [k(0, 0), k(lastBeat, 1), k(plan.bars - open, 1), k(plan.bars, 0)],
+      feedback: [k(0, 0), k(lastBeat, ECHO_FEEDBACK), k(dryEnd, ECHO_FEEDBACK), k(plan.bars, ECHO_FEEDBACK_TAIL)],
     },
     b: {
-      gain: [k(one, 0), k(one + BEAT, 1, 'eq')],
-      low: [k(one, OFF_DB), k(one + 1, 0)],
+      gain: [k(one, 0), k(one + ECHO_B_IN_BARS, 1, 'eq')],
+      low: [k(one, OFF_DB), k(one + ECHO_B_BASS_BARS, 0)],
     },
   }
 }
@@ -157,11 +161,15 @@ function smooth(plan: TransitionPlan): Pick<BlendCurves, 'a' | 'b'> {
 function drop(plan: TransitionPlan): Pick<BlendCurves, 'a' | 'b'> {
   const n = plan.bars
   const cut = barsOf(plan, DROP_SEC)
+  const tail = n + 2
   return {
     a: {
       gain: [k(0, 1), k(n, DROP_GAIN), k(n + cut, 0)],
       hpHz: [k(0, HP_FROM), k(n, DROP_HP_TO, 'exp')],
       mid: [k(n - 1, 0), k(n, DROP_MID_DB)],
+      // разгон уходит в эхо: A срезается на дропе, а хвост ещё два такта звенит поверх B
+      echoSend: [k(n - 1, 0), k(n - BEAT, 1), k(tail - cut, 1), k(tail, 0)],
+      feedback: [k(n - 1, 0), k(n - BEAT, DROP_ECHO_FEEDBACK), k(tail, 0)],
     },
     b: { gain: [k(n, 0), k(n + cut, 1)] },
   }
@@ -180,7 +188,8 @@ export function curvesFor(plan: TransitionPlan, nyquist: number): BlendCurves {
   return {
     a,
     b,
-    promoteBar: plan.kind === 'echo' ? plan.inAtBar : plan.bars,
+    // A играет, пока не замолк: у «Эха» — ещё полтакта затухания после «раз»
+    promoteBar: plan.kind === 'echo' ? plan.inAtBar + ECHO_DRY_FADE_BARS : plan.bars,
     endBar: Math.max(plan.bars, lastKey),
     echoDelaySec: (0.75 * 60) / plan.tempoA,
     rest: restValues(nyquist),

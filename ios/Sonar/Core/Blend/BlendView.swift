@@ -16,7 +16,7 @@ enum BlendView {
         case .bass: BlendKindText(short: "Бас", name: "Бас-свап", about: "Басы меняются местами на сильную долю")
         case .filter: BlendKindText(short: "Фильтр", name: "Фильтр",
                                     about: "Трек уходит в фильтр, следующий раскрывается из глухого")
-        case .echo: BlendKindText(short: "Эхо", name: "Эхо", about: "Трек обрывается в эхо, следующий входит на «раз»")
+        case .echo: BlendKindText(short: "Эхо", name: "Эхо", about: "Трек тонет в эхо, следующий входит на «раз»")
         case .smooth: BlendKindText(short: "Сведение::Плавно", name: "Плавный", about: "Длинное наложение без резких мест")
         case .drop: BlendKindText(short: "Дроп", name: "На дроп", about: "Короткий разгон и сразу дроп следующего")
         }
@@ -116,6 +116,19 @@ enum BlendView {
             case .waiting: "Подбираю момент…"
             case .off, .plan: nil
             }
+        }
+    }
+
+    /// Почему у трека нет анализа — ключ `t()` для шторки. `BlendAnalyzeQueue.failure` хранит
+    /// `String(describing:)` ошибки: у `BlendAnalysisError` это имя случая, у остального — что угодно (сеть, сервис).
+    static func failureText(_ raw: String) -> String {
+        switch raw {
+        case "hls": "Поток этого сервиса не разобрать"
+        case "offline": "Офлайн — у трека нет своего файла"
+        case "tooBig", "tooLong": "Трек слишком длинный для анализа"
+        case "decode": "Не удалось прочитать звук трека"
+        case "noTrack": "Трек пропал из очереди"
+        default: "Не удалось скачать трек для анализа"
         }
     }
 

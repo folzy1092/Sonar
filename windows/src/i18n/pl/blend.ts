@@ -36,7 +36,7 @@ export default {
   'Сам выбирает вид под пару треков': 'Sam dobiera styl do każdej pary utworów',
   'Басы меняются местами на сильную долю': 'Basy zamieniają się na mocną część taktu',
   'Трек уходит в фильтр, следующий раскрывается из глухого': 'Utwór znika w filtrze, następny otwiera się z przytłumionego',
-  'Трек обрывается в эхо, следующий входит на «раз»': 'Utwór urywa się w echo, następny wchodzi na „raz”',
+  'Трек тонет в эхо, следующий входит на «раз»': 'Utwór tonie w echu, następny wchodzi na „raz”',
   'Длинное наложение без резких мест': 'Długie nałożenie bez ostrych miejsc',
   'Короткий разгон и сразу дроп следующего': 'Krótkie rozpędzenie i od razu drop następnego',
   'Коротко': 'Krótko',
