@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Sonar">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c1c20"/><stop offset="1" stop-color="#050506"/></linearGradient>
+    <path id="all" d="M244.1 917.6C244.4 917.3 251.9 915.7 260.7 914.0C336.9 899.8 417.1 875.8 476.5 849.5C558.3 813.3 619.4 767.3 654.0 715.7C671.2 690.1 681.9 661.6 685.0 633.2C686.8 617.5 685.8 595.7 683.0 586.0C671.0 544.5 630.9 504.6 560.5 464.0C548.4 457.1 506.8 435.7 492.5 429.2L483.5 425.1L497.5 425.1C529.0 424.9 580.9 428.1 613.0 432.1C703.1 443.3 761.6 466.9 796.5 506.0C841.5 556.5 830.9 619.4 765.9 687.4C705.1 751.1 629.7 803.6 541.8 843.3C455.5 882.4 357.3 908.2 266.0 916.0C259.1 916.6 251.3 917.3 248.5 917.6C245.8 917.9 243.8 917.9 244.1 917.6ZM258.1 847.6C258.3 847.4 265.5 846.0 274.0 844.6C365.5 829.0 447.9 797.3 506.7 755.2C551.1 723.4 589.3 681.0 615.0 635.2C618.4 629.0 621.5 624.0 621.8 624.0C622.8 624.0 620.9 639.1 618.5 648.6C615.4 661.7 611.3 672.5 603.6 688.4C593.0 710.1 581.0 726.4 563.5 742.8C505.4 797.1 406.3 833.1 279.6 846.0C258.1 848.2 257.5 848.2 258.1 847.6ZM485.0 597.9C366.7 592.9 284.2 570.4 240.9 531.3C186.8 482.5 186.4 424.2 239.8 357.3C260.5 331.4 302.5 292.2 338.3 265.2C454.9 177.6 607.3 121.0 762.5 107.6C778.9 106.2 784.3 106.2 776.4 107.5C763.4 109.8 734.7 115.7 717.6 119.6C548.3 158.5 426.0 224.8 370.0 308.3C352.8 333.9 342.1 362.4 339.0 390.8C337.2 406.5 338.2 428.3 341.0 438.0C353.0 479.5 393.1 519.4 463.5 560.0C475.6 566.9 517.2 588.3 531.5 594.8L540.5 598.9L522.0 598.8C511.8 598.7 495.2 598.3 485.0 597.9ZM402.4 392.6C403.2 383.4 406.9 368.0 411.0 357.1C415.3 345.3 425.9 323.9 431.7 315.0C474.7 249.5 574.6 201.5 707.0 182.5C727.1 179.7 765.0 175.7 765.7 176.4C766.0 176.6 764.0 177.2 761.3 177.5C750.5 179.1 723.5 184.4 707.0 188.2C620.0 208.3 549.3 241.0 494.3 286.4C462.1 313.1 429.5 352.2 409.0 388.8C405.6 395.0 402.5 400.0 402.2 400.0C402.0 400.0 402.0 396.7 402.4 392.6Z" fill-rule="evenodd"/>
+    <path id="bl" d="M244.1 917.6C244.4 917.3 251.9 915.7 260.7 914.0C336.9 899.8 417.1 875.8 476.5 849.5C558.3 813.3 619.4 767.3 654.0 715.7C671.2 690.1 681.9 661.6 685.0 633.2C686.8 617.5 685.8 595.7 683.0 586.0C671.0 544.5 630.9 504.6 560.5 464.0C548.4 457.1 506.8 435.7 492.5 429.2L483.5 425.1L497.5 425.1C529.0 424.9 580.9 428.1 613.0 432.1C703.1 443.3 761.6 466.9 796.5 506.0C841.5 556.5 830.9 619.4 765.9 687.4C705.1 751.1 629.7 803.6 541.8 843.3C455.5 882.4 357.3 908.2 266.0 916.0C259.1 916.6 251.3 917.3 248.5 917.6C245.8 917.9 243.8 917.9 244.1 917.6Z M485.0 597.9C366.7 592.9 284.2 570.4 240.9 531.3C186.8 482.5 186.4 424.2 239.8 357.3C260.5 331.4 302.5 292.2 338.3 265.2C454.9 177.6 607.3 121.0 762.5 107.6C778.9 106.2 784.3 106.2 776.4 107.5C763.4 109.8 734.7 115.7 717.6 119.6C548.3 158.5 426.0 224.8 370.0 308.3C352.8 333.9 342.1 362.4 339.0 390.8C337.2 406.5 338.2 428.3 341.0 438.0C353.0 479.5 393.1 519.4 463.5 560.0C475.6 566.9 517.2 588.3 531.5 594.8L540.5 598.9L522.0 598.8C511.8 598.7 495.2 598.3 485.0 597.9Z" fill-rule="evenodd"/>
+    <path id="ec" d="M258.1 847.6C258.3 847.4 265.5 846.0 274.0 844.6C365.5 829.0 447.9 797.3 506.7 755.2C551.1 723.4 589.3 681.0 615.0 635.2C618.4 629.0 621.5 624.0 621.8 624.0C622.8 624.0 620.9 639.1 618.5 648.6C615.4 661.7 611.3 672.5 603.6 688.4C593.0 710.1 581.0 726.4 563.5 742.8C505.4 797.1 406.3 833.1 279.6 846.0C258.1 848.2 257.5 848.2 258.1 847.6Z M402.4 392.6C403.2 383.4 406.9 368.0 411.0 357.1C415.3 345.3 425.9 323.9 431.7 315.0C474.7 249.5 574.6 201.5 707.0 182.5C727.1 179.7 765.0 175.7 765.7 176.4C766.0 176.6 764.0 177.2 761.3 177.5C750.5 179.1 723.5 184.4 707.0 188.2C620.0 208.3 549.3 241.0 494.3 286.4C462.1 313.1 429.5 352.2 409.0 388.8C405.6 395.0 402.5 400.0 402.2 400.0C402.0 400.0 402.0 396.7 402.4 392.6Z" fill-rule="evenodd"/>
+    <filter id="sh" x="-25%" y="-25%" width="150%" height="150%"><feGaussianBlur in="SourceAlpha" stdDeviation="24"/><feOffset dx="0" dy="26"/><feComponentTransfer><feFuncA type="linear" slope="0.75"/></feComponentTransfer></filter>
+    <linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#b4b4c0"/></linearGradient>
+    <filter id="pi" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feComponentTransfer in="SourceAlpha" result="inv"><feFuncA type="table" tableValues="1 0"/></feComponentTransfer>
+      <feOffset in="inv" dx="22" dy="30" result="so"/><feGaussianBlur in="so" stdDeviation="26" result="sb"/>
+      <feFlood flood-color="#33333f" flood-opacity="1"/><feComposite in2="sb" operator="in" result="sc"/><feComposite in="sc" in2="SourceAlpha" operator="in" result="shadow"/>
+      <feOffset in="inv" dx="-14" dy="-17" result="ho"/><feGaussianBlur in="ho" stdDeviation="14" result="hb"/>
+      <feFlood flood-color="#ffffff" flood-opacity="1"/><feComposite in2="hb" operator="in" result="hc"/><feComposite in="hc" in2="SourceAlpha" operator="in" result="hl"/>
+      <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="shadow"/><feMergeNode in="hl"/></feMerge>
+    </filter>
+    <filter id="pe" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feComponentTransfer in="SourceAlpha" result="inv"><feFuncA type="table" tableValues="1 0"/></feComponentTransfer>
+      <feOffset in="inv" dx="5" dy="7" result="so"/><feGaussianBlur in="so" stdDeviation="4" result="sb"/>
+      <feFlood flood-color="#4f4f5b" flood-opacity="0.9"/><feComposite in2="sb" operator="in" result="sc"/><feComposite in="sc" in2="SourceAlpha" operator="in" result="shadow"/>
+      <feOffset in="inv" dx="-3" dy="-4" result="ho"/><feGaussianBlur in="ho" stdDeviation="2.5" result="hb"/>
+      <feFlood flood-color="#ffffff" flood-opacity="1"/><feComposite in2="hb" operator="in" result="hc"/><feComposite in="hc" in2="SourceAlpha" operator="in" result="hl"/>
+      <feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="shadow"/><feMergeNode in="hl"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g transform="translate(512 512) scale(0.917) translate(-512 -512)">
+    <use xlink:href="#all" filter="url(#sh)"/>
+    <use xlink:href="#bl" fill="url(#pg)" filter="url(#pi)"/>
+    <use xlink:href="#ec" fill="url(#pg)" filter="url(#pe)"/>
+  </g>
+</svg>

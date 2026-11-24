@@ -1,3 +1,4 @@
+mod app_icon;
 mod artist_graph;
 mod autostart;
 mod blend;
@@ -124,6 +125,8 @@ pub fn run() {
         tray::HIDE_ON_CLOSE.store(v.as_bool().unwrap_or(true), std::sync::atomic::Ordering::Relaxed);
       }
       tray::setup(app)?;
+      // значок приложения (`appearance.app_icon`): основной уже в exe, другой ставим сразу, до показа окна
+      app_icon::apply_saved(app.handle(), db.setting(app_icon::KEY).ok().flatten().as_ref());
       // Windows 10: у окна без рамки тень рисует белую рамку в 1 px по краю — там тень выключаем
       // (на Windows 11 вместо неё скруглённые углы, тень остаётся)
       #[cfg(windows)]

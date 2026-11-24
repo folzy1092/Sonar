@@ -36,7 +36,7 @@ Sonar/
 │   ├── CNAME                 try-sonar.ru
 │   └── assets/
 │
-├── brand/                    иконки, лого, фирменные материалы (brand/README.md)
+├── brand/                    иконки, лого, фирменные материалы (brand/README.md); app-icons/ — генератор значков приложения
 │
 ├── updates/                  читается приложением с raw.githubusercontent.com
 │   ├── update.json           какую сборку объявить (общий, формат Shadow)
@@ -178,7 +178,7 @@ Sonar/
 │   └── src-tauri/
 │       ├── tauri.conf.json   окно без рамки, id com.folzy.sonar, флаги WebView2, NSIS, updater
 │       ├── capabilities/     права окна: перетаскивание, свернуть/развернуть/закрыть
-│       ├── icons/            из brand/icon (npx tauri icon brand/icon/sonar_icon_dark.png)
+│       ├── icons/            из brand/icon (npx tauri icon ../brand/icon/sonar_icon_windows.svg); icons/app/ — значки на выбор (brand/app-icons)
 │       └── src/
 │           ├── main.rs       точка входа → sonar_lib::run()
 │           ├── lib.rs        сборка Tauri; потом трей, автозапуск, медиа-клавиши

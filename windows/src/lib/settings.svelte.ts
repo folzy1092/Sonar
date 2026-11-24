@@ -6,6 +6,7 @@ import { preferredLanguages, systemLang, type Lang } from './system-lang'
 import type { CoverStrength, Surface } from '../theme/palette'
 import type { ServiceId, ServiceKey } from './services'
 import type { NickEffect, NickFont, ProfileColor, ProfileLayout, ProfileLink, ShowcaseItem } from './profile-look'
+import type { AppIconId } from './app-icons'
 import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook, ProgressLook, TitleStyle } from '../theme/style'
 
 export type MiniStyle = 'off' | 'full' | 'rounded' | 'hybrid' | 'deck'
@@ -117,6 +118,8 @@ export const DEFAULTS = {
   'appearance.custom_styles': [] as CustomStyle[],
   /** «Классика» стала основным видом (2026-11-22): один раз переключаем на неё и тех, у кого был прежний стиль. */
   'appearance.classic_switched': false as boolean,
+  /** Значок приложения: окно, панель задач и трей (Rust `app_icon.rs`); список — `lib/app-icons.ts`. */
+  'appearance.app_icon': 'glass' as AppIconId,
   /** Панель вкладок (Интерфейс → Вкладки): где она, какая, подстраивается ли под страницу. */
   'tabs.position': 'left' as 'left' | 'top' | 'bottom' | 'right',
   'tabs.style': 'default' as 'default' | 'compact' | 'full' | 'round' | 'floating',

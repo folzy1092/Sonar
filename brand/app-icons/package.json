@@ -1,0 +1,9 @@
+{
+  "name": "sonar-app-icons",
+  "private": true,
+  "type": "module",
+  "description": "Значки приложения Sonar: генератор SVG и PNG для Windows и iOS (node build.mjs)",
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}

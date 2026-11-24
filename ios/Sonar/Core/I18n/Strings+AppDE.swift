@@ -391,5 +391,9 @@ extension I18n {
         "условие::не": "ist nicht",
         "условие::это": "ist",
         "условие|условия|условий": "Bedingung|Bedingungen",
+        // значок приложения (Интерфейс → Вид → «Значок приложения»)
+        "Меняет значок на экране «Домой». iOS сама покажет уведомление о смене — это нормально": "Ändert das Symbol auf dem Home-Bildschirm. iOS zeigt dazu selbst einen Hinweis — das ist normal",
+        "На этом устройстве значок сменить нельзя": "Auf diesem Gerät lässt sich das Symbol nicht ändern",
+        "Не получилось сменить значок": "Das Symbol konnte nicht geändert werden",
     ]
 }

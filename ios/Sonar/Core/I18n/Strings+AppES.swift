@@ -391,5 +391,9 @@ extension I18n {
         "условие::не": "no es",
         "условие::это": "es",
         "условие|условия|условий": "condición|condiciones",
+        // значок приложения (Интерфейс → Вид → «Значок приложения»)
+        "Меняет значок на экране «Домой». iOS сама покажет уведомление о смене — это нормально": "Cambia el icono de la pantalla de inicio. iOS mostrará su propio aviso del cambio: es normal",
+        "На этом устройстве значок сменить нельзя": "En este dispositivo no se puede cambiar el icono",
+        "Не получилось сменить значок": "No se pudo cambiar el icono",
     ]
 }

@@ -43,6 +43,7 @@ Thumbs.db
 windows/src-tauri/target-check/
 windows/src-tauri/src-tauri/
 ios/scripts/node_modules/
+brand/app-icons/node_modules/
 .claude/worktrees/
 
 # graphify — граф кода строится локально, в репо не идёт

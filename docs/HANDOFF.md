@@ -1,3 +1,41 @@
+# Передача 2026-11-24 (облачная сессия) → значок приложения «Стекло» и выбор значка
+
+**Начни отсюда.** Владелец выбрал вариант «Стекло» основным значком и попросил дать пользователям менять значок на ПК и
+iPhone. Сделано, влито в `main`; проверено сборкой и тестами (`npm run check` 0/0, vitest 1166, `cargo test` 496, сайт 138,
+кросс-проверка `cargo check --target x86_64-pc-windows-gnu`), **вживую — нет**.
+
+**Что где:**
+- Один скрипт на всё — `brand/app-icons/build.mjs` (`npm install && node build.mjs`): SVG десяти значков, основной значок бренда
+  (`brand/icon/sonar_icon_dark.*`, `sonar_icon_windows.svg`), `site/public/apple-touch-icon.png`, PNG для Windows
+  (`windows/src-tauri/icons/app/<id>-64|32.png`, `windows/public/app-icons/<id>.png`), наборы iOS (`AppIcon`, `AppIcon-<Имя>`,
+  `IconPreview-<id>`) и `icons.json`. Значки exe — отдельно: `cd windows && npx tauri icon ../brand/icon/sonar_icon_windows.svg`.
+  Объём — градиенты и внутренние тени: освещение (`feDiffuseLighting`) в resvg зернит. Раньше сюда же ходил `ios/scripts/gen-appicon.mjs` — удалён.
+- ПК: настройка `appearance.app_icon` (по умолчанию `glass`) → `set_setting` → `app_icon.rs` (малый значок окна — `Window::set_icon`,
+  большой — `WM_SETICON`/`ICON_BIG`: tao ставит через `set_icon` только малый, taskbar берёт большой; трей — `TrayIcon::set_icon`);
+  при запуске — `app_icon::apply_saved` после `tray::setup`. Нужна фича `image-png` у `tauri` (Cargo.lock обновлён). Список —
+  `windows/src/lib/app-icons.ts`; плитки — `pages/settings/AppIconPicker.svelte` в конце «Вид»; тесты `lib/app-icons.test.ts` и 4 теста в `app_icon.rs`
+  сверяют id, файлы, переводы и порядок между TS, Rust и `brand/app-icons/icons.json`.
+- iPhone: `Core/Settings/AppIcon.swift` (список, имена наборов), экран `Features/Settings/Look/AppIconSettingsView.swift`
+  (строка «Значок приложения» в «Вид»), `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` в `project.yml`, тест `AppIconTests`
+  (в том числе `CFBundleAlternateIcons` в Info.plist собранного приложения) и проверка того же в шаге «Сборка IPA» (`ios.yml`).
+  Выбор помнит iOS (`alternateIconName`), своей настройки нет.
+- Переводы: названия и подсказки — `windows/src/i18n/<язык>/app-icon.ts` (5 языков), строки только iPhone — `Strings+iOS.swift` и
+  `Strings+App{ES,DE,PL}.swift`. `ios/scripts/gen-i18n.mjs` перегенерирован целиком — заодно в словари iOS попали ~100 строк «Сведения»
+  из Windows (Э8 их всё равно ждёт).
+
+**Проверить руками:**
+- ПК: сменить значок в «Вид» — меняются ли значок в заголовке/Alt+Tab, на панели задач (не закреплённая кнопка) и в трее; после
+  перезапуска остаётся выбранный; возврат на «Стекло». Закреплённая кнопка и ярлыки **не меняются** — это ограничение Windows
+  (значок из exe), в подсказке под плитками сказано.
+- iPhone: сменить значок (iOS покажет своё уведомление — убрать нельзя), вернуть «Стекло»; на сборке с самоподписью
+  `CFBundleAlternateIcons` должен жить — если плитки серые («нельзя сменить»), смотреть Info.plist собранного приложения.
+- iOS 18 «Тонированный»: у основного он есть (знак на чёрном), у альтернативных только одна картинка — как их покажет iOS в тонированном режиме, **не проверено**.
+
+**Хвосты:** мини-окно и оверлей, открытые *после* выбора значка, берут значок exe — он меняется только у открытых окон
+(в панели задач они не живут); аватар `@SonarMusicApp` — руками в BotFather (скрипт его не трогает).
+
+---
+
 # Передача 2026-11-20 → языки es / de / pl и подпись мест Sonar Deep (пункт 11 доводки)
 
 **Сделано** по `docs/LANGS_DEEP_PROMPT.md` на ПК, iPhone и сайте:

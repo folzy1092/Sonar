@@ -111,6 +111,11 @@ jobs:
           # и переводы подписей виджетов (SonarWidget/en.lproj, uk.lproj)
           test -f build/Payload/Sonar.app/PlugIns/SonarWidget.appex/en.lproj/Localizable.strings
           test -f build/Payload/Sonar.app/PlugIns/SonarWidget.appex/uk.lproj/Localizable.strings
+          # альтернативные значки («Значок приложения» в настройках): каждый набор из project.yml — в Info.plist
+          # (CFBundleAlternateIcons), иначе setAlternateIconName молча не сработает
+          for n in $(sed -n 's/^ *ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: *"\(.*\)".*/\1/p' project.yml); do
+            /usr/libexec/PlistBuddy -c "Print :CFBundleIcons:CFBundleAlternateIcons:$n" build/Payload/Sonar.app/Info.plist > /dev/null
+          done
           ls build/Payload/Sonar.app/PlugIns
           (cd build && zip -qry Sonar.ipa Payload)
           ls -lh build/Sonar.ipa

@@ -259,6 +259,7 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 | `appearance.scale_fullscreen` (PC) | `0` — «Авто» (как в окне) или 75–125 % — когда окно развёрнуто (`zoom.rs` `pick`) | `100` | нет |
 | `appearance.window_buttons` (PC) | `auto` (как в системе: на Windows — Windows) / `windows` (значки) / `macos` (три кружка, значки при наведении) — `lib/window-buttons.ts`, `WindowControls.svelte` | `auto` | да |
 | `appearance.show_sources` (PC) | bool — «Показывать площадки»: значок сервиса рядом с длительностью трека в списках (`TrackRow`) | `false` | да |
+| `appearance.app_icon` | `glass` («Стекло», основной) / `flat` / `bevel` / `puff` / `block` / `echo` / `well` / `chrome` / `carved` / `light` — значок приложения: **ПК** — окно, панель задач и трей на лету (`app_icon.rs`, ярлыки и закреплённая кнопка остаются с основным — их значок из exe); **iPhone** — альтернативный значок iOS (`setAlternateIconName`), своей настройки нет — выбор помнит система. Список — `windows/src/lib/app-icons.ts` / `Core/Settings/AppIcon.swift`, файлы — `brand/app-icons/build.mjs` | `glass` | нет — у каждого устройства свой |
 
 ### Стиль — `appearance.*` (Интерфейс → Стиль, 2026-11-16)
 

@@ -333,6 +333,7 @@ pub fn set_setting(
       discord.refresh();
     }
     "system.tray" => crate::tray::HIDE_ON_CLOSE.store(value.as_bool().unwrap_or(true), Ordering::Relaxed),
+    "appearance.app_icon" => crate::app_icon::apply(&app, value.as_str().unwrap_or(crate::app_icon::DEFAULT)),
     "obs.token" => *obs.token.write().unwrap() = value.as_str().unwrap_or_default().to_owned(),
     "obs.size" => *obs.size.write().unwrap() = value.as_str().unwrap_or("standard").to_owned(),
     "obs.hide_paused" => obs.hide_paused.store(value.as_bool().unwrap_or(true), Ordering::Relaxed),
@@ -1385,7 +1386,7 @@ pub fn all_settings(db: State<'_, Db>) -> Res<std::collections::HashMap<String, 
 }
 
 #[tauri::command]
-pub fn reset_settings(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<()> {
+pub fn reset_settings(app: tauri::AppHandle, core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<()> {
   {
     let store = db.0.lock().unwrap();
     store.reset_settings().map_err(err)?;
@@ -1399,6 +1400,8 @@ pub fn reset_settings(core: State<'_, Arc<Core>>, db: State<'_, Db>) -> Res<()> 
   core.fallback.set_order(crate::services::fallback::default_order());
   core.max_kbps.store(crate::services::quality_kbps(None), Ordering::Relaxed);
   core.yt_high.store(crate::services::yt_high(None), Ordering::Relaxed);
+  // значок приложения (`appearance.app_icon`) — снова основной, а не тот, что стоял до сброса
+  crate::app_icon::apply(&app, crate::app_icon::DEFAULT);
   Ok(())
 }
 

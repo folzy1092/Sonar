@@ -1,0 +1,55 @@
+{
+  "default": "glass",
+  "icons": [
+    {
+      "id": "glass",
+      "title": "Стекло",
+      "set": "AppIcon"
+    },
+    {
+      "id": "flat",
+      "title": "Плоский",
+      "set": "AppIcon-Flat"
+    },
+    {
+      "id": "bevel",
+      "title": "Фаска",
+      "set": "AppIcon-Bevel"
+    },
+    {
+      "id": "puff",
+      "title": "Подушка",
+      "set": "AppIcon-Puff"
+    },
+    {
+      "id": "block",
+      "title": "Блок",
+      "set": "AppIcon-Block"
+    },
+    {
+      "id": "echo",
+      "title": "Эхо",
+      "set": "AppIcon-Echo"
+    },
+    {
+      "id": "well",
+      "title": "Колодец",
+      "set": "AppIcon-Well"
+    },
+    {
+      "id": "chrome",
+      "title": "Хром",
+      "set": "AppIcon-Chrome"
+    },
+    {
+      "id": "carved",
+      "title": "Вдавленный",
+      "set": "AppIcon-Carved"
+    },
+    {
+      "id": "light",
+      "title": "Светлый",
+      "set": "AppIcon-Light"
+    }
+  ]
+}

@@ -18,6 +18,8 @@ struct LookSettingsView: View {
     @State private var photo: PhotosPickerItem?
     @State private var pickAfterSheet = false
     @State private var failed = false
+    /// Текущий значок приложения — система его помнит сама; перечитываем, когда вернулись с экрана значка.
+    @State private var appIcon = AppIcon.current(alternateName: UIApplication.shared.alternateIconName)
 
     private var theme: ThemeStore { ThemeStore.shared }
     private var mode: AppearanceMode { AppearanceMode(rawValue: settings.string(LookKey.mode)) ?? .dark }
@@ -93,13 +95,22 @@ struct LookSettingsView: View {
             .cascade(7)
 
             LookCard {
+                NavigationLink { AppIconSettingsView() } label: {
+                    LookRowLabel(title: t("Значок приложения"), value: t(appIcon.title), icon: .square)
+                }
+                .buttonStyle(PressableStyle(scale: 0.99))
+            }
+            .cascade(8)
+
+            LookCard {
                 LookToggle(title: "Анимации",
                            value: settings.bool(LookKey.animations) ? "Переходы, листы, списки" : "Только короткие переходы",
                            isOn: binding(LookKey.animations))
             }
-            .cascade(8)
+            .cascade(9)
         }
         .animation(Motion.spring, value: backdrop)
+        .onAppear { appIcon = AppIcon.current(alternateName: UIApplication.shared.alternateIconName) }
         .animation(Motion.spring, value: settings.bool(LookKey.glass))
         .animation(Motion.spring, value: settings.bool(LookKey.coverTheme))
         .sheet(item: $sheet, onDismiss: {

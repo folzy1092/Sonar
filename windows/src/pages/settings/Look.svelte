@@ -9,6 +9,7 @@
   import LookText from './LookText.svelte'
   import LookShape from './LookShape.svelte'
   import TabsView from './TabsView.svelte'
+  import AppIconPicker from './AppIconPicker.svelte'
   import { rise } from '../../lib/motion'
   import { settings } from '../../lib/settings.svelte'
   import { PRESETS, theme } from '../../theme/theme.svelte'
@@ -96,6 +97,9 @@
 <Card title={t('Текст')}><LookText /></Card>
 <Card title={t('Форма')}><LookShape /></Card>
 <Card title={t('Вкладки')}><TabsView /></Card>
+<Card title={t('Значок приложения')} hint={t('Меняет значок окна, панели задач и трея. Ярлыки и закреплённая кнопка на панели задач остаются прежними — их значок берёт Windows из самого exe')}>
+  <AppIconPicker />
+</Card>
 
 <style>
   .caption {
