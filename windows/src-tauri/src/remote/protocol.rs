@@ -5,6 +5,7 @@
 
 use crate::providers::registry::{parse_ref, RefKind};
 use crate::providers::Track;
+use crate::store::{HubPlay, Op};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -15,6 +16,15 @@ pub const VERSION: u32 = 1;
 pub const QUEUE_LIMIT: usize = 50;
 /// Самое длинное сообщение с телефона (трек с обложкой и артистами — пара килобайт).
 pub const MAX_MESSAGE: usize = 64 * 1024;
+/// Самое длинное сообщение синка (`sync_push` / `plays` пачкой). Сокет принимает до этого, остальные типы
+/// по-прежнему режутся на `MAX_MESSAGE` (`fits`).
+pub const MAX_SYNC_MESSAGE: usize = 4 * 1024 * 1024;
+/// Больше операций или прослушиваний в одном сообщении — ошибка (телефон шлёт пачками поменьше).
+pub const MAX_SYNC_BATCH: usize = 500;
+const MAX_OP_ID: usize = 256;
+const MAX_OP_KEY: usize = 512;
+/// Типы строк синка (API.md §6) — то же, что умеет `apply_changes`.
+const SYNC_KINDS: [&str; 7] = ["like", "playlist", "playlist_item", "setting", "dislike", "track_pref", "wave_event"];
 const MAX_DEVICE_ID: usize = 64;
 const MAX_DEVICE_NAME: usize = 64;
 const MAX_REF: usize = 256;
@@ -82,6 +92,16 @@ pub enum Incoming {
   /// Проверка связи (раз в ~20 с) — ПК отвечает `pong`.
   Ping,
   Command(Command),
+  /// Синк по Wi‑Fi, пока сервера нет (API.md §6 поверх пульта): только привязанным.
+  Sync(SyncRequest),
+}
+
+/// Запрос синка — то же, что `POST /sync/push`, `GET /sync/pull`, `POST /plays` у сервера.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SyncRequest {
+  Push(Vec<Op>),
+  Pull { since: i64 },
+  Plays(Vec<HubPlay>),
 }
 
 /// Команда плееру ПК — уходит в интерфейс событием `remote-command` в этом же виде.
@@ -156,6 +176,15 @@ fn parse_body(kind: &str, body: &Value) -> Result<Incoming, ParseError> {
       Ok(Incoming::Pair { device, code: code.to_owned() })
     }
     "ping" => Ok(Incoming::Ping),
+    "sync_push" => sync_push(body),
+    "sync_pull" => {
+      let since = match body.get("since") {
+        None | Some(Value::Null) => 0,
+        Some(v) => v.as_i64().filter(|s| *s >= 0).ok_or(ParseError::BadBody("since"))?,
+      };
+      Ok(Incoming::Sync(SyncRequest::Pull { since }))
+    }
+    "plays" => sync_plays(body),
     "toggle" => cmd(Command::Toggle),
     "next" => cmd(Command::Next),
     "prev" => cmd(Command::Prev),
@@ -202,6 +231,44 @@ fn parse_play(body: &Value) -> Result<Incoming, ParseError> {
   }
   let (ref_, track) = track_arg(body)?;
   Ok(Incoming::Command(Command::Play { wave: false, ref_: Some(ref_), track }))
+}
+
+fn sync_push(body: &Value) -> Result<Incoming, ParseError> {
+  let raw = body.get("ops").and_then(Value::as_array).filter(|a| a.len() <= MAX_SYNC_BATCH).ok_or(ParseError::BadBody("ops"))?;
+  let mut ops = Vec::with_capacity(raw.len());
+  for o in raw {
+    let op: Op = serde_json::from_value(o.clone()).map_err(|_| ParseError::BadBody("op"))?;
+    let ok = !op.op_id.is_empty()
+      && op.op_id.len() <= MAX_OP_ID
+      && !op.key.is_empty()
+      && op.key.len() <= MAX_OP_KEY
+      && SYNC_KINDS.contains(&op.kind.as_str());
+    if !ok {
+      return Err(ParseError::BadBody("op"));
+    }
+    ops.push(op);
+  }
+  Ok(Incoming::Sync(SyncRequest::Push(ops)))
+}
+
+fn sync_plays(body: &Value) -> Result<Incoming, ParseError> {
+  let raw = body.get("plays").and_then(Value::as_array).filter(|a| a.len() <= MAX_SYNC_BATCH).ok_or(ParseError::BadBody("plays"))?;
+  let mut plays = Vec::with_capacity(raw.len());
+  for p in raw {
+    let play: HubPlay = serde_json::from_value(p.clone()).map_err(|_| ParseError::BadBody("play"))?;
+    let ok = is_track_ref(&play.ref_) && play.played_at >= 0 && play.listened_ms >= 0 && play.context.as_ref().is_none_or(|c| c.len() <= MAX_REF);
+    if !ok {
+      return Err(ParseError::BadBody("play"));
+    }
+    plays.push(play);
+  }
+  Ok(Incoming::Sync(SyncRequest::Plays(plays)))
+}
+
+/// Влезает ли сообщение в предел своего типа: синк — до `MAX_SYNC_MESSAGE` (это держит сокет), остальное — до
+/// `MAX_MESSAGE`.
+pub fn fits(text: &str, incoming: &Incoming) -> bool {
+  matches!(incoming, Incoming::Sync(_)) || text.len() <= MAX_MESSAGE
 }
 
 fn str_field<'a>(body: &'a Value, key: &str) -> Option<&'a str> {
@@ -345,6 +412,57 @@ mod tests {
       "ref": r, "title": "Song", "artist": "Band", "artists": [], "album": null, "duration_ms": 180000,
       "cover_url": null, "url": null, "explicit": false, "available": true
     })
+  }
+
+  fn sync(kind: &str, body: Value) -> Result<SyncRequest, ParseError> {
+    match parse(&env(kind, body))?.1 {
+      Incoming::Sync(r) => Ok(r),
+      other => panic!("не синк: {other:?}"),
+    }
+  }
+
+  fn sync_op(kind: &str) -> Value {
+    json!({ "op_id": "o1", "type": kind, "key": "sc:1", "value": { "added_at": 1 }, "client_ts": 5 })
+  }
+
+  #[test]
+  fn sync_push_takes_known_ops_only() {
+    let SyncRequest::Push(ops) = sync("sync_push", json!({ "ops": [sync_op("like")] })).unwrap() else { panic!() };
+    assert_eq!((ops[0].op_id.as_str(), ops[0].kind.as_str(), ops[0].client_ts), ("o1", "like", 5));
+    assert_eq!(sync("sync_push", json!({ "ops": [sync_op("password")] })).unwrap_err(), ParseError::BadBody("op"));
+    assert_eq!(sync("sync_push", json!({ "ops": "нет" })).unwrap_err(), ParseError::BadBody("ops"));
+    let mut empty_key = sync_op("like");
+    empty_key["key"] = json!("");
+    assert_eq!(sync("sync_push", json!({ "ops": [empty_key] })).unwrap_err(), ParseError::BadBody("op"));
+    let many: Vec<Value> = (0..=MAX_SYNC_BATCH).map(|_| sync_op("like")).collect();
+    assert_eq!(sync("sync_push", json!({ "ops": many })).unwrap_err(), ParseError::BadBody("ops"));
+  }
+
+  #[test]
+  fn sync_pull_since_defaults_to_zero() {
+    assert_eq!(sync("sync_pull", json!({})).unwrap(), SyncRequest::Pull { since: 0 });
+    assert_eq!(sync("sync_pull", json!({ "since": 42 })).unwrap(), SyncRequest::Pull { since: 42 });
+    assert_eq!(sync("sync_pull", json!({ "since": -1 })).unwrap_err(), ParseError::BadBody("since"));
+  }
+
+  #[test]
+  fn plays_need_track_ref_and_sane_numbers() {
+    let ok = json!({ "plays": [{ "ref": "sc:1", "played_at": 10, "listened_ms": 5000 }] });
+    let SyncRequest::Plays(p) = sync("plays", ok).unwrap() else { panic!() };
+    assert_eq!(p[0].ref_, "sc:1");
+    let bad = json!({ "plays": [{ "ref": "не трек", "played_at": 10, "listened_ms": 5000 }] });
+    assert_eq!(sync("plays", bad).unwrap_err(), ParseError::BadBody("play"));
+    let negative = json!({ "plays": [{ "ref": "sc:1", "played_at": 10, "listened_ms": -1 }] });
+    assert_eq!(sync("plays", negative).unwrap_err(), ParseError::BadBody("play"));
+  }
+
+  #[test]
+  fn only_sync_may_exceed_message_limit() {
+    let big = "x".repeat(MAX_MESSAGE + 1);
+    let (_, pull) = parse(&env("sync_pull", json!({}))).unwrap();
+    assert!(fits(&big, &pull));
+    assert!(!fits(&big, &Incoming::Ping));
+    assert!(fits("{}", &Incoming::Ping));
   }
 
   #[test]

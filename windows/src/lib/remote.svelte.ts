@@ -3,7 +3,7 @@
 // `remote-command` и выполняются здесь тем же плеером, что и кнопки окна. Состояние плеера уходит в
 // Rust (`remote_state`) при изменениях и раз в 5 с — оттуда всем подключённым телефонам.
 import { untrack } from 'svelte'
-import { api, errorText, onRemoteChanged, onRemoteCommand, onRemotePaired, type RemoteStatus, type Track } from './api'
+import { api, errorText, onRemoteChanged, onRemoteCommand, onRemotePaired, onSyncApplied, type RemoteStatus, type Track } from './api'
 import { isTauri } from './tauri'
 import { settings } from './settings.svelte'
 import { library } from './library.svelte'
@@ -39,6 +39,8 @@ class Remote {
         })
     })
     onRemoteChanged(() => void this.refresh())
+    // телефон прислал лайки / плейлисты / настройки и ПК их применил — перечитать, что видно на экране
+    onSyncApplied(() => void this.reloadSynced())
     onRemotePaired((name) => {
       toast.show(t('Пульт: {name} привязан', { name }))
       void this.refresh()
@@ -68,6 +70,17 @@ class Remote {
     this.timer = on ? setInterval(() => this.push(this.snapshot()), TICK_MS) : null
     await this.refresh()
     if (on) this.push(this.snapshot())
+  }
+
+  private async reloadSynced() {
+    try {
+      await library.load(true)
+      await library.refreshPlaylists()
+      await settings.reload()
+    } catch (e) {
+      toast.show(errorText(e))
+    }
+    await this.refresh()
   }
 
   async refresh() {

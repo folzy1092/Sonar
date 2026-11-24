@@ -25,4 +25,7 @@ export default {
   'Пока ни одного телефона': 'No phones yet',
   'Пульт: {name} привязан': 'Remote: {name} paired',
   'Пульт: трек не найден': 'Remote: track not found',
+  'Пока нет сервера Sonar, лайки, плейлисты и настройки ездят между этим компьютером и привязанными телефонами по Wi-Fi, когда оба в одной сети.': 'Until there’s a Sonar server, likes, playlists and settings travel between this computer and paired phones over Wi-Fi when both are on the same network.',
+  'Синхронизировано {date}': 'Synced {date}',
+  'Синхронизировано в {time}': 'Synced at {time}',
 }

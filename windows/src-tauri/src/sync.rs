@@ -33,6 +33,11 @@ pub trait Transport {
   async fn push(&self, ops: &[Op]) -> Result<PushReply>;
   async fn pull(&self, since: i64) -> Result<PullReply>;
   async fn plays(&self, plays: &[PlayUpload]) -> Result<usize>;
+  /// Отправлять ли прослушивания. Хаб ПК в локальной сети их не берёт: своя статистика ПК уже у него,
+  /// а на сервер они уедут, когда он появится (`remote/sync_hub.rs`).
+  fn sends_plays(&self) -> bool {
+    true
+  }
 }
 
 /// Итог одного обмена.
@@ -64,7 +69,7 @@ pub async fn sync_once(db: &Mutex<Store>, t: &impl Transport) -> Result<SyncRepo
       break;
     }
   }
-  loop {
+  while t.sends_plays() {
     let plays = db.lock().unwrap().plays_to_upload(PLAYS_BATCH)?;
     let Some(last) = plays.last().map(|p| p.id) else { break };
     t.plays(&plays).await?;
@@ -137,7 +142,7 @@ impl Transport for Http<'_> {
 
 /// Адрес сервера (`sync.server`, настройка устройства) и токен сессии (keyring `sonar_session`).
 /// До сервера их нет — обмен молчит.
-fn configured(db: &Mutex<Store>) -> Option<(String, String)> {
+pub(crate) fn configured(db: &Mutex<Store>) -> Option<(String, String)> {
   let base = db.lock().unwrap().setting("sync.server").ok().flatten()?.as_str()?.trim_end_matches('/').to_owned();
   let token: String = crate::secrets::load("sonar_session")?;
   (!base.is_empty() && !token.is_empty()).then_some((base, token))
@@ -146,6 +151,8 @@ fn configured(db: &Mutex<Store>) -> Option<(String, String)> {
 /// Обмен сейчас (команда `sync_now`): нет сервера — понятная ошибка.
 pub async fn sync_now(http: &reqwest::Client, db: &Mutex<Store>) -> Result<SyncReport> {
   let Some((base, token)) = configured(db) else { bail!("Сервер Sonar ещё не подключён — синхронизация включится вместе с ним") };
+  // до сервера ПК менялся с хабом в локальной сети — курсоры того обмена серверу не подходят
+  db.lock().unwrap().sync_target("server")?;
   sync_once(db, &Http { http, base, token }).await
 }
 

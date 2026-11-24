@@ -10,7 +10,7 @@
   import { remote } from '../../lib/remote.svelte'
   import { api, errorText, type RemoteDevice, type RemotePairStart } from '../../lib/api'
   import { cascade } from '../../lib/cascade'
-  import { pop, slide } from '../../lib/motion'
+  import { pop, slide, xfade } from '../../lib/motion'
   import { confirm } from '../../lib/confirm.svelte'
   import { toast } from '../../lib/toast.svelte'
   import { dateLong } from '../../lib/format'
@@ -19,6 +19,7 @@
   const enabled = $derived(settings.get('remote.enabled'))
   const status = $derived(remote.status)
   const devices = $derived(status?.devices ?? [])
+  const synced = $derived(status?.synced ?? {})
 
   let pair = $state<RemotePairStart | null>(null)
   let leftMs = $state(0)
@@ -101,6 +102,14 @@
     const d = new Date(ms)
     return dateLong(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
   }
+
+  /** Синк по Wi-Fi: сегодня — время, раньше — день. `sec` — секунды (hub_peers). */
+  const syncedText = (sec: number) => {
+    const d = new Date(sec * 1000)
+    if (d.toDateString() !== new Date().toDateString()) return t('Синхронизировано {date}', { date: day(d.getTime()) })
+    const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    return t('Синхронизировано в {time}', { time })
+  }
 </script>
 
 <Group title={t('Пульт')}>
@@ -161,6 +170,12 @@
 {#if enabled}
   <div transition:slide={{ duration: 240 }}>
     <Group title={t('Устройства')}>
+      {#if status?.lan_sync && devices.length}
+        <p class="note" transition:slide={{ duration: 220 }}>
+          <Icon name="refresh" size={15} />
+          <span>{t('Пока нет сервера Sonar, лайки, плейлисты и настройки ездят между этим компьютером и привязанными телефонами по Wi-Fi, когда оба в одной сети.')}</span>
+        </p>
+      {/if}
       {#if devices.length}
         <div class="list" use:cascade={devices.length}>
           {#each devices as d (d.id)}
@@ -171,6 +186,11 @@
                 <small>
                   {#if d.online}<i class="dot on"></i>{t('Подключён сейчас')}{:else}{t('Был в сети {date}', { date: day(d.last_seen || d.paired_at) })}{/if}
                 </small>
+                {#if status?.lan_sync && synced[d.id]}
+                  {#key synced[d.id]}
+                    <small in:xfade={{ duration: 260 }}>{syncedText(synced[d.id])}</small>
+                  {/key}
+                {/if}
               </span>
               <button class="unpair" onclick={() => unpair(d)}>
                 <Icon name="unlink" size={15} />

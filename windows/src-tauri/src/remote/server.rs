@@ -1,7 +1,7 @@
 //! WebSocket-сервер пульта в локальной сети. Первое сообщение телефона — `hello` (уже привязан)
 //! или `pair` (код с экрана); до этого никакие команды не принимаются. Ключи в журнал не пишем.
 
-use super::protocol::{self, Incoming, ParseError, MAX_MESSAGE};
+use super::protocol::{self, Incoming, ParseError, MAX_SYNC_MESSAGE};
 use super::Remote;
 use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
@@ -50,7 +50,8 @@ pub async fn serve(remote: Arc<Remote>, listener: TcpListener, mut stop: watch::
 }
 
 fn ws_config() -> WebSocketConfig {
-  WebSocketConfig::default().max_message_size(Some(MAX_MESSAGE)).max_frame_size(Some(MAX_MESSAGE))
+  // синк шлёт пачки побольше; остальные типы режутся на `MAX_MESSAGE` после разбора (`protocol::fits`)
+  WebSocketConfig::default().max_message_size(Some(MAX_SYNC_MESSAGE)).max_frame_size(Some(MAX_SYNC_MESSAGE))
 }
 
 type Ws = WebSocketStream<TcpStream>;
@@ -81,7 +82,7 @@ async fn connection(remote: Arc<Remote>, stream: TcpStream, mut stop: watch::Rec
         deadline = tokio::time::Instant::now() + IDLE;
         match msg {
           Some(Ok(Message::Text(t))) => {
-            if let Some(reply) = remote.handle(t.as_str()) {
+            if let Some(reply) = remote.handle(&device.id, t.as_str()).await {
               if ws.send(Message::text(reply)).await.is_err() { break }
             }
           }
@@ -116,6 +117,10 @@ async fn handshake(remote: &Remote, ws: &mut Ws) -> Option<protocol::DeviceHello
       }
     };
     let re = Some(env.id.as_str()).filter(|s| !s.is_empty());
+    if !protocol::fits(text.as_str(), &incoming) {
+      ws.send(Message::text(protocol::error("too_big", re))).await.ok()?;
+      continue;
+    }
     let (reply, done) = match incoming {
       Incoming::Ping => (protocol::pong(re), None),
       Incoming::Hello { device, key } => match remote.login(&device, &key) {
@@ -130,7 +135,7 @@ async fn handshake(remote: &Remote, ws: &mut Ws) -> Option<protocol::DeviceHello
         Ok((pc, key)) => (protocol::paired(&pc, &key, re), Some(device)),
         Err(code) => (protocol::error(code, re), None),
       },
-      Incoming::Command(_) => (protocol::error("not_paired", re), None),
+      Incoming::Command(_) | Incoming::Sync(_) => (protocol::error("not_paired", re), None),
     };
     ws.send(Message::text(reply)).await.ok()?;
     if done.is_some() {

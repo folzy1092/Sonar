@@ -13,6 +13,7 @@ mod artist_graph;
 mod blend;
 pub mod covers;
 mod dupes;
+mod hub;
 mod local_files;
 pub mod offline;
 mod recap;
@@ -28,6 +29,7 @@ mod wave_events;
 pub use alias::TrackAlias;
 pub use blend::BlendRow;
 pub use dupes::{DupeList, Removed};
+pub use hub::HubPlay;
 pub use local_files::LocalFile;
 pub use offline::{KIND_CACHE as OFFLINE_KIND_CACHE, KIND_PINNED as OFFLINE_KIND_PINNED};
 pub use recap::{Recap, RecapPeriods, RecapSpan};
@@ -192,6 +194,18 @@ CREATE TABLE blend_ratings (
   score INTEGER NOT NULL, at INTEGER NOT NULL
 );
 CREATE INDEX blend_ratings_kind ON blend_ratings(kind, at);
+"#, r#"
+CREATE TABLE hub_rows (
+  kind TEXT NOT NULL, key TEXT NOT NULL, value_json TEXT, rev INTEGER NOT NULL, client_ts INTEGER NOT NULL,
+  PRIMARY KEY (kind, key)
+);
+CREATE INDEX hub_rows_rev ON hub_rows(rev);
+CREATE TABLE hub_ops (op_id TEXT PRIMARY KEY);
+CREATE TABLE hub_plays (
+  id INTEGER PRIMARY KEY, device_id TEXT NOT NULL, ref TEXT NOT NULL, played_at INTEGER NOT NULL,
+  listened_ms INTEGER NOT NULL, context TEXT, UNIQUE (device_id, ref, played_at)
+);
+CREATE TABLE hub_peers (device_id TEXT PRIMARY KEY, last_sync INTEGER NOT NULL);
 "#];
 
 pub fn now_ms() -> i64 {

@@ -10,6 +10,7 @@ mod mdns;
 mod pairing;
 pub mod protocol;
 mod server;
+mod sync_hub;
 
 use devices::{DeviceView, Vault};
 use pairing::PairCode;
@@ -19,7 +20,7 @@ use serde_json::Value;
 use server::Out;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{mpsc, watch};
 
 /// Подключённый телефон.
@@ -146,18 +147,50 @@ impl Remote {
   }
 
   /// Сообщение вошедшего телефона → ответ ему (если нужен).
-  fn handle(&self, text: &str) -> Option<String> {
+  async fn handle(&self, device_id: &str, text: &str) -> Option<String> {
     let (env, incoming) = match protocol::parse(text) {
       Ok(x) => x,
       Err(e) => return Some(protocol::error(e.code(), None)),
     };
     let re = Some(env.id.as_str()).filter(|s| !s.is_empty());
+    if !protocol::fits(text, &incoming) {
+      return Some(protocol::error("too_big", re));
+    }
     match incoming {
       Incoming::Ping => Some(protocol::pong(re)),
       Incoming::Hello { .. } | Incoming::Pair { .. } => Some(protocol::error("already_paired", re)),
       Incoming::Command(c) => {
         let _ = self.app.emit("remote-command", &c);
         None
+      }
+      Incoming::Sync(req) => Some(self.sync(device_id, req, re).await),
+    }
+  }
+
+  /// Синк по Wi‑Fi (`sync_hub.rs`): только привязанным, не в офлайне и пока нет сервера Sonar.
+  async fn sync(&self, device_id: &str, req: protocol::SyncRequest, re: Option<&str>) -> String {
+    // телефон могли отвязать, пока связь висела
+    if !self.inner.lock().unwrap().vault().has(device_id) {
+      return protocol::error("not_paired", re);
+    }
+    if crate::offline::is_on() {
+      return protocol::error("offline", re);
+    }
+    let Some(db) = self.app.try_state::<crate::commands::Db>() else { return protocol::error("sync_failed", re) };
+    if crate::sync::configured(&db.0).is_some() {
+      return protocol::error("server_sync", re);
+    }
+    match sync_hub::answer(&db.0, device_id, req, re, crate::store::now_ms() / 1000).await {
+      Ok(a) => {
+        if a.applied_on_pc > 0 {
+          let _ = self.app.emit("sync-applied", a.applied_on_pc);
+        }
+        self.changed();
+        a.reply
+      }
+      Err(e) => {
+        log::warn!("синк по Wi‑Fi: {e:#}");
+        protocol::error("sync_failed", re)
       }
     }
   }
@@ -214,6 +247,10 @@ pub struct Status {
   error: Option<String>,
   pairing: bool,
   devices: Vec<DeviceView>,
+  /// Синк по Wi‑Fi идёт (сервера Sonar нет): лайки, плейлисты и настройки телефоны берут у ПК.
+  lan_sync: bool,
+  /// Когда телефон последний раз синхронизировался с ПК (unix, секунды).
+  synced: HashMap<String, i64>,
 }
 
 #[derive(Serialize)]
@@ -239,7 +276,9 @@ pub async fn remote_set_enabled(remote: State<'_, Arc<Remote>>, on: bool) -> Res
 }
 
 #[tauri::command]
-pub fn remote_status(remote: State<'_, Arc<Remote>>) -> Status {
+pub fn remote_status(remote: State<'_, Arc<Remote>>, db: State<'_, crate::commands::Db>) -> Status {
+  let lan_sync = crate::sync::configured(&db.0).is_none();
+  let synced = db.0.lock().unwrap().hub_peers().unwrap_or_default();
   let mut g = remote.inner.lock().unwrap();
   let online = g.online();
   let devices = g.vault().views(&online);
@@ -254,6 +293,8 @@ pub fn remote_status(remote: State<'_, Arc<Remote>>) -> Status {
     error: g.error.clone(),
     pairing,
     devices,
+    lan_sync,
+    synced,
   }
 }
 

@@ -281,6 +281,10 @@ export interface RemoteStatus {
   error: string | null
   pairing: boolean
   devices: RemoteDevice[]
+  /** Сервера Sonar нет — привязанные телефоны синкаются с этим ПК по Wi-Fi (remote/sync_hub.rs). */
+  lan_sync: boolean
+  /** Когда телефон последний раз синкался с ПК: id → секунды. */
+  synced: Record<string, number>
 }
 
 export interface RemotePairStart {
@@ -758,6 +762,13 @@ export function onRemoteCommand(cb: (cmd: unknown) => void): () => void {
 export function onRemoteChanged(cb: () => void): () => void {
   if (!isTauri) return () => {}
   const off = listen('remote-changed', () => cb())
+  return () => void off.then((fn) => fn())
+}
+
+/** Синк по Wi-Fi: телефон прислал изменения, ПК применил их у себя (сколько). */
+export function onSyncApplied(cb: (count: number) => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen<number>('sync-applied', (e) => cb(e.payload))
   return () => void off.then((fn) => fn())
 }
 

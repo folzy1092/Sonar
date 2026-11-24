@@ -23,4 +23,7 @@ export default {
   'Пока ни одного телефона': 'Noch kein Handy',
   'Пульт: {name} привязан': 'Fernbedienung: {name} gekoppelt',
   'Пульт: трек не найден': 'Fernbedienung: Titel nicht gefunden',
+  'Пока нет сервера Sonar, лайки, плейлисты и настройки ездят между этим компьютером и привязанными телефонами по Wi-Fi, когда оба в одной сети.': 'Solange es keinen Sonar-Server gibt, wandern Likes, Playlists und Einstellungen per WLAN zwischen diesem Computer und gekoppelten Handys, wenn beide im selben Netz sind.',
+  'Синхронизировано {date}': 'Synchronisiert {date}',
+  'Синхронизировано в {time}': 'Synchronisiert um {time}',
 } satisfies Record<string, string>

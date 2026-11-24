@@ -23,4 +23,7 @@ export default {
   'Пока ни одного телефона': 'Aún no hay ningún móvil',
   'Пульт: {name} привязан': 'Mando: {name} vinculado',
   'Пульт: трек не найден': 'Mando: pista no encontrada',
+  'Пока нет сервера Sonar, лайки, плейлисты и настройки ездят между этим компьютером и привязанными телефонами по Wi-Fi, когда оба в одной сети.': 'Mientras no haya servidor de Sonar, los me gusta, las playlists y los ajustes viajan entre este ordenador y los teléfonos vinculados por Wi-Fi cuando están en la misma red.',
+  'Синхронизировано {date}': 'Sincronizado {date}',
+  'Синхронизировано в {time}': 'Sincronizado a las {time}',
 } satisfies Record<string, string>

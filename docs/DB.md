@@ -387,6 +387,33 @@ CREATE TABLE blend_ratings (                    -- 👍/👎 прошлому п
 );
 CREATE INDEX blend_ratings_kind ON blend_ratings(kind, at);
 
+-- только клиент (Windows, миграция № 18): хаб синка по Wi‑Fi, пока нет сервера (API.md §10 «Синк по Wi‑Fi»).
+-- ПК отвечает привязанным телефонам как сервер; сам меняется с хабом через sync_once. На сервер не едет.
+CREATE TABLE hub_rows (                         -- копия строк синка хаба: как server-side sync_rows
+  kind          TEXT NOT NULL,                  -- like | playlist | playlist_item | setting | dislike | track_pref | wave_event
+  key           TEXT NOT NULL,
+  value_json    TEXT,                           -- NULL — удалено
+  rev           INTEGER NOT NULL,               -- глобальный rev хаба
+  client_ts     INTEGER NOT NULL,               -- для «побеждает позднее» у настроек
+  PRIMARY KEY (kind, key)
+);
+CREATE INDEX hub_rows_rev ON hub_rows(rev);
+CREATE TABLE hub_ops (op_id TEXT PRIMARY KEY);  -- виденные op_id: повтор не применяется
+CREATE TABLE hub_plays (                        -- прослушивания телефонов, в статистику ПК не смешиваются
+  id            INTEGER PRIMARY KEY,
+  device_id     TEXT NOT NULL,
+  ref           TEXT NOT NULL,
+  played_at     INTEGER NOT NULL,
+  listened_ms   INTEGER NOT NULL,
+  context       TEXT,
+  UNIQUE (device_id, ref, played_at)
+);
+CREATE TABLE hub_peers (                        -- когда телефон последний раз синкался («Система → Пульт»)
+  device_id     TEXT PRIMARY KEY,
+  last_sync     INTEGER NOT NULL                -- секунды
+);
+-- sync_state.sync_target — с кем синкались: lan | server; сменилась сторона — pushed_rev и pulled_rev с нуля.
+
 -- Быстрые ссылки входа и репорты — схема в BOT.md §6 (auth_links, reports)
 
 -- Статус (SPEC §3.11), только на сервере

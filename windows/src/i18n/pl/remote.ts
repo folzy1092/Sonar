@@ -23,4 +23,7 @@ export default {
   'Пока ни одного телефона': 'Na razie żadnego telefonu',
   'Пульт: {name} привязан': 'Pilot: {name} sparowany',
   'Пульт: трек не найден': 'Pilot: nie znaleziono utworu',
+  'Пока нет сервера Sonar, лайки, плейлисты и настройки ездят между этим компьютером и привязанными телефонами по Wi-Fi, когда оба в одной сети.': 'Dopóki nie ma serwera Sonar, polubienia, playlisty i ustawienia przechodzą między tym komputerem a sparowanymi telefonami przez Wi-Fi, gdy oba są w tej samej sieci.',
+  'Синхронизировано {date}': 'Zsynchronizowano {date}',
+  'Синхронизировано в {time}': 'Zsynchronizowano o {time}',
 } satisfies Record<string, string>

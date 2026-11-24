@@ -285,6 +285,17 @@ impl Store {
     Ok(PushPlan { ops, upto })
   }
 
+  /// С кем синхронизируемся: `server` (сервер Sonar) или `lan` (ПК сам себе хаб по Wi‑Fi, `store/hub.rs`).
+  /// Сменился — курсоры обнуляются: новой стороне нужна вся история, а не хвост после чужого `rev`.
+  pub fn sync_target(&self, target: &str) -> Result<()> {
+    if self.state("sync_target")?.as_deref() == Some(target) {
+      return Ok(());
+    }
+    self.set_state("pushed_rev", "0")?;
+    self.set_state("pulled_rev", "0")?;
+    self.set_state("sync_target", target)
+  }
+
   /// Сервер принял отправку — всё до `upto` отправлено.
   pub fn mark_pushed(&self, upto: i64) -> Result<()> {
     if upto > self.pushed_rev()? {
