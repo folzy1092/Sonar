@@ -43,7 +43,7 @@ impl Store {
   }
 
   /// `sync_push`: принять операции. Вернёт новый `rev` и все `op_id` (и применённые, и уже виденные, и
-  /// проигравшие по времени настройки — их отправитель заберёт свежую строку в `pull`).
+  /// проигравшие по времени настройки — их отправитель заберёт победителя в `pull`, как `MemorySyncServer` на iPhone).
   pub fn hub_push(&mut self, ops: &[Op]) -> Result<(i64, Vec<String>)> {
     let tx = self.db.transaction()?;
     let mut rev: i64 = tx.query_row("SELECT COALESCE(MAX(rev), 0) FROM hub_rows", [], |r| r.get(0))?;
@@ -55,8 +55,11 @@ impl Store {
           .query_row("SELECT client_ts FROM hub_rows WHERE kind = ?1 AND key = ?2", params![o.kind, o.key], |r| r.get(0))
           .optional()?;
         let older = o.kind == "setting" && ts.is_some_and(|ts| ts > o.client_ts);
-        if !older {
-          rev += 1;
+        rev += 1;
+        if older {
+          // проигравший мог уже забрать победителя раньше — поднимаем его rev, чтобы пришёл в pull заново
+          tx.execute("UPDATE hub_rows SET rev = ?1 WHERE kind = ?2 AND key = ?3", params![rev, o.kind, o.key])?;
+        } else {
           let value = o.value.as_ref().map(Value::to_string);
           tx.execute(
             "INSERT INTO hub_rows (kind, key, value_json, rev, client_ts) VALUES (?1, ?2, ?3, ?4, ?5)
@@ -173,7 +176,9 @@ mod tests {
     s.hub_push(&[op("new", "setting", "theme", Some(json!("dark")), 200)]).unwrap();
     let (_, applied) = s.hub_push(&[op("old", "setting", "theme", Some(json!("light")), 100)]).unwrap();
     assert_eq!(applied, vec!["old"], "проигравшая настройка тоже подтверждается");
-    assert_eq!(s.hub_pull(0, ALL).unwrap().changes[0].value, Some(json!("dark")));
+    let again = s.hub_pull(1, ALL).unwrap();
+    assert_eq!(again.changes.len(), 1, "победитель уходит в pull заново");
+    assert_eq!(again.changes[0].value, Some(json!("dark")));
     // лайки — по порядку прихода, время не сравнивается
     s.hub_push(&[op("l1", "like", "sc:1", Some(json!({})), 200), op("l2", "like", "sc:1", None, 100)]).unwrap();
     let likes: Vec<_> = s.hub_pull(0, ALL).unwrap().changes.into_iter().filter(|c| c.kind == "like").collect();
