@@ -13,7 +13,7 @@
   import { rise } from '../../lib/motion'
   import { settings } from '../../lib/settings.svelte'
   import { PRESETS, theme } from '../../theme/theme.svelte'
-  import { COVER_STRENGTHS, css, themeFrom, type CoverStrength, type RGB } from '../../theme/palette'
+  import { COVER_STRENGTHS, css, themeFrom, TINTS, type CoverStrength, type RGB, type Tint } from '../../theme/palette'
   import { t } from '../../lib/i18n.svelte'
 
   const cover = $derived(settings.get('appearance.cover_theme'))
@@ -28,6 +28,18 @@
 
   const STRENGTH_LABELS: Record<CoverStrength, string> = { weak: 'Слабо', medium: 'Средне', strong: 'Сильно' }
   const strengths = $derived(COVER_STRENGTHS.map((id) => ({ id, label: t(STRENGTH_LABELS[id]) })))
+  const TINT_LABELS: Record<Tint, string> = { calm: 'Спокойно', full: 'Весь интерфейс', duo: 'Два цвета' }
+  // «Два цвета» есть только у «Под трек»: у готовой темы второго цвета нет
+  const tints = $derived(TINTS.filter((id) => cover || id !== 'duo').map((id) => ({ id, label: t(TINT_LABELS[id]) })))
+  const tint = $derived.by(() => {
+    const v = settings.get('appearance.tint')
+    return !cover && v === 'duo' ? 'full' : v
+  })
+  const TINT_HINTS: Record<Tint, string> = {
+    calm: 'Цвет — только у кнопок и акцентов, фон почти серый',
+    full: 'Фон, наведение, подписи и заглушки обложек — в оттенке темы',
+    duo: 'Фон — основной цвет обложки, кнопки — самый яркий',
+  }
 </script>
 
 {#snippet tile(title: string, colors: [string, string], on: boolean, pick: () => void)}
@@ -70,6 +82,15 @@
       />
     </div>
   {/if}
+  <Choice
+    title={t('Подкраска')}
+    hint={t(TINT_HINTS[tint])}
+    wide
+    fill
+    value={tint}
+    options={tints}
+    onchange={(v) => settings.set('appearance.tint', v)}
+  />
 </Card>
 
 <Card title={t('Прозрачность')}>

@@ -52,8 +52,11 @@
     place-items: center;
     flex-shrink: 0;
     overflow: hidden;
-    background: linear-gradient(135deg, var(--surface-3), var(--surface-2));
-    color: var(--text-3);
+    /* заглушка без картинки — в оттенке темы (palette.ts `--ph-wash` / `--ph-ink`; «Спокойно» — серая) */
+    background:
+      linear-gradient(var(--ph-wash), var(--ph-wash)),
+      linear-gradient(135deg, var(--surface-3), var(--surface-2));
+    color: var(--ph-ink);
   }
   .cover > img,
   .ph {

@@ -1,5 +1,6 @@
-/* Токены темы Sonar. Тёмная тема, акцент монохромный; с `appearance.cover_theme`
-   --accent*, --tint перекрашиваются под цвет обложки (theme/theme.svelte.ts) — плавно. */
+/* Токены темы Sonar. Тёмная тема, акцент монохромный; с `appearance.cover_theme` или готовой темой
+   palette.ts перекрашивает фон, поверхности, текст, акцент, а при `appearance.tint` ≠ calm — ещё
+   наведение (--hover / --press / --plate) и заглушки обложек (--ph-*) — плавно. */
 @property --accent {
   syntax: '<color>';
   inherits: true;
@@ -80,6 +81,31 @@
   inherits: true;
   initial-value: rgba(180,180,180,0.25);
 }
+@property --hover {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.07);
+}
+@property --press {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.14);
+}
+@property --plate {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(255, 255, 255, 0.04);
+}
+@property --ph-wash {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+@property --ph-ink {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #8a8a93;
+}
 :root {
   /* смена обложки или стиля — цвета перетекают за 600 мс (STYLE_PROMPT §1) */
   transition:
@@ -98,7 +124,12 @@
     --text-2 0.6s ease,
     --text-3 0.6s ease,
     --track 0.6s ease,
-    --glow 0.6s ease;
+    --glow 0.6s ease,
+    --hover 0.6s ease,
+    --press 0.6s ease,
+    --plate 0.6s ease,
+    --ph-wash 0.6s ease,
+    --ph-ink 0.6s ease;
   --bg: #050506;
   --surface-0: #0b0b0d;
   --surface-1: #121215;
@@ -107,6 +138,9 @@
   --hover: rgba(255, 255, 255, 0.07);
   --press: rgba(255, 255, 255, 0.14);
   --plate: rgba(255, 255, 255, 0.04);
+  /* заглушка обложки: подложка и значок (palette.ts красит в оттенок темы) */
+  --ph-wash: transparent;
+  --ph-ink: var(--text-3);
   --border: rgba(255, 255, 255, 0.07);
   --border-strong: rgba(255, 255, 255, 0.13);
   /* особенности поверхности (palette.ts SURFACE_DECOR): рамка карточек, блик, выпуклые кнопки,

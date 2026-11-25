@@ -3,7 +3,7 @@
 import { api } from './api'
 import { migrateSettings } from './settings-migrate'
 import { preferredLanguages, systemLang, type Lang } from './system-lang'
-import type { CoverStrength, Surface } from '../theme/palette'
+import type { CoverStrength, Surface, Tint } from '../theme/palette'
 import type { ServiceId, ServiceKey } from './services'
 import type { NickEffect, NickFont, ProfileColor, ProfileLayout, ProfileLink, ShowcaseItem } from './profile-look'
 import type { AppIconId } from './app-icons'
@@ -82,6 +82,8 @@ export const DEFAULTS = {
   'appearance.cover_theme': true,
   /** Насколько тема идёт за обложкой: поверхности темнее / светлее (palette.ts COVER_STRENGTH). */
   'appearance.cover_strength': 'medium' as CoverStrength,
+  /** Подкраска интерфейса цветом темы: как раньше / весь интерфейс / два цвета обложки (palette.ts Tint). */
+  'appearance.tint': 'duo' as Tint,
   /** Прозрачность окна (Mica / Acrylic под окном, glass.rs). */
   'appearance.glass': false,
   /** Непрозрачность фона окна и карточек при прозрачности, % (100 — как без неё). */

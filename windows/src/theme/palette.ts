@@ -111,6 +111,25 @@ export function pickAccent(px: Uint8ClampedArray | number[]): RGB | null {
   return best
 }
 
+/**
+ * Основной цвет обложки для «Двух цветов» (`appearance.tint = duo`): самый большой цветной кластер,
+ * а не самый яркий. Синяя обложка с красной надписью — фон синеватый, акцент красный. Все кластеры
+ * серые — null (поверхности тогда берут оттенок акцента).
+ */
+export function pickBase(px: Uint8ClampedArray | number[]): RGB | null {
+  let best: RGB | null = null
+  let bestShare = 0
+  for (const { color, share } of kmeans(px)) {
+    const [, s, l] = rgbToHsl(color)
+    if (l < 0.06 || l > 0.94 || s < 0.12) continue
+    if (share > bestShare) {
+      bestShare = share
+      best = color
+    }
+  }
+  return best
+}
+
 // ---- OKLCH (reference/design/STYLE_PROMPT.md §1) ----
 // В HSL синий и розовый с одной «светлотой» выглядят разной яркости; в OKLCH светлота L — та, что
 // видит глаз. Из обложки берём оттенок h и насыщенность c, дальше всё считаем по формулам поверхности.
@@ -284,6 +303,16 @@ export const COVER_STRENGTH: Record<CoverStrength, { shift: number; chroma: numb
   medium: { shift: 0.14, chroma: 1, hue: 0.008 },
   strong: { shift: 0.2, chroma: 1.3, hue: 0.012 },
 }
+/**
+ * Подкраска интерфейса (Интерфейс → Вид → «Подкраска», `appearance.tint`):
+ * - `calm` — как было до 2026-11-25: лёгкий оттенок фона, наведение и подложки белые, заглушки серые;
+ * - `full` — весь интерфейс: наведение, нажатие, подложки, вторичный текст и заглушки обложек — в оттенке;
+ * - `duo` — как `full`, но фон и поверхности берут основной цвет обложки, а акцент — самый яркий
+ *   (у готовой темы второго цвета нет — как `full`).
+ */
+export type Tint = 'calm' | 'full' | 'duo'
+export const TINTS: Tint[] = ['calm', 'full', 'duo']
+
 /** Сдвиг светлоты не больше 20 % — и при любом раскладе ниже порога контраста не опускаемся. */
 export const MAX_COVER_SHIFT = 0.2
 
@@ -380,31 +409,62 @@ const NO_SHADE: Shade = { f: 0, chroma: 1, hue: 0 }
  * `cover` — тема идёт за обложкой: поверхности сдвигаются по светлоте (10–15 % по умолчанию, до 20 %)
  * и чуть сильнее подкрашиваются её оттенком; текст остаётся читаемым (сдвиг ослабляется до AA).
  */
-export function themeFrom(src: RGB | null, surface: Surface = 'echo', light = false, cover: CoverShift | null = null): ThemeTokens {
-  if (!cover) return build(src, surface, light, NO_SHADE)
+export interface TintOptions {
+  tint?: Tint
+  /** Основной цвет обложки (`pickBase`) — для `duo`; null — как акцент. */
+  tone?: RGB | null
+}
+
+export function themeFrom(
+  src: RGB | null,
+  surface: Surface = 'echo',
+  light = false,
+  cover: CoverShift | null = null,
+  opts: TintOptions = {},
+): ThemeTokens {
+  const paint: Paint = { tint: opts.tint ?? 'full', tone: opts.tint === 'duo' ? (opts.tone ?? null) : null }
+  if (!cover) return build(src, surface, light, NO_SHADE, paint)
   const k = COVER_STRENGTH[cover.strength] ?? COVER_STRENGTH.medium
-  const base = build(src, surface, light, { f: 0, chroma: k.chroma, hue: k.hue })
+  const base = build(src, surface, light, { f: 0, chroma: k.chroma, hue: k.hue }, paint)
   let f = coverBias(cover)
   for (let i = 0; i < GUARD_TRIES && f; i++) {
-    const t = build(src, surface, light, { f, chroma: k.chroma, hue: k.hue })
+    const t = build(src, surface, light, { f, chroma: k.chroma, hue: k.hue }, paint)
     if (keepsContrast(t, base)) return t
     f *= GUARD_STEP
   }
   return base
 }
 
-function build(src: RGB | null, surface: Surface, light: boolean, shade: Shade): ThemeTokens {
+interface Paint {
+  tint: Tint
+  tone: RGB | null
+}
+
+/** Насколько у «Весь интерфейс» подкрашены наведение, нажатие и подложки (доля насыщенности акцента, потолок). */
+const WASH = { m: 0.5, max: 0.07 }
+
+function build(src: RGB | null, surface: Surface, light: boolean, shade: Shade, paint: Paint): ThemeTokens {
   const k = (light ? SURFACES_LIGHT : SURFACES)[surface]
   const base = src ? rgbToOklch(src) : { l: 0, c: 0, h: 0 }
   const mono = base.c < MONO_C
   const c = mono ? 0 : base.c
   const h = base.h
+  // «Два цвета»: поверхности и текст — оттенок и насыщенность основного цвета обложки, акцент — свой
+  const toneLch = !mono && paint.tone ? rgbToOklch(paint.tone) : null
+  const tone = toneLch && toneLch.c >= MONO_C ? toneLch : null
+  const sc0 = tone ? tone.c : c
+  const sh0 = tone ? tone.h : h
+  const full = paint.tint !== 'calm'
   const cc = (m: number, mx: number) => Math.min(c * m, mx)
   const ok = (l: number, ch: number): Lch => fitGamut({ l, c: ch, h })
+  const okS = (l: number, ch: number): Lch => fitGamut({ l, c: ch, h: sh0 })
+  const ccS = (m: number, mx: number) => Math.min(sc0 * m, mx)
   // поверхности: светлота со сдвигом, насыщенность × сила, но не ниже лёгкого оттенка обложки
   const sh = (l: number) => shiftLightness(l, shade.f, light)
-  const sc = (m: number, mx: number) => (mono ? 0 : Math.max(Math.min(c * m * shade.chroma, mx * shade.chroma), Math.min(c, shade.hue)))
-  const surf = (l: number, m: number, mx: number) => ok(sh(l), sc(m, mx))
+  const sc = (m: number, mx: number) => (mono ? 0 : Math.max(Math.min(sc0 * m * shade.chroma, mx * shade.chroma), Math.min(sc0, shade.hue)))
+  const surf = (l: number, m: number, mx: number) => okS(sh(l), sc(m, mx))
+  // вторичный текст «Весь интерфейс» чуть заметнее в оттенке (как подписи артистов в списках)
+  const tk = full ? 1.8 : 1
   const gray = !!k.grayText
   const lch: ThemeTokens['lch'] = {
     bg: surf(k.bgL, k.bgC, k.bgMax),
@@ -413,13 +473,13 @@ function build(src: RGB | null, surface: Surface, light: boolean, shade: Shade):
     s2: surf(k.sL[1], k.sC, k.sMax),
     s3: surf(k.sL[2], k.sC, k.sMax),
     border: surf(k.bdL, k.bdC, k.bdMax),
-    text: ok(k.txL, gray ? 0 : cc(0.03, 0.008)),
-    t2: ok(k.t2L, gray ? 0 : cc(0.06, 0.014)),
-    t3: ok(k.t3L, gray ? 0 : cc(0.08, 0.018)),
+    text: okS(k.txL, gray ? 0 : ccS(0.03, 0.008)),
+    t2: okS(k.t2L, gray ? 0 : ccS(0.06 * tk, 0.014 * tk)),
+    t3: okS(k.t3L, gray ? 0 : ccS(0.08 * tk, 0.018 * tk)),
     accent: mono ? ok(light ? 0.22 : 0.95, 0) : ok(k.accL, Math.min(c, k.accMax)),
     ink: light ? ok(0.985, mono || gray ? 0 : cc(0.03, 0.008)) : mono ? ok(0.16, 0) : gray ? ok(0.12, 0) : ok(0.18, cc(0.35, 0.05)),
     // дорожка прогресса: у Сигнала своя, насыщенная; у остальных — поверхность 3
-    track: surface === 'signal' ? ok(sh(light ? 0.82 : 0.42), cc(0.4, 0.06)) : surf(k.sL[2], k.sC, k.sMax),
+    track: surface === 'signal' ? okS(sh(light ? 0.82 : 0.42), ccS(0.4, 0.06)) : surf(k.sL[2], k.sC, k.sMax),
   }
   const s = (x: Lch, a = 1) => oklch(x, a)
   const vars: Record<string, string> = {
@@ -437,13 +497,28 @@ function build(src: RGB | null, surface: Surface, light: boolean, shade: Shade):
     '--accent-ink': s(lch.ink),
     '--accent-soft': mono ? (light ? 'oklch(0.2 0 0 / 0.08)' : 'oklch(0.95 0 0 / 0.12)') : s(lch.accent, k.softA),
     // подкраска верха страницы; у Монолита поверхности серые — цвет обложки только в свечении и прогрессе
-    '--tint': s(ok(sh(light ? 0.93 : 0.2), gray ? sc(0, 0) : cc(light ? 0.3 : 0.6, light ? 0.04 : 0.09))),
+    '--tint': s(okS(sh(light ? 0.93 : 0.2), gray ? sc(0, 0) : ccS(light ? 0.3 : 0.6, light ? 0.04 : 0.09))),
     '--track': s(lch.track),
     // свечение за обложкой (поверхность и смена трека «Монолит»)
     '--glow': mono ? 'oklch(0.7 0 0 / 0.25)' : s(ok(light ? 0.7 : 0.62, Math.min(c, 0.2)), light ? 0.45 : 0.55),
+    ...wash(mono || !full || gray ? null : ok(light ? 0.3 : 0.9, cc(WASH.m, WASH.max)), light),
+    // заглушка обложки (нет картинки): подложка и значок в оттенке акцента; «Спокойно» и монохром — серые
+    '--ph-wash': mono || !full || gray ? 'transparent' : s(lch.accent, light ? 0.12 : 0.1),
+    '--ph-ink': mono || !full || gray ? s(lch.t3) : s(ok(light ? 0.45 : 0.78, Math.min(c, k.accMax) * 0.8)),
     ...SURFACE_DECOR[surface],
   }
   return { lch, mono, vars, accent: oklchToRgb(lch.accent), bg: oklchToRgb(lch.bg), ink: oklchToRgb(lch.ink), shift: shade.f }
+}
+
+/** Наведение, нажатие и подложка: белые (чёрные в светлой) с прозрачностью — или в оттенке акцента. */
+function wash(x: Lch | null, light: boolean): Record<string, string> {
+  const a = light ? { hover: 0.055, press: 0.1, plate: 0.035 } : { hover: 0.07, press: 0.14, plate: 0.04 }
+  const c = x ?? { l: light ? 0 : 1, c: 0, h: 0 }
+  return {
+    '--hover': oklch(c, a.hover),
+    '--press': oklch(c, a.press),
+    '--plate': oklch(c, a.plate),
+  }
 }
 
 export const css = ([r, g, b]: RGB, a = 1) => (a === 1 ? `rgb(${r} ${g} ${b})` : `rgb(${r} ${g} ${b} / ${a})`)

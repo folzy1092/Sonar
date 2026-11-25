@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contrast, hslToRgb, inkFor, kmeans, oklchToRgb, pickAccent, rgbToHsl, rgbToOklch, SURFACES, themeFrom, type Lch, type RGB, type Surface } from './palette'
+import { contrast, hslToRgb, inkFor, kmeans, oklchToRgb, pickAccent, pickBase, rgbToHsl, rgbToOklch, SURFACES, themeFrom, type Lch, type RGB, type Surface } from './palette'
 
 function image(colors: [number, number, number, number][]): number[] {
   return colors.flatMap(([r, g, b, n]) => Array.from({ length: n }, () => [r, g, b, 255]).flat())
@@ -75,6 +75,64 @@ describe('oklch palette', () => {
         expect(contrast(rgb(lch.accent), rgb(lch.s1))).toBeGreaterThanOrEqual(3)
         expect(contrast(rgb(lch.accent), rgb(lch.ink))).toBeGreaterThanOrEqual(4.5)
       })
+    }
+  }
+})
+
+describe('подкраска интерфейса (appearance.tint)', () => {
+  const rgb = (x: Lch) => oklchToRgb(x)
+  const teal: RGB = [46, 196, 182]
+  const blue: RGB = [28, 60, 150]
+
+  it('основной цвет — самый большой цветной кластер, не самый яркий', () => {
+    const px = image([[70, 80, 110, 600], [240, 30, 40, 150], [5, 5, 5, 130]])
+    expect(pickBase(px)![2]).toBeGreaterThan(100)
+    expect(pickAccent(px)![0]).toBeGreaterThan(200)
+    expect(pickBase(image([[5, 5, 5, 100], [128, 128, 128, 100]]))).toBeNull()
+  })
+
+  it('«Спокойно» — наведение белое и заглушка серая, как раньше', () => {
+    const t = themeFrom(teal, 'classic', false, null, { tint: 'calm' })
+    expect(t.vars['--hover']).toBe('oklch(1.000 0.000 0 / 0.07)')
+    expect(t.vars['--ph-wash']).toBe('transparent')
+  })
+
+  it('«Весь интерфейс» красит наведение, подложку и заглушку в оттенок', () => {
+    const t = themeFrom(teal, 'classic', false, null, { tint: 'full' })
+    expect(t.vars['--hover']).toMatch(/oklch\(0\.900 0\.0[1-9]\d* \d+ \/ 0\.07\)/)
+    expect(t.vars['--ph-wash']).not.toBe('transparent')
+  })
+
+  it('монохром и Монолит не подкрашивают наведение', () => {
+    expect(themeFrom(null, 'classic', false, null, { tint: 'full' }).vars['--ph-wash']).toBe('transparent')
+    expect(themeFrom(teal, 'monolith', false, null, { tint: 'full' }).vars['--hover']).toContain('0.000 0')
+  })
+
+  it('«Два цвета»: фон — оттенок основного цвета, акцент — свой', () => {
+    const t = themeFrom([240, 30, 40], 'classic', false, null, { tint: 'duo', tone: blue })
+    expect(Math.abs(t.lch.bg.h - rgbToOklch(blue).h)).toBeLessThan(2)
+    expect(Math.abs(t.lch.accent.h - rgbToOklch([240, 30, 40]).h)).toBeLessThan(2)
+    // без «Два цвета» тон игнорируется
+    const f = themeFrom([240, 30, 40], 'classic', false, null, { tint: 'full', tone: blue })
+    expect(Math.abs(f.lch.bg.h - rgbToOklch([240, 30, 40]).h)).toBeLessThan(2)
+  })
+
+  const TONES: RGB[] = [blue, [250, 222, 32], [20, 120, 40], [255, 24, 178]]
+  for (const tint of ['full', 'duo'] as const) {
+    for (const surface of Object.keys(SURFACES) as Surface[]) {
+      for (const light of [false, true]) {
+        it(`контраст держится: ${tint} × ${surface}${light ? ' (светлая)' : ''}`, () => {
+          for (const src of [teal, [230, 120, 30], [120, 20, 30]] as RGB[]) {
+            for (const tone of TONES) {
+              const { lch } = themeFrom(src, surface, light, null, { tint, tone })
+              expect(contrast(rgb(lch.t3), rgb(lch.s1))).toBeGreaterThanOrEqual(4.5)
+              expect(contrast(rgb(lch.t2), rgb(lch.s3))).toBeGreaterThanOrEqual(4.5)
+              expect(contrast(rgb(lch.text), rgb(lch.bg))).toBeGreaterThanOrEqual(12)
+              expect(contrast(rgb(lch.accent), rgb(lch.s1))).toBeGreaterThanOrEqual(3)
+            }
+          }
+        })
+      }
     }
   }
 })

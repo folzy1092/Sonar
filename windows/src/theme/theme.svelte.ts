@@ -5,7 +5,7 @@
 import { api } from '../lib/api'
 import { isTauri } from '../lib/tauri'
 import { player } from '../player/player.svelte'
-import { COVER_STRENGTH, coverLightness, DECOR_VARS, oklch, pickAccent, themeFrom, type CoverStrength, type RGB, type Surface } from './palette'
+import { COVER_STRENGTH, coverLightness, DECOR_VARS, oklch, pickAccent, pickBase, themeFrom, TINTS, type CoverStrength, type RGB, type Surface, type Tint } from './palette'
 import { settings } from '../lib/settings.svelte'
 import { setAnimations } from '../lib/motion'
 import { CUSTOM_PREFIX, fontStack, RADII, WIDE_FONTS } from './look'
@@ -27,6 +27,8 @@ export async function proxied(url: string): Promise<string> {
 export interface CoverInfo {
   accent: RGB | null
   lightness: number
+  /** Основной (самый большой цветной) цвет — фон для «Двух цветов». */
+  base: RGB | null
 }
 
 const cache = new Map<string, CoverInfo | null>()
@@ -47,7 +49,7 @@ export async function coverInfo(url: string): Promise<CoverInfo | null> {
         const g = c.getContext('2d', { willReadFrequently: true })!
         g.drawImage(img, 0, 0, SAMPLE, SAMPLE)
         const px = g.getImageData(0, 0, SAMPLE, SAMPLE).data
-        resolve({ accent: pickAccent(px), lightness: coverLightness(px) })
+        resolve({ accent: pickAccent(px), lightness: coverLightness(px), base: pickBase(px) })
       } catch {
         // картинка без CORS (canvas «испорчен») — тема как у серой обложки
         resolve(null)
@@ -92,6 +94,7 @@ interface ApplyInput {
   /** Альфа фона и поверхностей при прозрачности окна (1 — непрозрачно). */
   glass: number
   strength: CoverStrength
+  tint: Tint
 }
 
 class Theme {
@@ -124,7 +127,8 @@ class Theme {
         const glass = settings.get('appearance.glass') ? Math.max(0.15, Math.min(1, settings.get('appearance.opacity') / 100)) : 1
         const url = on ? (player.current?.cover_url ?? null) : null
         const strength = settings.get('appearance.cover_strength')
-        void this.apply({ cover: on, url, preset, surface, light, glass, strength })
+        const tint = settings.get('appearance.tint')
+        void this.apply({ cover: on, url, preset, surface, light, glass, strength, tint })
       })
       $effect(() => {
         setAnimations(settings.get('appearance.animations'))
@@ -287,7 +291,7 @@ class Theme {
     return mode === 'light' || (mode === 'system' && this.systemLight)
   }
 
-  private async apply({ cover, url, preset, surface, light, glass, strength }: ApplyInput) {
+  private async apply({ cover, url, preset, surface, light, glass, strength, tint }: ApplyInput) {
     const my = ++this.seq
     const p = PRESETS.find((x) => x.id === preset) ?? PRESETS[0]
     const info = cover && url ? await coverInfo(url) : null
@@ -305,7 +309,9 @@ class Theme {
     // дают оттенок, серая — монохром
     // под обложку поверхности ещё и уходят за её светлотой (Интерфейс → Тема → Сила)
     const shift = info ? { strength: strength in COVER_STRENGTH ? strength : 'medium', lightness: info.lightness } : null
-    const t = themeFrom(c, surface in SURFACE_IDS ? surface : 'classic', light, shift)
+    // подкраска: «Спокойно» / «Весь интерфейс» / «Два цвета» (фон — основной цвет обложки)
+    const paint = { tint: TINTS.includes(tint) ? tint : 'full', tone: info?.base ?? null }
+    const t = themeFrom(c, surface in SURFACE_IDS ? surface : 'classic', light, shift, paint)
     root.dataset.surface = surface
     for (const k of DECOR_VARS) if (!(k in t.vars)) st.removeProperty(k)
     // прозрачность: фон окна — с альфой непрозрачности, карточки чуть плотнее (текст читается)
