@@ -29,7 +29,7 @@ enum ShareLinkCodec {
 
     static func validID(_ service: String, _ id: String) -> Bool {
         guard id.allSatisfy(\.isASCII) else { return false }
-        switch service {
+        return switch service {
         case "ym": id.wholeMatch(of: #/\d{1,12}/#) != nil
         case "sc": id.wholeMatch(of: #/\d{1,14}/#) != nil
         case "yt": id.wholeMatch(of: #/[\w-]{11}/#) != nil
