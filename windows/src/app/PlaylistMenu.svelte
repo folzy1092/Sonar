@@ -10,6 +10,7 @@
   import Cover from '../components/Cover.svelte'
   import Icon from '../components/Icon.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
+  import LogoMark from '../components/LogoMark.svelte'
   import type { IconName } from '../components/icons'
   import { playlistMenu } from '../lib/playlist-menu.svelte'
   import { api, errorText, type Playlist, type ServicePlaylist, type Track } from '../lib/api'
@@ -224,6 +225,18 @@
     }
   }
 
+  /** «Поделиться» плейлистом сервиса — ссылка на него на сайте сервиса. У своего плейлиста Sonar ссылки нет
+   *  до сервера (страница плейлиста по ссылке — `docs/API.md`), там пункт неактивен. */
+  async function shareService(url: string) {
+    playlistMenu.close()
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.show(t('Ссылка скопирована'))
+    } catch {
+      toast.show(t('Не получилось скопировать'))
+    }
+  }
+
   /** Экспорт в файл: треки берутся так же, как для остальных действий (Любимые и свой — из базы). */
   function exportAs(format: ExportFormat) {
     if (fav) return withFav((list) => saveExport(format, t('Любимые'), list))
@@ -278,6 +291,7 @@
         <span>{t('Лайкнутые треки')}</span>
         {#if library.liked.size}<small>{tracksText([...library.liked].filter(isTrackRef).length)}</small>{/if}
       </div>
+      <span class="svc" title="Sonar"><LogoMark size={20} spin={false} /></span>
     </div>
 
     {#if view === 'export'}
@@ -321,12 +335,13 @@
     oncontextmenu={(e) => e.preventDefault()}
   >
     <div class="head">
-      <Cover url={own.covers[0]} size={44} />
+      <Cover url={own.covers[0]} size={52} />
       <div class="meta">
         <b>{own.name}</b>
-        <span>{own.hidden ? t('Скрыт') : 'Sonar'}</span>
+        <span>{own.hidden ? t('Скрыт') : t('Свой плейлист')}</span>
         {#if own.track_count}<small>{tracksText(own.track_count)}</small>{/if}
       </div>
+      <span class="svc" title="Sonar"><LogoMark size={20} spin={false} /></span>
     </div>
 
     {#if view === 'export'}
@@ -351,6 +366,10 @@
           }),
         )}
         {@render item('copy', t('Копировать название'), copyOwnTitle)}
+        <button class="item" role="menuitem" disabled title={t('Появится вместе с сервером Sonar')}>
+          <Icon name="share" size={17} />
+          <span>{t('Поделиться')}</span>
+        </button>
         {@render item('stack', t('Найти дубли'), () => {
           playlistMenu.close()
           router.go('dupes', own.id)
@@ -387,12 +406,13 @@
     oncontextmenu={(e) => e.preventDefault()}
   >
     <div class="head">
-      <Cover url={p.cover_url} size={44} source={p.ref} />
+      <Cover url={p.cover_url} size={52} />
       <div class="meta">
         <b>{p.title}</b>
-        <span><SourceIcon service={svc.id} size={12} plain /> {p.owner || t(svc.name)}</span>
+        <span>{p.owner || t(svc.name)}</span>
         {#if p.track_count}<small>{tracksText(p.track_count)}</small>{/if}
       </div>
+      <span class="svc"><SourceIcon service={svc.id} size={20} plain /></span>
     </div>
 
     {#if view === 'export'}
@@ -412,6 +432,10 @@
         <hr />
         {@render item('playlistAdd', t('Перенести в Sonar'), importIt)}
         {@render item('copy', t('Копировать название'), copyTitle)}
+        {#if webUrl}
+          {@const shareUrl = webUrl}
+          {@render item('share', t('Поделиться'), () => shareService(shareUrl))}
+        {/if}
         {@render item('cloudDown', t('Скачать плейлист'), () => withTracks((list) => downloads.download(list)))}
         {@render exportEntry()}
         {#if webUrl}
@@ -442,7 +466,7 @@
     display: flex;
     gap: 10px;
     align-items: center;
-    padding: 6px 8px 10px;
+    padding: 8px 8px 12px;
   }
   .meta {
     display: flex;
@@ -455,10 +479,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .meta > span {
-    display: flex;
-    align-items: center;
-    gap: 5px;
+  .svc {
+    display: grid;
+    flex: none;
+    align-self: flex-start;
+    margin-left: auto;
+    padding-left: 4px;
   }
   .meta > span,
   small {
@@ -468,8 +494,8 @@
   .fav-art {
     display: grid;
     place-items: center;
-    width: 44px;
-    height: 44px;
+    width: 52px;
+    height: 52px;
     border-radius: var(--radius-s);
     background: var(--hover);
     flex: none;

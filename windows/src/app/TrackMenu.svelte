@@ -3,6 +3,8 @@
   // клик мимо, Esc или выбор пункта. «Добавить в плейлист ›» — тоже по клику, список внутри меню.
   import Cover from '../components/Cover.svelte'
   import Icon from '../components/Icon.svelte'
+  import SourceIcon from '../components/SourceIcon.svelte'
+  import { ICONS } from '../lib/service-icons'
   import type { IconName } from '../components/icons'
   import { trackMenu } from '../lib/menu.svelte'
   import { library } from '../lib/library.svelte'
@@ -26,7 +28,7 @@
 
   const W = 280
   let el: HTMLElement | undefined = $state()
-  let view = $state<'main' | 'playlists'>('main')
+  let view = $state<'main' | 'playlists' | 'share'>('main')
   let newName = $state('')
   let pos = $state({ left: 0, top: 0 })
 
@@ -40,6 +42,8 @@
   const canWave = $derived(target ? !!byId(serviceOf(target.track.ref))?.caps.similar : false)
   /** «Почему этот трек» — у треков Sonar Mix: откуда он пришёл (не зависит от тумблера строки в плеере). */
   const why = $derived(target ? waveWhyText(target.track.why) : '')
+  /** Сервис трека — знак в шапке (у файла с компьютера знака нет). */
+  const svc = $derived(target ? serviceOf(target.track.ref) : null)
   /** Главный артист — для «Чаще · Реже · Никогда». */
   const main = $derived(target ? mainArtist(target.track) : { key: '', name: '' })
   const playlists = $derived(library.playlists.filter((p) => p.id !== target?.playlistId))
@@ -71,7 +75,7 @@
 
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape' && target) {
-      if (view === 'playlists') view = 'main'
+      if (view !== 'main') view = 'main'
       else trackMenu.close()
     }
   }
@@ -130,12 +134,13 @@
     oncontextmenu={(e) => e.preventDefault()}
   >
     <div class="head">
-      <Cover url={target.track.cover_url} size={44} source={target.track.ref} />
+      <Cover url={target.track.cover_url} size={52} />
       <div class="meta">
         <b>{target.track.title}</b>
         <span>{target.track.artist}</span>
         {#if added}<small>{t('Добавлен')} <b>{added}</b></small>{/if}
       </div>
+      {#if svc && ICONS[svc]}<span class="svc"><SourceIcon service={svc} size={20} plain /></span>{/if}
     </div>
     {#if why && view === 'main'}
       <div class="why" role="note" aria-label={t('Почему этот трек')}>
@@ -205,13 +210,29 @@
       {@render item('copy', t('Копировать название'), () => copy(`${target.track.artist} — ${target.track.title}`, t('Название скопировано')))}
       {#if canShare(target.track)}
         {@const tr = target.track}
-        {@render item('share', t('Поделиться'), () => shareTrack(tr))}
+        <button class="item" role="menuitem" onclick={() => (view = 'share')}>
+          <Icon name="share" size={17} />
+          <span>{t('Поделиться')}</span>
+          <Icon name="chevronRight" size={15} />
+        </button>
       {/if}
       {#if target.track.url}
         {@const url = target.track.url}
         {@const name = byId(serviceOf(target.track.ref))?.name ?? ''}
         {@render item('link', t('Ссылка на {service}', { service: t(name) }), () => copy(url, t('Ссылка скопирована')))}
       {/if}
+    {:else if view === 'share'}
+      {@const tr = target.track}
+      <button class="item back" onclick={() => (view = 'main')}>
+        <Icon name="chevronLeft" size={17} />
+        <span>{t('Поделиться')}</span>
+      </button>
+      {@render item('link', t('Ссылкой'), () => shareTrack(tr))}
+      <!-- личные сообщения — через сервер (docs/DM.md): до него пункт неактивен, как «Пригласить друга» -->
+      <button class="item" role="menuitem" disabled title={t('Появится вместе с сервером Sonar')}>
+        <Icon name="user" size={17} />
+        <span>{t('Отправить другу')}</span>
+      </button>
     {:else}
       <button class="item back" onclick={() => (view = 'main')}>
         <Icon name="chevronLeft" size={17} />
@@ -248,7 +269,14 @@
     display: flex;
     gap: 10px;
     align-items: center;
-    padding: 6px 8px 10px;
+    padding: 8px 8px 12px;
+  }
+  .svc {
+    display: grid;
+    flex: none;
+    align-self: flex-start;
+    margin-left: auto;
+    padding-left: 4px;
   }
   .why {
     display: flex;
@@ -337,9 +365,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .item:hover {
+  .item:hover:not(:disabled) {
     background: var(--hover);
     color: var(--text);
+  }
+  .item:disabled {
+    opacity: 0.45;
+    cursor: default;
   }
   .item.off {
     opacity: 0.5;
