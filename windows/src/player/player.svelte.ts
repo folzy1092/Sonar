@@ -16,7 +16,7 @@ import { isPartyContext } from './blend/party-core'
 import { Effects } from './effects'
 import { pitchRatio, tempo } from './tempo.svelte'
 import { settings } from '../lib/settings.svelte'
-import { isFallbackError } from '../lib/services'
+import { isFallbackError, type ServiceId } from '../lib/services'
 import { FALLBACK_TOAST_MS, fallbackNotice, type Via } from '../lib/fallback'
 import { t } from '../lib/i18n.svelte'
 import { playableQueue } from '../lib/local'
@@ -87,6 +87,8 @@ class Player {
   fallbackNeeded = $state(false)
   /** Трек играет не со своего сервиса (резервный сервис): откуда и почему; null — со своего. */
   via = $state<Via | null>(null)
+  /** Откуда играет трек с выбранным «Играть из» (`stream_url`); null — «Авто», плашка как раньше. */
+  source = $state<ServiceId | null>(null)
   positionMs = $state(0)
   durationMs = $state(0)
   /** Реальный формат потока для плашки: «AAC 160», «MP3 320», «FLAC». */
@@ -499,6 +501,12 @@ class Player {
 
   // ——— управление ———
 
+  /** «Играть из» поменяли у играющего трека — тот же трек заново с того же места, уже из выбранного сервиса. */
+  async sourceChanged(ref: string) {
+    if (this.current?.ref !== ref) return
+    await this.load(this.playing || this.loading, this.positionMs)
+  }
+
   async play() {
     if (!this.audio || !this.current) return
     if (!this.audio.src) return this.load(true, this.positionMs)
@@ -620,6 +628,7 @@ class Player {
     this.error = null
     this.fallbackNeeded = false
     this.via = null
+    this.source = null
     this.loading = true
     this.stage(0)
     this.durationMs = track.duration_ms
@@ -681,6 +690,7 @@ class Player {
   private announce(s: StreamUrl, ref: string) {
     this.quality = s.quality
     this.via = s.via
+    this.source = s.source ?? null
     const notice = fallbackNotice(s.via, ref, this.fallbackShown)
     this.fallbackShown = notice.shown
     if (notice.text) toast.show(notice.text, FALLBACK_TOAST_MS)

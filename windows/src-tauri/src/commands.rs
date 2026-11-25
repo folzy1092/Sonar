@@ -169,6 +169,9 @@ pub struct StreamUrl {
   quality: String,
   /// Играет не со своего сервиса: откуда и почему (для всплывашки «Играет из …»).
   via: Option<crate::services::fallback::Via>,
+  /// Откуда играет — только когда у трека выбран «Играть из» (в «Авто» плашка как раньше): плашка пишет
+  /// сервис и у своего. Из кэша — выбранный: при смене выбора копия в кэше удаляется.
+  source: Option<ServiceId>,
 }
 
 /// Адрес на локальном аудио-сервере для `<audio>` (file) или hls.js (hls). Свой сервис трек не
@@ -191,7 +194,8 @@ pub async fn stream_url(
       _ => "MP3 · кэш",
     };
     let url = crate::stream::track_url(port.0, "file", &track_ref);
-    return Ok(StreamUrl { kind: "file", url, quality: quality.into(), via: None });
+    let source = db.0.lock().unwrap().track_source(&track_ref).unwrap_or(None);
+    return Ok(StreamUrl { kind: "file", url, quality: quality.into(), via: None, source });
   }
   // офлайн: свои файлы с диска играют, всё прочее — только из кэша (выше)
   if crate::offline::is_on() && !crate::local::is_local_ref(&track_ref) {
@@ -273,18 +277,22 @@ pub async fn share_twins(
 }
 
 async fn playable_url(core: &Core, db: &Db, port: u16, track_ref: &str, track: Option<Track>, broken: bool) -> Res<StreamUrl> {
-  let (known, meta) = {
+  let (known, meta, pin) = {
     let db = db.0.lock().unwrap();
     let known = db.track_aliases(track_ref).unwrap_or_else(|e| {
       log::warn!("[fallback] track_alias {track_ref}: {e}");
       Vec::new()
     });
     let meta = track.or_else(|| db.tracks(&[track_ref.to_owned()]).ok().and_then(|t| t.into_iter().next()));
-    (known, meta)
+    let pin = db.track_source(track_ref).unwrap_or_else(|e| {
+      log::warn!("[fallback] track_prefs.source {track_ref}: {e}");
+      None
+    });
+    (known, meta, pin)
   };
   core.fallback.remember(&known);
   // YouTube Music не открылся — ещё раз с новой visitorData, причина — в журнал ошибок
-  let played = core.resolve_playable(track_ref, meta.as_ref(), broken).await;
+  let played = core.resolve_playable(track_ref, meta.as_ref(), broken, pin).await;
   // найденные пары, «не нашлось» и переставшие играть — на диск, даже когда замены нет
   let writes = core.fallback.take_writes();
   if !writes.is_empty() {
@@ -305,7 +313,56 @@ async fn playable_url(core: &Core, db: &Db, port: u16, track_ref: &str, track: O
     Source::File { quality, .. } => ("file", "file", quality),
     Source::Hls { quality, .. } => ("hls", "hls", quality),
   };
-  Ok(StreamUrl { kind, url: crate::stream::track_url(port, path, track_ref), quality, via: played.via })
+  let own = crate::providers::registry::parse_ref(track_ref).map(|(i, _)| i.id);
+  let source = pin.and_then(|_| played.via.as_ref().map(|v| v.service).or(own));
+  Ok(StreamUrl { kind, url: crate::stream::track_url(port, path, track_ref), quality, via: played.via, source })
+}
+
+#[derive(Serialize)]
+pub struct TrackSources {
+  /// Где трек есть: свой сервис (если отдаёт поток) и найденные двойники, в порядке реестра.
+  services: Vec<ServiceId>,
+  /// Что выбрано сейчас (None — «Авто»).
+  pinned: Option<ServiceId>,
+}
+
+/// «Играть из» в меню трека: на каких сервисах он есть (двойники — как у резерва: пары из `track_alias` или
+/// поиск, найденное — туда же). В офлайне не ищем: только выбранное.
+#[tauri::command]
+pub async fn track_sources(core: State<'_, Arc<Core>>, db: State<'_, Db>, track_ref: String, track: Option<Track>) -> Res<TrackSources> {
+  let (known, meta, pinned) = {
+    let db = db.0.lock().unwrap();
+    let known = db.track_aliases(&track_ref).unwrap_or_default();
+    let meta = track.or_else(|| db.tracks(std::slice::from_ref(&track_ref)).ok().and_then(|t| t.into_iter().next()));
+    (known, meta, db.track_source(&track_ref).map_err(err)?)
+  };
+  if crate::offline::is_on() {
+    return Ok(TrackSources { services: Vec::new(), pinned });
+  }
+  core.fallback.remember(&known);
+  let mut services = core.play_sources(&track_ref, meta.as_ref()).await;
+  let writes = core.fallback.take_writes();
+  if !writes.is_empty() {
+    if let Err(e) = db.0.lock().unwrap().apply_track_alias_writes(&writes) {
+      log::warn!("[sources] track_alias {track_ref}: {e}");
+    }
+  }
+  // выбранное, но сейчас не нашедшееся (поиск не успел, сервис отключили) — в списке, чтобы его было видно
+  if let Some(p) = pinned.filter(|p| !services.contains(p)) {
+    services.push(p);
+  }
+  Ok(TrackSources { services, pinned })
+}
+
+/// Закрепить сервис за треком (`service` — ключ, None — «Авто»). Поменялось — копия в автокэше уходит:
+/// в ней звук прежнего сервиса.
+#[tauri::command]
+pub fn set_track_source(db: State<'_, Db>, track_ref: String, service: Option<String>) -> Res<()> {
+  let pin = service.as_deref().and_then(crate::services::fallback::pin_of);
+  if db.0.lock().unwrap().set_track_source(&track_ref, pin).map_err(err)? {
+    crate::track_cache::forget(&track_ref);
+  }
+  Ok(())
 }
 
 /// «Волна офлайн»: следующие треки волны — в кэш треков заранее (фоном, по одному; новый вызов

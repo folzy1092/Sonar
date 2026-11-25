@@ -427,6 +427,13 @@ final class PlaybackEngine {
         persistTempo()
     }
 
+    /// «Играть из» поменяли у играющего трека — тот же трек заново с того же места, уже из выбранного сервиса.
+    func sourceChanged(_ ref: String) {
+        guard let track = current, track.ref == ref else { return }
+        pendingStart = (track.ref, position)
+        load(autoplay: isPlaying || isLoading)
+    }
+
     /// «Для этого трека»: включили — нынешний звук (и кривая эквалайзера) запоминается для трека; выключили —
     /// трек забывает свой звук и играет по общим настройкам.
     func setTrackSound(_ on: Bool) {
@@ -589,7 +596,8 @@ final class PlaybackEngine {
             return .init(source: file, via: nil)
         }
         if offline { throw ServiceError(message: t("Нет в офлайне — скачай трек, пока есть сеть")) }
-        return try await MusicCore.shared.playable(track, fresh: fresh, safe: safe, broken: broken)
+        return try await MusicCore.shared.playable(track, fresh: fresh, safe: safe, broken: broken,
+                                                   pin: LibraryStore.shared.source(for: track.ref))
     }
 
     /// Офлайн включили (`OfflineMode`, OFFLINE.md §9): из «Далее» уходит недоступное; играет недоступный —

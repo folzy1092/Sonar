@@ -17,6 +17,8 @@ struct TrackSheet: View {
     @State private var addToPlaylist = false
     @State private var showDevices = false
     @State private var showSleep = false
+    /// «Играть из» — свой лист: двойники ищутся при открытии.
+    @State private var showSource = false
     /// «Поделиться»: ищем двойников (≤ 4 с), потом системный лист со ссылкой на сайт.
     @State private var sharing = false
     @State private var shareItem: ShareItem?
@@ -30,6 +32,15 @@ struct TrackSheet: View {
         (track.artists.first?.name ?? track.artist).trimmingCharacters(in: .whitespacesAndNewlines)
     }
     private var downloads: DownloadStore { DownloadStore.shared }
+    /// «Играть из» — у треков сервисов (не файлов с телефона) и не в офлайне: там ничего не найти.
+    private var canPickSource: Bool {
+        !OfflineFlag.isOn && ServiceRegistry.service(of: track.ref).map { $0 != .local } == true
+    }
+    /// Что выбрано: «Авто» или сервис.
+    private var sourceSubtitle: String {
+        guard let id = library.source(for: track.ref) else { return t("Авто") + " · " + t("как решит Sonar") }
+        return t(ServiceRegistry.info(id).name)
+    }
 
     var body: some View {
         ScrollView {
@@ -66,6 +77,11 @@ struct TrackSheet: View {
                             }
                         }
                         downloadRow
+                        if canPickSource {
+                            SheetMenuRow(icon: .transfer, title: t("Играть из"), subtitle: sourceSubtitle) {
+                                showSource = true
+                            }
+                        }
                         if isCurrent {
                             SheetMenuRow(icon: .computer, title: t("Устройства"), subtitle: t("Выбрать, где играет музыка")) {
                                 showDevices = true
@@ -126,6 +142,19 @@ struct TrackSheet: View {
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(30)
                 .presentationBackground(Theme.background)
+        }
+        .sheet(isPresented: $showSource) {
+            TrackSourceSheet(track: track) { message in
+                showSource = false
+                if !message.isEmpty { done(message) }
+            }
+            .padding(.horizontal, Theme.gutter)
+            .padding(.top, 28)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .presentationDetents([.height(360)])
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(30)
+            .presentationBackground(Theme.background)
         }
         .sheet(isPresented: $showSleep) {
             SleepTimerSection()

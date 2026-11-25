@@ -24,6 +24,7 @@ mod stats;
 mod sync;
 mod system;
 mod track_sound;
+mod track_source;
 mod wave;
 mod wave_events;
 pub use alias::TrackAlias;
@@ -201,6 +202,8 @@ CREATE TABLE hub_rows (
 CREATE INDEX hub_rows_rev ON hub_rows(rev);
 CREATE TABLE hub_ops (op_id TEXT PRIMARY KEY);
 CREATE TABLE hub_peers (device_id TEXT PRIMARY KEY, last_sync INTEGER NOT NULL);
+"#, r#"
+ALTER TABLE track_prefs ADD COLUMN source TEXT;
 "#];
 
 pub fn now_ms() -> i64 {

@@ -19,6 +19,8 @@ pub enum Reason {
   Failed,
   /// Не беда, а настройка: «SoundCloud через Яндекс» (`audio.sc_via_yandex`).
   Preferred,
+  /// Выбор пользователя: «Играть из» у этого трека (`track_prefs.source`, `services/fallback.rs`).
+  Pinned,
 }
 
 /// Ошибка потока с причиной; `preview` — отрывок, который можно сыграть, если замены нет.

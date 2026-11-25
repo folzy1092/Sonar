@@ -663,7 +663,7 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 | `playlist_item` | id элемента | `{playlist_id, ref, position, added_at, track?, added_by?}` — `added_by` (username) только в совместном плейлисте, ставит сервер |
 | `setting` | ключ | значение; только `sync: да` из SETTINGS.md — громкость, масштаб, качество, `system.*`, `update.*`, `storage.*` остаются на устройстве |
 | `dislike` | ref | `{artist, added_at}` |
-| `track_pref` | ref | `{speed, lyrics_offset_ms, sound}` — `sound` = `TrackSound` (§4) или `null`; `speed` = `sound.rate` для старых клиентов, а значение без `sound` клиенты читают как «скорость, тон сохраняется» (ПК `store/track_sound.rs`, iPhone `TrackSound.swift`). Сверять хэши не нужно: изменённая строка получает новый `rev` и приходит остальным устройствам в `pull` |
+| `track_pref` | ref | `{speed, lyrics_offset_ms, sound, source}` — `source` — «Играть из» (ключ сервиса `sc` / `ym` / `yt`, `null` — «Авто», неизвестное читается как «Авто»; ПК `store/track_source.rs`, iPhone `TrackSource.swift`); `sound` = `TrackSound` (§4) или `null`; `speed` = `sound.rate` для старых клиентов, а значение без `sound` клиенты читают как «скорость, тон сохраняется» (ПК `store/track_sound.rs`, iPhone `TrackSound.swift`). Сверять хэши не нужно: изменённая строка получает новый `rev` и приходит остальным устройствам в `pull` |
 | `wave_event` | `we_…` | `{device_id, session_id, ref, artist, mode, source, seed_ref, served_at, reward, listened_ms, ended_at}` — без `features_json` |
 
 `op_id` = `<device_id>:<type>:<key>:<локальный rev>` — повтор после сбоя сети сервер узнаёт по нему и

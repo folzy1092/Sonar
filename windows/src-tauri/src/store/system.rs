@@ -73,7 +73,7 @@ impl Store {
   pub fn reset_track_prefs(&self) -> Result<()> {
     let rev = self.next_rev()?;
     self.db.execute(
-      "UPDATE track_prefs SET deleted = 1, speed = NULL, lyrics_offset_ms = NULL, eq_json = NULL, sound_json = NULL, rev = ?2 WHERE user_id = ?1",
+      "UPDATE track_prefs SET deleted = 1, speed = NULL, lyrics_offset_ms = NULL, eq_json = NULL, sound_json = NULL, source = NULL, rev = ?2 WHERE user_id = ?1",
       rusqlite::params![LOCAL_USER, rev],
     )?;
     Ok(())

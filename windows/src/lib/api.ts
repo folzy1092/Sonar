@@ -259,6 +259,14 @@ export interface StreamUrl {
   quality: string
   /** Играет не со своего сервиса (резервный сервис, lib/fallback.ts); null — со своего. */
   via: Via | null
+  /** Откуда играет — только когда у трека выбран «Играть из» (lib/track-source.ts); null — «Авто». */
+  source: ServiceId | null
+}
+
+/** «Играть из» в меню трека: где трек есть (свой сервис и найденные двойники) и что выбрано (null — «Авто»). */
+export interface TrackSources {
+  services: ServiceId[]
+  pinned: ServiceId | null
 }
 
 export type StatsPeriod = 'day' | 'week' | 'month' | 'half_year' | 'year' | 'all'
@@ -591,6 +599,8 @@ export const api = {
   setTrackSound: (trackRef: string, sound: TrackSound | null) => call<void>('set_track_sound', { trackRef, sound }),
   /** Все ref со своим звуком — значок в списках одним запросом. */
   trackSoundRefs: () => call<string[]>('track_sound_refs'),
+  trackSources: (trackRef: string, track?: Track) => call<TrackSources>('track_sources', { trackRef, track: track ?? null }),
+  setTrackSource: (trackRef: string, service: ServiceId | null) => call<void>('set_track_source', { trackRef, service }),
 
   wavePortion: (req: {
     exclude?: string[]

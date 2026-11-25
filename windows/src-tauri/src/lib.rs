@@ -349,6 +349,8 @@ pub fn run() {
       commands::track_sound,
       commands::set_track_sound,
       commands::track_sound_refs,
+      commands::track_sources,
+      commands::set_track_source,
       commands::wave_portion,
       commands::wave_feedback,
       commands::wave_stats,

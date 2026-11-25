@@ -25,10 +25,15 @@
   import { api, type Track } from '../lib/api'
   import { offline } from '../lib/offline.svelte'
   import { canShare, shareLink } from '../lib/share'
+  import { isChosen, sourceChoices, sourceName, sourceValue, type SourceChoice } from '../lib/track-source'
+  import type { TrackSources } from '../lib/api'
 
   const W = 280
   let el: HTMLElement | undefined = $state()
-  let view = $state<'main' | 'playlists' | 'share'>('main')
+  let view = $state<'main' | 'playlists' | 'share' | 'source'>('main')
+  /** «Играть из»: где трек есть (null — ещё ищем) и для какого трека. */
+  let sources = $state<TrackSources | null>(null)
+  let sourcesFor = $state<string | null>(null)
   let newName = $state('')
   let pos = $state({ left: 0, top: 0 })
 
@@ -47,6 +52,9 @@
   /** Главный артист — для «Чаще · Реже · Никогда». */
   const main = $derived(target ? mainArtist(target.track) : { key: '', name: '' })
   const playlists = $derived(library.playlists.filter((p) => p.id !== target?.playlistId))
+  /** «Играть из» — у треков сервисов (не файлов с компьютера) и не в офлайне: там ничего не найти. */
+  const canPickSource = $derived(!!target && !isLocalRef(target.track.ref) && !offline.on)
+  const choices = $derived(target && sourcesFor === target.track.ref ? sourceChoices(target.track.ref, sources) : [])
   /** Скачивание (`docs/OFFLINE.md` §8): файлу с компьютера не нужно — он и так на диске. */
   const dl = $derived(target && !isLocalRef(target.track.ref) ? downloads.stateOf(target.track.ref) : undefined)
 
@@ -100,6 +108,29 @@
       toast.show(done)
     } catch {
       toast.show(t('Не получилось скопировать'))
+    }
+  }
+
+  /** «Играть из ›»: варианты ищутся при открытии подменю (двойники в других сервисах — как у резерва). */
+  async function openSources(track: Track) {
+    view = 'source'
+    if (sourcesFor === track.ref && sources) return
+    sources = null
+    sourcesFor = track.ref
+    const found = await api.trackSources(track.ref, track).catch(() => ({ services: [], pinned: null }))
+    if (sourcesFor === track.ref) sources = found
+  }
+
+  async function pickSource(track: Track, choice: SourceChoice) {
+    trackMenu.close()
+    if (sources && isChosen(choice, sources.pinned)) return
+    try {
+      await api.setTrackSource(track.ref, sourceValue(choice))
+      if (sources) sources = { ...sources, pinned: sourceValue(choice) }
+      toast.show(choice === 'auto' ? t('Трек снова играет как решит Sonar') : t('Играть из: {service}', { service: sourceName(choice) }))
+      await player.sourceChanged(track.ref)
+    } catch {
+      toast.show(t('Не получилось сохранить выбор'))
     }
   }
 
@@ -185,6 +216,14 @@
         {@const iid = target.itemId}
         {@render item('trash', t('Убрать из плейлиста'), () => library.removeFromPlaylist(pid, [iid]))}
       {/if}
+      {#if canPickSource}
+        {@const tr = target.track}
+        <button class="item" role="menuitem" onclick={() => openSources(tr)}>
+          <Icon name="headphones" size={17} />
+          <span>{t('Играть из')}</span>
+          <Icon name="chevronRight" size={15} />
+        </button>
+      {/if}
       {#if dl === 'done'}
         {@render item('trash', t('Удалить из скачанного'), () => downloads.remove([target.track.ref]))}
       {:else if dl === 'queued' || dl === 'active'}
@@ -220,6 +259,30 @@
         {@const url = target.track.url}
         {@const name = byId(serviceOf(target.track.ref))?.name ?? ''}
         {@render item('link', t('Ссылка на {service}', { service: t(name) }), () => copy(url, t('Ссылка скопирована')))}
+      {/if}
+    {:else if view === 'source'}
+      {@const tr = target.track}
+      <button class="item back" onclick={() => (view = 'main')}>
+        <Icon name="chevronLeft" size={17} />
+        <span>{t('Играть из')}</span>
+      </button>
+      {#if sourcesFor !== tr.ref || !sources}
+        <p class="none">{t('Ищем трек в других сервисах…')}</p>
+      {:else if choices.length === 0}
+        <p class="none">{t('В других сервисах этот трек не нашёлся')}</p>
+      {:else}
+        {#each choices as c (c)}
+          {@const on = isChosen(c, sources.pinned)}
+          <button class="item" role="menuitemradio" aria-checked={on} onclick={() => pickSource(tr, c)}>
+            {#if c === 'auto'}
+              <Icon name="waveform" size={17} />
+            {:else}
+              <span class="src"><SourceIcon service={c} size={17} plain /></span>
+            {/if}
+            <span>{sourceName(c)}{#if c === 'auto'}<small class="hint">{t('как решит Sonar')}</small>{/if}</span>
+            {#if on}<Icon name="check" size={15} />{/if}
+          </button>
+        {/each}
       {/if}
     {:else if view === 'share'}
       {@const tr = target.track}
@@ -372,6 +435,20 @@
   .item:disabled {
     opacity: 0.45;
     cursor: default;
+  }
+  .item span.src {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 17px;
+  }
+  .item .hint {
+    margin-left: 8px;
+    color: var(--text-3);
+    font-size: var(--fs-meta);
+  }
+  .item[aria-checked='true'] {
+    color: var(--text);
   }
   .item.off {
     opacity: 0.5;

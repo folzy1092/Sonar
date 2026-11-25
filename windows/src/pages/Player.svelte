@@ -152,8 +152,8 @@
       <!-- что реально играет — своё место под артистом, а не под полосой -->
       <span class="chips">
         {#if player.quality}
-          {#key qualityLabel(player.quality, player.via)}
-            <span class="quality" title={t('Что реально играет')}>{qualityLabel(player.quality, player.via)}</span>
+          {#key qualityLabel(player.quality, player.via, player.source)}
+            <span class="quality" title={player.source ? t('Выбрано в меню трека: «Играть из»') : t('Что реально играет')}>{qualityLabel(player.quality, player.via, player.source)}</span>
           {/key}
         {/if}
         <OwnSoundChip onopen={() => speed?.show()} />

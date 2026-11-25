@@ -162,7 +162,8 @@ final class DislikesSyncAdapter: SyncAdapter {
     }
 }
 
-/// Настройки трека (`track_pref`): звук трека (`LibraryStore.sounds`, `sound` + `speed` для старых клиентов) и
+/// Настройки трека (`track_pref`): звук трека (`LibraryStore.sounds`, `sound` + `speed` для старых клиентов), «Играть из»
+/// (`LibraryStore.sources`, `source` — ключ сервиса или null) и
 /// сдвиг текста (`LyricsStore.offsets`, мс). Изменённая на другом устройстве строка приходит с новым `rev` —
 /// сверять хэши не нужно.
 @MainActor
@@ -180,7 +181,7 @@ final class TrackPrefsSyncAdapter: SyncAdapter {
 
     func snapshot(journal: SyncJournal) -> [SyncKey: JSONValue] {
         let offsets = offsets().filter { $0.value != 0 }
-        let refs = Set(library.sounds.keys).union(offsets.keys)
+        let refs = Set(library.sounds.keys).union(offsets.keys).union(library.sources.keys)
         var out: [SyncKey: JSONValue] = [:]
         for ref in refs {
             let sound = library.sounds[ref]
@@ -188,6 +189,7 @@ final class TrackPrefsSyncAdapter: SyncAdapter {
                 "speed": sound.map { .double($0.rate) } ?? .null,
                 "lyrics_offset_ms": offsets[ref].map { .int($0) } ?? .null,
                 "sound": sound?.json ?? .null,
+                "source": library.sources[ref].map { .string($0.rawValue) } ?? .null,
             ])
         }
         return out
@@ -197,6 +199,10 @@ final class TrackPrefsSyncAdapter: SyncAdapter {
         var sounds = library.sounds
         sounds[change.key] = TrackSound.fromSync(change.value)
         if sounds != library.sounds { library.applySynced(sounds: sounds) }
+        // «Играть из»: неизвестный сервис — «Авто»
+        var sources = library.sources
+        sources[change.key] = TrackSourcePlan.pin(change.value["source"].string)
+        if sources != library.sources { library.applySynced(sources: sources) }
         let ms = change.value["lyrics_offset_ms"].int
         if offsets()[change.key] != ms { setOffset(change.key, ms) }
         return true

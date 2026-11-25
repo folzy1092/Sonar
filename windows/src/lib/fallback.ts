@@ -5,7 +5,7 @@ import { t } from './i18n.svelte'
 import { byId, SERVICES, type ServiceId, type ServiceInfo } from './services'
 
 /** Почему трек играет не со своего сервиса (`Reason` в providers/unplayable.rs). */
-export type FallbackReason = 'unavailable' | 'preview' | 'premium' | 'failed' | 'preferred'
+export type FallbackReason = 'unavailable' | 'preview' | 'premium' | 'failed' | 'preferred' | 'pinned'
 
 /** Поле `via` ответа `stream_url`: что играет вместо трека, откуда и почему. */
 export interface Via {
@@ -41,10 +41,10 @@ export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
   return next
 }
 
-/** Всплывашка «Играет из YouTube Music — в SoundCloud недоступен». «SoundCloud через Яндекс» —
- *  настройка, а не беда: без всплывашки (null). */
+/** Всплывашка «Играет из YouTube Music — в SoundCloud недоступен». «SoundCloud через Яндекс» и
+ *  «Играть из» — выбор, а не беда: без всплывашки (null). */
 export function fallbackToast(via: Via | null | undefined): string | null {
-  if (!via || via.reason === 'preferred') return null
+  if (!via || via.reason === 'preferred' || via.reason === 'pinned') return null
   const to = byId(via.service)
   const from = byId(via.from)
   if (!to || !from) return null
@@ -67,9 +67,10 @@ export function fallbackNotice(via: Via | null | undefined, ref: string, shown: 
   return { text, shown: text ? ref : null }
 }
 
-/** Плашка качества: что реально играет, а при замене — ещё и откуда («MP3 320 · Яндекс Музыка»). */
-export function qualityLabel(quality: string, via: Via | null | undefined): string {
+/** Плашка качества: что реально играет, а при замене — ещё и откуда («MP3 320 · Яндекс Музыка»).
+ *  `source` — откуда играет трек с выбранным «Играть из» (`stream_url`): сервис пишется и у своего. */
+export function qualityLabel(quality: string, via: Via | null | undefined, source: ServiceId | null = null): string {
   const label = t(quality)
-  const to = via ? byId(via.service) : null
+  const to = byId(via?.service ?? source)
   return to ? `${label} · ${t(to.name)}` : label
 }

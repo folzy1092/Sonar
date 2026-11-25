@@ -93,6 +93,22 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(quiet.pushed, 0)
     }
 
+    func testTrackSourceRidesSyncBothWays() async throws {
+        let server = MemorySyncServer()
+        let a = Device("ios-a"), b = Device("pc-b")
+        a.library.rememberSource(.ym, for: "sc:1")
+        _ = try await a.sync(server)
+        let pushed = await server.value("track_pref", "sc:1")
+        XCTAssertEqual(pushed?["source"].string, "ym", "ключ сервиса — как на ПК")
+        _ = try await b.sync(server)
+        XCTAssertEqual(b.library.source(for: "sc:1"), .ym, "на другом устройстве — то же")
+        b.tick()
+        b.library.rememberSource(nil, for: "sc:1")
+        _ = try await b.sync(server)
+        _ = try await a.sync(server)
+        XCTAssertNil(a.library.source(for: "sc:1"), "«Авто» приехало обратно")
+    }
+
     func testOwnPendingChangeBeatsIncomingAndLaterSettingWins() async throws {
         let server = MemorySyncServer()
         let a = Device("a"), b = Device("b")

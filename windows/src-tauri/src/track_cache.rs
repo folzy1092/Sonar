@@ -206,6 +206,17 @@ pub fn unpin(track_ref: &str) {
   let _ = fs::remove_file(mime);
 }
 
+/// Убрать копию трека из автокэша («Играть из» сменили — там звук прежнего сервиса). Скачанное руками
+/// не трогаем: его пользователь удаляет сам.
+pub fn forget(track_ref: &str) {
+  let Some(dir) = DIR.get() else { return };
+  let (audio, mime) = paths(dir, track_ref);
+  if fs::remove_file(&audio).is_ok() {
+    notify(Change::Removed { file: file_name(&audio), pinned: false });
+  }
+  let _ = fs::remove_file(mime);
+}
+
 fn file_name(p: &Path) -> String {
   p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }

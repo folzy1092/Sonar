@@ -71,7 +71,7 @@ impl TrackSound {
 
 /// Пустая запись (ничего не запомнено) — помечается удалённой, чтобы синк унёс удаление.
 pub(super) const MARK_EMPTY: &str = "UPDATE track_prefs SET deleted = 1 WHERE user_id = ?1 AND ref = ?2
-  AND speed IS NULL AND lyrics_offset_ms IS NULL AND eq_json IS NULL AND sound_json IS NULL";
+  AND speed IS NULL AND lyrics_offset_ms IS NULL AND eq_json IS NULL AND sound_json IS NULL AND source IS NULL";
 
 impl Store {
   /// Звук, запомненный для трека, или `None` — трек играет по общим настройкам.

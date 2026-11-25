@@ -17,6 +17,8 @@ enum FallbackReason: String, Sendable, Codable {
     case failed
     /// Не беда, а настройка: «SoundCloud через Яндекс».
     case preferred
+    /// Выбор пользователя: «Играть из» у этого трека (`TrackSourcePlan`).
+    case pinned
 }
 
 /// «Свой поток не играет» с причиной. Текст — прежний: его видят журнал и тост. `preview` — отрывок,
@@ -118,7 +120,7 @@ enum FallbackPlan {
     /// Тост «Играет из YouTube Music — в SoundCloud недоступен». «SoundCloud через Яндекс» — настройка,
     /// а не беда: без тоста (nil). Ключи — те же русские строки, что на ПК (`lib/fallback.ts`).
     static func toast(_ via: FallbackVia?, lang: Lang) -> String? {
-        guard let via, via.reason != .preferred else { return nil }
+        guard let via, via.reason != .preferred, via.reason != .pinned else { return nil }
         let params = [
             "to": I18n.translate(ServiceRegistry.info(via.service).name, lang: lang),
             "from": I18n.translate(ServiceRegistry.info(via.from).nameIn, lang: lang),

@@ -14,6 +14,8 @@ final class LibraryStore {
     private(set) var likedRefs: Set<String> = []
     /// ref → звук трека («Для этого трека» в листе скорости). Остальные треки — по общим настройкам.
     private(set) var sounds: [String: TrackSound] = [:]
+    /// ref → «Играть из» (`TrackSourcePlan`): сервис, закреплённый за треком. Нет записи — «Авто».
+    private(set) var sources: [String: ServiceID] = [:]
     /// 👎 — ref треков «Не интересно».
     private(set) var disliked: Set<String> = []
     /// ref → когда лайкнут (мс с 1970) — для умных плейлистов («Новое в Любимых»). Перетаскивание его не
@@ -25,6 +27,8 @@ final class LibraryStore {
         /// Старый файл: только «Запомнить скорость» — переносится в `sounds` (скорость, тон сохраняется).
         var speeds: [String: Float]?
         var sounds: [String: TrackSound]?
+        /// ref → ключ сервиса «Играть из»; нет в старом файле — пусто.
+        var sources: [String: String]?
         /// Нет в старом файле — пусто.
         var disliked: [String]?
         var likedAt: [String: Int]?
@@ -44,6 +48,7 @@ final class LibraryStore {
             var sounds = (snapshot.speeds ?? [:]).compactMapValues { TrackSound(rate: Double($0)).normalized() }
             for (ref, sound) in snapshot.sounds ?? [:] { sounds[ref] = sound.normalized() }
             self.sounds = sounds
+            sources = (snapshot.sources ?? [:]).compactMapValues { TrackSourcePlan.pin($0) }
             disliked = Set(snapshot.disliked ?? [])
             likedAt = (snapshot.likedAt ?? [:]).filter { likedRefs.contains($0.key) }
         }
@@ -109,8 +114,21 @@ final class LibraryStore {
         save()
     }
 
+    func source(for ref: String) -> ServiceID? {
+        sources[ref]
+    }
+
+    /// «Играть из»: закрепить сервис за треком; nil — «Авто». Сервис без потока не закрепляется.
+    func rememberSource(_ service: ServiceID?, for ref: String) {
+        let service = TrackSourcePlan.pin(service?.rawValue)
+        guard sources[ref] != service else { return }
+        sources[ref] = service
+        save()
+    }
+
     private func save() {
-        let snapshot = Snapshot(liked: liked, speeds: nil, sounds: sounds, disliked: disliked.sorted(), likedAt: likedAt)
+        let snapshot = Snapshot(liked: liked, speeds: nil, sounds: sounds, sources: sources.mapValues(\.rawValue),
+                                disliked: disliked.sorted(), likedAt: likedAt)
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: file, options: .atomic)
@@ -125,7 +143,7 @@ final class LibraryStore {
     /// Пришло с другого устройства: заменить списки целиком (nil — не трогать). `likedAt` — даты новых лайков;
     /// у оставшихся в Любимых даты сохраняются.
     func applySynced(liked: [Track]? = nil, disliked: Set<String>? = nil, sounds: [String: TrackSound]? = nil,
-                     likedAt: [String: Int] = [:]) {
+                     sources: [String: ServiceID]? = nil, likedAt: [String: Int] = [:]) {
         if let liked {
             self.liked = liked
             likedRefs = Set(liked.map(\.ref))
@@ -133,6 +151,7 @@ final class LibraryStore {
         self.likedAt = self.likedAt.merging(likedAt) { _, new in new }.filter { likedRefs.contains($0.key) }
         if let disliked { self.disliked = disliked }
         if let sounds { self.sounds = sounds }
+        if let sources { self.sources = sources }
         save()
     }
 }

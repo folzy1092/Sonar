@@ -187,6 +187,7 @@ CREATE TABLE track_prefs (                      -- «Запомнить» ско
   lyrics_offset_ms INTEGER,
   eq_json       TEXT,                           -- эквалайзер трека (с 2026-11-16 не используется: кривая одна, audio.eq)
   sound_json    TEXT,                           -- «Для этого трека» (2026-11-22): {rate, pitch, linked, reverb 0…1 (0 — выкл), eq: [12]|null, space 0…16 (0 — выкл; нет поля — 0)}; speed = rate для старых клиентов
+  source        TEXT,                           -- «Играть из» (2026-11-25; Windows — миграция № 19): sc | ym | yt, NULL — «Авто»
   deleted       INTEGER NOT NULL DEFAULT 0,
   rev           INTEGER NOT NULL,
   PRIMARY KEY (user_id, ref)
