@@ -61,6 +61,11 @@ final class DMCoreTests: XCTestCase {
         XCTAssertNil(DMCore.edit(gone, me: "me", text: "ку", now: 10))
     }
 
+    func testRetention30Days() {
+        let now = DMCore.retentionMs + 1000
+        XCTAssertEqual(DMCore.dropExpired([msg("old", "a", 999), msg("new", "a", 1000)], now: now).map(\.id), ["new"])
+    }
+
     func testDelete() {
         var withRoom = msg("1", "me", 0, "x")
         withRoom.attachments = [.room(roomID: "r", host: "h", title: "t")]

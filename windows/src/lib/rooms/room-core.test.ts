@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { acceptSnapshot, anchorPosition, applyOp, can, mainRole, movedPos, newRoom, rolesOf, START_DELAY_MS, type Room, type RoomOp } from './room-core'
+import { acceptSnapshot, anchorPosition, applyOp, can, mainRole, movedPos, newRoom, roomLimit, rolesOf, START_DELAY_MS, type Room, type RoomOp } from './room-core'
 
 const m = (username: string) => ({ username, display_name: null, avatar_url: null })
 
@@ -69,6 +69,14 @@ describe('комната: роли', () => {
     const closed = ok(applyOp(left, 'host', { type: 'leave' }, 3000))
     expect(closed.closed).toBe(true)
     expect(err(closed, 'ann', { type: 'suggest', ref: 'sc:9' })).toBe('closed')
+  })
+
+  it('бесплатно — 4 участника, с Sonar Deep у хоста — 8', () => {
+    let r = room()
+    r = ok(applyOp(r, 'n4', { type: 'join', member: m('n4') }, 1))
+    expect(applyOp(r, 'n5', { type: 'join', member: m('n5') }, 1)).toEqual({ ok: false, error: 'full' })
+    expect(applyOp(r, 'n5', { type: 'join', member: m('n5') }, 1, roomLimit(true)).ok).toBe(true)
+    expect([roomLimit(false), roomLimit(true)]).toEqual([4, 8])
   })
 
   it('лимит участников и повторный вход', () => {

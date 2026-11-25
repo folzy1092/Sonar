@@ -128,8 +128,12 @@ enum RoomError: String, Error, Sendable {
 }
 
 enum RoomCore {
-    /// Участников по умолчанию (потом — `GET /config` `rooms.max_members`).
-    static let maxMembers = 8
+    /// Участников бесплатно и с Sonar Deep у хоста (решение владельца 2026-11-25; потом — `GET /config`).
+    static let maxMembers = 4
+    static let maxMembersDeep = 8
+
+    /// Предел комнаты решает подписка хоста.
+    static func limit(hostHasDeep: Bool) -> Int { hostHasDeep ? maxMembersDeep : maxMembers }
     /// Через сколько после команды стартует новый трек: у каждого успевает прогреться поток.
     static let startDelayMs = 1500
 

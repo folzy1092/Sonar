@@ -74,6 +74,14 @@ final class RoomCoreTests: XCTestCase {
         XCTAssertEqual(err(closed, "ann", .suggest(ref: "x")), .closed)
     }
 
+    func testFreeFourDeepEight() {
+        var r = room()
+        r = ok(RoomCore.apply(r, by: "n4", .join(m("n4")), serverNow: 1))
+        XCTAssertEqual(err(r, "n5", .join(m("n5"))), .full)
+        XCTAssertNotNil(try? RoomCore.apply(r, by: "n5", .join(m("n5")), serverNow: 1, maxMembers: RoomCore.limit(hostHasDeep: true)).get())
+        XCTAssertEqual([RoomCore.limit(hostHasDeep: false), RoomCore.limit(hostHasDeep: true)], [4, 8])
+    }
+
     func testMemberLimitAndRejoin() {
         var r = room()
         XCTAssertEqual(err(r, "ann", .join(m("ann"))), .noop)

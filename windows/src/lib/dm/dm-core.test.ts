@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  attachmentLink, canEdit, checkDraft, deleteMessage, DM_EDIT_WINDOW_MS, DM_MAX_TEXT, editMessage, groupRuns, parseSonarLinks,
+  attachmentLink, canEdit, dropExpired, DM_RETENTION_MS, checkDraft, deleteMessage, DM_EDIT_WINDOW_MS, DM_MAX_TEXT, editMessage, groupRuns, parseSonarLinks,
   replyPreview, seenByPeer, sonarLink, timeline, unreadCount, type DMMessage, type DMThread,
 } from './dm-core'
 
@@ -52,6 +52,11 @@ describe('сообщения', () => {
     expect(editMessage(mine, 'me', 'привет', 10)).toBeNull()
     expect(canEdit(mine, 'me', DM_EDIT_WINDOW_MS + 1)).toBe(false)
     expect(editMessage({ ...mine, deleted: true }, 'me', 'ку', 10)).toBeNull()
+  })
+
+  it('старше 30 дней — стёрто', () => {
+    const now = DM_RETENTION_MS + 1000
+    expect(dropExpired([msg('old', 'a', 999), msg('new', 'a', 1000)], now).map((m) => m.id)).toEqual(['new'])
   })
 
   it('удаление стирает содержимое, оставляет место', () => {

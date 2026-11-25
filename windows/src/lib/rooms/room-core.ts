@@ -62,8 +62,12 @@ export type RoomError = 'closed' | 'forbidden' | 'full' | 'not_member' | 'bad_in
 
 export type RoomResult = { ok: true; room: Room } | { ok: false; error: RoomError }
 
-/** Участников по умолчанию (потом — `GET /config` `rooms.max_members`). */
-export const ROOM_MAX_MEMBERS = 8
+/** Участников бесплатно и с Sonar Deep у хоста (решение владельца 2026-11-25; потом — `GET /config`). */
+export const ROOM_MAX_MEMBERS = 4
+export const ROOM_MAX_MEMBERS_DEEP = 8
+
+/** Предел комнаты: решает подписка хоста, а не того, кто заходит. */
+export const roomLimit = (hostHasDeep: boolean) => (hostHasDeep ? ROOM_MAX_MEMBERS_DEEP : ROOM_MAX_MEMBERS)
 
 const isMember = (room: Room, username: string) => room.members.some((m) => m.username === username)
 

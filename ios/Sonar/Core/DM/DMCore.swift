@@ -52,6 +52,14 @@ enum DraftError: Error, Equatable { case empty, tooLong, tooMany }
 enum DMCore {
     static let maxText = 2000
     static let maxAttachments = 4
+    /// Сколько сервер хранит сообщения (решение владельца 2026-11-25).
+    static let retentionMs = 30 * 24 * 3_600_000
+
+    /// Убрать сообщения старше срока хранения — так же их стирает сервер.
+    static func dropExpired(_ messages: [DMMessage], now: Int) -> [DMMessage] {
+        messages.filter { now - $0.sentAt <= retentionMs }
+    }
+
     /// Своё можно править 48 часов.
     static let editWindowMs = 48 * 3_600_000
 

@@ -34,6 +34,14 @@ export interface DMThread {
 
 /** Предел длины сообщения (сервер режет так же). */
 export const DM_MAX_TEXT = 2000
+/** Сколько сервер хранит сообщения (решение владельца 2026-11-25). */
+export const DM_RETENTION_MS = 30 * 24 * 3600_000
+
+/** Убрать сообщения старше срока хранения — так же их стирает сервер. */
+export function dropExpired(messages: readonly DMMessage[], now: number): DMMessage[] {
+  return messages.filter((m) => now - m.sent_at <= DM_RETENTION_MS)
+}
+
 /** Свои сообщения можно править столько после отправки. */
 export const DM_EDIT_WINDOW_MS = 48 * 3600_000
 
