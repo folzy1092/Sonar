@@ -78,12 +78,40 @@ pub struct Filter {
   pub exclude: HashSet<String>,
   /// Артисты на паузе до конца сессии (два пропуска подряд), в нижнем регистре.
   pub paused_artists: HashSet<String>,
+  /// Артисты «Никогда» (экран вкуса): ни их треков, ни их соавторских — в нижнем регистре.
+  pub never_artists: HashSet<String>,
   /// Сколько треков **незнакомых** артистов (ни лайка, ни прослушиваний) пускать в порцию: «Обычное»
   /// волна — в основном знакомое, как у Яндекса. `None` — без лимита. См. [`familiarity`].
   pub max_unknown: Option<usize>,
   /// Трек SoundCloud незнакомого артиста с меньшим числом прослушиваний не берём: в «похожих»
   /// SoundCloud много случайных заливов. 0 — без порога.
   pub min_plays_unknown: u64,
+}
+
+impl Filter {
+  /// Трек артиста из «Никогда» (любой из соавторов).
+  pub fn is_never(&self, t: &Track) -> bool {
+    !self.never_artists.is_empty() && artist_keys(t).iter().any(|k| self.never_artists.contains(k))
+  }
+}
+
+/// Что вкус говорит об артистах (`wave.artist_prefs`, экран «Вкус»): «Больше» и «Меньше» — признак
+/// оценки (`+1` / `−1`), «Никогда» — отдельный набор для фильтра. Ключ — имя артиста в нижнем регистре.
+pub fn artist_prefs(v: Option<&serde_json::Value>) -> (HashMap<String, f64>, HashSet<String>) {
+  let mut pref = HashMap::new();
+  let mut never = HashSet::new();
+  if let Some(map) = v.and_then(|v| v.as_object()) {
+    for (k, e) in map {
+      let key = k.trim().to_lowercase();
+      match e.get("level").and_then(|l| l.as_str()) {
+        Some("more") => drop(pref.insert(key, 1.0)),
+        Some("less") => drop(pref.insert(key, -1.0)),
+        Some("never") => drop(never.insert(key)),
+        _ => {}
+      }
+    }
+  }
+  (pref, never)
 }
 
 /// Знакомое и новое по режиму: (сколько незнакомых артистов в порции из `n`, порог прослушиваний
@@ -561,6 +589,8 @@ pub struct Features {
   /// Сосед твоих любимых по карте исполнителей (фиты, подписки, общие соавторы), 0 … 1 —
   /// лучший из артистов трека (`artist_graph::scene_for`); карты нет — 0.
   pub scene: f64,
+  /// «Больше» (+1) / «Меньше» (−1) этого артиста на экране вкуса; лучший из соавторов, 0 — не задано.
+  pub pref: f64,
 }
 
 /// Веса признаков режима. Стартовые значения — ровно те числа, что были в `score` до разбиения на
@@ -585,6 +615,7 @@ pub struct Weights {
   pub skip_rate: f64,
   pub popularity: f64,
   pub scene: f64,
+  pub pref: f64,
 }
 
 impl Weights {
@@ -607,8 +638,12 @@ impl Weights {
       + self.skip_rate * f.skip_rate
       + self.popularity * f.popularity
       + self.scene * f.scene
+      + self.pref * f.pref
   }
 }
+
+/// Вес «Больше» / «Меньше» по артисту (признак ±1): как лайкнутый артист в «Обычном».
+pub const PREF_WEIGHT: f64 = 2.0;
 
 /// Вес соседства по карте исполнителей: заметно меньше лайка, чтобы не вытеснять вкус.
 pub const SCENE_WEIGHT: f64 = 0.4;
@@ -626,6 +661,8 @@ pub fn weights(mode: &str) -> Weights {
     track_skips: -1.2,
     // соседи по карте исполнителей — небольшой плюс во всех режимах: «свои» по сцене, а не случайные похожие
     scene: SCENE_WEIGHT,
+    // «Больше» / «Меньше» — сильнее любого вкусового признака: слово владельца важнее статистики
+    pref: PREF_WEIGHT,
     ..Default::default()
   };
   match mode {
@@ -727,6 +764,19 @@ fn features(t: &Track, taste: &Taste, origin: &Origin, session: &Session, prefer
     skip_rate: skips / (plays + skips + 1.0),
     popularity: popularity(t),
     scene: scene_fit(&taste.scene, &keys),
+    pref: pref_of(&taste.artist_pref, &keys),
+  }
+}
+
+/// «Больше» любого из артистов трека перебивает «Меньше» (соавторство с любимым не наказываем).
+fn pref_of(pref: &HashMap<String, f64>, keys: &[String]) -> f64 {
+  let all: Vec<f64> = keys.iter().filter_map(|k| pref.get(k).copied()).collect();
+  if all.iter().any(|&v| v > 0.0) {
+    1.0
+  } else if all.iter().any(|&v| v < 0.0) {
+    -1.0
+  } else {
+    0.0
   }
 }
 
@@ -802,6 +852,7 @@ pub fn pick_with(
     .filter(|t| !filter.banned.contains(&t.ref_) && !filter.exclude.contains(&t.ref_))
     .filter(|t| relaxed || !filter.recent.contains(&t.ref_))
     .filter(|t| !filter.paused_artists.contains(&artist_key(t)))
+    .filter(|t| !filter.is_never(t))
     .filter(|t| session.served.get(&artist_key(t)).copied().unwrap_or(0) < SESSION_ARTIST_CAP)
     // случайные заливы незнакомых авторов SoundCloud (мало прослушиваний) — мимо
     .filter(|t| filter.min_plays_unknown == 0 || is_known(t, taste) || t.plays.is_none_or(|p| p >= filter.min_plays_unknown))
@@ -906,6 +957,7 @@ pub fn pick_liked(cands: Vec<Track>, taste: &Taste, session: &Session, filter: &
     .into_iter()
     .filter(|t| t.available && !filter.banned.contains(&t.ref_) && !filter.exclude.contains(&t.ref_))
     .filter(|t| !filter.paused_artists.contains(&artist_key(t)))
+    .filter(|t| !filter.is_never(t))
     .filter(|t| session.served.get(&artist_key(t)).copied().unwrap_or(0) < SESSION_ARTIST_CAP)
     .filter(|t| !mood || mood_fit(mode, t) > 0.0)
     .map(|track| {
@@ -1029,6 +1081,53 @@ mod tests {
     assert_eq!(out[0].ref_, "sc:2");
     let out = pick(vec![t("sc:1", "x"), t("sc:2", "Fav")], &taste, &Origin::default(), &Session::default(), &f, None, "own", 2, false, &mut Rng::new(7));
     assert_eq!(out.len(), 1);
+  }
+
+  #[test]
+  fn artist_prefs_parse_levels_and_ignore_junk() {
+    let v = serde_json::json!({
+      "Markul": { "name": "Markul", "level": "more" },
+      " oxxxymiron ": { "name": "Oxxxymiron", "level": "less" },
+      "x": { "name": "X", "level": "never" },
+      "bad": { "name": "Bad", "level": "lots" },
+      "broken": 5
+    });
+    let (pref, never) = artist_prefs(Some(&v));
+    assert_eq!(pref.get("markul"), Some(&1.0));
+    assert_eq!(pref.get("oxxxymiron"), Some(&-1.0));
+    assert_eq!(pref.len(), 2);
+    assert_eq!(never.iter().collect::<Vec<_>>(), vec!["x"]);
+    let (p, n) = artist_prefs(None);
+    assert!(p.is_empty() && n.is_empty());
+  }
+
+  #[test]
+  fn never_artist_is_never_picked_even_as_co_author() {
+    let taste = Taste::default();
+    let mut f = Filter::default();
+    f.never_artists.insert("bad".into());
+    let mut co = t("sc:2", "good");
+    let a = |n: &str| crate::providers::ArtistRef { ref_: format!("sc:a:{n}"), name: n.into(), avatar_url: None };
+    co.artists = vec![a("Good"), a("Bad")];
+    let out = pick(vec![t("sc:1", "Bad"), co, t("sc:3", "ok")], &taste, &Origin::default(), &Session::default(), &f, None, "own", 3, true, &mut Rng::new(5));
+    assert_eq!(out.iter().map(|p| p.ref_.as_str()).collect::<Vec<_>>(), vec!["sc:3"]);
+    let liked = pick_liked(vec![t("sc:1", "Bad"), t("sc:3", "ok")], &taste, &Session::default(), &f, "own", 3, &mut Rng::new(5));
+    assert_eq!(liked.len(), 1);
+  }
+
+  #[test]
+  fn more_and_less_move_the_score() {
+    let mut taste = Taste::default();
+    taste.artist_pref.insert("loved".into(), 1.0);
+    taste.artist_pref.insert("tired".into(), -1.0);
+    let w = weights("own");
+    let mut rng = Rng::new(1);
+    let score = |name: &str, taste: &Taste, rng: &mut Rng| w.dot(&features(&t("sc:1", name), taste, &Origin::default(), &Session::default(), None, "own", rng));
+    // шум Томпсона у всех троих один и тот же вид, поэтому берём среднее по многим выборкам
+    let mean = |name: &str, taste: &Taste, rng: &mut Rng| (0..400).map(|_| score(name, taste, rng)).sum::<f64>() / 400.0;
+    let (more, none, less) = (mean("loved", &taste, &mut rng), mean("other", &taste, &mut rng), mean("tired", &taste, &mut rng));
+    assert!(more > none + 1.5, "{more} vs {none}");
+    assert!(less < none - 1.5, "{less} vs {none}");
   }
 
   #[test]

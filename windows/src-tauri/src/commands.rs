@@ -997,7 +997,10 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
     // знакомое и новое по режиму: «Обычное» — не больше 3 незнакомых артистов на 10 треков и без
     // малоизвестных заливов SoundCloud от незнакомых (жалоба владельца «люди, которых я не знаю»)
     let (max_unknown, min_plays_unknown) = crate::wave::familiarity(&mode, req.seed.is_some(), req.n.unwrap_or(PORTION));
+    // экран «Вкус»: «Больше» / «Меньше» — в оценку, «Никогда» — в фильтр
+    let (artist_pref, never_artists) = crate::wave::artist_prefs(store.setting("wave.artist_prefs").ok().flatten().as_ref());
     let filter = Filter {
+      never_artists,
       recent: store.played_since_days(7).map_err(err)?,
       banned: store.disliked_refs().map_err(err)?.into_iter().collect(),
       exclude: req.exclude.into_iter().collect(),
@@ -1024,6 +1027,7 @@ pub async fn wave_portion(core: State<'_, Arc<Core>>, db: State<'_, Db>, req: Wa
     }
     // соседи по карте исполнителей (граф кэшируется на минуту); сбой не ломает волну
     taste.scene = crate::artist_graph::scene_for(&store).unwrap_or_default();
+    taste.artist_pref = artist_pref;
     (seeds, taste, filter, platform, fav_artists)
   };
 

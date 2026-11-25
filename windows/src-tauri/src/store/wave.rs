@@ -82,6 +82,8 @@ pub struct Taste {
   /// Сцена по карте исполнителей: ключ `artist_graph::parse::key` → 0…1, насколько исполнитель
   /// близок к твоим любимым (`artist_graph::scene_for`); заполняет `wave_portion`.
   pub scene: HashMap<String, f64>,
+  /// «Больше» (+1) / «Меньше» (−1) по артисту (`wave::artist_prefs`, экран «Вкус»); заполняет `wave_portion`.
+  pub artist_pref: HashMap<String, f64>,
 }
 
 impl Store {
