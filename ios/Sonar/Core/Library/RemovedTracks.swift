@@ -14,8 +14,10 @@ final class RemovedTracks {
     private var order: [String]
 
     init(defaults: UserDefaults = .standard) {
-        order = defaults.stringArray(forKey: Self.key) ?? []
-        refs = Set(order)
+        // @Observable: читать `order` до инициализации всех полей нельзя — через локальную
+        let saved = defaults.stringArray(forKey: Self.key) ?? []
+        order = saved
+        refs = Set(saved)
         self.defaults = defaults
     }
 
