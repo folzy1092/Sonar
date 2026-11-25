@@ -177,13 +177,13 @@
     <IconButton
       icon={repeatIcon(player.repeat)}
       label={repeatLabel(player.repeat)}
-      size={18}
+      size={20}
       active={player.repeat !== 'off'}
       toggle
       disabled={!track}
       onclick={() => player.cycleRepeat()}
     />
-    <IconButton icon="prev" label={t('Назад')} size={18} filled disabled={!track} onclick={() => player.prev()} />
+    <IconButton icon="prev" label={t('Назад')} size={20} filled disabled={!track} onclick={() => player.prev()} />
     <button
       class="play"
       class:loading={player.loading}
@@ -192,10 +192,10 @@
       disabled={!track}
       onclick={() => player.toggle()}
     >
-      <PlayPause playing={player.playing} size={22} />
+      <PlayPause playing={player.playing} size={24} />
     </button>
-    <IconButton icon="next" label={t('Вперёд')} size={18} filled disabled={!track} onclick={() => player.next()} />
-    <IconButton icon="shuffle" label={shuffleLabel(player.shuffle)} toggle size={18} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
+    <IconButton icon="next" label={t('Вперёд')} size={20} filled disabled={!track} onclick={() => player.next()} />
+    <IconButton icon="shuffle" label={shuffleLabel(player.shuffle)} toggle size={20} active={player.shuffle} disabled={!track} onclick={() => player.toggleShuffle()} />
   </div>
 
   <div class="right">
@@ -502,8 +502,8 @@
   .play {
     display: grid;
     place-items: center;
-    width: 38px;
-    height: 38px;
+    width: 44px;
+    height: 44px;
     color: var(--text);
     transition: transform var(--fast) var(--ease);
   }

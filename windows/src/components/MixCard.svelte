@@ -64,8 +64,8 @@
   .mix {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    width: 196px;
+    gap: var(--sp-2);
+    width: var(--card-w);
     flex-shrink: 0;
     text-align: left;
   }
@@ -156,7 +156,8 @@
     translate: 0 0;
   }
   .title {
-    font-weight: 700;
+    font-size: calc(var(--fs-2) * var(--fs, 1));
+    font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -196,7 +197,7 @@
   }
   .names {
     min-width: 0;
-    font-size: calc(12px * var(--fs, 1));
+    font-size: calc(var(--fs-meta) * var(--fs, 1));
     color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;

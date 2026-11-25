@@ -53,7 +53,7 @@
   .row {
     --fade: 64px;
     display: flex;
-    gap: 18px;
+    gap: var(--sp-4);
     overflow-x: auto;
     overflow-y: hidden;
     padding-bottom: 4px;

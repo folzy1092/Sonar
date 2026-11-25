@@ -79,8 +79,8 @@
   .tile {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    width: 160px;
+    gap: var(--sp-2);
+    width: var(--card-w);
     flex-shrink: 0;
     text-align: left;
   }
@@ -166,7 +166,7 @@
   }
   .title {
     max-width: 100%;
-    font-size: calc(13px * var(--fs, 1));
+    font-size: calc(var(--fs-2) * var(--fs, 1));
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -174,7 +174,7 @@
   }
   .sub {
     max-width: 100%;
-    font-size: calc(12px * var(--fs, 1));
+    font-size: calc(var(--fs-meta) * var(--fs, 1));
     color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;
@@ -182,7 +182,7 @@
   }
   .meta {
     margin-top: 1px;
-    font-size: calc(11px * var(--fs, 1));
+    font-size: calc(var(--fs-meta) * var(--fs, 1));
     color: var(--text-3);
   }
   .ph {

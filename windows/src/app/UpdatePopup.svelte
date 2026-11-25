@@ -58,17 +58,17 @@
 
 <style>
   .pop.low {
-    bottom: 18px;
+    bottom: var(--sp-4);
   }
   .pop {
     position: fixed;
-    right: 18px;
-    bottom: calc(var(--player-h) + 22px);
+    right: var(--sp-4);
+    bottom: calc(var(--player-h) + var(--sp-5));
     z-index: 55;
     transition: bottom 0.5s cubic-bezier(0.32, 0.72, 0, 1);
     width: 320px;
-    padding: 14px;
-    border-radius: 18px;
+    padding: var(--sp-4);
+    border-radius: var(--radius-l);
     background: var(--surface-2);
     border: 1px solid var(--border-strong);
     box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
@@ -77,7 +77,7 @@
   .top {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--sp-3);
   }
   .ic {
     display: grid;

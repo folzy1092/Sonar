@@ -345,11 +345,11 @@ img.fade-img.loaded {
   text-transform: uppercase;
 }
 :root.title-editorial .font-wave {
-  font-size: clamp(80px, 7.6vw, 96px) !important;
+  font-size: min(clamp(80px, 7.6vw, 96px), var(--hero-fit, 100vw)) !important;
   line-height: 0.86 !important;
 }
 :root.title-editorial.display-wide .font-wave {
-  font-size: clamp(48px, 4.8vw, 62px) !important;
+  font-size: min(clamp(48px, 4.8vw, 62px), var(--hero-fit, 100vw)) !important;
   line-height: 0.95 !important;
 }
 :root.title-editorial .font-wave > span {

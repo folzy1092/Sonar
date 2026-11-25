@@ -268,6 +268,11 @@
   .hero-text {
     position: relative;
     z-index: 1;
+    /* герой не вылезает из своей колонки: размер заголовка ограничен её шириной (--hero-fit),
+       самое длинное слово фраз (~10 букв широким шрифтом, ~9em) влезает при 11cqi */
+    container-type: inline-size;
+    --hero-fit: 11cqi;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -289,8 +294,9 @@
   }
   .hero h1 {
     margin: 0;
-    max-width: 12ch;
-    font-size: clamp(40px, 5.6vw, 76px);
+    max-width: min(12ch, 100%);
+    font-size: min(clamp(40px, 5.6vw, 76px), var(--hero-fit));
+    overflow-wrap: break-word;
     line-height: 0.98;
     letter-spacing: -0.02em;
     animation: rise-in calc(var(--normal) * 1.6) var(--ease) both;
@@ -409,7 +415,6 @@
   .hero-field {
     position: relative;
     height: 300px;
-    margin-right: -12px;
     opacity: 0.9;
   }
   @media (max-width: 760px) {
@@ -429,15 +434,15 @@
     }
   }
   .block {
-    margin-top: 32px;
+    margin-top: var(--section-gap);
   }
   h2 {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: calc(24px * var(--fs, 1));
+    font-size: calc(var(--fs-h2) * var(--fs, 1));
     font-weight: 800;
-    margin-bottom: 14px;
+    margin-bottom: var(--head-gap);
   }
   h2 small {
     font-size: calc(15px * var(--fs, 1));
@@ -449,7 +454,7 @@
   }
   .row {
     display: flex;
-    gap: 18px;
+    gap: var(--sp-4);
     overflow-x: auto;
     overflow-y: hidden;
     padding-bottom: 4px;
@@ -465,8 +470,8 @@
   .sk-tile {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    width: 160px;
+    gap: var(--sp-2);
+    width: var(--card-w);
     flex-shrink: 0;
   }
   .sk-cover {
@@ -481,12 +486,13 @@
   .sk-line.short {
     width: 50%;
   }
+  /* «Похоже на»: чипы исполнителей — своей строкой под заголовком, а не впритык к нему */
   .like-head {
     display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px 14px;
-    margin-bottom: 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-3);
+    margin-bottom: var(--head-gap);
   }
   .like-head h2 {
     margin-bottom: 0;
@@ -494,7 +500,7 @@
   .seeds {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: var(--sp-2);
   }
   .seed {
     display: inline-flex;
@@ -547,8 +553,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 14px;
+    gap: var(--sp-4);
+    margin-bottom: var(--head-gap);
   }
   .head h2 {
     margin-bottom: 0;
