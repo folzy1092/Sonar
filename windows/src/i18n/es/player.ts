@@ -70,6 +70,8 @@ export default {
   'Яндекс Музыка': 'Yandex Music',
   'токен не подошёл или устарел': 'el token no es válido o caducó',
   'не найдено': 'no encontrado',
+  'удалено — возможно, по жалобе правообладателя': 'eliminado — posiblemente por una queja del titular de derechos',
+  'Трек удалён с SoundCloud — возможно, по жалобе правообладателя. Это не ошибка Sonar': 'Pista eliminada de SoundCloud — posiblemente por una queja del titular de derechos. No es un error de Sonar',
   'слишком много запросов, подожди минуту': 'demasiadas solicitudes, espera un minuto',
   'недоступно в твоей стране': 'no disponible en tu país',
   'сервис ответил ошибкой': 'el servicio devolvió un error',

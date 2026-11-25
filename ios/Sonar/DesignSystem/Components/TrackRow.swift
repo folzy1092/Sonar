@@ -128,10 +128,16 @@ struct TrackTitle: View {
     let track: Track
     var playing = false
     private var downloads: DownloadStore { DownloadStore.shared }
+    private var removed: Bool { RemovedTracks.shared.refs.contains(track.ref) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
+                if removed {
+                    SonarIcon(.close, size: 16)
+                        .foregroundStyle(Theme.danger)
+                        .accessibilityLabel(t("Трек удалён с SoundCloud — возможно, по жалобе правообладателя. Это не ошибка Sonar"))
+                }
                 if downloads.isDownloaded(track.ref) {
                     SonarIcon(.download, size: 16)
                         .foregroundStyle(Theme.textTertiary)

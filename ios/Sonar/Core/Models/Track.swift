@@ -175,6 +175,8 @@ struct ServiceError: LocalizedError, Equatable {
     static func http(_ service: String, _ status: Int) -> ServiceError {
         let why = switch status {
         case 401, 403: "токен не подошёл или устарел"
+        // SoundCloud часто удаляет треки по жалобе правообладателя — говорим прямо, что это не поломка Sonar
+        case 404 where service == "SoundCloud": "удалено — возможно, по жалобе правообладателя"
         case 404: "не найдено"
         case 429: "слишком много запросов, подожди минуту"
         case 451: "недоступно в твоей стране"

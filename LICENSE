@@ -1,45 +1,61 @@
-Sonar — Proprietary License
+Sonar - Proprietary License. ALL RIGHTS RESERVED.
 
 Copyright (c) 2026 Folzy (github.com/folzy1092). All rights reserved.
 
-1. Ownership. The source code, assets, designs, documentation and every other
-   file in this repository (the "Software") are the exclusive property of the
-   copyright holder. The Software is published for viewing only; publication
-   does not grant any license except the one stated in section 2.
+1. Ownership. The source code, assets, designs, texts, icons, algorithms,
+   documentation, data formats and every other file in this repository (the
+   "Software") are the exclusive property of the copyright holder. No license,
+   express or implied, is granted except the narrow one in section 2.
 
-2. Permitted use. You may download the official compiled builds of the
-   Software that the copyright holder publishes (for example, GitHub Releases
-   of this repository) and install and run them for your own personal,
-   non-commercial use.
+2. The only permission. If the copyright holder has personally given you an
+   official compiled build of Sonar (an installer, an IPA or an update delivered
+   through the copyright holder's own website, bot or channel), you may install
+   and run that build, unmodified, for your own personal, non-commercial use.
+   Nothing else is permitted. Viewing the source code on the platform where it
+   is shown is tolerated for reading only; it is not a license.
 
-3. Prohibited. Without prior written permission from the copyright holder you
-   may NOT, in whole or in part:
-   a) copy, reproduce or redistribute the source code or assets;
-   b) modify, adapt, translate, or create derivative works;
-   c) import, include, link or reuse any part of the source code in another
-      program, library, service or repository;
-   d) decompile, disassemble or reverse engineer the compiled builds, except
-      where such restriction is prohibited by applicable law;
-   e) sell, sublicense, rent, host or otherwise make the Software available to
-      third parties, including as a modified or rebranded application;
-   f) remove or alter this notice or any copyright notice.
+3. Prohibited. Without prior written permission of the copyright holder you may
+   NOT, in whole or in part, for any purpose, including personal, educational,
+   research and non-profit purposes:
+   a) use, run, build, compile or deploy the source code or any fork of it;
+   b) copy, reproduce, mirror, archive, scrape or redistribute the source code,
+      assets, designs, texts or documentation;
+   c) modify, adapt, translate, port, or create derivative works, including
+      "clones", "inspired by" re-implementations of its code, and re-skins;
+   d) fork, other than the technical fork that the hosting platform's own terms
+      oblige it to allow, and such a fork gives you no right to do anything
+      listed in this section;
+   e) import, include, link or reuse any part of the Software in another
+      program, library, service, repository or dataset;
+   f) use the Software, its code, assets or texts to train, fine-tune, evaluate
+      or improve any machine-learning, AI or code-generation model, or to build
+      embeddings, indexes or datasets for that purpose;
+   g) decompile, disassemble or reverse engineer the compiled builds, except
+      where this restriction is prohibited by applicable law;
+   h) sell, sublicense, rent, lend, host, publish or otherwise make the Software
+      or any build of it available to third parties, including as a modified
+      or rebranded application;
+   i) circumvent, disable or tamper with any signature, update check, paid
+      feature (including Sonar Deep), licensing or access control;
+   j) use the name "Sonar", its logo, icons or branding in a way that suggests
+      affiliation with or endorsement by the copyright holder;
+   k) remove or alter this notice or any copyright notice.
 
-4. Platform terms. Where the hosting platform's own terms (for example, the
-   GitHub Terms of Service) grant users the right to view or fork public
-   repositories on that platform, that right is limited to what those terms
-   require and grants nothing beyond it: a fork may not be used, built,
-   modified or distributed in any way prohibited by section 3.
+4. Platform terms. Where the hosting platform's terms of service oblige it to
+   let others view or fork a public repository, that right is limited to what
+   those terms strictly require and grants nothing beyond it.
 
-5. Third-party components keep their own licenses. Music and metadata are
-   provided by third-party services under their terms; the Software grants no
-   rights to that content.
+5. Third-party components keep their own licenses, which this license does not
+   change (see the site page /licenses). Music and metadata are provided by
+   third-party services under their terms; the Software grants no rights to that
+   content, and you are responsible for your own use of those services.
 
-6. No warranty. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
-   KIND, EXPRESS OR IMPLIED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE
-   FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THE
-   SOFTWARE.
+6. No warranty. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
+   CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE.
 
-7. Termination. Any breach of this license terminates your right to use the
-   Software immediately.
+7. Termination and remedies. Any breach terminates the permission in section 2
+   at once and without notice. The copyright holder reserves the right to seek
+   removal, injunction, damages and all other remedies available by law.
 
 For permissions, contact Folzy via github.com/folzy1092.

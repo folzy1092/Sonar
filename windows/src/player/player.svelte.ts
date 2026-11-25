@@ -4,7 +4,8 @@
 // Два элемента для бесшовности и кроссфейда, GainNode нормализации — позже (W5).
 import Hls from 'hls.js'
 import { untrack } from 'svelte'
-import { api, errorText, onMediaControl, type PlayerState, type Repeat, type StreamUrl, type Track } from '../lib/api'
+import { removedTracks, isRemovedError } from '../lib/removed-tracks.svelte'
+import { api, errorText, rawError, onMediaControl, type PlayerState, type Repeat, type StreamUrl, type Track } from '../lib/api'
 import { eq } from './eq.svelte'
 import { Leveler } from './leveler'
 import { DeckChain } from './blend/deck-chain'
@@ -636,12 +637,14 @@ class Player {
       this.announce(s, track.ref)
       await this.attach(s, token, autoplay, startMs)
       this.localMisses = 0
+      removedTracks.mark(track.ref, false)
       this.saveState()
     } catch (e) {
       // play() отклонён из-за ошибки потока — её уже подхватил onMediaError и ищет резервный сервис
       if (token !== this.loadToken || this.fallbackTried === token) return
       if (isFallbackError(track.ref, e) && this.skipFallback(autoplay, fallbackSkips + 1)) return
       this.fallbackNeeded = isFallbackError(track.ref, e)
+      if (isRemovedError(track.ref, rawError(e))) removedTracks.mark(track.ref, true)
       this.onError(errorText(e))
       // файл с компьютера пропал уже в очереди — дальше, а не стоп; круг без живых треков не крутим
       if (autoplay && isLocalRef(track.ref) && ++this.localMisses < this.order.length) void this.next(false)

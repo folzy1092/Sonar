@@ -686,6 +686,7 @@ final class PlaybackEngine {
                     self.player.seek(to: CMTime(seconds: start, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero) { _ in }
                 }
                 self.updateFades()
+                RemovedTracks.shared.mark(track.ref, false)
                 self.saveSnapshot(force: true)
                 if autoplay {
                     self.activateSession()
@@ -756,6 +757,7 @@ final class PlaybackEngine {
     }
 
     private func failed(_ track: Track, _ error: Error) {
+        if RemovedTracks.isRemoved(ref: track.ref, error: error) { RemovedTracks.shared.mark(track.ref, true) }
         message = t("Не играет «{title}»: {reason}", ["title": track.title, "reason": t(error.localizedDescription)])
         failStreak += 1
         // не открылась вся очередь подряд — стоп
