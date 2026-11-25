@@ -690,8 +690,9 @@ Rust + Slint (или Tauri), настройки из `SETTINGS.md` (раздел
   (копия байт в байт — `windows/src/lib/share-link.ts`, общий пример `share-link.fixture.json`). ✅ сделано 2026-11-25
 - [x] ПК: «Поделиться» в меню трека даёт ссылку на сайт, двойники ищет `services/share.rs` (≤ 4 с), прямая ссылка —
   пункт «Ссылка на <сервис>». ✅ сделано 2026-11-25
-- [ ] iPhone: построитель ссылки (`Core/Share/ShareLink.swift`, XCTest по общему примеру), `TrackSheet` и
-  `sonar://track/<ref>` в `App/DeepLink.swift` для любого трека (сейчас — только «Новинки»). Отложено владельцем.
+- [x] iPhone: построитель `Core/Share/ShareLinkCodec.swift` (XCTest `ShareLinkTests` по общему примеру), двойники —
+  `MusicCore+Share.swift`, кнопка в `TrackSheet` + «Ссылка на <сервис>», `sonar://track/<ref>` открывает любой трек
+  SoundCloud / Яндекса (`App/DeepLink.swift`). Проверено только CI. ✅ сделано 2026-11-25
 - [ ] С сервером: короткие ссылки `try-sonar.ru/t/<id>` с OG-превью. song.link API закрыт (401
   `PUBLIC_API_ACCESS_DEPRECATED`, проверено 2026-11-25) — двойников ищет только приложение.
 

@@ -5,7 +5,8 @@ import Foundation
 /// - `sonar://auth/<code>` — вход с другого устройства (окно подтверждения, с сервером);
 /// - `sonar://remote/pair?pc=…&code=…` — QR пульта с экрана ПК (Система → Пульт), `RemotePairLink`;
 /// - `sonar://album/<ref>` — уведомление «Новинки»: страница альбома;
-/// - `sonar://track/<ref>` — уведомление «Новинки»: трек из ленты играет (`ReleaseNotifier`);
+/// - `sonar://track/<ref>` — уведомление «Новинки» (трек из ленты, `ReleaseNotifier`) или «Открыть в Sonar» на
+///   странице трека сайта (`try-sonar.ru/t/#…`): трек находится по ref и играет;
 /// - `sonar://user/<username>` — пока только узнаём вид ссылки;
 /// - `sonar://room/<id>` — приглашение в комнату из сообщений (docs/ROOMS.md); до сервера только узнаём.
 enum DeepLink: Equatable {
@@ -44,8 +45,18 @@ enum DeepLink: Equatable {
         case let .album(ref):
             router.push(.album(ref: ref, title: ""), on: chrome.tab, chrome: chrome)
         case let .track(ref):
-            guard let track = ReleaseNotifier.shared.track(ref) else { return }
-            PlaybackEngine.shared.play([track], at: 0, context: t("Новинки"))
+            if let track = ReleaseNotifier.shared.track(ref) {
+                PlaybackEngine.shared.play([track], at: 0, context: t("Новинки"))
+                return
+            }
+            Task { @MainActor in
+                guard let track = await MusicCore.shared.track(ref: ref) else {
+                    router.say(t("Не получилось открыть трек: подключи сервис, откуда им поделились"))
+                    return
+                }
+                PlaybackEngine.shared.play([track], at: 0, context: t("Поделились"))
+                router.showMenu(track)
+            }
         case let .auth(code):
             // вход с другого устройства / из бота — окно подтверждения (работает, только когда включён сервер)
             AccountStore.shared.handleAuthLink(code)

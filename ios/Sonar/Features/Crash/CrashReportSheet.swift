@@ -192,7 +192,7 @@ struct CrashReportSheet: View {
 }
 
 /// Системное «Поделиться»; `completed` — пользователь куда-то отправил файл.
-private struct ActivitySheet: UIViewControllerRepresentable {
+struct ActivitySheet: UIViewControllerRepresentable {
     let items: [Any]
     let finished: @MainActor (Bool) -> Void
 

@@ -17,6 +17,9 @@ struct TrackSheet: View {
     @State private var addToPlaylist = false
     @State private var showDevices = false
     @State private var showSleep = false
+    /// «Поделиться»: ищем двойников (≤ 4 с), потом системный лист со ссылкой на сайт.
+    @State private var sharing = false
+    @State private var shareItem: ShareItem?
 
     /// Трек в меню — тот, что играет: тогда есть «Устройства» и «Таймер сна».
     private var isCurrent: Bool { engine.current?.ref == track.ref }
@@ -75,6 +78,13 @@ struct TrackSheet: View {
                                 }
                             }
                         }
+                        if let url = track.url, let service = ServiceRegistry.service(of: track.ref) {
+                            SheetMenuRow(icon: .link, title: t("Ссылка на {service}", ["service": t(ServiceRegistry.info(service).name)]),
+                                         subtitle: url) {
+                                UIPasteboard.general.string = url
+                                done(t("Ссылка скопирована"))
+                            }
+                        }
                         SheetMenuRow(icon: .copy, title: t("Копировать название"), subtitle: CopyText.track(track)) {
                             UIPasteboard.general.string = CopyText.track(track)
                             done(t("Название скопировано"))
@@ -106,6 +116,10 @@ struct TrackSheet: View {
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .background(Theme.background)
+        .sheet(item: $shareItem) { item in
+            ActivitySheet(items: [CopyText.track(track), item.url]) { _ in }
+                .presentationDetents([.medium, .large])
+        }
         .sheet(isPresented: $showDevices) {
             DevicePickerSheet()
                 .presentationDetents([.medium, .large])
@@ -227,14 +241,20 @@ struct TrackSheet: View {
                 engine.enqueue(track, next: false)
                 done("Добавлено в очередь")
             }
-            if let url = track.url.flatMap(URL.init(string:)) {
-                ShareLink(item: url) {
-                    SonarIcon(.share, size: 24)
-                        .foregroundStyle(Theme.text)
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                        .contentShape(Rectangle())
+            if ShareLinkCodec.canShare(track) {
+                Button(action: share) {
+                    ZStack {
+                        SonarIcon(.share, size: 24).opacity(sharing ? 0 : 1)
+                        if sharing { ProgressView().tint(Theme.text) }
+                    }
+                    .foregroundStyle(Theme.text)
+                    .frame(maxWidth: .infinity, minHeight: 56)
+                    .contentShape(Rectangle())
+                    .animation(Motion.spring, value: sharing)
                 }
-                .accessibilityLabel("Поделиться")
+                .buttonStyle(.plain)
+                .disabled(sharing)
+                .accessibilityLabel(t("Поделиться"))
             }
         }
         .background(Theme.raised.opacity(0.7), in: Capsule())
@@ -269,8 +289,28 @@ struct TrackSheet: View {
         }
     }
 
+    /// Ссылка на страницу трека `try-sonar.ru/t/#…` (docs/SPACE_SHARE_PROMPT.md §3): сначала тот же трек
+    /// в YouTube, SoundCloud и Яндексе (`MusicCore+Share.swift`), не нашли за 4 с — делимся тем, что есть.
+    private func share() {
+        sharing = true
+        let track = track
+        let lang = currentLang().rawValue
+        Task {
+            let twins = await MusicCore.shared.shareTwins(for: track)
+            let data = ShareLinkCodec.data(track, refs: twins.refs, urls: twins.urls, scFull: twins.scFull)
+            sharing = false
+            if let url = data.flatMap({ ShareLinkCodec.url($0, lang: lang) }) { shareItem = ShareItem(url: url) }
+        }
+    }
+
     private func done(_ message: String?) {
         dismiss()
         if let message { router.say(message) }
     }
+}
+
+/// Ссылка для системного листа «Поделиться».
+private struct ShareItem: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
 }
