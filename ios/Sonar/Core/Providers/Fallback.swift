@@ -137,6 +137,28 @@ enum FallbackPlan {
     }
 }
 
+/// Всплывашка резерва — разовое уведомление, а не постоянная деталь (TASTE_ROOMS_PROMPT §5): одна на трек,
+/// держится 4 с. Повторная загрузка того же трека (свежая ссылка, попытка попроще) молчит; трек без резерва
+/// сбрасывает память — вернулись к треку с резервом, скажем снова. Зеркало `fallbackNotice` в `lib/fallback.ts`.
+enum FallbackNotice {
+    /// Сколько держится всплывашка резерва.
+    static let seconds: Double = 4
+    /// Остальные сообщения плеера — как обычный тост (`Router.say`).
+    static let otherSeconds: Double = 2.6
+
+    /// Что сказать на поток трека `ref`: текст (nil — молчать) и новая память `shown` — трек, для которого уже сказали.
+    static func next(_ via: FallbackVia?, ref: String, shown: String?, lang: Lang) -> (text: String?, shown: String?) {
+        if ref == shown { return (nil, shown) }
+        let text = FallbackPlan.toast(via, lang: lang)
+        return (text, text == nil ? nil : ref)
+    }
+
+    /// Сколько держать сообщение плеера: всплывашка резерва (`note` — её последний текст) — 4 с, остальное — 2.6 с.
+    static func seconds(for message: String, note: String?) -> Double {
+        message == note ? seconds : otherSeconds
+    }
+}
+
 extension ServiceInfo {
     /// Название после «в»: «в Яндекс Музыке», «в SoundCloud» (как `nameIn` в `lib/services.ts`).
     var nameIn: String {

@@ -50,6 +50,10 @@ final class PlaybackEngine {
     private(set) var quality: String?
     /// Последняя ошибка — для тоста.
     var message: String?
+    /// Последний текст всплывашки резерва: её держат 4 с, а не как обычный тост (`FallbackNotice.seconds`).
+    @ObservationIgnored private(set) var fallbackNote: String?
+    /// Трек, для которого всплывашку резерва уже показали, — второй раз на тот же трек молчим.
+    @ObservationIgnored private var fallbackShown: String?
     var repeatMode: RepeatMode = .off
     private(set) var shuffle = false
     /// Скорость 0.5–2× (тон не меняется — `.timeDomain`; связан со скоростью — `.varispeed`).
@@ -650,7 +654,7 @@ final class PlaybackEngine {
                 let playable = try await Self.source(for: track, fresh: fresh, safe: safe, broken: broken, blend: self.blendOn)
                 guard token == self.loadToken else { return }
                 let source = playable.source
-                if let toast = FallbackPlan.toast(playable.via) { self.message = toast }
+                self.announce(playable.via, ref: track.ref)
                 let item = self.makeItem(source)
                 self.quality = Self.label(source)
                 self.isHLS = Self.streamsHLS(source)
@@ -719,6 +723,15 @@ final class PlaybackEngine {
                     }
                 }
             }
+    }
+
+    /// Всплывашка «Играет из … — в … недоступен»: одна на трек (`FallbackNotice`).
+    private func announce(_ via: FallbackVia?, ref: String) {
+        let notice = FallbackNotice.next(via, ref: ref, shown: fallbackShown, lang: currentLang())
+        fallbackShown = notice.shown
+        guard let text = notice.text else { return }
+        fallbackNote = text
+        message = text
     }
 
     private func failed(_ track: Track, _ error: Error) {
@@ -859,7 +872,7 @@ final class PlaybackEngine {
         resetListening()
         position = 0
         quality = next.quality
-        if let toast = FallbackPlan.toast(next.via) { message = toast }
+        if let ref = current?.ref { announce(next.via, ref: ref) }
         isHLS = next.hls
         if let track = current {
             duration = Double(track.durationMs) / 1000

@@ -131,7 +131,7 @@ struct RootView: View {
         .onChange(of: engine.message) { _, message in
             // в полном плеере сообщение показывает он сам
             if let message, !router.playerOpen {
-                router.say(message)
+                router.say(message, seconds: FallbackNotice.seconds(for: message, note: engine.fallbackNote))
                 engine.message = nil
             }
         }

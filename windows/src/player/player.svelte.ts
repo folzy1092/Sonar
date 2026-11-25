@@ -16,7 +16,7 @@ import { Effects } from './effects'
 import { pitchRatio, tempo } from './tempo.svelte'
 import { settings } from '../lib/settings.svelte'
 import { isFallbackError } from '../lib/services'
-import { fallbackToast, type Via } from '../lib/fallback'
+import { FALLBACK_TOAST_MS, fallbackNotice, type Via } from '../lib/fallback'
 import { t } from '../lib/i18n.svelte'
 import { playableQueue } from '../lib/local'
 import { offline } from '../lib/offline.svelte'
@@ -632,7 +632,7 @@ class Player {
       const s = await api.streamUrl(track.ref, track)
       if (token !== this.loadToken) return
       this.stage(0.35)
-      this.announce(s)
+      this.announce(s, track.ref)
       await this.attach(s, token, autoplay, startMs)
       this.localMisses = 0
       this.saveState()
@@ -670,12 +670,16 @@ class Player {
     }
   }
 
-  /** Плашка качества и всплывашка «Играет из YouTube Music — в SoundCloud недоступен». */
-  private announce(s: StreamUrl) {
+  /** Трек, для которого всплывашку резерва уже показали, — второй раз на тот же трек молчим. */
+  private fallbackShown: string | null = null
+
+  /** Плашка качества и всплывашка «Играет из YouTube Music — в SoundCloud недоступен» (одна на трек, 4 с). */
+  private announce(s: StreamUrl, ref: string) {
     this.quality = s.quality
     this.via = s.via
-    const note = fallbackToast(s.via)
-    if (note) toast.show(note)
+    const notice = fallbackNotice(s.via, ref, this.fallbackShown)
+    this.fallbackShown = notice.shown
+    if (notice.text) toast.show(notice.text, FALLBACK_TOAST_MS)
   }
 
   /** Загрузка, для которой резервный сервис уже пробовали: второй раз не ищем, а показываем ошибку. */
@@ -698,7 +702,7 @@ class Player {
       this.hls?.destroy()
       this.hls = null
       this.error = null
-      this.announce(s)
+      this.announce(s, track.ref)
       await this.attach(s, token, resume, startMs)
     } catch {
       if (token === this.loadToken) this.onError(message)
@@ -825,7 +829,7 @@ class Player {
     this.fallbackNeeded = false
     this.loading = false
     this.durationMs = Number.isFinite(el.duration) && el.duration > 0 ? el.duration * 1000 : track.duration_ms
-    this.announce(s)
+    this.announce(s, track.ref)
     this.listenedMs = listenedMs
     this.startedAt = Date.now() - listenedMs
     this.lastTick = el.currentTime * 1000

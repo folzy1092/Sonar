@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 let lang = 'ru'
 vi.mock('./settings.svelte', () => ({ settings: { get: () => lang } }))
 
-const { canBackUp, defaultFallbackOrder, fallbackOrder, fallbackToast, moveItem, qualityLabel } = await import('./fallback')
+const { FALLBACK_TOAST_MS, canBackUp, defaultFallbackOrder, fallbackNotice, fallbackOrder, fallbackToast, moveItem, qualityLabel } = await import('./fallback')
 const { SERVICES, byId } = await import('./services')
 
 describe('порядок резервных сервисов', () => {
@@ -94,5 +94,30 @@ describe('плашка качества', () => {
 
   it('неизвестный сервис замены — без названия', () => {
     expect(qualityLabel('AAC 160', { ref: 'x:1', service: 'xx' as 'sc', from: 'sc', reason: 'failed' })).toBe('AAC 160')
+  })
+})
+
+describe('всплывашка резерва — одна на трек', () => {
+  const via = { ref: 'ym:1', service: 'ym', from: 'sc', reason: 'preview' } as const
+
+  it('новый трек — говорим, та же загрузка ещё раз — молчим, другой трек — снова', () => {
+    lang = 'ru'
+    const first = fallbackNotice(via, 'sc:1', null)
+    expect(first).toEqual({ text: 'Играет из Яндекс Музыка — в SoundCloud только отрывок', shown: 'sc:1' })
+    const again = fallbackNotice(via, 'sc:1', first.shown)
+    expect(again).toEqual({ text: null, shown: 'sc:1' })
+    expect(fallbackNotice(via, 'sc:2', again.shown).shown).toBe('sc:2')
+  })
+
+  it('трек без резерва сбрасывает память, «через Яндекс» — без всплывашки', () => {
+    lang = 'ru'
+    const plain = fallbackNotice(null, 'sc:2', 'sc:1')
+    expect(plain).toEqual({ text: null, shown: null })
+    expect(fallbackNotice(via, 'sc:1', plain.shown).text).not.toBeNull()
+    expect(fallbackNotice({ ...via, reason: 'preferred' }, 'sc:3', null)).toEqual({ text: null, shown: null })
+  })
+
+  it('держится 4 секунды', () => {
+    expect(FALLBACK_TOAST_MS).toBe(4000)
   })
 })

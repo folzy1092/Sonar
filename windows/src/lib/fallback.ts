@@ -54,6 +54,19 @@ export function fallbackToast(via: Via | null | undefined): string | null {
   return t('Играет из {to} — в {from} недоступен', params)
 }
 
+/** Сколько держится всплывашка резерва: разовое уведомление, не постоянная деталь (TASTE_ROOMS_PROMPT §5). */
+export const FALLBACK_TOAST_MS = 4000
+
+/** Всплывашка резерва — одна на трек: что сказать на поток трека `ref` (null — молчать) и новая память
+ *  `shown` — трек, для которого уже сказали. Повторная загрузка того же трека (свежая ссылка, резерв после
+ *  сбоя, смена качества) молчит; трек без резерва сбрасывает память — вернулись к треку с резервом, скажем
+ *  снова. Зеркало `FallbackNotice` в iPhone `Fallback.swift`. */
+export function fallbackNotice(via: Via | null | undefined, ref: string, shown: string | null): { text: string | null; shown: string | null } {
+  if (ref === shown) return { text: null, shown }
+  const text = fallbackToast(via)
+  return { text, shown: text ? ref : null }
+}
+
 /** Плашка качества: что реально играет, а при замене — ещё и откуда («MP3 320 · Яндекс Музыка»). */
 export function qualityLabel(quality: string, via: Via | null | undefined): string {
   const label = t(quality)

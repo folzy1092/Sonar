@@ -228,20 +228,7 @@ struct FullPlayerView: View {
                 .presentationDetents([.fraction(0.8), .large])
                 .presentationBackground(.ultraThinMaterial)
         }
-        .overlay(alignment: .top) {
-            if let message = engine.message {
-                Text(message)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Theme.text)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .padding(.top, 60)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .onTapGesture { withAnimation(Motion.spring) { engine.message = nil } }
-            }
-        }
-        .animation(Motion.spring, value: engine.message)
+        .playerToast()
         .animation(.easeInOut(duration: 0.45), value: style)
         .onChange(of: engine.isPlaying, initial: true) { _, playing in
             // пластинка: пауза — замирает на месте, а не прыгает

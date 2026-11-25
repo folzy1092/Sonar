@@ -6,7 +6,6 @@ import SwiftUI
 struct RemotePlayerView: View {
     @Binding var showDevices: Bool
     @Environment(Router.self) private var router
-    @Environment(PlaybackEngine.self) private var engine
     @State private var scrubbing: Double?
     @State private var volume: Double?
     @State private var dragDown: CGFloat = 0
@@ -45,8 +44,7 @@ struct RemotePlayerView: View {
             .scrollIndicators(.hidden)
         }
         .offset(y: max(0, dragDown))
-        .overlay(alignment: .top) { toast }
-        .animation(Motion.spring, value: engine.message)
+        .playerToast()
         .animation(Motion.spring, value: state?.track?.ref)
         .animation(Motion.spring, value: remote.isConnected)
         .onAppear { remote.reconnectIfNeeded() }
@@ -304,21 +302,6 @@ struct RemotePlayerView: View {
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())
-    }
-
-    @ViewBuilder
-    private var toast: some View {
-        if let message = engine.message {
-            Text(message)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Theme.text)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(.ultraThinMaterial, in: Capsule())
-                .padding(.top, 60)
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .onTapGesture { withAnimation(Motion.spring) { engine.message = nil } }
-        }
     }
 }
 

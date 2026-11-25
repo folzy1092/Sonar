@@ -77,11 +77,11 @@ final class Router {
         }
     }
 
-    func say(_ text: String) {
+    func say(_ text: String, seconds: Double = FallbackNotice.otherSeconds) {
         toastTask?.cancel()
         withAnimation(Motion.spring) { toast = text }
         toastTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(2.6))
+            try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled else { return }
             withAnimation(Motion.spring) { self?.toast = nil }
         }

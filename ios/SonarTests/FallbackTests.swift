@@ -89,6 +89,43 @@ final class FallbackTests: XCTestCase {
         XCTAssertNil(FallbackPlan.toast(nil, lang: .ru))
     }
 
+    // MARK: - Всплывашка резерва — одна на трек
+
+    func testNoticeOncePerTrack() {
+        let via = FallbackVia(ref: "ym:1", service: .ym, from: .sc, reason: .preview)
+        // новый трек с резервом — говорим и запоминаем трек
+        let first = FallbackNotice.next(via, ref: "sc:1", shown: nil, lang: .ru)
+        XCTAssertEqual(first.text, "Играет из Яндекс Музыка — в SoundCloud только отрывок")
+        XCTAssertEqual(first.shown, "sc:1")
+        // тот же трек загрузился ещё раз (свежая ссылка, попытка попроще) — молчим
+        let again = FallbackNotice.next(via, ref: "sc:1", shown: first.shown, lang: .ru)
+        XCTAssertNil(again.text)
+        XCTAssertEqual(again.shown, "sc:1")
+        // другой трек с резервом — снова говорим
+        let other = FallbackNotice.next(via, ref: "sc:2", shown: again.shown, lang: .ru)
+        XCTAssertNotNil(other.text)
+        XCTAssertEqual(other.shown, "sc:2")
+    }
+
+    func testNoticeResetsOnTrackWithoutFallback() {
+        let via = FallbackVia(ref: "ym:1", service: .ym, from: .sc, reason: .unavailable)
+        let plain = FallbackNotice.next(nil, ref: "sc:2", shown: "sc:1", lang: .ru)
+        XCTAssertNil(plain.text)
+        XCTAssertNil(plain.shown)
+        // вернулись к треку с резервом — скажем снова
+        XCTAssertNotNil(FallbackNotice.next(via, ref: "sc:1", shown: plain.shown, lang: .ru).text)
+        // «SoundCloud через Яндекс» — настройка, без всплывашки
+        let preferred = FallbackVia(ref: "ym:1", service: .ym, from: .sc, reason: .preferred)
+        XCTAssertNil(FallbackNotice.next(preferred, ref: "sc:3", shown: nil, lang: .ru).text)
+    }
+
+    func testNoticeHoldsFourSeconds() {
+        let note = "Играет из Яндекс Музыка — в SoundCloud только отрывок"
+        XCTAssertEqual(FallbackNotice.seconds(for: note, note: note), 4)
+        XCTAssertEqual(FallbackNotice.seconds(for: "Следующим: «Дежавю»", note: note), 2.6)
+        XCTAssertEqual(FallbackNotice.seconds(for: note, note: nil), 2.6)
+    }
+
     func testLabeledAddsServiceName() {
         let file = StreamSource.file(url: URL(string: "https://x/a.mp3")!, quality: "MP3 320")
         XCTAssertEqual(FallbackPlan.labeled(file, .ym), .file(url: URL(string: "https://x/a.mp3")!, quality: "MP3 320 · Яндекс Музыка"))
