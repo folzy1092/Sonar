@@ -72,6 +72,11 @@ export const DEFAULTS = {
   'privacy.stats': 'everyone' as 'everyone' | 'friends' | 'nobody',
   'privacy.likes': 'everyone' as 'everyone' | 'friends' | 'nobody',
   'privacy.playlists': 'everyone' as 'everyone' | 'friends' | 'nobody',
+  /** Комнаты и сообщения (docs/ROOMS.md, docs/DM.md): кто может писать, звать в комнату и видит мою комнату. */
+  /** Писать — только друзьям (антиспам): `everyone` не бывает. */
+  'privacy.messages': 'friends' as 'friends' | 'nobody',
+  'privacy.room_invites': 'friends' as 'everyone' | 'friends' | 'nobody',
+  'privacy.room_visible': 'friends' as 'everyone' | 'friends' | 'nobody',
   /** Плейлисты, скрытые ото всех (меню плейлиста → «Скрыть от других»). */
   'privacy.hidden_playlists': [] as string[],
   'appearance.cover_theme': true,

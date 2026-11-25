@@ -21,6 +21,12 @@
     { key: 'privacy.now_playing', title: 'Что играет сейчас', hint: 'Трек, который звучит прямо сейчас' },
     { key: 'privacy.stats', title: 'Статистика', hint: 'Прослушивания, часы и любимые артисты' },
   ] as const
+  const social = [
+    // писать — только друзьям (антиспам, ROADMAP «Личные сообщения»): «Все» здесь нет
+    { key: 'privacy.messages', title: 'Кто может писать мне', hint: 'Личные сообщения и треки от других', friendsOnly: true },
+    { key: 'privacy.room_invites', title: 'Кто может звать в комнату', hint: 'Приглашения слушать вместе', friendsOnly: false },
+    { key: 'privacy.room_visible', title: 'Кто видит мою комнату', hint: 'Можно зайти без приглашения', friendsOnly: false },
+  ] as const
   const hiddenCount = $derived((settings.get('privacy.hidden_playlists') ?? []).length)
 
   function preview() {
@@ -41,6 +47,19 @@
     ]}
     onchange={(v) => settings.set('privacy.friend_requests', v)}
   />
+</Group>
+
+<Group title={t('Комнаты и сообщения')} hint={t('Заработают вместе с сервером и друзьями')}>
+  {#each social as r (r.key)}
+    <Choice
+      title={t(r.title)}
+      hint={t(r.hint)}
+      value={r.friendsOnly && audienceOf(settings.get(r.key)) === 'everyone' ? 'friends' : audienceOf(settings.get(r.key))}
+      options={r.friendsOnly ? audiences.filter((a) => a.id !== 'everyone') : audiences}
+      onchange={(v) => settings.set(r.key, v)}
+    />
+  {/each}
+  <button class="link-row" onclick={() => (settingsPanel.close(), router.go('social'))}>{t('Как это будет выглядеть')}</button>
 </Group>
 
 <Group title={t('Профиль')} hint={t('Кто что видит по ссылке на твой профиль')}>
@@ -77,6 +96,16 @@
     font-weight: 600;
   }
   .link:hover {
+    text-decoration: underline;
+  }
+  .link-row {
+    align-self: flex-start;
+    margin-top: 4px;
+    color: var(--accent);
+    font-weight: 600;
+    font-size: calc(13px * var(--fs, 1));
+  }
+  .link-row:hover {
     text-decoration: underline;
   }
   .see {

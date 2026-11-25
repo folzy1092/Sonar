@@ -23,6 +23,7 @@
   import ImportPage from './pages/ImportPage.svelte'
   import DupesPage from './pages/DupesPage.svelte'
   import MixPage from './pages/MixPage.svelte'
+  import SocialPage from './pages/SocialPage.svelte'
   import TrackMenu from './app/TrackMenu.svelte'
   import PlaylistMenu from './app/PlaylistMenu.svelte'
   import ConfirmDialog from './app/ConfirmDialog.svelte'
@@ -73,6 +74,7 @@
     import: ImportPage,
     dupes: DupesPage,
     mix: MixPage,
+    social: SocialPage,
   }
   /** Строка поиска — только на странице поиска (на главной её нет, решение владельца). */
   const withSearch: Page[] = ['search']

@@ -30,6 +30,7 @@ const MAP = {
   waveform: 'audio-waveform', cloudUp: 'upload-2', cloudDown: 'download-3', compress: 'fullscreen-exit',
   stack: 'layers', hash: 'hashtag', layout: 'layout', user2: 'user-2', login: 'entrance',
   phone: 'cellphone', wifi: 'wifi', wifiOff: 'wifi-off', unlink: 'unlink', bell: 'notification',
+  chat: 'chat-3', send: 'send-plane', group: 'group', crown: 'vip-1', reply: 'corner-up-left',
 }
 
 /** Знаки брендов — Simple Icons (CC0), одна заливка: и контур, и `filled` одинаковые. */

@@ -203,6 +203,9 @@ SoundCloud через Яндекс, прогрессивный mp3 SoundCloud, �
 | `privacy.likes` | аудитория — Любимые | `everyone` | да |
 | `privacy.now_playing` | аудитория — трек, который играет сейчас | `everyone` | да |
 | `privacy.stats` | аудитория — прослушивания, часы, любимые артисты | `everyone` | да |
+| `privacy.messages` | `friends` / `nobody` — кто может писать в личные сообщения (docs/DM.md); «Все» нет — только друзья, антиспам | `friends` | да |
+| `privacy.room_invites` | аудитория — кто может позвать в комнату совместного прослушивания (docs/ROOMS.md) | `friends` | да |
+| `privacy.room_visible` | аудитория — кто видит мою открытую комнату и может зайти без приглашения | `friends` | да |
 
 Старые значения (bool и `visible`, сборка 2026-11-18) читаются через `audienceOf`: `true` → все, `false` → никто.
 

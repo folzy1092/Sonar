@@ -54,6 +54,7 @@ export type QuickActionId =
   | 'go_library'
   | 'go_search'
   | 'go_player'
+  | 'go_social'
   | 'offline'
 
 export interface QuickAction {
@@ -84,6 +85,7 @@ export const QUICK_ACTIONS: readonly QuickAction[] = [
   { id: 'go_library', title: 'Медиатека', keywords: ['library', 'плейлисты'], icon: 'library' },
   { id: 'go_search', title: 'Поиск', keywords: ['search', 'найти'], icon: 'search' },
   { id: 'go_player', title: 'Плеер', keywords: ['player', 'сейчас играет', 'now playing'], icon: 'player' },
+  { id: 'go_social', title: 'Комнаты и сообщения', keywords: ['вместе', 'комната', 'чат', 'сообщения', 'друзья', 'room', 'chat', 'together'], icon: 'group' },
   // подпись зависит от состояния: включён режим — показывается OFFLINE_OFF_TITLE (lib/quick.svelte.ts)
   { id: 'offline', title: 'Офлайн-режим: включить', keywords: ['офлайн', 'без сети', 'роуминг', 'offline', 'airplane'], icon: 'wifiOff' },
 ]

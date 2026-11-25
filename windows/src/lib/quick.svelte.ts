@@ -66,6 +66,7 @@ const PAGES: Partial<Record<QuickActionId, Page>> = {
   go_library: 'library',
   go_search: 'search',
   go_player: 'player',
+  go_social: 'social',
 }
 
 /** Перед переходом — закрыть то, что лежит поверх страниц: полноэкранный плеер (он выше панели
