@@ -26,6 +26,10 @@ describe('схема окна', () => {
     expect(l.rail.h).toBeGreaterThan(l.rail.w)
   })
 
+  it('панель Sonar слева шире прежней колонки значков', () => {
+    expect(windowDiagram({ tabs: 'left', style: 'sonar' }).rail.w).toBeGreaterThan(windowDiagram({ tabs: 'left', style: 'default' }).rail.w)
+  })
+
   it('компактная панель тоньше, полная сверху — во всю ширину', () => {
     expect(windowDiagram({ tabs: 'left', style: 'compact' }).rail.w).toBeLessThan(windowDiagram({ tabs: 'left' }).rail.w)
     expect(windowDiagram({ tabs: 'top', style: 'full' }).rail.w).toBeGreaterThan(windowDiagram({ tabs: 'top' }).rail.w)

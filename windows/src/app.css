@@ -1,5 +1,13 @@
 @import './theme/tokens.css';
 
+/* ширина панели вкладок — числом, чтобы раскрытие полки Sonar шло плавно (transition в App.svelte .shell);
+   значение по умолчанию — в theme/tokens.css */
+@property --rail-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 68px;
+}
+
 *,
 *::before,
 *::after {

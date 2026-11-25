@@ -123,7 +123,13 @@ export const DEFAULTS = {
   'appearance.app_icon': 'glass' as AppIconId,
   /** Панель вкладок (Интерфейс → Вкладки): где она, какая, подстраивается ли под страницу. */
   'tabs.position': 'left' as 'left' | 'top' | 'bottom' | 'right',
-  'tabs.style': 'default' as 'default' | 'compact' | 'full' | 'round' | 'floating',
+  /** `sonar` — свой вид Sonar (2026-11-25): колонка с подписями и плейлистами, по клику на знак раскрывается
+   *  в полку с названиями (`tabs.expanded`); `default` — прежняя колонка из одних значков. */
+  'tabs.style': 'sonar' as 'sonar' | 'default' | 'compact' | 'full' | 'round' | 'floating',
+  /** Панель Sonar раскрыта в полку (клик по знаку); только слева и справа. */
+  'tabs.expanded': false as boolean,
+  /** Панель Sonar стала основной (2026-11-25): один раз переключаем на неё тех, у кого была прежняя. */
+  'tabs.sonar_switched': false as boolean,
   /** Плавающая панель вкладок — центр в долях окна (перетаскивается куда угодно). */
   'tabs.float_x': 0.045 as number,
   'tabs.float_y': 0.5 as number,

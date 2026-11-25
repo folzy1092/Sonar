@@ -3,11 +3,17 @@
   import type { NavIconName } from '../components/nav-icons'
   import { router, type Page } from './router.svelte'
   import LogoMark from '../components/LogoMark.svelte'
+  import Cover from '../components/Cover.svelte'
+  import Icon from '../components/Icon.svelte'
   import { settingsPanel } from '../pages/settings-section.svelte'
   import { settings } from '../lib/settings.svelte'
   import { t } from '../lib/i18n.svelte'
   import { floating } from '../lib/floating'
   import { offline } from '../lib/offline.svelte'
+  import { library } from '../lib/library.svelte'
+  import { isTrackRef } from '../lib/services'
+  import { tracksText } from '../lib/format'
+  import { railPins } from './rail-pins'
 
   // «Плавающий» стиль: панель — капсула над окном, её тянут куда угодно (lib/floating); за неё окно
   // не таскается. Лежит вдоль, если в «Позиции» выбрано сверху / снизу.
@@ -15,47 +21,111 @@
   const flat = $derived(float && ['top', 'bottom'].includes(settings.get('tabs.position')))
   const drag = $derived(float ? undefined : true)
 
+  // Панель Sonar (основная с 2026-11-25, чтобы не быть копией колонки Dotify): слева и справа —
+  // значки с подписями и плейлисты обложками; клик по знаку раскрывает её в полку с названиями.
+  // Сверху и снизу — как обычная полоса значков.
+  const sonar = $derived(settings.get('tabs.style') === 'sonar' && ['left', 'right'].includes(settings.get('tabs.position')))
+  const open = $derived(sonar && settings.get('tabs.expanded'))
+  const pins = $derived(sonar ? railPins(library.playlists) : [])
+  const likedCount = $derived(sonar ? [...library.liked].filter(isTrackRef).length : 0)
+  const name = $derived(settings.get('profile.name') || settings.get('profile.username') || t('Профиль'))
+
   // подписи — ключи перевода, t() — при выводе
   const middle: { page: Page; icon: NavIconName; label: string }[] = [
     { page: 'player', icon: 'player', label: 'Плеер' },
     { page: 'search', icon: 'search', label: 'Поиск' },
     { page: 'library', icon: 'library', label: 'Медиатека' },
   ]
+
+  function go(page: Page, param: string | null = null) {
+    settingsPanel.close()
+    router.go(page, param)
+  }
+  const isOpenList = (id: string) => router.page === 'playlist' && router.param === id
+  /** Открыт плейлист из панели — подсвечен он сам, «Медиатека» не загорается второй. */
+  const pinOpen = $derived(sonar && (isOpenList('favorites') || pins.some((p) => isOpenList(p.id))))
 </script>
 
 {#snippet item(page: Page, icon: NavIconName, label: string)}
-  {@const on = router.page === page || (page === 'home' && router.page === 'mix') || (page === 'library' && ['playlist', 'artist', 'album', 'import'].includes(router.page))}
+  {@const on = router.page === page || (page === 'home' && router.page === 'mix') || (page === 'library' && ['playlist', 'artist', 'album', 'import'].includes(router.page) && !pinOpen)}
   <button
     class="item"
     class:active={on}
     aria-label={label}
-    title={label}
+    title={sonar && !open ? null : label}
     aria-current={on ? 'page' : undefined}
-    onclick={() => {
-      settingsPanel.close()
-      router.go(page)
-    }}
+    onclick={() => go(page)}
   >
     <NavIcon name={icon} active={on} />
+    {#if sonar}<span class="label">{label}</span>{/if}
   </button>
 {/snippet}
 
-<nav class="rail" class:float class:flat data-tauri-drag-region={drag} use:floating={{ on: float, key: 'tabs', grabButtons: true }}>
+{#snippet pin(id: string, title: string, sub: string, cover: string | null, liked = false)}
+  {@const on = isOpenList(id)}
+  <button class="pin" class:on aria-label={title} title={open ? null : title} aria-current={on ? 'page' : undefined} onclick={() => go('playlist', id)}>
+    {#if liked}
+      <span class="liked"><NavIcon name="heart" active size={18} /></span>
+    {:else}
+      <Cover url={cover} size={40} radius="10px" />
+    {/if}
+    {#if open}
+      <span class="pin-text">
+        <b>{title}</b>
+        <i>{sub}</i>
+      </span>
+    {/if}
+  </button>
+{/snippet}
+
+<nav class="rail" class:float class:flat class:sonar class:open data-tauri-drag-region={drag} use:floating={{ on: float, key: 'tabs', grabButtons: true }}>
   <div class="group" data-tauri-drag-region={drag}>
-    <!-- за лого окно тоже таскается, как за пустое место панели -->
-    <span class="logo" role="img" aria-label="Sonar" data-tauri-drag-region={drag}><LogoMark size={30} /></span>
+    {#if sonar}
+      <!-- знак — кнопка: раскрыть / свернуть полку (только кликом, без наведения) -->
+      <button
+        class="logo toggle"
+        aria-label={open ? t('Свернуть панель') : t('Развернуть панель')}
+        title={open ? t('Свернуть панель') : t('Развернуть панель')}
+        aria-expanded={open}
+        onclick={() => settings.set('tabs.expanded', !open)}
+      >
+        <LogoMark size={30} />
+        {#if open}
+          <span class="word">Sonar</span>
+          <span class="chev"><Icon name="chevronLeft" size={16} /></span>
+        {/if}
+      </button>
+    {:else}
+      <!-- за лого окно тоже таскается, как за пустое место панели -->
+      <span class="logo" role="img" aria-label="Sonar" data-tauri-drag-region={drag}><LogoMark size={30} /></span>
+    {/if}
     {@render item('home', 'home', t('Главная'))}
+    {#if sonar}
+      {#each middle as m (m.page)}
+        {@render item(m.page, m.icon, t(m.label))}
+      {/each}
+    {/if}
   </div>
 
-  <div class="group" data-tauri-drag-region={drag}>
-    {#each middle as m (m.page)}
-      {@render item(m.page, m.icon, t(m.label))}
-    {/each}
-  </div>
+  {#if sonar}
+    <div class="pins">
+      {#if open}<span class="cap">{t('Плейлисты')}</span>{:else}<span class="rule" aria-hidden="true"></span>{/if}
+      {@render pin('favorites', t('Любимые'), tracksText(likedCount), null, true)}
+      {#each pins as p (p.id)}
+        {@render pin(p.id, p.name, tracksText(p.track_count), p.covers[0] ?? null)}
+      {/each}
+    </div>
+  {:else}
+    <div class="group" data-tauri-drag-region={drag}>
+      {#each middle as m (m.page)}
+        {@render item(m.page, m.icon, t(m.label))}
+      {/each}
+    </div>
+  {/if}
 
-  <div class="group" data-tauri-drag-region={drag}>
+  <div class="group foot" data-tauri-drag-region={drag}>
     <button
-      class="item"
+      class="item gear"
       class:active={settingsPanel.open}
       aria-label={t('Настройки')}
       title={t('Настройки')}
@@ -64,13 +134,16 @@
     >
       <NavIcon name="settings" active={settingsPanel.open} />
     </button>
-    <button class="avatar" aria-label={t('Профиль')} title={t('Профиль')} onclick={() => settingsPanel.show('account', 'profile')}>
-      {#if settings.get('profile.avatar')}
-        <img class="me" src={offline.src(settings.get('profile.avatar'))} alt="" />
-      {:else}
-        <NavIcon name="user" size={20} />
-      {/if}
-      <span class="online" aria-hidden="true"></span>
+    <button class="avatar" aria-label={t('Профиль')} title={open ? null : t('Профиль')} onclick={() => settingsPanel.show('account', 'profile')}>
+      <span class="face">
+        {#if settings.get('profile.avatar')}
+          <img class="me" src={offline.src(settings.get('profile.avatar'))} alt="" />
+        {:else}
+          <NavIcon name="user" size={20} />
+        {/if}
+        <span class="online" aria-hidden="true"></span>
+      </span>
+      {#if open}<span class="who">{name}</span>{/if}
     </button>
   </div>
 </nav>
@@ -185,12 +258,20 @@
     transform: scale(0.9);
   }
   .avatar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    border-radius: 999px;
+    color: var(--text);
+  }
+  .face {
     position: relative;
+    flex: none;
     display: grid;
     place-items: center;
     width: 36px;
     height: 36px;
-    margin-top: 8px;
     border-radius: 50%;
     background: var(--surface-3);
     color: var(--text-2);
@@ -202,7 +283,7 @@
     border-radius: 50%;
     object-fit: cover;
   }
-  .avatar:hover {
+  .avatar:hover .face {
     transform: scale(1.06);
   }
   .online {
@@ -361,5 +442,273 @@
   }
   :global(:root.tabs-autohide.ui-still .shell.tabs-bottom) .rail:not(:hover) {
     translate: 0 6px;
+  }
+
+  /* ---- панель Sonar (tabs.style = sonar, слева и справа) ---- */
+  /* колонка шире прежней (84 px вместо 62), раскрытая полка — 244 px; ширина едет плавно (--rail-w) */
+  :global(.shell.tstyle-sonar:is(.tabs-left, .tabs-right)) {
+    --rail-w: 90px;
+  }
+  :global(.shell.tstyle-sonar:is(.tabs-left, .tabs-right):has(> .rail.open)) {
+    --rail-w: 250px;
+  }
+  .rail.sonar {
+    justify-content: flex-start;
+    gap: 14px;
+    overflow: hidden;
+  }
+  .rail.sonar .group {
+    gap: 2px;
+  }
+  .rail.sonar .logo.toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: auto;
+    margin-bottom: 10px;
+    padding: 0 5px;
+    border-radius: 999px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .rail.sonar .word {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .rail.sonar .chev {
+    margin-left: auto;
+    display: grid;
+    color: var(--text-3);
+    transition: color var(--fast) var(--ease);
+  }
+  .rail.sonar .logo.toggle:hover .chev {
+    color: var(--text);
+  }
+  /* свёрнута: значок, под ним подпись */
+  .rail.sonar .item {
+    flex-direction: column;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 70px;
+    height: 58px;
+    border-radius: 14px;
+  }
+  .rail.sonar .label {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 10.5px;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .rail.sonar .item.gear {
+    width: 44px;
+    height: 44px;
+  }
+  /* плейлисты: Любимые и свои, свежие сверху; не влезли — прокрутка внутри, без полосы */
+  .pins {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 4px 0 20px;
+    overflow-y: auto;
+    scrollbar-width: none;
+    /* не влезли — нижние гаснут, а не режутся по краю */
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  }
+  .rule {
+    flex: none;
+    width: 32px;
+    height: 1px;
+    margin-bottom: 4px;
+    background: var(--border);
+  }
+  .pin {
+    position: relative;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 12px;
+    transition:
+      transform var(--fast) var(--ease),
+      background-color var(--fast) var(--ease);
+  }
+  .pin:active {
+    transform: scale(0.94);
+  }
+  /* открытый плейлист — полоска у края панели и рамка вокруг обложки */
+  .pin::before {
+    content: '';
+    position: absolute;
+    left: -21px;
+    top: 50%;
+    width: 4px;
+    height: 0;
+    border-radius: 0 4px 4px 0;
+    background: var(--accent);
+    translate: 0 -50%;
+    transition: height 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .pin.on::before {
+    height: 24px;
+  }
+  .pin :global(.cover),
+  .liked {
+    box-shadow: 0 0 0 0 transparent;
+    transition: box-shadow var(--fast) var(--ease);
+  }
+  .pin.on :global(.cover),
+  .pin.on .liked {
+    box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--text-2);
+  }
+  .liked {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--surface-3), var(--surface-2));
+    color: var(--text);
+    --accent: var(--text);
+  }
+  .rail.sonar .foot {
+    margin-top: auto;
+  }
+  .rail.sonar .avatar {
+    margin-top: 6px;
+  }
+
+  /* раскрыта: строки «значок · название», плейлисты с подписью, внизу профиль и шестерёнка в ряд */
+  .rail.open {
+    align-items: stretch;
+    padding: 14px 10px 12px;
+    border-radius: var(--radius-xl);
+  }
+  .rail.open .group {
+    align-items: stretch;
+  }
+  .rail.open .logo.toggle {
+    padding: 0 6px 0 5px;
+    height: 40px;
+  }
+  .rail.open .item {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: var(--radius-m);
+  }
+  .rail.open .label {
+    font-size: 14px;
+  }
+  .rail.open .pins {
+    align-items: stretch;
+    gap: 2px;
+  }
+  .cap {
+    flex: none;
+    padding: 4px 8px 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-3);
+  }
+  .rail.open .pin {
+    padding: 5px 6px;
+    text-align: left;
+  }
+  .rail.open .pin:hover,
+  .rail.open .pin.on {
+    background-color: var(--surface-2);
+  }
+  .rail.open .pin::before {
+    display: none;
+  }
+  .rail.open .pin.on :global(.cover),
+  .rail.open .pin.on .liked {
+    box-shadow: none;
+  }
+  .pin-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .pin-text b,
+  .pin-text i {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .pin-text b {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .pin-text i {
+    font-style: normal;
+    font-size: 11.5px;
+    color: var(--text-3);
+  }
+  .rail.open .foot {
+    flex-direction: row-reverse;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 2px 0 4px;
+    border-top: 1px solid var(--border);
+  }
+  .rail.open .avatar {
+    min-width: 0;
+    margin: 0;
+    padding-right: 8px;
+  }
+  .who {
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .rail.open .item.gear {
+    width: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+  /* подписи проявляются, когда полка уже почти раскрылась, — не лезут поверх едущей ширины */
+  .rail.open :is(.label, .word, .chev, .cap, .pin-text, .who) {
+    animation: rail-text 0.26s var(--ease) 0.12s both;
+  }
+  @keyframes rail-text {
+    from {
+      opacity: 0;
+      translate: -4px 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rail.open :is(.label, .word, .chev, .cap, .pin-text, .who) {
+      animation-name: rail-fade;
+    }
+    @keyframes rail-fade {
+      from {
+        opacity: 0;
+      }
+    }
+  }
+  /* справа — полоска открытого плейлиста у правого края */
+  :global(.shell.tabs-right) .pin::before {
+    left: auto;
+    right: -21px;
+    border-radius: 4px 0 0 4px;
   }
 </style>

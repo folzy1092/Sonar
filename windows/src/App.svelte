@@ -471,10 +471,11 @@
     grid-template-rows: minmax(0, 1fr) 0;
     row-gap: 0;
   }
-  /* отступ над плеером тает вместе с ним, а не прыгает */
+  /* отступ над плеером тает вместе с ним, а не прыгает; ширина панели (раскрытие полки Sonar) — плавно,
+     --rail-w зарегистрирован в app.css */
   .shell {
-    transition-property: transform, filter, border-radius, box-shadow, row-gap;
-    transition-duration: var(--settings-t), var(--settings-t), var(--settings-t), var(--settings-t), 0.28s;
+    transition-property: transform, filter, border-radius, box-shadow, row-gap, --rail-w;
+    transition-duration: var(--settings-t), var(--settings-t), var(--settings-t), var(--settings-t), 0.28s, 0.34s;
   }
   @media (prefers-reduced-motion: reduce) {
     .shell {

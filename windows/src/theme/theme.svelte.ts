@@ -111,7 +111,10 @@ class Theme {
       const mq = matchMedia('(prefers-color-scheme: light)')
       mq.addEventListener('change', (e) => (this.systemLight = e.matches))
     }
-    void settings.load().then(() => this.switchToClassic())
+    void settings.load().then(() => {
+      this.switchToClassic()
+      this.switchToSonarRail()
+    })
     $effect.root(() => {
       $effect(() => {
         const on = settings.get('appearance.cover_theme')
@@ -221,6 +224,14 @@ class Theme {
     this.applyStyle('classic')
     settings.set('appearance.corner_radius', 'soft')
     settings.set('appearance.classic_switched', true)
+  }
+
+  /** Один раз ставит панель Sonar тем, у кого была прежняя колонка значков; компактный, круглый и
+   *  плавающий стиль — осознанный выбор, их не трогаем. */
+  private switchToSonarRail() {
+    if (settings.get('tabs.sonar_switched')) return
+    if (settings.get('tabs.style') === 'default') settings.set('tabs.style', 'sonar')
+    settings.set('tabs.sonar_switched', true)
   }
 
   /** Выбрать готовый или свой стиль — ставит все оси. */

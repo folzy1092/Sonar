@@ -2,7 +2,7 @@
 // мини плеер и очередь. Прямоугольники — в процентах от ширины (x, w) и высоты (y, h) окна.
 import type { TabsPosition } from './settings-open'
 
-export type TabsStyle = 'default' | 'compact' | 'full' | 'round' | 'floating'
+export type TabsStyle = 'sonar' | 'default' | 'compact' | 'full' | 'round' | 'floating'
 export type MiniPosition = 'top' | 'bottom' | 'bottom_full' | 'floating' | 'none'
 export type QueuePosition = 'bottom' | 'left' | 'right'
 
@@ -31,8 +31,8 @@ export interface Diagram {
 
 const GX = 3
 const GY = 5
-const RAIL_V = { default: 9, compact: 6 } as const
-const RAIL_H = { default: 12, compact: 9 } as const
+const RAIL_V = { default: 9, compact: 6, sonar: 11 } as const
+const RAIL_H = { default: 12, compact: 9, sonar: 12 } as const
 const MINI_H = 13
 const QUEUE_W = 24
 const QUEUE_H = 30
@@ -41,7 +41,7 @@ const box = (x: number, y: number, w: number, h: number): Rect => ({ x, y, w, h 
 
 function thickness(style: TabsStyle, vertical: boolean): number {
   const set = vertical ? RAIL_V : RAIL_H
-  return style === 'compact' ? set.compact : set.default
+  return style === 'compact' ? set.compact : style === 'sonar' ? set.sonar : set.default
 }
 
 /** Панель вкладок и место, что остаётся окну. */
