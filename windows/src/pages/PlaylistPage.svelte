@@ -10,6 +10,7 @@
   import CollectionHeader from '../components/CollectionHeader.svelte'
   import EmptyState from '../components/EmptyState.svelte'
   import Icon from '../components/Icon.svelte'
+  import SelectBar from '../components/SelectBar.svelte'
   import TrackRow from '../components/TrackRow.svelte'
   import { api, errorText, onLocalFilesChanged, type ListTrack, type Playlist, type Track } from '../lib/api'
   import { adderOf, isCollab } from '../lib/collab'
@@ -20,9 +21,10 @@
   import { router } from '../app/router.svelte'
   import { player } from '../player/player.svelte'
   import { t } from '../lib/i18n.svelte'
-  import { byId, serviceOf } from '../lib/services'
+  import { byId, playlistWebUrl, serviceOf } from '../lib/services'
+  import { pickSelected, rangeKeys, selKey, shareText, toggleKey } from '../lib/track-select'
   import { settingsPanel } from './settings-section.svelte'
-  import { onDestroy } from 'svelte'
+  import { onDestroy, untrack } from 'svelte'
   import { PixelCollage } from '../lib/pixel-collage.svelte'
   import { offline } from '../lib/offline.svelte'
   import { findGroup, parseGroupId } from '../lib/offline-groups'
@@ -224,7 +226,81 @@
     }
   }
   let tracksEl: HTMLDivElement | undefined = $state()
+
+  // ——— режим выбора треков (кнопка «Выбрать треки»; панель — components/SelectBar.svelte) ———
+  let selecting = $state(false)
+  let picked = $state(new Set<string>())
+  /** Строка прошлой отметки в `visible` — от неё считается диапазон по Shift. */
+  let anchor: number | null = null
+  /** Отмечено и видно на экране: отметки, которые скрыл поиск, в действия не попадают. */
+  const selected = $derived(pickSelected(visible, picked))
+
+  // перечитали список (убрали, лайк снят) — отметки пропавших строк сбрасываем
+  $effect(() => {
+    const alive = new Set(items.map(selKey))
+    untrack(() => {
+      if ([...picked].some((k) => !alive.has(k))) picked = new Set([...picked].filter((k) => alive.has(k)))
+    })
+  })
+
+  function closeSelect() {
+    selecting = false
+    picked = new Set()
+    anchor = null
+  }
+
+  function selectAll() {
+    picked = new Set(visible.map(selKey))
+  }
+
+  function pickRow(i: number, shift: boolean) {
+    const keys = visible.map(selKey)
+    if (shift && anchor !== null) picked = new Set([...picked, ...rangeKeys(keys, anchor, i)])
+    else picked = toggleKey(picked, keys[i])
+    anchor = i
+  }
+
+  async function removeSelected() {
+    const list = selected
+    if (!list.length) return
+    if (kind === 'favorites') {
+      const n = await library.unlikeAll(list)
+      toast.show(t('Убрано {tracks}', { tracks: tracksText(n) }))
+    } else if (kind === 'own') {
+      await library.removeFromPlaylist(id, list.map((x) => x.item_id!))
+      toast.show(t('Убрано {tracks}', { tracks: tracksText(list.length) }))
+    }
+    closeSelect()
+  }
+
+  /** «Поделиться»: у плейлиста сервиса — его ссылка; у своего списка и Любимых публичной ссылки до сервера нет — копируем текст «Артист — Название». */
+  async function share() {
+    const url = kind === 'service' ? playlistWebUrl(id) : null
+    try {
+      await navigator.clipboard.writeText(url ?? shareText(heading, avail))
+      toast.show(url ? t('Ссылка скопирована') : t('Список треков скопирован'))
+    } catch {
+      toast.show(t('Не получилось скопировать'))
+    }
+  }
 </script>
+
+{#snippet selectionBar()}
+  <SelectBar
+    tracks={selected}
+    total={visible.length}
+    title={heading}
+    removable={kind === 'favorites' ? 'favorites' : kind === 'own' ? 'playlist' : null}
+    fromPlaylist={kind === 'own' ? id : undefined}
+    dupesId={kind === 'favorites' || kind === 'own' ? id : undefined}
+    canLike={kind !== 'favorites'}
+    canDownload={kind !== 'local'}
+    onall={selectAll}
+    onnone={() => (picked = new Set())}
+    onclose={closeSelect}
+    onremove={removeSelected}
+  />
+{/snippet}
 
 <CollectionHeader
   title={heading}
@@ -237,6 +313,7 @@
   onplay={() => play(0)}
   onshuffle={() => player.playShuffled(visible, context, heading)}
   onqueue={() => player.addToQueue(visible, false)}
+  selection={selecting ? selectionBar : undefined}
 >
   {#snippet subtitle()}
     {#if kind === 'favorites'}{t('Лайкнутые треки')}
@@ -280,11 +357,12 @@
         <Icon name="trash" size={16} />{#if confirmDelete} {t('Удалить?')}{/if}
       </button>
     {/if}
-    {#if kind === 'favorites' || kind === 'own'}
-      <button class="tool plain" aria-label={t('Найти дубли')} title={t('Найти дубли')} onclick={() => router.go('dupes', id)}>
-        <Icon name="stack" size={16} />
-      </button>
-    {/if}
+    <button class="tool plain" aria-label={t('Выбрать треки')} title={t('Выбрать треки')} disabled={!items.length} onclick={() => (selecting = true)}>
+      <Icon name="listCheck" size={16} />
+    </button>
+    <button class="tool plain" aria-label={t('Поделиться')} title={t('Поделиться')} disabled={!avail.length} onclick={share}>
+      <Icon name="share" size={16} />
+    </button>
     <button class="tool plain" class:on={sortIdx > 0} title={t('Сортировка: {sort}', { sort: t(sort.label) })} onclick={() => (sortIdx = (sortIdx + 1) % sorts.length)}>
       <Icon name="sort" size={16} />{#if sortIdx > 0} {t(sort.label)}{/if}
     </button>
@@ -327,7 +405,7 @@
         <div
           class="drag"
           class:over={dragOver === i && dragFrom !== i}
-          draggable={canReorder}
+          draggable={canReorder && !selecting}
           role="listitem"
           ondragstart={(e) => {
             dragFrom = i
@@ -347,6 +425,9 @@
             playlistId={kind === 'own' ? id : undefined}
             itemId={kind === 'own' ? t.item_id : undefined}
             addedBy={adderOf(members, t.added_by)}
+            {selecting}
+            selected={picked.has(selKey(t))}
+            onselect={(shift) => pickRow(i, shift)}
             onplay={() => play(i)}
           />
         </div>

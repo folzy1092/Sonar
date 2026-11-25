@@ -69,6 +69,23 @@ class Library {
     return fresh.length
   }
 
+  /** Снять лайк с отмеченных треков (режим выбора в Любимых); вернёт, сколько убралось. */
+  async unlikeAll(tracks: Track[]) {
+    const refs = [...new Set(tracks.map((x) => x.ref))].filter((r) => this.liked.has(r))
+    if (!refs.length) return 0
+    const next = new Set(this.liked)
+    for (const r of refs) next.delete(r)
+    this.liked = next
+    try {
+      for (const r of refs) await api.setLike(r, false)
+    } catch (e) {
+      toast.show(errorText(e))
+      await this.load(true)
+    }
+    this.version++
+    return refs.length
+  }
+
   /** Снять все лайки треков (после двойного подтверждения в меню Любимых). */
   async clearFavorites() {
     try {

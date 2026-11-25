@@ -285,10 +285,6 @@
     {:else}
       <!-- переход локальный: при открытии меню строки не «въезжают», только при возврате из «Экспорт» -->
       <div in:rise={{ y: 6, duration: 220 }}>
-        {@render item('chevronRight', t('Открыть'), () => {
-          playlistMenu.close()
-          router.go('playlist', 'favorites')
-        })}
         {@render item('play', t('Слушать'), () => withFav((list) => player.playList(list, 0, 'favorites', t('Любимые'))))}
         {@render item('shuffle', t('Слушать вперемешку'), () => withFav((list) => player.playShuffled(list, 'favorites', t('Любимые'))))}
         {@render item('vinyl', t('Свести для вечеринки'), () => withFav((list) => party.start(list, 'favorites', t('Любимые'))))}

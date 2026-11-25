@@ -28,9 +28,11 @@
     actions?: Snippet
     /** Правая часть строки кнопок (правка, сортировка, поиск). */
     tools?: Snippet
+    /** Режим выбора треков: пока есть, вместо всей строки кнопок — панель выбора (SelectBar). */
+    selection?: Snippet
   }
 
-  let { title, titleIcon, subtitle, meta, image = null, covers = [], icon = 'music', round = false, disabled = false, context = null, onplay, onshuffle, onqueue, actions, tools }: Props = $props()
+  let { title, titleIcon, subtitle, meta, image = null, covers = [], icon = 'music', round = false, disabled = false, context = null, onplay, onshuffle, onqueue, actions, tools, selection }: Props = $props()
   let failed = $state(false)
 </script>
 
@@ -54,12 +56,16 @@
 </header>
 
 <div class="bar">
-  <ListenButton {context} {disabled} {onplay} />
-  <button class="round-btn" aria-label={t('Перемешать')} title={t('Перемешать')} {disabled} onclick={onshuffle}><Icon name="shuffle" size={17} /></button>
-  <button class="pill" {disabled} onclick={onqueue}><Icon name="queue" size={16} /> {t('В очередь')}</button>
-  {#if actions}{@render actions()}{/if}
-  <span class="spacer"></span>
-  {#if tools}{@render tools()}{/if}
+  {#if selection}
+    {@render selection()}
+  {:else}
+    <ListenButton {context} {disabled} {onplay} />
+    <button class="round-btn" aria-label={t('Перемешать')} title={t('Перемешать')} {disabled} onclick={onshuffle}><Icon name="shuffle" size={17} /></button>
+    <button class="pill" {disabled} onclick={onqueue}><Icon name="queue" size={16} /> {t('В очередь')}</button>
+    {#if actions}{@render actions()}{/if}
+    <span class="spacer"></span>
+    {#if tools}{@render tools()}{/if}
+  {/if}
 </div>
 
 <style>

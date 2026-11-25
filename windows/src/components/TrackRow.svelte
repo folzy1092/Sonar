@@ -39,10 +39,15 @@
     addedBy?: PlaylistMember | null
     /** Пояснение вместо колонки альбома (подборки: почему трек здесь). */
     note?: string
+    /** Режим выбора (только `list`): слева кружок-чекбокс, клик по строке отмечает трек, а не играет его. */
+    selecting?: boolean
+    selected?: boolean
+    /** Отметили или сняли отметку; `shift` — выделить диапазон от прошлой отметки. */
+    onselect?: (shift: boolean) => void
     onplay: () => void
   }
 
-  let { track, index, variant = 'list', addedAt, playlistId, itemId, queueAt, addedBy, note, onplay }: Props = $props()
+  let { track, index, variant = 'list', addedAt, playlistId, itemId, queueAt, addedBy, note, selecting = false, selected = false, onselect, onplay }: Props = $props()
   const isCurrent = $derived(player.current?.ref === track.ref)
   const liked = $derived(library.isLiked(track.ref))
   const target = $derived({ track, addedAt, playlistId, itemId, queueAt })
@@ -62,8 +67,9 @@
     router.go('search')
   }
 
-  function activate() {
+  function activate(e?: Event) {
     if (hasSelection()) return
+    if (selecting) return onselect?.((e as MouseEvent | KeyboardEvent | undefined)?.shiftKey ?? false)
     if (missing) return findInServices()
     if (isCurrent) player.toggle()
     // «Добавлять следующие» выключено — играет только нажатый трек, без хвоста списка
@@ -75,7 +81,7 @@
     if (e.target !== e.currentTarget) return
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault()
-      activate()
+      activate(e)
     }
   }
 
@@ -91,8 +97,11 @@
   class:off={!track.available && !missing}
   class:missing
   class:numbered={index !== undefined}
+  class:selecting
+  class:selected={selecting && selected}
   role="button"
   tabindex="0"
+  aria-pressed={selecting ? selected : undefined}
   onclick={activate}
   onkeydown={onKey}
   oncontextmenu={(e) => {
@@ -100,6 +109,9 @@
     trackMenu.open(target, e.clientX, e.clientY)
   }}
 >
+  {#if selecting}
+    <span class="pick" class:on={selected} aria-hidden="true"><Icon name="check" size={13} stroke={3} /></span>
+  {/if}
   {#if index !== undefined}
     <span class="num">
       {#if isCurrent && player.playing}
@@ -209,6 +221,38 @@
   }
   .row.numbered {
     grid-template-columns: auto auto minmax(0, 2fr) minmax(0, 1fr) auto;
+  }
+  .row.selecting {
+    grid-template-columns: 22px auto minmax(0, 2fr) minmax(0, 1fr) auto;
+  }
+  .row.selected {
+    background: var(--hover);
+  }
+  .row.selecting:hover .hover-play {
+    opacity: 0;
+  }
+  .pick {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border-strong);
+    color: transparent;
+    transition:
+      background var(--fast) var(--ease),
+      border-color var(--fast) var(--ease),
+      color var(--fast) var(--ease),
+      transform var(--fast) var(--ease);
+  }
+  .row:hover .pick:not(.on) {
+    border-color: var(--text-3);
+  }
+  .pick.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    transform: scale(1.06);
   }
   .row.queue,
   .row.top {
