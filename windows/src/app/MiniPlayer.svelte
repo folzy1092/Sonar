@@ -235,9 +235,13 @@
   .mini {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    /* правая колонка не уже своей капсулы (max-content): раньше minmax(0, 1fr) сжимала её до нуля,
+       и капсула с justify-content: flex-end вылезала влево поверх кнопок по центру. Тесно — прячутся
+       второстепенные кнопки (@container ниже), а сжимается только название слева */
+    grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
     align-items: center;
     gap: 16px;
+    container: mini / inline-size;
     height: var(--player-h);
     /* правый отступ капсулы кнопок (карточка «Дальше» — свой отступ, NextUp.svelte --next-inset) */
     --mini-pad-r: 12px;
@@ -540,6 +544,29 @@
   }
   .capsule :global(.icon-btn:hover:not(:disabled)) {
     background: none;
+  }
+  /* Узкий плеер (окно, плеер сверху с отступом под кнопки окна, пример в настройках): кнопки не налезают друг
+     на друга — по ширине самого плеера прячутся второстепенные. Порядок капсулы: эквалайзер · сведение ·
+     скорость · громкость · текст/очередь */
+  @container mini (max-width: 640px) {
+    .center > :global(:first-child),
+    .center > :global(:last-child) {
+      display: none;
+    }
+    .capsule > :global(:nth-child(2)) {
+      display: none;
+    }
+  }
+  @container mini (max-width: 540px) {
+    .capsule > :global(:nth-child(3)) {
+      display: none;
+    }
+  }
+  @container mini (max-width: 460px) {
+    .capsule > :global(:nth-child(1)),
+    .left > :global(.icon-btn) {
+      display: none;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .play.loading {
