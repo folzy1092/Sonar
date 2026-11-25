@@ -3,6 +3,7 @@
   // обложки следующих треков, большая кнопка); ниже по порядку — «Для тебя» (карточки подборок →
   // MixPage), «Релизы недели» тех, на кого стоят лайки, «Похоже на» трёх последних исполнителей;
   // потом тренды, плейлисты пользователей и чарты Sonar (с сервера, до него — заготовка).
+  import { untrack } from 'svelte'
   import Icon from '../components/Icon.svelte'
   import Tile from '../components/Tile.svelte'
   import Shelf from '../components/Shelf.svelte'
@@ -77,10 +78,14 @@
   )
 
   // в офлайне сеть не трогаем; режим выключили, пока Главная открыта, — догружаем
+  // зависим только от офлайна: load() и ensureCovers() читают своё состояние (loading, covers), и без
+  // untrack неудачная загрузка (нет сервисов, нет сети) перезапускала эффект по кругу — главный поток вставал
   $effect(() => {
     if (offline.on) return
-    void home.load().then(() => mixes.load())
-    wave.ensureCovers()
+    untrack(() => {
+      void home.load().then(() => mixes.load())
+      wave.ensureCovers()
+    })
   })
 
   const playingWave = $derived(wave.active && player.playing)
