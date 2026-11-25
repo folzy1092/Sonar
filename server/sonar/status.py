@@ -106,7 +106,7 @@ class Status:
                 jobs.append(self._remote(s, "lastfm", "https://ws.audioscrobbler.com/2.0/", method="chart.gettoptracks",
                                          api_key=self.settings.lastfm_api_key, format="json", limit=1))
             if self.settings.public_url:
-                jobs.append(self._remote(s, "proxy", f"{self.settings.public_url}/health"))
+                jobs.append(self._remote(s, "proxy", f"{self.settings.public_url}/api/health"))
             items += await asyncio.gather(*jobs)
         # «Основной» в мс для всех: ответ сервера снаружи через туннель, если он жив; иначе — запрос к БД.
         proxy = next((i for i in items if i.key == "proxy"), None)

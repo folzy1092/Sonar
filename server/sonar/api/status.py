@@ -1,0 +1,74 @@
+"""`GET /api/status` — статус сервиса для сайта (API.md §9): те же данные, что бот `/status`, без пунктов владельца."""
+from __future__ import annotations
+
+import time
+
+from fastapi import APIRouter, Request, Response
+
+from .. import accounts
+from ..db import now_ms
+from ..status import DOWN, OK, PARTIAL, Item, Status
+
+router = APIRouter()
+
+CACHE_S = 30
+# Наши пункты (SPEC §3.11). «Медиа» и «Прокси» — только владельцу в боте, сюда не идут.
+INFRA = [("main", "api", "Основной", "🗄"), ("bot", "bot", "Бот", "🤖"),
+         ("storage", "storage", "Хранилище", "📦"), ("site", "site", "Сайт", "🌐")]
+PLATFORMS = [("soundcloud", "SoundCloud", "🌐"), ("yandex", "Яндекс Музыка", "🌐"), ("youtube", "YouTube Music", "🌐"),
+             ("spotify", "Spotify", "🌐"), ("apple", "Apple Music", "🌐"), ("lrclib", "lrclib", "📝"),
+             ("genius", "Genius", "📝"), ("telegram", "Telegram", "✈️")]
+# С чем Sonar работает сейчас: их сбой портит шапку, остальные платформы — нет (как в боте).
+CORE = {"soundcloud", "yandex"}
+_STATE = {OK: "ok", PARTIAL: "degraded", DOWN: "down"}
+TITLES = {"ok": "Все системы работают штатно", "degraded": "Некоторые сервисы работают с перебоями"}
+
+
+def _from_db(con) -> dict[str, Item]:
+    """Последняя проверка каждого пункта из базы — пока цикл проверок процесса ещё не отработал (или без бота)."""
+    rows = con.execute("SELECT c.item, c.state, c.ms FROM status_checks c JOIN"
+                       " (SELECT item, MAX(ts) AS ts FROM status_checks GROUP BY item) m"
+                       " ON m.item = c.item AND m.ts = c.ts").fetchall()
+    return {r["item"]: Item(r["item"], r["state"], r["ms"]) for r in rows}
+
+
+def summary(status: Status, con) -> dict:
+    items = status.last or _from_db(con)
+    unset = status.never_ok()
+
+    def row(key: str, id_: str, name: str, icon: str, infra: bool = False) -> dict:
+        i = items.get(key)
+        # «unset» — наш пункт ещё ни разу не работал (сайт до переезда): не настроен, шапку не портит.
+        # Чужие платформы так не прячем: Spotify, вечно отвечающий 429, честно «с перебоями».
+        state = "unset" if infra and key in unset else (_STATE.get(i.state, "down") if i else "unknown")
+        return {"id": id_, "name": name, "icon": icon, "state": state, "ms": i.ms if i and state != "unset" else None}
+
+    infra = [row(k, id_, n, ic, infra=True) for k, id_, n, ic in INFRA]
+    platforms = [row(k, k, n, ic) for k, n, ic in PLATFORMS if k in CORE or k in items]
+    down = [r["name"] for r in infra if r["state"] == "down" and r["id"] in ("api", "storage", "bot")]
+    shaky = any(r["state"] in ("degraded", "down") for r in infra) or \
+        any(r["state"] in ("degraded", "down") for r in platforms if r["id"] in CORE)
+    state = "down" if down else "degraded" if shaky else "ok"
+    up = status.uptime()
+    return {
+        "state": state,
+        "title": f"Сбой: {', '.join(down)}" if down else TITLES[state],
+        "uptime_30d": None if up is None else round(up, 2),
+        "listening_now": accounts.listening_now(con),
+        "listeners_24h": accounts.listeners_24h(con),
+        "users": accounts.users_count(con),
+        "checked_at": now_ms(),
+        "infra": infra,
+        "platforms": platforms,
+    }
+
+
+@router.get("/status")
+async def get_status(request: Request, response: Response):
+    st = request.app.state
+    cached = getattr(st, "status_cache", None)
+    if cached is None or time.monotonic() - cached[0] > CACHE_S:
+        cached = (time.monotonic(), summary(st.status, st.con))
+        st.status_cache = cached
+    response.headers["Cache-Control"] = f"public, max-age={CACHE_S}"
+    return cached[1]

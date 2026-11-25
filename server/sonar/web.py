@@ -1,4 +1,4 @@
-"""HTTP-часть сервера: админка (`/admin`) и первые эндпоинты API (`POST /events`, `GET /config`).
+"""HTTP-часть сервера: админка (`/admin`) и API под `/api` (`sonar/api/`).
 
 Запуск отдельно от бота (локально посмотреть админку): `python -m sonar.web` (`--demo` — на тестовой базе
 `data/demo.db` с выдуманными пользователями и событиями). В `python -m sonar` поднимается вместе с ботом.
@@ -10,25 +10,24 @@ import logging
 import sqlite3
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import config, events
+from . import api, config
 from .admin import prefs
 from .admin.auth import FACTORY_LOGIN, AdminAuth
 from .admin.web import BASE, HERE, router as admin_router
 from .config import Settings
+from .status import Status
 
 log = logging.getLogger("sonar.web")
 
 
-def _error(status: int, code: str, message: str) -> JSONResponse:
-    return JSONResponse({"error": {"code": code, "message": message}}, status_code=status)
-
-
-def create_app(con: sqlite3.Connection, settings: Settings) -> FastAPI:
+def create_app(con: sqlite3.Connection, settings: Settings, status: Status | None = None) -> FastAPI:
+    """status — общий с ботом (`python -m sonar`); без него `/api/status` читает последние проверки из базы."""
     app = FastAPI(title="Sonar", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.con, app.state.settings = con, settings
+    app.state.status = status or Status(con, settings.data_dir, settings)
     app.state.admin_auth = AdminAuth(con)
     factory_password = app.state.admin_auth.ensure_factory()
     if factory_password:
@@ -46,31 +45,7 @@ def create_app(con: sqlite3.Connection, settings: Settings) -> FastAPI:
             return RedirectResponse(BASE + "/", status_code=303)
         return await call_next(request)
 
-    @app.get("/health")
-    async def health():
-        return {"ok": True}
-
-    @app.get("/config")
-    async def get_config():
-        return prefs.public_config(con)
-
-    @app.post("/events")
-    async def post_events(request: Request):
-        auth = request.headers.get("authorization", "")
-        dev = events.session_device(con, auth[7:].strip()) if auth.lower().startswith("bearer ") else None
-        if dev is None:
-            return _error(401, "unauthorized", "Нет или неверная сессия")
-        try:
-            body = await request.json()
-        except ValueError:
-            return _error(400, "bad_json", "Тело — JSON")
-        items = body.get("events") if isinstance(body, dict) else None
-        if not isinstance(items, list):
-            return _error(400, "bad_events", "Нужно поле events — список")
-        if len(items) > events.BATCH_MAX:
-            return _error(400, "too_many", f"Не больше {events.BATCH_MAX} событий за раз")
-        return {"accepted": events.record(con, dev, items)}
-
+    api.install(app)
     return app
 
 

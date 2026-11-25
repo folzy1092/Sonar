@@ -24,13 +24,13 @@ from .status import Status
 log = logging.getLogger("sonar")
 
 
-async def serve_web(con, settings) -> None:
+async def serve_web(con, settings, status) -> None:
     """Админка и API на PORT. Локально — 127.0.0.1; на хостинге deploy/sync.py ставит SONAR_HTTP_HOST=0.0.0.0."""
     import uvicorn
 
     from .web import create_app
     host = os.getenv("SONAR_HTTP_HOST", "127.0.0.1")
-    server = uvicorn.Server(uvicorn.Config(create_app(con, settings), host=host, port=settings.port,
+    server = uvicorn.Server(uvicorn.Config(create_app(con, settings, status), host=host, port=settings.port,
                                            log_level="warning", proxy_headers=True))
     # Сигналы (Ctrl+C) ловит бот; uvicorn свои обработчики не ставит.
     server.capture_signals = contextlib.nullcontext
@@ -74,7 +74,7 @@ async def main() -> None:
     await bot.set_my_commands([BotCommand(command="start", description="Главное меню"),
                                BotCommand(command="status", description="Состояние Sonar")])
     log.info("бот @%s запущен, база %s", me.username, settings.db_path)
-    web = asyncio.create_task(serve_web(con, settings))
+    web = asyncio.create_task(serve_web(con, settings, status))
     checks = asyncio.create_task(status.loop())
     backups = asyncio.create_task(logs.backup_loop(str(settings.db_path)))
     await logs.start_icons()

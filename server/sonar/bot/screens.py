@@ -153,7 +153,7 @@ def integration(token: str | None, s: Settings) -> Screen:
     if not token:
         return Screen(html=head + quote("Токена нет. Он нужен selfbot и своим сервисам: «сейчас играет», профиль."),
                       kb=[[Btn("Создать токен", "success", "token:new")], [back("profile")]])
-    api = s.public_url or "https://sonar-api.folzy.ru"
+    api = (s.public_url or "https://try-sonar.ru") + "/api"
     return Screen(
         html=head
         + f"Сейчас играет {e('listening')}\n" + quote(f"GET {api}/oauth/now?token=...\nТекущий трек, обложка, тайминги") + "\n"

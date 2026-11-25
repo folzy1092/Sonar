@@ -103,6 +103,28 @@ class RateLimit:
             self.hits.pop(k, None)
 
 
+def users_count(con: sqlite3.Connection) -> int:
+    return con.execute("SELECT COUNT(*) AS n FROM users WHERE banned = 0").fetchone()["n"]
+
+
+def listeners_24h(con: sqlite3.Connection) -> int:
+    """Сколько разных аккаунтов слушали за последние 24 часа: один аккаунт — один слушатель.
+
+    Скользящее окно, а не «с полуночи»: слушатели во всех часовых поясах (решение владельца 2026-11-18).
+    """
+    since = now_ms() - 86400_000
+    return con.execute(
+        "SELECT COUNT(*) AS n FROM (SELECT user_id FROM plays WHERE played_at >= ?"
+        " UNION SELECT user_id FROM player_state WHERE is_playing = 1 AND heartbeat_at >= ?)",
+        (since, since)).fetchone()["n"]
+
+
+def listening_now(con: sqlite3.Connection) -> int:
+    """Играют сейчас: heartbeat моложе 90 с (API.md §9)."""
+    return con.execute("SELECT COUNT(*) AS n FROM player_state WHERE is_playing = 1 AND heartbeat_at > ?",
+                       (now_ms() - 90_000,)).fetchone()["n"]
+
+
 class Accounts:
     def __init__(self, con: sqlite3.Connection, fernet_key: str):
         self.con = con
@@ -266,19 +288,10 @@ class Accounts:
                 "day": int(day[0]["d"]) if day else None, "hour": int(hour[0]["h"]) if hour else None}
 
     def users_count(self) -> int:
-        return self.con.execute("SELECT COUNT(*) AS n FROM users WHERE banned = 0").fetchone()["n"]
+        return users_count(self.con)
 
     def listeners_24h(self) -> int:
-        """Сколько разных аккаунтов слушали за последние 24 часа: один аккаунт — один слушатель.
-
-        Скользящее окно, а не «с полуночи»: слушатели во всех часовых поясах (решение владельца 2026-11-18).
-        """
-        since = now_ms() - 86400_000
-        return self.con.execute(
-            "SELECT COUNT(*) AS n FROM (SELECT user_id FROM plays WHERE played_at >= ?"
-            " UNION SELECT user_id FROM player_state WHERE is_playing = 1 AND heartbeat_at >= ?)",
-            (since, since)).fetchone()["n"]
+        return listeners_24h(self.con)
 
     def listening_now(self) -> int:
-        return self.con.execute("SELECT COUNT(*) AS n FROM player_state WHERE is_playing = 1 AND heartbeat_at > ?",
-                                (now_ms() - 90_000,)).fetchone()["n"]
+        return listening_now(self.con)
