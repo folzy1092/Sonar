@@ -20,6 +20,7 @@ from .db import connect
 from .logs import LogGroup
 from .releases import Releases
 from .status import Status
+from .status_alert import MARKS, alert_lines, alert_title
 
 log = logging.getLogger("sonar")
 
@@ -57,13 +58,8 @@ async def main() -> None:
     dp["ctx"] = ctx
     dp.include_router(router)
 
-    names = {"main": "Основной", "media": "Медиа", "proxy": "Прокси", "bot": "Бот", "site": "Сайт", "storage": "Хранилище",
-             "soundcloud": "SoundCloud", "yandex": "Яндекс Музыка", "lrclib": "lrclib", "genius": "Genius",
-             "lastfm": "Last.fm", "telegram": "Telegram"}
-    marks = {"ok": "✅", "partial": "⚠️", "down": "❌"}
-
-    async def on_status_change(key, old, new):
-        await logs.event(marks[new], f"Статус: {names.get(key, key)}", lines=[f"{marks[old]} → {marks[new]}"], error=new == "down")
+    async def on_status_change(change):
+        await logs.event(MARKS[change.new], alert_title(change), lines=alert_lines(change), error=change.new == "down")
 
     status.on_change = on_status_change
 

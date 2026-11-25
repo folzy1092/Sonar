@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 import time
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 import aiohttp
 
@@ -78,6 +79,24 @@ class Item:
     state: str
     ms: int | None = None
     note: str = ""
+    target: str = ""  # что проверяли: хост и путь, без параметров (в них бывают ключи)
+
+
+@dataclass(frozen=True)
+class Change:
+    """Смена ✅/⚠️/❌ у пункта — всё, что нужно для подробного сообщения в лог."""
+    key: str
+    old: str
+    new: str
+    now: Item                  # эта проверка как есть, до сглаживания
+    recent: tuple[str, ...]    # состояния последних проверок, новые первыми
+    bad_for_s: float | None    # сколько пункт уже не ✅ (для ✅ — сколько длился сбой); None — не знаем (сбой до запуска)
+    last_issue: str            # что было не так в последней неудачной проверке
+
+
+def _where(url: str) -> str:
+    u = urlsplit(url)
+    return (u.netloc + u.path).rstrip("/")
 
 
 async def _http(session: aiohttp.ClientSession, url: str, **params) -> int:
@@ -97,7 +116,9 @@ class Status:
     def __init__(self, con: sqlite3.Connection, data_dir, settings, bot=None):
         self.con, self.data_dir, self.settings, self.bot = con, data_dir, settings, bot
         self.last: dict[str, Item] = {}
-        self.on_change = None  # async (key, old_state, new_state) — смена ✅/⚠️/❌ (сообщение в лог)
+        self.on_change = None  # async (Change) — смена ✅/⚠️/❌ (сообщение в лог)
+        self.bad_since: dict[str, float] = {}   # когда пункт перестал быть ✅ (time.time())
+        self.last_issue: dict[str, str] = {}    # причина последней неудачной проверки
         self.checked_at = 0.0
         self._disk: tuple[float, int] = (0.0, 0)  # (когда считали, байт занято)
 
@@ -106,7 +127,7 @@ class Status:
     def _main(self) -> Item:
         t = time.monotonic()
         self.con.execute("SELECT 1").fetchone()
-        return Item("main", OK, int((time.monotonic() - t) * 1000))
+        return Item("main", OK, int((time.monotonic() - t) * 1000), target="база SQLite")
 
     def _used(self) -> int:
         """Занято в контейнере: всё рядом с data/ (код, .venv, база) — раз в полчаса."""
@@ -127,30 +148,33 @@ class Status:
                  if os.path.exists(p)) if getattr(self.settings, "db_path", None) else 0
         note = f"занято {_mb(used)} из {_mb(quota)}, свободно {_mb(free)}" + (f" · база {_mb(db)}" if db else "")
         state = OK if free > MIN_FREE_BYTES else PARTIAL if free > MIN_FREE_BYTES // 4 else DOWN
-        return Item("storage", state, note=note)
+        return Item("storage", state, note=note, target="диск контейнера")
 
     async def _remote(self, session, key, url, **params) -> Item:
+        where = _where(url)
         try:
             ms = await _http(session, url, **params)
-            return Item(key, OK if ms < SLOW_MS else PARTIAL, ms, "" if ms < SLOW_MS else f"медленно: {ms / 1000:.1f} с")
+            return Item(key, OK if ms < SLOW_MS else PARTIAL, ms,
+                        "" if ms < SLOW_MS else f"медленно: {ms / 1000:.1f} с (норма — до {SLOW_MS // 1000} с)", where)
         except Throttled as t:
             why = "капча Cloudflare или запрет для серверов" if t.status == 403 else "лимит запросов"
-            return Item(key, PARTIAL, note=f"HTTP {t.status} — {why}")
+            return Item(key, PARTIAL, note=f"HTTP {t.status} — {why}", target=where)
         except Exception as err:  # noqa: BLE001 — любая ошибка сети = сервис недоступен
-            return Item(key, DOWN, note=_why(err))
+            return Item(key, DOWN, note=_why(err), target=where)
 
     async def _telegram(self) -> Item:
         if not self.bot:
-            return Item("telegram", DOWN)
+            return Item("telegram", DOWN, note="бот не запущен")
         t = time.monotonic()
         try:
             await self.bot.get_me()
-            return Item("telegram", OK, int((time.monotonic() - t) * 1000))
+            return Item("telegram", OK, int((time.monotonic() - t) * 1000), target="api.telegram.org · getMe")
         except Exception as err:  # noqa: BLE001
-            return Item("telegram", DOWN, note=_why(err))
+            return Item("telegram", DOWN, note=_why(err), target="api.telegram.org · getMe")
 
     async def check(self) -> dict[str, Item]:
-        items = [self._main(), await self._storage(), Item("bot", OK if self.bot else DOWN)]
+        items = [self._main(), await self._storage(),
+                 Item("bot", OK, target="процесс бота") if self.bot else Item("bot", DOWN, note="бот не запущен")]
         async with aiohttp.ClientSession() as s:
             jobs = [
                 self._remote(s, "soundcloud", "https://soundcloud.com/"),
@@ -170,34 +194,55 @@ class Status:
         # «Основной» в мс для всех: ответ сервера снаружи через туннель, если он жив; иначе — запрос к БД.
         proxy = next((i for i in items if i.key == "proxy"), None)
         if proxy and proxy.state == OK and proxy.ms is not None:
-            items[0] = Item("main", items[0].state, proxy.ms)
+            items[0] = Item("main", items[0].state, proxy.ms, target=proxy.target)
         # Медиа = выдаём ссылки на поток: живы ли оба сервиса.
         sc, ym = next(i for i in items if i.key == "soundcloud"), next(i for i in items if i.key == "yandex")
         media = OK if sc.state == ym.state == OK else (DOWN if sc.state == ym.state == DOWN else PARTIAL)
-        items.append(Item("media", media, max(sc.ms or 0, ym.ms or 0) or None))
+        bad = [f"{x.key}: {x.note}" for x in (sc, ym) if x.state != OK and x.note]
+        items.append(Item("media", media, max(sc.ms or 0, ym.ms or 0) or None, "; ".join(bad), "SoundCloud + Яндекс"))
         ts = now_ms()
         self.con.executemany("INSERT INTO status_checks (ts, item, state, ms) VALUES (?,?,?,?)",
                              [(ts, i.key, i.state, i.ms) for i in items])
         self.con.execute("DELETE FROM status_checks WHERE ts < ?", (ts - 30 * 86400_000,))
         new = {i.key: self._smooth(i) for i in items}
-        if self.on_change and self.last:
-            for k, i in new.items():
-                old = self.last.get(k)
-                if old and old.state != i.state:
-                    try:
-                        await self.on_change(k, old.state, i.state)
-                    except Exception:  # noqa: BLE001
-                        pass
+        changes = self._changes({i.key: i for i in items}, new, time.time())
+        if self.on_change:
+            for c in changes:
+                try:
+                    await self.on_change(c)
+                except Exception:  # noqa: BLE001
+                    pass
         self.last = new
         self.checked_at = time.monotonic()
         return self.last
 
+    def _recent(self, key: str) -> tuple[str, ...]:
+        rows = self.con.execute("SELECT state FROM status_checks WHERE item = ? ORDER BY ts DESC LIMIT 3", (key,)).fetchall()
+        return tuple(r["state"] for r in rows)
+
     def _smooth(self, item: Item) -> Item:
         """⚠️ — если упала 1–2 из последних 3, ❌ — если 3 подряд (SPEC §3.11)."""
-        rows = self.con.execute("SELECT state FROM status_checks WHERE item = ? ORDER BY ts DESC LIMIT 3", (item.key,)).fetchall()
-        downs = sum(r["state"] == DOWN for r in rows)  # текущая проверка уже записана
+        downs = sum(s == DOWN for s in self._recent(item.key))  # текущая проверка уже записана
         state = DOWN if downs >= 3 else PARTIAL if downs else item.state
-        return Item(item.key, state, item.ms, item.note)
+        return Item(item.key, state, item.ms, item.note, item.target)
+
+    def _changes(self, raw: dict[str, Item], new: dict[str, Item], now: float) -> list[Change]:
+        """Что сменилось с прошлой проверки; заодно помнит причину сбоя и с какого момента он идёт."""
+        issues = {k: i.note or ("недоступен" if i.state == DOWN else "с перебоями") for k, i in raw.items() if i.state != OK}
+        self.last_issue = {**self.last_issue, **issues}
+        out = []
+        for k, i in new.items():
+            old = self.last.get(k)
+            if old is None or old.state == i.state:
+                continue
+            since = self.bad_since.get(k)
+            out.append(Change(k, old.state, i.state, raw.get(k, i), self._recent(k),
+                              now - since if since is not None else None, self.last_issue.get(k, "")))
+            if old.state == OK:
+                self.bad_since = {**self.bad_since, k: now}
+            elif i.state == OK:
+                self.bad_since = {x: t for x, t in self.bad_since.items() if x != k}
+        return out
 
     async def current(self, max_age_s: int = 60) -> dict[str, Item]:
         if not self.last or time.monotonic() - self.checked_at > max_age_s:

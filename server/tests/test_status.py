@@ -56,3 +56,59 @@ def test_failure_reasons_for_owner():
     assert _why(asyncio.TimeoutError()) == "не ответил за 5 с"
     assert "сети" in _why(aiohttp.ClientPayloadError())
     assert Throttled(403).status == 403
+
+
+def _change(**kw):
+    from sonar.status import Change
+    base = dict(key="lrclib", old=OK, new=DOWN, now=Item("lrclib", DOWN, note="не ответил за 5 с", target="lrclib.net/api/search"),
+                recent=(DOWN, DOWN, DOWN), bad_for_s=900.0, last_issue="не ответил за 5 с")
+    return Change(**{**base, **kw})
+
+
+def test_alert_shows_reason_target_and_history():
+    from sonar.status_alert import alert_lines, alert_title
+    lines = alert_lines(_change(old=PARTIAL))
+    assert lines[0] == "⚠️ → ❌"
+    assert lines[1] == "Причина: не ответил за 5 с\nСбой идёт 15 мин"
+    assert lines[2] == "Проверка: lrclib.net/api/search"
+    assert lines[3].startswith("Последние проверки: ❌ ❌ ❌")
+    assert alert_title(_change(key="youtube")) == "Статус: YouTube Music"
+
+
+def test_alert_recovery_tells_how_long_and_what_was_wrong():
+    from sonar.status_alert import alert_lines
+    lines = alert_lines(_change(old=PARTIAL, new=OK, now=Item("lrclib", OK, 180, target="lrclib.net/api/search"),
+                                recent=(OK, DOWN, OK), bad_for_s=3900.0))
+    assert lines[1] == "Снова работает · сбой длился 1 ч 5 мин\nБыло: не ответил за 5 с"
+    assert lines[2] == "Проверка: lrclib.net/api/search · 180 мс"
+
+
+def test_alert_explains_smoothed_warning_when_check_passed():
+    from sonar.status_alert import alert_lines
+    lines = alert_lines(_change(old=DOWN, new=PARTIAL, now=Item("lrclib", OK, 200), recent=(OK, DOWN, DOWN)))
+    assert lines[1].startswith("Сейчас отвечает, но упали 2 из 3 последних проверок")
+
+
+def test_alert_escapes_html_in_reason():
+    from sonar.status_alert import alert_lines
+    assert "&lt;b&gt;" in alert_lines(_change(now=Item("x", DOWN, note="<b>")))[1]
+
+
+def test_span_is_human():
+    from sonar.status_alert import span
+    assert [span(40), span(900), span(3600), span(90000)] == ["40 с", "15 мин", "1 ч", "1 дн 1 ч"]
+
+
+def test_changes_track_failure_duration_and_reason(con, tmp_path):
+    st = Status(con, tmp_path, Settings())
+    st.last = {"proxy": Item("proxy", OK)}
+    raw = {"proxy": Item("proxy", PARTIAL, 2400, "медленно: 2.4 с", "try-sonar.ru/api/health")}
+    [c] = st._changes(raw, raw, now=1000.0)
+    assert (c.old, c.new, c.bad_for_s, c.now.target) == (OK, PARTIAL, None, "try-sonar.ru/api/health")
+    st.last = raw
+    ok = {"proxy": Item("proxy", OK, 300)}
+    [back] = st._changes(ok, ok, now=1600.0)
+    assert (back.bad_for_s, back.last_issue) == (600.0, "медленно: 2.4 с")
+    assert st.bad_since == {}
+    st.last = ok
+    assert st._changes(ok, ok, now=1900.0) == []
