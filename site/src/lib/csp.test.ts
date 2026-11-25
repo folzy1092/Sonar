@@ -29,9 +29,19 @@ describe('CSP сайта', () => {
     expect(policy).toMatch(/img-src 'self' data:/)
   })
 
-  it('сеть — только API Sonar и релизы GitHub', () => {
+  it('сеть — только API Sonar, релизы GitHub и lrclib (текст на странице трека)', () => {
     const connect = directives.find((d) => d.startsWith('connect-src')) ?? ''
-    expect(connect.split(/\s+/).slice(1).sort()).toEqual(["'self'", 'https://api.github.com', 'https://sonar-api.folzy.ru'])
+    expect(connect.split(/\s+/).slice(1).sort()).toEqual([
+      "'self'",
+      'https://api.github.com',
+      'https://lrclib.net',
+      'https://sonar-api.folzy.ru',
+    ])
+  })
+
+  it('встройки — только плееры YouTube без cookie и SoundCloud', () => {
+    const frame = directives.find((d) => d.startsWith('frame-src')) ?? ''
+    expect(frame.split(/\s+/).slice(1).sort()).toEqual(['https://w.soundcloud.com', 'https://www.youtube-nocookie.com'])
   })
 
   it('никакого unsafe-inline/eval для скриптов', () => {

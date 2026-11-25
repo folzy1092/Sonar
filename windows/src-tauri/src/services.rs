@@ -18,6 +18,7 @@ use tokio::sync::RwLock;
 
 pub mod fallback;
 pub mod import;
+pub mod share;
 mod local;
 mod provider;
 mod sc;

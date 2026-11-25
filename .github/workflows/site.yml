@@ -10,6 +10,7 @@ on:
       - 'updates/**'
       - 'brand/**'
       - 'windows/src/lib/subscription.ts'
+      - 'windows/src/lib/share-link.ts'
       - '.github/workflows/site.yml'
   workflow_dispatch:
 

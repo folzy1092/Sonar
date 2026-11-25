@@ -93,11 +93,11 @@ impl Fallback {
     }
   }
 
-  fn known(&self, track_ref: &str, service: ServiceId) -> Option<Option<String>> {
+  pub(super) fn known(&self, track_ref: &str, service: ServiceId) -> Option<Option<String>> {
     self.aliases.lock().unwrap().get(&(track_ref.to_owned(), service)).cloned()
   }
 
-  fn put(&self, track_ref: &str, service: ServiceId, alias: Option<String>) {
+  pub(super) fn put(&self, track_ref: &str, service: ServiceId, alias: Option<String>) {
     self.aliases.lock().unwrap().insert((track_ref.to_owned(), service), alias.clone());
     let row = TrackAlias { source_ref: track_ref.to_owned(), service: service.as_str().to_owned(), alias_ref: alias, found_at: now_ms() };
     self.writes.lock().unwrap().push(AliasWrite::Put(row));
@@ -254,7 +254,7 @@ impl Core {
 
   /// Что искать: у SoundCloud — по сырому JSON (артист из метаданных точнее ника), у остальных —
   /// по треку из интерфейса или кэша. Ничего нет — искать нечего.
-  async fn wanted(&self, track_ref: &str, meta: Option<&Track>) -> Option<Wanted> {
+  pub(super) async fn wanted(&self, track_ref: &str, meta: Option<&Track>) -> Option<Wanted> {
     let sc_id = crate::providers::registry::is_kind(track_ref, ServiceId::Sc, RefKind::Track)
       .then(|| track_ref.split_once(':').map(|(_, id)| id.to_owned()))
       .flatten();

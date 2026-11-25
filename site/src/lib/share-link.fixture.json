@@ -1,0 +1,40 @@
+{
+  "comment": "Общий пример ссылки «Поделиться» (site/src/lib/share-link.ts). Его читают тесты сайта, ПК и iPhone — форматы не должны разъехаться.",
+  "cases": [
+    {
+      "name": "soundcloud-with-twins",
+      "data": {
+        "t": "Star Shopping",
+        "a": "Lil Peep",
+        "d": 142,
+        "c": "https://i1.sndcdn.com/artworks-000-t500x500.jpg",
+        "src": "sc",
+        "ids": {
+          "sc": "247755542",
+          "yt": "m8QQR-wQA0I",
+          "ym": "41245581"
+        },
+        "sl": "lil_peep/star-shopping",
+        "play": "yt"
+      },
+      "lang": "ru",
+      "encoded": "eyJ2IjoxLCJ0IjoiU3RhciBTaG9wcGluZyIsImEiOiJMaWwgUGVlcCIsImQiOjE0MiwiYyI6Imh0dHBzOi8vaTEuc25kY2RuLmNvbS9hcnR3b3Jrcy0wMDAtdDUwMHg1MDAuanBnIiwic3JjIjoic2MiLCJpZHMiOnsieW0iOiI0MTI0NTU4MSIsInNjIjoiMjQ3NzU1NTQyIiwieXQiOiJtOFFRUi13UUEwSSJ9LCJzbCI6ImxpbF9wZWVwL3N0YXItc2hvcHBpbmciLCJwbGF5IjoieXQifQ",
+      "url": "https://try-sonar.ru/t/#eyJ2IjoxLCJ0IjoiU3RhciBTaG9wcGluZyIsImEiOiJMaWwgUGVlcCIsImQiOjE0MiwiYyI6Imh0dHBzOi8vaTEuc25kY2RuLmNvbS9hcnR3b3Jrcy0wMDAtdDUwMHg1MDAuanBnIiwic3JjIjoic2MiLCJpZHMiOnsieW0iOiI0MTI0NTU4MSIsInNjIjoiMjQ3NzU1NTQyIiwieXQiOiJtOFFRUi13UUEwSSJ9LCJzbCI6ImxpbF9wZWVwL3N0YXItc2hvcHBpbmciLCJwbGF5IjoieXQifQ"
+    },
+    {
+      "name": "yandex-only-cyrillic",
+      "data": {
+        "t": "Кино — Группа крови",
+        "a": "Кино",
+        "d": 285,
+        "src": "ym",
+        "ids": {
+          "ym": "1695"
+        }
+      },
+      "lang": "en",
+      "encoded": "eyJ2IjoxLCJ0Ijoi0JrQuNC90L4g4oCUINCT0YDRg9C_0L_QsCDQutGA0L7QstC4IiwiYSI6ItCa0LjQvdC-IiwiZCI6Mjg1LCJzcmMiOiJ5bSIsImlkcyI6eyJ5bSI6IjE2OTUifX0",
+      "url": "https://try-sonar.ru/en/t/#eyJ2IjoxLCJ0Ijoi0JrQuNC90L4g4oCUINCT0YDRg9C_0L_QsCDQutGA0L7QstC4IiwiYSI6ItCa0LjQvdC-IiwiZCI6Mjg1LCJzcmMiOiJ5bSIsImlkcyI6eyJ5bSI6IjE2OTUifX0"
+    }
+  ]
+}

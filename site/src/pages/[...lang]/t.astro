@@ -1,0 +1,280 @@
+---
+// /t/#<данные> — страница трека, которым поделились из Sonar (docs/SPACE_SHARE_PROMPT.md §3). Данные — в хэше,
+// поэтому страница одна и вся живая часть — в scripts/track.ts. Сервера нет: плеер — открытые встройки
+// YouTube / SoundCloud (грузятся только по «Слушать»), текст — lrclib из браузера.
+import Icon from '../../components/Icon.astro'
+import ServiceIcon from '../../components/ServiceIcon.astro'
+import { href, langParam, langPaths, useT } from '../../i18n'
+import Base from '../../layouts/Base.astro'
+import { SERVICE_NAMES } from '../../lib/services'
+import { LINK_ORDER } from '../../lib/track-page'
+
+export const getStaticPaths = langPaths
+
+const lang = langParam(Astro.params.lang)
+const { t } = useT(lang)
+
+const strings = {
+  lang,
+  play: t('Слушать'),
+  pause: t('Пауза'),
+  loading: t('Загружаем плеер…'),
+  via: { yt: t('Играет через YouTube'), sc: t('Играет через SoundCloud') },
+  noPlayer: t('Целиком этот трек можно послушать в сервисе — кнопки ниже.'),
+  embedError: t('Сервис не разрешает играть этот трек на сайте. Послушай его по кнопкам ниже.'),
+  lyricsLoading: t('Ищем текст…'),
+  lyricsNone: t('Текст не найден'),
+  lyricsPlain: t('Текст без синхронизации'),
+  lyricsError: t('Не получилось загрузить текст'),
+  direct: t('Открыть трек'),
+  search: t('Найти в сервисе'),
+  seek: t('Перемотка'),
+  names: Object.fromEntries(LINK_ORDER.map((s) => [s, t(SERVICE_NAMES[s])])),
+}
+---
+
+<Base
+  lang={lang}
+  path="/t"
+  title={t('Трек в Sonar')}
+  description={t('Послушай трек, которым с тобой поделились в Sonar: плеер, текст и ссылки на все сервисы.')}
+  noindex
+>
+  <div class="wrap track" data-track>
+    <script type="application/json" data-track-strings set:html={JSON.stringify(strings)} />
+
+    <section class="bad card" data-bad hidden>
+      <Icon name="mc:link-3-line" size={28} />
+      <h1 class="bad__title">{t('Ссылка повреждена')}</h1>
+      <p class="muted">{t('Похоже, ссылку обрезали при копировании. Попроси прислать её ещё раз.')}</p>
+      <a class="btn" href={href(lang, '/')}>{t('На главную')}</a>
+    </section>
+
+    <noscript>
+      <p class="card bad">{t('Страница трека работает с включённым JavaScript.')}</p>
+    </noscript>
+
+    <div class="track__body" data-body hidden>
+      <header class="hero" data-reveal>
+        <div class="cover" data-cover-box>
+          <img data-cover alt="" width="320" height="320" decoding="async" referrerpolicy="no-referrer" hidden />
+          <span class="cover__ph" aria-hidden="true"><Icon name="mc:music-2-line" size={56} /></span>
+        </div>
+        <div class="meta">
+          <p class="eyebrow">{t('Трек в Sonar')}</p>
+          <h1 class="title" data-title></h1>
+          <p class="artist" data-artist></p>
+          <p class="dur muted" data-dur></p>
+        </div>
+      </header>
+
+      <section class="player card" data-reveal data-player>
+        <div class="player__start" data-start>
+          <button class="btn btn--primary" type="button" data-listen>
+            <Icon name="mc:play-fill" size={20} />
+            <span>{t('Слушать')}</span>
+          </button>
+          <p class="fine muted" data-start-note>
+            {t('Плеер грузится только после нажатия: до этого — ни чужих скриптов, ни cookie.')}
+          </p>
+        </div>
+        <div class="player__live" data-live hidden>
+          <button class="round" type="button" data-toggle aria-label={t('Пауза')}>
+            <span class="round__play"><Icon name="mc:play-fill" size={22} /></span>
+            <span class="round__pause"><Icon name="mc:pause-fill" size={22} /></span>
+          </button>
+          <span class="time" data-now>0:00</span>
+          <input class="seek" type="range" min="0" max="0" step="0.1" value="0" data-seek aria-label={t('Перемотка')} />
+          <span class="time" data-total>0:00</span>
+        </div>
+        <p class="fine muted" data-via hidden></p>
+        <div class="frame" data-frame hidden></div>
+        <p class="muted" data-noplayer hidden></p>
+      </section>
+
+      <section class="lyrics card" data-reveal aria-labelledby="lyrics-h">
+        <div class="sec-head">
+          <h2 class="sec-title" id="lyrics-h">{t('Текст')}</h2>
+          <span class="fine muted" data-lyrics-state></span>
+        </div>
+        <ol class="lines" data-lines hidden></ol>
+        <div class="plain" data-plain hidden></div>
+        <p class="fine muted credit">{t('Текст — lrclib.net')}</p>
+      </section>
+
+      <section class="where" data-reveal aria-labelledby="where-h">
+        <h2 class="sec-title" id="where-h">{t('Где послушать')}</h2>
+        <ul class="links" data-links>
+          {
+            LINK_ORDER.map((s) => (
+              <li data-service={s}>
+                <a class="link" href="#" target="_blank" rel="noopener noreferrer">
+                  <ServiceIcon id={s} size={32} />
+                  <span class="link__text">
+                    <span class="link__name">{t(SERVICE_NAMES[s])}</span>
+                    <span class="link__kind fine muted" data-kind />
+                  </span>
+                  <Icon name="mc:arrow-right-up-line" size={18} class="link__arrow" />
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+
+      <section class="app card" data-reveal>
+        <div class="app__text">
+          <h2 class="sec-title">{t('Слушай в Sonar')}</h2>
+          <p class="muted">{t('SoundCloud, Яндекс Музыка и другие сервисы в одном плеере: свои лайки, смешанные плейлисты и скачивание.')}</p>
+        </div>
+        <div class="app__btns">
+          <a class="btn btn--primary" data-open hidden>{t('Открыть в Sonar')}</a>
+          <a class="btn" href={href(lang, '/download')}>{t('Скачать Sonar')}</a>
+        </div>
+      </section>
+    </div>
+  </div>
+</Base>
+
+<script>
+  import { initTrackPage } from '../../scripts/track'
+  initTrackPage()
+</script>
+
+<style>
+  .track {
+    max-width: calc(820px + var(--gutter) * 2);
+    padding-block: clamp(28px, 6vw, 64px) clamp(56px, 9vw, 112px);
+  }
+  .track__body { display: grid; gap: 20px; }
+  .bad { display: grid; justify-items: start; gap: 14px; padding: clamp(24px, 4vw, 40px); }
+  .bad__title { font-size: clamp(28px, 4vw, 40px); }
+
+  .hero { display: grid; grid-template-columns: minmax(120px, 240px) 1fr; gap: clamp(18px, 4vw, 36px); align-items: end; }
+  .cover {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: var(--r-xl);
+    overflow: hidden;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    display: grid;
+    place-items: center;
+  }
+  .cover img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transform: scale(1.03);
+    transition: opacity 500ms var(--ease), transform 700ms var(--ease);
+  }
+  .cover img.is-loaded { opacity: 1; transform: none; }
+  .cover__ph { color: var(--text-3); }
+  .meta { display: grid; gap: 6px; min-width: 0; }
+  .eyebrow { color: var(--text-3); font-size: 14px; }
+  .title { font-size: clamp(28px, 5vw, 52px); line-height: 1.05; overflow-wrap: anywhere; }
+  .artist { font-size: clamp(17px, 2vw, 21px); color: var(--text-2); overflow-wrap: anywhere; }
+  .dur { font-variant-numeric: tabular-nums; }
+
+  .fine { font-size: 13px; }
+  .card { padding: clamp(18px, 3vw, 26px); }
+  .player { display: grid; gap: 14px; }
+  .player__start { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+  .player__start .fine { max-width: 44ch; }
+  .player__live { display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: 14px; }
+  .round {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 0;
+    background: var(--accent);
+    color: var(--accent-ink);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: transform var(--t-fast) var(--ease), background-color var(--t) var(--ease);
+  }
+  .round:hover { background: #fff; }
+  .round:active { transform: scale(0.92); }
+  .round > span { grid-area: 1 / 1; display: grid; transition: opacity var(--t) var(--ease), transform var(--t) var(--ease); }
+  .round__pause { opacity: 0; transform: scale(0.6); }
+  .round.is-playing .round__play { opacity: 0; transform: scale(0.6); }
+  .round.is-playing .round__pause { opacity: 1; transform: none; }
+  .time { font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 14px; min-width: 4ch; }
+  .seek { width: 100%; accent-color: var(--text); cursor: pointer; }
+  .frame { border-radius: var(--r-md); overflow: hidden; background: var(--surface-1); animation: frame-in 420ms var(--ease) both; }
+  .frame :global(iframe) { display: block; width: 100%; border: 0; }
+  .frame[data-kind='yt'] :global(iframe) { aspect-ratio: 16 / 9; height: auto; }
+  .frame[data-kind='sc'] :global(iframe) { height: 166px; }
+  @keyframes frame-in { from { opacity: 0; transform: translateY(6px); } }
+
+  .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .sec-title { font-size: clamp(20px, 2.4vw, 26px); }
+  .lines {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    max-height: min(56vh, 460px);
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    mask-image: linear-gradient(transparent, #000 8%, #000 92%, transparent);
+  }
+  .lines :global(li) {
+    padding: 6px 0;
+    font-size: clamp(18px, 2.4vw, 24px);
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text-3);
+    transform-origin: left center;
+    transition: color var(--t) var(--ease), opacity var(--t) var(--ease), transform var(--t) var(--ease);
+  }
+  .lines :global(li.is-gap) { min-height: 1.3em; }
+  .lines.is-live :global(li) { opacity: 0.55; cursor: pointer; }
+  .lines.is-live :global(li:hover) { opacity: 0.85; }
+  .lines.is-live :global(li.is-past) { opacity: 0.4; }
+  .lines.is-live :global(li.is-now) { color: var(--text); opacity: 1; transform: scale(1.02); }
+  .plain { white-space: pre-line; color: var(--text-2); line-height: 1.6; font-size: 17px; }
+  .credit { margin-top: 14px; }
+
+  .where { display: grid; gap: 14px; }
+  .links { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+  .link {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: var(--r-lg);
+    background: var(--surface-0);
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+    transition: background-color var(--t) var(--ease), border-color var(--t) var(--ease), transform var(--t-fast) var(--ease);
+  }
+  .link:hover { background: var(--surface-1); border-color: var(--border-strong); }
+  .link:active { transform: scale(0.98); }
+  .link__text { display: grid; flex: 1; min-width: 0; }
+  .link__name { font-weight: 600; }
+  .link :global(.link__arrow) { color: var(--text-3); transition: transform var(--t) var(--ease), color var(--t) var(--ease); }
+  .link:hover :global(.link__arrow) { color: var(--text); transform: translate(2px, -2px); }
+  .links :global(li.is-direct) .link { border-color: var(--border-strong); }
+
+  .app { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; }
+  .app__text { display: grid; gap: 6px; max-width: 48ch; }
+  .app__btns { display: flex; flex-wrap: wrap; gap: 10px; }
+
+  @media (max-width: 560px) {
+    .hero { grid-template-columns: 1fr; }
+    .cover { max-width: 280px; }
+    .player__live { grid-template-columns: auto 1fr; }
+    .player__live .seek { grid-column: 1 / -1; grid-row: 2; }
+    .player__live [data-total] { justify-self: end; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cover img, .round > span, .lines :global(li), .link, .link :global(.link__arrow) { transition: opacity var(--t) linear; transform: none !important; }
+    .frame { animation: none; }
+    .lines { scroll-behavior: auto; }
+  }
+</style>

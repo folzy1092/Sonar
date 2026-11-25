@@ -48,6 +48,13 @@ export interface WaveStats {
 /** Трек на странице исполнителя: плюс то, по чему сортируют «Треки». */
 export type ArtistTrack = Track & { likes: number | null; released: string | null }
 
+/** Ответ `share_twins`: ключ сервиса → ref и ссылка найденного трека; SoundCloud играется целиком. */
+export interface ShareTwins {
+  refs: Record<string, string>
+  urls: Record<string, string>
+  sc_full: boolean
+}
+
 export interface Track {
   ref: string
   title: string
@@ -494,6 +501,8 @@ export const api = {
   /** `track` — трек из интерфейса: по нему ищется замена, если свой сервис его не отдаёт. */
   streamUrl: (trackRef: string, track?: Track) => call<StreamUrl>('stream_url', { trackRef, track: track ?? null }),
   /** Свой поток открылся, но не играет — тот же трек из резервного сервиса (или ошибка). */
+  /** «Поделиться»: тот же трек в YouTube Music, SoundCloud и Яндексе (services/share.rs, ≤ 4 с). */
+  shareTwins: (trackRef: string, track?: Track) => call<ShareTwins>('share_twins', { trackRef, track: track ?? null }),
   streamFallback: (trackRef: string, track?: Track) => call<StreamUrl>('stream_fallback', { trackRef, track: track ?? null }),
 
   cacheTracks: (tracks: Track[]) => call<void>('cache_tracks', { tracks }),

@@ -233,6 +233,45 @@ pub async fn stream_fallback(
   playable_url(&core, &db, port.0, &track_ref, track, true).await
 }
 
+/// «Поделиться»: тот же трек в YouTube Music, SoundCloud и Яндексе для ссылки на сайт
+/// (`services/share.rs`, не дольше `SHARE_TIMEOUT`). В офлайне — пусто: делимся тем, что знаем.
+#[tauri::command]
+pub async fn share_twins(
+  core: State<'_, Arc<Core>>,
+  db: State<'_, Db>,
+  track_ref: String,
+  track: Option<Track>,
+) -> Res<crate::services::share::ShareTwins> {
+  if crate::offline::is_on() {
+    return Ok(Default::default());
+  }
+  let (known, meta) = {
+    let db = db.0.lock().unwrap();
+    let known = db.track_aliases(&track_ref).unwrap_or_default();
+    let meta = track.or_else(|| db.tracks(std::slice::from_ref(&track_ref)).ok().and_then(|t| t.into_iter().next()));
+    (known, meta)
+  };
+  core.fallback.remember(&known);
+  let mut twins = core.share_twins(&track_ref, meta.as_ref()).await;
+  let writes = core.fallback.take_writes();
+  let mut db = db.0.lock().unwrap();
+  if !writes.is_empty() {
+    if let Err(e) = db.apply_track_alias_writes(&writes) {
+      log::warn!("[share] track_alias {track_ref}: {e}");
+    }
+  }
+  // у пар из памяти ссылки нет — берём из кэша треков
+  let missing: Vec<String> = twins.refs.iter().filter(|(k, _)| !twins.urls.contains_key(*k)).map(|(_, r)| r.clone()).collect();
+  if !missing.is_empty() {
+    for t in db.tracks(&missing).unwrap_or_default() {
+      if let (Some(url), Some(key)) = (t.url, twins.refs.iter().find(|(_, r)| **r == t.ref_).map(|(k, _)| k.clone())) {
+        twins.urls.insert(key, url);
+      }
+    }
+  }
+  Ok(twins)
+}
+
 async fn playable_url(core: &Core, db: &Db, port: u16, track_ref: &str, track: Option<Track>, broken: bool) -> Res<StreamUrl> {
   let (known, meta) = {
     let db = db.0.lock().unwrap();

@@ -276,6 +276,7 @@ pub fn run() {
       commands::search,
       commands::stream_url,
       commands::stream_fallback,
+      commands::share_twins,
       commands::cache_tracks,
       commands::save_player_state,
       commands::load_player_state,

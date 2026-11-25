@@ -20,6 +20,9 @@
   import { isLocalRef } from '../lib/services'
   import ArtistTasteSeg from '../components/ArtistTasteSeg.svelte'
   import { mainArtist } from '../lib/artist-prefs-core'
+  import { api, type Track } from '../lib/api'
+  import { offline } from '../lib/offline.svelte'
+  import { canShare, shareLink } from '../lib/share'
 
   const W = 280
   let el: HTMLElement | undefined = $state()
@@ -76,6 +79,15 @@
   function run(fn: () => unknown) {
     fn()
     trackMenu.close()
+  }
+
+  /** «Поделиться» — ссылка на страницу трека на сайте: сначала ищем трек в других сервисах (≤ 4 с),
+   *  не нашли или нет сети — делимся тем, что знаем. */
+  async function shareTrack(track: Track) {
+    toast.show(t('Готовим ссылку…'), 5000)
+    const twins = offline.on ? null : await api.shareTwins(track.ref, track).catch(() => null)
+    const link = shareLink(track, twins, lang())
+    if (link) await copy(link, t('Ссылка на трек скопирована'))
   }
 
   async function copy(text: string, done: string) {
@@ -191,9 +203,14 @@
       {/if}
       <hr />
       {@render item('copy', t('Копировать название'), () => copy(`${target.track.artist} — ${target.track.title}`, t('Название скопировано')))}
+      {#if canShare(target.track)}
+        {@const tr = target.track}
+        {@render item('share', t('Поделиться'), () => shareTrack(tr))}
+      {/if}
       {#if target.track.url}
         {@const url = target.track.url}
-        {@render item('share', t('Поделиться'), () => copy(url, t('Ссылка скопирована')))}
+        {@const name = byId(serviceOf(target.track.ref))?.name ?? ''}
+        {@render item('link', t('Ссылка на {service}', { service: t(name) }), () => copy(url, t('Ссылка скопирована')))}
       {/if}
     {:else}
       <button class="item back" onclick={() => (view = 'main')}>
