@@ -241,6 +241,27 @@ final class AutoplayTests: XCTestCase {
         XCTAssertEqual(Autoplay.seeds([track("a")], auto: []).map(\.ref), ["a"])
         XCTAssertTrue(Autoplay.seeds([], auto: []).isEmpty)
     }
+
+    func testAutoStartSplitsOwnQueueFromSimilar() {
+        let upcoming = ["a", "b", "x", "y"].map { track($0) }
+        XCTAssertEqual(Autoplay.autoStart(upcoming, auto: ["x", "y"]), 2)
+        // похожих нет — вся очередь своя
+        XCTAssertEqual(Autoplay.autoStart(upcoming, auto: []), 4)
+        // очередь целиком из похожих — своей части нет
+        XCTAssertEqual(Autoplay.autoStart(upcoming, auto: ["a", "b", "x", "y"]), 0)
+        XCTAssertEqual(Autoplay.autoStart([], auto: ["x"]), 0)
+    }
+
+    func testPlayedBoundaryMarksWhereSimilarStarted() {
+        let played = ["a", "b", "x", "y"].map { track($0) }
+        XCTAssertEqual(Autoplay.playedBoundary(played, auto: ["x", "y"]), 2)
+        // пока играет своя очередь — черты нет
+        XCTAssertNil(Autoplay.playedBoundary(played, auto: []))
+        // сыгранное целиком из похожих — отделять не от чего
+        XCTAssertNil(Autoplay.playedBoundary(played, auto: ["a", "b", "x", "y"]))
+        // первый похожий — текущий (последний в списке)
+        XCTAssertEqual(Autoplay.playedBoundary(played, auto: ["y"]), 3)
+    }
 }
 
 /// Вход в Яндекс по коду — разбор ответов OAuth.

@@ -2,13 +2,14 @@
   // Кнопка эквалайзера в плеере и всплывашка (референс владельца 2026-11-16): сверху переключатель
   // «Эквалайзер», вкладки Улучшение / Жанры / Акценты / Мои с сеткой пресетов, ниже 12 вертикальных
   // ползунков со значением в дБ сверху и частотой снизу (тянуть мышью, колесо — ±0.5 дБ, двойной клик —
-  // 0). Правки звучат сразу, «Сохранить» делает кривую общей для всех треков; закрыл без сохранения —
+  // 0). Правки звучат сразу (пресет можно только послушать — удержать), «Сохранить» делает кривую общей для всех треков; закрыл без сохранения —
   // вернулась сохранённая. Включён и не ровный — кнопка подсвечена. Открывается и закрывается только кликом.
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
   import { pop } from '../lib/motion'
   import { indicator } from '../lib/indicator'
   import { cascade } from '../lib/cascade'
+  import { holdPreview } from '../lib/hold-preview'
   import { t } from '../lib/i18n.svelte'
   import { EQ_FREQS, EQ_GROUPS, EQ_MAX_DB, PRESET_GROUPS, eq, freqLabel, type EqGroup } from './eq.svelte'
 
@@ -38,6 +39,17 @@
   const active = $derived(eq.enabled && eq.gains.some((g) => Math.abs(g) >= 0.05))
   const list = $derived(group === 'mine' ? eq.userPresets : PRESET_GROUPS[group])
   const fmt = (v: number) => (v > 0 ? `+${v}` : String(v))
+
+  /** Удержание пресета: пока держишь — звучит он, отпустил — вернулась прежняя кривая (не сохраняя). */
+  let before: number[] | null = null
+  function peek(gains: number[]) {
+    before = $state.snapshot(eq.gains)
+    eq.set(gains)
+  }
+  function unpeek() {
+    if (before) eq.set(before)
+    before = null
+  }
 
   function toggle() {
     if (open) return close()
@@ -115,7 +127,11 @@
           <div class="grid" use:cascade>
             {#each list as p (p.name)}
               <span class="chip" class:on={eq.activePreset === p.name}>
-                <button class="pick" onclick={() => eq.set(p.gains)}>{p.builtin ? t(p.name) : p.name}</button>
+                <button
+                  class="pick"
+                  title={t('Удерживай, чтобы послушать, не применяя')}
+                  use:holdPreview={{ onhold: () => peek(p.gains), onrelease: unpeek }}
+                  onclick={() => eq.set(p.gains)}>{p.builtin ? t(p.name) : p.name}</button>
                 {#if group === 'mine'}
                   <button class="del" aria-label={t('Удалить пресет «{name}»', { name: p.name })} title={t('Удалить')} onclick={() => eq.removePreset(p.name)}><Icon name="x" size={11} /></button>
                 {/if}

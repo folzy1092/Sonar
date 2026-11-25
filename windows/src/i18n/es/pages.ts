@@ -162,6 +162,8 @@ export default {
   'После очереди играют похожие треки': 'Tras la cola suenan canciones similares',
   'Послушай что-нибудь — здесь соберётся подборка под утро, день, вечер и ночь.': 'Escucha algo: aquí se reunirán selecciones para la mañana, el día, la tarde y la noche.',
   'Похожее': 'Similar',
+  'Пошли похожие': 'Aquí empiezan las similares',
+  'Удерживай, чтобы послушать, не применяя': 'Mantén pulsado para escuchar sin aplicar',
   'Появятся вместе с сервером Sonar: треки, которые чаще всего слушают все.': 'Llegarán junto con el servidor de Sonar: las canciones que más escucha todo el mundo.',
   'Приватность': 'Privacidad',
   'Приложения': 'Aplicaciones',

@@ -614,7 +614,7 @@ struct FullPlayerView: View {
             Button { showQueue = true } label: {
                 HStack(spacing: 8) {
                     SonarIcon(.heart, filled: true, size: 15)
-                    Text(engine.contextTitle.isEmpty ? "Очередь" : engine.contextTitle)
+                    Text(engine.contextLabel)
                         .font(.system(size: 15, weight: .semibold))
                         .lineLimit(1)
                     if engine.shuffle {
@@ -1217,11 +1217,19 @@ struct QueueSheet: View {
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
+                let history = engine.history
+                let upcoming = engine.upNext
+                // где кончилась твоя очередь и пошли похожие автоплея (в сыгранном и в «Далее»)
+                let boundary = engine.current.flatMap { current in
+                    Autoplay.playedBoundary(history + [current], auto: engine.autoRefs)
+                }
+                let autoAt = Autoplay.autoStart(upcoming, auto: engine.autoRefs)
                 List {
-                    if !engine.history.isEmpty {
+                    if !history.isEmpty {
                         // «Ранее» — как раздел очереди на странице плеера ПК (одно название на обеих платформах)
                         Section {
-                            ForEach(Array(engine.history.enumerated()), id: \.offset) { _, track in
+                            ForEach(Array(history.enumerated()), id: \.offset) { index, track in
+                                if index == boundary { autoLine }
                                 row(track).opacity(0.55)
                             }
                         } header: {
@@ -1230,11 +1238,20 @@ struct QueueSheet: View {
                     }
                     if let current = engine.current {
                         Section("Сейчас играет") {
+                            if boundary == history.count { autoLine }
                             row(current, playing: true).id("current")
                         }
                     }
+                    if autoAt > 0 {
+                        Section("Далее") {
+                            ForEach(Array(upcoming[..<autoAt].enumerated()), id: \.offset) { index, track in
+                                upcomingRow(track, offset: index)
+                            }
+                        }
+                    }
                     Section {
-                        // тумблер как в SoundCloud и в панели «Далее» Windows (general.similar_autoplay)
+                        // тумблер как в SoundCloud и в панели «Далее» Windows (general.similar_autoplay); ниже —
+                        // похожие автоплея: не твой плейлист, а продолжение после него
                         Toggle(isOn: Binding(get: { settings.bool("general.similar_autoplay") },
                                              set: { settings.set("general.similar_autoplay", $0) })) {
                             VStack(alignment: .leading, spacing: 2) {
@@ -1244,14 +1261,8 @@ struct QueueSheet: View {
                         }
                         .tint(Theme.accent)
                         .listRowBackground(Color.clear)
-                    }
-                    if !engine.upNext.isEmpty {
-                        Section("Далее") {
-                            ForEach(Array(engine.upNext.enumerated()), id: \.offset) { index, track in
-                                Button { engine.jump(toUpcoming: index) } label: { row(track) }
-                                    .buttonStyle(.plain)
-                                    .trackSwipe(.queue, track: track, handle: { action in swiped(action, track: track, offset: index) })
-                            }
+                        ForEach(Array(upcoming[autoAt...].enumerated()), id: \.offset) { index, track in
+                            upcomingRow(track, offset: autoAt + index)
                         }
                     }
                 }
@@ -1259,7 +1270,7 @@ struct QueueSheet: View {
                 .scrollContentBackground(.hidden)
                 .onAppear { proxy.scrollTo("current", anchor: .top) }
             }
-            .navigationTitle(engine.contextTitle.isEmpty ? "Очередь" : engine.contextTitle)
+            .navigationTitle(engine.contextLabel)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -1271,6 +1282,20 @@ struct QueueSheet: View {
                 }
             }
         }
+    }
+
+    /// Черта «отсюда пошли похожие» в сыгранном: не от твоего плейлиста, а от автоплея.
+    private var autoLine: some View {
+        Text(t("Пошли похожие"))
+            .font(.system(size: 12))
+            .foregroundStyle(Theme.textSecondary)
+            .listRowBackground(Color.clear)
+    }
+
+    private func upcomingRow(_ track: Track, offset: Int) -> some View {
+        Button { engine.jump(toUpcoming: offset) } label: { row(track) }
+            .buttonStyle(.plain)
+            .trackSwipe(.queue, track: track, handle: { action in swiped(action, track: track, offset: offset) })
     }
 
     /// Жест по строке «Далее»: в очереди «следующим» и «в конец» переставляют трек, «удалить» — убирает.

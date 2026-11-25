@@ -14,6 +14,8 @@ export interface QueueEntry {
   track: Track
   /** Позиция в порядке воспроизведения (`player.order`). */
   pos: number
+  /** Трек дописал автоплей похожих, а не ты (источник очереди — не его). */
+  auto: boolean
 }
 
 export interface QueueView {
@@ -41,7 +43,7 @@ export function queueView({ tracks, order, pos, ids, autoRefs, earlierSize = EAR
   const entry = (p: number): QueueEntry | null => {
     const i = order[p]
     const track = i === undefined ? undefined : tracks[i]
-    return track ? { id: idOf(i), track, pos: p } : null
+    return track ? { id: idOf(i), track, pos: p, auto: autoRefs.has(track.ref) } : null
   }
   const range = (from: number, to: number) => {
     const out: QueueEntry[] = []
@@ -67,6 +69,8 @@ export type QueueItem =
   | { kind: 'head'; key: string; section: 'earlier' | 'now' | 'next' }
   | { kind: 'track'; key: string; section: 'earlier' | 'now' | 'next' | 'auto'; entry: QueueEntry }
   | { kind: 'switch'; key: string }
+  /** Черта в «Ранее» / перед «Сейчас играет»: отсюда пошли похожие автоплея, а не твой плейлист. */
+  | { kind: 'divider'; key: string }
   | { kind: 'empty'; key: string }
   /** Вечеринка: под «Далее» — «остальное — по ходу» вместо похожих. */
   | { kind: 'party'; key: string }
@@ -93,11 +97,19 @@ const trackItems = (list: QueueEntry[], section: 'earlier' | 'now' | 'next' | 'a
 /** Плоский список строк очереди по разделам. Ключи стабильны: `e<id>` у треков, имена у остальных. */
 export function queueItems(view: QueueView, { autoSection, autoOn, limit = Infinity, party = false }: ItemsOptions): QueueItem[] {
   const out: QueueItem[] = []
+  // где в сыгранном кончилась твоя очередь и начались похожие (только если до них что-то твоё видно)
+  const played = view.current ? [...view.earlier, view.current] : view.earlier
+  const firstAuto = autoSection ? played.findIndex((e) => e.auto) : -1
+  const boundary = firstAuto > 0 ? played[firstAuto].id : null
   if (view.earlier.length) {
     out.push({ kind: 'head', key: 'h-earlier', section: 'earlier' })
-    out.push(...trackItems(view.earlier, 'earlier'))
+    for (const item of trackItems(view.earlier, 'earlier')) {
+      if (item.kind === 'track' && item.entry.id === boundary) out.push({ kind: 'divider', key: 'd-auto' })
+      out.push(item)
+    }
   }
   if (view.current) {
+    if (view.current.id === boundary) out.push({ kind: 'divider', key: 'd-auto' })
     out.push({ kind: 'head', key: 'h-now', section: 'now' })
     out.push(...trackItems([view.current], 'now'))
   }

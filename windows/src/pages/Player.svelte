@@ -73,6 +73,8 @@
     player.contextTitle ??
       (player.context === 'search' ? t('Из поиска') : player.context === 'favorites' ? t('Любимые') : t('Очередь')),
   )
+  // играют уже похожие автоплея — источник очереди (плейлист) больше не её, это видно по плашке
+  const chipTitle = $derived(player.inAuto ? `${t('Похожее')} · ${contextTitle}` : contextTitle)
   const contextIcon = $derived<'search' | 'heart' | 'queue'>(
     player.context === 'search' ? 'search' : player.context === 'favorites' ? 'heart' : 'queue',
   )
@@ -235,7 +237,7 @@
 
 {#if settings.get('queue.show')}
 <section class="panel queue" class:compact={settings.get('queue.view') === 'normal'} transition:slide={{ duration: 260 }}>
-  <button class="chip" onclick={openContext} title={t('Открыть источник очереди')}><Icon name={contextIcon} size={14} filled={contextIcon === 'heart'} /> {contextTitle}{#if player.shuffle}<Icon name="shuffle" size={14} />{/if}</button>
+  <button class="chip" onclick={openContext} title={t('Открыть источник очереди')}><Icon name={contextIcon} size={14} filled={contextIcon === 'heart'} /> {chipTitle}{#if player.shuffle}<Icon name="shuffle" size={14} />{/if}</button>
 
   <!-- одна лента на все разделы: трек из «Далее» переезжает в «Сейчас играет», оттуда в «Ранее»;
        каскад — только при открытии очереди, дальше строки двигаются сами -->
@@ -260,6 +262,8 @@
           <div class="auto">
             <Switch title={t('Авто похожие')} hint={autoplay.on ? (autoplay.loading && !queue.auto.length ? t('Подбираю похожие…') : t('После очереди играют похожие треки')) : t('Очередь доиграет и остановится')} on={autoplay.on} onchange={(v) => autoplay.set(v)} />
           </div>
+        {:else if row.kind === 'divider'}
+          <p class="auto-line">{t('Пошли похожие')}</p>
         {:else if row.kind === 'more'}
           <!-- сторож окна: прокрутка подошла — дорисовать ещё -->
           <div class="more" use:nearEnd={{ key: limit, onreach: () => (limit = growLimit(limit, queueTotal)) }}></div>
@@ -677,6 +681,13 @@
     margin: 16px 6px 6px;
     font-size: calc(12px * var(--fs, 1));
     font-weight: 600;
+    color: var(--text-3);
+  }
+  .auto-line {
+    margin: 8px 6px 2px;
+    padding-top: 6px;
+    border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+    font-size: calc(12px * var(--fs, 1));
     color: var(--text-3);
   }
   .auto {

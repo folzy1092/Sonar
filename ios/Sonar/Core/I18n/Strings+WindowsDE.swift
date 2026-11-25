@@ -1204,6 +1204,7 @@ extension I18n {
         "Похожих треков не нашлось — попробуй лайкнуть что-нибудь ещё.": "Keine ähnlichen Titel gefunden — like lieber etwas anderes.",
         "Почему этот трек": "Warum dieser Titel",
         "Почти то же название": "Fast derselbe Titel",
+        "Пошли похожие": "Ab hier ähnliche Titel",
         "Появится вместе с сервером Sonar": "Kommt mit dem Sonar-Server",
         "Появляться само": "Automatisch erscheinen",
         "Появятся вместе с сервером Sonar: треки, которые чаще всего слушают все.": "Kommen zusammen mit dem Sonar-Server: die Titel, die alle am häufigsten hören.",

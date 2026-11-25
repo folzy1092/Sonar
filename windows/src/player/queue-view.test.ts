@@ -58,7 +58,7 @@ describe('queueView', () => {
 
   it('перемешивание: позиция — по order, id — по треку', () => {
     const view = queueView(src({ order: [2, 0, 1], tracks: ['a', 'b', 'c'].map(tr), ids: [7, 8, 9], pos: 1 }))
-    expect(view.earlier).toEqual([{ id: 9, track: expect.objectContaining({ ref: 'c' }), pos: 0 }])
+    expect(view.earlier).toEqual([{ id: 9, auto: false, track: expect.objectContaining({ ref: 'c' }), pos: 0 }])
     expect(view.current).toMatchObject({ id: 7, pos: 1 })
     expect(view.own).toMatchObject([{ id: 8, pos: 2 }])
   })
@@ -168,5 +168,42 @@ describe('скорость очереди', () => {
     const perRun = (performance.now() - started) / runs
     expect(shown).toBeLessThanOrEqual(QUEUE_STEP + 10)
     expect(perRun).toBeLessThan(FRAME_MS)
+  })
+})
+
+describe('черта «Пошли похожие»', () => {
+  const keys = (items: { key: string }[]) => items.map((i) => i.key)
+  const opts = { autoSection: true, autoOn: true }
+  it('играют похожие — в «Ранее» черта перед первым похожим', () => {
+    // a..e — твоя очередь, f,g — похожие; играет g (pos 6), в «Ранее» b..f
+    const view = queueView(src({ autoRefs: new Set(['f', 'g', 'h']) }))
+    expect(keys(queueItems(view, opts))).toEqual(['h-earlier', 'e101', 'e102', 'e103', 'e104', 'd-auto', 'e105', 'h-now', 'e106', 'h-next', 'auto-switch', 'e107'])
+  })
+
+  it('первый похожий — текущий: черта перед «Сейчас играет»', () => {
+    const view = queueView(src({ pos: 5, earlierSize: 2, autoRefs: new Set(['f', 'g', 'h']) }))
+    expect(keys(queueItems(view, opts))).toEqual(['h-earlier', 'e103', 'e104', 'd-auto', 'h-now', 'e105', 'h-next', 'auto-switch', 'e106', 'e107'])
+  })
+
+  it('пока играет твоя очередь — черты в сыгранном нет', () => {
+    const view = queueView(src({ pos: 3, autoRefs: new Set(['f']) }))
+    expect(keys(queueItems(view, opts))).not.toContain('d-auto')
+  })
+
+  it('в Sonar Mix (без раздела похожих) черты нет', () => {
+    const view = queueView(src({ autoRefs: new Set(['f', 'g']) }))
+    expect(keys(queueItems(view, { autoSection: false, autoOn: false }))).not.toContain('d-auto')
+  })
+
+  it('«Ранее» целиком из похожих — черту рисовать не к чему', () => {
+    const view = queueView(src({ pos: 7, earlierSize: 2, autoRefs: new Set(['e', 'f', 'g', 'h']) }))
+    expect(keys(queueItems(view, opts))).not.toContain('d-auto')
+  })
+
+  it('у записей очереди есть признак «похожее»', () => {
+    const view = queueView(src({ autoRefs: new Set(['h']) }))
+    expect(view.current?.auto).toBe(false)
+    expect(view.auto[0]?.auto).toBe(true)
+    expect(queueView(src({ pos: 7, autoRefs: new Set(['h']) })).current?.auto).toBe(true)
   })
 })

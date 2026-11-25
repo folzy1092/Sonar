@@ -99,6 +99,8 @@ class Player {
   /** Треки, которые дописал автоплей похожих (`autoplay.svelte.ts`), — в «Далее» они идут
    *  отдельным блоком под тумблером, свои «В очередь» встают перед ними. Новая очередь — пусто. */
   autoRefs = $state(new Set<string>())
+  /** Сейчас играет трек автоплея, а не твоей очереди — плейлист доиграл. */
+  inAuto = $derived(!!this.current && this.autoRefs.has(this.current.ref))
 
   /** «Далее» — треки после текущего в порядке воспроизведения. */
   upNext = $derived(this.order.slice(this.pos + 1).map((i) => this.tracks[i]))

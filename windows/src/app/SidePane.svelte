@@ -4,6 +4,7 @@
   // крайней кнопкой мини-плеера. Есть текст — сверху капсулы «Текст · Очередь», нет — только очередь.
   import { untrack } from 'svelte'
   import TrackRow from '../components/TrackRow.svelte'
+  import Switch from '../components/settings/Switch.svelte'
   import LyricsView from '../lyrics/LyricsView.svelte'
   import { lyrics } from '../lyrics/lyrics.svelte'
   import { cascade } from '../lib/cascade'
@@ -80,6 +81,13 @@
                     <TrackRow track={entry.track} variant="queue" onplay={() => player.playPos(entry.pos)} />
                   {/if}
                 </div>
+              {:else if row.kind === 'divider'}
+                <p class="auto-line">{t('Пошли похожие')}</p>
+              {:else if row.kind === 'switch'}
+                <!-- граница: дальше не твоя очередь, а похожие автоплея (как в «Очереди» плеера) -->
+                <div class="auto">
+                  <Switch title={t('Авто похожие')} hint={autoplay.on ? (autoplay.loading && !queue.auto.length ? t('Подбираю похожие…') : t('После очереди играют похожие треки')) : t('Очередь доиграет и остановится')} on={autoplay.on} onchange={(v) => autoplay.set(v)} />
+                </div>
               {:else if row.kind === 'more'}
                 <div class="more" use:nearEnd={{ key: limit, onreach: () => (limit = growLimit(limit, queueTotal)) }}></div>
               {:else if row.kind === 'party'}
@@ -131,6 +139,19 @@
   .row-slot {
     content-visibility: auto;
     contain-intrinsic-size: auto 56px;
+  }
+  .auto {
+    margin: 10px 6px 4px;
+    padding-top: 6px;
+    border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+    font-size: calc(13px * var(--fs, 1));
+  }
+  .auto-line {
+    margin: 8px 6px 2px;
+    padding-top: 6px;
+    border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+    font-size: calc(12px * var(--fs, 1));
+    color: var(--text-3);
   }
   .empty {
     margin: 8px 6px;

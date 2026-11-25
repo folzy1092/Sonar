@@ -162,6 +162,8 @@ export default {
   'После очереди играют похожие треки': 'Nach der Warteschlange laufen ähnliche Titel',
   'Послушай что-нибудь — здесь соберётся подборка под утро, день, вечер и ночь.': 'Hör etwas — hier sammeln sich Mixe für Morgen, Tag, Abend und Nacht.',
   'Похожее': 'Ähnlich',
+  'Пошли похожие': 'Ab hier ähnliche Titel',
+  'Удерживай, чтобы послушать, не применяя': 'Halten, um ohne Anwenden zu hören',
   'Появятся вместе с сервером Sonar: треки, которые чаще всего слушают все.': 'Kommen zusammen mit dem Sonar-Server: die Titel, die alle am häufigsten hören.',
   'Приватность': 'Privatsphäre',
   'Приложения': 'Apps',

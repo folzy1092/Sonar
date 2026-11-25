@@ -35,4 +35,17 @@ enum Autoplay {
         guard !own.isEmpty else { return [last] }
         return [last, own[Int(random() * Double(own.count))]]
     }
+
+    /// Где в «Далее» кончается твоя очередь и начинаются похожие автоплея: номер первого похожего
+    /// (нет похожих — `upcoming.count`). Порт `queueView` ПК: похожие идут сплошным хвостом.
+    static func autoStart(_ upcoming: [Track], auto: Set<String>) -> Int {
+        upcoming.firstIndex { auto.contains($0.ref) } ?? upcoming.count
+    }
+
+    /// Где в уже сыгранном (`history` и текущий последним) пошли похожие: номер первого похожего, но
+    /// только если до него есть что-то твоё — иначе чертой отделять не от чего.
+    static func playedBoundary(_ played: [Track], auto: Set<String>) -> Int? {
+        guard let first = played.firstIndex(where: { auto.contains($0.ref) }), first > 0 else { return nil }
+        return first
+    }
 }

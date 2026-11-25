@@ -90,6 +90,17 @@ final class PlaybackEngine {
         order.indices.contains(pos) ? order[(pos + 1)...].map { tracks[$0] } : []
     }
 
+    /// Играет уже трек автоплея («Авто похожие»), а не твоей очереди — плейлист доиграл.
+    var isInAuto: Bool {
+        current.map { autoRefs.contains($0.ref) } ?? false
+    }
+
+    /// Название источника очереди для плашки: с «Похожее ·», когда играют похожие автоплея.
+    var contextLabel: String {
+        let base = contextTitle.isEmpty ? t("Очередь") : contextTitle
+        return isInAuto ? "\(t("Похожее")) · \(base)" : base
+    }
+
     var history: [Track] {
         order.indices.contains(pos) ? order[..<pos].map { tracks[$0] } : []
     }
