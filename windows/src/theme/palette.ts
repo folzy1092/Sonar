@@ -275,7 +275,7 @@ export const SURFACES_LIGHT: Record<Surface, SurfaceFormula> = {
 /** Ниже этой насыщенности обложка считается монохромной. */
 export const MONO_C = 0.03
 
-export type TokenName = 'bg' | 's0' | 's1' | 's2' | 's3' | 'border' | 'text' | 't2' | 't3' | 'accent' | 'ink' | 'track'
+export type TokenName = 'bg' | 's0' | 's1' | 's2' | 's3' | 'border' | 'text' | 't2' | 't3' | 'accent' | 'word' | 'ink' | 'track'
 
 export interface ThemeTokens {
   /** Цвета в OKLCH (уже вписаны в sRGB) — для проверки контраста и образцов. */
@@ -371,6 +371,7 @@ const CONTRAST_PAIRS: readonly (readonly [TokenName, TokenName, number])[] = [
   ['t2', 's3', 4.5],
   ['accent', 's1', 3],
   ['accent', 'ink', 4.5],
+  ['word', 'bg', 7],
 ]
 /** Погрешность округления sRGB при сравнении контраста до и после сдвига. */
 const CONTRAST_EPS = 1e-6
@@ -440,6 +441,16 @@ interface Paint {
   tone: RGB | null
 }
 
+/**
+ * Слово-акцент в заголовке Главной (`--accent-word`): не чисто белое, а светлый оттенок — иначе у серой
+ * обложки и у готовой нейтральной темы оно сливается с белым текстом вокруг. Оттенок — акцента обложки,
+ * а если цвета нет — тёплый бежевый; насыщенность не ниже `WORD_MIN_C`, светлота чуть дальше от края шкалы,
+ * чем у текста (тёмная тема — 0.86 против 0.97, светлая — 0.4 против 0.19); контраст к фону ≥ 7.
+ */
+const WORD_HUE = 70
+const WORD_MIN_C = 0.05
+const WORD_L = { dark: 0.86, light: 0.4 }
+
 /** Насколько у «Весь интерфейс» подкрашены наведение, нажатие и подложки (доля насыщенности акцента, потолок). */
 const WASH = { m: 0.5, max: 0.07 }
 
@@ -477,6 +488,7 @@ function build(src: RGB | null, surface: Surface, light: boolean, shade: Shade, 
     t2: okS(k.t2L, gray ? 0 : ccS(0.06 * tk, 0.014 * tk)),
     t3: okS(k.t3L, gray ? 0 : ccS(0.08 * tk, 0.018 * tk)),
     accent: mono ? ok(light ? 0.22 : 0.95, 0) : ok(k.accL, Math.min(c, k.accMax)),
+    word: fitGamut({ l: light ? WORD_L.light : WORD_L.dark, c: Math.max(WORD_MIN_C, Math.min(c * 0.7, k.accMax)), h: mono ? WORD_HUE : h }),
     ink: light ? ok(0.985, mono || gray ? 0 : cc(0.03, 0.008)) : mono ? ok(0.16, 0) : gray ? ok(0.12, 0) : ok(0.18, cc(0.35, 0.05)),
     // дорожка прогресса: у Сигнала своя, насыщенная; у остальных — поверхность 3
     track: surface === 'signal' ? okS(sh(light ? 0.82 : 0.42), ccS(0.4, 0.06)) : surf(k.sL[2], k.sC, k.sMax),
@@ -495,6 +507,7 @@ function build(src: RGB | null, surface: Surface, light: boolean, shade: Shade, 
     '--text-3': s(lch.t3),
     '--accent': s(lch.accent),
     '--accent-ink': s(lch.ink),
+    '--accent-word': s(lch.word),
     '--accent-soft': mono ? (light ? 'oklch(0.2 0 0 / 0.08)' : 'oklch(0.95 0 0 / 0.12)') : s(lch.accent, k.softA),
     // подкраска верха страницы; у Монолита поверхности серые — цвет обложки только в свечении и прогрессе
     '--tint': s(okS(sh(light ? 0.93 : 0.2), gray ? sc(0, 0) : ccS(light ? 0.3 : 0.6, light ? 0.04 : 0.09))),

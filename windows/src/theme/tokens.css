@@ -6,6 +6,11 @@
   inherits: true;
   initial-value: #f5f5f6;
 }
+@property --accent-word {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #e6d9c4;
+}
 @property --accent-ink {
   syntax: '<color>';
   inherits: true;
@@ -111,6 +116,7 @@
   transition:
     --accent 0.6s ease,
     --accent-ink 0.6s ease,
+    --accent-word 0.6s ease,
     --accent-soft 0.6s ease,
     --tint 0.6s ease,
     --bg 0.6s ease,
@@ -162,6 +168,8 @@
 
   --accent: #f5f5f6;
   --accent-ink: #0a0a0b;
+  /* слово-акцент в заголовке Главной: светлый оттенок, не чисто белый (palette.ts) */
+  --accent-word: #e6d9c4;
   /* текст на светлой капсуле (фон --text) — всегда тёмный, независимо от темы */
   --on-text: #0a0a0b;
   --accent-soft: rgba(245, 245, 246, 0.1);
@@ -233,6 +241,7 @@
   --press: rgba(0, 0, 0, 0.1);
   --plate: rgba(0, 0, 0, 0.035);
   --on-text: #fafafa;
+  --accent-word: #6b5638;
   --cover-glow: 0 14px 34px rgba(0, 0, 0, 0.18);
 }
 :root.amoled {

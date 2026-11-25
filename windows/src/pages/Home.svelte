@@ -308,7 +308,7 @@
   }
   .hero h1 em {
     font-style: normal;
-    color: color-mix(in srgb, var(--accent) 75%, var(--text));
+    color: var(--accent-word);
     transition: color 0.6s var(--ease);
   }
   .kind {

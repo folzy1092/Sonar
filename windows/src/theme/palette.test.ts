@@ -135,4 +135,31 @@ describe('подкраска интерфейса (appearance.tint)', () => {
       }
     }
   }
+
+  describe('слово-акцент Главной (--accent-word)', () => {
+    const SRC: (RGB | null)[] = [null, [128, 128, 128], teal, [230, 120, 30], [120, 20, 30], [255, 24, 178]]
+    for (const surface of Object.keys(SURFACES) as Surface[]) {
+      for (const light of [false, true]) {
+        it(`не белое и читается: ${surface}${light ? ' (светлая)' : ''}`, () => {
+          for (const src of SRC) {
+            for (const tint of ['calm', 'full', 'duo'] as const) {
+              const { lch } = themeFrom(src, surface, light, { strength: 'strong', lightness: light ? 0.2 : 0.95 }, { tint, tone: blue })
+              expect(contrast(rgb(lch.word), rgb(lch.bg))).toBeGreaterThanOrEqual(7)
+              // заметно отличается от текста вокруг: цветом, а не только светлотой
+              expect(lch.word.c).toBeGreaterThanOrEqual(0.04)
+              expect(Math.abs(lch.word.l - lch.text.l)).toBeGreaterThanOrEqual(0.08)
+            }
+          }
+        })
+      }
+    }
+    it('у серой обложки — тёплый бежевый, у цветной — оттенок обложки', () => {
+      const grey = themeFrom(null, 'classic')
+      expect(grey.lch.word.h).toBeGreaterThan(50)
+      expect(grey.lch.word.h).toBeLessThan(90)
+      expect(grey.vars['--accent-word']).toMatch(/^oklch/)
+      const red = themeFrom([240, 30, 40], 'classic')
+      expect(Math.abs(red.lch.word.h - rgbToOklch([240, 30, 40]).h)).toBeLessThan(3)
+    })
+  })
 })
