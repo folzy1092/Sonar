@@ -11,7 +11,7 @@
   import NavIcon from '../components/NavIcon.svelte'
   import { playlistMenu } from '../lib/playlist-menu.svelte'
   import Tile from '../components/Tile.svelte'
-  import { api, looksLikeLink, onLocalFilesChanged, type Album, type Artist, type ServicePlaylist, type ServiceStatus, type ServicesStatus, type Track } from '../lib/api'
+  import { api, looksLikeLink, onLocalFilesChanged, type Album, type Artist, type ServicePlaylist, type ServicesStatus, type Track } from '../lib/api'
   import { tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
   import { openImport } from '../lib/import.svelte'
@@ -20,6 +20,8 @@
   import { openRef, router } from '../app/router.svelte'
   import { settingsPanel } from './settings-section.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
+  import AccountsMenu from '../components/AccountsMenu.svelte'
+  import { accountRows } from '../lib/accounts'
   import { ACCOUNT_SERVICES, byId, isTrackRef, serviceOf, statusOf, type ServiceId } from '../lib/services'
   import { ICONS } from '../lib/service-icons'
   import { reducedMotion } from '../lib/motion'
@@ -147,9 +149,19 @@
       css: (t: number, u: number) => `opacity:${t};transform:translateY(${sign * u * 26}px)`,
     }
   }
-  const accounts = $derived(
-    status ? ACCOUNT_SERVICES.map((s) => statusOf(status, s)).filter((s): s is ServiceStatus => !!s?.connected) : [],
-  )
+  const accounts = $derived(accountRows(status))
+
+  /** Первое раскрытие списка аккаунтов: у старых входов дочитываем ссылки на профили (Rust — один раз за запуск). */
+  let linksAsked = false
+  async function fillLinks() {
+    if (linksAsked || offline.on || accounts.every((a) => a.url)) return
+    linksAsked = true
+    try {
+      status = await api.servicesFillLinks()
+    } catch {
+      // вне приложения или сервис не ответил — строки остаются без ссылок
+    }
+  }
 
   async function loadSaved() {
     try {
@@ -246,12 +258,7 @@
 {:else if accounts.length}
   <p class="who">
     {t('Вы вошли как')}
-    <span class="avatars">
-      {#each accounts as a, i (i)}
-        <span class="av">{#if a.avatar_url}<img src={offline.src(a.avatar_url)} alt="" />{:else}{(a.name ?? '?').slice(0, 1).toUpperCase()}{/if}</span>
-      {/each}
-    </span>
-    <b>{accounts.map((a) => a.name ?? t('аккаунт')).join(', ')}</b>
+    <AccountsMenu rows={accounts} onopen={fillLinks} />
   </p>
 {:else}
   <p class="who">{t('Свои плейлисты сервисов появятся здесь после входа:')} <button class="link" onclick={openServices}>{t('Настройки → Сервисы')}</button></p>
@@ -528,34 +535,6 @@
     margin: 12px 0 0;
     color: var(--text-2);
     font-size: calc(16px * var(--fs, 1));
-  }
-  .avatars {
-    display: flex;
-  }
-  .av {
-    display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    margin-left: -8px;
-    overflow: hidden;
-    border-radius: 50%;
-    border: 2px solid var(--surface-0);
-    background: var(--surface-3);
-    color: var(--text);
-    font-size: calc(13px * var(--fs, 1));
-    font-weight: 700;
-  }
-  .av:first-child {
-    margin-left: 0;
-  }
-  .av img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  .who b {
-    color: var(--text);
   }
   .link {
     color: var(--text);

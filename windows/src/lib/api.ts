@@ -214,6 +214,8 @@ export interface ServiceStatus {
   avatar_url: string | null
   /** Подписка (Яндекс Плюс); у SoundCloud всегда null. */
   premium?: boolean | null
+  /** Профиль на сайте сервиса; null — сервис адрес не отдал (тогда просто подпись сервиса). */
+  profile_url?: string | null
 }
 
 export interface ServicesStatus {
@@ -460,6 +462,8 @@ export interface ServiceCheck {
 
 export const api = {
   servicesStatus: () => call<ServicesStatus>('services_status'),
+  /** Дочитать ссылки на профили у старых аккаунтов (один раз за запуск) и вернуть статус. */
+  servicesFillLinks: () => call<ServicesStatus>('services_fill_links'),
   /** Поиск на одну строку в каждом подключённом сервисе: жив ли ключ и отвечает ли сервис. */
   checkServices: () => call<ServiceCheck[]>('check_services'),
   /** Все сервисы реестра в порядке показа, с состоянием подключения. */

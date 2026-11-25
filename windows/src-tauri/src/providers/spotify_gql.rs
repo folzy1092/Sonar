@@ -375,6 +375,10 @@ pub fn account(profile: &Value, acc: Option<&Value>) -> Account {
     avatar_url: best_source(&p["avatar"]["sources"]),
     uid: p["username"].as_str().map(str::to_owned),
     premium: acc.and_then(|a| a["me"]["account"]["product"].as_str()).map(|p| p.eq_ignore_ascii_case("premium")),
+    profile_url: p["username"]
+      .as_str()
+      .filter(|u| !u.is_empty())
+      .map(|u| format!("https://open.spotify.com/user/{}", urlencoding::encode(u))),
   }
 }
 
@@ -580,6 +584,7 @@ mod tests {
     assert_eq!(a.avatar_url.as_deref(), Some("https://i.scdn.co/image/avatar300"));
     assert_eq!(a.premium, Some(true));
     assert_eq!(account(&fx("profile"), None).premium, None);
+    assert_eq!(a.profile_url.as_deref(), Some("https://open.spotify.com/user/31folzy"));
   }
 
   #[test]

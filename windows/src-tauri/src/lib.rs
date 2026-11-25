@@ -247,6 +247,7 @@ pub fn run() {
       commands::search_history_count,
       commands::clear_search_history,
       commands::services_status,
+      commands::services_fill_links,
       commands::check_services,
       commands::services_list,
       commands::sync_now,

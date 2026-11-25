@@ -330,7 +330,12 @@ pub fn signed_link(xml: &str) -> Option<String> {
 pub(crate) fn account_from_status(st: &Value) -> Account {
   let acc = &st["account"];
   let name = acc["displayName"].as_str().or(acc["login"].as_str()).map(str::to_owned);
-  Account { name, avatar_url: None, uid: id_str(&acc["uid"]), premium: st["plus"]["hasPlus"].as_bool() }
+  // страница профиля — по логину (формат уже используется для ссылок на плейлисты)
+  let profile_url = acc["login"]
+    .as_str()
+    .filter(|l| !l.is_empty())
+    .map(|l| format!("https://music.yandex.ru/users/{}", urlencoding::encode(l)));
+  Account { name, avatar_url: None, uid: id_str(&acc["uid"]), premium: st["plus"]["hasPlus"].as_bool(), profile_url }
 }
 
 fn id_str(v: &Value) -> Option<String> {
@@ -456,6 +461,16 @@ mod tests {
     assert_eq!((account_from_status(&no).name.as_deref(), account_from_status(&no).premium), (Some("anna"), Some(false)));
     let missing = json!({"account": {"uid": 42, "login": "anna"}});
     assert_eq!(account_from_status(&missing).premium, None);
+  }
+
+  #[test]
+  fn account_profile_link_from_login() {
+    let st = json!({"account": {"uid": 42, "login": "anna.k", "displayName": "Анна"}});
+    assert_eq!(account_from_status(&st).profile_url.as_deref(), Some("https://music.yandex.ru/users/anna.k"));
+    // логин с лишним — не ломает адрес; нет логина — нет ссылки
+    let odd = json!({"account": {"uid": 42, "login": "a b/c"}});
+    assert_eq!(account_from_status(&odd).profile_url.as_deref(), Some("https://music.yandex.ru/users/a%20b%2Fc"));
+    assert_eq!(account_from_status(&json!({"account": {"uid": 42}})).profile_url, None);
   }
 
   #[test]

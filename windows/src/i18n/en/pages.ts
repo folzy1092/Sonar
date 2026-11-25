@@ -42,6 +42,8 @@ export default {
   'Вход': 'Sign-in',
   'вчера': 'yesterday',
   'Вы вошли как': 'Signed in as',
+  'Показать аккаунты': 'Show accounts',
+  'Открыть профиль': 'Open profile',
   'Вы подписаны': 'Following',
   'Громкость': 'Volume',
   'Грустное': 'Sad',

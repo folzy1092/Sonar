@@ -47,6 +47,7 @@ impl SoundCloud<'_> {
         avatar_url: me["avatar_url"].as_str().map(str::to_owned),
         uid: me["id"].as_u64().map(|n| n.to_string()),
         premium: None,
+        profile_url: me["permalink_url"].as_str().filter(|u| u.starts_with("https://")).map(str::to_owned),
       });
     }
     self.get(&format!("{API}/search/tracks"), &[("q", "a"), ("limit", "1")]).await?;

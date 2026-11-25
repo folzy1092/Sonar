@@ -42,6 +42,8 @@ export default {
   'Вход': 'Inicio de sesión',
   'вчера': 'ayer',
   'Вы вошли как': 'Has iniciado sesión como',
+  'Показать аккаунты': 'Mostrar cuentas',
+  'Открыть профиль': 'Abrir perfil',
   'Вы подписаны': 'Siguiendo',
   'Громкость': 'Volumen',
   'Грустное': 'Triste',

@@ -145,6 +145,10 @@ pub struct Account {
   /// Подписка сервиса (Яндекс Плюс). None — сервис не говорит; старый JSON из keyring без поля — тоже None.
   #[serde(default)]
   pub premium: Option<bool>,
+  /// Страница профиля на сайте сервиса — только если сервис сам отдал адрес или имя для него.
+  /// Старый JSON из keyring без поля — None (services.rs дочитывает один раз за запуск).
+  #[serde(default)]
+  pub profile_url: Option<String>,
 }
 
 pub const UA: &str =

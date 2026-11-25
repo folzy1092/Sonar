@@ -42,6 +42,8 @@ export default {
   'Вход': 'Logowanie',
   'вчера': 'wczoraj',
   'Вы вошли как': 'Zalogowano jako',
+  'Показать аккаунты': 'Pokaż konta',
+  'Открыть профиль': 'Otwórz profil',
   'Вы подписаны': 'Obserwujesz',
   'Громкость': 'Głośność',
   'Грустное': 'Smutne',

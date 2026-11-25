@@ -26,6 +26,13 @@ pub async fn services_status(core: State<'_, Arc<Core>>) -> Res<ServicesStatus> 
   Ok(core.status().await)
 }
 
+/// Дочитать ссылки на профили у аккаунтов, сохранённых до этого поля (один раз за запуск), и вернуть статус.
+#[tauri::command]
+pub async fn services_fill_links(core: State<'_, Arc<Core>>) -> Res<ServicesStatus> {
+  core.fill_profile_links().await;
+  Ok(core.status().await)
+}
+
 /// Настройки → Сервисы → «Проверить»: живы ли ключи и отвечают ли сервисы прямо сейчас.
 #[tauri::command]
 pub async fn check_services(core: State<'_, Arc<Core>>) -> Res<Vec<crate::services::ServiceCheck>> {

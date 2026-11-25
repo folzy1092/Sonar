@@ -552,7 +552,12 @@ pub fn library_playlists(v: &Value) -> Vec<ServicePlaylist> {
 pub fn account(v: &Value) -> Result<Account> {
   let h = find_first(v, "activeAccountHeaderRenderer").ok_or_else(|| anyhow!("YouTube Music: cookie не подошёл или устарел — войди заново"))?;
   let name = Some(text(&h["accountName"])).filter(|n| !n.is_empty());
-  Ok(Account { name, avatar_url: best_thumb(&h["accountPhoto"]), uid: None, premium: premium(v) })
+  // ссылка — только если ответ принёс @-имя канала; адрес по имени не выдумываем
+  let profile_url = text(&h["channelHandle"])
+    .strip_prefix('@')
+    .filter(|h| !h.is_empty() && h.chars().all(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-')))
+    .map(|h| format!("https://www.youtube.com/@{h}"));
+  Ok(Account { name, avatar_url: best_thumb(&h["accountPhoto"]), uid: None, premium: premium(v), profile_url })
 }
 
 /// YouTube Premium по служебным параметрам ответа (`has_unlimited_entitlement`). Не сказано — None.
@@ -775,6 +780,23 @@ mod tests {
     assert_eq!(a.avatar_url.as_deref(), Some("https://yt3.ggpht.com/a=s544"));
     assert!(account(&serde_json::json!({})).is_err());
     assert_eq!(premium(&serde_json::json!({})), None);
+  }
+
+  #[test]
+  fn account_profile_link_only_with_handle() {
+    let with = |h: serde_json::Value| {
+      let mut head = serde_json::json!({"accountName": {"runs": [{"text": "Folzy"}]}});
+      if !h.is_null() {
+        head["channelHandle"] = h;
+      }
+      serde_json::json!({"actions": [{"openPopupAction": {"popup": {"multiPageMenuRenderer": {"header": {"activeAccountHeaderRenderer": head}}}}}]})
+    };
+    let handle = serde_json::json!({"runs": [{"text": "@folzy.music"}]});
+    assert_eq!(account(&with(handle)).unwrap().profile_url.as_deref(), Some("https://www.youtube.com/@folzy.music"));
+    // нет @-имени в ответе — ссылку не выдумываем; странные символы — тоже нет
+    assert_eq!(account(&with(serde_json::Value::Null)).unwrap().profile_url, None);
+    assert_eq!(account(&with(serde_json::json!({"runs": [{"text": "@a/../b"}]}))).unwrap().profile_url, None);
+    assert_eq!(account(&with(serde_json::json!({"runs": [{"text": "folzy"}]}))).unwrap().profile_url, None);
   }
 
   #[test]

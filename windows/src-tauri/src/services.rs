@@ -55,6 +55,8 @@ pub struct ServiceStatus {
   pub avatar_url: Option<String>,
   /// Платная подписка сервиса (Яндекс Плюс); None — сервис не говорит.
   pub premium: Option<bool>,
+  /// Страница профиля на сайте сервиса; None — сервис адрес не отдал.
+  pub profile_url: Option<String>,
 }
 
 /// Итог «Проверить сервисы» по одному сервису: `service` — ключ реестра (`soundcloud`, `yandex`…).
@@ -157,6 +159,7 @@ fn status<C>(s: &Option<Stored<C>>) -> ServiceStatus {
       name: s.account.name.clone(),
       avatar_url: s.account.avatar_url.clone(),
       premium: s.account.premium,
+      profile_url: s.account.profile_url.clone(),
     },
     None => ServiceStatus::default(),
   }
@@ -278,6 +281,60 @@ impl Core {
       fallback: fallback::Fallback::default(),
       local: crate::local::Index::default(),
     }
+  }
+
+  /// Аккаунты, сохранённые до поля `profile_url`, дочитываем один раз за запуск: у каждого подключённого
+  /// сервиса без ссылки профиль спрашивается заново (все сразу, не дольше 8 с), найденная ссылка идёт
+  /// в keyring. Сервис ссылку не отдал — остаётся None, повторно не спрашиваем. Офлайн — ничего не трогаем.
+  pub async fn fill_profile_links(&self) {
+    static TRIED: AtomicBool = AtomicBool::new(false);
+    if crate::offline::is_on() || TRIED.swap(true, Ordering::Relaxed) {
+      return;
+    }
+    async fn keep<C: Serialize + Clone>(slot: &RwLock<Option<Stored<C>>>, id: ServiceId, found: Option<String>) {
+      let Some(url) = found else { return };
+      let mut w = slot.write().await;
+      let Some(s) = w.as_mut() else { return };
+      s.account.profile_url = Some(url);
+      if let Err(e) = secrets::save(id.key(), &*s) {
+        log::warn!("профиль {}: ссылка не сохранилась: {e}", id.key());
+      }
+    }
+    let lack = |a: &Account| a.profile_url.is_none();
+    async fn wait(f: impl std::future::Future<Output = Result<Account>>) -> Option<Account> {
+      tokio::time::timeout(Duration::from_secs(8), f).await.ok().and_then(|r| r.ok())
+    }
+    let http = self.http();
+    let sc = self.sc.read().await.clone().filter(|s| lack(&s.account) && s.creds.oauth_token.as_deref().is_some_and(|t| !t.is_empty()));
+    let ym = self.ym.read().await.clone().filter(|s| lack(&s.account));
+    let yt = self.yt.read().await.clone().filter(|s| lack(&s.account));
+    let sp = self.sp.read().await.clone().filter(|s| lack(&s.account));
+    futures_util::join!(
+      async {
+        if let Some(s) = &sc {
+          let a = wait(soundcloud::SoundCloud { http, creds: &s.creds }.account()).await;
+          keep(&self.sc, ServiceId::Sc, a.and_then(|a| a.profile_url)).await;
+        }
+      },
+      async {
+        if let Some(s) = &ym {
+          let a = wait(yandex::Yandex { http, creds: &s.creds }.account()).await;
+          keep(&self.ym, ServiceId::Ym, a.and_then(|a| a.profile_url)).await;
+        }
+      },
+      async {
+        if let Some(s) = &yt {
+          let a = wait(youtube::YouTube { http, creds: Some(&s.creds) }.account()).await;
+          keep(&self.yt, ServiceId::Yt, a.and_then(|a| a.profile_url)).await;
+        }
+      },
+      async {
+        if let Some(s) = &sp {
+          let a = wait(spotify::Spotify { http, creds: &s.creds, secret: &self.sp_totp, cache: &self.sp_token }.account()).await;
+          keep(&self.sp, ServiceId::Sp, a.and_then(|a| a.profile_url)).await;
+        }
+      },
+    );
   }
 
   pub async fn status(&self) -> ServicesStatus {

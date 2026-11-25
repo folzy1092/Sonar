@@ -42,6 +42,8 @@ export default {
   'Вход': 'Anmeldung',
   'вчера': 'gestern',
   'Вы вошли как': 'Angemeldet als',
+  'Показать аккаунты': 'Konten anzeigen',
+  'Открыть профиль': 'Profil öffnen',
   'Вы подписаны': 'Gefolgt',
   'Громкость': 'Lautstärke',
   'Грустное': 'Traurig',
