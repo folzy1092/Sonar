@@ -56,7 +56,7 @@ CORS — только сайт (`https://try-sonar.ru`, `https://www.try-sonar.r
 | DELETE | `/me/avatar` | → `204` |
 | PUT | `/me/background` | multipart `file` (картинка ≤ 5 МБ или видео ≤ 10 с, ≤ 15 МБ) → `{id, kind: "image"\|"video", url}` |
 | DELETE | `/me/background` | → `204` |
-| GET | `/public/users/{username}` (без авт., CORS для сайта) | → `{username, display_name, number, avatar_url, created_at}`; расширенный `PublicProfile` (ниже) — черновик, ждёт ответа по приватности |
+| GET | `/public/users/{username}` (без авт.; сайт на том же адресе — CORS не нужен; кэш 60 с) | → `{username, display_name, number, avatar_url, created_at}`, нет или забанен — `404 not_found`; сделано 2026-11-26 (`api/public.py`); расширенный `PublicProfile` (ниже) — черновик, ждёт ответа по приватности |
 | GET | `/notifications?since=` | → `[{id, title, text, created_at, read}]` |
 | POST | `/notifications/read` | `{ids: [id]}` → `204` |
 
@@ -774,7 +774,7 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 Состояние пункта: `ok` · `degraded` · `down`; ещё `unset` — наш пункт ни разу не работал (сайт до переезда, шапку не портит)
 и `unknown` — проверок ещё не было. Платформы — SoundCloud и Яндекс всегда, остальные — если сервер их проверяет; шапку
 портят только наши пункты и SoundCloud / Яндекс. «Медиа», «Прокси» и «Хранилище» — только владельцу в боте, сюда не идут.
-`GET /status/history` — ещё нет.
+`GET /status/history?days=1..90` — сделан 2026-11-26: процент успешных проверок по дням (UTC), пункты как в `/status`, кэш 5 мин.
 
 | Метод | Путь | Ответ |
 |---|---|---|

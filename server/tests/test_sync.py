@@ -18,6 +18,7 @@ def sync(tmp_path, monkeypatch):
     spec.loader.exec_module(mod)
     monkeypatch.setattr(mod, "HOME", tmp_path)
     monkeypatch.setattr(mod, "APP", tmp_path / "app")
+    monkeypatch.setattr(mod, "SITE", tmp_path / "site")
     return mod
 
 
@@ -128,3 +129,41 @@ def test_token_goes_only_to_github_api(sync, monkeypatch):
     sync.http_get("https://example.com/other")
     assert sent[0].get_header("Authorization") == "Bearer secret"
     assert sent[1].get_header("Authorization") is None
+
+
+def site_release(digest: str, url: str = "https://github.com/x/y/releases/download/site-latest/site.tar.gz") -> bytes:
+    import json
+    return json.dumps({"assets": [{"name": "site.tar.gz", "digest": digest, "browser_download_url": url}]}).encode()
+
+
+def test_site_installs_and_skips_same_version(sync, tmp_path, monkeypatch):
+    got = []
+    monkeypatch.setattr(sync, "http_get", lambda *a, **k: site_release("sha256:1"))
+    monkeypatch.setattr(sync, "download", lambda url: got.append(url) or archive(
+        {"./index.html": b"home", "./_astro/a.js": b"js", "../escape.html": b"no", "/abs.html": b"no"}))
+    sync.update_site()
+    assert (tmp_path / "site" / "index.html").read_bytes() == b"home"
+    assert (tmp_path / "site" / "_astro" / "a.js").read_bytes() == b"js"
+    assert not (tmp_path / "escape.html").exists() and not (tmp_path / "abs.html").exists()
+    sync.update_site()
+    assert len(got) == 1, "та же версия — не качаем"
+
+
+def test_broken_site_keeps_current(sync, tmp_path, monkeypatch):
+    monkeypatch.setattr(sync, "http_get", lambda *a, **k: site_release("sha256:1"))
+    monkeypatch.setattr(sync, "download", lambda url: archive({"./index.html": b"v1"}))
+    sync.update_site()
+    monkeypatch.setattr(sync, "http_get", lambda *a, **k: site_release("sha256:2"))
+    monkeypatch.setattr(sync, "download", lambda url: archive({"./other.html": b"no"}))
+    sync.update_site()  # без index.html — отказ, без исключения
+    assert (tmp_path / "site" / "index.html").read_bytes() == b"v1"
+
+
+def test_site_download_only_from_github(sync):
+    assert sync.trusted_download("https://github.com/x/y/releases/download/t/site.tar.gz")
+    assert sync.trusted_download("https://release-assets.githubusercontent.com/abc")
+    assert not sync.trusted_download("http://github.com/x")
+    assert not sync.trusted_download("https://github.com.evil.example/x")
+    assert not sync.trusted_download("https://evil.example/githubusercontent.com")
+    with pytest.raises(RuntimeError):
+        sync.download("https://evil.example/site.tar.gz")

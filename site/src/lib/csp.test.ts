@@ -6,7 +6,7 @@ import config from '../../astro.config.mjs'
 import { DEFAULT_LANG, LANGS } from '../i18n'
 import { INLINE_SCRIPT_HASHES, JS_CLASS, NOT_FOUND_LANG, PREFIXED_LANGS, cspHash } from './inline-scripts.mjs'
 
-// CSP сайта — мета-тег Astro (GitHub Pages заголовков не даёт). Сторожим, чтобы правка конфига
+// CSP сайта — мета-тег Astro (сайт — статика, заголовки сервер не подставляет). Сторожим, чтобы правка конфига
 // не открыла лишнего и не сломала шрифты, картинки и обращения к API.
 const csp = config.experimental?.csp
 const directives: string[] = typeof csp === 'object' ? (csp.directives ?? []) : []
@@ -29,13 +29,12 @@ describe('CSP сайта', () => {
     expect(policy).toMatch(/img-src 'self' data:/)
   })
 
-  it('сеть — только API Sonar, релизы GitHub и lrclib (текст на странице трека)', () => {
+  it('сеть — только свой адрес (API Sonar под /api), релизы GitHub и lrclib (текст на странице трека)', () => {
     const connect = directives.find((d) => d.startsWith('connect-src')) ?? ''
     expect(connect.split(/\s+/).slice(1).sort()).toEqual([
       "'self'",
       'https://api.github.com',
       'https://lrclib.net',
-      'https://sonar-api.folzy.ru',
     ])
   })
 

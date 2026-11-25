@@ -1,6 +1,6 @@
 ---
-// 404 и заглушка профиля `/@username` (SITE.md §5). GitHub Pages отдаёт 404.html на любой незнакомый путь,
-// скрипт решает, что показать. Профиль появится с сервером (`GET /public/users/{username}`).
+// 404 и профиль `/@username` (SITE.md §5). Сервер Sonar отдаёт 404.html на любой незнакомый путь, скрипт решает,
+// что показать: профиль берёт из `GET /public/users/{username}`; без сервера (`API_URL = null`) — заглушка.
 import { href, useT, type Lang } from '../../i18n'
 import Icon from '../Icon.astro'
 import Logo from '../Logo.astro'
@@ -13,6 +13,11 @@ const { lang } = Astro.props
 const { t } = useT(lang)
 const strings = {
   profileTitle: t('@{name} — профиль'),
+  loading: t('Загружаем профиль…'),
+  since: t('В Sonar с {date}'),
+  showcase: t('Витрина и любимые треки появятся здесь позже — только то, что открыто в приватности профиля.'),
+  errorTitle: t('Профиль сейчас не загрузить'),
+  errorLead: t('Сервер Sonar не ответил. Обнови страницу чуть позже.'),
 }
 ---
 
@@ -37,8 +42,8 @@ const strings = {
 
   <div class="nf__text" data-nf-profile hidden>
     <p class="nf__handle" data-reveal><Logo size={16} /><span data-nf-handle></span></p>
-    <h1 class="nf__title" data-reveal>{t('Профили заработают вместе с сервером')}</h1>
-    <p class="lead" data-reveal>
+    <h1 class="nf__title" data-reveal data-nf-name>{t('Профили заработают вместе с сервером')}</h1>
+    <p class="lead" data-reveal data-nf-lead>
       {t('Здесь будет публичная страница: аватар, баннер, витрина и любимые треки — только то, что открыто в приватности профиля. Пока сервер Sonar не запущен, показать её нечем.')}
     </p>
     <div class="nf__actions" data-reveal>

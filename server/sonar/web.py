@@ -1,4 +1,7 @@
-"""HTTP-часть сервера: админка (`/admin`) и API под `/api` (`sonar/api/`).
+"""HTTP-часть сервера: админка (`/admin`), API под `/api` (`sonar/api/`) и сайт `try-sonar.ru` из корня.
+
+Сайт — собранный `site/dist`, который `deploy/sync.py` кладёт в `site/` рядом с `data/` (SERVER_PROMPT этап 6).
+Отдаётся только то, что не нашли API и админка: их ответы и ошибки не меняются.
 
 Запуск отдельно от бота (локально посмотреть админку): `python -m sonar.web` (`--demo` — на тестовой базе
 `data/demo.db` с выдуманными пользователями и событиями). В `python -m sonar` поднимается вместе с ботом.
@@ -7,12 +10,15 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sqlite3
+from pathlib import Path
 
 from cryptography.fernet import Fernet
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException
 
 from . import api, config
 from .accounts import Accounts
@@ -20,13 +26,57 @@ from .admin import prefs
 from .admin.auth import FACTORY_LOGIN, AdminAuth
 from .admin.web import BASE, HERE, router as admin_router
 from .config import Settings
+from .api.errors import is_api
 from .status import Status
 
 log = logging.getLogger("sonar.web")
 
+# Файлы Astro с хэшем в имени не меняются никогда; HTML — всегда сверять, остальное (картинки, шрифты) — час.
+IMMUTABLE = "public, max-age=31536000, immutable"
+NO_CACHE = "no-cache"
+ASSET_CACHE = "public, max-age=3600"
+
+
+def site_dir(settings: Settings) -> Path:
+    return Path(os.environ.get("SONAR_SITE_DIR") or settings.data_dir.parent / "site")
+
+
+def _cache_control(path: str, media_type: str | None) -> str:
+    if path.startswith("/_astro/"):
+        return IMMUTABLE
+    return NO_CACHE if (media_type or "").startswith("text/html") else ASSET_CACHE
+
+
+def install_site(app: FastAPI, directory: Path) -> None:
+    """Сайт из корня: www → без www, неизвестный приложению GET — файл сайта (или его 404.html)."""
+    if not (directory / "index.html").is_file():
+        log.info("сайта нет в %s — отдаю только API и админку", directory)
+        return
+    files = StaticFiles(directory=str(directory), html=True)
+
+    @app.middleware("http")
+    async def site(request: Request, call_next):
+        path = request.url.path
+        reading = request.method in ("GET", "HEAD")
+        mine = reading and not is_api(path) and not path.startswith(BASE)
+        host = request.headers.get("host", "")
+        if mine and host.startswith("www."):
+            query = f"?{request.url.query}" if request.url.query else ""
+            return RedirectResponse(f"https://{host.removeprefix('www.')}{path}{query}", status_code=301)
+        response = await call_next(request)
+        if not mine or response.status_code != 404:
+            return response
+        try:
+            page = await files.get_response(path.lstrip("/") or ".", request.scope)
+        except HTTPException:
+            return response
+        page.headers["Cache-Control"] = _cache_control(path, page.media_type)
+        return page
+
 
 def create_app(con: sqlite3.Connection, settings: Settings, status: Status | None = None,
-               accounts: Accounts | None = None, bot_username: str = "SonarMusicApp") -> FastAPI:
+               accounts: Accounts | None = None, bot_username: str = "SonarMusicApp",
+               site: Path | None = None) -> FastAPI:
     """status и accounts — общие с ботом (`python -m sonar`): одни лимиты входа и одна сводка статуса.
     Без них (`python -m sonar.web`, тесты) — свои; `/api/status` тогда читает последние проверки из базы."""
     app = FastAPI(title="Sonar", docs_url=None, redoc_url=None, openapi_url=None)
@@ -54,6 +104,7 @@ def create_app(con: sqlite3.Connection, settings: Settings, status: Status | Non
         return await call_next(request)
 
     api.install(app)
+    install_site(app, site or site_dir(settings))
     return app
 
 

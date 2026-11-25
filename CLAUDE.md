@@ -154,7 +154,7 @@ ROADMAP — «Блок O». **ПК сделан 2026-11-23 (этапы 0–1):**
 | `server/` | Python 3.13, FastAPI + aiogram-бот входа, SQLite. Хостинг — Velt, контейнер Python |
 | `ios/` | SwiftUI-приложение, проект генерирует XcodeGen (`ios/project.yml`) |
 | `windows/` | **первая платформа**: Tauri 2 (Rust + Svelte), автономно до появления сервера — SPEC §9 |
-| `site/` | публичный сайт `try-sonar.ru` (Astro, ru/en/uk), с сервером — на Velt (пока GitHub Pages через `site.yml`): главная, `/pay`, FAQ, статус, `/@username`, юр-страницы — спека `docs/SITE.md` |
+| `site/` | публичный сайт `try-sonar.ru` (Astro, ru/en/uk), на Velt с 2026-11-26: `site.yml` → релиз `site-latest` → `server/deploy/sync.py` `update_site` → `web.py` `install_site`: главная, `/pay`, FAQ, статус, `/@username`, юр-страницы — спека `docs/SITE.md` |
 | `brand/` | иконки и лого (тёмная и светлая), см. `brand/README.md` |
 | `updates/` | `update.json` + `changelog.json` — их читает автообновление клиентов |
 | `.github/workflows/` | сборка IPA (macOS-раннер) → GitHub Release, тесты сервера |
@@ -204,8 +204,7 @@ ROADMAP — «Блок O». **ПК сделан 2026-11-23 (этапы 0–1):**
   Сайт сделан 2026-11-18 (`site/`, Astro + свой CSS, без трекеров и cookie): тексты — `src/content/` (FAQ, документы,
   лицензии), строки — `t('русский текст')` с переводами в `src/i18n/en.ts` / `uk.ts` (тест `coverage.test.ts`
   ловит непереведённое), цены — `data/plans.json` (зеркало `lib/subscription.ts`), скриншоты — `public/shots/` +
-  `data/shots.json` (только без личных данных), `/@username` — роутер в `404.html`, статус и профиль до сервера —
-  честные заглушки. Юр-тексты — черновики «не проверено юристом». Деплой — `.github/workflows/site.yml`.
+  `data/shots.json` (только без личных данных), `/@username` — роутер в `404.html` (`scripts/notfound.ts`, профиль из `GET /api/public/users/…`), статус — `GET /api/status` и `/status/history`. Юр-тексты — черновики «не проверено юристом». Деплой — `.github/workflows/site.yml`.
 - Бот «Sonar» — **`@SonarMusicApp`**, спека — **`docs/BOT.md`** (2026-11-15): в меню только
   `/start` и `/status`, остальное кнопками (Профиль, Статистика, Сервисы, Ключ API, Баг / Идея).
   Экраны — баннер + текст + цитаты, навигация правит одно сообщение. Вход в боте — логин → пароль

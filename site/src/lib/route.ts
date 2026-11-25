@@ -1,4 +1,4 @@
-// Маршруты, которых нет в статике: GitHub Pages отдаёт на них 404.html (SITE.md §5, `/@username`).
+// Маршруты, которых нет в статике: сервер отдаёт на них 404.html (SITE.md §5, `/@username`).
 import { normalizeUsername } from './plans'
 
 export type MissingRoute =

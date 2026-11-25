@@ -1,9 +1,10 @@
-"""`GET /api/status` — статус сервиса для сайта (API.md §9): те же данные, что бот `/status`, без пунктов владельца."""
+"""`GET /api/status` и `/api/status/history` — статус сервиса для сайта (API.md §9): те же данные, что бот `/status`,
+без пунктов владельца."""
 from __future__ import annotations
 
 import time
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Query, Request, Response
 
 from .. import accounts
 from ..db import now_ms
@@ -12,6 +13,8 @@ from ..status import DOWN, OK, PARTIAL, Item, Status
 router = APIRouter()
 
 CACHE_S = 30
+HISTORY_CACHE_S = 300
+DAY_MS = 86400_000
 # Наши пункты (SPEC §3.11). «Медиа» и «Прокси» — только владельцу в боте, сюда не идут.
 # Хранилище — только владельцу в боте (решение 2026-11-25), на публичную страницу не идёт.
 INFRA = [("main", "api", "Основной", "🗄"), ("bot", "bot", "Бот", "🤖"), ("site", "site", "Сайт", "🌐")]
@@ -72,3 +75,30 @@ async def get_status(request: Request, response: Response):
         st.status_cache = cached
     response.headers["Cache-Control"] = f"public, max-age={CACHE_S}"
     return cached[1]
+
+
+def history(status: Status, con, days: int) -> dict:
+    """% успешных проверок по дням (UTC) для публичных пунктов; пункт, ни разу не работавший, не показываем."""
+    ids = {k: id_ for k, id_, _, _ in INFRA} | {k: k for k, _, _ in PLATFORMS}
+    hidden = status.never_ok()
+    since = (now_ms() // DAY_MS - days + 1) * DAY_MS
+    rows = con.execute("SELECT item, ts / ? AS day, COUNT(*) AS n, SUM(state = 'ok') AS ok FROM status_checks"
+                       " WHERE ts >= ? GROUP BY item, day ORDER BY day", (DAY_MS, since)).fetchall()
+    out: dict[int, dict[str, float]] = {}
+    for r in rows:
+        if r["item"] in ids and r["item"] not in hidden:
+            out.setdefault(r["day"], {})[ids[r["item"]]] = round(r["ok"] * 100 / r["n"], 2)
+    return {"days": [{"date": time.strftime("%Y-%m-%d", time.gmtime(day * 86400)), "items": items}
+                     for day, items in out.items()]}
+
+
+@router.get("/status/history")
+async def get_history(request: Request, response: Response, days: int = Query(90, ge=1, le=90)):
+    st = request.app.state
+    cache = getattr(st, "history_cache", None) or {}
+    hit = cache.get(days)
+    if hit is None or time.monotonic() - hit[0] > HISTORY_CACHE_S:
+        hit = (time.monotonic(), history(st.status, st.con, days))
+        st.history_cache = {**cache, days: hit}
+    response.headers["Cache-Control"] = f"public, max-age={HISTORY_CACHE_S}"
+    return hit[1]

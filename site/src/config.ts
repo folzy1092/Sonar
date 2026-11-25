@@ -1,7 +1,7 @@
-// Адреса сайта. API пока нет (сервер не куплен) — `API_URL = null`: статус и профили показывают честную
-// заготовку. Когда сервер заработает — вписать `https://sonar-api.folzy.ru` и пересобрать сайт.
+// Адреса сайта. Сайт и API отдаёт один сервер на Velt (SERVER_PROMPT этап 6), поэтому API — свой путь `/api`.
+// `null` вернёт честные заготовки статуса и профиля (сайт без сервера, например `npm run dev`).
 export const SITE_URL = 'https://try-sonar.ru'
-export const API_URL: string | null = null
+export const API_URL: string | null = '/api'
 
 const REPO = 'https://github.com/folzy1092/Sonar'
 export const LINKS = {

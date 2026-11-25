@@ -5,12 +5,14 @@
 2. спрашивает у GitHub последний коммит ветки и, если он новый, скачивает архив репо и
    берёт из него только папку `server/` (git на хостинге не нужен; GITHUB_TOKEN — по желанию);
 3. обновляет сам себя из `server/deploy/sync.py`, если тот поменялся;
-4. ставит зависимости `requirements-run.txt` в свой venv — только когда файл поменялся;
-5. запускает `python -m sonar` (бот + HTTP на PORT).
+4. если поменялся архив сайта в релизе `site-latest` (его собирает `site.yml`) — кладёт его в `site/`;
+5. ставит зависимости `requirements-run.txt` в свой venv — только когда файл поменялся;
+6. запускает `python -m sonar` (бот + HTTP на PORT; сайт раздаётся из корня, SONAR_SITE_DIR).
 
 Раскладка в контейнере:
     sync.py  .env        — кладёт владелец
     app/                 — код `server/` из репо (заменяется целиком при обновлении)
+    site/                — собранный сайт try-sonar.ru (заменяется целиком при обновлении)
     data/                — база и файлы (SONAR_DATA_DIR), обновление её не трогает
     .venv/               — зависимости
 
@@ -31,10 +33,17 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlparse
 
 HOME = Path(__file__).resolve().parent
 APP = HOME / "app"
 VENV = HOME / ".venv"
+SITE = HOME / "site"
+SITE_TAG = "site-latest"
+SITE_ASSET = "site.tar.gz"
+# Откуда можно качать файлы релизов: сам GitHub и его хранилища (адрес после переадресации тоже сверяется).
+DOWNLOAD_HOSTS = ("github.com",)
+DOWNLOAD_SUFFIX = ".githubusercontent.com"
 TAG = "[sync]"
 
 
@@ -169,6 +178,85 @@ def update_code() -> None:
     say(f"скачано за {time.monotonic() - started:.1f} с")
 
 
+def trusted_download(url: str) -> bool:
+    host = urlparse(url).hostname or ""
+    return url.startswith("https://") and (host in DOWNLOAD_HOSTS or host.endswith(DOWNLOAD_SUFFIX))
+
+
+def download(url: str, timeout: float = 120) -> bytes:
+    """Файл релиза: только https с GitHub, и после переадресации — тоже."""
+    if not trusted_download(url):
+        raise RuntimeError(f"чужой адрес файла: {urlparse(url).hostname}")
+    req = urllib.request.Request(url, headers={"User-Agent": "sonar-sync"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        if not trusted_download(resp.geturl()):
+            raise RuntimeError(f"переадресация на чужой адрес: {urlparse(resp.geturl()).hostname}")
+        return resp.read()
+
+
+def extract_site(archive: bytes, dest: Path) -> int:
+    """Распаковать архив сайта (`tar -C dist .`) в dest: только файлы и папки, без `..` и абсолютных путей."""
+    count = 0
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar:
+        for member in tar.getmembers():
+            rel = [p for p in member.name.split("/") if p not in ("", ".")]
+            if not rel or ".." in rel or member.name.startswith("/"):
+                continue
+            if not (member.isfile() or member.isdir()):
+                continue
+            target = dest.joinpath(*rel)
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            src = tar.extractfile(member)
+            if src is None:
+                continue
+            with src, open(target, "wb") as out:
+                shutil.copyfileobj(src, out)
+            count += 1
+    return count
+
+
+def install_site(version: str, archive: bytes) -> None:
+    new, old = HOME / "site.new", HOME / "site.old"
+    for p in (new, old):
+        shutil.rmtree(p, ignore_errors=True)
+    new.mkdir()
+    files = extract_site(archive, new)
+    if not (new / "index.html").is_file():
+        shutil.rmtree(new, ignore_errors=True)
+        raise RuntimeError("в архиве сайта нет index.html — обновление отменено")
+    (new / ".version").write_text(version)
+    if SITE.exists():
+        SITE.rename(old)
+    new.rename(SITE)
+    shutil.rmtree(old, ignore_errors=True)
+    say(f"сайт обновлён ({files} файлов)")
+
+
+def update_site() -> None:
+    """Сайт — архив в релизе `site-latest`. Не вышло — остаётся прежний (или сервер живёт без сайта)."""
+    try:
+        release = json.loads(http_get(f"https://api.github.com/repos/{repo()}/releases/tags/{SITE_TAG}",
+                                      accept="application/vnd.github+json", timeout=15))
+        asset = next((a for a in release.get("assets", []) if a.get("name") == SITE_ASSET), None)
+        if asset is None:
+            say(f"в релизе {SITE_TAG} нет {SITE_ASSET} — сайт не трогаю")
+            return
+        version = asset.get("digest") or f"{asset.get('id')}:{asset.get('updated_at')}"
+        try:
+            have = (SITE / ".version").read_text().strip()
+        except OSError:
+            have = ""
+        if version == have and (SITE / "index.html").is_file():
+            say("сайт актуален")
+            return
+        install_site(version, download(str(asset.get("browser_download_url", ""))))
+    except Exception as error:
+        say(f"сайт не обновлён ({error}); остаётся прежний")
+
+
 def self_update() -> None:
     """Новый sync.py из репо заменяет этот файл и перезапускается (один раз за старт)."""
     fresh = APP / "deploy" / "sync.py"
@@ -236,6 +324,7 @@ def check_yandex(python: str) -> None:
 def main() -> int:
     load_env(HOME / ".env")
     os.environ.setdefault("SONAR_DATA_DIR", str(HOME / "data"))
+    os.environ.setdefault("SONAR_SITE_DIR", str(SITE))
     os.environ.setdefault("SONAR_HTTP_HOST", "0.0.0.0")
     os.environ.setdefault("MALLOC_ARENA_MAX", "2")
     os.environ.setdefault("PYTHONUNBUFFERED", "1")
@@ -247,6 +336,7 @@ def main() -> int:
         say("кода сервера нет и скачать не удалось — запуск остановлен")
         return 1
     self_update()
+    update_site()
     python, extra = python_for_app()
     try:
         install_deps(python, extra)
