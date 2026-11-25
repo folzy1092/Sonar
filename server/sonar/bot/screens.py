@@ -513,12 +513,16 @@ def _st(i: Item | None, ms: bool = False, extra: str = "") -> str:
     return f"{e(icon)} " + " · ".join(parts)
 
 
-def _mark(i: Item | None) -> str:
+def _mark(i: Item | None, why: bool = False) -> str:
+    """why — владельцу: у ⚠️ / ❌ причина (HTTP-код, таймаут, медленно)."""
     if i is None:
         return e("partial")
+    mark = e({OK: "ok", PARTIAL: "partial", DOWN: "down"}[i.state])
+    if why and i.state != OK and i.note:
+        return f"{mark} {i.note}"
     if i.state == PARTIAL and i.ms:
-        return f"{e('partial')} {i.ms / 1000:.1f} с"
-    return e({OK: "ok", PARTIAL: "partial", DOWN: "down"}[i.state])
+        return f"{mark} {i.ms / 1000:.1f} с"
+    return mark
 
 
 def _tree(lines: list[str]) -> str:
@@ -535,7 +539,8 @@ def status(items: dict[str, Item], online: int, users: int, uptime: float | None
     """unset — пункты, которые ещё ни разу не работали (сайт, туннель до запуска): «не настроен», шапку не портят."""
     items = {k: v for k, v in items.items() if k not in unset}
     g = items.get
-    infra_keys = ["main", "media", "proxy", "bot", "site", "storage"] if owner else ["main", "storage"]
+    # Хранилище и подробности — только владельцу (решение 2026-11-25); остальным — «Основной» и платформы.
+    infra_keys = ["main", "media", "proxy", "bot", "site", "storage"] if owner else ["main"]
     bad = [k for k in infra_keys if g(k) and g(k).state == DOWN and k not in ("site", "proxy")]
     partial = any(i.state != OK for k, i in items.items() if k in infra_keys + ["soundcloud", "yandex"])
     names = {"main": "Основной", "media": "Медиа", "proxy": "Прокси", "bot": "Бот", "site": "Сайт", "storage": "Хранилище"}
@@ -553,7 +558,8 @@ def status(items: dict[str, Item], online: int, users: int, uptime: float | None
             continue
         if k == "proxy" and not g(k):
             continue
-        extra = g(k).note if (k == "storage" and owner and g(k)) else ""
+        i = g(k)
+        extra = i.note if (owner and i and i.note and (k == "storage" or i.state != OK)) else ""
         infra.append(f"{e(icons[k])} {names[k]}: {_st(g(k), ms=k == 'main' or (owner and k != 'storage'), extra=extra)}")
     up = "—" if uptime is None else f"{uptime:.2f}%"
     people = [f"{e('listening')} Слушают онлайн: <b>{online}</b>"]
@@ -561,14 +567,16 @@ def status(items: dict[str, Item], online: int, users: int, uptime: float | None
         people.append(f"{e('profile')} Слушателей за 24 часа: <b>{day}</b>")
     people += [f"{e('users')} Пользователей: <b>{users}</b>", f"{e('time')} Аптайм: <b>{up}</b>"]
     # SoundCloud и Яндекс — с чем Sonar работает; остальные — видит ли их сервер (подключатся позже).
-    platforms = [f"{e(icon_key)} {name}: {_mark(g(k))}" for k, name, icon_key in STATUS_PLATFORMS if k in ("soundcloud", "yandex") or g(k)]
+    platforms = [f"{e(icon_key)} {name}: {_mark(g(k), owner)}" for k, name, icon_key in STATUS_PLATFORMS
+                 if k in ("soundcloud", "yandex") or g(k)]
     html = (f"{head}\n"
             + quote("\n".join(people))
             + quote(_tree(infra), "Инфраструктура:")
             + quote(_tree(platforms), "Музыкальные платформы:"))
     if owner:
-        other = [f"{e('lyrics')} lrclib: {_mark(g('lrclib'))} · Genius: {_mark(g('genius'))}"]
-        tail = f"{e('logo_telegram')} Telegram: {_mark(g('telegram'))}"
-        other.append((f"{e('logo_lastfm')} {LASTFM}: {_mark(g('lastfm'))} · " if g("lastfm") else "") + tail)
+        other = [f"{e('lyrics')} lrclib: {_mark(g('lrclib'), True)}", f"{e('lyrics')} Genius: {_mark(g('genius'), True)}"]
+        if g("lastfm"):
+            other.append(f"{e('logo_lastfm')} {LASTFM}: {_mark(g('lastfm'), True)}")
+        other.append(f"{e('logo_telegram')} Telegram: {_mark(g('telegram'), True)}")
         html += quote(_tree(other), "Тексты и прочее:")
     return Screen(html=html, kb=[[Btn("Обновить", "refresh", "status")], [Btn("Страница статуса", "web", url="https://try-sonar.ru/status")]])

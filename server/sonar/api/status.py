@@ -13,8 +13,8 @@ router = APIRouter()
 
 CACHE_S = 30
 # Наши пункты (SPEC §3.11). «Медиа» и «Прокси» — только владельцу в боте, сюда не идут.
-INFRA = [("main", "api", "Основной", "🗄"), ("bot", "bot", "Бот", "🤖"),
-         ("storage", "storage", "Хранилище", "📦"), ("site", "site", "Сайт", "🌐")]
+# Хранилище — только владельцу в боте (решение 2026-11-25), на публичную страницу не идёт.
+INFRA = [("main", "api", "Основной", "🗄"), ("bot", "bot", "Бот", "🤖"), ("site", "site", "Сайт", "🌐")]
 PLATFORMS = [("soundcloud", "SoundCloud", "🌐"), ("yandex", "Яндекс Музыка", "🌐"), ("youtube", "YouTube Music", "🌐"),
              ("spotify", "Spotify", "🌐"), ("apple", "Apple Music", "🌐"), ("lrclib", "lrclib", "📝"),
              ("genius", "Genius", "📝"), ("telegram", "Telegram", "✈️")]
@@ -45,7 +45,7 @@ def summary(status: Status, con) -> dict:
 
     infra = [row(k, id_, n, ic, infra=True) for k, id_, n, ic in INFRA]
     platforms = [row(k, k, n, ic) for k, n, ic in PLATFORMS if k in CORE or k in items]
-    down = [r["name"] for r in infra if r["state"] == "down" and r["id"] in ("api", "storage", "bot")]
+    down = [r["name"] for r in infra if r["state"] == "down" and r["id"] in ("api", "bot")]
     shaky = any(r["state"] in ("degraded", "down") for r in infra) or \
         any(r["state"] in ("degraded", "down") for r in platforms if r["id"] in CORE)
     state = "down" if down else "degraded" if shaky else "ok"

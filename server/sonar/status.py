@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
 import sqlite3
 import time
@@ -16,6 +17,32 @@ SLOW_MS = 2000
 TIMEOUT = aiohttp.ClientTimeout(total=5)
 UA = {"User-Agent": "Sonar/0.1 (+https://try-sonar.ru)"}
 MIN_FREE_BYTES = 100 * 1024 * 1024
+# Диск контейнера: shutil.disk_usage видит весь диск хоста (сотни ГБ), а у нас лимит тарифа — считаем свои файлы.
+DISK_QUOTA_MB = 2048            # тариф Velt (2026-11-22); другой — SONAR_DISK_QUOTA_MB в .env
+DISK_SCAN_EVERY_S = 30 * 60     # обход папки — раз в полчаса: файлов в .venv тысячи, а vCPU — четверть
+
+
+def _mb(n: float) -> str:
+    return f"{n / 1024 ** 3:.1f} ГБ" if n >= 1024 ** 3 else f"{n / 1024 ** 2:.0f} МБ"
+
+
+def dir_size(root) -> int:
+    """Сколько байт занимают файлы под root (ссылки не идём, недоступное пропускаем)."""
+    total, stack = 0, [str(root)]
+    while stack:
+        try:
+            with os.scandir(stack.pop()) as it:
+                for d in it:
+                    try:
+                        if d.is_dir(follow_symlinks=False):
+                            stack.append(d.path)
+                        elif d.is_file(follow_symlinks=False):
+                            total += d.stat(follow_symlinks=False).st_size
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return total
 
 
 # Платформы, которые Sonar ещё не подключил (решение владельца 2026-11-18): в статусе — видит ли их сервер.
@@ -29,7 +56,20 @@ EXTRA_PLATFORMS: dict[str, tuple[str, dict]] = {
 
 
 class Throttled(Exception):
-    pass
+    def __init__(self, status: int):
+        super().__init__(status)
+        self.status = status
+
+
+def _why(err: Exception) -> str:
+    """Причина сбоя для владельца — коротко, без стека."""
+    if isinstance(err, asyncio.TimeoutError):
+        return f"не ответил за {int(TIMEOUT.total)} с"
+    if isinstance(err, aiohttp.ClientConnectorError):
+        return "нет соединения (DNS или сеть)"
+    if isinstance(err, aiohttp.ClientError):
+        return f"ошибка сети: {type(err).__name__}"
+    return str(err)[:80] or type(err).__name__
 
 
 @dataclass
@@ -47,7 +87,9 @@ async def _http(session: aiohttp.ClientSession, url: str, **params) -> int:
         if r.status >= 500:
             raise RuntimeError(f"HTTP {r.status}")
         if r.status in (403, 429):
-            raise Throttled(r.status)  # капча Cloudflare / лимит — «с перебоями», не «недоступен»
+            raise Throttled(r.status)
+        if r.status >= 400:
+            raise RuntimeError(f"HTTP {r.status}")  # капча Cloudflare / лимит — «с перебоями», не «недоступен»
     return int((time.monotonic() - t) * 1000)
 
 
@@ -57,6 +99,7 @@ class Status:
         self.last: dict[str, Item] = {}
         self.on_change = None  # async (key, old_state, new_state) — смена ✅/⚠️/❌ (сообщение в лог)
         self.checked_at = 0.0
+        self._disk: tuple[float, int] = (0.0, 0)  # (когда считали, байт занято)
 
     # ---- проверки ----
 
@@ -65,20 +108,36 @@ class Status:
         self.con.execute("SELECT 1").fetchone()
         return Item("main", OK, int((time.monotonic() - t) * 1000))
 
-    def _storage(self) -> Item:
+    def _used(self) -> int:
+        """Занято в контейнере: всё рядом с data/ (код, .venv, база) — раз в полчаса."""
+        at, used = self._disk
+        if not used or time.monotonic() - at > DISK_SCAN_EVERY_S:
+            used = dir_size(os.path.dirname(os.path.abspath(self.data_dir)))
+            self._disk = (time.monotonic(), used)
+        return used
+
+    async def _storage(self) -> Item:
         self.con.execute("INSERT INTO kv (key, value) VALUES ('status:probe', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                          (str(now_ms()),))
-        free = shutil.disk_usage(self.data_dir).free
-        return Item("storage", OK if free > MIN_FREE_BYTES else PARTIAL, note=f"{free / 1024 ** 3:.1f} ГБ свободно")
+        quota = int(os.getenv("SONAR_DISK_QUOTA_MB") or DISK_QUOTA_MB) * 1024 ** 2
+        used = await asyncio.to_thread(self._used)
+        # Свободно — меньшее из «лимит тарифа минус наше» и того, что реально осталось на диске хоста.
+        free = max(0, min(quota - used, shutil.disk_usage(self.data_dir).free))
+        db = sum(os.path.getsize(p) for p in (f"{self.settings.db_path}{x}" for x in ("", "-wal"))
+                 if os.path.exists(p)) if getattr(self.settings, "db_path", None) else 0
+        note = f"занято {_mb(used)} из {_mb(quota)}, свободно {_mb(free)}" + (f" · база {_mb(db)}" if db else "")
+        state = OK if free > MIN_FREE_BYTES else PARTIAL if free > MIN_FREE_BYTES // 4 else DOWN
+        return Item("storage", state, note=note)
 
     async def _remote(self, session, key, url, **params) -> Item:
         try:
             ms = await _http(session, url, **params)
-            return Item(key, OK if ms < SLOW_MS else PARTIAL, ms)
-        except Throttled:
-            return Item(key, PARTIAL)
-        except Exception:  # noqa: BLE001 — любая ошибка сети = сервис недоступен
-            return Item(key, DOWN)
+            return Item(key, OK if ms < SLOW_MS else PARTIAL, ms, "" if ms < SLOW_MS else f"медленно: {ms / 1000:.1f} с")
+        except Throttled as t:
+            why = "капча Cloudflare или запрет для серверов" if t.status == 403 else "лимит запросов"
+            return Item(key, PARTIAL, note=f"HTTP {t.status} — {why}")
+        except Exception as err:  # noqa: BLE001 — любая ошибка сети = сервис недоступен
+            return Item(key, DOWN, note=_why(err))
 
     async def _telegram(self) -> Item:
         if not self.bot:
@@ -87,11 +146,11 @@ class Status:
         try:
             await self.bot.get_me()
             return Item("telegram", OK, int((time.monotonic() - t) * 1000))
-        except Exception:  # noqa: BLE001
-            return Item("telegram", DOWN)
+        except Exception as err:  # noqa: BLE001
+            return Item("telegram", DOWN, note=_why(err))
 
     async def check(self) -> dict[str, Item]:
-        items = [self._main(), self._storage(), Item("bot", OK if self.bot else DOWN)]
+        items = [self._main(), await self._storage(), Item("bot", OK if self.bot else DOWN)]
         async with aiohttp.ClientSession() as s:
             jobs = [
                 self._remote(s, "soundcloud", "https://soundcloud.com/"),

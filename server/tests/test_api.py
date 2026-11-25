@@ -144,7 +144,7 @@ def test_status_from_db_and_shape(client, con):
     assert body["state"] == "ok" and body["title"] == "Все системы работают штатно"  # Spotify шапку не портит
     assert body["uptime_30d"] == 100.0 and body["users"] == 1
     assert body["listening_now"] == 0 and body["listeners_24h"] == 0
-    assert [i["id"] for i in body["infra"]] == ["api", "bot", "storage", "site"]  # без «Медиа» и «Прокси»
+    assert [i["id"] for i in body["infra"]] == ["api", "bot", "site"]  # без «Медиа», «Прокси» и хранилища
     assert body["infra"][0] == {"id": "api", "name": "Основной", "icon": "🗄", "state": "ok", "ms": 42}
     ids = [p["id"] for p in body["platforms"]]
     assert "spotify" in ids and "youtube" not in ids and "vk" not in ids
@@ -161,9 +161,9 @@ def test_status_states(app, con):
     st.last = {"main": Item("main", OK, 5), "storage": Item("storage", OK), "bot": Item("bot", OK),
                "site": Item("site", OK), "soundcloud": Item("soundcloud", OK), "yandex": Item("yandex", PARTIAL)}
     assert api_status.summary(st, con)["state"] == "degraded"
-    st.last["storage"] = Item("storage", DOWN)
+    st.last["bot"] = Item("bot", DOWN)
     s = api_status.summary(st, con)
-    assert s["state"] == "down" and s["title"] == "Сбой: Хранилище"
+    assert s["state"] == "down" and s["title"] == "Сбой: Бот"
 
 
 def test_status_is_cached(client, monkeypatch):

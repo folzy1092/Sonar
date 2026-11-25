@@ -69,6 +69,17 @@ def test_status_header():
     assert "Сбой: Основной" in S.status(items, 0, 0, None, owner=False).html
 
 
+def test_status_details_only_for_owner():
+    items = {k: Item(k, OK, 5) for k in ["main", "storage", "soundcloud", "yandex", "lrclib", "telegram"]}
+    items["storage"] = Item("storage", OK, note="занято 0.6 ГБ из 2.0 ГБ, свободно 1.4 ГБ")
+    items["genius"] = Item("genius", PARTIAL, note="HTTP 403 — капча Cloudflare или запрет для серверов")
+    items["yandex"] = Item("yandex", DOWN, note="не ответил за 5 с")
+    owner = S.status(items, 0, 0, None, owner=True).html
+    guest = S.status(items, 0, 0, None, owner=False).html
+    assert "свободно 1.4 ГБ" in owner and "HTTP 403" in owner and "не ответил за 5 с" in owner
+    assert "Хранилище" not in guest and "HTTP 403" not in guest and "не ответил" not in guest
+
+
 def test_unset_items_do_not_spoil_header():
     items = {k: Item(k, OK, 5) for k in KEYS}
     items["site"] = Item("site", DOWN)
