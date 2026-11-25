@@ -6,6 +6,8 @@
 // Реверб: свёртка с синтезированным откликом зала (шум с экспоненциальным спадом, стерео
 // раздельно), сухой и мокрый сигналы смешиваются по ползунку 0–100 %.
 
+import { loadSpaceModule, spaceParams, type SpaceParams } from './space'
+
 export const PITCH_WORKLET = `
 class SonarPitch extends AudioWorkletProcessor {
   static get parameterDescriptors() { return [{ name: 'ratio', defaultValue: 1, minValue: 0.25, maxValue: 4 }] }
@@ -90,23 +92,59 @@ export function loadPitchModule(ctx: BaseAudioContext): Promise<void> {
   return p
 }
 
-/** Общий реверб после микса (тон — у каждого дека свой). */
+/** Общие пространство и реверб после микса (тон — у каждого дека свой):
+ *  вход → пространство (`space.ts`, вставляется при первом включении) → сухой + свёртка → выход. */
 export class Effects {
   readonly input: GainNode
   readonly output: GainNode
+  /** Сюда приходит звук после пространства: отсюда — сухой и в свёртку. */
+  private post: GainNode
   private dry: GainNode
   private wet: GainNode
   private conv: ConvolverNode | null = null
+  private space: AudioWorkletNode | null = null
+  private spaceLoading = false
+  private spaceWant: { on: boolean; p: SpaceParams } | null = null
 
   constructor(private ctx: AudioContext) {
     this.input = ctx.createGain()
+    this.post = ctx.createGain()
     this.dry = ctx.createGain()
     this.wet = ctx.createGain()
     this.output = ctx.createGain()
     this.wet.gain.value = 0
-    this.input.connect(this.dry)
+    this.input.connect(this.post)
+    this.post.connect(this.dry)
     this.dry.connect(this.output)
     this.wet.connect(this.output)
+  }
+
+  /** Пространство 0…16 (0 — выкл). Узел создаётся при первом включении; выключенный — пропускает как есть. */
+  setSpace(d: number) {
+    const on = d > 0
+    // выключение держит прежние параметры — затухает тот же звук, а не «середина»
+    const p = on ? spaceParams(d) : (this.spaceWant?.p ?? spaceParams(0))
+    this.spaceWant = { on, p }
+    if (this.space) {
+      this.space.port.postMessage(this.spaceWant)
+      return
+    }
+    if (!on || this.spaceLoading) return
+    this.spaceLoading = true
+    loadSpaceModule(this.ctx)
+      .then(() => {
+        const node = new AudioWorkletNode(this.ctx, 'sonar-space', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] })
+        // выключенный узел — точная копия входа, поэтому подмена без щелчка
+        this.input.connect(node)
+        node.connect(this.post)
+        this.input.disconnect(this.post)
+        this.space = node
+        if (this.spaceWant) node.port.postMessage(this.spaceWant)
+      })
+      .catch(() => {})
+      .finally(() => {
+        this.spaceLoading = false
+      })
   }
 
   /** Реверб 0…1: мокрый сигнал растёт, сухой чуть уходит, общая громкость почти не меняется. */
@@ -115,7 +153,7 @@ export class Effects {
     if (a > 0 && !this.conv) {
       this.conv = this.ctx.createConvolver()
       this.conv.buffer = impulse(this.ctx)
-      this.input.connect(this.conv)
+      this.post.connect(this.conv)
       this.conv.connect(this.wet)
     }
     const t = this.ctx.currentTime

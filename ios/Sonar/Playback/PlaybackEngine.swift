@@ -64,6 +64,10 @@ final class PlaybackEngine {
     private(set) var pitchLinked = false
     /// Реверб 0…1, 0 — выключен (`AudioTap` — только файлы).
     private(set) var reverb: Double = 0
+    /// Пространство 0…16, 0 — выключено (`AudioTap` — только файлы, `Space.swift`).
+    private(set) var space = 0
+    /// Какое D включит переключатель — последнее выбранное.
+    @ObservationIgnored private var spaceLast = SpaceParams.defaultD
     /// У играющего трека свой звук («Для этого трека», `TrackSound`): правки пишутся в трек.
     private(set) var hasTrackSound = false
     /// Кривая эквалайзера трека со своим звуком (nil — общая `audio.eq`).
@@ -402,11 +406,23 @@ final class PlaybackEngine {
         persistTempo()
     }
 
-    /// Всё как было: 1×, без сдвига тона и реверба.
+    /// Пространство 1…16 (0 — выключить).
+    func setSpace(_ d: Int) {
+        space = min(SpaceParams.maxD, max(0, d))
+        if space > 0 { spaceLast = space }
+        applyTempo()
+        persistTempo()
+    }
+
+    /// Переключатель «Пространство»: включили — последнее выбранное D (сначала 8D).
+    func setSpaceOn(_ on: Bool) { setSpace(on ? spaceLast : 0) }
+
+    /// Всё как было: 1×, без сдвига тона, реверба и пространства.
     func resetTempo() {
         applyRate(1)
         pitch = 0
         reverb = 0
+        space = 0
         applyTempo()
         persistTempo()
     }
@@ -445,6 +461,7 @@ final class PlaybackEngine {
             pitch = sound.pitch
             pitchLinked = sound.linked
             reverb = sound.reverb
+            space = sound.space
             trackEq = sound.eq
             applyRate(Float(sound.rate))
         } else {
@@ -454,6 +471,7 @@ final class PlaybackEngine {
             pitch = settings.double("player.pitch")
             pitchLinked = settings.bool("player.pitch_linked")
             reverb = settings.double("player.reverb")
+            space = SpaceParams.clamp(settings.double("audio.space"))
             applyRate(1)
         }
         applyTempo()
@@ -464,7 +482,7 @@ final class PlaybackEngine {
 
     /// Звук, который сейчас звучит, — для записи в трек.
     private var currentSound: TrackSound {
-        TrackSound(rate: Double(rate), pitch: pitch, linked: pitchLinked, reverb: reverb, eq: trackEq)
+        TrackSound(rate: Double(rate), pitch: pitch, linked: pitchLinked, reverb: reverb, eq: trackEq, space: space)
     }
 
     private func persistTempo() {
@@ -476,11 +494,14 @@ final class PlaybackEngine {
         if settings.double("player.pitch") != pitch { settings.set("player.pitch", .double(pitch)) }
         if settings.bool("player.pitch_linked") != pitchLinked { settings.set("player.pitch_linked", pitchLinked) }
         if settings.double("player.reverb") != reverb { settings.set("player.reverb", .double(reverb)) }
+        if settings.double("audio.space") != Double(space) { settings.set("audio.space", .double(Double(space))) }
     }
 
     /// Тон и реверб — в обработку звука; связанный тон — алгоритм AVPlayer у всех элементов обеих дек.
     private func applyTempo() {
-        AudioTap.params.updateEffects(pitchRatio: pitchLinked ? 1 : TrackSound.pitchRatio(pitch), reverb: reverb)
+        if space > 0 { spaceLast = space }
+        AudioTap.params.updateEffects(pitchRatio: pitchLinked ? 1 : TrackSound.pitchRatio(pitch),
+                                      reverb: SpaceParams.reverb(reverb, space: space), space: space)
         guard !blendHold else { return }
         let algorithm = pitchAlgorithm
         for deck in decks {

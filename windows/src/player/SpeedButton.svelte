@@ -2,7 +2,7 @@
   // Кнопка-часы в плеере и меню «Скорость и тональность» (референс владельца 2026-11-16): готовые
   // x0.8 … x1.35 с бегающей капсулой, «барабаны» скорости и питча (Ruler) с −/значение/+, «Связать
   // скорость с питчем» (тогда питч двигает скорость: −2 st ≈ x0.89, лента доезжает плавно),
-  // «Сохранять для след. треков», «Реверберация» и её сила 0–100 %. Что-то настроено — кнопка
+  // «Сохранять для след. треков», «Реверберация» и её сила 0–100 %, «Пространство» 1D…16D (`space.ts`). Что-то настроено — кнопка
   // подсвечена, на ней значение. Открывается и закрывается только кликом.
   import { onMount } from 'svelte'
   import Icon from '../components/Icon.svelte'
@@ -12,6 +12,7 @@
   import Ruler from '../components/Ruler.svelte'
   import { t } from '../lib/i18n.svelte'
   import { PITCH_MAX, PITCH_MIN, SPEED_MAX, SPEED_MIN, SPEED_PRESETS, tempo } from './tempo.svelte'
+  import { SPACE_PRESETS } from './space'
 
   let open = $state(false)
   let root: HTMLDivElement | undefined = $state()
@@ -102,7 +103,7 @@
       <div class="switches">
         <Switch
           title={t('Для этого трека')}
-          hint={t('Скорость, тон, реверб и эквалайзер — только у этого трека и на всех твоих устройствах')}
+          hint={t('Скорость, тон, реверб, пространство и эквалайзер — только у этого трека и на всех твоих устройствах')}
           on={tempo.perTrack}
           disabled={!tempo.hasTrack}
           onchange={(v) => tempo.setPerTrack(v)}
@@ -115,6 +116,25 @@
       {#if tempo.reverbOn}
         <div class="rev" transition:slide={{ duration: 260 }}>
           {@render drum(t('Реверберация'), Math.round(tempo.reverb * 100), 0, 100, 1, `${Math.round(tempo.reverb * 100)}%`, (v) => tempo.setReverb(v / 100), 35, 10)}
+        </div>
+      {/if}
+
+      <div class="switches">
+        <Switch
+          title={t('Пространство ✦')}
+          hint={t('Звук плавно кружит вокруг головы. Чем больше D — тем шире, глубже и живее движение. Лучше в наушниках')}
+          on={tempo.space > 0}
+          onchange={(v) => tempo.setSpaceOn(v)}
+        />
+      </div>
+
+      {#if tempo.space > 0}
+        <div class="rev" transition:slide={{ duration: 260 }}>
+          <div class="presets space" use:indicator={{ key: tempo.space, kind: 'pill' }} role="radiogroup" aria-label={t('Пространство')}>
+            {#each SPACE_PRESETS as d (d)}
+              <button class:on={tempo.space === d} role="radio" aria-checked={tempo.space === d} onclick={() => tempo.setSpace(d)}>{d}D</button>
+            {/each}
+          </div>
         </div>
       {/if}
     </div>
@@ -275,6 +295,9 @@
   }
   .switches {
     margin-top: 10px;
+  }
+  .presets.space {
+    margin: 4px 0 8px;
   }
   @media (prefers-reduced-motion: reduce) {
     .face,

@@ -269,7 +269,7 @@ class Player {
       })
       // меню скорости: любое изменение — сразу в звук
       $effect(() => {
-        void [tempo.rate, tempo.pitch, tempo.linked, tempo.wet]
+        void [tempo.rate, tempo.pitch, tempo.linked, tempo.wet, tempo.space]
         untrack(() => this.applySpeed())
       })
     })
@@ -311,7 +311,7 @@ class Player {
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 2048
       analyser.smoothingTimeConstant = 0.82
-      // микс → эквалайзер → выравниватель громкости → реверб → анализатор волны → выход
+      // микс → эквалайзер → выравниватель громкости → пространство и реверб → анализатор волны → выход
       const leveler = new Leveler(ctx)
       const effects = new Effects(ctx)
       eq.connect(ctx, mix, leveler.input)
@@ -592,6 +592,7 @@ class Player {
   private applySpeed() {
     if (!this.audio) return
     this.effects?.setReverb(tempo.wet)
+    this.effects?.setSpace(tempo.space)
     if (this.blendHeld) return
     const rate = tempo.rate
     this.audio.preservesPitch = !tempo.linked

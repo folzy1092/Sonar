@@ -20,11 +20,13 @@ describe('скорость и тон', () => {
     expect(badge(0.8, 0, 0)).toBe('0.8×')
     expect(badge(1, 2, 0)).toBe('+2')
     expect(badge(1, 0, 0.3)).toBe('Reverb')
+    expect(badge(1, 0, 0.3, 8)).toBe('8D')
+    expect(badge(0.8, 0, 0, 8)).toBe('0.8×')
   })
 })
 
 describe('плашка «Свой звук»', () => {
-  const plain = { rate: 1, pitch: 0, linked: true, reverb: 0.35, reverbOn: false }
+  const plain = { rate: 1, pitch: 0, linked: true, reverb: 0.35, reverbOn: false, space: 0 }
   it('только то, что отличается от обычного звука', () => {
     expect(ownSoundParts(plain, null)).toEqual([])
     expect(ownSoundParts({ ...plain, rate: 0.85, reverbOn: true }, null)).toEqual(['x0.85', 'Reverb'])
@@ -35,6 +37,7 @@ describe('плашка «Свой звук»', () => {
     expect(ownSoundParts({ ...plain, rate: 0.8, pitch: 3 }, null)).toEqual(['x0.8'])
     expect(ownSoundParts(plain, Array(12).fill(0.01))).toEqual([])
     expect(ownSoundParts(plain, [0, 0, 2, ...Array(9).fill(0)])).toEqual(['EQ'])
+    expect(ownSoundParts({ ...plain, space: 12, reverbOn: true }, null)).toEqual(['12D', 'Reverb'])
   })
 })
 
@@ -58,7 +61,7 @@ describe('звук трека («Для этого трека»)', () => {
     const { toSound } = await import('./tempo.svelte')
     const g = Array(12).fill(2)
     const s = toSound({ rate: 0.8, pitch: 0, linked: true, reverb: 0.5, reverbOn: false }, g)
-    expect(s).toEqual({ rate: 0.8, pitch: 0, linked: true, reverb: 0, eq: g })
+    expect(s).toEqual({ rate: 0.8, pitch: 0, linked: true, reverb: 0, eq: g, space: 0 })
     g[0] = 9
     expect(s.eq?.[0]).toBe(2)
     expect(toSound({ rate: 3, pitch: -20, linked: false, reverb: 0.456, reverbOn: true }, null)).toEqual({
@@ -67,7 +70,9 @@ describe('звук трека («Для этого трека»)', () => {
       linked: false,
       reverb: 0.46,
       eq: null,
+      space: 0,
     })
+    expect(toSound({ rate: 1, pitch: 0, linked: true, reverb: 0, reverbOn: false, space: 8 }, null).space).toBe(8)
   })
   it('реверб 0 — выключен, сила остаётся прежней', async () => {
     const { fromSound } = await import('./tempo.svelte')
@@ -77,7 +82,10 @@ describe('звук трека («Для этого трека»)', () => {
       linked: true,
       reverb: 0.35,
       reverbOn: false,
+      space: 0,
     })
+    // старая запись без поля — без пространства, новая — со своим D
+    expect(fromSound({ rate: 1, pitch: 0, linked: true, reverb: 0, eq: null, space: 12 }, 0.35).space).toBe(12)
     expect(fromSound({ rate: 1, pitch: 2, linked: false, reverb: 0.6, eq: null }, 0.35).reverbOn).toBe(true)
   })
 })

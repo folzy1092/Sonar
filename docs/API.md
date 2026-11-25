@@ -388,7 +388,7 @@ missing, truncated}`.
 | GET | `/library/likes?kind=track\|album\|artist` | `{rev, items: [{item: Track\|Album\|Artist, added_at}]}` |
 | PUT | `/library/likes/{ref}` | → `{rev}` (вид — по разбору ref из §2 «Префиксы ref»: трек, альбом или артист работающего сервиса, например `sc:`/`ym:` трек, `scalb:`/`ymalb:` альбом, `sca:`/`yma:` артист; плейлист сервиса — не лайк) |
 | DELETE | `/library/likes/{ref}` | → `{rev}` |
-| PUT | `/library/track-prefs/{ref}` | `{speed?: 0.5…2.0, lyrics_offset_ms?, sound?: TrackSound \| null}` → `{rev}` («Запомнить»; `TrackSound` — `{rate 0.5…2, pitch −12…12, linked, reverb 0…1, eq: number[12] \| null}`, «Для этого трека», 2026-11-22) |
+| PUT | `/library/track-prefs/{ref}` | `{speed?: 0.5…2.0, lyrics_offset_ms?, sound?: TrackSound \| null}` → `{rev}` («Запомнить»; `TrackSound` — `{rate 0.5…2, pitch −12…12, linked, reverb 0…1, eq: number[12] \| null, space?: 0…16}`, «Для этого трека», 2026-11-22; `space` — пространство 1D–16D, нет поля — 0, 2026-11-25) |
 | DELETE | `/library/track-prefs` | сбросить все → `{rev}` |
 | GET | `/playlists` | `[Playlist]` (без треков) |
 | POST | `/playlists` | `{name, tracks?: [ref]}` → `Playlist` |

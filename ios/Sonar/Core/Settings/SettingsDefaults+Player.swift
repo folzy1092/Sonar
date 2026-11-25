@@ -50,6 +50,8 @@ extension SettingsDefaults {
             "player.pitch_linked": .bool(false),
             "player.pitch": .double(0),
             "player.reverb": .double(0),
+            // пространство 0…16 листа скорости (`Playback/Space.swift`), то же имя, что на ПК
+            "audio.space": .double(0),
         ]
         for (key, value) in Gestures.defaults { out[key] = .string(value) }
         return out

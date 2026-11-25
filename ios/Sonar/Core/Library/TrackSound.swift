@@ -15,6 +15,30 @@ struct TrackSound: Codable, Equatable, Sendable {
     var reverb: Double = 0
     /// Кривая эквалайзера, 12 полос в дБ; nil — общая кривая.
     var eq: [Double]?
+    /// Пространство 0…16 (`Playback/Space.swift`), 0 — выключено; у старых записей поля нет — 0.
+    var space: Int = 0
+
+    init(rate: Double, pitch: Double = 0, linked: Bool = false, reverb: Double = 0, eq: [Double]? = nil, space: Int = 0) {
+        self.rate = rate
+        self.pitch = pitch
+        self.linked = linked
+        self.reverb = reverb
+        self.eq = eq
+        self.space = space
+    }
+
+    private enum CodingKeys: String, CodingKey { case rate, pitch, linked, reverb, eq, space }
+
+    /// Старые сохранённые записи — без `space` (и, на всякий случай, без прочих полей кроме скорости).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        rate = try c.decode(Double.self, forKey: .rate)
+        pitch = try c.decodeIfPresent(Double.self, forKey: .pitch) ?? 0
+        linked = try c.decodeIfPresent(Bool.self, forKey: .linked) ?? false
+        reverb = try c.decodeIfPresent(Double.self, forKey: .reverb) ?? 0
+        eq = try c.decodeIfPresent([Double].self, forKey: .eq)
+        space = try SpaceParams.clamp(c.decodeIfPresent(Double.self, forKey: .space) ?? 0)
+    }
 
     static let rateRange = 0.5 ... 2.0
     static let pitchRange = -12.0 ... 12.0
@@ -30,7 +54,8 @@ struct TrackSound: Codable, Equatable, Sendable {
                           pitch: Self.round(pitch.clamped(to: Self.pitchRange), 10),
                           linked: linked,
                           reverb: Self.round(reverb.clamped(to: 0 ... 1), 100),
-                          eq: curve)
+                          eq: curve,
+                          space: min(SpaceParams.maxD, max(0, space)))
     }
 
     /// Тон, который звучит: связан — от скорости (×2 — октава вверх), иначе свой.
@@ -53,6 +78,7 @@ struct TrackSound: Codable, Equatable, Sendable {
         var parts: [String] = []
         if rate != 1 { parts.append("x\(Self.trim(rate))") }
         if !linked, pitch != 0 { parts.append("\(pitch > 0 ? "+" : "−")\(Self.trim(abs(pitch))) st") }
+        if space > 0 { parts.append(SpaceParams.label(space)) }
         if reverb > 0 { parts.append("Reverb") }
         if let eq, !Equalizer.isFlat(eq) { parts.append("EQ") }
         return parts
@@ -75,6 +101,7 @@ struct TrackSound: Codable, Equatable, Sendable {
             "linked": .bool(linked),
             "reverb": .double(reverb),
             "eq": eq.map { .array($0.map { .double($0) }) } ?? .null,
+            "space": .int(space),
         ])
     }
 
@@ -86,7 +113,8 @@ struct TrackSound: Codable, Equatable, Sendable {
             guard let rate = sound["rate"].number else { return nil }
             let eq = sound["eq"].array.map { $0.compactMap(\.number) }
             return TrackSound(rate: rate, pitch: sound["pitch"].number ?? 0, linked: sound["linked"].bool ?? false,
-                              reverb: sound["reverb"].number ?? 0, eq: eq).normalized()
+                              reverb: sound["reverb"].number ?? 0, eq: eq,
+                              space: SpaceParams.clamp(sound["space"].number ?? 0)).normalized()
         }
         guard let speed = value["speed"].number else { return nil }
         return TrackSound(rate: speed).normalized()

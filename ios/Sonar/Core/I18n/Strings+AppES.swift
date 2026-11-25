@@ -21,7 +21,7 @@ extension I18n {
         "Связать тон со скоростью": "Vincular tono y velocidad",
         "Slowed / sped up: скорость меняет высоту звука": "Slowed / sped up: la velocidad cambia el tono",
         "У этого трека свой звук — кривая сохранится только для него": "Esta pista tiene su propio sonido: la curva se guardará solo para ella",
-        "Этот трек идёт потоком HLS — свой тон и реверб на нём не слышны. Slowed со связанным тоном работает": "Esta pista llega por HLS: el tono propio y la reverberación no se oyen. Slowed con tono vinculado sí funciona",
+        "Этот трек идёт потоком HLS — свой тон, реверб и пространство на нём не слышны. Slowed со связанным тоном работает": "Esta pista llega por HLS: el tono propio, la reverberación y el espacio no se oyen. Slowed con tono vinculado sí funciona",
         // меню трека: устройства, таймер сна; T в тексте
         "Выбрать, где играет музыка": "Elegir dónde suena la música",
         "Остановить музыку через заданное время": "Detener la música tras un tiempo",

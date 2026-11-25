@@ -312,7 +312,7 @@ mod tests {
     let server = MemoryServer::default();
     let a = Mutex::new(Store::memory().unwrap());
     let b = Mutex::new(Store::memory().unwrap());
-    let slowed = TrackSound { rate: 0.8, pitch: 0.0, linked: true, reverb: 0.4, eq: Some(vec![2.0; 12]) };
+    let slowed = TrackSound { rate: 0.8, pitch: 0.0, linked: true, reverb: 0.4, eq: Some(vec![2.0; 12]), space: 0.0 };
     a.lock().unwrap().set_track_sound("sc:1", Some(slowed.clone())).unwrap();
     block(sync_once(&a, &server)).unwrap();
     // новое устройство: взялось с сервера, дальше живёт в своей базе

@@ -161,6 +161,8 @@ export const DEFAULTS = {
   'audio.yt_quality': 'high' as 'normal' | 'high',
   /** Нормализация громкости (player/leveler.ts) — выравнивание тихих и громких треков. */
   'audio.normalize': false,
+  /** Пространство 0…16 (0 — выкл), меню скорости (player/space.ts); пишет и читает `tempo.svelte.ts`. */
+  'audio.space': 0 as number,
   /** Кроссфейд, секунды (0 — выкл): следующий трек нарастает, пока текущий затухает. */
   'audio.crossfade': 0 as number,
   /** Бесшовное: без кроссфейда следующий трек стыкуется без паузы (короткое перекрытие). */

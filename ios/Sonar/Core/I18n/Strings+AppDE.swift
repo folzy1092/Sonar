@@ -21,7 +21,7 @@ extension I18n {
         "Связать тон со скоростью": "Tonhöhe an Tempo koppeln",
         "Slowed / sped up: скорость меняет высоту звука": "Slowed / sped up: Tempo ändert die Tonhöhe",
         "У этого трека свой звук — кривая сохранится только для него": "Dieser Titel hat einen eigenen Klang – die Kurve wird nur für ihn gespeichert",
-        "Этот трек идёт потоком HLS — свой тон и реверб на нём не слышны. Slowed со связанным тоном работает": "Dieser Titel kommt als HLS-Stream – eigene Tonhöhe und Hall sind nicht hörbar. Slowed mit gekoppelter Tonhöhe funktioniert",
+        "Этот трек идёт потоком HLS — свой тон, реверб и пространство на нём не слышны. Slowed со связанным тоном работает": "Dieser Titel kommt als HLS-Stream – eigene Tonhöhe, Hall und Raum sind nicht hörbar. Slowed mit gekoppelter Tonhöhe funktioniert",
         // меню трека: устройства, таймер сна; T в тексте
         "Выбрать, где играет музыка": "Wählen, wo die Musik läuft",
         "Остановить музыку через заданное время": "Musik nach einer festen Zeit stoppen",

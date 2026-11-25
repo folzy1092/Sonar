@@ -2,7 +2,7 @@ import AVFoundation
 import MediaToolbox
 import os
 
-/// Эквалайзер, тон, реверб и нормализация громкости на iPhone: `MTAudioProcessingTap` в `AVAudioMix`
+/// Эквалайзер, тон, реверб, пространство (`Space.swift`) и нормализация громкости на iPhone: `MTAudioProcessingTap` в `AVAudioMix`
 /// элемента плеера. Звук трека проходит через 12 фильтров (`Equalizer`), сдвиг тона (`PitchShifter`), реверб
 /// (`Reverb`) и выравниватель (`Leveler`) — числа и формулы в `PlayerDSP.swift` и `SoundFX.swift`. Тон,
 /// связанный со скоростью (slowed), — не здесь: его даёт сам AVPlayer (`audioTimePitchAlgorithm = .varispeed`).
@@ -85,6 +85,8 @@ final class AudioTapParams: Sendable {
         var pitchRatio = 1.0
         /// Реверб 0…1 (0 — выключен).
         var reverb = 0.0
+        /// Пространство 0…16 (0 — выключено, `Space.swift`).
+        var space = 0
         var version = 0
     }
 
@@ -99,12 +101,13 @@ final class AudioTapParams: Sendable {
         }
     }
 
-    /// Тон и реверб листа скорости (`PlaybackEngine.applyTempo`).
-    func updateEffects(pitchRatio: Double, reverb: Double) {
+    /// Тон, реверб и пространство листа скорости (`PlaybackEngine.applyTempo`).
+    func updateEffects(pitchRatio: Double, reverb: Double, space: Int = 0) {
         lock.withLock { values in
-            guard values.pitchRatio != pitchRatio || values.reverb != reverb else { return }
+            guard values.pitchRatio != pitchRatio || values.reverb != reverb || values.space != space else { return }
             values.pitchRatio = pitchRatio
             values.reverb = reverb
+            values.space = space
             values.version &+= 1
         }
     }
@@ -138,6 +141,8 @@ private final class TapContext: @unchecked Sendable {
     /// По каналу — создаются в `prepare`, в звуковом потоке только используются.
     private var shifters: [PitchShifter] = []
     private var reverbs: [Reverb] = []
+    /// Пространство — на пару каналов 0 и 1 (моно — без него).
+    private var spatializer: Spatializer?
     private let coefficients = UnsafeMutablePointer<FloatBiquad>.allocate(capacity: TapContext.bands)
     private let active = UnsafeMutablePointer<Bool>.allocate(capacity: TapContext.bands)
     private let states = UnsafeMutablePointer<BiquadState>.allocate(capacity: TapContext.bands * TapContext.maxChannels)
@@ -170,6 +175,7 @@ private final class TapContext: @unchecked Sendable {
         let count = ready ? channels : 0
         shifters = (0 ..< count).map { _ in PitchShifter() }
         reverbs = (0 ..< count).map { Reverb(sampleRate: sampleRate, channel: $0) }
+        spatializer = count >= 2 ? Spatializer(sampleRate: sampleRate) : nil
         if ready { blend?.prepare(sampleRate: sampleRate, channels: channels, maxFrames: maxFrames) }
     }
 
@@ -191,6 +197,7 @@ private final class TapContext: @unchecked Sendable {
         if wantReverb, !reverbOn { reverbs.forEach { $0.reset() } }
         reverbOn = wantReverb
         reverbAmount = Float(min(1, values.reverb))
+        spatializer?.set(on: values.space > 0, params: SpaceParams.of(values.space))
         eqOn = values.eqEnabled && !Equalizer.isFlat(values.gains)
         let filters = Equalizer.filters(values.gains, sampleRate: sampleRate)
         for band in 0 ..< Self.bands {
@@ -211,7 +218,8 @@ private final class TapContext: @unchecked Sendable {
         let blending = blend?.begin(startMs: Self.ms(range.start), durationMs: Self.ms(range.duration) ?? 0,
                                     frames: frames) == true
         let levelerBusy = normalize || abs(leveler.gain - 1) > 0.001
-        let effectsOn = pitchOn || reverbOn || blending
+        let space = spatializer.flatMap { $0.idle ? nil : $0 }
+        let effectsOn = pitchOn || reverbOn || blending || space != nil
         guard eqOn || effectsOn || levelerBusy else { return }
         let buffers = UnsafeMutableAudioBufferListPointer(list)
         var sum: Double = 0
@@ -251,6 +259,9 @@ private final class TapContext: @unchecked Sendable {
             channelBase += stride
         }
 
+        // 1б. пространство — по кадру сразу на оба канала: один буфер «через один» или два буфера по каналу
+        if let space { Self.spatialize(space, buffers, frames: frames) }
+
         // 2. выравниватель: усиление плавно от прошлого к новому за блок; громче 0 дБ — мягкий предел
         let before = Float(leveler.gain)
         let after = Float(leveler.step(blockDb: Leveler.rmsDb(sumOfSquares: sum, count: count),
@@ -271,6 +282,31 @@ private final class TapContext: @unchecked Sendable {
                 }
                 gain += step
                 i += stride
+            }
+        }
+    }
+
+    private static func spatialize(_ space: Spatializer, _ buffers: UnsafeMutableAudioBufferListPointer, frames: Int) {
+        guard let first = buffers.first, let a = first.mData?.assumingMemoryBound(to: Float.self) else { return }
+        let size = MemoryLayout<Float>.size
+        if first.mNumberChannels >= 2 {
+            let stride = Int(first.mNumberChannels)
+            let length = min(frames, Int(first.mDataByteSize) / (size * stride))
+            var i = 0
+            for _ in 0 ..< length {
+                var l = a[i], r = a[i + 1]
+                space.process(&l, &r)
+                a[i] = l
+                a[i + 1] = r
+                i += stride
+            }
+        } else if buffers.count >= 2, let b = buffers[1].mData?.assumingMemoryBound(to: Float.self) {
+            let length = min(frames, Int(first.mDataByteSize) / size, Int(buffers[1].mDataByteSize) / size)
+            for i in 0 ..< length {
+                var l = a[i], r = b[i]
+                space.process(&l, &r)
+                a[i] = l
+                b[i] = r
             }
         }
     }

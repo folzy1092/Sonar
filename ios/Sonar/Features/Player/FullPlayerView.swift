@@ -1082,6 +1082,7 @@ struct SpeedSheet: View {
         .padding(.bottom, 24)
         .animation(Motion.spring, value: engine.rate)
         .animation(Motion.spring, value: engine.reverb > 0)
+        .animation(Motion.spring, value: engine.space)
         .animation(Motion.spring, value: engine.hasTrackSound)
         }
         .scrollIndicators(.hidden)
@@ -1145,17 +1146,42 @@ struct SpeedSheet: View {
                 .padding(.bottom, 8)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
+            Divider().overlay(Theme.line)
+            toggleRow(t("Пространство ✦"),
+                      t("Звук плавно кружит вокруг головы. Чем больше D — тем шире, глубже и живее движение. Лучше в наушниках"),
+                      isOn: Binding(get: { engine.space > 0 }, set: { engine.setSpaceOn($0) }))
+            if engine.space > 0 {
+                // как ПК: шесть чипов по опорным точкам таблицы (`SpaceParams.table`), промежуточные D — из синка
+                HStack(spacing: 6) {
+                    ForEach(SpaceParams.presets, id: \.self) { d in
+                        Button {
+                            withAnimation(Motion.spring) { engine.setSpace(d) }
+                            Haptics.select()
+                        } label: {
+                            Text(SpaceParams.label(d))
+                                .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                                .foregroundStyle(engine.space == d ? Theme.accentInk : Theme.text)
+                                .frame(maxWidth: .infinity, minHeight: 34)
+                                .background(engine.space == d ? AnyShapeStyle(Theme.text) : AnyShapeStyle(Color.white.opacity(0.08)), in: Capsule())
+                        }
+                        .buttonStyle(PressableStyle(scale: 0.92))
+                        .accessibilityAddTraits(engine.space == d ? .isSelected : [])
+                    }
+                }
+                .padding(.bottom, 10)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
             if engine.current != nil {
                 Divider().overlay(Theme.line)
-                toggleRow(t("Для этого трека"), t("Скорость, тон, реверб и эквалайзер — только у этого трека и на всех твоих устройствах"),
+                toggleRow(t("Для этого трека"), t("Скорость, тон, реверб, пространство и эквалайзер — только у этого трека и на всех твоих устройствах"),
                           isOn: Binding(get: { engine.hasTrackSound }, set: { engine.setTrackSound($0) }))
             }
         }
         .padding(.horizontal, 14)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         // поток HLS AVPlayer играет мимо обработки звука — честно говорим, что из этого слышно
-        if engine.isHLS, (!engine.pitchLinked && engine.pitch != 0) || engine.reverb > 0 {
-            HintCard(icon: .info, text: t("Этот трек идёт потоком HLS — свой тон и реверб на нём не слышны. Slowed со связанным тоном работает"))
+        if engine.isHLS, (!engine.pitchLinked && engine.pitch != 0) || engine.reverb > 0 || engine.space > 0 {
+            HintCard(icon: .info, text: t("Этот трек идёт потоком HLS — свой тон, реверб и пространство на нём не слышны. Slowed со связанным тоном работает"))
                 .transition(.opacity)
         }
     }

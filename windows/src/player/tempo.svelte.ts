@@ -7,6 +7,7 @@
 import { api, type TrackSound } from '../lib/api'
 import { eq } from './eq.svelte'
 import { ownSound } from '../lib/own-sound.svelte'
+import { clampSpace, SPACE_DEFAULT, spaceLabel, withSpaceReverb } from './space'
 
 export const SPEED_PRESETS = [0.8, 0.9, 1, 1.15, 1.25, 1.35] as const
 export const SPEED_MIN = 0.5
@@ -23,10 +24,11 @@ export const linkedSemitones = (rate: number) => Math.round(12 * Math.log2(rate)
 /** Множитель частоты для сдвига в полутонах. */
 export const pitchRatio = (semitones: number) => 2 ** (semitones / 12)
 
-/** Подпись кнопки: «0.8×», «1.25×»; на 1× без эффектов — пусто (значок часов). */
-export function badge(rate: number, pitch: number, reverb: number): string {
+/** Подпись кнопки: «0.8×», «1.25×», «8D»; на 1× без эффектов — пусто (значок часов). */
+export function badge(rate: number, pitch: number, reverb: number, space = 0): string {
   if (rate !== 1) return `${rate}×`
   if (pitch !== 0) return `${pitch > 0 ? '+' : ''}${pitch}`
+  if (space > 0) return spaceLabel(space)
   if (reverb > 0) return 'Reverb'
   return ''
 }
@@ -43,34 +45,38 @@ export function ownSoundParts(s: Mix, eqGains: readonly number[] | null): string
   const parts: string[] = []
   if (s.rate !== 1) parts.push(`x${s.rate}`)
   if (!s.linked && s.pitch !== 0) parts.push(`${s.pitch > 0 ? '+' : '−'}${Math.abs(s.pitch)} st`)
+  if (s.space > 0) parts.push(spaceLabel(s.space))
   if (s.reverbOn) parts.push('Reverb')
   if (eqGains?.some((g) => Math.abs(g) >= EQ_FLAT_DB)) parts.push('EQ')
   return parts
 }
 
-/** Что звучит → звук трека: выключенный реверб — 0. */
-export function toSound(s: Pick<Saved, 'rate' | 'pitch' | 'linked' | 'reverb' | 'reverbOn'>, eqGains: number[] | null): TrackSound {
+/** Что звучит → звук трека: выключенный реверб — 0, пространство 0 — выключено. */
+export function toSound(s: Pick<Mix, 'rate' | 'pitch' | 'linked' | 'reverb' | 'reverbOn'> & { space?: number }, eqGains: number[] | null): TrackSound {
   return {
     rate: clampRate(s.rate),
     pitch: clampPitch(s.pitch),
     linked: s.linked,
     reverb: s.reverbOn ? Math.round(Math.min(1, Math.max(0, s.reverb)) * 100) / 100 : 0,
     eq: eqGains ? eqGains.slice() : null,
+    space: clampSpace(s.space ?? 0),
   }
 }
 
 /** Звук трека → состояние меню. Реверб 0 — выключен, а сила остаётся прежней (`keepReverb`). */
-export function fromSound(s: TrackSound, keepReverb: number): Pick<Saved, 'rate' | 'pitch' | 'linked' | 'reverb' | 'reverbOn'> {
+export function fromSound(s: TrackSound, keepReverb: number): Mix {
   return {
     rate: clampRate(s.rate),
     pitch: clampPitch(s.pitch),
     linked: s.linked,
     reverb: s.reverb > 0 ? Math.min(1, s.reverb) : keepReverb,
     reverbOn: s.reverb > 0,
+    // старые записи без поля — без пространства
+    space: clampSpace(s.space ?? 0),
   }
 }
 
-type Mix = Pick<Saved, 'rate' | 'pitch' | 'linked' | 'reverb' | 'reverbOn'>
+type Mix = Pick<Saved, 'rate' | 'pitch' | 'linked' | 'reverb' | 'reverbOn'> & { space: number }
 
 interface Saved {
   rate: number
@@ -91,14 +97,18 @@ class Tempo {
   reverb = $state(0.35)
   /** Переключатель «Реверберация». */
   reverbOn = $state(false)
-  /** Что звучит: выключен — 0. */
-  wet = $derived(this.reverbOn ? this.reverb : 0)
+  /** Пространство 0…16 (0 — выкл), общая настройка `audio.space`. */
+  space = $state(0)
+  /** Какое D включится переключателем — последнее выбранное. */
+  private spaceLast = SPACE_DEFAULT
+  /** Что звучит: выключен — 0; пространство подмешивает свой реверб. */
+  wet = $derived(withSpaceReverb(this.reverbOn ? this.reverb : 0, this.space))
 
   /** Тон, который звучит: связан — от скорости, иначе свой. */
   semitones = $derived(this.linked ? linkedSemitones(this.rate) : this.pitch)
-  badge = $derived(badge(this.rate, this.linked ? 0 : this.pitch, this.reverbOn ? this.reverb : 0))
+  badge = $derived(badge(this.rate, this.linked ? 0 : this.pitch, this.reverbOn ? this.reverb : 0, this.space))
   /** Что-то настроено — кнопка в плеере подсвечена. */
-  active = $derived(this.rate !== 1 || (!this.linked && this.pitch !== 0) || this.reverbOn)
+  active = $derived(this.rate !== 1 || (!this.linked && this.pitch !== 0) || this.reverbOn || this.space > 0)
 
   /** У трека свой звук («Для этого трека»): правки пишутся в трек, а не в общие настройки. */
   perTrack = $state(false)
@@ -118,7 +128,7 @@ class Tempo {
   }
 
   private mix(): Mix {
-    return { rate: this.rate, pitch: this.pitch, linked: this.linked, reverb: this.reverb, reverbOn: this.reverbOn }
+    return { rate: this.rate, pitch: this.pitch, linked: this.linked, reverb: this.reverb, reverbOn: this.reverbOn, space: this.space }
   }
 
   private put(m: Mix) {
@@ -127,6 +137,7 @@ class Tempo {
     this.linked = m.linked
     this.reverb = m.reverb
     this.reverbOn = m.reverbOn
+    this.space = m.space
   }
 
   /** «Для этого трека»: включили — нынешний звук (и кривая эквалайзера) запоминается для трека;
@@ -182,7 +193,13 @@ class Tempo {
     this.loaded = true
     void ownSound.load()
     try {
-      const [s, legacy] = await Promise.all([api.getSetting<Partial<Saved>>('player.tempo'), api.getSetting<string>('player.speed_mode')])
+      const [s, legacy, space] = await Promise.all([
+        api.getSetting<Partial<Saved>>('player.tempo'),
+        api.getSetting<string>('player.speed_mode'),
+        api.getSetting<number>('audio.space'),
+      ])
+      this.space = clampSpace(space)
+      if (this.space > 0) this.spaceLast = this.space
       if (s && typeof s === 'object') {
         if (typeof s.rate === 'number') this.rate = clampRate(s.rate)
         if (typeof s.pitch === 'number') this.pitch = clampPitch(s.pitch)
@@ -241,11 +258,25 @@ class Tempo {
     this.save()
   }
 
-  /** Всё как было: 1×, без сдвига и реверба. */
+  /** Пространство 1…16. */
+  setSpace(d: number) {
+    const v = clampSpace(d)
+    if (v > 0) this.spaceLast = v
+    this.space = v
+    this.save()
+  }
+
+  /** Переключатель «Пространство»: включили — последнее выбранное D (сначала 8D). */
+  setSpaceOn(on: boolean) {
+    this.setSpace(on ? this.spaceLast : 0)
+  }
+
+  /** Всё как было: 1×, без сдвига, реверба и пространства. */
   reset() {
     this.rate = 1
     this.pitch = 0
     this.reverbOn = false
+    this.space = 0
     this.save()
   }
 
@@ -286,11 +317,16 @@ class Tempo {
       ownSound.mark(this.lastRef, true)
       void api.setTrackSound(this.lastRef, toSound(this.mix(), $state.snapshot(eq.saved))).catch(() => {})
       // «Сохранять для след. треков» — общая настройка, она живёт и у трека со своим звуком
-      if (this.general) void api.setSetting('player.tempo', { ...this.general, keep: this.keep }).catch(() => {})
+      if (this.general) {
+        const { space, ...general } = this.general
+        void api.setSetting('player.tempo', { ...general, keep: this.keep }).catch(() => {})
+        void api.setSetting('audio.space', space).catch(() => {})
+      }
       return
     }
     const s: Saved = { rate: this.rate, pitch: this.pitch, linked: this.linked, keep: this.keep, reverb: this.reverb, reverbOn: this.reverbOn }
     void api.setSetting('player.tempo', s).catch(() => {})
+    void api.setSetting('audio.space', this.space).catch(() => {})
   }
 }
 

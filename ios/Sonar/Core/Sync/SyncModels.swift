@@ -152,6 +152,7 @@ enum SyncPolicy {
         "player.pitch_linked",
         "player.pitch",
         "player.reverb",
+        "audio.space",
         "obs.token",
         "lyrics.view",
     ]

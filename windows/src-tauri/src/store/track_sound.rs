@@ -28,6 +28,9 @@ pub struct TrackSound {
   /// Кривая эквалайзера, 12 полос в дБ; `None` — общая кривая.
   #[serde(default)]
   pub eq: Option<Vec<f64>>,
+  /// Пространство 0…16 (`player/space.ts`), 0 — выключено; у старых записей поля нет — 0.
+  #[serde(default)]
+  pub space: f64,
 }
 
 /// До `per`-х долей: `round(0.8333, 100)` = 0.83 (делением — без хвостов вида 0.8300000000000001).
@@ -38,7 +41,7 @@ fn round(v: f64, per: f64) -> f64 {
 impl TrackSound {
   /// В допустимых пределах; мусор (не числа) — `None`.
   pub fn normalized(self) -> Option<Self> {
-    if !self.rate.is_finite() || !self.pitch.is_finite() || !self.reverb.is_finite() {
+    if !self.rate.is_finite() || !self.pitch.is_finite() || !self.reverb.is_finite() || !self.space.is_finite() {
       return None;
     }
     let eq = self
@@ -51,6 +54,7 @@ impl TrackSound {
       linked: self.linked,
       reverb: round(self.reverb.clamp(0.0, 1.0), 100.0),
       eq,
+      space: self.space.clamp(0.0, 16.0).round(),
     })
   }
 
@@ -61,7 +65,7 @@ impl TrackSound {
       return serde_json::from_value::<Self>(s.clone()).ok()?.normalized();
     }
     let speed = v.get("speed")?.as_f64()?;
-    Self { rate: speed, pitch: 0.0, linked: false, reverb: 0.0, eq: None }.normalized()
+    Self { rate: speed, pitch: 0.0, linked: false, reverb: 0.0, eq: None, space: 0.0 }.normalized()
   }
 }
 
@@ -110,18 +114,21 @@ mod tests {
   use serde_json::json;
 
   fn slowed() -> TrackSound {
-    TrackSound { rate: 0.8, pitch: 0.0, linked: true, reverb: 0.4, eq: Some(vec![3.0; 12]) }
+    TrackSound { rate: 0.8, pitch: 0.0, linked: true, reverb: 0.4, eq: Some(vec![3.0; 12]), space: 0.0 }
   }
 
   #[test]
   fn clamps_and_rounds() {
-    let s = TrackSound { rate: 3.0, pitch: -20.0, linked: false, reverb: 1.7, eq: Some(vec![40.0; 12]) }.normalized().unwrap();
+    let s = TrackSound { rate: 3.0, pitch: -20.0, linked: false, reverb: 1.7, eq: Some(vec![40.0; 12]), space: 0.0 }.normalized().unwrap();
     assert_eq!((s.rate, s.pitch, s.reverb), (2.0, -12.0, 1.0));
     assert_eq!(s.eq.unwrap()[0], 12.0);
-    let s = TrackSound { rate: 0.8333, pitch: 1.26, linked: false, reverb: 0.333, eq: Some(vec![1.0; 5]) }.normalized().unwrap();
+    let s = TrackSound { rate: 0.8333, pitch: 1.26, linked: false, reverb: 0.333, eq: Some(vec![1.0; 5]), space: 0.0 }.normalized().unwrap();
     assert_eq!((s.rate, s.pitch, s.reverb), (0.83, 1.3, 0.33));
     assert!(s.eq.is_none(), "кривая не из 12 полос — общая");
-    assert!(TrackSound { rate: f64::NAN, pitch: 0.0, linked: false, reverb: 0.0, eq: None }.normalized().is_none());
+    let s = TrackSound { space: 7.6, ..slowed() }.normalized().unwrap();
+    assert_eq!(s.space, 8.0);
+    assert_eq!(TrackSound { space: 40.0, ..slowed() }.normalized().unwrap().space, 16.0);
+    assert!(TrackSound { rate: f64::NAN, pitch: 0.0, linked: false, reverb: 0.0, eq: None, space: 0.0 }.normalized().is_none());
   }
 
   #[test]
@@ -132,6 +139,9 @@ mod tests {
     let old = TrackSound::from_sync(&json!({ "speed": 1.25, "lyrics_offset_ms": 300 })).unwrap();
     assert_eq!((old.rate, old.linked, old.reverb, old.eq), (1.25, false, 0.0, None));
     assert_eq!(TrackSound::from_sync(&json!({ "lyrics_offset_ms": 300 })), None);
+    // пространство с телефона приходит дробным числом — читается
+    let v = json!({ "sound": { "rate": 1.0, "space": 12.0 } });
+    assert_eq!(TrackSound::from_sync(&v).unwrap().space, 12.0);
   }
 
   #[test]

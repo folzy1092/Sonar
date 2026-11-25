@@ -20,6 +20,8 @@ export interface TrackSound {
   linked: boolean
   reverb: number
   eq: number[] | null
+  /** Пространство 0…16 (0 — выкл); у старых записей поля нет — 0. */
+  space?: number
 }
 
 export interface ArtistRef {
