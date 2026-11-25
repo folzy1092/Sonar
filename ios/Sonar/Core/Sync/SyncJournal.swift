@@ -6,7 +6,8 @@ import Foundation
 /// свежий `rev` (как `next_rev()` на ПК), пропавшее — tombstone `.null`.
 ///
 /// «Не отправлено» = `rev > pushedRev`. Пришедшее с сервера пишется с `rev = 0` — обратно не поедет.
-/// Строки, которые телефон хранить не умеет (плейлисты, пока их нет на iPhone; настройки-объекты ПК),
+/// Строки, которые телефон хранить не умеет (настройки-объекты ПК, альбомы в лайках; элемент плейлиста, пока сам
+/// плейлист не пришёл),
 /// лежат здесь же с `foreign = true`: не теряются и не превращаются в удаление.
 struct SyncJournal: Codable, Equatable, Sendable {
     struct Row: Codable, Equatable, Sendable {
@@ -154,6 +155,11 @@ struct SyncJournal: Codable, Equatable, Sendable {
     /// Записать пришедшее с сервера (`rev = 0` — уже на сервере).
     mutating func store(_ key: SyncKey, value: JSONValue, foreign: Bool, now: Int64) {
         rows[key] = Row(value: value, rev: 0, ts: now, foreign: foreign)
+    }
+
+    /// Хранилище приняло пришедшую строку позже (`SyncAdapter.finishApply`): она больше не «чужая».
+    mutating func adopt(_ key: SyncKey) {
+        rows[key]?.foreign = false
     }
 
     /// После применения: значение, каким его теперь видит хранилище (чтобы `scan` не принял его за своё).

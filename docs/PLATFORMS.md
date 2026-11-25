@@ -269,7 +269,7 @@ iOS-плеер устроен так же по составу (обложка �
   AVAudioEngine в `Playback/`.
 - Кэш прослушанных треков на диск (`storage.cache_tracks`, лимит) — тоже `Playback/`.
 - «Открыть в SoundCloud / Яндекс Музыке» у плейлиста сервиса — в `ServicePlaylist` нет ссылки.
-- Синк своих плейлистов, альбомов и подписок — вместе с сервером (адаптер в `Core/Sync/StoreAdapters.swift`).
+- Синк сохранённых альбомов и подписок на исполнителей (плейлисты ездят с 2026-11-25 — `Core/Sync/PlaylistSync.swift`).
 - Предпросмотр «Как видят мой профиль» (`pages/ProfilePage.svelte`) — на iPhone в Профиле пока только
   «Копировать ссылку на профиль» (`ProfileEditView`, `LocalProfile.profileURL`).
 - `privacy.hidden_playlists` — «Скрыть от других» у одного плейлиста: у настроек iPhone (`SettingValue`) нет

@@ -541,7 +541,8 @@ SoundCloud — `/resolve`, короткие on.soundcloud.com тоже), ком�
     `ApproveLoginSheet`, `DevicesView`, `AccountSecurityView`. Всё за флагом `server.enabled` (умолчание выкл.),
     тесты на сервере в памяти. ✅ сделано 2026-11-17
     - [ ] Подключить экраны в RootView / Профиле и `DeepLink` `sonar://auth/<code>`; словарь `AccountStrings` — в `I18n.dictionaries`.
-    - [ ] С сервером: плейлисты и журнал волны на iPhone → в синк; «Отправить / Получить» (`/sync/replace`, `/sync/snapshot`).
+    - [x] Свои плейлисты iPhone ↔ ПК в синке (`Core/Sync/PlaylistSync.swift`, по Wi‑Fi и потом с сервером) — ✅ сделано 2026-11-25.
+    - [ ] С сервером: журнал волны на iPhone → в синк; «Отправить / Получить» (`/sync/replace`, `/sync/snapshot`).
   - [x] Все разделы настроек iOS перенесены с ПК (Вид, Вкладки, Профиль, Аудио, Вид плеера, Очередь, Жесты,
     Статистика, Общее с языком ru/en/uk, Хранилище, Last.fm); тактильный отклик; журнал сбоев с «Отправить лог»;
     вход SoundCloud окном; подготовка к серверу (аккаунт, вход, устройства, синк — за флагом `server.enabled`);

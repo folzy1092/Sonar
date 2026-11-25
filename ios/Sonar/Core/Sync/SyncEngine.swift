@@ -11,6 +11,14 @@ protocol SyncAdapter: AnyObject {
     /// Применить пришедшее (`.null` — удалить). false — телефон такое хранить не умеет (строка останется
     /// в журнале «чужой»). `journal` уже содержит это изменение.
     func apply(_ change: SyncChange, journal: SyncJournal) -> Bool
+    /// Пачка `pull` разобрана: отложенное применить разом и вернуть строки, которые хранилище теперь держит
+    /// (они перестают быть «чужими»). Так делают плейлисты: элементы приходят раньше самого плейлиста, а 400
+    /// треков пишутся в файл один раз. Остальным адаптерам не нужно.
+    func finishApply(journal: SyncJournal) -> Set<SyncKey>
+}
+
+extension SyncAdapter {
+    func finishApply(journal: SyncJournal) -> Set<SyncKey> { [] }
 }
 
 /// Куда отправлять: сервер по HTTP (`HTTPSyncTransport`) или в памяти (`MemorySyncServer`, тесты).
@@ -96,6 +104,13 @@ final class SyncEngine {
             touched[key] = adapter
             applied += 1
         }
+        for adapter in adapters {
+            for key in adapter.finishApply(journal: journal).sorted() where !journal.isPending(key) {
+                journal.adopt(key)
+                if touched[key] == nil { applied += 1 }
+                touched[key] = adapter
+            }
+        }
         // как теперь видит хранилище — чтобы следующий scan не принял пришедшее за своё
         var snapshots: [ObjectIdentifier: [SyncKey: JSONValue]] = [:]
         for (key, adapter) in touched {
@@ -106,6 +121,17 @@ final class SyncEngine {
         if let max = changes.map(\.rev).max(), max > journal.pulledRev { journal.pulledRev = max }
         save()
         return applied
+    }
+
+    /// Пришедшее раньше, чем телефон научился это хранить (лежит в журнале «чужим», например плейлисты ПК до
+    /// `PlaylistSyncAdapter`), — применить сейчас: заново с ПК оно не придёт, курсор `pull` уже ушёл дальше.
+    @discardableResult
+    func replayForeign() -> Int {
+        let changes = journal.rows.filter { $0.value.foreign && !$0.value.value.isNull }
+            .sorted { $0.key < $1.key }
+            .map { SyncChange(type: $0.key.type, key: $0.key.key, value: $0.value.value, rev: 0) }
+        guard !changes.isEmpty else { return 0 }
+        return apply(changes)
     }
 
     /// Один полный обмен.

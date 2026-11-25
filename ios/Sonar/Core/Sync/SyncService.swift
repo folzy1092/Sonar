@@ -47,7 +47,11 @@ final class SyncService {
             stop()
             return
         }
-        if engine == nil { engine = makeEngine() }
+        if engine == nil {
+            let made = makeEngine()
+            made.replayForeign()
+            engine = made
+        }
         hookStores()
         guard loop == nil else { return }
         loop = Task { [weak self] in
@@ -129,6 +133,7 @@ final class SyncService {
             if SyncPolicy.settingSyncs(key) { self?.noteLocalChange() }
         }
         PlayHistory.shared.onChange = { [weak self] in self?.noteLocalChange() }
+        PlaylistStore.shared.onChange = { [weak self] in self?.noteLocalChange() }
     }
 
     private func makeEngine() -> SyncEngine {
@@ -146,6 +151,7 @@ final class SyncService {
             TrackPrefsSyncAdapter(library: library, offsets: { lyrics.offsets },
                                   setOffset: { ref, ms in lyrics.setOffset(LyricsClock.offsetFromMs(ms), for: ref) }),
             SettingsSyncAdapter(settings: .shared),
+            PlaylistSyncAdapter(store: .shared, now: now),
         ]
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())

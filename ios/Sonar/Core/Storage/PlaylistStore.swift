@@ -99,7 +99,8 @@ enum PlaylistMath {
 
 /// Своя медиатека Sonar на телефоне, пока нет сервера: плейлисты (смешанные, перенесённые из сервисов),
 /// сохранённые альбомы и исполнители с подпиской — как на ПК (W3). JSON в Application Support
-/// (`Sonar/collections.json`); с SQLite по DB.md переедут туда с теми же полями, с сервером — в синк.
+/// (`Sonar/collections.json`). Плейлисты ездят синком (`PlaylistSyncAdapter`: с ПК по Wi‑Fi, потом с сервером);
+/// альбомы и исполнители — пока нет.
 @MainActor
 @Observable
 final class PlaylistStore {
@@ -247,6 +248,30 @@ final class PlaylistStore {
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: file, options: .atomic)
+        onChange?()
+    }
+
+    // MARK: - Синк (`Core/Sync/PlaylistSync.swift`)
+
+    /// Любое изменение — журнал синка сверяет снимок (`SyncService.noteLocalChange`).
+    @ObservationIgnored var onChange: (@MainActor () -> Void)?
+
+    /// Пришло с другого устройства: заменить плейлисты `upsert` целиком (новые встают по `createdAt`, новые
+    /// сверху), убрать `remove`. Одна запись файла на всю пачку — 400 треков с ПК не пишутся 400 раз.
+    func applySynced(upsert: [SonarPlaylist], remove: Set<String> = []) {
+        guard !upsert.isEmpty || !remove.isEmpty else { return }
+        var list = playlists.filter { !remove.contains($0.id) }
+        for playlist in upsert {
+            if let index = list.firstIndex(where: { $0.id == playlist.id }) {
+                list[index] = playlist
+            } else {
+                let at = list.firstIndex { $0.createdAt < playlist.createdAt } ?? list.count
+                list.insert(playlist, at: at)
+            }
+        }
+        guard list != playlists else { return }
+        playlists = list
+        save()
     }
 }
 
