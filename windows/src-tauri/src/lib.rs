@@ -22,6 +22,7 @@ mod import_link;
 mod track_cache;
 mod mini;
 mod net;
+mod now_push;
 mod offline;
 mod offline_index;
 mod monitors;
@@ -229,6 +230,9 @@ pub fn run() {
       account::account_sync,
       account::account_rename_device,
       account::account_revoke_device,
+      account::account_api_key,
+      account::account_api_key_new,
+      account::account_api_key_delete,
       account::account_tg_start,
       account::account_tg_poll,
       account::account_tg_unlink,

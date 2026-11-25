@@ -1389,12 +1389,19 @@ final class PlaybackEngine {
     private func saveSnapshot(force: Bool = false) {
         guard force || Date().timeIntervalSince(lastSnapshot) > 10 else { return }
         lastSnapshot = Date()
-        guard current != nil else {
-            snapshotFile.save(nil)
-            return
-        }
-        snapshotFile.save(PlaybackSnapshot(tracks: tracks, order: order, pos: pos, position: position, context: contextTitle,
-                                           shuffle: shuffle, repeatMode: repeatMode, autoRefs: Array(autoRefs)))
+        let snapshot = current == nil ? nil : PlaybackSnapshot(tracks: tracks, order: order, pos: pos, position: position,
+                                                               context: contextTitle, shuffle: shuffle,
+                                                               repeatMode: repeatMode, autoRefs: Array(autoRefs))
+        snapshotFile.save(snapshot)
+        pushNowPlaying(snapshot)
+    }
+
+    /// «Сейчас играет» на сервер (`NowPush`): только когда вошли в аккаунт Sonar и не в офлайне.
+    private func pushNowPlaying(_ snapshot: PlaybackSnapshot?) {
+        let account = AccountStore.shared
+        guard !OfflineFlag.isOn, let base = account.apiBaseURL, let token = account.sessionToken else { return }
+        let state = NowPush.state(snapshot, isPlaying: isPlaying, deviceId: account.vault.deviceId, now: Date())
+        Task { await NowPusher.shared.submit(state, client: APIClient(base: base, token: token)) }
     }
 }
 

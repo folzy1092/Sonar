@@ -52,4 +52,18 @@ export default {
   'Больше умных плейлистов': 'Więcej inteligentnych playlist',
   'Свои темы оверлея и OBS-плашки': 'Własne motywy nakładki i widżetu OBS',
   'Приоритет у баг-репортов и идей в боте': 'Pierwszeństwo dla zgłoszeń błędów i pomysłów w bocie',
+  // ключ API (Интеграции)
+  "Ключ API": "Klucz API",
+  "Для selfbot и своих скриптов: «Сейчас играет» по адресу ниже. Это тот же ключ, что в боте.": "Dla selfbota i własnych skryptów: „Teraz gra” pod adresem poniżej. To ten sam klucz co w bocie.",
+  "В офлайн-режиме ключ недоступен": "W trybie offline klucz jest niedostępny",
+  "Войди в аккаунт Sonar, чтобы получить ключ": "Zaloguj się do konta Sonar, aby dostać klucz",
+  "Сервер Sonar не ответил — попробуй позже": "Serwer Sonar nie odpowiedział — spróbuj później",
+  "Скопировать ключ": "Kopiuj klucz",
+  "Новый ключ": "Nowy klucz",
+  "Новый ключ (старый перестанет работать)": "Nowy klucz (stary przestanie działać)",
+  "Новый ключ — старый больше не работает": "Nowy klucz — stary już nie działa",
+  "Удалить ключ": "Usuń klucz",
+  "Ключ удалён": "Klucz usunięty",
+  "Ключ создан": "Klucz utworzony",
+  "Создать ключ": "Utwórz klucz",
 } satisfies Record<string, string>

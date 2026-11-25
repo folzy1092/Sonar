@@ -53,4 +53,18 @@ export default {
   'Больше умных плейлистов': 'More smart playlists',
   'Свои темы оверлея и OBS-плашки': 'Custom themes for the overlay and the OBS widget',
   'Приоритет у баг-репортов и идей в боте': 'Priority for bug reports and ideas in the bot',
+  // ключ API (Интеграции)
+  "Ключ API": "API key",
+  "Для selfbot и своих скриптов: «Сейчас играет» по адресу ниже. Это тот же ключ, что в боте.": "For selfbot and your own scripts: “Now playing” at the address below. Same key as in the bot.",
+  "В офлайн-режиме ключ недоступен": "The key is unavailable in offline mode",
+  "Войди в аккаунт Sonar, чтобы получить ключ": "Sign in to your Sonar account to get a key",
+  "Сервер Sonar не ответил — попробуй позже": "Sonar server didn't respond — try later",
+  "Скопировать ключ": "Copy key",
+  "Новый ключ": "New key",
+  "Новый ключ (старый перестанет работать)": "New key (the old one will stop working)",
+  "Новый ключ — старый больше не работает": "New key — the old one no longer works",
+  "Удалить ключ": "Delete key",
+  "Ключ удалён": "Key deleted",
+  "Ключ создан": "Key created",
+  "Создать ключ": "Create key",
 }

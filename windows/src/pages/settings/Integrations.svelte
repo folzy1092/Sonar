@@ -2,7 +2,8 @@
   // Интеграции → Приложения (переделано по референсу владельца 2026-11-16): у каждой группы — знак
   // сервиса. Discord: состояние (подключён / ожидание Discord), главный переключатель, параметры
   // отображения вместе с кнопками профиля «Слушать в Sonar» и «Скачать Sonar». OBS — ссылка с токеном:
-  // скопировать, новая ссылка, выключить плашку.
+  // скопировать, новая ссылка, выключить плашку. Ключ API (API.md §7) — для selfbot и своих скриптов:
+  // один на аккаунт, общий с ботом, живёт на сервере; без входа в аккаунт группы нет.
   import Icon from '../../components/Icon.svelte'
   import Switch from '../../components/settings/Switch.svelte'
   import Choice from '../../components/settings/Choice.svelte'
@@ -13,16 +14,26 @@
   import { toast } from '../../lib/toast.svelte'
   import { onMount } from 'svelte'
   import { t } from '../../lib/i18n.svelte'
+  import { account, type ApiKey } from '../../lib/account.svelte'
+  import { maskKey } from '../../lib/accounts'
+  import { offline } from '../../lib/offline.svelte'
 
   let obs = $state<{ url: string; ok: boolean }>({ url: '', ok: true })
   let copied = $state(false)
   let discord = $state<{ enabled: boolean; connected: boolean } | null>(null)
   let tokenSpin = $state(0)
 
+  let apiKey = $state<ApiKey | null>(null)
+  let keyFailed = $state(false)
+  let keyBusy = $state(false)
+  let keyCopied = $state(false)
+
   const discordOn = $derived(settings.get('integrations.discord.enabled'))
+  const keyReady = $derived(account.signedIn && !offline.on)
 
   onMount(() => {
     api.obsStatus().then((s) => (obs = s)).catch(() => {})
+    if (keyReady) account.apiKey().then((k) => (apiKey = k)).catch(() => (keyFailed = true))
     // состояние Discord — раз в 2 с, пока открыт раздел (Discord могут запустить прямо сейчас)
     const poll = () => api.discordStatus().then((s) => (discord = s)).catch(() => {})
     void poll()
@@ -47,6 +58,30 @@
       toast.show(t('Новая ссылка — старая больше не работает'))
     } catch (e) {
       toast.show(errorText(e))
+    }
+  }
+
+  async function keyAction(run: () => Promise<ApiKey | void>, done: string) {
+    keyBusy = true
+    try {
+      apiKey = (await run()) ?? { key: null, created_at: null }
+      keyFailed = false
+      toast.show(done)
+    } catch (e) {
+      toast.show(errorText(e))
+    } finally {
+      keyBusy = false
+    }
+  }
+
+  async function copyKey() {
+    if (!apiKey?.key) return
+    try {
+      await navigator.clipboard.writeText(apiKey.key)
+      keyCopied = true
+      setTimeout(() => (keyCopied = false), 1600)
+    } catch {
+      toast.show(t('Не получилось скопировать'))
     }
   }
 
@@ -148,7 +183,45 @@
   </ol>
 </Group>
 
+{#snippet keyIcon()}<span class="brand obs"><Icon name="key" size={18} /></span>{/snippet}
+
+<Group title={t('Ключ API')} icon={keyIcon}>
+  <p class="about">{t('Для selfbot и своих скриптов: «Сейчас играет» по адресу ниже. Это тот же ключ, что в боте.')}</p>
+  {#if !keyReady}
+    <div class="link off">{offline.on ? t('В офлайн-режиме ключ недоступен') : t('Войди в аккаунт Sonar, чтобы получить ключ')}</div>
+  {:else if keyFailed}
+    <div class="link off">{t('Сервер Sonar не ответил — попробуй позже')}</div>
+  {:else if apiKey?.key}
+    <div class="link selectable">{maskKey(apiKey.key)}</div>
+    <div class="link selectable">{account.server}/oauth/now</div>
+    <div class="tools">
+      <button class="copy" class:done={keyCopied} onclick={copyKey}>
+        {#key keyCopied}<span class="swap">{keyCopied ? t('Скопировано') : t('Скопировать ключ')} <Icon name={keyCopied ? 'check' : 'copy'} size={15} /></span>{/key}
+      </button>
+      <button class="sq" aria-label={t('Новый ключ')} title={t('Новый ключ (старый перестанет работать)')} disabled={keyBusy}
+        onclick={() => keyAction(() => account.newApiKey(), t('Новый ключ — старый больше не работает'))}>
+        <Icon name="refresh" size={15} />
+      </button>
+      <button class="sq" aria-label={t('Удалить ключ')} title={t('Удалить ключ')} disabled={keyBusy}
+        onclick={() => keyAction(() => account.deleteApiKey(), t('Ключ удалён'))}>
+        <Icon name="trash" size={15} />
+      </button>
+    </div>
+  {:else if apiKey}
+    <div class="tools">
+      <button class="copy" disabled={keyBusy} onclick={() => keyAction(() => account.newApiKey(), t('Ключ создан'))}>
+        {t('Создать ключ')} <Icon name="key" size={15} />
+      </button>
+    </div>
+  {/if}
+</Group>
+
 <style>
+  .about {
+    margin: 0 0 6px;
+    font-size: calc(12px * var(--fs, 1));
+    color: var(--text-3);
+  }
   .brand {
     display: grid;
     place-items: center;

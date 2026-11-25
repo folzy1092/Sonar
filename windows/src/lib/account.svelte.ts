@@ -43,6 +43,12 @@ export interface QuickLink {
   expires_at: number
 }
 
+/** Ключ API (API.md §7): один на аккаунт, общий с ботом. Ключа нет — `key: null`. */
+export interface ApiKey {
+  key: string | null
+  created_at: number | null
+}
+
 export type PollStatus = 'pending' | 'approved' | 'rejected' | 'expired'
 
 export interface LinkInfo {
@@ -173,6 +179,18 @@ class Account {
 
   revokeDevice(id: string) {
     return call<void>('account_revoke_device', { id }).catch(this.guard)
+  }
+
+  apiKey() {
+    return call<ApiKey>('account_api_key').catch(this.guard)
+  }
+
+  newApiKey() {
+    return call<ApiKey>('account_api_key_new').catch(this.guard)
+  }
+
+  deleteApiKey() {
+    return call<void>('account_api_key_delete').catch(this.guard)
   }
 
   telegramStart(purpose: 'login' | 'link') {

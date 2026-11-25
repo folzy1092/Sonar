@@ -31,3 +31,10 @@ export function accountRows(status: ServicesStatus | null | undefined): AccountR
   }
   return rows
 }
+
+/** Ключ API на экране — спрятан: префикс и последние 4 знака (`snr_••••••••wxyz`). Короткий — целиком точками. */
+export function maskKey(key: string): string {
+  const prefix = key.startsWith('snr_') ? 'snr_' : ''
+  const rest = key.slice(prefix.length)
+  return rest.length <= 8 ? '•'.repeat(rest.length) : `${prefix}${'•'.repeat(8)}${rest.slice(-4)}`
+}

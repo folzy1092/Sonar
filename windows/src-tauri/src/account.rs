@@ -244,6 +244,23 @@ pub async fn account_revoke_device(core: State<'_, std::sync::Arc<Core>>, db: St
   call(&core, &db.0, reqwest::Method::DELETE, &format!("me/devices/{}", urlencoding::encode(&id)), None, true).await.map(|_| ())
 }
 
+/// Ключ API для selfbot и своих скриптов (API.md §7, один на аккаунт, общий с ботом): `{key, created_at}`, ключа нет — `key: null`.
+#[tauri::command]
+pub async fn account_api_key(core: State<'_, std::sync::Arc<Core>>, db: State<'_, Db>) -> Res<Value> {
+  call(&core, &db.0, reqwest::Method::GET, "me/integration", None, true).await
+}
+
+/// Выпустить ключ заново — прежний перестаёт работать сразу.
+#[tauri::command]
+pub async fn account_api_key_new(core: State<'_, std::sync::Arc<Core>>, db: State<'_, Db>) -> Res<Value> {
+  call(&core, &db.0, reqwest::Method::POST, "integrations/api-key", None, true).await
+}
+
+#[tauri::command]
+pub async fn account_api_key_delete(core: State<'_, std::sync::Arc<Core>>, db: State<'_, Db>) -> Res<()> {
+  call(&core, &db.0, reqwest::Method::DELETE, "integrations/api-key", None, true).await.map(|_| ())
+}
+
 /// Синк сразу после входа (не ждать фоновые 2 минуты): своё — на сервер, чужое — сюда; пришло — `sync-applied`.
 #[tauri::command]
 pub async fn account_sync(app: tauri::AppHandle, core: State<'_, std::sync::Arc<Core>>, db: State<'_, Db>) -> Res<usize> {

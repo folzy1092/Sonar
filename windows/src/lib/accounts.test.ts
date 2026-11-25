@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accountRows, safeProfileUrl } from './accounts'
+import { accountRows, maskKey, safeProfileUrl } from './accounts'
 import type { ServiceStatus, ServicesStatus } from './api'
 
 const off: ServiceStatus = { connected: false, name: null, avatar_url: null }
@@ -42,5 +42,13 @@ describe('accountRows', () => {
     const rows = accountRows(status({ youtube: { connected: true, name: 'F', avatar_url: null, profile_url: 'javascript:1' } }))
     expect(rows).toHaveLength(1)
     expect(rows[0].url).toBeNull()
+  })
+})
+
+describe('maskKey', () => {
+  it('прячет ключ, оставляя префикс и хвост', () => {
+    expect(maskKey('snr_AbCdEfGhIjKlMnOp')).toBe('snr_••••••••MnOp')
+    expect(maskKey('snr_abc')).toBe('•••')
+    expect(maskKey('')).toBe('')
   })
 })

@@ -382,8 +382,10 @@ pub fn cache_tracks(db: State<'_, Db>, tracks: Vec<Track>) -> Res<()> {
 }
 
 #[tauri::command]
-pub fn save_player_state(db: State<'_, Db>, state: PlayerState) -> Res<()> {
-  db.0.lock().unwrap().save_player_state(&state).map_err(err)
+pub fn save_player_state(app: tauri::AppHandle, db: State<'_, Db>, state: PlayerState) -> Res<()> {
+  db.0.lock().unwrap().save_player_state(&state).map_err(err)?;
+  crate::now_push::spawn(app, state);
+  Ok(())
 }
 
 #[derive(Serialize)]

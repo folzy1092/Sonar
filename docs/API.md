@@ -575,7 +575,11 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 // PlayerState
 {"device_id": "d_...", "ref": "sc:2296053116", "context": "favorites",
  "is_playing": true, "position_ms": 41000, "queue": ["sc:1", "ym:2"], "queue_index": 0,
- "shuffle": false, "repeat": "off", "client_ts": 1794340534779}
+ "shuffle": false, "repeat": "off", "client_ts": 1794340534779,
+ "track": {"title": "zombie", "artist": "cowboyclicker", "cover_url": "https://…", "duration_ms": 180000}}
+// track — необязательно: метаданные текущего трека для `/oauth/now` (§7). Очередь клиенты режут окном
+// вокруг текущего: до 50 треков до него, всего до 200, queue_index пересчитан (ПК now_push.rs, iPhone NowPush.swift).
+// Клиент шлёт состояние при смене трека / паузе и раз в 30 с, пока играет; в офлайне и без входа — не шлёт.
 
 // Stats (Windows-клиент считает так же из локальной plays — store/stats.rs)
 {"period": "week", "total_ms": 140520000, "delta_pct": 20,
@@ -713,17 +717,18 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 
 | Метод | Путь | Тело → ответ |
 |---|---|---|
-| POST | `/integrations/api-key` | создать/перевыпустить → `{key: "sk_...", created_at}` (показывается **один раз**) |
+| POST | `/integrations/api-key` | создать/перевыпустить → `{key: "snr_…", created_at}`; старый ключ сразу перестаёт работать |
 | DELETE | `/integrations/api-key` | → `204` |
-| GET | `/me/integration` | → `{key: "sk_…" \| null, created_at}` — тот же токен, что в боте (BOT.md §2.6а); клиенты подставляют его в ссылку плашки OBS. Изменение токена в боте или приложении приходит остальным синком (`type: "integration_key"`) |
-| GET | `/obs?token=sk_…` (без авт., токен в адресе) | страница плашки OBS с сервера — та же, что локальная в Windows (`obs.html`) |
+| GET | `/me/integration` | → `{key: "snr_…" \| null, created_at \| null}` — тот же ключ, что в боте (BOT.md §2.6а), один на аккаунт; клиенты перечитывают его при открытии «Интеграций» и подставляют в ссылку плашки OBS. Сделано 2026-11-26 (`server/sonar/api/integrations.py`; ПК — Интеграции → «Ключ API», `account.rs`) |
+| GET | `/obs?token=snr_…` (без авт., токен в адресе) | страница плашки OBS с сервера — та же, что локальная в Windows (`obs.html`) |
 | GET | `/config` (без авт.) | → `Config` (ниже) — общие настройки клиентов: ID приложения Discord для RPC пользователь не вводит, клиент берёт отсюда (до сервера — вшит в сборку); флаги и ссылки правятся в админке без деплоя (`server/sonar/admin/prefs.py`). Сделано 2026-11-22 |
-| GET | `/oauth/profile?token=sk_…` (ключ API) | → `{username, display_name, avatar_url}` — для selfbot и «Интеграции» в боте (BOT.md §2.6а) |
+| GET | `/oauth/profile` (ключ API) | → `{username, display_name, avatar_url}` — для selfbot и «Интеграции» в боте (BOT.md §2.6а) |
 
 ### `GET /oauth/now` — формат Dotify
 
-Авторизация: `Authorization: Bearer sk_...` (ключ API). Тот же JSON, что у Dotify, чтобы
-selfbot переключился сменой адреса:
+Все пути — под `/api` (`https://try-sonar.ru/api/oauth/now`). Авторизация: ключ API — `Authorization: Bearer snr_…`
+или `?token=snr_…` (как у Dotify); нет ключа или неверный — `401 unauthorized`. Ответ собирается из последнего
+`PUT /player/state` (§5, метаданные — `state.track`). Тот же JSON, что у Dotify, чтобы selfbot переключился сменой адреса:
 
 ```json
 {
@@ -749,6 +754,8 @@ selfbot переключился сменой адреса:
 ```
 
 - `state`: `playing` / `paused` / `stopped` (`track: null`, если ничего ещё не играло).
+- Клиент молчит дольше 90 с (закрыли приложение, пропала сеть) — `paused`, позиция — последняя присланная.
+  Пока играет, `position_ms` досчитывается от `updated_at` и не больше `duration_ms`.
 - `source`: key сервиса из §2 «Префиксы ref» (`soundcloud` / `yandex` / `vk` / `spotify`; позже `youtube`). `id` и `track_id` — id без префикса трека (`sc:`/`ym:`/`vk:`/`sp:`).
 - `duration` — секунды (целое), `duration_ms` — миллисекунды.
 
