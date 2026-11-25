@@ -1,3 +1,4 @@
+mod account;
 mod app_icon;
 mod artist_graph;
 mod autostart;
@@ -214,6 +215,25 @@ pub fn run() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
+      account::account_status,
+      account::account_ping,
+      account::account_login,
+      account::account_register,
+      account::account_logout,
+      account::account_me,
+      account::account_update,
+      account::account_password,
+      account::account_devices,
+      account::account_report_device,
+      account::account_rename_device,
+      account::account_revoke_device,
+      account::account_tg_start,
+      account::account_tg_poll,
+      account::account_tg_unlink,
+      account::account_link_create,
+      account::account_link_poll,
+      account::account_link_info,
+      account::account_link_decide,
       blend::blend_source,
       blend::blend_release,
       blend::blend_get,

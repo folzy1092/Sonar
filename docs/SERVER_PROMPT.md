@@ -93,7 +93,8 @@ IP клиента за прокси — `admin/web.py` `_ip` (заголовка
 Сервисы, которых на устройстве нет (Spotify без фичи и т. п.), — хранить, но не применять.
 
 ### Этап 5. Интеграции и селфбот (API.md §7)
-`POST/DELETE /api/integrations/api-key`, `GET /api/me/integration`, `GET /api/oauth/now` (формат Dotify,
+`POST/DELETE /api/integrations/api-key`, `GET /api/me/integration`, `GET /api/oauth/now` (ключ — заголовком `Bearer`
+или `?token=`, как у Dotify; задание selfbot — `docs/SELFBOT_PROMPT.md`) (формат Dotify,
 из последнего `player_state`), `GET /api/oauth/profile`. **Проверка:** селфбот владельца (`selfbot`, источник
 Sonar) получает «сейчас играет» с нового адреса. Ключ API в боте и в приложении — один и тот же (BOT.md §2.6а).
 

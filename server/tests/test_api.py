@@ -87,8 +87,8 @@ def test_rate_limit_per_ip(client, monkeypatch):
     api_limit, auth_limit = client.app.state.api_limits
     monkeypatch.setattr(auth_limit, "limit", 3)
     for _ in range(3):
-        assert client.post("/api/auth/login").status_code == 404  # методов входа ещё нет, но лимит уже считает
-    r = client.post("/api/auth/login")
+        assert client.post("/api/auth/x").status_code == 404  # даже на неизвестный путь лимит считает
+    r = client.post("/api/auth/x")
     assert r.status_code == 429 and r.json()["error"]["code"] == "too_many" and r.headers["retry-after"] == "60"
     assert client.get("/api/health").status_code == 200  # общий лимит не исчерпан
     monkeypatch.setattr(api_limit, "limit", 1)

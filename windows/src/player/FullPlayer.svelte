@@ -391,8 +391,12 @@
     padding: 0 48px;
     gap: 64px;
   }
+  /* обложка и текст — одна пара по центру окна (владелец 2026-11-25): колонка текста чуть шире обложки,
+     а не половина окна — иначе короткие строки жмутся к середине, а справа пусто */
   .body.text {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    --art: min(57vh, 528px, 41vw); /* +~8 % (2026-11-18) и ещё +10 % (2026-11-22) — владелец */
+    grid-template-columns: var(--art) minmax(0, calc(var(--art) * 1.15));
+    justify-content: center;
     justify-items: stretch;
   }
   /* только текст: широкая колонка по центру */
@@ -413,8 +417,7 @@
     animation: col-in 0.45s var(--ease);
   }
   .body.text .col {
-    --art: min(57vh, 528px, 41vw); /* +~8 % (2026-11-18) и ещё +10 % (2026-11-22) — владелец */
-    justify-self: end;
+    --art: inherit; /* размер — от .body.text: по нему же считается ширина колонки текста */
   }
   @keyframes col-in {
     from {

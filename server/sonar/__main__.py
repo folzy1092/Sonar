@@ -24,13 +24,16 @@ from .status import Status
 log = logging.getLogger("sonar")
 
 
-async def serve_web(con, settings, status) -> None:
+async def serve_web(con, settings, status, ctx) -> None:
     """Админка и API на PORT. Локально — 127.0.0.1; на хостинге deploy/sync.py ставит SONAR_HTTP_HOST=0.0.0.0."""
     import uvicorn
 
+    from .bot.handlers import telegram_linked
     from .web import create_app
     host = os.getenv("SONAR_HTTP_HOST", "127.0.0.1")
-    server = uvicorn.Server(uvicorn.Config(create_app(con, settings, status), host=host, port=settings.port,
+    app = create_app(con, settings, status, accounts=ctx.accounts, bot_username=ctx.bot_username)
+    app.state.on_telegram_linked = lambda tg_id, user: telegram_linked(ctx, tg_id, user)
+    server = uvicorn.Server(uvicorn.Config(app, host=host, port=settings.port,
                                            log_level="warning", proxy_headers=True))
     # Сигналы (Ctrl+C) ловит бот; uvicorn свои обработчики не ставит.
     server.capture_signals = contextlib.nullcontext
@@ -74,7 +77,7 @@ async def main() -> None:
     await bot.set_my_commands([BotCommand(command="start", description="Главное меню"),
                                BotCommand(command="status", description="Состояние Sonar")])
     log.info("бот @%s запущен, база %s", me.username, settings.db_path)
-    web = asyncio.create_task(serve_web(con, settings, status))
+    web = asyncio.create_task(serve_web(con, settings, status, ctx))
     checks = asyncio.create_task(status.loop())
     backups = asyncio.create_task(logs.backup_loop(str(settings.db_path)))
     await logs.start_icons()

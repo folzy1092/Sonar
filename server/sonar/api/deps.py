@@ -7,6 +7,7 @@ from fastapi import Request
 
 from ..accounts import RateLimit
 from ..admin.web import _ip
+from .. import sessions
 from ..events import Device, session_device
 from .errors import ApiError
 
@@ -55,3 +56,15 @@ def device(request: Request) -> Device:
     if dev is None:
         raise ApiError(401, "unauthorized", "Нет или неверная сессия")
     return dev
+
+
+
+def session(request: Request) -> sessions.Session:
+    """Зависимость FastAPI: сессия клиента целиком (id, создана когда) — для /me и устройств; иначе 401."""
+    token = bearer(request)
+    con = request.app.state.con
+    s = sessions.by_token(con, token) if token else None
+    if s is None:
+        raise ApiError(401, "unauthorized", "Нет или неверная сессия")
+    sessions.seen(con, s)
+    return s

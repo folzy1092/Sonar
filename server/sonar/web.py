@@ -9,11 +9,13 @@ import argparse
 import logging
 import sqlite3
 
+from cryptography.fernet import Fernet
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import api, config
+from .accounts import Accounts
 from .admin import prefs
 from .admin.auth import FACTORY_LOGIN, AdminAuth
 from .admin.web import BASE, HERE, router as admin_router
@@ -23,11 +25,17 @@ from .status import Status
 log = logging.getLogger("sonar.web")
 
 
-def create_app(con: sqlite3.Connection, settings: Settings, status: Status | None = None) -> FastAPI:
-    """status — общий с ботом (`python -m sonar`); без него `/api/status` читает последние проверки из базы."""
+def create_app(con: sqlite3.Connection, settings: Settings, status: Status | None = None,
+               accounts: Accounts | None = None, bot_username: str = "SonarMusicApp") -> FastAPI:
+    """status и accounts — общие с ботом (`python -m sonar`): одни лимиты входа и одна сводка статуса.
+    Без них (`python -m sonar.web`, тесты) — свои; `/api/status` тогда читает последние проверки из базы."""
     app = FastAPI(title="Sonar", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.con, app.state.settings = con, settings
     app.state.status = status or Status(con, settings.data_dir, settings)
+    # Ключ Fernet есть всегда, кроме тестов: config.load() создаёт локальный, на сервере он в .env.
+    app.state.accounts = accounts or Accounts(con, settings.fernet_key or Fernet.generate_key().decode())
+    app.state.bot_username = bot_username
+    app.state.on_telegram_linked = None  # бот ставит: «Успешно! Аккаунт привязан» после «Разрешить» в приложении
     app.state.admin_auth = AdminAuth(con)
     factory_password = app.state.admin_auth.ensure_factory()
     if factory_password:

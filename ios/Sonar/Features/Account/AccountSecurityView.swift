@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Аккаунт → Безопасность (когда есть сервер; до него в Профиле — `ServerOnlyView(.security)`): пароль,
-/// привязанный Telegram, устройства, выход. Структура — как на ПК (PLATFORMS.md «Аккаунт»).
+/// привязанный Telegram, устройства, выход. Без входа — кнопка «Войти или создать аккаунт» (лист `AuthGateView`). Структура — как на ПК (PLATFORMS.md «Аккаунт»).
 struct AccountSecurityView: View {
     @State private var account = AccountStore.shared
     @State private var editingPassword = false
@@ -14,6 +14,7 @@ struct AccountSecurityView: View {
     @State private var linking: Task<Void, Never>?
     @State private var confirmUnlink = false
     @State private var confirmLogout = false
+    @State private var showSignIn = false
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -91,7 +92,17 @@ struct AccountSecurityView: View {
                     SystemButtonRow(icon: .exit, title: t("Выйти из аккаунта"), tint: Theme.danger) { confirmLogout = true }
                 }
                 .cascade(4)
+            } else {
+                // Вход по желанию (решение владельца 2026-11-25): без аккаунта всё работает на этом iPhone.
+                SystemSection(title: t("Аккаунт Sonar"), footer: t("Лайки, плейлисты и настройки — на всех твоих устройствах")) {
+                    SystemButtonRow(icon: .user, title: t("Войти или создать аккаунт"), chevron: true) { showSignIn = true }
+                }
+                .cascade(0)
             }
+        }
+        .sheet(isPresented: $showSignIn) { AuthGateView() }
+        .onChange(of: account.signedIn) { _, signed in
+            if signed { showSignIn = false }
         }
         .animation(Motion.spring, value: account.user)
         .animation(Motion.spring, value: error)

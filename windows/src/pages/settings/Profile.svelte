@@ -39,6 +39,8 @@
   import { home } from '../home-data.svelte'
   import { settingsPanel } from '../settings-section.svelte'
   import { offline } from '../../lib/offline.svelte'
+  import { account } from '../../lib/account.svelte'
+  import { errorText } from '../../lib/api'
 
   const NAME_MAX = 40
   const STATUS_MAX = 80
@@ -97,11 +99,30 @@
     }
   }
 
-  const saveName = () => settings.set('profile.name', name.trim().slice(0, NAME_MAX))
+  // Вошли в аккаунт Sonar — имя и @username живут на сервере (PATCH /me); без входа — только в настройках.
+  async function pushAccount(patch: { username?: string; display_name?: string }) {
+    try {
+      await account.update(patch)
+    } catch (e) {
+      toast.show(errorText(e))
+      name = settings.get('profile.name')
+      username = settings.get('profile.username')
+    }
+  }
+  function saveName() {
+    const v = name.trim().slice(0, NAME_MAX)
+    if (account.signedIn) {
+      if (v && v !== account.user?.display_name) void pushAccount({ display_name: v })
+    } else settings.set('profile.name', v)
+  }
   const saveStatus = () => settings.set('profile.status', status.trim().slice(0, STATUS_MAX))
   const saveBio = () => settings.set('profile.bio', bio.trim().slice(0, BIO_MAX))
   function saveUser() {
-    if (userOk) settings.set('profile.username', cleanUsername(username))
+    if (!userOk) return
+    const v = cleanUsername(username)
+    if (account.signedIn) {
+      if (v && v !== account.user?.username) void pushAccount({ username: v })
+    } else settings.set('profile.username', v)
   }
 
   function onLinkKey(e: KeyboardEvent) {

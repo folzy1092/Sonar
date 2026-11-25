@@ -33,6 +33,8 @@
   import Tooltip from './app/Tooltip.svelte'
   import UpdatePopup from './app/UpdatePopup.svelte'
   import CrashNotice from './app/CrashNotice.svelte'
+  import AuthGate from './app/AuthGate.svelte'
+  import { account } from './lib/account.svelte'
   import { updater } from './lib/updater.svelte'
   import { listen } from '@tauri-apps/api/event'
   import { isTauri } from './lib/tauri'
@@ -94,6 +96,7 @@
   onMount(() => {
     void settings.load()
     offline.init()
+    void account.init()
     downloads.init()
     player.init()
     wave.init()
@@ -269,6 +272,7 @@
 <RecapViewer />
 <UpdatePopup />
 <CrashNotice />
+<AuthGate />
 <Toast />
 <BlendDebug />
 <Tooltip />

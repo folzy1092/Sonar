@@ -201,7 +201,9 @@
     const line = lines[i]
     if (!line.text) {
       el.style.setProperty('--p', String(progress(line.time, line.duration, t)))
-      countdown(el, line.time + line.duration - t)
+      // отсчёт — только до следующей строки; проигрыш в конце трека петь некуда — там просто точки
+      const next = lines.some((l, j) => j > i && l.text)
+      countdown(el, next ? line.time + line.duration - t : -1)
       return
     }
     const list = words[i]

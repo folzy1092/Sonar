@@ -21,12 +21,14 @@ from .db import now_ms, tx
 
 LOGIN_RE = re.compile(r"^[a-z0-9_.]{3,24}$")
 PASSWORD_MIN = 8
+DISPLAY_NAME_MAX = 48
 NUMBER_START = 1  # владелец — #1, дальше по порядку (решение 2026-11-15)
 REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 TOKEN_PREFIX = "snr_"
 TOKEN_LIKE = re.compile(r"^(y0_[\w-]{20,}|AQAAAA[\w-]{20,}|2-\d{5,}-\d+-\w{10,}|[A-Za-z0-9_-]{32,})$")
 
 _ph = PasswordHasher()  # argon2id по умолчанию
+_DUMMY_HASH = _ph.hash("not-a-password")
 
 
 def password_ok(password_hash: str, password: str) -> bool:
@@ -179,17 +181,22 @@ class Accounts:
             )
         return self.by_id(uid)
 
-    async def verify(self, login: str, password: str, tg_id: int | None = None) -> User:
-        """Вход логином и паролем; AccountError('no_user' | 'bad_password' | 'too_many')."""
-        keys = [f"login:{login.lower()}"] + ([f"tg:{tg_id}"] if tg_id else [])
+    async def verify(self, login: str, password: str, tg_id: int | None = None, ip: str | None = None) -> User:
+        """Вход логином и паролем; AccountError('no_user' | 'bad_password' | 'too_many').
+
+        Лимит — 5 попыток за 15 минут на логин, на Telegram (бот) и на IP (API).
+        """
+        keys = [f"login:{login.strip().lstrip('@').lower()[:64]}"] + ([f"tg:{tg_id}"] if tg_id else [])             + ([f"ip:{ip}"] if ip else [])
         if self.login_limit.blocked(*keys):
             raise AccountError("too_many")
         # Попытка считается до проверки: пока argon2 считает в потоке, параллельные попытки тоже упрутся в лимит.
         self.login_limit.hit(*keys)
         r = self.con.execute("SELECT * FROM users WHERE login = ? AND banned = 0", (login.strip().lstrip("@"),)).fetchone()
         if r is None:
+            # Та же работа argon2, что и с настоящим логином: по времени ответа не понять, есть ли такой аккаунт.
+            await asyncio.to_thread(password_ok, _DUMMY_HASH, password)
             raise AccountError("no_user")
-        if not await asyncio.to_thread(password_ok, r["password_hash"] or "", password):
+        if not await asyncio.to_thread(password_ok, r["password_hash"] or _DUMMY_HASH, password):
             raise AccountError("bad_password")
         self.login_limit.reset(*keys)
         return User.of(r)
@@ -205,6 +212,43 @@ class Accounts:
         if not user.has_password:
             raise AccountError("no_password")
         self.con.execute("UPDATE users SET tg_id = NULL WHERE id = ?", (user.id,))
+
+    # ---- профиль и пароль (API `PATCH /me`, `PUT /me/password`) ----
+
+    async def set_password(self, user: User, new_password: str, old_password: str | None = None) -> None:
+        """AccountError('password_short' | 'bad_password'). Старый нужен, только если пароль уже был."""
+        if len(new_password) < PASSWORD_MIN:
+            raise AccountError("password_short")
+        if user.has_password:
+            r = self.con.execute("SELECT password_hash FROM users WHERE id = ?", (user.id,)).fetchone()
+            if not old_password or not await asyncio.to_thread(password_ok, r["password_hash"] or _DUMMY_HASH, old_password):
+                raise AccountError("bad_password")
+        h = await asyncio.to_thread(_ph.hash, new_password)
+        self.con.execute("UPDATE users SET password_hash = ? WHERE id = ?", (h, user.id))
+
+    def update_profile(self, user: User, username: str | None = None, display_name: str | None = None) -> User:
+        """@username — по правилам логина, свободный (среди чужих логинов и ников); имя — 1…48 символов.
+
+        AccountError('login_format' | 'login_taken' | 'name_format'). Логин не меняется (только админ).
+        """
+        with tx(self.con):
+            if username is not None:
+                username = username.strip().lstrip("@").lower()
+                if not LOGIN_RE.match(username):
+                    raise AccountError("login_format")
+                if self.con.execute("SELECT 1 FROM users WHERE (login = ? OR username = ?) AND id != ?",
+                                    (username, username, user.id)).fetchone():
+                    raise AccountError("login_taken")
+                try:
+                    self.con.execute("UPDATE users SET username = ? WHERE id = ?", (username, user.id))
+                except sqlite3.IntegrityError:  # заняли между проверкой и записью
+                    raise AccountError("login_taken") from None
+            if display_name is not None:
+                display_name = " ".join(display_name.split())
+                if not 1 <= len(display_name) <= DISPLAY_NAME_MAX:
+                    raise AccountError("name_format")
+                self.con.execute("UPDATE users SET display_name = ? WHERE id = ?", (display_name, user.id))
+        return self.by_id(user.id)
 
     # ---- рефералка ----
 

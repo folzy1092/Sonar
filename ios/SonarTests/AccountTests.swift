@@ -56,12 +56,12 @@ let userJSON = #"{"id":"u_1","login":"folzy","username":"folzy","display_name":"
 final class AccountTests: XCTestCase {
     private func settings(enabled: Bool) -> SettingsStore {
         let store = SettingsStore(storage: UserDefaults(suiteName: "acc-\(UUID().uuidString)")!)
-        if enabled { store.set(AccountStore.enabledKey, true) }
+        store.set(AccountStore.enabledKey, enabled)
         return store
     }
 
     private func makeStore(enabled: Bool = true, api: FakeAPI = FakeAPI(), secrets: MemorySecrets = MemorySecrets()) -> AccountStore {
-        AccountStore(settings: settings(enabled: enabled), secrets: secrets, plistURL: "https://sonar-api.folzy.ru",
+        AccountStore(settings: settings(enabled: enabled), secrets: secrets, plistURL: "https://try-sonar.ru/api",
                      fetch: api.fetch, pollInterval: .milliseconds(1),
                      device: { DeviceDescriptor(id: $0, name: "iPhone 15 Pro", platform: .ios, os: "iOS 18.1", appVersion: "0.1.0", build: 7) })
     }
@@ -81,14 +81,19 @@ final class AccountTests: XCTestCase {
         XCTAssertNil(store.sessionToken)
     }
 
+    func testServerOnByDefault() {
+        let fresh = SettingsStore(storage: UserDefaults(suiteName: "acc-\(UUID().uuidString)")!)
+        XCTAssertTrue(AccountStore.isEnabled(settings: fresh, plistURL: "https://try-sonar.ru/api"), "сервер включён по умолчанию")
+    }
+
     func testEnabledNeedsFlagAndAddress() {
         let on = settings(enabled: true)
-        XCTAssertTrue(AccountStore.isEnabled(settings: on, plistURL: "https://sonar-api.folzy.ru"))
+        XCTAssertTrue(AccountStore.isEnabled(settings: on, plistURL: "https://try-sonar.ru/api"))
         XCTAssertFalse(AccountStore.isEnabled(settings: on, plistURL: nil), "нет адреса — выключено")
         XCTAssertFalse(AccountStore.isEnabled(settings: on, plistURL: "не адрес"))
         on.set(AccountStore.urlKey, .string("https://test.example/"))
-        XCTAssertEqual(AccountStore.baseURL(settings: on, plistURL: "https://sonar-api.folzy.ru")?.absoluteString, "https://test.example")
-        XCTAssertFalse(AccountStore.isEnabled(settings: settings(enabled: false), plistURL: "https://sonar-api.folzy.ru"))
+        XCTAssertEqual(AccountStore.baseURL(settings: on, plistURL: "https://try-sonar.ru/api")?.absoluteString, "https://test.example")
+        XCTAssertFalse(AccountStore.isEnabled(settings: settings(enabled: false), plistURL: "https://try-sonar.ru/api"))
         XCTAssertFalse(SyncPolicy.settingSyncs(AccountStore.enabledKey), "флаг сервера — только на этом устройстве")
         XCTAssertFalse(SyncPolicy.settingSyncs(AccountStore.urlKey))
     }

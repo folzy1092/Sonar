@@ -39,6 +39,19 @@ CREATE TABLE IF NOT EXISTS tracks (
   artwork_url   TEXT,
   updated_at    INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS likes (
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ref           TEXT NOT NULL,
+  kind          TEXT NOT NULL,
+  added_at      INTEGER NOT NULL,
+  deleted       INTEGER NOT NULL DEFAULT 0,
+  rev           INTEGER NOT NULL,
+  PRIMARY KEY (user_id, ref)
+);
+CREATE INDEX IF NOT EXISTS likes_kind ON likes(user_id, kind, deleted, added_at);
+CREATE INDEX IF NOT EXISTS likes_rev ON likes(user_id, rev);
+CREATE TABLE IF NOT EXISTS sync_rev (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER NOT NULL);
+INSERT OR IGNORE INTO sync_rev (id, value) VALUES (1, 0);
 CREATE TABLE IF NOT EXISTS plays (
   id            INTEGER PRIMARY KEY,
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -224,6 +237,9 @@ def connect(path: Path | str) -> sqlite3.Connection:
 COLUMNS = [
     ("users", "ban_reason", "TEXT"),
     ("users", "banned_at", "INTEGER"),
+    # метаданные трека для лайков из /dotify и синка (DB.md `tracks`)
+    ("tracks", "artists_json", "TEXT"),
+    ("tracks", "url", "TEXT"),
 ]
 
 

@@ -19,13 +19,9 @@ struct RootView: View {
     @State private var bottomInset: CGFloat = 0
 
     var body: some View {
-        // с сервером вход обязателен: без аккаунта — экран входа (сейчас сервер выключен — сразу приложение)
-        if AccountStore.shared.needsSignIn {
-            AuthGateView()
-                .transition(.opacity)
-        } else {
-            app
-        }
+        // Вход в аккаунт Sonar на iPhone — по желанию (решение владельца 2026-11-25): ворот нет,
+        // войти можно в Профиле; без входа всё работает автономно, как раньше.
+        app
     }
 
     @ViewBuilder

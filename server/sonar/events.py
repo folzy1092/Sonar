@@ -52,14 +52,13 @@ class Device:
 
 
 def session_device(con: sqlite3.Connection, token: str) -> Device | None:
-    """Сессия клиента (Bearer) → пользователь и устройство; забаненным — None. Обновляет last_seen_at."""
-    h = hashlib.sha256(token.encode()).hexdigest()
-    r = con.execute("SELECT s.id, s.user_id, s.device_id, s.platform FROM sessions s JOIN users u ON u.id = s.user_id"
-                    " WHERE s.token_hash = ? AND u.banned = 0", (h,)).fetchone()
-    if r is None:
+    """Сессия клиента (Bearer) → пользователь и устройство; забаненным — None (сверка — `sessions.by_token`)."""
+    from . import sessions
+    s = sessions.by_token(con, token)
+    if s is None:
         return None
-    con.execute("UPDATE sessions SET last_seen_at = ? WHERE id = ?", (now_ms(), r["id"]))
-    return Device(r["user_id"], r["device_id"], r["platform"])
+    sessions.seen(con, s)
+    return Device(s.user_id, s.device_id, s.platform)
 
 
 def _text(v) -> str | None:

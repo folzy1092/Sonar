@@ -14,6 +14,8 @@ extension SettingsDefaults {
         "general.offline": .bool(false),
         // пропала сеть — плашка «Включить офлайн-режим» (сам режим не включается)
         "general.offline_suggest": .bool(true),
+        // Сервер Sonar (SERVER_PROMPT этап 2, 2026-11-25): включён; вход по желанию — в Профиле, ворот нет
+        "server.enabled": .bool(true),
         // Скачивать только по Wi-Fi (OFFLINE.md §8): по сотовой очередь ждёт
         "storage.download_wifi_only": .bool(true),
         // Автоскачивание Любимых (OFFLINE.md §8.3): свежие лайки первыми, пока всё скачанное влезает в лимит, ГБ

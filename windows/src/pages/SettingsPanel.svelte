@@ -19,6 +19,7 @@
   import Look from './settings/Look.svelte'
   import Style from './settings/Style.svelte'
   import Profile from './settings/Profile.svelte'
+  import Login from './settings/Login.svelte'
   import Privacy from './settings/Privacy.svelte'
   import Notifications from './settings/Notifications.svelte'
   import Subscription from './settings/Subscription.svelte'
@@ -213,6 +214,8 @@
               <Stats />
             {:else if sub === 'profile'}
               <Profile />
+            {:else if sub === 'login'}
+              <Login />
             {:else if sub === 'privacy'}
               <Privacy />
             {:else if sub === 'plans'}

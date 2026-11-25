@@ -5,7 +5,7 @@ import UIKit
 /// как бот (BOT.md §2.1–2.3, §3) и ПК. В приложении вход всегда начинается с логина и пароля; Telegram —
 /// быстрая ссылка `?start=link_<code>`: подтверждаешь в боте или на устройстве, где уже вошёл.
 ///
-/// Показывать только при `AccountStore.shared.needsSignIn` — без сервера экрана нет.
+/// С 2026-11-25 — лист из Профиля («Войти или создать аккаунт»), вход на iPhone по желанию.
 struct AuthGateView: View {
     enum Step: Hashable {
         case welcome, login, register, link

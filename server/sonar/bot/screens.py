@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from html import escape
 from datetime import datetime, timezone
 
 from ..accounts import User
@@ -74,6 +75,50 @@ def quick_expired() -> Screen:
 
 def success_linked(login: str) -> Screen:
     return Screen(html=f"<b>Успешно!</b> {e('success')}\n" + quote(f"Аккаунт {code(login)} теперь привязан к Telegram"))
+
+
+def link_approve(login: str, who: str, ready: bool, code_: str) -> Screen:
+    """Вход нового устройства через бота (BOT.md §3): «Разрешить» появляется через 3 секунды."""
+    kb = ([[Btn("Разрешить", "confirm", f"lk:a:{code_}")]] if ready else []) + [[Btn("Отклонить", "cancel", f"lk:r:{code_}")]]
+    return Screen(banner="login",
+                  html=f"{e('status_down')} <b>Авторизация в аккаунт</b>\n"
+                       + quote(f"Разрешить доступ к аккаунту {code('@' + login)} для: <b>{who}</b>")
+                       + quote("Если тебе прислали эту ссылку и просят нажать — не разрешай. Так получают доступ к чужим аккаунтам."),
+                  kb=kb)
+
+
+def tg_link_confirm(login: str, code_: str) -> Screen:
+    return Screen(banner="login",
+                  html=f"{e('integration')} <b>Привязать Telegram</b>\n"
+                       + quote(f"Привязать этот Telegram к аккаунту {code('@' + login)}? Через него можно будет входить в Sonar."),
+                  kb=[[Btn("Привязать", "confirm", f"lk:t:{code_}")], [Btn("Отмена", "cancel", f"lk:r:{code_}")]])
+
+
+def link_done(text: str, ok: bool = True) -> Screen:
+    return Screen(html=(f"<b>Готово</b> {e('success')}\n" if ok else f"{e('cancel')} ") + quote(text))
+
+
+def dotify_ask() -> Screen:
+    return Screen(html=f"{e('like')} <b>Перенос из Dotify</b>\n"
+                       + quote("Пришли файл <b>.dotifyplaylist</b> с Любимыми — в Dotify: Любимые → ⋯ → Экспорт. "
+                               "Лайки добавятся в твой аккаунт Sonar без дублей."),
+                  kb=[[Btn("Отмена", "cancel", "dot:no")]])
+
+
+def dotify_preview(title: str, new: int, have: int, removed: int, unknown: int) -> Screen:
+    lines = [f"Добавлю в Любимые: <b>{new}</b>", f"Уже в Любимых: <b>{have}</b>"]
+    if removed:
+        lines.append(f"Ты убрал их из Любимых сам — не верну: <b>{removed}</b>")
+    if unknown:
+        lines.append(f"Не SoundCloud и не Яндекс — пропущу: <b>{unknown}</b>")
+    kb = ([[Btn(f"Добавить {new}", "confirm", "dot:ok")]] if new else []) + [[Btn("Отмена", "cancel", "dot:no")]]
+    return Screen(html=f"{e('like')} <b>{escape(title)}</b> из Dotify\n" + quote("\n".join(lines)), kb=kb)
+
+
+def dotify_done(new: int, have: int) -> Screen:
+    return Screen(html=f"<b>Готово!</b> {e('success')}\n"
+                       + quote(f"В Любимые добавлено: <b>{new}</b>, уже были: <b>{have}</b>. "
+                               "На устройствах они появятся после синхронизации с сервером."))
 
 
 def register_ask() -> Screen:

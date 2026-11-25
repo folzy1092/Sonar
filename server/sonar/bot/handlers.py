@@ -16,6 +16,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
+from .. import dotify, sessions
 from ..accounts import AccountError, Accounts, User, looks_like_token
 from ..config import Settings
 from ..db import now_ms
@@ -41,6 +42,11 @@ class Reg(StatesGroup):
     login = State()
     password = State()
     again = State()
+
+
+class Dotify(StatesGroup):
+    """Скрытая /dotify: ждём файл .dotifyplaylist, потом — подтверждение."""
+    file = State()
 
 
 class Report(StatesGroup):
@@ -112,7 +118,120 @@ async def cmd_start(msg: Message, command: CommandObject, state: FSMContext, ctx
     arg = command.args or ""
     if arg.startswith("ref_"):
         await state.update_data(ref=arg[4:])
+    if arg.startswith(("link_", "tg_")):
+        return await start_link(ctx, msg, arg)
     await ctx.shower.send(msg.chat.id, await home(ctx, msg.from_user.id))
+
+
+# ---- вход и привязка из приложения через бота (BOT.md §3, API.md §1) ----
+
+LINK_GONE = "Ссылка истекла или уже использована — сделай новую в приложении"
+
+
+async def start_link(ctx: Ctx, msg: Message, arg: str) -> None:
+    kind, _, code = arg.partition("_")
+    con = ctx.accounts.con
+    link = sessions.get_link(con, code)
+    if link is None or link.status != "pending" or link.kind != ("device" if kind == "link" else "tg_link"):
+        await ctx.shower.send(msg.chat.id, S.link_done(LINK_GONE, ok=False))
+        return
+    if kind == "tg":
+        owner = ctx.accounts.by_id(link.user_id)
+        await ctx.shower.send(msg.chat.id, S.tg_link_confirm(owner.login, code))
+        return
+    user = ctx.accounts.by_tg(msg.from_user.id)
+    if user is None:
+        await ctx.shower.send(msg.chat.id, S.link_done("Этот Telegram не привязан к аккаунту Sonar. Войди в приложении "
+                                                       "логином и паролем, а Telegram привяжи в «Аккаунте».", ok=False))
+        return
+    who = sessions.DeviceInfo.parse(link.data).label()
+    shown = await ctx.shower.send(msg.chat.id, S.link_approve(user.login, who, False, code))
+
+    async def arm():
+        await asyncio.sleep(3)  # «Разрешить» — не сразу: защита от «нажми, не глядя»
+        try:
+            await ctx.shower.edit(shown, S.link_approve(user.login, who, True, code))
+        except TelegramBadRequest:
+            pass
+
+    asyncio.create_task(arm())
+
+
+async def link_button(q: CallbackQuery, ctx: Ctx) -> None:
+    _, action, code = (q.data.split(":", 2) + ["", ""])[:3]
+    con = ctx.accounts.con
+    link = sessions.get_link(con, code)
+    await q.answer()
+    if link is None or link.status != "pending":
+        return await ctx.shower.edit(q.message, S.link_done(LINK_GONE, ok=False))
+    if action == "r":
+        sessions.decide(con, link, "rejected")
+        return await ctx.shower.edit(q.message, S.link_done("Вход отклонён", ok=False))
+    if action == "a" and link.kind == "device":
+        user = ctx.accounts.by_tg(q.from_user.id)
+        if user is None or not sessions.decide(con, link, "approved", user.id):
+            return await ctx.shower.edit(q.message, S.link_done(LINK_GONE, ok=False))
+        return await ctx.shower.edit(q.message, S.link_done(f"Вход разрешён: {sessions.DeviceInfo.parse(link.data).label()}"))
+    if action == "t" and link.kind == "tg_link":
+        owner = ctx.accounts.by_id(link.user_id)
+        if owner is None or not sessions.decide(con, link, "approved"):
+            return await ctx.shower.edit(q.message, S.link_done(LINK_GONE, ok=False))
+        ctx.accounts.link_tg(owner, q.from_user.id, q.from_user.username)
+        return await ctx.shower.edit(q.message, S.success_linked(owner.login))
+
+
+async def telegram_linked(ctx: Ctx, tg_id: int, user: User) -> None:
+    """В приложении нажали «Разрешить» на быстрой ссылке из бота — сказать об этом в боте."""
+    try:
+        await ctx.shower.send(tg_id, S.success_linked(user.login))
+    except Exception:  # noqa: BLE001 — бот не должен ронять ответ API
+        pass
+
+
+# ---- перенос Любимых из Dotify (скрытая команда, в меню её нет) ----
+
+@router.message(Command("dotify"))
+async def cmd_dotify(msg: Message, state: FSMContext, ctx: Ctx):
+    if ctx.accounts.by_tg(msg.from_user.id) is None:
+        return await ctx.shower.send(msg.chat.id, S.guest(ctx.settings))
+    await state.set_state(Dotify.file)
+    await ctx.shower.send(msg.chat.id, S.dotify_ask())
+
+
+async def _dotify_parse(ctx: Ctx, file_id: str) -> dotify.Parsed:
+    return dotify.parse((await ctx.bot.download(file_id)).read())
+
+
+@router.message(Dotify.file, F.document)
+async def dotify_file(msg: Message, state: FSMContext, ctx: Ctx):
+    user = ctx.accounts.by_tg(msg.from_user.id)
+    if user is None:
+        await state.clear()
+        return await ctx.shower.send(msg.chat.id, S.guest(ctx.settings))
+    if (msg.document.file_size or 0) > dotify.FILE_MAX:
+        return await say(ctx, msg.chat.id, f"{e('cancel')} Файл больше 5 МБ — это не плейлист Dotify")
+    try:
+        parsed = await _dotify_parse(ctx, msg.document.file_id)
+    except dotify.DotifyError as err:
+        return await say(ctx, msg.chat.id, f"{e('cancel')} {err}")
+    c = dotify.preview(ctx.accounts.con, user.id, parsed)
+    # Сам файл не храним: на «Добавить» скачаем ещё раз по file_id.
+    await state.update_data(dotify_file=msg.document.file_id)
+    await ctx.shower.send(msg.chat.id, S.dotify_preview(parsed.title, c.new, c.have, c.removed, c.unknown))
+
+
+async def dotify_button(q: CallbackQuery, state: FSMContext, ctx: Ctx, user: User) -> None:
+    data = await state.get_data()
+    file_id = data.get("dotify_file")
+    await state.clear()
+    if q.data != "dot:ok" or not file_id:
+        return await ctx.shower.edit(q.message, await home(ctx, q.from_user.id))
+    try:
+        parsed = await _dotify_parse(ctx, file_id)
+    except dotify.DotifyError as err:
+        return await say(ctx, q.message.chat.id, f"{e('cancel')} {err}")
+    c = dotify.apply(ctx.accounts.con, user.id, parsed)
+    await ctx.shower.edit(q.message, S.dotify_done(c.new, c.have))
 
 
 @router.message(Command("status"))
@@ -137,6 +256,8 @@ async def on_button(q: CallbackQuery, state: FSMContext, ctx: Ctx):
     msg = q.message
     if data.startswith("t:"):
         return await staff_button(q, ctx)
+    if data.startswith("lk:"):
+        return await link_button(q, ctx)
     user = ctx.accounts.by_tg(q.from_user.id)
     head, _, rest = data.partition(":")
     if user is None and head not in GUEST_OK:
@@ -150,6 +271,8 @@ async def on_button(q: CallbackQuery, state: FSMContext, ctx: Ctx):
         return await q.answer("Android-версия Sonar в разработке", show_alert=True)
     await q.answer()
 
+    if head == "dot":
+        return await dotify_button(q, state, ctx, user)
     if head == "login":
         await state.set_state(Login.login)
         return await edit(S.login_ask())

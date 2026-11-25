@@ -8,7 +8,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import errors, misc, status
+from . import auth, errors, me, misc, status
 from .deps import API_PER_IP, AUTH_PER_IP, WINDOW_S, Limiter, client_ip
 from .errors import PREFIX, error, is_api
 
@@ -27,7 +27,8 @@ def install(app: FastAPI) -> None:
         path = request.url.path
         if is_api(path) and request.method != "OPTIONS":
             ip = client_ip(request)
-            strict = path.startswith(PREFIX + "/auth/")
+            # Строже — только попытки (POST): опрос быстрой ссылки раз в 2 с за 5 минут сюда не упирается.
+            strict = request.method == "POST" and path.startswith(PREFIX + "/auth/")
             if not api_limit.take(ip) or (strict and not auth_limit.take(ip)):
                 return error(429, "too_many", "Слишком много запросов, попробуй через минуту",
                              headers={"Retry-After": str(WINDOW_S)})
@@ -37,6 +38,6 @@ def install(app: FastAPI) -> None:
     app.add_middleware(CORSMiddleware, allow_origins=SITE_ORIGINS, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
                        allow_headers=["Authorization", "Content-Type"], max_age=600)
 
-    for router in (misc.router, status.router):
+    for router in (misc.router, status.router, auth.router, me.router):
         app.include_router(router, prefix=PREFIX)
     app.include_router(misc.router, include_in_schema=False)  # старые пути в корне — алиасы

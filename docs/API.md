@@ -19,6 +19,19 @@ CORS — только сайт (`https://try-sonar.ru`, `https://www.try-sonar.r
 
 ## 1. Аккаунт
 
+Сделано 2026-11-25 (этап 2, `server/sonar/api/auth.py`, `api/me.py`, `sessions.py`): всё из таблицы, кроме аватара,
+фона, `/public/users`, `/notifications` и `/reports`. Уточнения к таблице:
+- нет логина и неверный пароль — один ответ `401 bad_credentials` (не подсказываем, что логин есть); лимит входа —
+  5 попыток за 15 минут на логин и на IP (`429 too_many`), регистрация — 5 в час на IP, закрытая в админке —
+  `403 registration_closed`;
+- `PUT /me/password` после смены **завершает все остальные сессии** (решение владельца 2026-11-25);
+- `PATCH /me` — только `username` (правила логина, `409 login_taken`) и `display_name` (1–48); логин не меняется;
+- `POST /auth/link` с `{telegram}` снаружи — `403`: такой запрос создаёт только бот; `GET /auth/link/{code}` и
+  approve/reject по закрытой или чужой ссылке — `410 link_closed`;
+- опрос (`…/poll`) отдаёт сессию **один раз**, дальше — `expired`; `POST /auth/telegram/start` с `purpose: login`
+  требует `device` и возвращает ссылку `?start=link_<код>`, с `purpose: link` — `?start=tg_<код>`;
+- `PUT /me/device` берёт id устройства из сессии, не из тела; `last_seen_at` пишется не чаще раза в 5 минут.
+
 | Метод | Путь | Тело → ответ |
 |---|---|---|
 | POST | `/auth/register` (без авт.) | `{login, password, device}` → `{session, user}` |
