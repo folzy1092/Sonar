@@ -6,6 +6,9 @@
 """
 from __future__ import annotations
 
+import contextlib
+import ipaddress
+import os
 import secrets
 from datetime import date, datetime
 from pathlib import Path
@@ -86,13 +89,46 @@ def _state(request: Request):
     return request.app.state
 
 
+_DEFAULT_PROXIES = "127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,198.18.0.0/15,fc00::/7"
+
+
+def _trusted_networks() -> list:
+    """Прокси, которым можно верить в X-Forwarded-For (SONAR_TRUSTED_PROXIES, IP/CIDR через запятую).
+    По умолчанию — локальные и внутренние сети: прокси хостинга перед контейнером."""
+    nets = []
+    for item in (os.getenv("SONAR_TRUSTED_PROXIES") or _DEFAULT_PROXIES).split(","):
+        with contextlib.suppress(ValueError):
+            if item.strip():
+                nets.append(ipaddress.ip_network(item.strip(), strict=False))
+    return nets
+
+
+def _trusted(addr: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(addr.strip())
+    except ValueError:
+        return False
+    return any(ip in net for net in _trusted_networks())
+
+
 def _ip(request: Request) -> str:
-    # За Cloudflare Tunnel настоящий адрес — в CF-Connecting-IP; без туннеля — адрес соединения.
-    return request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "?")
+    # Лимит попыток входа держится на том, что IP нельзя подделать: заголовкам верим, только если
+    # соединение пришло от доверенного прокси. Порт открыт наружу — напрямую клиент пишет их сам.
+    remote = request.client.host if request.client else "?"
+    if not _trusted(remote):
+        return remote
+    chain = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    for candidate in reversed(chain):
+        if not _trusted(candidate):
+            return candidate
+    return request.headers.get("x-real-ip", "").strip() or (chain[0] if chain else remote)
 
 
 def _https(request: Request) -> bool:
-    return request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    if request.url.scheme == "https":
+        return True
+    remote = request.client.host if request.client else ""
+    return _trusted(remote) and request.headers.get("x-forwarded-proto") == "https"
 
 
 def _secure(resp: Response) -> Response:

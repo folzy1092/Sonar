@@ -1,0 +1,12 @@
+# Зависимости для запуска сервера на хостинге (их ставит deploy/sync.py).
+aiogram>=3.15,<4
+argon2-cffi>=23.1
+cryptography>=43
+python-dotenv>=1.0
+# HTTP: админка /admin и API (sonar/web.py)
+fastapi>=0.115
+uvicorn>=0.30
+jinja2>=3.1
+python-multipart>=0.0.9
+# значки наборов эмодзи в боте (sonar/bot/packimg.py)
+pillow>=10

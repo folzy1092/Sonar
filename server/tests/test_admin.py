@@ -435,3 +435,25 @@ def test_future_custom_period_and_huge_page(client, con):
     assert client.get("/admin/users?page=" + "9" * 40).status_code == 200
     r = client.get("/admin/?p=custom&from=2999-01-01&to=2999-02-01")
     assert r.status_code == 200
+
+
+def _req(client_host: str, headers: dict[str, str]):
+    from starlette.requests import Request
+    raw = [(k.lower().encode(), v.encode()) for k, v in headers.items()]
+    return Request({"type": "http", "client": (client_host, 1234), "headers": raw, "scheme": "http",
+                    "path": "/", "server": ("x", 80), "query_string": b""})
+
+
+def test_ip_headers_only_from_trusted_proxy(monkeypatch):
+    from sonar.admin.web import _https, _ip
+    monkeypatch.delenv("SONAR_TRUSTED_PROXIES", raising=False)
+    spoof = {"X-Forwarded-For": "1.2.3.4", "CF-Connecting-IP": "5.6.7.8", "X-Forwarded-Proto": "https"}
+    # Напрямую на открытый порт: заголовкам не верим.
+    assert _ip(_req("203.0.113.9", spoof)) == "203.0.113.9"
+    assert not _https(_req("203.0.113.9", spoof))
+    # Через прокси хостинга: берём клиента справа, пропуская доверенные адреса.
+    assert _ip(_req("10.0.0.2", {"X-Forwarded-For": "9.9.9.9, 1.2.3.4, 10.0.0.5"})) == "1.2.3.4"
+    assert _ip(_req("10.0.0.2", {"X-Real-IP": "8.8.4.4"})) == "8.8.4.4"
+    assert _https(_req("10.0.0.2", {"X-Forwarded-Proto": "https"}))
+    monkeypatch.setenv("SONAR_TRUSTED_PROXIES", "203.0.113.0/24")
+    assert _ip(_req("203.0.113.9", spoof)) == "1.2.3.4"

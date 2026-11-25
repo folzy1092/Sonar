@@ -25,7 +25,7 @@ log = logging.getLogger("sonar")
 
 
 async def serve_web(con, settings) -> None:
-    """Админка и API на PORT. Слушаем 127.0.0.1: снаружи — только через Cloudflare Tunnel (SONAR_HTTP_HOST — иначе)."""
+    """Админка и API на PORT. Локально — 127.0.0.1; на хостинге deploy/sync.py ставит SONAR_HTTP_HOST=0.0.0.0."""
     import uvicorn
 
     from .web import create_app
