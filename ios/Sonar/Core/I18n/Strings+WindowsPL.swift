@@ -1631,6 +1631,7 @@ extension I18n {
         "Удалить плейлист": "Usuń playlistę",
         "Удалить пресет «{name}»": "Usuń preset „{name}”",
         "Удалить?": "Usunąć?",
+        "Удерживай, чтобы послушать, не применяя": "Przytrzymaj, by posłuchać bez zastosowania",
         "Уже в очереди": "Już w kolejce",
         "Уже скачано": "Już pobrane",
         "Укажите размер: ширина {w}, высота {h}": "Ustaw rozmiar: szerokość {w}, wysokość {h}",
