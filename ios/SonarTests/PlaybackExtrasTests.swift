@@ -94,12 +94,30 @@ final class PlaybackExtrasTests: XCTestCase {
     }
 
     func testSleepOptionsAndLabel() {
-        XCTAssertEqual(SleepOption.all, [.minutes(15), .minutes(30), .minutes(45), .minutes(60), .endOfTrack])
+        XCTAssertEqual(SleepOption.all, [.minutes(15), .minutes(30), .minutes(45), .minutes(60), .minutes(90), .endOfTrack])
         XCTAssertEqual(Set(SleepOption.all.map(\.id)).count, SleepOption.all.count)
         XCTAssertEqual(SleepOption.minutes(30).title, "30 мин")
         XCTAssertEqual(SleepTimer.label(65), "1:05")
         XCTAssertEqual(SleepTimer.label(0.2), "0:01", "округление вверх — ноль только в самом конце")
         XCTAssertEqual(SleepTimer.label(3600), "1:00:00")
+    }
+
+    func testSleepPickSliderPresetsAndStop() {
+        // ползунок: целые минуты 5…180, мусор — по умолчанию (как sleep-core.ts на ПК)
+        XCTAssertEqual(SleepPick.clamp(1), 5)
+        XCTAssertEqual(SleepPick.clamp(500), 180)
+        XCTAssertEqual(SleepPick.clamp(44.6), 45)
+        XCTAssertEqual(SleepPick.clamp(.nan), SleepPick.fallback)
+        // пресет подсвечен, только если ползунок ровно на нём
+        XCTAssertEqual(SleepPick.preset(of: 45), 45)
+        XCTAssertNil(SleepPick.preset(of: 46))
+        XCTAssertNil(SleepPick.preset(of: 180))
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertEqual(SleepPick.stopAt(now: now, minutes: 60), now.addingTimeInterval(3600))
+        XCTAssertEqual(SleepPick.stopAt(now: now, minutes: 2), now.addingTimeInterval(300), "меньше 5 мин не бывает")
+        XCTAssertEqual(SleepPick.minutes(fromLeft: 42 * 60 + 1), 43)
+        XCTAssertEqual(SleepPick.minutes(fromLeft: 30), 5)
+        XCTAssertEqual(SleepPick.minutes(fromLeft: 400 * 60), 180)
     }
 
     // MARK: - Офлайн-кэш волны

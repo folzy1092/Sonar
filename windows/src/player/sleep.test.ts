@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { FADE_MS, fadeK, leftLabel } from './sleep-core'
+import {
+  clampMinutes,
+  clockLabel,
+  countdownLabel,
+  FADE_MS,
+  fadeK,
+  leftLabel,
+  minutesFromLeft,
+  presetOf,
+  SLEEP_DEFAULT,
+  SLEEP_MAX,
+  SLEEP_MIN,
+  stopAt,
+} from './sleep-core'
 
 describe('таймер сна', () => {
   it('громкость: до затухания — полная, к концу — плавно в ноль', () => {
@@ -15,5 +28,31 @@ describe('таймер сна', () => {
     expect(leftLabel(60_000)).toBe('1')
     expect(leftLabel(45_000)).toBe('0:45')
     expect(leftLabel(0)).toBe('0:00')
+  })
+  it('ползунок: целые минуты 5…180, мусор — по умолчанию', () => {
+    expect(clampMinutes(1)).toBe(SLEEP_MIN)
+    expect(clampMinutes(500)).toBe(SLEEP_MAX)
+    expect(clampMinutes(44.6)).toBe(45)
+    expect(clampMinutes(Number.NaN)).toBe(SLEEP_DEFAULT)
+  })
+  it('пресет подсвечен, только если ползунок стоит ровно на нём', () => {
+    expect(presetOf(45)).toBe(45)
+    expect(presetOf(46)).toBeNull()
+    expect(presetOf(180)).toBeNull()
+  })
+  it('время остановки и минуты из остатка', () => {
+    const now = Date.UTC(2026, 10, 25, 7, 44)
+    expect(stopAt(now, 60)).toBe(now + 3_600_000)
+    expect(stopAt(now, 2)).toBe(now + SLEEP_MIN * 60_000)
+    expect(minutesFromLeft(42 * 60_000 + 1)).toBe(43)
+    expect(minutesFromLeft(30_000)).toBe(SLEEP_MIN)
+    expect(minutesFromLeft(400 * 60_000)).toBe(SLEEP_MAX)
+  })
+  it('часы остановки и обратный отсчёт', () => {
+    expect(clockLabel(new Date(2026, 10, 25, 8, 44).getTime(), 'ru')).toBe('08:44')
+    expect(countdownLabel(42 * 60_000 + 5_000)).toBe('42:05')
+    expect(countdownLabel(3_725_000)).toBe('1:02:05')
+    expect(countdownLabel(400)).toBe('0:01')
+    expect(countdownLabel(0)).toBe('0:00')
   })
 })

@@ -111,7 +111,7 @@ struct TrackSheet: View {
                 .padding(.horizontal, Theme.gutter)
                 .padding(.top, 28)
                 .frame(maxHeight: .infinity, alignment: .top)
-                .presentationDetents([.height(190)])
+                .presentationDetents([.height(390)])
                 .presentationDragIndicator(.visible)
                 .presentationCornerRadius(30)
                 .presentationBackground(Theme.background)

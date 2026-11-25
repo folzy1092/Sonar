@@ -57,7 +57,7 @@ enum SleepOption: Hashable, Sendable, Identifiable {
     case minutes(Int)
     case endOfTrack
 
-    static let all: [SleepOption] = [.minutes(15), .minutes(30), .minutes(45), .minutes(60), .endOfTrack]
+    static let all: [SleepOption] = SleepPick.presets.map { .minutes($0) } + [.endOfTrack]
 
     var id: String {
         switch self {
@@ -71,6 +71,36 @@ enum SleepOption: Hashable, Sendable, Identifiable {
         case let .minutes(n): "\(n) мин"
         case .endOfTrack: "Конец трека"
         }
+    }
+}
+
+/// Выбор минут в листе таймера: ползунок 5…180 с шагом 1 и пресеты, связанные с ним (зеркало ПК
+/// `player/sleep-core.ts` — меняются вместе).
+enum SleepPick {
+    static let presets = [15, 30, 45, 60, 90]
+    static let min = 5
+    static let max = 180
+    static let fallback = 30
+
+    /// Минуты в пределах ползунка, целые.
+    static func clamp(_ minutes: Double) -> Int {
+        guard minutes.isFinite else { return fallback }
+        return Swift.min(max, Swift.max(min, Int(minutes.rounded())))
+    }
+
+    /// Какой пресет подсветить: ползунок стоит ровно на нём — он, иначе ни один.
+    static func preset(of minutes: Int) -> Int? {
+        presets.contains(minutes) ? minutes : nil
+    }
+
+    /// Когда встанет на паузу, если запустить сейчас.
+    static func stopAt(now: Date, minutes: Int) -> Date {
+        now.addingTimeInterval(Double(clamp(Double(minutes))) * 60)
+    }
+
+    /// «Изменить» у идущего таймера: ползунок встаёт на остаток, округлённый вверх до минуты.
+    static func minutes(fromLeft seconds: TimeInterval) -> Int {
+        clamp((Swift.max(0, seconds) / 60).rounded(.up))
     }
 }
 

@@ -2,7 +2,7 @@
 // стихает и встаёт на паузу, громкость возвращается. Таймер на setInterval, а не на кадрах —
 // окно может быть спрятано в трей. Пауза рукой таймер не снимает, «Выключить» — снимает.
 import { player } from './player.svelte'
-import { FADE_MS, FADE_TRACK_MS, fadeK } from './sleep-core'
+import { clampMinutes, FADE_MS, FADE_TRACK_MS, fadeK, SLEEP_DEFAULT } from './sleep-core'
 
 class Sleep {
   /** Когда встать на паузу (мс, Date.now); `null` — таймер не стоит или «до конца трека». */
@@ -12,11 +12,15 @@ class Sleep {
   /** Сколько осталось, мс — для подписи на кнопке (обновляется 4 раза в секунду). */
   left = $state(0)
   active = $derived(this.endsAt !== null || this.endOfTrack)
+  /** На что ставили в прошлый раз — с этого ползунок начинает при следующем открытии. */
+  lastMinutes = $state(SLEEP_DEFAULT)
 
   private timer: ReturnType<typeof setInterval> | null = null
   private trackRef: string | null = null
 
   start(minutes: number) {
+    minutes = clampMinutes(minutes)
+    this.lastMinutes = minutes
     this.endOfTrack = false
     this.endsAt = Date.now() + minutes * 60_000
     this.run()
