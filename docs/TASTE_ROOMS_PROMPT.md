@@ -21,7 +21,7 @@
 | Что | Где | Проверено |
 |---|---|---|
 | Похожие автоплея отделены от очереди (баг, раздел 3) | `windows/src/player/queue-view.ts` (+ тест), `app/SidePane.svelte`, `pages/Player.svelte`, `player/player.svelte.ts` (`inAuto`); iPhone: `Playback/Autoplay.swift` (`autoStart`, `playedBoundary`), `PlaybackEngine.swift` (`isInAuto`, `contextLabel`), `Features/Player/FullPlayerView.swift` (`QueueSheet`), тесты в `SonarTests/ProviderTests.swift` | ПК: `vitest` 1182 зелёных, `npm run check` 0 ошибок. **iPhone не компилировался** (в контейнере нет Swift): проверить на CI, особенно локальные `let` внутри `ScrollViewReader { … }` и `if index == boundary { autoLine }` внутри `ForEach` |
-| Превью пресета EQ по удержанию (раздел 2) | `windows/src/lib/hold-preview.ts` (+ тест), `player/EqButton.svelte` | `vitest` и `check` зелёные; **вживую не пробовалось**. iPhone — не сделано |
+| Превью пресета EQ по удержанию (раздел 2) | `windows/src/lib/hold-preview.ts` (+ тест), `player/EqButton.svelte` | `vitest` и `check` зелёные; **вживую не пробовалось**. iPhone — сделано 2026-11-25 (раздел 2), на CI не собиралось |
 | Строки `Пошли похожие` и `Удерживай, чтобы послушать, не применяя` | `windows/src/i18n/{en,uk,es,de,pl}/pages.ts`, перегенерированы `ios/Sonar/Core/I18n/Strings+Windows*.swift` через `ios/scripts/gen-i18n.mjs` | `i18n.test.ts` зелёный. Переводы машинные |
 | **Половина** «больше / меньше / никогда» — только Rust (раздел 1) | `windows/src-tauri/src/wave.rs` (`Filter.never_artists`, `Filter::is_never`, `artist_prefs`, `Features.pref`, `Weights.pref`, `PREF_WEIGHT`, `pref_of`, три теста), `store/wave.rs` (`Taste.artist_pref`), `commands.rs` (чтение `wave.artist_prefs`) | **`cargo test` не запускался**: в контейнере нет `gdk-3.0`, сборка Tauri не идёт. Запустить на Windows или в CI: `cd windows/src-tauri && cargo test wave::`. Тест `more_and_less_move_the_score` статистический (среднее по 400 выборкам Томпсона, порог 1.5) — если мигает, поднять число выборок, а не снижать порог |
 
@@ -91,9 +91,17 @@ iPhone `ArtistTasteChips`): меню и так длинное, три строк
 применяет, удержание играет пресет и возвращает прежнюю кривую (в том числе несохранённую), закрытие всплывашки во время
 удержания не оставляет чужую кривую.
 
-**iPhone — сделать:** найти экран эквалайзера (`grep -rn "EQ\|Equalizer" ios/Sonar/Features`), на чип пресета —
-`onLongPressGesture(minimumDuration: 0.35, pressing:)`: пока держат — применить, отпустили — вернуть. XCTest на логику
-(вынести в чистую структуру, как `HoldGate`). Подсказка — та же строка.
+**iPhone — сделано 2026-11-25** (не компилировалось — Swift в контейнере нет, смотреть `ios.yml`): ядро — `Core/Settings/HoldPreview.swift`
+(`HoldGate` — порт одноимённого ядра ПК, порог `HoldGate.delay` = 0,35 с; `EqualizerPeek.shown` — какая кривая рисуется),
+тесты — `SonarTests/HoldPreviewTests.swift`; экран — `EqualizerSheet` (`Features/Settings/Player/AudioSettingsView.swift`):
+`onLongPressGesture(minimumDuration:maximumDistance:perform:onPressingChanged:)` на чипе. Пока держат — в `AudioTap.params`
+уходит кривая пресета, кривая и числа полос рисуют её же, чип обведён акцентом; отпустили (или закрыли лист) — в тап
+возвращается рабочая `gains` (в том числе несохранённая), настройки не пишутся. Касание, которым закончилось удержание,
+пресет не применяет (`consumeTap`). Подсказка — та же строка, `accessibilityHint`.
+**Ограничение:** предпросмотр — только у **встроенных** пресетов. У своих («Мои») долгое нажатие уже открывает меню
+«Удалить» (`contextMenu`), два жеста на одном чипе не уживутся. Чтобы слушать и свои — убрать меню и сделать «×» на чипе,
+как на ПК. **Проверить на устройстве:** (а) короткое касание применяет и сохраняет; (б) удержание 0,35 с играет пресет, отпускание
+возвращает прежнюю кривую; (в) прокрутка ряда чипов не запускает предпросмотр; (г) на треке со своим звуком работает так же.
 
 ---
 

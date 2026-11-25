@@ -192,8 +192,14 @@ struct EqualizerSheet: View {
     @State private var dragging: Int?
     @State private var naming = false
     @State private var newName = ""
+    /// Встроенный пресет, который держат пальцем: пока держат — звучит и рисуется он, `gains` не трогаем.
+    @State private var peek: Equalizer.Preset?
+    @State private var gate = HoldGate()
+    @State private var pressed: String?
 
     private var enabled: Bool { settings.bool(Equalizer.enabledKey) }
+    /// Что рисуем: предпросмотр, пока он звучит, иначе рабочая кривая.
+    private var shown: [Double] { EqualizerPeek.shown(peek: peek?.gains, working: gains) }
     private var userPresets: [Equalizer.Preset] { EqualizerUserPresets.parse(settings.string(EqualizerUserPresets.key)) }
 
     var body: some View {
@@ -221,7 +227,7 @@ struct EqualizerSheet: View {
                     + "Треки Яндекса, SoundCloud через Яндекс и скачанные звучат с ним.")
             }
 
-            EqualizerCurveView(gains: gains, active: dragging, enabled: enabled)
+            EqualizerCurveView(gains: shown, active: dragging, enabled: enabled)
 
             presets
                 .opacity(enabled ? 1 : 0.4)
@@ -241,6 +247,7 @@ struct EqualizerSheet: View {
         .padding(.top, 30)
         .animation(Motion.spring, value: enabled)
         .onAppear { gains = engine.eqGains }
+        .onDisappear { handle(gate.cancel(), nil) }
         .alert(t("Сохранить текущий"), isPresented: $naming) {
             TextField(t("Название"), text: $newName)
             Button(t("Отмена"), role: .cancel) { newName = "" }
@@ -269,7 +276,7 @@ struct EqualizerSheet: View {
     }
 
     private func row(_ i: Int) -> some View {
-        let gain = i < gains.count ? gains[i] : 0
+        let gain = i < shown.count ? shown[i] : 0
         let active = dragging == i
         return HStack(spacing: 12) {
             Text(Equalizer.label(Equalizer.frequencies[i]))
@@ -365,20 +372,71 @@ struct EqualizerSheet: View {
         .animation(Motion.spring, value: mine.map(\.name))
     }
 
+    /// Встроенные пресеты — «удержи, чтобы послушать» (как на ПК, `hold-preview.ts`), короткое касание применяет.
+    /// Свои держать нельзя: долгое нажатие на них уже открывает меню «Удалить».
+    @ViewBuilder
     private func presetChip(_ preset: Equalizer.Preset, on: Bool, builtin: Bool) -> some View {
-        Button {
-            withAnimation(Motion.spring) { gains = preset.gains }
-            save()
-            Haptics.select()
-        } label: {
-            Text(builtin ? t(preset.name) : preset.name)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(on ? Theme.accentInk : Theme.text)
-                .padding(.horizontal, 16)
-                .frame(height: 40)
-                .background(on ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Theme.raised.opacity(0.8)), in: Capsule())
+        if builtin {
+            chipLabel(preset, on: on, builtin: true)
+                .overlay {
+                    if peek?.name == preset.name {
+                        Capsule().strokeBorder(Theme.accent, lineWidth: 2)
+                            .transition(.opacity)
+                    }
+                }
+                .scaleEffect(pressed == preset.name ? 0.94 : 1)
+                .animation(Motion.quick, value: pressed)
+                .contentShape(Capsule())
+                .onTapGesture {
+                    if !gate.consumeTap() { apply(preset) }
+                }
+                .onLongPressGesture(minimumDuration: HoldGate.delay, maximumDistance: 12, perform: {
+                    handle(gate.fired(), preset)
+                }, onPressingChanged: { pressing in
+                    pressed = pressing ? preset.name : nil
+                    handle(gate.pressChanged(pressing), preset)
+                })
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint(t("Удерживай, чтобы послушать, не применяя"))
+        } else {
+            Button { apply(preset) } label: { chipLabel(preset, on: on, builtin: false) }
+                .buttonStyle(PressableStyle(scale: 0.94))
         }
-        .buttonStyle(PressableStyle(scale: 0.94))
+    }
+
+    private func chipLabel(_ preset: Equalizer.Preset, on: Bool, builtin: Bool) -> some View {
+        Text(builtin ? t(preset.name) : preset.name)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(on ? Theme.accentInk : Theme.text)
+            .padding(.horizontal, 16)
+            .frame(height: 40)
+            .background(on ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Theme.raised.opacity(0.8)), in: Capsule())
+    }
+
+    private func apply(_ preset: Equalizer.Preset) {
+        withAnimation(Motion.spring) { gains = preset.gains }
+        save()
+        Haptics.select()
+    }
+
+    /// Включить предпросмотр или вернуть рабочую кривую. Звук — только в тап (`AudioTap`), настройки не пишем.
+    private func handle(_ action: HoldGate.Action?, _ preset: Equalizer.Preset?) {
+        switch action {
+        case .begin:
+            guard let preset else { return }
+            withAnimation(Motion.spring) { peek = preset }
+            push(preset.gains)
+            Haptics.select()
+        case .end:
+            withAnimation(Motion.spring) { peek = nil }
+            push(gains)
+        case nil:
+            break
+        }
+    }
+
+    private func push(_ curve: [Double]) {
+        AudioTap.params.update(gains: curve, eqEnabled: true, normalize: settings.bool("audio.normalize"))
     }
 
     private func save() {
