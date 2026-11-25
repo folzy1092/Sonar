@@ -261,6 +261,18 @@ final class LyricsCoreTests: XCTestCase {
         XCTAssertEqual(LyricsAnimation.zoom.title, "Приближение")
     }
 
+    func testScrollsSmoothly() {
+        // открыли на середине трека: до первой строки (nil) → 24-я — сразу
+        XCTAssertFalse(LyricsClock.scrollsSmoothly(from: nil, to: 24))
+        // вступление → первая строка и строка за строкой — плавно
+        XCTAssertTrue(LyricsClock.scrollsSmoothly(from: nil, to: 0))
+        XCTAssertTrue(LyricsClock.scrollsSmoothly(from: 7, to: 8))
+        XCTAssertTrue(LyricsClock.scrollsSmoothly(from: 7, to: 7 + LyricsClock.smoothLines))
+        // перемотка далеко — сразу
+        XCTAssertFalse(LyricsClock.scrollsSmoothly(from: 30, to: 5))
+        XCTAssertFalse(LyricsClock.scrollsSmoothly(from: 5, to: 30))
+    }
+
     // MARK: аннотации (annotations.ts)
 
     func testAnnotationsMapping() {

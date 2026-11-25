@@ -8,7 +8,7 @@
   import { Clock } from './core/clock'
   import { findLine } from './core/find'
   import { progress } from './core/progress'
-  import { shouldAutoScroll, shouldPaint } from './core/follow'
+  import { scrollsSmoothly, shouldAutoScroll, shouldPaint } from './core/follow'
   import { holdLook, lineLook, synthWords, wordLook, type TextAnim, type TextStyle } from './core/motion'
   import { reducedMotion } from '../lib/motion'
   import { lyrics, sizeRem } from './lyrics.svelte'
@@ -91,6 +91,8 @@
     const floor = last ? last.offsetTop + last.offsetHeight - scroller.clientHeight * 0.8 : Infinity
     const top = Math.max(0, Math.min(el ? el.offsetTop - scroller.clientHeight * 0.32 : 0, floor))
     if (!reduced && lyrics.animation === 'ladder' && prev >= 0 && i > prev && i - prev <= 3) magnet(top, prev)
+    // открыли плеер на середине трека (или пришёл текст позже) — сразу на строку, без пути с самого верха
+    else if (!scrollsSmoothly(prev, i)) jump(top)
     else glide(top)
   })
 
@@ -135,6 +137,15 @@
       })
       a.id = 'magnet'
     })
+  }
+
+  /** Мгновенно на место: прошлый переезд и «магнит» отменяются. */
+  function jump(to: number) {
+    const sc = scroller
+    if (!sc) return
+    cancelAnimationFrame(glideRaf)
+    els.forEach((line) => line?.getAnimations().forEach((a) => a.id === 'magnet' && a.cancel()))
+    sc.scrollTop = to
   }
 
   /** Плавный переезд к строке (~1 с, мягкий разгон и торможение) вместо резкого системного

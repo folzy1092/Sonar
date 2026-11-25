@@ -93,12 +93,20 @@ struct LyricsView: View {
                     manualUntil = Date().addingTimeInterval(3)
                     onTouch()
                 })
-                .onChange(of: current) { _, line in
+                .onChange(of: current) { old, line in
                     active = line
                     onLineChange(line)
                     guard let line, Date() > manualUntil else { return }
+                    let anchor = UnitPoint(x: 0.5, y: LyricsMotion.anchor)
+                    // открыли плеер на середине трека или пришёл текст — сразу на строку, без пути с самого верха
+                    guard LyricsClock.scrollsSmoothly(from: old, to: line) else {
+                        var plain = Transaction()
+                        plain.disablesAnimations = true
+                        withTransaction(plain) { proxy.scrollTo(line, anchor: anchor) }
+                        return
+                    }
                     withAnimation(reduceMotion ? .easeInOut(duration: 0.3) : .spring(response: 0.75, dampingFraction: 0.92)) {
-                        proxy.scrollTo(line, anchor: UnitPoint(x: 0.5, y: LyricsMotion.anchor))
+                        proxy.scrollTo(line, anchor: anchor)
                     }
                 }
                 .onAppear {

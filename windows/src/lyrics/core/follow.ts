@@ -29,3 +29,13 @@ export const USER_SCROLL_PAUSE = 2500
 export function shouldAutoScroll(s: ScrollState): boolean {
   return s.synced && s.sinceUserScroll >= USER_SCROLL_PAUSE && s.noteOpen === null
 }
+
+/** Дальше стольких строк от прошлой текущей — не «следующая строка», а переход: открыли плеер на середине
+ *  трека, пришёл текст, перемотали. Плавно такой путь не едем — иначе текст долго ползёт с самого верха. */
+export const SMOOTH_LINES = 3
+
+/** Ехать ли к новой текущей строке плавно. `prev` — прошлая текущая (-1 — до первой строки или текст только
+ *  что открылся), `next` — новая. Строка за строкой в песне — плавно, остальное — сразу на место. */
+export function scrollsSmoothly(prev: number, next: number): boolean {
+  return Math.abs(next - prev) <= SMOOTH_LINES
+}
