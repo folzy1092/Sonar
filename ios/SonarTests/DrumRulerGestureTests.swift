@@ -29,7 +29,10 @@ final class DrumRulerGestureTests: XCTestCase {
 
     func testManyFramesGiveExactlyOneCommit() throws {
         // 120 кадров жеста: «1.03 ↔ 1.04» из-за дрожи пальца не должны выдавать ничего наружу, кроме итога
-        let jitter: [Double] = (1 ... 120).map { Double($0) * 0.5 + ($0 % 2 == 0 ? 1.2 : -1.2) }
+        let jitter: [Double] = (1 ... 120).map { (i: Int) -> Double in
+            let wobble: Double = i % 2 == 0 ? 1.2 : -1.2
+            return Double(i) * 0.5 + wobble
+        }
         let result = drag(speed, from: 1.0, translations: jitter)
         let session = try XCTUnwrap(result.session)
         let commit = try XCTUnwrap(speed.commit(session))
