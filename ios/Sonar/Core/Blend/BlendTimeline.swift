@@ -22,12 +22,21 @@ enum BlendTimeline {
     /// У синка B стартует за столько тактов до входа.
     static let leadBars = 2.0
 
-    /// Значение ручки дека на такте. A до начала перехода — в нейтрали; громкость B — с поправкой `gainMul`.
+    /// Поправка громкости на такте (`gainMul` = громкость B под A), как `trimAt` на ПК. Только убавляем — тихий
+    /// трек не раздуваем (иначе после перехода он «проседает» обратно): громкий B входит приглушённым, громкий A
+    /// притихает к уровню B. К концу перехода поправка плавно (в дБ) уходит в 1 — B выходит на свою громкость.
+    static func trim(_ c: BlendCurves, side: BlendSide, bar: Double, gainMul: Double) -> Double {
+        let x = min(1, max(0, bar / max(1e-6, c.endBar)))
+        if side == .b { return gainMul < 1 ? pow(gainMul, 1 - x) : 1 }
+        return gainMul > 1 ? pow(gainMul, -x) : 1
+    }
+
+    /// Значение ручки дека на такте. A до начала перехода — в нейтрали; громкость — с поправкой `trim`.
     static func deckValue(_ c: BlendCurves, side: BlendSide, _ p: DeckParam, bar: Double, gainMul: Double = 1) -> Double {
         let rest = c.rest[p]
         if side == .a && bar < 0 { return rest }
         let v = BlendMix.valueAt(c[side][p], rest: rest, bar: bar)
-        return p == .gain && side == .b ? v * gainMul : v
+        return p == .gain ? v * trim(c, side: side, bar: bar, gainMul: gainMul) : v
     }
 
     /// Ручки, у которых в этом переходе есть кривая.

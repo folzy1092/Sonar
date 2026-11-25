@@ -421,7 +421,7 @@ final class BlendController {
         }
         l.deckB = deck
         pair.deckA.blendStart(
-            BlendDeckProgram(curves: pair.curves, side: .a, gainMul: 1, map: .a(pair.plan, pair.anA)),
+            BlendDeckProgram(curves: pair.curves, side: .a, gainMul: pair.gainMul, map: .a(pair.plan, pair.anA)),
             echoDelaySec: pair.curves.echoDelaySec
         )
         deck.blendStart(
@@ -550,7 +550,7 @@ final class BlendController {
         host.release(deckA)
     }
 
-    /// Конец перехода: A уходит в тишину и отпускается, B — к полной громкости и своей скорости.
+    /// Конец перехода: A уходит в тишину и отпускается, B — в нейтраль и к своей скорости.
     private func wrapUp(_ sec: Double) {
         guard let pair, let l = live else { return }
         let deckA = pair.deckA
@@ -560,8 +560,10 @@ final class BlendController {
             deckA.blendStart(nil, echoDelaySec: 0)
         }
         if let deckB = l.deckB {
-            deckB.blendRamp(.values(pair.curves.rest.with(.gain, pair.gainMul), seconds: sec))
-            deckB.blendRamp(.gain(1, seconds: Self.gainSettleSec))
+            // к концу перехода поправка громкости уже 1 (`BlendTimeline.trim`); оборвали раньше — остаток уходит плавно
+            let trim = BlendTimeline.trim(pair.curves, side: .b, bar: l.bar, gainMul: pair.gainMul)
+            deckB.blendRamp(.values(pair.curves.rest.with(.gain, trim), seconds: sec))
+            if trim != 1 { deckB.blendRamp(.gain(1, seconds: Self.gainSettleSec)) }
             setRate(deckB, pair.soundB.rate)
         }
         host.hold(false)

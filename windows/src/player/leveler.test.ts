@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gainFor, MAX_GAIN_DB, MIN_GAIN_DB, rmsDb, smooth, TARGET_DB } from './leveler'
+import { gainFor, MAX_GAIN_DB, MIN_GAIN_DB, rmsDb, smooth, TARGET_DB, tauFor } from './leveler'
 
 describe('нормализация громкости', () => {
   it('тихое поднимает, громкое опускает, с пределами', () => {
@@ -20,5 +20,14 @@ describe('нормализация громкости', () => {
     let v = -30
     for (let i = 0; i < 300; i++) v = smooth(v, -10, 200, 6000)
     expect(v).toBeCloseTo(-10, 1)
+  })
+  it('новый громкий трек после тихого не стартует с чужим усилением: за 1 с — у цели', () => {
+    // прошлый трек тихий (−30 дБ) → усиление +6; новый громкий (−10 дБ), замер каждые 200 мс
+    let level = -30
+    for (let i = 0; i < 5; i++) level = smooth(level, -10, 200, tauFor(true, -10 > level))
+    expect(gainFor(level) - gainFor(-10)).toBeLessThan(1)
+    // а тихий после громкого прибавляется не спеша, как раньше
+    expect(tauFor(true, false)).toBeGreaterThan(tauFor(true, true))
+    expect(tauFor(false, true)).toBe(tauFor(false, false))
   })
 })

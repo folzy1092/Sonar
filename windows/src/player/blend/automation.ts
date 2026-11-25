@@ -44,12 +44,21 @@ export function paramOf(chain: ChainLike, p: DeckParam): AudioParam {
   }
 }
 
-/** Значение ручки дека на такте. A до начала перехода — в нейтрали; громкость B — с поправкой `gainMul`. */
+/** Поправка громкости на такте (`gainMul` = громкость B под A). Только убавляем — тихий трек не раздуваем
+ *  (иначе после перехода он «проседает» обратно): громкий B входит приглушённым, громкий A притихает к уровню B.
+ *  К концу перехода поправка плавно (в дБ) уходит в 1 — B выходит на свою громкость без скачка. */
+export function trimAt(c: BlendCurves, side: Side, bar: number, gainMul: number): number {
+  const x = Math.min(1, Math.max(0, bar / Math.max(1e-6, c.endBar)))
+  if (side === 'b') return gainMul < 1 ? gainMul ** (1 - x) : 1
+  return gainMul > 1 ? gainMul ** -x : 1
+}
+
+/** Значение ручки дека на такте. A до начала перехода — в нейтрали; громкость — с поправкой `trimAt`. */
 export function deckValue(c: BlendCurves, side: Side, p: DeckParam, bar: number, gainMul = 1): number {
   const rest = c.rest[p]
   if (side === 'a' && bar < 0) return rest
   const v = valueAt(c[side][p], rest, bar)
-  return p === 'gain' && side === 'b' ? v * gainMul : v
+  return p === 'gain' ? v * trimAt(c, side, bar, gainMul) : v
 }
 
 /** Ручки, у которых в этом переходе есть кривая. */

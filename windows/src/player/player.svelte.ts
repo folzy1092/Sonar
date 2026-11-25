@@ -796,6 +796,8 @@ class Player {
     const sec = span / 1000
     this.gainTo(neu, 1, sec)
     this.gainTo(old, 0, sec)
+    // оба дека звучат — выравниватель стоит, иначе хвост старого трека раздует громкость нового
+    this.leveler?.hold(true)
     this.fading = { el: old, hls: oldHls, timer: setTimeout(() => this.endFade(), span + 250) }
   }
 
@@ -803,6 +805,7 @@ class Player {
   private endFade() {
     const f = this.fading
     if (!f) return
+    if (!this.blendHeld) this.leveler?.hold(false)
     this.fading = null
     clearTimeout(f.timer)
     f.el.pause()

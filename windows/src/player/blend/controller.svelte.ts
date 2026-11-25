@@ -3,7 +3,7 @@
 // Плеер знает о нём только через `BlendHost`, поэтому всё ядро гоняется в тестах на поддельных деках.
 
 import type { BlendAnalysis } from './analysis'
-import { type ChainLike, deckValues, freezeDeck, rampDeck, scheduleDeck, setDeck } from './automation'
+import { type ChainLike, deckValues, freezeDeck, rampDeck, scheduleDeck, setDeck, trimAt } from './automation'
 import { type BlendCurves, curvesFor, tempoAt } from './curves'
 import { barMs, type BlendKind, type BlendType, plan as planTransitions, type TransitionPlan } from './planner'
 
@@ -92,6 +92,7 @@ const CORR_MAX = 0.02
 /** Ошибка фазы, при которой поправка скорости достигает потолка, мс. */
 const CORR_FULL_MS = 1000
 export const CANCEL_SEC = 0.3
+/** Переход оборвали раньше конца — остаток поправки громкости B уходит в 1 за это время, с. */
 const GAIN_SETTLE_SEC = 2
 const SHIFT_SETTLE_BARS = 8
 const A_REST_SEC = 1
@@ -529,7 +530,7 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
     const p = this.pair!
     const live = this.live!
     const span = { bar: live.bar, t0: now, secPerBar, horizonSec: HORIZON_SEC }
-    if (!live.aReleased && live.bar + HORIZON_SEC / secPerBar >= 0) scheduleDeck(p.deckA.chain, p.curves, 'a', span)
+    if (!live.aReleased && live.bar + HORIZON_SEC / secPerBar >= 0) scheduleDeck(p.deckA.chain, p.curves, 'a', span, p.gainMul)
     if (live.deckB && now >= live.dipUntil) scheduleDeck(live.deckB.chain, p.curves, 'b', span, p.gainMul)
   }
 
@@ -550,7 +551,7 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
     this.host.release(deckA)
   }
 
-  /** Конец автоматизации: цепочки в нейтраль, скорость B — своя, громкость B → 1, дальше снимаем сдвиг тона. */
+  /** Конец автоматизации: цепочки в нейтраль, скорость B — своя, дальше снимаем сдвиг тона. */
   private wrapUp(sec: number) {
     const p = this.pair!
     const live = this.live!
@@ -561,8 +562,10 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
       this.releaseA(live, p.deckA)
       setDeck(p.deckA.chain, p.curves.rest, this.host.now())
     })
-    rampDeck(deckB.chain, { ...p.curves.rest, gain: p.gainMul }, t, sec)
-    deckB.chain.gain.gain.linearRampToValueAtTime(1, t + sec + GAIN_SETTLE_SEC)
+    // к концу перехода поправка громкости уже 1 (`trimAt`); оборвали раньше — остаток уходит плавно
+    const trim = trimAt(p.curves, 'b', live.bar, p.gainMul)
+    rampDeck(deckB.chain, { ...p.curves.rest, gain: trim }, t, sec)
+    if (trim !== 1) deckB.chain.gain.gain.linearRampToValueAtTime(1, t + sec + GAIN_SETTLE_SEC)
     setRate(deckB.el, p.soundB.rate)
     this.host.hold(false)
     live.settleFrom = t
@@ -598,7 +601,7 @@ export class BlendController<T extends { ref: string }, D extends BlendDeck> {
   private freeze(t: number) {
     const p = this.pair!
     const live = this.live!
-    if (!live.aReleased) freezeDeck(p.deckA.chain, p.curves, 'a', live.bar, t)
+    if (!live.aReleased) freezeDeck(p.deckA.chain, p.curves, 'a', live.bar, t, p.gainMul)
     if (live.deckB) freezeDeck(live.deckB.chain, p.curves, 'b', live.bar, t, p.gainMul)
   }
 

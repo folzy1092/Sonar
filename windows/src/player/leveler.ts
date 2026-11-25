@@ -17,6 +17,13 @@ export function gainFor(levelDb: number): number {
   return Math.max(MIN_GAIN_DB, Math.min(MAX_GAIN_DB, TARGET_DB - levelDb))
 }
 
+/** Постоянная времени оценки: в первые секунды трека громче — догоняем сразу (иначе новый громкий трек
+ *  стартует с усилением прошлого тихого и через пару секунд «проседает»), тише — не спеша. */
+export function tauFor(fast: boolean, louder: boolean): number {
+  if (!fast) return SLOW_MS
+  return louder ? RISE_MS : FAST_MS
+}
+
 /** Сглаживание оценки: за `dtMs` к новому замеру с постоянной времени `tauMs`. */
 export function smooth(prev: number, sample: number, dtMs: number, tauMs: number): number {
   const k = 1 - Math.exp(-dtMs / tauMs)
@@ -33,6 +40,7 @@ export function rmsDb(frame: Float32Array): number {
 
 const STEP_MS = 200
 const FAST_MS = 1_500
+const RISE_MS = 300
 const SLOW_MS = 6_000
 const FAST_FOR_MS = 4_000
 
@@ -74,8 +82,11 @@ export class Leveler {
     }
   }
 
-  /** Сведение (blend/controller): пока звучат два трека, оценка не копится и усиление стоит. */
+  /** Переход (кроссфейд, сведение): пока звучат два трека, оценка не копится и усиление стоит — затухающий
+   *  хвост старого трека иначе тянет усиление вверх, и новый трек стартует громче нужного. После перехода
+   *  оценка снова догоняет быстро. */
   hold(on: boolean) {
+    if (this.held && !on) this.since = performance.now()
     this.held = on
   }
 
@@ -90,8 +101,11 @@ export class Leveler {
     const db = rmsDb(this.frame)
     if (!Number.isFinite(db) || db < SILENCE_DB) return
     const fast = performance.now() - this.since < FAST_FOR_MS
-    this.level = this.level === null ? db : smooth(this.level, db, STEP_MS, fast ? FAST_MS : SLOW_MS)
+    const louder = this.level === null || db > this.level
+    this.level = this.level === null ? db : smooth(this.level, db, STEP_MS, tauFor(fast, louder))
     const gain = 10 ** (gainFor(this.level) / 20)
-    this.node.gain.setTargetAtTime(gain, this.ctx.currentTime, fast ? 0.3 : 1.2)
+    // убавить в начале трека — быстро, прибавить — как раньше
+    const down = gain < this.node.gain.value
+    this.node.gain.setTargetAtTime(gain, this.ctx.currentTime, fast ? (down ? 0.1 : 0.3) : 1.2)
   }
 }

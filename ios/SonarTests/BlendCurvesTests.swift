@@ -196,11 +196,31 @@ final class BlendCurvesTests: XCTestCase {
         let c = curves(F.planOf(.bass))
         XCTAssertEqual(BlendTimeline.deckValue(c, side: .a, .gain, bar: -1), c.rest.gain)
         XCTAssertEqual(BlendTimeline.deckValue(c, side: .a, .high, bar: -0.5), c.rest.high)
-        XCTAssertEqual(BlendTimeline.deckValue(c, side: .b, .gain, bar: c.endBar, gainMul: 2), 2)
+        // к концу перехода поправка ушла: B на своей громкости, без скачка после перехода
+        XCTAssertEqual(BlendTimeline.deckValue(c, side: .b, .gain, bar: c.endBar, gainMul: 2), 1, accuracy: 1e-9)
         XCTAssertEqual(BlendTimeline.deckValue(c, side: .a, .gain, bar: 0, gainMul: 2), 1)
         let values = BlendTimeline.deckValues(c, side: .b, bar: c.endBar, gainMul: 0.5)
-        XCTAssertEqual(values.gain, 0.5)
+        XCTAssertEqual(values.gain, 1, accuracy: 1e-9)
         XCTAssertEqual(values.hpHz, c.rest.hpHz)
+    }
+
+    /// Баг «на переходе громко, потом резко тише»: поправка громкости только убавляет и к концу уходит в 1.
+    func testGainTimelineNeverBoostsAndEndsAtRest() {
+        let muls = [pow(10, 6.0 / 20), pow(10, -6.0 / 20)]
+        for kind in BlendKind.allCases {
+            let c = curves(F.planOf(kind))
+            for mul in muls {
+                for bar in F.sample(c.endBar) {
+                    XCTAssertLessThanOrEqual(BlendTimeline.deckValue(c, side: .a, .gain, bar: bar, gainMul: mul), 1 + 1e-9)
+                    XCTAssertLessThanOrEqual(BlendTimeline.deckValue(c, side: .b, .gain, bar: bar, gainMul: mul), 1 + 1e-9)
+                }
+                XCTAssertEqual(BlendTimeline.deckValue(c, side: .b, .gain, bar: c.endBar, gainMul: mul), c.rest.gain, accuracy: 1e-9)
+            }
+        }
+        let c = curves(F.planOf(.smooth))
+        XCTAssertEqual(20 * log10(BlendTimeline.trim(c, side: .b, bar: 0, gainMul: pow(10, -6.0 / 20))), -6, accuracy: 1e-6)
+        XCTAssertEqual(BlendTimeline.trim(c, side: .b, bar: 0, gainMul: pow(10, 6.0 / 20)), 1)
+        XCTAssertEqual(20 * log10(BlendTimeline.trim(c, side: .a, bar: c.endBar, gainMul: pow(10, 6.0 / 20))), -6, accuracy: 1e-6)
     }
 
     func testCurvedParamsOnlyWithCurves() {
