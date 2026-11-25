@@ -70,7 +70,11 @@ enum PrivacyKey {
         /// Ключи перевода.
         let title: String
         let hint: String
+        /// Только «Друзья» и «Никто» (личные сообщения — только между друзьями, антиспам).
+        var friendsOnly = false
         var id: String { key }
+
+        var audiences: [Audience] { friendsOnly ? [.friends, .nobody] : Audience.allCases }
     }
 
     static let rows: [Row] = [
@@ -78,5 +82,12 @@ enum PrivacyKey {
         Row(key: "privacy.likes", title: "Любимые", hint: "Треки с лайком"),
         Row(key: "privacy.now_playing", title: "Что играет сейчас", hint: "Трек, который звучит прямо сейчас"),
         Row(key: "privacy.stats", title: "Статистика", hint: "Прослушивания, часы и любимые артисты"),
+    ]
+
+    /// Комнаты и сообщения — по умолчанию «Друзья», порядок как на ПК.
+    static let social: [Row] = [
+        Row(key: "privacy.messages", title: "Кто может писать мне", hint: "Личные сообщения и треки от других", friendsOnly: true),
+        Row(key: "privacy.room_invites", title: "Кто может звать в комнату", hint: "Приглашения слушать вместе"),
+        Row(key: "privacy.room_visible", title: "Кто видит мою комнату", hint: "Можно зайти без приглашения"),
     ]
 }

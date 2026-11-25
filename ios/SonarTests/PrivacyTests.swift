@@ -42,6 +42,20 @@ final class PrivacyTests: XCTestCase {
         }
     }
 
+    func testRoomsAndMessagesDefaultToFriends() {
+        let store = makeStore()
+        XCTAssertEqual(PrivacyKey.social.map(\.key), ["privacy.messages", "privacy.room_invites", "privacy.room_visible"])
+        for key in PrivacyKey.social.map(\.key) {
+            XCTAssertEqual(Audience.of(store.value(key)), .friends, key)
+        }
+        XCTAssertEqual(PrivacyKey.social[0].audiences, [.friends, .nobody])
+        XCTAssertEqual(PrivacyKey.social[1].audiences, Audience.allCases)
+        for row in PrivacyKey.social {
+            XCTAssertNotNil(I18n.windowsEN[row.title], row.title)
+            XCTAssertNotNil(I18n.windowsEN[row.hint], row.hint)
+        }
+    }
+
     func testChoiceIsStored() {
         let store = makeStore()
         store.set("privacy.likes", .string(Audience.friends.rawValue))

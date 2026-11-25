@@ -38,5 +38,9 @@ extension SettingsDefaults {
         "privacy.likes": .string("everyone"),
         "privacy.now_playing": .string("everyone"),
         "privacy.stats": .string("everyone"),
+        // Комнаты и сообщения (docs/ROOMS.md, docs/DM.md): кто может писать, звать в комнату, видит мою комнату
+        "privacy.messages": .string("friends"),
+        "privacy.room_invites": .string("friends"),
+        "privacy.room_visible": .string("friends"),
     ]
 }

@@ -6,12 +6,14 @@ import Foundation
 /// - `sonar://remote/pair?pc=…&code=…` — QR пульта с экрана ПК (Система → Пульт), `RemotePairLink`;
 /// - `sonar://album/<ref>` — уведомление «Новинки»: страница альбома;
 /// - `sonar://track/<ref>` — уведомление «Новинки»: трек из ленты играет (`ReleaseNotifier`);
-/// - `sonar://user/<username>` — пока только узнаём вид ссылки.
+/// - `sonar://user/<username>` — пока только узнаём вид ссылки;
+/// - `sonar://room/<id>` — приглашение в комнату из сообщений (docs/ROOMS.md); до сервера только узнаём.
 enum DeepLink: Equatable {
     case track(String)
     case album(String)
     case auth(String)
     case user(String)
+    case room(String)
     case play(PlayTarget)
     case remotePair(RemotePairLink)
 
@@ -24,6 +26,7 @@ enum DeepLink: Equatable {
         case "album": self = .album(value)
         case "auth": self = .auth(value)
         case "user": self = .user(value)
+        case "room": self = .room(value)
         case "remote":
             guard let link = RemotePairLink(url) else { return nil }
             self = .remotePair(link)
