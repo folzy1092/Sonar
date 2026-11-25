@@ -5,6 +5,7 @@ mod autostart;
 mod blend;
 mod commands;
 mod crashlog;
+mod cred_sync;
 mod discord;
 mod downloads;
 mod dupes;

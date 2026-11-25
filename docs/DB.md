@@ -84,8 +84,8 @@ CREATE TABLE tg_requests (                      -- быстрый вход и п
 
 CREATE TABLE service_accounts (
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  service       TEXT NOT NULL,                  -- key сервиса из таблицы префиксов: soundcloud | yandex | vk | spotify (позже youtube)
-  credentials   BLOB NOT NULL,                  -- Fernet(JSON: client_id, oauth_token / token)
+  service       TEXT NOT NULL,                  -- soundcloud | yandex | youtube | spotify (старые vk не отдаются)
+  credentials   BLOB NOT NULL,                  -- Fernet(JSON полей, как в API.md «Сервисы»: client_id, oauth_token / token / cookie / sp_dc)
   ext_user_id   TEXT,
   ext_name      TEXT,
   ext_avatar    TEXT,

@@ -10,7 +10,7 @@ use crate::secrets;
 use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -422,6 +422,48 @@ impl Core {
     secrets::save(ServiceId::Yt.key(), &stored)?;
     *self.yt.write().await = Some(stored.clone());
     Ok(status(&Some(stored)))
+  }
+
+  /// Входы для синка (`cred_sync.rs`): сервис → поля как на сервере (обрезанные, без пустых) и имя аккаунта.
+  pub async fn cred_snapshot(&self) -> BTreeMap<String, (BTreeMap<String, String>, Option<String>)> {
+    fn fields(pairs: &[(&str, Option<&str>)]) -> BTreeMap<String, String> {
+      pairs
+        .iter()
+        .filter_map(|(k, v)| v.map(str::trim).filter(|v| !v.is_empty()).map(|v| (k.to_string(), v.to_owned())))
+        .collect()
+    }
+    let mut out = BTreeMap::new();
+    let mut put = |svc: ServiceId, f: BTreeMap<String, String>, name: &Option<String>| {
+      if !f.is_empty() {
+        out.insert(svc.key().to_owned(), (f, name.clone()));
+      }
+    };
+    if let Some(s) = self.sc.read().await.as_ref() {
+      put(ServiceId::Sc, fields(&[("client_id", Some(&s.creds.client_id)), ("oauth_token", s.creds.oauth_token.as_deref())]), &s.account.name);
+    }
+    if let Some(s) = self.ym.read().await.as_ref() {
+      put(ServiceId::Ym, fields(&[("token", Some(&s.creds.token))]), &s.account.name);
+    }
+    if let Some(s) = self.yt.read().await.as_ref() {
+      put(ServiceId::Yt, fields(&[("cookie", Some(&s.creds.cookie))]), &s.account.name);
+    }
+    if let Some(s) = self.sp.read().await.as_ref() {
+      put(ServiceId::Sp, fields(&[("sp_dc", Some(&s.creds.sp_dc))]), &s.account.name);
+    }
+    out
+  }
+
+  /// Вход, пришедший с другого устройства: тот же путь, что ручной вход (проверка аккаунта и keyring).
+  pub async fn apply_creds(&self, service: &str, f: &BTreeMap<String, String>) -> Result<()> {
+    let get = |k: &str| f.get(k).cloned().unwrap_or_default();
+    match by_key(service).map(|i| i.id) {
+      Some(ServiceId::Sc) => self.connect_soundcloud(soundcloud::Creds { client_id: get("client_id"), oauth_token: f.get("oauth_token").cloned() }).await?,
+      Some(ServiceId::Ym) => self.connect_yandex(yandex::Creds { token: get("token") }).await?,
+      Some(ServiceId::Yt) => self.connect_youtube(&get("cookie")).await?,
+      Some(ServiceId::Sp) => self.connect_spotify(&get("sp_dc")).await?,
+      _ => bail!("неизвестный сервис {service}"),
+    };
+    Ok(())
   }
 
   /// Сменилось качество потока — старые ссылки больше не годятся.

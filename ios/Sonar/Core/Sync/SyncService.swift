@@ -75,6 +75,20 @@ final class SyncService {
         stop()
         engine?.reset()
         engine = nil
+        Task { await CredentialSyncer.shared.reset() }
+    }
+
+    /// Входы в сервисы с сервером (`CredentialSync`). Не прошёл — синк данных всё равно удался; 401 — выход.
+    private func syncCredentials(_ client: APIClient) async {
+        do {
+            if try await CredentialSyncer.shared.run(client: client, vault: account.vault) {
+                NotificationCenter.default.post(name: .servicesChanged, object: nil)
+            }
+        } catch let error as APIError where error.isUnauthorized {
+            account.signedOut()
+        } catch {
+            CrashLog.warn("обмен входами в сервисы не прошёл: \(error.localizedDescription)")
+        }
     }
 
     /// Обмен сейчас (кнопка «Синхронизировать»).
@@ -89,7 +103,9 @@ final class SyncService {
             switch target {
             case .server:
                 guard let base = account.apiBaseURL, let token = account.sessionToken else { return }
-                lastReport = try await engine.syncOnce(HTTPSyncTransport(client: APIClient(base: base, token: token)))
+                let client = APIClient(base: base, token: token)
+                lastReport = try await engine.syncOnce(HTTPSyncTransport(client: client))
+                await syncCredentials(client)
             case let .lan(pcID):
                 guard let key = RemoteControl.key(for: pcID) else { return }
                 let transport = LANSyncTransport(pcID: pcID, key: key, device: RemoteControl.device,

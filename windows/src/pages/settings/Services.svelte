@@ -8,7 +8,7 @@
   import Icon from '../../components/Icon.svelte'
   import ServiceCard, { FREE_LOCK, type ServiceLock } from './ServiceCard.svelte'
   import { t } from '../../lib/i18n.svelte'
-  import { api, errorText, type ServiceCheck, type ServiceStatus, type ServicesStatus } from '../../lib/api'
+  import { api, errorText, onServicesChanged, type ServiceCheck, type ServiceStatus, type ServicesStatus } from '../../lib/api'
   import { slide } from '../../lib/motion'
   import { ACCOUNT_SERVICES, serviceOf, statusOf, type ServiceInfo } from '../../lib/services'
   import { listen } from '@tauri-apps/api/event'
@@ -56,12 +56,18 @@
     return () => void off.then((f) => f())
   })
 
-  onMount(async () => {
+  async function loadStatus() {
     try {
       status = await api.servicesStatus()
+      loadError = null
     } catch (e) {
       loadError = errorText(e)
     }
+  }
+
+  onMount(() => {
+    void loadStatus()
+    return onServicesChanged(() => void loadStatus())
   })
 </script>
 

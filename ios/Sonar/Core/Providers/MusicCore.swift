@@ -92,6 +92,19 @@ actor MusicCore {
         Status(soundCloud: soundCloud?.account, yandex: yandex?.account, youtube: youtube?.account)
     }
 
+    /// Свои ключи для обмена с сервером (`CredentialSync`): имена полей — как в `GET /services/credentials`.
+    func credentialSnapshot() -> [String: CredentialSync.Local] {
+        var out: [String: CredentialSync.Local] = [:]
+        func put(_ svc: String, _ raw: [String: String?], _ account: ServiceAccount) {
+            let fields = CredentialSync.clean(raw)
+            if !fields.isEmpty { out[svc] = CredentialSync.Local(fields: fields, name: account.name) }
+        }
+        if let s = soundCloud { put("soundcloud", ["client_id": s.creds.clientId, "oauth_token": s.creds.oauthToken], s.account) }
+        if let s = yandex { put("yandex", ["token": s.creds.token], s.account) }
+        if let s = youtube { put("youtube", ["cookie": s.creds.cookie], s.account) }
+        return out
+    }
+
     func configure(maxKbps: Int, soundCloudViaYandex: Bool, youTubeHigh: Bool? = nil, fallback: FallbackSettings? = nil) {
         let youTubeHigh = youTubeHigh ?? self.youTubeHigh
         let fallback = fallback ?? self.fallback

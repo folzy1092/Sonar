@@ -126,6 +126,9 @@ struct LibraryView: View {
         // вкладка живёт всё время: подключил сервис в Профиле — при возвращении плейлисты подтянутся
         .onAppear { Task { await reloadPlaylists(force: false) } }
         .refreshable { await reloadPlaylists(force: true) }
+        .onReceive(NotificationCenter.default.publisher(for: .servicesChanged)) { _ in
+            Task { await reloadPlaylists(force: true) }
+        }
         .onChange(of: offline.isOn) { _, on in if !on { Task { await reloadPlaylists(force: false) } } }
         .sheet(isPresented: $showImport) {
             ImportPlaylistsSheet(playlists: playlists) { id in

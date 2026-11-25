@@ -74,7 +74,10 @@ pub fn device_name(build: u32, computer: &str) -> String {
 
 /// `device` из API.md §1. id — постоянный id установки (`sync_state.device_id`, он же в `op_id` синка).
 pub fn device(db: &Mutex<Store>) -> Value {
+  #[cfg(windows)]
   let build = windows_version::OsVersion::current().build;
+  #[cfg(not(windows))]
+  let build = 0; // клиент только под Windows; так крейт собирается для тестов на других системах
   let computer = std::env::var("COMPUTERNAME").unwrap_or_default();
   let id = db.lock().unwrap().device_id().unwrap_or_else(|_| "pc".into());
   let version = env!("CARGO_PKG_VERSION");
@@ -94,6 +97,7 @@ fn token() -> Option<String> {
 
 fn signed_in(session: &str, user: &Value) -> Res<()> {
   crate::secrets::save(SESSION, &session.to_owned()).map_err(|e| e.to_string())?;
+  crate::cred_sync::reset(); // другой аккаунт — прошлый обмен входами ни о чём не говорит
   let _ = crate::secrets::save(USER, user);
   Ok(())
 }
@@ -101,9 +105,10 @@ fn signed_in(session: &str, user: &Value) -> Res<()> {
 fn forget() {
   let _ = crate::secrets::delete(SESSION);
   let _ = crate::secrets::delete(USER);
+  crate::cred_sync::reset();
 }
 
-async fn call(core: &Core, db: &Mutex<Store>, method: reqwest::Method, path: &str, body: Option<Value>, auth: bool) -> Res<Value> {
+pub(crate) async fn call(core: &Core, db: &Mutex<Store>, method: reqwest::Method, path: &str, body: Option<Value>, auth: bool) -> Res<Value> {
   crate::offline::guard()?;
   let url = format!("{}/{}", base(db), path.trim_start_matches('/'));
   let mut req = core.http().request(method, &url).timeout(TIMEOUT);
@@ -247,6 +252,14 @@ pub async fn account_sync(app: tauri::AppHandle, core: State<'_, std::sync::Arc<
   let r = crate::sync::sync_now(&core.http(), &db.0).await.map_err(|e| e.to_string())?;
   if r.pulled > 0 {
     let _ = app.emit("sync-applied", r.pulled);
+  }
+  // входы в сервисы — отдельно: их сбой не должен выдавать «синк не прошёл», когда Любимые уже приехали
+  match crate::cred_sync::run(&core, &db.0).await {
+    Ok(true) => {
+      let _ = app.emit("services-changed", ());
+    }
+    Ok(false) => {}
+    Err(e) => log::warn!("входы в сервисы: {e}"),
   }
   Ok(r.pulled)
 }

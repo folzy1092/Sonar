@@ -796,6 +796,13 @@ export function onSyncApplied(cb: (count: number) => void): () => void {
   return () => void off.then((fn) => fn())
 }
 
+/** Входы в сервисы пришли с другого устройства или там отключены (cred_sync.rs) — перечитать статус. */
+export function onServicesChanged(cb: () => void): () => void {
+  if (!isTauri) return () => {}
+  const off = listen('services-changed', () => cb())
+  return () => void off.then((fn) => fn())
+}
+
 /** SoundCloud: свои ключи не починились (services/sc_repair.rs) — нужен вход заново. */
 export function onSoundCloudRelogin(cb: () => void): () => void {
   if (!isTauri) return () => {}

@@ -37,6 +37,8 @@ struct SessionVault: Sendable {
     static let tokenAccount = "session"
     static let userAccount = "user"
     static let deviceAccount = "device_id"
+    /// База обмена входами в сервисы (`CredentialSync`): сервис → хэш того, что было на сервере.
+    static let credBaseAccount = "cred_base"
 
     var token: String? {
         secrets.string(Self.tokenAccount).flatMap { $0.isEmpty ? nil : $0 }
@@ -48,7 +50,20 @@ struct SessionVault: Sendable {
 
     func save(_ result: AuthResult) {
         secrets.set(result.session, Self.tokenAccount)
+        secrets.set(nil, Self.credBaseAccount)
         saveUser(result.user)
+    }
+
+    /// Хэши, не сами ключи. Новая сессия (вход, выход) — база пустая: первый обмен сливает без «удалений».
+    var credBase: CredentialSync.Base {
+        get {
+            secrets.string(Self.credBaseAccount)
+                .flatMap { try? JSONDecoder().decode(CredentialSync.Base.self, from: Data($0.utf8)) } ?? [:]
+        }
+        nonmutating set {
+            let data = try? JSONEncoder().encode(newValue)
+            secrets.set(data.map { String(decoding: $0, as: UTF8.self) }, Self.credBaseAccount)
+        }
     }
 
     func saveUser(_ user: AccountUser) {
@@ -61,6 +76,7 @@ struct SessionVault: Sendable {
     func clear() {
         secrets.set(nil, Self.tokenAccount)
         secrets.set(nil, Self.userAccount)
+        secrets.set(nil, Self.credBaseAccount)
     }
 
     /// Постоянный id устройства: UUID, создаётся один раз. В Keychain он переживает переустановку

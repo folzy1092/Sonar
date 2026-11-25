@@ -36,6 +36,9 @@ struct SpotifyServiceSection: View {
         .animation(Motion.spring, value: account)
         .animation(Motion.spring, value: error)
         .task { account = await SpotifyCore.shared.account }
+        .onReceive(NotificationCenter.default.publisher(for: .servicesChanged)) { _ in
+            Task { account = await SpotifyCore.shared.account }
+        }
         .sheet(isPresented: $showLogin) {
             CookieLoginSheet(title: t("Вход в Spotify"), url: Spotify.loginURL, cookie: "sp_dc", domain: "spotify.com") { value in
                 showLogin = false

@@ -186,6 +186,10 @@ struct ServicesView: View {
                 status = await MusicCore.shared.status()
             }
         }
+        // вход пришёл или ушёл с другого устройства (`CredentialSync`)
+        .onReceive(NotificationCenter.default.publisher(for: .servicesChanged)) { _ in
+            Task { status = await MusicCore.shared.status() }
+        }
         .sheet(isPresented: $showSoundCloudLogin) {
             SoundCloudLoginSheet(ignore: staleToken) { token in
                 showSoundCloudLogin = false

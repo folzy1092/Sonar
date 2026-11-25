@@ -41,6 +41,13 @@ actor SpotifyCore {
         }
     }
 
+    /// Свой ключ для обмена с сервером (`CredentialSync`).
+    func credentialSnapshot() -> CredentialSync.Local? {
+        guard let stored else { return nil }
+        let fields = CredentialSync.clean(["sp_dc": stored.creds.spDc])
+        return fields.isEmpty ? nil : CredentialSync.Local(fields: fields, name: stored.account.name)
+    }
+
     func disconnect() async {
         stored = nil
         await tokens.clear()

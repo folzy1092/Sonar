@@ -197,6 +197,13 @@ pub async fn background(app: tauri::AppHandle) {
       Ok(_) => {}
       Err(e) => log::warn!("синхронизация: {e}"),
     }
+    match crate::cred_sync::run(&core, &db.0).await {
+      Ok(true) => {
+        let _ = app.emit("services-changed", ());
+      }
+      Ok(false) => {}
+      Err(e) => log::warn!("входы в сервисы: {e}"),
+    }
   }
 }
 

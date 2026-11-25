@@ -11,7 +11,7 @@
   import NavIcon from '../components/NavIcon.svelte'
   import { playlistMenu } from '../lib/playlist-menu.svelte'
   import Tile from '../components/Tile.svelte'
-  import { api, looksLikeLink, onLocalFilesChanged, type Album, type Artist, type ServicePlaylist, type ServicesStatus, type Track } from '../lib/api'
+  import { api, looksLikeLink, onLocalFilesChanged, onServicesChanged, type Album, type Artist, type ServicePlaylist, type ServicesStatus, type Track } from '../lib/api'
   import { tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
   import { openImport } from '../lib/import.svelte'
@@ -210,6 +210,7 @@
   }
   void loadLocal()
   onDestroy(onLocalFilesChanged(() => void loadLocal()))
+  onDestroy(onServicesChanged(() => { if (!offline.on) void loadServices() }))
 
   function refresh() {
     void library.load(true)
