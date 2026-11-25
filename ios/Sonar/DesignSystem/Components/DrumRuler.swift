@@ -6,6 +6,10 @@ import UIKit
 /// Мелкое деление — каждый шаг, среднее — каждые `medium` шагов (на нём лёгкая вибрация), длинное с подписью —
 /// каждые `major`. Края ленты растворяются. Сдвиг ленты анимируется вместе со значением, поэтому смена извне
 /// (кнопки ±, связанный тон) доезжает плавно.
+///
+/// Пока палец на ленте, двигаются только лента и метка (значение под пальцем — `session`, наружу его показывает
+/// `onPreview`), а `onChange` не зовётся: отпустил — одно применение (иначе звук перестраивается каждый кадр и
+/// лагает). `live: true` оставляет прежнее «на каждый шаг» — для того, что дёшево и должно меняться на глазах.
 struct DrumRuler: View {
     let value: Double
     let range: ClosedRange<Double>
@@ -18,29 +22,47 @@ struct DrumRuler: View {
     /// Точек ленты на шаг.
     var spacing: CGFloat = 7
     var height: CGFloat = 56
+    /// Применять на каждый шаг жеста, а не при отпускании.
+    var live = false
+    /// Значение под пальцем, пока тянешь; `nil` — палец отпущен (число рядом показывает его вместо старого).
+    var onPreview: (Double?) -> Void = { _ in }
     let onChange: (Double) -> Void
 
-    @State private var dragStart: Double?
+    @State private var session: DrumRulerSession?
+
+    private var geometry: DrumRulerGeometry {
+        DrumRulerGeometry(range: range, step: step, spacing: Double(spacing), medium: medium)
+    }
+
+    /// Что нарисовано: под пальцем — его значение, иначе пришедшее извне.
+    private var shown: Double { session?.current ?? value }
 
     private var lower: Int { Int((range.lowerBound / step).rounded()) }
     private var upper: Int { Int((range.upperBound / step).rounded()) }
 
-    private func snapped(_ v: Double) -> Double {
-        let k = (min(range.upperBound, max(range.lowerBound, v)) / step).rounded()
-        return k * step
+    private func snapped(_ v: Double) -> Double { geometry.snapped(v) }
+
+    /// Палец отпущен (или лента ушла с экрана посреди жеста): одно применение, если значение сменилось.
+    private func finish() {
+        guard let done = session else { return }
+        let final = geometry.commit(done)
+        session = nil
+        guard let final, !live else { return }
+        onChange(final)
+        Haptics.tap()
     }
 
     var body: some View {
         GeometryReader { proxy in
             let w = proxy.size.width
             ZStack {
-                DrumTape(position: value / step, lower: lower, upper: upper, resetIndex: Int((reset / step).rounded()),
+                DrumTape(position: shown / step, lower: lower, upper: upper, resetIndex: Int((reset / step).rounded()),
                          medium: medium, major: major, spacing: spacing, label: { label(Double($0) * step) })
                     .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.18),
                                                  .init(color: .black, location: 0.82), .init(color: .clear, location: 1)],
                                          startPoint: .leading, endPoint: .trailing))
                 Capsule()
-                    .fill(abs(value - reset) < step / 2 ? Theme.text : Theme.accent)
+                    .fill(abs(shown - reset) < step / 2 ? Theme.text : Theme.accent)
                     .frame(width: 3, height: height * 0.6)
                     .offset(y: -height * 0.1)
             }
@@ -51,17 +73,13 @@ struct DrumRuler: View {
             .gesture(
                 DragGesture(minimumDistance: 2)
                     .onChanged { drag in
-                        let start = dragStart ?? value
-                        if dragStart == nil { dragStart = value }
-                        let next = snapped(start - Double(drag.translation.width / spacing) * step)
-                        guard abs(next - value) >= step / 2 else { return }
-                        let mediumStep = step * Double(medium)
-                        if Int((next / mediumStep).rounded(.down)) != Int((value / mediumStep).rounded(.down)) {
-                            Haptics.select()
-                        }
-                        onChange(next)
+                        guard let moved = geometry.move(session, from: value, translation: Double(drag.translation.width))
+                        else { return }
+                        session = moved.session
+                        if moved.crossedMedium { Haptics.select() }
+                        if live, moved.session.current != value { onChange(moved.session.current) }
                     }
-                    .onEnded { _ in dragStart = nil }
+                    .onEnded { _ in finish() }
             )
             .onTapGesture(count: 2) {
                 withAnimation(Motion.spring) { onChange(reset) }
@@ -69,9 +87,11 @@ struct DrumRuler: View {
             }
         }
         .frame(height: height)
-        .animation(dragStart == nil ? Motion.spring : nil, value: value)
+        .animation(session == nil ? Motion.spring : nil, value: shown)
+        .onChange(of: session?.current) { _, current in onPreview(current) }
+        .onDisappear { finish() }
         .accessibilityElement()
-        .accessibilityValue(label(value).isEmpty ? String(format: "%g", value) : label(value))
+        .accessibilityValue(label(shown).isEmpty ? String(format: "%g", shown) : label(shown))
         .accessibilityAdjustableAction { direction in
             onChange(snapped(value + (direction == .increment ? 1 : -1) * step * Double(medium)))
         }

@@ -1,3 +1,19 @@
+# Передача 2026-11-25 (вечер) → ползунок скорости на iPhone
+
+`docs/SPACE_SHARE_PROMPT.md` §1. Лаг был из-за того, что `DrumRuler` звал `onChange` на каждый кадр жеста, а тот —
+`engine.setRate` (перестройка time-pitch, запись настроек, `nowPlaying.update`).
+- iPhone: жест вынесен в чистую часть `DesignSystem/Components/DrumRulerGesture.swift` (`DrumRulerGeometry` + `DrumRulerSession`),
+  `DrumRuler` рисует ленту от значения под пальцем, `onChange` — один раз при отпускании (плюс `Haptics.tap()`),
+  `onPreview` отдаёт число наружу (`SpeedSheet`: крупная скорость, тон, реверб; `BlendSheet`: «Можно срезать»).
+  Двойной тап, ± и VoiceOver применяют сразу. Сдвиг текста песни (`LyricsMenuSheet`) — `live: true`, чтобы текст ехал на глазах.
+  Вибрация на среднем делении теперь там, куда лента встала (в обе стороны), а не при уходе с деления вниз.
+- Тон при связи со скоростью: скорость пересчитывается после отпускания, не по ходу.
+- ПК проверен только чтением кода: `Ruler.svelte` зовёт `onchange` на каждый `pointermove`, но `tempo.setRate` меняет
+  `audio.playbackRate` (дёшево в Chromium), запись — debounce. Живым замером не проверял, не трогал.
+- Swift локально не компилировался — только CI. Руками — владелец на iPhone.
+
+---
+
 # Передача 2026-11-25 (ночь) → комнаты и личные сообщения до сервера
 
 `docs/TASTE_ROOMS_PROMPT.md` §6–7, часть «до сервера». Спеки вынесены: `docs/ROOMS.md`, `docs/DM.md` (там же вопросы владельцу).

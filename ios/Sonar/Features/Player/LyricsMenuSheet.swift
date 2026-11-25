@@ -163,7 +163,7 @@ struct LyricsMenuSheet: View {
                       label: { seconds in
                           let s = Int(seconds.rounded())
                           return s == 0 ? "0" : (s > 0 ? "+" : "−") + "\(abs(s)) с"
-                      }) { store.setOffset($0, for: track.ref) }
+                      }, live: true) { store.setOffset($0, for: track.ref) }
                 .accessibilityLabel(t("Сдвиг текста"))
             Text(Self.label(offset))
                 .font(.system(size: 16, weight: .medium).monospacedDigit())

@@ -6,6 +6,8 @@ import SwiftUI
 struct BlendSheet: View {
     @Environment(PlaybackEngine.self) private var engine
     @Environment(SettingsStore.self) private var settings
+    /// «Можно срезать» под пальцем — пока тянешь, настройка не пишется (запишется при отпускании).
+    @State private var cutDrag: Double?
 
     private var hub: BlendAnalysisHub { .shared }
     private var party: BlendPartyStore { .shared }
@@ -209,7 +211,8 @@ struct BlendSheet: View {
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    private func cutRuler(_ cut: Double) -> some View {
+    private func cutRuler(_ stored: Double) -> some View {
+        let cut = cutDrag ?? stored
         let recommended = cut == BlendPrefs.cutRecommendedSec
         let n = ["n": "\(Int(cut))"]
         return VStack(alignment: .leading, spacing: 6) {
@@ -223,7 +226,8 @@ struct BlendSheet: View {
             }
             // шаг 1 с, деление каждые 5, подпись каждые 15; двойной тап — рекомендуемые 16 с
             DrumRuler(value: cut, range: 0 ... BlendPrefs.cutMaxSec, step: 1, medium: 5, major: 15,
-                      label: { "\(Int($0))" }, reset: BlendPrefs.cutRecommendedSec, height: 50) {
+                      label: { "\(Int($0))" }, reset: BlendPrefs.cutRecommendedSec, height: 50,
+                      onPreview: { cutDrag = $0 }) {
                 settings.set("audio.blend_cut", .int(Int($0.rounded())))
             }
             .accessibilityLabel(t("Можно срезать"))

@@ -1035,6 +1035,10 @@ struct SpeedSheet: View {
     @Environment(PlaybackEngine.self) private var engine
     @Environment(SettingsStore.self) private var settings
     private let presets: [Float] = [0.75, 1, 1.25, 1.5, 2]
+    /// Значение под пальцем на барабане, пока тянешь (звук при этом не трогаем — применится при отпускании).
+    @State private var rateDrag: Double?
+    @State private var pitchDrag: Double?
+    @State private var reverbDrag: Double?
 
     /// 1 → «1.0×», 1.25 → «1.25×», 1.5 → «1.5×».
     static func label(_ rate: Float) -> String {
@@ -1045,10 +1049,10 @@ struct SpeedSheet: View {
     var body: some View {
         ScrollView {
         VStack(spacing: 18) {
-            Text(Self.label(engine.rate))
+            Text(Self.label(Float(rateDrag ?? Double(engine.rate))))
                 .font(.system(size: 54, weight: .heavy).monospacedDigit())
                 .foregroundStyle(Theme.text)
-                .contentTransition(.numericText(value: Double(engine.rate)))
+                .contentTransition(.numericText(value: rateDrag ?? Double(engine.rate)))
                 .padding(.top, 22)
             HStack(spacing: 8) {
                 ForEach(presets, id: \.self) { value in
@@ -1064,7 +1068,8 @@ struct SpeedSheet: View {
             }
             // скорость — «барабан», как на ПК: шаг 0.01, деление каждые 0.05, подпись каждые 0.25
             DrumRuler(value: Double(engine.rate), range: 0.5 ... 2, step: 0.01, medium: 5, major: 25,
-                      label: { String(format: "%g×", $0) }, reset: 1) { engine.setRate(Float($0)) }
+                      label: { String(format: "%g×", $0) }, reset: 1,
+                      onPreview: { rateDrag = $0 }) { engine.setRate(Float($0)) }
                 .accessibilityLabel(t("Скорость"))
             tempoControls
             // таймер сна — только с настройкой `player.sleep_button` (выключили — запущенный отменяется)
@@ -1095,10 +1100,10 @@ struct SpeedSheet: View {
                     .foregroundStyle(Theme.text)
                 Spacer()
                 stepButton(.dash, label: t("Тон ниже")) { engine.setPitch(engine.semitones - 0.5) }
-                Text(Self.pitchLabel(engine.semitones))
+                Text(Self.pitchLabel(pitchDrag ?? engine.semitones))
                     .font(.system(size: 16, weight: .semibold).monospacedDigit())
                     .foregroundStyle(Theme.text)
-                    .contentTransition(.numericText(value: engine.semitones))
+                    .contentTransition(.numericText(value: pitchDrag ?? engine.semitones))
                     .frame(minWidth: 66)
                     .onTapGesture(count: 2) { withAnimation(Motion.spring) { engine.setPitch(0) } }
                 stepButton(.plus, label: t("Тон выше")) { engine.setPitch(engine.semitones + 0.5) }
@@ -1110,7 +1115,7 @@ struct SpeedSheet: View {
                       label: { st in
                           let n = Int(st.rounded())
                           return n == 0 ? "0" : (n > 0 ? "+" : "−") + "\(abs(n))"
-                      }) { engine.setPitch($0) }
+                      }, onPreview: { pitchDrag = $0 }) { engine.setPitch($0) }
                 .accessibilityLabel(t("Тон"))
                 .padding(.bottom, 10)
             Divider().overlay(Theme.line)
@@ -1125,15 +1130,16 @@ struct SpeedSheet: View {
                 HStack(spacing: 12) {
                     // сила реверба — «барабан»: шаг 1 %, подпись каждые 25 %, двойной тап — 35 %, как на ПК
                     DrumRuler(value: engine.reverb, range: 0.01 ... 1, step: 0.01, medium: 5, major: 25,
-                              label: { "\(Int(($0 * 100).rounded())) %" }, reset: 0.35, height: 50) { value in
+                              label: { "\(Int(($0 * 100).rounded())) %" }, reset: 0.35, height: 50,
+                              onPreview: { reverbDrag = $0 }) { value in
                         reverbStrength = value
                         engine.setReverb(value)
                     }
                     .accessibilityLabel(t("Реверберация"))
-                    Text("\(Int((engine.reverb * 100).rounded())) %")
+                    Text("\(Int(((reverbDrag ?? engine.reverb) * 100).rounded())) %")
                         .font(.system(size: 14, weight: .semibold).monospacedDigit())
                         .foregroundStyle(Theme.textSecondary)
-                        .contentTransition(.numericText(value: engine.reverb))
+                        .contentTransition(.numericText(value: reverbDrag ?? engine.reverb))
                         .frame(width: 48, alignment: .trailing)
                 }
                 .padding(.bottom, 8)
