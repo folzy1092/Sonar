@@ -59,11 +59,9 @@ struct ProfileView: View {
                 section("Система", 6) {
                     link("Общее", .settings) { GeneralSettingsView() }
                     divider
-                    link("Хранилище", .album) { StorageSettingsView() }
-                }
-                // сама программа — отдельно в самом низу, как группа «Sonar» на ПК
-                section("Sonar", 7) {
                     link("Обновления", .download, badge: checker.available != nil) { UpdatesSettingsView() }
+                    divider
+                    link("Хранилище", .album) { StorageSettingsView() }
                 }
             }
             .padding(.horizontal, Theme.gutter)
