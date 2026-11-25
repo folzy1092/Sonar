@@ -107,3 +107,24 @@ def test_same_sha_skips_download(sync, tmp_path, monkeypatch):
 def test_deploy_copy_matches_requirements():
     req = (SYNC.parents[1] / "requirements-run.txt").read_text(encoding="utf-8")
     assert "pytest" not in req and "aiogram" in req
+
+
+def test_token_goes_only_to_github_api(sync, monkeypatch):
+    sent = []
+
+    class Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b"ok"
+
+    monkeypatch.setattr(sync.urllib.request, "urlopen", lambda req, timeout: sent.append(req) or Resp())
+    monkeypatch.setenv("GITHUB_TOKEN", "secret")
+    sync.http_get("https://api.github.com/repos/x/y/commits/main")
+    sync.http_get("https://example.com/other")
+    assert sent[0].get_header("Authorization") == "Bearer secret"
+    assert sent[1].get_header("Authorization") is None

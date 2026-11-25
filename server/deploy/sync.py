@@ -3,7 +3,7 @@
 Стартовая команда панели: `python sync.py`. При каждом старте:
 1. читает `.env` рядом с собой (переменные панели важнее);
 2. спрашивает у GitHub последний коммит ветки и, если он новый, скачивает архив репо и
-   берёт из него только папку `server/` (git на хостинге не нужен, репо публичное);
+   берёт из него только папку `server/` (git на хостинге не нужен; GITHUB_TOKEN — по желанию);
 3. обновляет сам себя из `server/deploy/sync.py`, если тот поменялся;
 4. ставит зависимости `requirements-run.txt` в свой venv — только когда файл поменялся;
 5. запускает `python -m sonar` (бот + HTTP на PORT).
@@ -28,6 +28,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -67,10 +68,23 @@ def branch() -> str:
     return os.environ.get("SONAR_BRANCH", "main").strip()
 
 
+def token() -> str:
+    """GITHUB_TOKEN (fine-grained, Contents: read) — нужен, только если репо станет приватным
+    или упрёмся в лимит GitHub без токена (60 запросов в час с IP). Нигде не печатается."""
+    return os.environ.get("GITHUB_TOKEN", "").strip()
+
+
 def http_get(url: str, accept: str = "*/*", timeout: float = 30) -> bytes:
-    req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": "sonar-sync"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read()
+    headers = {"Accept": accept, "User-Agent": "sonar-sync"}
+    if token() and url.startswith("https://api.github.com/"):
+        headers["Authorization"] = f"Bearer {token()}"
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read()
+    except urllib.error.HTTPError as error:
+        hint = " — проверь GITHUB_TOKEN" if error.code in (401, 403, 404) and token() else ""
+        raise RuntimeError(f"GitHub ответил {error.code}{hint}") from None
 
 
 def remote_sha() -> str:
@@ -144,7 +158,9 @@ def update_code() -> None:
         say(f"код актуален ({sha[:8]})")
         return
     started = time.monotonic()
-    url = f"https://codeload.github.com/{repo()}/tar.gz/{sha}"
+    # С токеном — через API (подходит и для приватного репо), без — прямой архив.
+    url = (f"https://api.github.com/repos/{repo()}/tarball/{sha}" if token()
+           else f"https://codeload.github.com/{repo()}/tar.gz/{sha}")
     try:
         install_app(sha, http_get(url, timeout=120))
     except Exception as error:
