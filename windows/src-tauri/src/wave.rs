@@ -1116,6 +1116,18 @@ mod tests {
   }
 
   #[test]
+  fn all_never_pool_gives_empty_portion_not_a_hang() {
+    // «Никогда» не ослабляется даже в ослабленном проходе: пул из одних таких — пустая порция
+    let mut f = Filter::default();
+    f.never_artists.insert("bad".into());
+    let pool = || vec![t("sc:1", "Bad"), t("sc:2", " BAD ")];
+    for relaxed in [false, true] {
+      assert!(pick(pool(), &Taste::default(), &Origin::default(), &Session::default(), &f, None, "own", 5, relaxed, &mut Rng::new(3)).is_empty());
+    }
+    assert!(pick_liked(pool(), &Taste::default(), &Session::default(), &f, "own", 5, &mut Rng::new(3)).is_empty());
+  }
+
+  #[test]
   fn more_and_less_move_the_score() {
     let mut taste = Taste::default();
     taste.artist_pref.insert("loved".into(), 1.0);

@@ -9,6 +9,7 @@
   import Icon from '../components/Icon.svelte'
   import SourceIcon from '../components/SourceIcon.svelte'
   import Tile from '../components/Tile.svelte'
+  import ArtistTasteSeg from '../components/ArtistTasteSeg.svelte'
   import TrackRow from '../components/TrackRow.svelte'
   import { api, errorText, type Album, type Artist, type ArtistTrack, type Track } from '../lib/api'
   import { compact } from '../lib/format'
@@ -152,6 +153,7 @@
       <button class="tool" class:on={followed} onclick={() => library.toggleLike(a)}>
         <Icon name="heart" size={15} filled={followed} /> {followed ? t('Вы подписаны') : t('Подписаться')}
       </button>
+      <ArtistTasteSeg name={a.name} />
     {/snippet}
   </CollectionHeader>
 

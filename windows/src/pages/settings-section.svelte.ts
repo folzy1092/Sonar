@@ -43,6 +43,7 @@ export const SUBS: Record<SettingsTab, SettingsSub[]> = {
   ],
   player: [
     { id: 'audio', title: 'Аудио', icon: 'volume' },
+    { id: 'taste', title: 'Вкус', icon: 'like' },
     { id: 'view', title: 'Вид', icon: 'player' },
     { id: 'mini', title: 'Мини плеер', icon: 'music' },
     { id: 'overlay', title: 'Оверлей', icon: 'monitor' },
@@ -84,6 +85,7 @@ export const NAV: NavGroup[] = [
     items: [
       { tab: 'system', sub: 'general' },
       { tab: 'player', sub: 'audio' },
+      { tab: 'player', sub: 'taste' },
       { tab: 'system', sub: 'storage' },
       { tab: 'integrations', sub: 'apps' },
       { tab: 'system', sub: 'hotkeys' },

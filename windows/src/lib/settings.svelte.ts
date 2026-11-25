@@ -8,6 +8,7 @@ import type { ServiceId, ServiceKey } from './services'
 import type { NickEffect, NickFont, ProfileColor, ProfileLayout, ProfileLink, ShowcaseItem } from './profile-look'
 import type { AppIconId } from './app-icons'
 import type { AnimLike, AnimNav, AnimTrack, CustomStyle, IconStroke, LoadingLook, ProgressLook, TitleStyle } from '../theme/style'
+import type { ArtistPrefs } from './artist-prefs-core'
 
 export type MiniStyle = 'off' | 'full' | 'rounded' | 'hybrid' | 'deck'
 
@@ -283,6 +284,9 @@ export const DEFAULTS = {
   'system.power_saving': 'background' as 'off' | 'minimized' | 'background',
   /** Настроение Sonar Mix (`WAVE_MODES`); старое `new` («Незнакомое») читается как `own` — `settings-migrate.ts`. */
   'wave.mode': 'own' as 'own' | 'fun' | 'calm' | 'sad' | 'hard' | 'night' | 'sleep' | 'popular' | 'focus',
+  /** Вкус по артистам (Плеер → Вкус, меню трека): ключ — имя в нижнем регистре, `never` — не ставить в Sonar Mix и
+   *  похожие, `more` / `less` — признак оценки волны (`wave.rs` `artist_prefs`). Ядро — `lib/artist-prefs-core.ts`. */
+  'wave.artist_prefs': {} as ArtistPrefs,
   /** Итоги, которые уже открывали или закрыли на Главной: id через запятую (`month-2026-11,year-2026`), до 24 последних; пусто — никакие. */
   'stats.recap_seen': '' as string,
   /** Трек-затравка подборки «Похоже на трек» на Главной (`lib/home-mixes.ts` `SeedTrack`); пусто — последний прослушанный. */

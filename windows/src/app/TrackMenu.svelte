@@ -18,6 +18,8 @@
   import { t, lang } from '../lib/i18n.svelte'
   import { downloads } from '../lib/downloads.svelte'
   import { isLocalRef } from '../lib/services'
+  import ArtistTasteSeg from '../components/ArtistTasteSeg.svelte'
+  import { mainArtist } from '../lib/artist-prefs-core'
 
   const W = 280
   let el: HTMLElement | undefined = $state()
@@ -35,6 +37,8 @@
   const canWave = $derived(target ? !!byId(serviceOf(target.track.ref))?.caps.similar : false)
   /** «Почему этот трек» — у треков Sonar Mix: откуда он пришёл (не зависит от тумблера строки в плеере). */
   const why = $derived(target ? waveWhyText(target.track.why) : '')
+  /** Главный артист — для «Чаще · Реже · Никогда». */
+  const main = $derived(target ? mainArtist(target.track) : { key: '', name: '' })
   const playlists = $derived(library.playlists.filter((p) => p.id !== target?.playlistId))
   /** Скачивание (`docs/OFFLINE.md` §8): файлу с компьютера не нужно — он и так на диске. */
   const dl = $derived(target && !isLocalRef(target.track.ref) ? downloads.stateOf(target.track.ref) : undefined)
@@ -147,6 +151,13 @@
       <hr />
       {@render item('heart', liked ? t('Удалить из Любимых') : t('В Любимые'), () => library.toggleLike(target.track), liked)}
       {@render item('dislike', wave.isDisliked(target.track.ref) ? t('Убрать из «Не нравится»') : t('Не нравится'), () => wave.dislike(target.track), wave.isDisliked(target.track.ref))}
+      {#if main.key}
+        <!-- вкус по артисту (у совместного трека — по главному): Чаще · Реже · Никогда -->
+        <div class="taste">
+          <small>{t('{name} в Sonar Mix', { name: main.name })}</small>
+          <ArtistTasteSeg name={main.name} compact onpick={() => trackMenu.close()} />
+        </div>
+      {/if}
       <button class="item" role="menuitem" onclick={() => (view = 'playlists')}>
         <Icon name="playlistAdd" size={17} />
         <span>{t('Добавить в плейлист')}</span>
@@ -266,6 +277,22 @@
   }
   small b {
     color: var(--text-2);
+  }
+  .taste {
+    display: grid;
+    gap: 6px;
+    padding: 6px 10px 8px;
+  }
+  .taste small {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .taste :global(.seg) {
+    display: flex;
+  }
+  .taste :global(.seg button) {
+    flex: 1;
   }
   hr {
     margin: 4px 8px;

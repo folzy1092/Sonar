@@ -16,6 +16,7 @@ import { t } from '../lib/i18n.svelte'
 import { isLocalRef } from '../lib/services'
 import { offline } from '../lib/offline.svelte'
 import { autoplayFromPool } from '../lib/offline-core'
+import { artistTaste } from '../lib/artist-prefs.svelte'
 
 /** Догружать, когда до конца очереди осталось меньше стольких треков. */
 const LEFT = 3
@@ -26,16 +27,22 @@ const PER_SEED = 20
 
 /**
  * Похожие для продолжения: чередуются списки от разных сидов, без треков, которые уже есть в
- * очереди, без 👎, недоступных и повторов; не больше `n`.
+ * очереди, без 👎, без артистов «Никогда» (`never`), недоступных и повторов; не больше `n`.
  */
-export function freshSimilar(lists: Track[][], inQueue: Set<string>, disliked: (ref: string) => boolean, n: number): Track[] {
+export function freshSimilar(
+  lists: Track[][],
+  inQueue: Set<string>,
+  disliked: (ref: string) => boolean,
+  n: number,
+  never: (t: Track) => boolean = () => false,
+): Track[] {
   const seen = new Set(inQueue)
   const out: Track[] = []
   const longest = Math.max(0, ...lists.map((l) => l.length))
   for (let i = 0; i < longest && out.length < n; i++) {
     for (const list of lists) {
       const t = list[i]
-      if (!t || t.available === false || disliked(t.ref) || seen.has(t.ref)) continue
+      if (!t || t.available === false || disliked(t.ref) || seen.has(t.ref) || never(t)) continue
       seen.add(t.ref)
       out.push(t)
       if (out.length >= n) break
@@ -103,7 +110,7 @@ class Autoplay {
       // пока грузилось, включили другую очередь или выключили тумблер
       const now = player.order.map((i) => player.tracks[i])
       if (!this.on || now.at(-1)?.ref !== queue.at(-1)?.ref || player.context === WAVE_CONTEXT) return
-      const next = freshSimilar(lists, new Set(player.tracks.map((t) => t.ref)), (r) => wave.isDisliked(r), BATCH)
+      const next = freshSimilar(lists, new Set(player.tracks.map((t) => t.ref)), (r) => wave.isDisliked(r), BATCH, (t) => artistTaste.isNever(t))
       if (next.length) await player.addToQueue(next, false, true)
       else this.dead = key
     } finally {
@@ -117,7 +124,12 @@ class Autoplay {
     try {
       const pool = await offline.pool()
       if (!this.on || !offline.on) return
-      const next = autoplayFromPool(pool, new Set(player.tracks.map((t) => t.ref)), (r) => wave.isDisliked(r), BATCH)
+      const next = autoplayFromPool(
+        pool.filter((t) => !artistTaste.isNever(t)),
+        new Set(player.tracks.map((t) => t.ref)),
+        (r) => wave.isDisliked(r),
+        BATCH,
+      )
       if (next.length) await player.addToQueue(next, false, true)
       else this.dead = key
     } finally {

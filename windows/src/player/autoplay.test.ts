@@ -4,6 +4,7 @@ vi.mock('./player.svelte', () => ({ player: {} }))
 vi.mock('./my-wave.svelte', () => ({ wave: {}, WAVE_CONTEXT: 'wave' }))
 vi.mock('../lib/api', () => ({ api: {} }))
 vi.mock('../lib/settings.svelte', () => ({ settings: { get: () => true, set: () => {} } }))
+vi.mock('../lib/artist-prefs.svelte', () => ({ artistTaste: { isNever: () => false } }))
 
 const { autoplaySeeds, freshSimilar } = await import('./autoplay.svelte')
 
@@ -17,6 +18,11 @@ describe('freshSimilar', () => {
     const b = [tr('s1'), tr('d1'), tr('s5'), tr('s6')]
     const out = freshSimilar([a, b], new Set(['q1']), (r) => r === 'd1', 3)
     expect(refs(out)).toEqual(['s1', 's3', 's5'])
+  })
+  it('артисты «Никогда» пропускаются, как 👎', () => {
+    const a = [tr('s1'), tr('n1'), tr('s2')]
+    const out = freshSimilar([a], new Set(), () => false, 5, (t) => t.ref.startsWith('n'))
+    expect(refs(out)).toEqual(['s1', 's2'])
   })
 })
 
