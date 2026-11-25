@@ -34,6 +34,8 @@ export interface ShareData {
   sl?: string
   /** Что играть на сайте по умолчанию. */
   play?: SharePlayer
+  /** Кто поделился — `@username` без «@», если вошёл в аккаунт Sonar. Аватара нет: до сервера его негде взять. */
+  by?: string
 }
 
 const ID_RE: Record<ShareService, RegExp> = {
@@ -43,6 +45,8 @@ const ID_RE: Record<ShareService, RegExp> = {
   sp: /^[A-Za-z0-9]{22}$/,
 }
 const SC_PATH_RE = /^[\w-]{1,80}\/[\w-]{1,160}$/
+/** @username — как на сервере (API.md): латиница, цифры и «_», 3–32 знака. */
+const BY_RE = /^[A-Za-z0-9_]{3,32}$/
 /** Хосты обложек: SoundCloud, Яндекс, YouTube / Google, Spotify. */
 const COVER_HOST_RE =
   /^(?:i\d?\.sndcdn\.com|avatars\.yandex\.net|i\d?\.ytimg\.com|(?:lh\d|yt\d)\.googleusercontent\.com|i\.scdn\.co|[\w-]+\.spotifycdn\.com)$/
@@ -109,6 +113,7 @@ export function normalize(raw: unknown): ShareData | null {
   if (validCover(r.c)) out.c = r.c
   if (typeof r.sl === 'string' && SC_PATH_RE.test(r.sl)) out.sl = r.sl
   if ((r.play === 'yt' || r.play === 'sc') && ids[r.play]) out.play = r.play
+  if (typeof r.by === 'string' && BY_RE.test(r.by)) out.by = r.by
   return out
 }
 
@@ -136,7 +141,7 @@ function serialize(d: ShareData): string {
   const ids: Record<string, string> = {}
   for (const s of SHARE_SERVICES) if (d.ids[s]) ids[s] = d.ids[s] as string
   // undefined JSON.stringify пропускает — порядок ключей остаётся этим
-  return JSON.stringify({ v: SHARE_VERSION, t: d.t, a: d.a, d: d.d || undefined, c: d.c, src: d.src, ids, sl: d.sl, play: d.play })
+  return JSON.stringify({ v: SHARE_VERSION, t: d.t, a: d.a, d: d.d || undefined, c: d.c, src: d.src, ids, sl: d.sl, play: d.play, by: d.by })
 }
 
 export function encodeShare(data: ShareData): string {

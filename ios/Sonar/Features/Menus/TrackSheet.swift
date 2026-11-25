@@ -297,7 +297,8 @@ struct TrackSheet: View {
         let lang = currentLang().rawValue
         Task {
             let twins = await MusicCore.shared.shareTwins(for: track)
-            let data = ShareLinkCodec.data(track, refs: twins.refs, urls: twins.urls, scFull: twins.scFull)
+            let data = ShareLinkCodec.data(track, refs: twins.refs, urls: twins.urls, scFull: twins.scFull,
+                                            by: AccountStore.shared.signedIn ? AccountStore.shared.user?.username : nil)
             sharing = false
             if let url = data.flatMap({ ShareLinkCodec.url($0, lang: lang) }) { shareItem = ShareItem(url: url) }
         }

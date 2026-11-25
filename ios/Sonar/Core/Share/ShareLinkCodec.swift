@@ -18,6 +18,8 @@ struct ShareData: Equatable, Sendable {
     var sl: String?
     /// Что сайт играет: `yt` или `sc`.
     var play: String?
+    /// Кто поделился — `@username` без «@», если вошёл в аккаунт Sonar.
+    var by: String?
 }
 
 enum ShareLinkCodec {
@@ -82,7 +84,13 @@ enum ShareLinkCodec {
         if validCover(raw.c) { out.c = raw.c }
         if let sl = raw.sl, validSCPath(sl) { out.sl = sl }
         if let p = raw.play, p == "yt" || p == "sc", ids[p] != nil { out.play = p }
+        if let by = raw.by, validBy(by) { out.by = by }
         return out
+    }
+
+    /// @username — латиница, цифры и «_», 3–32 знака (как на сервере).
+    static func validBy(_ s: String) -> Bool {
+        (3...32).contains(s.count) && s.unicodeScalars.allSatisfy { $0.isASCII && (CharacterSet.alphanumerics.contains($0) || $0 == "_") }
     }
 
     // ——— JSON как у JSON.stringify ———
@@ -114,6 +122,7 @@ enum ShareLinkCodec {
         parts.append("\"ids\":{\(ids.joined(separator: ","))}")
         if let sl = d.sl { parts.append("\"sl\":\(jsonString(sl))") }
         if let p = d.play { parts.append("\"play\":\(jsonString(p))") }
+        if let by = d.by { parts.append("\"by\":\(jsonString(by))") }
         return "{\(parts.joined(separator: ","))}"
     }
 
@@ -148,7 +157,7 @@ enum ShareLinkCodec {
     }
 
     /// Трек + найденные двойники (`refs`: сервис → ref, `urls`: сервис → ссылка) → данные. Локальным не делимся.
-    static func data(_ track: Track, refs: [String: String] = [:], urls: [String: String] = [:], scFull: Bool = false) -> ShareData? {
+    static func data(_ track: Track, refs: [String: String] = [:], urls: [String: String] = [:], scFull: Bool = false, by: String? = nil) -> ShareData? {
         guard let own = split(track.ref), services.contains(own.0), validID(own.0, own.1) else { return nil }
         let src = own.0
         var ids = [src: own.1]
@@ -161,7 +170,8 @@ enum ShareLinkCodec {
             c: validCover(track.coverURL) ? track.coverURL : nil,
             src: src, ids: ids,
             sl: scPath(src == "sc" ? track.url : urls["sc"]),
-            play: pickPlay(ids, scFull: scFull)
+            play: pickPlay(ids, scFull: scFull),
+            by: by
         )
     }
 

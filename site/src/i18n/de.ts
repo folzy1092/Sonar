@@ -417,6 +417,7 @@ const de: Dict = {
   "Открыть трек": "Track öffnen",
   "Найти в сервисе": "Im Dienst suchen",
   "Перемотка": "Spulen",
+  "{nick} делится треком": "{nick} teilt einen Track",
   "Трек в Sonar": "Track in Sonar",
   "Послушай трек, которым с тобой поделились в Sonar: плеер, текст и ссылки на все сервисы.": "Hör dir einen Track an, den jemand in Sonar mit dir geteilt hat: Player, Songtext und Links zu allen Diensten.",
   "Ссылка повреждена": "Der Link ist beschädigt",

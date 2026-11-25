@@ -14,6 +14,7 @@ final class ShareLinkTests: XCTestCase {
                 let ids: [String: String]
                 let sl: String?
                 let play: String?
+                let by: String?
             }
             let name: String
             let data: Payload
@@ -36,7 +37,7 @@ final class ShareLinkTests: XCTestCase {
     func testFixtureMatchesSiteAndPC() throws {
         for c in try fixture().cases {
             let d = c.data
-            let share = ShareData(t: d.t, a: d.a, d: d.d, c: d.c, src: d.src, ids: d.ids, sl: d.sl, play: d.play)
+            let share = ShareData(t: d.t, a: d.a, d: d.d, c: d.c, src: d.src, ids: d.ids, sl: d.sl, play: d.play, by: d.by)
             XCTAssertEqual(ShareLinkCodec.encode(share), c.encoded, c.name)
             XCTAssertEqual(ShareLinkCodec.url(share, lang: c.lang)?.absoluteString, c.url, c.name)
         }

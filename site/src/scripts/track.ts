@@ -29,6 +29,7 @@ interface Strings {
   lyricsError: string
   direct: string
   search: string
+  by: string
   names: Record<string, string>
 }
 
@@ -217,6 +218,21 @@ export function initTrackPage(): void {
     cover.addEventListener('error', () => (cover.hidden = true))
     cover.hidden = false
     cover.src = src
+    // та же обложка — размытым фоном сверху
+    const back = $<HTMLImageElement>(document, '[data-backdrop]')
+    if (back) {
+      back.addEventListener('load', () => back.classList.add('is-loaded'))
+      back.hidden = false
+      back.src = src
+    }
+  }
+
+  // кто поделился (если вошёл в аккаунт); аватара до сервера нет — первая буква ника
+  if (data.by) {
+    $(root, '[data-eyebrow]')!.hidden = true
+    $(root, '[data-by-av]')!.textContent = data.by[0]
+    $(root, '[data-by-text]')!.textContent = s.by.replace('{nick}', `@${data.by}`)
+    $(root, '[data-by]')!.hidden = false
   }
 
   // где послушать: найденные — первыми
@@ -239,6 +255,18 @@ export function initTrackPage(): void {
   if (app && ios) {
     open.href = app
     open.hidden = false
+    // Sonar стоит — сразу откроется в нём. Один раз за вкладку: «назад» из приложения не зациклит.
+    // Не стоит — Safari покажет «адрес недействителен», страница остаётся как есть.
+    try {
+      if (!sessionStorage.getItem('sonar-open')) {
+        sessionStorage.setItem('sonar-open', '1')
+        window.setTimeout(() => {
+          if (document.visibilityState === 'visible') location.href = app
+        }, 400)
+      }
+    } catch {
+      /* хранилище закрыто — без автоперехода, кнопка есть */
+    }
   }
 
   // текст
@@ -288,6 +316,10 @@ export function initTrackPage(): void {
 
   // плеер
   const listen = $<HTMLButtonElement>(root, '[data-listen]')!
+  const listenLabel = $(listen, '[data-listen-label]')!
+  // встройки нет или сервис запретил — «Слушать» ведёт к кнопкам сервисов
+  let noEmbed = !data.play
+  const toServices = () => $(root, '[data-where]')!.scrollIntoView({ behavior: 'smooth', block: 'start' })
   const live = $(root, '[data-live]')!
   const toggle = $<HTMLButtonElement>(root, '[data-toggle]')!
   const seek = $<HTMLInputElement>(root, '[data-seek]')!
@@ -317,6 +349,10 @@ export function initTrackPage(): void {
     totalEl.textContent = formatTime(clock.duration)
     toggle.classList.toggle('is-playing', clock.playing)
     toggle.setAttribute('aria-label', clock.playing ? s.pause : s.play)
+    if (player) {
+      listen.classList.toggle('is-playing', clock.playing)
+      listenLabel.textContent = clock.playing ? s.pause : s.play
+    }
     if (!lines.length) return
     const i = lineAt(lines, t)
     if (i === current) return
@@ -334,11 +370,13 @@ export function initTrackPage(): void {
   }
 
   listen.addEventListener('click', () => {
+    if (player) return clock.playing ? player.pause() : player.play()
     const kind = data.play
     const url = embedUrl(data, location.origin)
-    if (!kind || !url) return
+    if (noEmbed || !kind || !url) return toServices()
     listen.disabled = true
-    listen.querySelector('span')!.textContent = s.loading
+    listenLabel.textContent = s.loading
+    $(root, '[data-player]')!.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     const iframe = document.createElement('iframe')
     iframe.allow = 'autoplay; encrypted-media'
     iframe.title = s.via[kind]
@@ -348,12 +386,17 @@ export function initTrackPage(): void {
     player = (kind === 'yt' ? youtube : soundcloud)(iframe, clock, () => {
       if (!live.hidden) return render()
       $(root, '[data-start]')!.hidden = true
+      listen.disabled = false
       live.hidden = false
       linesEl.classList.add('is-live')
       render()
     }, () => {
       // сервис не дал играть на сайте — честно говорим и прячем плеер, кнопки сервисов остаются
       player = null
+      noEmbed = true
+      listen.disabled = false
+      listen.classList.remove('is-playing')
+      listenLabel.textContent = s.play
       frameBox.replaceChildren()
       frameBox.hidden = true
       live.hidden = true
