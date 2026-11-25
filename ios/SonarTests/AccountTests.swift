@@ -26,7 +26,7 @@ final class FakeAPI: @unchecked Sendable {
             lock.lock()
             defer { lock.unlock() }
             requests.append(request)
-            let route = "\(request.httpMethod ?? "GET") \(request.url?.path ?? "")"
+            let route = FakeAPI.route(request)
             guard var queue = routes[route], !queue.isEmpty else {
                 return (Data(#"{"error":{"code":"not_found","message":"нет"}}"#.utf8), 404)
             }
@@ -36,16 +36,22 @@ final class FakeAPI: @unchecked Sendable {
         }
     }
 
+    /// «POST /auth/login»: адрес API — `https://try-sonar.ru/api`, маршруты в тестах — без префикса, как в API.md.
+    static func route(_ request: URLRequest) -> String {
+        let path = request.url?.path ?? ""
+        return "\(request.httpMethod ?? "GET") \(path.hasPrefix("/api/") ? String(path.dropFirst(4)) : path)"
+    }
+
     func count(_ route: String) -> Int {
         lock.lock()
         defer { lock.unlock() }
-        return requests.filter { "\($0.httpMethod ?? "GET") \($0.url?.path ?? "")" == route }.count
+        return requests.filter { FakeAPI.route($0) == route }.count
     }
 
     func body(_ route: String) -> JSONValue? {
         lock.lock()
         defer { lock.unlock() }
-        guard let r = requests.last(where: { "\($0.httpMethod ?? "GET") \($0.url?.path ?? "")" == route }), let data = r.httpBody else { return nil }
+        guard let r = requests.last(where: { FakeAPI.route($0) == route }), let data = r.httpBody else { return nil }
         return try? JSONValue(data: data)
     }
 }
