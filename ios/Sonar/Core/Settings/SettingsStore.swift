@@ -54,6 +54,8 @@ final class SettingsStore {
         "general.similar_autoplay": .bool(true),
         // настроение Sonar Mix: own · fun · calm · sad · hard · night · sleep · popular · focus (`WaveMode`); старое `new` — own
         "wave.mode": .string("own"),
+        // вкус по артистам «Чаще · Реже · Никогда» — объект JSON строкой (`ArtistPrefs`; на ПК — сам объект)
+        "wave.artist_prefs": .string("{}"),
         // текст песни (SETTINGS.md «Текст песни»): rawValue `LyricsMode` / `LyricsSize` / `LyricsTextStyle` / `LyricsAnimation`
         "lyrics.mode": .string("words"),
         "lyrics.size": .string("L"),

@@ -6,7 +6,8 @@ import Foundation
 // на места 2, 5, 8. Порция — 10 треков, догружается, когда до конца меньше трёх. Сигналы — оценка
 // исхода (`Outcome.reward`): дослушанное и лайкнутое становится сидами, пропущенный артист теряет вес,
 // два ранних пропуска артиста подряд — пауза до конца сессии, два ранних пропуска подряд — «Далее»
-// пересобирается. 👎 не попадает никогда.
+// пересобирается. 👎 не попадает никогда, артисты «Никогда» (`ArtistPrefs`) — тоже; «Чаще» / «Реже» — признак
+// оценки с весом 2, как на ПК.
 //
 // Настроения — те же 9, что в Windows (`WAVE_MODES`, `wave.rs` `MODES` / `MOODS` / `mood_fit` / `weights`):
 // «Обычное» — по лайкам; остальные — словарь настроения по тегам и названию плюс вкус. Сон и
@@ -159,6 +160,12 @@ struct WaveFilter: Sendable {
     var maxUnknown: Int?
     /// Трек SoundCloud незнакомого артиста с меньшим числом прослушиваний не берём (случайные заливы).
     var minPlaysUnknown = 0
+    /// Артисты «Никогда» (экран «Вкус»): ни их треков, ни соавторских — даже в ослабленном проходе.
+    var neverArtists: Set<String> = []
+
+    func isNever(_ track: Track) -> Bool {
+        !neverArtists.isEmpty && track.artistKeys.contains { neverArtists.contains($0) }
+    }
 }
 
 /// Серия ранних пропусков (`skip-series.ts`): две подряд — «Далее» подобрано не под настроение.
@@ -398,7 +405,7 @@ enum WaveMath {
         return w.affinity * taste.affinity(track) + w.likedArtist * liked + w.known * known + w.fresh * (1 - known)
             + w.votes * votes + w.rank * rank + w.fromSession * live + w.sessionSkipped * skippedArtist
             + w.trackSkips * trackSkips + w.mood * moodFit(session.mode, track) + w.skipRate * skipRate
-            + w.popularity * popularity(track)
+            + w.popularity * popularity(track) + ArtistPrefs.weight * taste.pref(track)
     }
 
     /// Порция из n: без дублей и фильтрованных, не два одинаковых артиста подряд (и не тот, что только
@@ -413,7 +420,7 @@ enum WaveMath {
             return track.available && seen.insert(track.ref).inserted
                 && !filter.banned.contains(track.ref) && !filter.exclude.contains(track.ref)
                 && (relaxed || !filter.recent.contains(track.ref))
-                && !filter.pausedArtists.contains(artist)
+                && !filter.pausedArtists.contains(artist) && !filter.isNever(track)
                 && (served[artist] ?? 0) < sessionArtistCap
                 && (filter.minPlaysUnknown == 0 || taste.isKnown(track) || (track.plays ?? Int.max) >= filter.minPlaysUnknown)
         }
@@ -491,7 +498,7 @@ enum WaveMath {
         let served = session.servedCount
         let scored = liked.filter { t in
             t.available && !filter.banned.contains(t.ref) && !filter.exclude.contains(t.ref) && !playedMonth.contains(t.ref)
-                && !filter.pausedArtists.contains(t.artistKey) && (served[t.artistKey] ?? 0) < sessionArtistCap
+                && !filter.pausedArtists.contains(t.artistKey) && !filter.isNever(t) && (served[t.artistKey] ?? 0) < sessionArtistCap
                 && (!session.mode.isMood || moodFit(session.mode, t) > 0)
         }
         .map { (score: taste.affinity($0) - 0.6 * min(taste.trackSkips[$0.ref] ?? 0, 2) + noise() * 0.6, track: $0) }
@@ -627,7 +634,9 @@ final class MyWave {
             throw ServiceError(message: "Похожих треков не нашлось — проверь сеть или лайкни что-нибудь ещё.")
         }
 
-        let taste = history.taste(liked: liked)
+        let prefs = ArtistPrefs.split(SettingsStore.shared.artistPrefs)
+        var taste = history.taste(liked: liked)
+        taste.artistPref = prefs.pref
         let bySeed = session.seed != nil
         let familiar = WaveMath.familiarity(mode, bySeed: bySeed)
         var filter = WaveFilter(
@@ -636,7 +645,8 @@ final class MyWave {
             exclude: session.served,
             pausedArtists: session.paused,
             maxUnknown: familiar.maxUnknown,
-            minPlaysUnknown: familiar.minPlays
+            minPlaysUnknown: familiar.minPlays,
+            neverArtists: prefs.never
         )
         if let seed = session.seed { filter.exclude.insert(seed.ref) }
         let noise = random

@@ -970,7 +970,9 @@ final class PlaybackEngine {
                 if let list = try? await MusicCore.shared.similar(to: seed.ref) { lists.append(list) }
             }
             guard id == self.queueId else { return }
-            let fresh = Autoplay.freshSimilar(lists, inQueue: Set(self.tracks.map(\.ref)), disliked: { LibraryStore.shared.isDisliked($0) }, limit: Autoplay.batch)
+            let prefs = SettingsStore.shared.artistPrefs
+            let fresh = Autoplay.freshSimilar(lists, inQueue: Set(self.tracks.map(\.ref)), disliked: { LibraryStore.shared.isDisliked($0) },
+                                              limit: Autoplay.batch, never: { ArtistPrefs.level(prefs, track: $0) == .never })
             guard !fresh.isEmpty else {
                 self.deadQueue = key
                 return
@@ -1117,6 +1119,29 @@ final class PlaybackEngine {
         LibraryStore.shared.toggleDislike(track)
         guard LibraryStore.shared.isDisliked(track.ref), current?.ref == track.ref else { return }
         next()
+    }
+
+    /// «Чаще · Реже · Никогда» для артиста (`ArtistPrefs`); тот же уровень ещё раз или nil — снять. «Никогда»
+    /// сразу убирает из «Далее» треки артиста, которые поставили волна или «Авто похожие» (свою очередь не
+    /// трогает — ручное главнее), а если такой играет — следующий.
+    func setArtistTaste(_ name: String, _ level: ArtistLevel?) {
+        let settings = SettingsStore.shared
+        let prefs = settings.artistPrefs
+        let chosen = level == ArtistPrefs.level(prefs, name: name) ? nil : level
+        settings.setArtistPrefs(ArtistPrefs.with(prefs, name: name, level: chosen))
+        guard chosen == .never else { return }
+        let key = ArtistPrefs.key(name)
+        let hit = { (track: Track) in (self.isWave || self.autoRefs.contains(track.ref)) && track.artistKeys.contains(key) }
+        guard order.indices.contains(pos) else { return }
+        let upcoming = order[(pos + 1)...].filter { hit(tracks[$0]) }
+        if !upcoming.isEmpty {
+            let drop = Set(upcoming)
+            dropPreload()
+            order = Array(order[...pos]) + order[(pos + 1)...].filter { !drop.contains($0) }
+            saveSnapshot(force: true)
+            if isWave { topUpWave() }
+        }
+        if let current, hit(current) { self.next() }
     }
 
     /// Звонок, Siri, будильник: система уже поставила паузу. После — по `audio.on_interruption`: вернуть

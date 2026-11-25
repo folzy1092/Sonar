@@ -1,3 +1,21 @@
+# Передача 2026-11-25 (вечер) → вкус по артистам «Чаще · Реже · Никогда»
+
+`docs/TASTE_ROOMS_PROMPT.md` §1 — сделан на ПК и iPhone.
+- ПК: `lib/artist-prefs-core.ts` (+ тест), `lib/artist-prefs.svelte.ts`, ряд `components/ArtistTasteSeg.svelte` в меню трека
+  (`app/TrackMenu.svelte`) и на странице исполнителя, страница `pages/settings/Taste.svelte` (Плеер → Вкус: артисты с поиском,
+  треки с 👎 и «Вернуть»), автоплей пропускает «Никогда» (`freshSimilar`, офлайн-пул). «Никогда» сразу убирает из «Далее» треки
+  артиста, которые поставили волна или автоплей, и переключает, если такой играет. Переводы — `i18n/*/taste.ts`.
+- Rust (прошлая сессия) прогнан: `cargo test` волны зелёный, добавлен `all_never_pool_gives_empty_portion_not_a_hang`.
+  В контейнере сборка Tauri пошла после `apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev`.
+- iPhone: `Core/Library/ArtistPrefs.swift` (разбор как на ПК, `SettingsStore.artistPrefs`), `WaveFilter.neverArtists`,
+  `Taste.artistPref` + вес 2 в `WaveMath.score`, `Autoplay.freshSimilar(never:)`, `PlaybackEngine.setArtistTaste`, лист трека,
+  Профиль → Вкус (`Features/Settings/Player/ArtistTasteChips.swift`), синк объекта ⇄ строки в `SettingsSyncAdapter`, тест
+  `ArtistPrefsTests`. **Swift не компилировался** — только CI.
+- Вживую не проверено ни там, ни там: отметить артиста «Никогда» в волне → его треки ушли из «Далее»; «Чаще» — артист чаще в
+  следующих порциях; Плеер → Вкус показывает список; на телефоне после синка по Wi‑Fi — тот же список.
+
+---
+
 # Передача 2026-11-25 (поздно) → VK убран
 
 **Решение владельца 2026-11-25: «Выпилить VK».** Вход через Kate Mobile упирался в «Слишком много попыток [9]».

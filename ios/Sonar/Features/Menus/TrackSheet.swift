@@ -5,7 +5,7 @@ import UIKit
 /// исполнитель и знак сервиса; капсула ♥ · + · в очередь · поделиться; ниже — Следующим, Волна по
 /// треку, Перейти к артисту, Открыть альбом, Скачать (в Sonar, играет без сети — «Скачанные»), у играющего
 /// трека — Устройства и Таймер сна (только с настройкой `player.sleep_button`), Копировать
-/// название, Не интересно, Удалить из плейлиста (если трек в списке). «+» — свои плейлисты Sonar (`AddToPlaylistSheet`). «Закрепить в профиле» — с сервером.
+/// название, Не интересно, «Чаще · Реже · Никогда» для артиста, Удалить из плейлиста (если трек в списке). «+» — свои плейлисты Sonar (`AddToPlaylistSheet`). «Закрепить в профиле» — с сервером.
 struct TrackSheet: View {
     let item: TrackMenuItem
     @Environment(PlaybackEngine.self) private var engine
@@ -22,6 +22,10 @@ struct TrackSheet: View {
     private var isCurrent: Bool { engine.current?.ref == track.ref }
 
     private var track: Track { item.track }
+    /// Главный артист (у совместного трека — первый) — для «Чаще · Реже · Никогда».
+    private var mainArtistName: String {
+        (track.artists.first?.name ?? track.artist).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
     private var downloads: DownloadStore { DownloadStore.shared }
 
     var body: some View {
@@ -82,6 +86,9 @@ struct TrackSheet: View {
                             if was { library.toggleDislike(track) } else { engine.dislike(track) }
                             done(was ? "Трек вернётся в подборки" : "Больше не попадётся в подборках")
                         }
+                        if !ArtistPrefs.key(mainArtistName).isEmpty {
+                            artistTaste(mainArtistName)
+                        }
                         if let remove = item.remove {
                             SheetMenuRow(icon: .minusCircle, title: "Удалить из плейлиста", tint: Theme.danger) {
                                 dismiss()
@@ -129,6 +136,26 @@ struct TrackSheet: View {
             .presentationCornerRadius(30)
             .presentationBackground(Theme.background)
         }
+    }
+
+    /// «Чаще · Реже · Никогда» для главного артиста (`ArtistPrefs`, как в меню трека на ПК).
+    private func artistTaste(_ name: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(t("{name} в Sonar Mix", ["name": name]))
+                .font(.system(size: 13.5))
+                .foregroundStyle(Theme.textSecondary)
+                .lineLimit(1)
+            ArtistTasteChips(name: name) { level in
+                let message: String = switch level {
+                case .more?: t("Будем ставить {name} чаще", ["name": name])
+                case .less?: t("Будем ставить {name} реже", ["name": name])
+                case .never?: t("{name} больше не попадёт в Sonar Mix и похожие", ["name": name])
+                case nil: t("{name} — снова как обычно", ["name": name])
+                }
+                done(message)
+            }
+        }
+        .padding(.vertical, 8)
     }
 
     private var banner: some View {

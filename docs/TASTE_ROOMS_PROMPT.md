@@ -25,8 +25,11 @@
 | Строки `Пошли похожие` и `Удерживай, чтобы послушать, не применяя` | `windows/src/i18n/{en,uk,es,de,pl}/pages.ts`, перегенерированы `ios/Sonar/Core/I18n/Strings+Windows*.swift` через `ios/scripts/gen-i18n.mjs` | `i18n.test.ts` зелёный. Переводы машинные |
 | **Половина** «больше / меньше / никогда» — только Rust (раздел 1) | `windows/src-tauri/src/wave.rs` (`Filter.never_artists`, `Filter::is_never`, `artist_prefs`, `Features.pref`, `Weights.pref`, `PREF_WEIGHT`, `pref_of`, три теста), `store/wave.rs` (`Taste.artist_pref`), `commands.rs` (чтение `wave.artist_prefs`) | **`cargo test` не запускался**: в контейнере нет `gdk-3.0`, сборка Tauri не идёт. Запустить на Windows или в CI: `cd windows/src-tauri && cargo test wave::`. Тест `more_and_less_move_the_score` статистический (среднее по 400 выборкам Томпсона, порог 1.5) — если мигает, поднять число выборок, а не снижать порог |
 
-Чего в коде **ещё нет** из раздела 1: ключа настройки в `DEFAULTS`, ядра на TypeScript, пунктов меню, страницы «Вкус»,
-фильтра в автоплее, iPhone.
+**Раздел 1 сделан 2026-11-25** (ПК и iPhone): `cargo test wave::` прогнан — зелёный, добавлен тест «пул из одних
+«Никогда» — пустая порция». Вместо трёх пунктов меню — один ряд «Чаще · Реже · Никогда» (`components/ArtistTasteSeg.svelte`,
+iPhone `ArtistTasteChips`): меню и так длинное, три строки под одного артиста его раздували. На iPhone `SettingValue` объектов
+не хранит — `wave.artist_prefs` там строка JSON, синк переводит её в объект ПК (`SettingsSyncAdapter`). Названия 👎-треков
+телефон не хранит, поэтому в Профиль → Вкус — только их число.
 
 ---
 

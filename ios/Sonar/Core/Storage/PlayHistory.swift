@@ -33,6 +33,8 @@ struct Taste: Sendable, Equatable {
     var skips: [String: Double] = [:]
     /// Трек → штраф за его собственные пропуски.
     var trackSkips: [String: Double] = [:]
+    /// «Чаще» (+1) / «Реже» (−1) по артисту — экран «Вкус» (`ArtistPrefs`), ставит волна перед подбором.
+    var artistPref: [String: Double] = [:]
 
     static let windowDays = 180.0
     static let halfLifeDays = 30.0
@@ -40,6 +42,13 @@ struct Taste: Sendable, Equatable {
     /// Знакомый артист: лайкнут или его слушали (по любому из артистов трека).
     func isKnown(_ track: Track) -> Bool {
         track.artistKeys.contains { likedArtists.contains($0) || (plays[$0] ?? 0) > 0 }
+    }
+
+    /// Признак «Чаще / Реже» трека: «Чаще» любого из соавторов перебивает «Реже» (`wave.rs` `pref_of`).
+    func pref(_ track: Track) -> Double {
+        let all = track.artistKeys.compactMap { artistPref[$0] }
+        if all.contains(where: { $0 > 0 }) { return 1 }
+        return all.contains(where: { $0 < 0 }) ? -1 : 0
     }
 
     func likesArtist(_ track: Track) -> Bool {

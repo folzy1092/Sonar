@@ -63,7 +63,7 @@
   {:else if !disliked.length}
     <p class="none">{t('Таких треков нет')}</p>
   {:else}
-    <p class="count">{tn(disliked.length, ['трек', 'трека', 'треков'])}</p>
+    <p class="count">{disliked.length} {tn(disliked.length, ['трек', 'трека', 'треков'])}</p>
     <ul use:cascade>
       {#each disliked as tr (tr.ref)}
         <li class="track">

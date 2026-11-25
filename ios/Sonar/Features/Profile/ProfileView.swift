@@ -37,6 +37,8 @@ struct ProfileView: View {
                     divider
                     link("Очередь", .queue) { QueueSettingsView() }
                     divider
+                    link("Вкус", .dislike) { TasteSettingsView() }
+                    divider
                     link("Мини-плеер", .capsule) { MiniPlayerSettingsView() }
                     divider
                     link("Жесты", .wave) { GesturesSettingsView() }

@@ -10,16 +10,17 @@ enum Autoplay {
     /// Сколько похожих дописывать за раз.
     static let batch = 10
 
-    /// Похожие для продолжения: списки от разных сидов чередуются; без треков из очереди, 👎,
-    /// недоступных и повторов; не больше n.
-    static func freshSimilar(_ lists: [[Track]], inQueue: Set<String>, disliked: (String) -> Bool, limit n: Int) -> [Track] {
+    /// Похожие для продолжения: списки от разных сидов чередуются; без треков из очереди, 👎, артистов
+    /// «Никогда» (`never`), недоступных и повторов; не больше n.
+    static func freshSimilar(_ lists: [[Track]], inQueue: Set<String>, disliked: (String) -> Bool, limit n: Int,
+                             never: (Track) -> Bool = { _ in false }) -> [Track] {
         var seen = inQueue
         var out: [Track] = []
         let longest = lists.map(\.count).max() ?? 0
         for i in 0 ..< longest where out.count < n {
             for list in lists where i < list.count {
                 let track = list[i]
-                if !track.available || disliked(track.ref) || seen.contains(track.ref) { continue }
+                if !track.available || disliked(track.ref) || seen.contains(track.ref) || never(track) { continue }
                 seen.insert(track.ref)
                 out.append(track)
                 if out.count >= n { break }

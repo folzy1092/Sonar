@@ -204,7 +204,8 @@ final class TrackPrefsSyncAdapter: SyncAdapter {
 }
 
 /// Настройки (`setting`) — только синхронизируемые ключи (`SyncPolicy`). Значения-объекты ПК
-/// (`player.tempo` и т.п.) телефон не хранит — они остаются «чужими» строками журнала.
+/// (`player.tempo` и т.п.) телефон не хранит — они остаются «чужими» строками журнала. Исключение —
+/// `wave.artist_prefs`: у телефона это тот же объект строкой JSON, здесь он переводится туда и обратно.
 @MainActor
 final class SettingsSyncAdapter: SyncAdapter {
     let types: Set<String> = ["setting"]
@@ -236,6 +237,11 @@ final class SettingsSyncAdapter: SyncAdapter {
     func snapshot(journal: SyncJournal) -> [SyncKey: JSONValue] {
         var out: [SyncKey: JSONValue] = [:]
         for (key, value) in settings.storedValues where SyncPolicy.settingSyncs(key) {
+            // вкус по артистам на ПК — объект JSON, у телефона он строкой (`ArtistPrefs`)
+            if key == ArtistPrefs.key, case let .string(raw) = value {
+                out[SyncKey("setting", key)] = ArtistPrefs.json(ArtistPrefs.decode(raw))
+                continue
+            }
             out[SyncKey("setting", key)] = Self.json(value)
         }
         return out
@@ -245,6 +251,11 @@ final class SettingsSyncAdapter: SyncAdapter {
         guard SyncPolicy.settingSyncs(change.key) else { return false }
         if change.value.isNull {
             settings.remove(change.key)
+            return true
+        }
+        if change.key == ArtistPrefs.key {
+            let value = SettingValue.string(ArtistPrefs.encode(ArtistPrefs.parse(change.value)))
+            if settings.storedValues[change.key] != value { settings.set(change.key, value) }
             return true
         }
         guard let value = Self.setting(change.value) else { return false }
