@@ -39,17 +39,23 @@ CREATE TABLE IF NOT EXISTS tracks (
   artwork_url   TEXT,
   updated_at    INTEGER NOT NULL DEFAULT 0
 );
-CREATE TABLE IF NOT EXISTS likes (
+-- Синк (API.md §6, sonar/sync.py): строка = (тип, ключ) → JSON, NULL — удалено; rev — из общего sync_rev.
+CREATE TABLE IF NOT EXISTS sync_rows (
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  ref           TEXT NOT NULL,
-  kind          TEXT NOT NULL,
-  added_at      INTEGER NOT NULL,
-  deleted       INTEGER NOT NULL DEFAULT 0,
+  type          TEXT NOT NULL,
+  key           TEXT NOT NULL,
+  value_json    TEXT,
   rev           INTEGER NOT NULL,
-  PRIMARY KEY (user_id, ref)
+  client_ts     INTEGER NOT NULL,
+  PRIMARY KEY (user_id, type, key)
 );
-CREATE INDEX IF NOT EXISTS likes_kind ON likes(user_id, kind, deleted, added_at);
-CREATE INDEX IF NOT EXISTS likes_rev ON likes(user_id, rev);
+CREATE INDEX IF NOT EXISTS sync_rows_rev ON sync_rows(user_id, rev);
+CREATE TABLE IF NOT EXISTS sync_ops (
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  op_id         TEXT NOT NULL,
+  at            INTEGER NOT NULL,
+  PRIMARY KEY (user_id, op_id)
+);
 CREATE TABLE IF NOT EXISTS sync_rev (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER NOT NULL);
 INSERT OR IGNORE INTO sync_rev (id, value) VALUES (1, 0);
 CREATE TABLE IF NOT EXISTS plays (
@@ -240,6 +246,9 @@ COLUMNS = [
     # метаданные трека для лайков из /dotify и синка (DB.md `tracks`)
     ("tracks", "artists_json", "TEXT"),
     ("tracks", "url", "TEXT"),
+    # PUT /player/state: какое устройство играет и весь PlayerState (API.md §5)
+    ("player_state", "device_id", "TEXT"),
+    ("player_state", "state_json", "TEXT"),
 ]
 
 

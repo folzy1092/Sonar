@@ -239,6 +239,18 @@ pub async fn account_revoke_device(core: State<'_, std::sync::Arc<Core>>, db: St
   call(&core, &db.0, reqwest::Method::DELETE, &format!("me/devices/{}", urlencoding::encode(&id)), None, true).await.map(|_| ())
 }
 
+/// Синк сразу после входа (не ждать фоновые 2 минуты): своё — на сервер, чужое — сюда; пришло — `sync-applied`.
+#[tauri::command]
+pub async fn account_sync(app: tauri::AppHandle, core: State<'_, std::sync::Arc<Core>>, db: State<'_, Db>) -> Res<usize> {
+  use tauri::Emitter;
+  crate::offline::guard()?;
+  let r = crate::sync::sync_now(&core.http(), &db.0).await.map_err(|e| e.to_string())?;
+  if r.pulled > 0 {
+    let _ = app.emit("sync-applied", r.pulled);
+  }
+  Ok(r.pulled)
+}
+
 // ——— Telegram и быстрая ссылка ———
 
 /// `login` — войти через бота (без входа); `link` — привязать Telegram к своему аккаунту.

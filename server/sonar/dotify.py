@@ -4,9 +4,9 @@
 "artists": [{"id", "name", "avatar", "source"}]}]}`, треки от новых к старым, `duration` — секунды, `added_at` — мс.
 `source: soundcloud` → `sc:<id>` (артисты `sca:`), `yandex` → `ym:<id>` (`yma:`), остальное — пропуск со счётом.
 
-Лайки пишутся в `likes` сервера (схема DB.md) с `rev` из `sync_rev` — синк (API.md §6) развезёт их по устройствам.
-Уже стоящий лайк не трогаем, снятый вручную (`deleted = 1`) не возвращаем, метаданные трека, которые уже есть, не
-перетираем. Всё — одной транзакцией: либо весь файл, либо ничего.
+Лайки — строки синка `like` (`sonar/sync.py`, API.md §6) с карточкой трека, как их шлёт ПК: устройства заберут
+их обычным `pull`. Уже стоящий лайк не трогаем, снятый вручную (строка с `null`) не возвращаем, метаданные трека,
+которые уже есть в `tracks`, не перетираем. Всё — одной транзакцией: либо весь файл, либо ничего.
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ import json
 import sqlite3
 from dataclasses import dataclass, field
 
+from . import sync
 from .db import now_ms, tx
 
 PREFIX = {"soundcloud": ("sc", "sca"), "yandex": ("ym", "yma")}
@@ -112,7 +113,16 @@ def parse(raw: bytes) -> Parsed:
 
 
 def _states(con: sqlite3.Connection, user_id: str) -> dict[str, int]:
-    return {r["ref"]: r["deleted"] for r in con.execute("SELECT ref, deleted FROM likes WHERE user_id = ?", (user_id,))}
+    """ref → 1, если лайк снят (строка-удаление), 0 — стоит."""
+    return {r["key"]: int(r["value_json"] is None) for r in
+            con.execute("SELECT key, value_json FROM sync_rows WHERE user_id = ? AND type = 'like'", (user_id,))}
+
+
+def _card(it: Item) -> dict:
+    """Карточка трека в формате `Track` клиентов (API.md §3) — чтобы на устройстве сразу были название и обложка."""
+    return {"ref": it.ref, "title": it.title, "artist": it.artist, "artists": json.loads(it.artists_json), "album": None,
+            "duration_ms": it.duration_ms or 0, "cover_url": it.cover_url, "url": it.url, "explicit": False,
+            "available": True}
 
 
 def preview(con: sqlite3.Connection, user_id: str, p: Parsed) -> Counts:
@@ -146,8 +156,6 @@ def apply(con: sqlite3.Connection, user_id: str, p: Parsed) -> Counts:
                 else:
                     c.have += 1
                 continue
-            rev = con.execute("UPDATE sync_rev SET value = value + 1 WHERE id = 1 RETURNING value").fetchone()[0]
-            con.execute("INSERT INTO likes (user_id, ref, kind, added_at, deleted, rev) VALUES (?, ?, 'track', ?, 0, ?)",
-                        (user_id, it.ref, it.added_at, rev))
+            sync.put(con, user_id, "like", it.ref, {"kind": "track", "added_at": it.added_at, "track": _card(it)}, now)
             c.new += 1
     return c

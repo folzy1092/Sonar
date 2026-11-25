@@ -123,8 +123,11 @@ class Account {
   }
 
   private apply(user: AccountUser) {
+    const fresh = !this.signedIn
     this.user = user
     this.signedIn = true
+    // только что вошли — сразу синк с сервером (лайки, плейлисты, настройки с других устройств)
+    if (fresh) void call('account_sync').catch(() => {})
     // Профиль на ПК — из аккаунта: имя и @username те же, что видят друзья и сайт.
     settings.set('profile.name', user.display_name)
     settings.set('profile.username', user.username)

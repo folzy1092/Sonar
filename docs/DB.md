@@ -4,6 +4,23 @@
 Время — `INTEGER` миллисекунды Unix. `rev` — значение глобального счётчика `sync_rev`
 на момент изменения (для `/sync/pull`).
 
+**Сервер на деле (2026-11-25, этап 3 `SERVER_PROMPT.md`):** таблиц `likes`, `playlists`, `playlist_items`,
+`settings`, `dislikes`, `track_prefs` на сервере нет — он хранит синк как хаб ПК (`store/hub.rs`), не разбирая
+значения: так новый тип клиента не требует правок сервера. Таблицы ниже — схема клиентов (ПК — локальный SQLite).
+
+```sql
+CREATE TABLE sync_rows (          -- строка синка: (тип, ключ) → JSON, value_json NULL — удалено
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,             -- like | playlist | playlist_item | setting | player_state | track_pref | dislike | wave_event
+  key TEXT NOT NULL, value_json TEXT, rev INTEGER NOT NULL, client_ts INTEGER NOT NULL,
+  PRIMARY KEY (user_id, type, key));
+CREATE INDEX sync_rows_rev ON sync_rows(user_id, rev);
+CREATE TABLE sync_ops (user_id TEXT NOT NULL, op_id TEXT NOT NULL, at INTEGER NOT NULL,  -- виденные op_id, 30 дней
+  PRIMARY KEY (user_id, op_id));
+CREATE TABLE sync_rev (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER NOT NULL);   -- один счётчик на сервер
+-- tracks сервера: + artists_json, url (карточки из /dotify); player_state: + device_id, state_json (PUT /player/state)
+```
+
 Префиксы `ref` — из реестра сервисов (полная таблица и правило разбора — `API.md` §2 «Префиксы ref»):
 
 | id | key | трек | альбом | артист | плейлист |

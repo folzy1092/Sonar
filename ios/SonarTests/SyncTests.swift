@@ -276,3 +276,21 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(a.engine.scan(), 1, "после входа в другой аккаунт всё уйдёт заново")
     }
 }
+
+/// Сервер отдаёт `pull` страницами (`more`, ~1 МБ): HTTP-транспорт забирает их подряд за один обмен.
+final class HTTPSyncPagingTests: XCTestCase {
+    func testPullFollowsMorePages() async throws {
+        let pages: [String: String] = [
+            "0": #"{"rev":2,"changes":[{"type":"like","key":"sc:1","value":null,"rev":1},{"type":"like","key":"sc:2","value":null,"rev":2}],"more":true}"#,
+            "2": #"{"rev":7,"changes":[{"type":"like","key":"sc:3","value":null,"rev":3}],"more":false}"#,
+        ]
+        let fetch: APIClient.Fetch = { request in
+            let since = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "since" }?.value ?? ""
+            return (Data((pages[since] ?? #"{"rev":0,"changes":[]}"#).utf8), 200)
+        }
+        let transport = HTTPSyncTransport(client: APIClient(base: URL(string: "https://try-sonar.ru/api")!, token: "t", fetch: fetch))
+        let reply = try await transport.pull(since: 0)
+        XCTAssertEqual(reply.changes.map(\.key), ["sc:1", "sc:2", "sc:3"])
+        XCTAssertEqual(reply.rev, 7)
+    }
+}

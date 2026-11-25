@@ -32,7 +32,7 @@ impl Transport for LocalHub<'_> {
 
   async fn pull(&self, since: i64) -> Result<PullReply> {
     let p = self.db.lock().unwrap().hub_pull(since, usize::MAX)?;
-    Ok(PullReply { rev: p.rev, changes: p.changes })
+    Ok(PullReply { rev: p.rev, changes: p.changes, more: false })
   }
 
   async fn plays(&self, _: &[PlayUpload]) -> Result<usize> {

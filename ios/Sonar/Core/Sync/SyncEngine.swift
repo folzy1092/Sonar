@@ -204,8 +204,25 @@ struct HTTPSyncTransport: SyncTransport {
         try await client.send("POST", "sync/push", body: PushBody(ops: ops))
     }
 
+    /// Страница `GET /sync/pull`: сервер отдаёт до ~1 МБ, `more` — просить ещё с `rev`.
+    private struct Page: Decodable {
+        var rev: Int
+        var changes: [SyncChange]
+        var more: Bool?
+    }
+
+    /// Сколько страниц забрать за один обмен; остальное — в следующий (курсор уже сдвинут).
+    static let maxPages = 200
+
     func pull(since: Int) async throws -> SyncPullReply {
-        try await client.send("GET", "sync/pull", query: [("since", String(since))])
+        var reply = SyncPullReply(rev: since, changes: [])
+        for _ in 0 ..< Self.maxPages {
+            let page: Page = try await client.send("GET", "sync/pull", query: [("since", String(reply.rev))])
+            reply.changes += page.changes
+            reply.rev = max(reply.rev, page.rev)
+            if page.more != true { break }
+        }
+        return reply
     }
 
     func plays(_ plays: [PlayUpload]) async throws -> Int {

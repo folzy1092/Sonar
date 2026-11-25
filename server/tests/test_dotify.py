@@ -54,16 +54,18 @@ def test_future_added_at_is_clamped():
 
 def test_apply_no_duplicates_and_keeps_removed(acc, con):
     user = asyncio.run(acc.register("mira", "secret-pass"))
-    con.execute("INSERT INTO likes (user_id, ref, kind, added_at, deleted, rev) VALUES (?, 'sc:2', 'track', 1, 1, 1)",
+    con.execute("INSERT INTO sync_rows (user_id, type, key, value_json, rev, client_ts) VALUES (?, 'like', 'sc:2', NULL, 1, 1)",
                 (user.id,))  # снят вручную
     con.execute("INSERT INTO tracks (ref, title, artist, updated_at) VALUES ('sc:3', 'Своё название', 'x', 1)")
     p = dotify.parse(file(track("1"), track("2"), track("3")))
     assert dotify.preview(con, user.id, p) == dotify.Counts(new=2, have=0, removed=1)
     assert dotify.apply(con, user.id, p) == dotify.Counts(new=2, have=0, removed=1)
     assert dotify.apply(con, user.id, p) == dotify.Counts(new=0, have=2, removed=1)  # повтор ничего не удваивает
-    rows = {r["ref"]: r for r in con.execute("SELECT * FROM likes WHERE user_id = ?", (user.id,))}
-    assert rows["sc:2"]["deleted"] == 1
-    assert rows["sc:1"]["added_at"] == 1795341777313 and rows["sc:1"]["kind"] == "track"
+    rows = {r["key"]: r for r in con.execute("SELECT * FROM sync_rows WHERE user_id = ? AND type = 'like'", (user.id,))}
+    assert rows["sc:2"]["value_json"] is None
+    v = json.loads(rows["sc:1"]["value_json"])
+    assert v["added_at"] == 1795341777313 and v["kind"] == "track" and v["track"]["title"] == "Трек 1"
+    assert v["track"]["duration_ms"] == 66000 and v["track"]["artists"][0]["ref"] == "sca:1233630895"
     assert rows["sc:1"]["rev"] != rows["sc:3"]["rev"]  # у каждой строки свой rev — синк их увидит
     assert con.execute("SELECT title FROM tracks WHERE ref = 'sc:3'").fetchone()[0] == "Своё название"  # не перетёрли
 
@@ -116,9 +118,9 @@ def test_bot_flow(acc, con, monkeypatch):
         assert state.state == H.Dotify.file
         await H.dotify_file(msg, state, ctx)
         assert "Добавлю в Любимые: <b>2</b>" in ctx.shower.shown[-1].html
-        assert con.execute("SELECT COUNT(*) FROM likes").fetchone()[0] == 0  # до «Добавить» ничего не пишем
+        assert con.execute("SELECT COUNT(*) FROM sync_rows").fetchone()[0] == 0  # до «Добавить» ничего не пишем
         await H.dotify_button(SimpleNamespace(data="dot:ok", message=msg, from_user=tg), state, ctx, user)
         assert "добавлено: <b>2</b>" in ctx.shower.shown[-1].html
 
     asyncio.run(flow())
-    assert con.execute("SELECT COUNT(*) FROM likes WHERE user_id = ?", (user.id,)).fetchone()[0] == 2
+    assert con.execute("SELECT COUNT(*) FROM sync_rows WHERE user_id = ? AND type = 'like'", (user.id,)).fetchone()[0] == 2

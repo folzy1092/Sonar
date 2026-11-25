@@ -225,6 +225,7 @@ pub fn run() {
       account::account_password,
       account::account_devices,
       account::account_report_device,
+      account::account_sync,
       account::account_rename_device,
       account::account_revoke_device,
       account::account_tg_start,

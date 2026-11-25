@@ -25,7 +25,13 @@ pub struct PushReply {
 pub struct PullReply {
   pub rev: i64,
   pub changes: Vec<Change>,
+  /// Сервер отдал не всё (предел ~1 МБ за ответ) — просить ещё с `rev`.
+  #[serde(default)]
+  pub more: bool,
 }
+
+/// Сколько страниц `pull` забирать за один обмен: первая синхронизация большой медиатеки — несколько МБ.
+const PULL_PAGES: usize = 200;
 
 /// Куда отправлять: HTTP к серверу или сервер в памяти (тесты).
 #[allow(async_fn_in_trait)]
@@ -111,16 +117,28 @@ impl Transport for Http<'_> {
     Ok(r.json().await?)
   }
 
+  /// Все страницы подряд (`more`), одним ответом для `sync_once`.
   async fn pull(&self, since: i64) -> Result<PullReply> {
-    let r = self
-      .http
-      .get(format!("{}/sync/pull", self.base))
-      .query(&[("since", since)])
-      .bearer_auth(&self.token)
-      .send()
-      .await?
-      .error_for_status()?;
-    Ok(r.json().await?)
+    let mut out = PullReply { rev: since, changes: Vec::new(), more: false };
+    for _ in 0..PULL_PAGES {
+      let page: PullReply = self
+        .http
+        .get(format!("{}/sync/pull", self.base))
+        .query(&[("since", out.rev)])
+        .bearer_auth(&self.token)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+      out.changes.extend(page.changes);
+      out.rev = out.rev.max(page.rev);
+      if !page.more {
+        return Ok(out);
+      }
+    }
+    out.more = true; // остальное — в следующий обмен, курсор уже сдвинут на полученное
+    Ok(out)
   }
 
   async fn plays(&self, plays: &[PlayUpload]) -> Result<usize> {
@@ -140,12 +158,11 @@ impl Transport for Http<'_> {
   }
 }
 
-/// Адрес сервера (`sync.server`, настройка устройства) и токен сессии (keyring `sonar_session`).
-/// До сервера их нет — обмен молчит.
+/// Адрес API (`account::base`: `sync.server` или `https://try-sonar.ru/api`) и сессия из keyring
+/// (`sonar_session`). Не вошли в аккаунт — обмена с сервером нет (Wi‑Fi с телефоном работает как раньше).
 pub(crate) fn configured(db: &Mutex<Store>) -> Option<(String, String)> {
-  let base = db.lock().unwrap().setting("sync.server").ok().flatten()?.as_str()?.trim_end_matches('/').to_owned();
   let token: String = crate::secrets::load("sonar_session")?;
-  (!base.is_empty() && !token.is_empty()).then_some((base, token))
+  (!token.is_empty()).then(|| (crate::account::base(db), token))
 }
 
 /// Обмен сейчас (команда `sync_now`): нет сервера — понятная ошибка.
@@ -156,19 +173,29 @@ pub async fn sync_now(http: &reqwest::Client, db: &Mutex<Store>) -> Result<SyncR
   sync_once(db, &Http { http, base, token }).await
 }
 
-/// Фоновый обмен раз в 2 минуты, когда сервер подключён (`lib.rs` запускает при старте).
+/// Фоновый обмен: через 10 с после запуска, дальше раз в 2 минуты, когда вошли в аккаунт (`lib.rs`).
+/// Пришло чужое — окну `sync-applied`: Медиатека и настройки перечитываются.
 pub async fn background(app: tauri::AppHandle) {
-  use tauri::Manager;
+  use tauri::{Emitter, Manager};
+  let mut wait = 10;
   loop {
-    tokio::time::sleep(std::time::Duration::from_secs(120)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+    wait = 120;
     let (Some(core), Some(db)) = (app.try_state::<std::sync::Arc<crate::services::Core>>(), app.try_state::<crate::commands::Db>()) else {
       continue;
     };
     if configured(&db.0).is_none() {
       continue;
     }
-    if let Err(e) = sync_now(&core.http(), &db.0).await {
-      log::warn!("синхронизация: {e}");
+    if crate::offline::is_on() {
+      continue;
+    }
+    match sync_now(&core.http(), &db.0).await {
+      Ok(r) if r.pulled > 0 => {
+        let _ = app.emit("sync-applied", r.pulled);
+      }
+      Ok(_) => {}
+      Err(e) => log::warn!("синхронизация: {e}"),
     }
   }
 }
@@ -221,7 +248,7 @@ impl Transport for MemoryServer {
       .map(|((kind, key), (value, rev, _))| Change { kind: kind.clone(), key: key.clone(), value: value.clone(), rev: *rev })
       .collect();
     changes.sort_by_key(|c| c.rev);
-    Ok(PullReply { rev: s.rev, changes })
+    Ok(PullReply { rev: s.rev, changes, more: false })
   }
 
   async fn plays(&self, plays: &[PlayUpload]) -> Result<usize> {
