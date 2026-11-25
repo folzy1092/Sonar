@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { actionFor, comboFrom, comboLabel, globalMap, hasCommandMod, HOTKEY_ACTIONS, isLocalAction, windowOnly, withCombo, withoutCombo } from './hotkeys-core'
+import { actionFor, comboFrom, comboLabel, globalMap, hasCommandMod, HOTKEY_ACTIONS, isLocalAction, spaceAction, takesText, windowOnly, withCombo, withoutCombo } from './hotkeys-core'
 import { DEFAULTS } from './settings.svelte'
 
 type Mods = Partial<Record<'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey', boolean>>
@@ -101,5 +101,20 @@ describe('горячие клавиши', () => {
     const list = rs.match(/pub const ACTIONS: &\[&str\] = &\[([^\]]*)\]/)?.[1] ?? ''
     const rust = [...list.matchAll(/"([a-z_]+)"/g)].map((m) => m[1])
     expect(rust).toEqual(HOTKEY_ACTIONS.filter((a) => !isLocalAction(a.id)).map((a) => a.id))
+  })
+  it('пробел без назначения — «Играть / пауза»', () => {
+    expect(spaceAction(DEFAULTS['hotkeys.map'])).toBe('toggle')
+    expect(spaceAction({ toggle: 'Ctrl+Alt+Space', like: 'Space' })).toBe('like')
+  })
+  it('текст печатают в полях, а галочки и ползунки пробел не забирают', () => {
+    expect(takesText({ tagName: 'INPUT', type: 'text' })).toBe(true)
+    expect(takesText({ tagName: 'INPUT' })).toBe(true)
+    expect(takesText({ tagName: 'INPUT', type: 'search' })).toBe(true)
+    expect(takesText({ tagName: 'TEXTAREA' })).toBe(true)
+    expect(takesText({ tagName: 'DIV', isContentEditable: true })).toBe(true)
+    expect(takesText({ tagName: 'INPUT', type: 'checkbox' })).toBe(false)
+    expect(takesText({ tagName: 'INPUT', type: 'range' })).toBe(false)
+    expect(takesText({ tagName: 'BUTTON' })).toBe(false)
+    expect(takesText(null)).toBe(false)
   })
 })

@@ -15,7 +15,7 @@ import { lyrics } from '../lyrics/lyrics.svelte'
 import { router } from '../app/router.svelte'
 import { lyricsAvail, sidePane } from '../app/side-pane.svelte'
 import { settingsPanel } from '../pages/settings-section.svelte'
-import { actionFor, comboFrom, globalMap, hasCommandMod, withCombo, withoutCombo, type HotkeyAction } from './hotkeys-core'
+import { actionFor, comboFrom, globalMap, hasCommandMod, spaceAction, takesText, withCombo, withoutCombo, type HotkeyAction } from './hotkeys-core'
 
 export { comboFrom, comboLabel, HOTKEY_ACTIONS, isLocalAction, isOutsideAction, windowOnly, type HotkeyAction, type HotkeyScope } from './hotkeys-core'
 
@@ -29,9 +29,11 @@ export function effectiveMap(): Record<string, string> {
 
 /** Фокус в поле ввода — голые клавиши и Shift+… там печатают, а не командуют. */
 function typing(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+  return target instanceof HTMLElement && takesText(target)
 }
+
+/** Окна, где пробел — «нажать выбранное» (подтверждение, меню): пауза там была бы сюрпризом. */
+const MODAL = '[role="alertdialog"], [aria-modal="true"], [role="menu"]'
 
 class Hotkeys {
   /** Действия, чьё сочетание не встало (занято другой программой). */
@@ -81,6 +83,20 @@ class Hotkeys {
     // зажатая клавиша повторяется: громкость и перемотку — пусть, остальное — один раз
     if (e.repeat && !['volume_up', 'volume_down', 'seek_back', 'seek_fwd'].includes(action)) return true
     this.run(action)
+    return true
+  }
+
+  /** Голый пробел — «Играть / пауза» где бы ни стоял фокус (App.svelte, фаза захвата — раньше кнопок и строк
+   *  списка, которые иначе «нажимаются» пробелом). Не трогаем поля ввода, подтверждения и меню. */
+  handleSpace(e: KeyboardEvent): boolean {
+    if (this.suspended || e.isComposing || e.code !== 'Space') return false
+    if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return false
+    const t = e.target
+    if (typing(t) || (t instanceof Element && t.closest(MODAL))) return false
+    e.preventDefault()
+    e.stopPropagation()
+    this.eatUp = e.code
+    if (!e.repeat) this.run(spaceAction(effectiveMap()))
     return true
   }
 

@@ -77,6 +77,24 @@ export function globalMap(map: Readonly<Record<string, string>>, scope: HotkeySc
   return Object.fromEntries(Object.entries(map).filter(([id, combo]) => combo && !LOCAL.has(id) && !windowOnly(combo)))
 }
 
+/** Поля, где пробел и буквы печатают, а не командуют. Галочка, ползунок и кнопка-input — нет: на них пробел
+ *  не ввод, а «нажать», и именно его мы перехватываем под «Играть / пауза». */
+const NON_TEXT_INPUT = ['checkbox', 'radio', 'range', 'button', 'submit', 'reset', 'color', 'file', 'image']
+
+/** Цель нажатия принимает текст (или список, который листается буквами): голые клавиши там не команды. */
+export function takesText(el: { tagName?: string; type?: string; isContentEditable?: boolean } | null): boolean {
+  if (!el) return false
+  if (el.isContentEditable) return true
+  const tag = el.tagName?.toUpperCase()
+  if (tag === 'TEXTAREA' || tag === 'SELECT') return true
+  return tag === 'INPUT' && !NON_TEXT_INPUT.includes((el.type ?? 'text').toLowerCase())
+}
+
+/** Что делает голый пробел в окне: свою команду из «Клавиши», если пробел туда назначен, иначе «Играть / пауза». */
+export function spaceAction(map: Readonly<Record<string, string>>): string {
+  return actionFor(map, 'Space') ?? 'toggle'
+}
+
 /** Действие для нажатия внутри окна: `null` — ничего (или сочетание у действия «только по всей системе»). */
 export function actionFor(map: Readonly<Record<string, string>>, combo: string | null): string | null {
   if (!combo) return null
