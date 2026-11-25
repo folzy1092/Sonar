@@ -512,3 +512,66 @@ CREATE TABLE admin_audit (                      -- журнал действий
 Объём `events`: ~30 открытий и ~1 000 треков в день на 10 человек ≈ 370 тыс. строк в год ≈ 60 МБ с индексами —
 в 2 ГБ Velt помещается; когда станет тесно — сворачивать старше года в дневные агрегаты.
 
+
+## Комнаты и личные сообщения (черновик, 2026-11-25; сервера нет)
+
+Модель — `docs/ROOMS.md` §1 и `docs/DM.md` §1, ядра клиентов — `lib/rooms/`, `lib/dm/` (ПК), `Core/Rooms/`, `Core/DM/`
+(iPhone). Схема — набросок под сервер, миграции нет.
+
+```sql
+CREATE TABLE rooms (
+  id            TEXT PRIMARY KEY,
+  host_id       TEXT NOT NULL REFERENCES users(id),
+  leader_id     TEXT NOT NULL REFERENCES users(id),
+  pos           INTEGER NOT NULL DEFAULT 0,
+  playing       INTEGER NOT NULL DEFAULT 0,
+  anchor_ts     INTEGER NOT NULL,               -- часы сервера, мс
+  anchor_pos    INTEGER NOT NULL DEFAULT 0,     -- мс
+  rev           INTEGER NOT NULL DEFAULT 1,
+  closed_at     INTEGER,
+  created_at    INTEGER NOT NULL
+);
+CREATE TABLE room_members (
+  room_id       TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id),
+  dj            INTEGER NOT NULL DEFAULT 0,
+  joined_at     INTEGER NOT NULL,
+  PRIMARY KEY (room_id, user_id)
+);
+CREATE TABLE room_queue (
+  room_id       TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+  idx           INTEGER NOT NULL,
+  ref           TEXT NOT NULL,
+  added_by      TEXT NOT NULL REFERENCES users(id),
+  PRIMARY KEY (room_id, idx)
+);
+CREATE TABLE dm_threads (
+  id            TEXT PRIMARY KEY,
+  room_id       TEXT REFERENCES rooms(id) ON DELETE CASCADE,  -- чат комнаты; NULL — личный
+  created_at    INTEGER NOT NULL
+);
+CREATE TABLE dm_members (                       -- двое в личном, участники — в чате комнаты
+  thread_id     TEXT NOT NULL REFERENCES dm_threads(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id),
+  read_at       INTEGER NOT NULL DEFAULT 0,     -- до какого sent_at прочитал
+  PRIMARY KEY (thread_id, user_id)
+);
+CREATE TABLE dm_messages (
+  id            TEXT PRIMARY KEY,
+  thread_id     TEXT NOT NULL REFERENCES dm_threads(id) ON DELETE CASCADE,
+  from_id       TEXT NOT NULL REFERENCES users(id),
+  text          TEXT NOT NULL DEFAULT '',       -- до 2000 символов; без сквозного шифрования
+  reply_to      TEXT,
+  sent_at       INTEGER NOT NULL,
+  edited_at     INTEGER,
+  deleted       INTEGER NOT NULL DEFAULT 0      -- удалённое: text = '', вложения стёрты
+);
+CREATE INDEX dm_messages_thread ON dm_messages(thread_id, sent_at);
+CREATE TABLE dm_attachments (
+  message_id    TEXT NOT NULL REFERENCES dm_messages(id) ON DELETE CASCADE,
+  idx           INTEGER NOT NULL,               -- до 4 на сообщение
+  kind          TEXT NOT NULL,                  -- track | playlist | room
+  data          TEXT NOT NULL,                  -- JSON вложения (docs/DM.md §1)
+  PRIMARY KEY (message_id, idx)
+);
+```

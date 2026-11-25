@@ -432,6 +432,14 @@ missing, truncated}`.
 треками, которых в нём ещё нет. Windows-клиент сейчас делает всё это локально (команды
 `src-tauri/src/commands.rs`, те же формы).
 
+### Комнаты и личные сообщения (черновик, 2026-11-25; сервера нет)
+
+Протокол комнат (WebSocket `/rooms/{id}`: `join` / `leave` / `op` / `suggest` / `ping` ↔ `state` / `error` / `suggested` /
+`pong`) — `docs/ROOMS.md` §3; эндпоинты ЛС (`/dm/threads…`) — `docs/DM.md` §2. Имена операций и ошибок — как в ядрах
+клиентов (`lib/rooms/room-core.ts`, `Core/Rooms/RoomCore.swift`), формат `Room` — JSON с `snake_case`, как у ПК.
+**Сообщения не шифруются сквозным шифрованием** — сервер их видит. Приватность: `privacy.messages` (friends / nobody),
+`privacy.room_invites`, `privacy.room_visible`. Допишется сюда целиком, когда начнём сервер.
+
 ### Импорт плейлиста по ссылке (пока только клиент)
 
 Ссылка на плейлист или альбом любого сервиса → смешанный плейлист Sonar (NEXT_PROMPT этап 5). Источники:

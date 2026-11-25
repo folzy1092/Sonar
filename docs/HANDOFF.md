@@ -1,3 +1,19 @@
+# Передача 2026-11-25 (ночь) → комнаты и личные сообщения до сервера
+
+`docs/TASTE_ROOMS_PROMPT.md` §6–7, часть «до сервера». Спеки вынесены: `docs/ROOMS.md`, `docs/DM.md` (там же вопросы владельцу).
+- ПК: ядра `lib/rooms/room-core.ts` (роли, права, операции, `rev`, якорь), `lib/rooms/room-sync.ts` (часы по пингам, «ничего /
+  ±3 % / seek»), `lib/dm/dm-core.ts` (вложения, `sonar://` в тексте, правка, удаление, прочитанность) + тесты. Страница
+  `social` — `pages/SocialPage.svelte`, `pages/social/RoomView.svelte`, `ChatView.svelte`, демо `social-demo.ts`; вход — Ctrl+K
+  «Комнаты и сообщения» и Аккаунт → Приватность → «Как это будет выглядеть». Новые значки `chat send group crown reply`.
+  Переводы — `i18n/*/social.ts`. Приватность — три новых ключа (`privacy.messages` без «Все»).
+- iPhone: `Core/Rooms/RoomCore.swift`, `RoomSync.swift`, `SocialDemo.swift`, `Core/DM/DMCore.swift`, экран
+  `Features/Social/SocialPreviewView.swift` (из Приватности), `DeepLink.room`, тесты `RoomCoreTests`, `DMCoreTests`, `PrivacyTests`.
+  **Swift локально не компилировался** — только CI.
+- Проверено: vitest и svelte-check зелёные, скриншоты страницы в браузере с подменой Tauri. Вживую в exe и на телефоне — нет.
+- Дальше по комнатам — замер точности синхронизации по Wi‑Fi (`ROOMS.md` §4.1) до любой сетевой части.
+
+---
+
 # Передача 2026-11-25 (ночь) → своя левая панель
 
 Владелец: панель слева один в один как у Dotify, хочется, чтобы с первого взгляда было видно другой плеер, и чуть шире.
