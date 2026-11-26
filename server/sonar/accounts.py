@@ -28,8 +28,22 @@ REF_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 TOKEN_PREFIX = "snr_"
 TOKEN_LIKE = re.compile(r"^(y0_[\w-]{20,}|AQAAAA[\w-]{20,}|2-\d{5,}-\d+-\w{10,}|[A-Za-z0-9_-]{32,})$")
 
-_ph = PasswordHasher()  # argon2id по умолчанию
+# argon2id в минимуме OWASP (19 МБ, 2 прохода, 1 поток). Умолчание библиотеки (64 МБ, 3 прохода, 4 потока) на контейнере с
+# 25 % vCPU и 512 МБ держит один вход 1,5–2,5 секунды, а несколько подряд (повторы телефона) дают таймауты и скачок памяти.
+# Старые хэши проверяются по своим параметрам и тихо переписываются при ближайшем входе (`Accounts.verify`).
+_ph = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)
 _DUMMY_HASH = _ph.hash("not-a-password")
+_cpu = asyncio.Semaphore(2)   # не больше двух хэшей одновременно: память и процессор — четверть ядра
+
+
+async def hash_password(password: str) -> str:
+    async with _cpu:
+        return await asyncio.to_thread(_ph.hash, password)
+
+
+async def check_password(password_hash: str, password: str) -> bool:
+    async with _cpu:
+        return await asyncio.to_thread(password_ok, password_hash, password)
 
 
 def password_ok(password_hash: str, password: str) -> bool:
@@ -170,7 +184,7 @@ class Accounts:
         ref = self.by_referral(referred_code) if referred_code else None
         uid = "u_" + secrets.token_hex(8)
         # Хэш — в потоке: бот и админка живут в одном цикле событий, argon2 не должен его держать.
-        password_hash = await asyncio.to_thread(_ph.hash, password)
+        password_hash = await hash_password(password)
         with tx(self.con):
             if not self.login_free(login):  # пока считался хэш, логин мог занять другой
                 raise AccountError("login_taken")
@@ -197,10 +211,13 @@ class Accounts:
         r = self.con.execute("SELECT * FROM users WHERE login = ?", (login.strip().lstrip("@"),)).fetchone()
         if r is None:
             # Та же работа argon2, что и с настоящим логином: по времени ответа не понять, есть ли такой аккаунт.
-            await asyncio.to_thread(password_ok, _DUMMY_HASH, password)
+            await check_password(_DUMMY_HASH, password)
             raise AccountError("no_user")
-        if not await asyncio.to_thread(password_ok, r["password_hash"] or _DUMMY_HASH, password):
+        if not await check_password(r["password_hash"] or _DUMMY_HASH, password):
             raise AccountError("bad_password")
+        if r["password_hash"] and _ph.check_needs_rehash(r["password_hash"]):
+            # вход подтверждён — переписываем старый тяжёлый хэш на облегчённый (один раз на пользователя)
+            self.con.execute("UPDATE users SET password_hash = ? WHERE id = ?", (await hash_password(password), r["id"]))
         if r["banned"]:
             # О бане говорим только тому, кто знает пароль: чужому это не раскрывает, что такой аккаунт есть.
             raise AccountError("banned", bans.Ban(r["ban_reason"], r["ban_until"], r["banned_at"]))
@@ -227,9 +244,9 @@ class Accounts:
             raise AccountError("password_short")
         if user.has_password:
             r = self.con.execute("SELECT password_hash FROM users WHERE id = ?", (user.id,)).fetchone()
-            if not old_password or not await asyncio.to_thread(password_ok, r["password_hash"] or _DUMMY_HASH, old_password):
+            if not old_password or not await check_password(r["password_hash"] or _DUMMY_HASH, old_password):
                 raise AccountError("bad_password")
-        h = await asyncio.to_thread(_ph.hash, new_password)
+        h = await hash_password(new_password)
         self.con.execute("UPDATE users SET password_hash = ? WHERE id = ?", (h, user.id))
 
     def update_profile(self, user: User, username: str | None = None, display_name: str | None = None) -> User:

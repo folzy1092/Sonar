@@ -159,7 +159,11 @@ final class AccountStore {
         let api = try api()
         while !Task.isCancelled {
             if Int64(now().timeIntervalSince1970 * 1000) > link.expiresAt { return .expired }
-            let poll = try await api.pollLink(link.code)
+            // Мобильная сеть теряет ответы: таймаут одного опроса не конец ожидания — пробуем снова, пока не истечёт ссылка
+            guard let poll = try await lenient({ try await api.pollLink(link.code) }) else {
+                try await Task.sleep(for: pollInterval)
+                continue
+            }
             switch poll.status {
             case .pending:
                 try await Task.sleep(for: pollInterval)
@@ -174,6 +178,15 @@ final class AccountStore {
             }
         }
         throw CancellationError()
+    }
+
+    /// Один опрос по ненадёжной сети: сбой сети (`network`) — `nil`, «повтори позже»; всё остальное (отказ сервера, 401, бан) — ошибка.
+    private func lenient<T>(_ work: () async throws -> T) async throws -> T? {
+        do {
+            return try await work()
+        } catch let error as APIError where error.code == "network" {
+            return nil
+        }
     }
 
     func logout() async {
@@ -268,7 +281,10 @@ final class AccountStore {
         if let url = URL(string: start.link) { open(url) }
         while !Task.isCancelled {
             if Int64(Date().timeIntervalSince1970 * 1000) > start.expiresAt { return false }
-            let poll = try await guarded { try await api.telegramPoll(start.requestId) }
+            guard let poll = try await lenient({ try await guarded { try await api.telegramPoll(start.requestId) } }) else {
+                try await Task.sleep(for: pollInterval)
+                continue
+            }
             switch poll.status {
             case .pending: try await Task.sleep(for: pollInterval)
             case .approved:

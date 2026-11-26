@@ -173,7 +173,7 @@ def test_other_user_devices_invisible(client):
 
 # ---- быстрая ссылка ----
 
-def test_quick_link_device_flow(client):
+def test_quick_link_device_flow(client, con):
     tok = register(client)["session"]
     link = client.post("/api/auth/link", json={"device": PHONE}).json()
     code = link["code"]
@@ -188,8 +188,10 @@ def test_quick_link_device_flow(client):
     got = client.get(f"/api/auth/link/{code}/poll").json()
     assert got["status"] == "approved" and got["user"]["login"] == "mira"
     assert client.get("/api/me", headers=bearer(got["session"])).status_code == 200
-    # Сессию выдают один раз.
-    assert client.get(f"/api/auth/link/{code}/poll").json() == {"status": "expired"}
+    # Ответ с сессией мог потеряться по мобильной сети — повторный опрос отдаёт тот же токен, а не «expired»
+    again = client.get(f"/api/auth/link/{code}/poll").json()
+    assert again["status"] == "approved" and again["session"] == got["session"] and again["user"]["login"] == "mira"
+    assert con.execute("SELECT COUNT(*) FROM sessions WHERE device_id = ?", (PHONE["id"],)).fetchone()[0] == 1  # сессия одна
 
 
 def test_quick_link_reject_and_expire(client, con):
@@ -279,3 +281,27 @@ def test_link_data_has_no_secrets(client, con):
     client.post("/api/auth/link", json={"device": PHONE})
     row = con.execute("SELECT for_json FROM auth_links").fetchone()
     assert json.loads(row[0])["id"] == "uuid-phone"
+
+
+def test_lost_poll_answer_is_repeated_only_for_a_short_while(client, con, monkeypatch):
+    tok = register(client)["session"]
+    code = client.post("/api/auth/link", json={"device": PHONE}).json()["code"]
+    client.post(f"/api/auth/link/{code}/approve", headers=bearer(tok))
+    first = client.get(f"/api/auth/link/{code}/poll").json()
+    now = [1000.0]
+    monkeypatch.setattr(sessions.time, "monotonic", lambda: now[0])
+    sessions._claimed[sessions._h(code)] = (first["session"], now[0] + sessions.CLAIM_GRACE_S)
+    assert client.get(f"/api/auth/link/{code}/poll").json()["session"] == first["session"]
+    now[0] += sessions.CLAIM_GRACE_S + 1
+    assert client.get(f"/api/auth/link/{code}/poll").json() == {"status": "expired"}          # окно кончилось
+    assert sessions._h(code) not in sessions._claimed                                          # и память чистится
+
+
+def test_repeat_poll_of_someone_elses_or_unapproved_link_gives_nothing(client):
+    code = client.post("/api/auth/link", json={"device": PHONE}).json()["code"]
+    assert client.get(f"/api/auth/link/{code}/poll").json() == {"status": "pending"}
+    other = client.post("/api/auth/link", json={"device": dict(PHONE, id="uuid-other")}).json()["code"]
+    tok = register(client)["session"]
+    client.post(f"/api/auth/link/{other}/approve", headers=bearer(tok))
+    client.get(f"/api/auth/link/{other}/poll")
+    assert client.get(f"/api/auth/link/{code}/poll").json() == {"status": "pending"}           # чужой токен не подмешивается

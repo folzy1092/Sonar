@@ -15,6 +15,7 @@ import hashlib
 import json
 import secrets
 import sqlite3
+import time
 from dataclasses import dataclass
 
 from .accounts import User
@@ -204,14 +205,35 @@ def decide(con: sqlite3.Connection, link: Link, status: str, user_id: str | None
     return bool(cur.rowcount)
 
 
+# Токен сессии в базе лежит только хэшем, поэтому повторно выдать его можно лишь из памяти. Ответ с сессией по мобильной сети
+# теряется (обрыв, таймаут): раньше повторный опрос отвечал «expired», бот писал «Вход разрешён», а телефон оставался без
+# аккаунта. Теперь тому, кто знает код (секрет на 32 байта), токен отдаётся повторно ещё CLAIM_GRACE_S секунд. Рестарт
+# сервера в эти две минуты забывает токен — человек просто запросит новую ссылку.
+CLAIM_GRACE_S = 120
+_claimed: dict[str, tuple[str, float]] = {}
+
+
+def _regrant(code_hash: str) -> str | None:
+    now = time.monotonic()
+    for key in [k for k, (_, until) in _claimed.items() if until <= now]:
+        del _claimed[key]
+    hit = _claimed.get(code_hash)
+    return hit[0] if hit else None
+
+
 def claim(con: sqlite3.Connection, link: Link) -> str | None:
-    """Опрос `device`-запроса: разрешён → сессия для нового устройства, ровно один раз (approved → done)."""
-    if link.kind != "device" or link.status != "approved" or not link.user_id:
+    """Опрос `device`-запроса: разрешён → сессия для нового устройства. Создаётся один раз (approved → done), но тот же
+    токен повторяется на повторных опросах в течение CLAIM_GRACE_S — на случай потерянного ответа."""
+    if link.kind != "device" or not link.user_id or link.status not in ("approved", "done"):
         return None
+    if link.status == "done":
+        return _regrant(link.code_hash)
     if not con.execute("UPDATE auth_links SET status = 'done' WHERE code_hash = ? AND status = 'approved'",
                        (link.code_hash,)).rowcount:
-        return None
-    return create(con, link.user_id, DeviceInfo.parse(link.data))
+        return _regrant(link.code_hash)           # параллельный опрос уже забрал — отдаём ему же выданное
+    token = create(con, link.user_id, DeviceInfo.parse(link.data))
+    _claimed[link.code_hash] = (token, time.monotonic() + CLAIM_GRACE_S)
+    return token
 
 
 def purge(con: sqlite3.Connection) -> None:

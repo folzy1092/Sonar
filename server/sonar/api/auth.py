@@ -136,10 +136,9 @@ def _link_or_404(request: Request, code: str) -> sessions.Link:
 
 def _poll_answer(request: Request, link: sessions.Link) -> dict:
     st = request.app.state
-    if link.status == "done":
-        return {"status": "expired"}  # сессию уже забрали — второй раз не выдаём
-    if link.status != "approved":
+    if link.status not in ("approved", "done"):
         return {"status": link.status}
+    # `done` — сессию уже выдавали: пока не прошли CLAIM_GRACE_S, тот же токен отдаём снова (ответ мог потеряться по дороге)
     token = sessions.claim(st.con, link)
     if token is None:
         return {"status": "expired"}

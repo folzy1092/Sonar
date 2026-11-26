@@ -10,10 +10,10 @@ final class BanTests: XCTestCase {
     private static let bannedBody = #"{"error":{"code":"account_banned","message":"Учётная запись заблокирована","until":1795000000000,"reason":"спам"}}"#
     private static let foreverBody = #"{"error":{"code":"account_banned","message":"Учётная запись заблокирована навсегда","until":null,"reason":null}}"#
 
-    private func makeStore(api: FakeAPI = FakeAPI(), secrets: MemorySecrets = MemorySecrets()) -> AccountStore {
+    private func makeStore(api: FakeAPI = FakeAPI(), secrets: MemorySecrets = MemorySecrets(), fetch: APIClient.Fetch? = nil) -> AccountStore {
         let settings = SettingsStore(storage: UserDefaults(suiteName: "ban-\(UUID().uuidString)")!)
         settings.set(AccountStore.enabledKey, true)
-        return AccountStore(settings: settings, secrets: secrets, plistURL: "https://try-sonar.ru/api", fetch: api.fetch,
+        return AccountStore(settings: settings, secrets: secrets, plistURL: "https://try-sonar.ru/api", fetch: fetch ?? api.fetch,
                             pollInterval: .milliseconds(1),
                             device: { DeviceDescriptor(id: $0, name: "iPhone", platform: .ios, os: "iOS 18", appVersion: "0.2.0", build: 7) })
     }
@@ -175,6 +175,63 @@ final class BanTests: XCTestCase {
         XCTAssertTrue(AccountErrorText.of(net).hasSuffix("(таймаут, -1001)"))
         XCTAssertEqual(AccountErrorText.of(APIError(status: 401, code: "bad_credentials", message: "Неверный логин или пароль")),
                        t("Неверный логин или пароль"))
+    }
+
+    // MARK: вход по ссылке в ненадёжной сети
+
+    private final class PollScript: @unchecked Sendable {
+        private let lock = NSLock()
+        private(set) var polls = 0
+
+        func next() -> Int {
+            lock.lock()
+            defer { lock.unlock() }
+            polls += 1
+            return polls
+        }
+    }
+
+    /// Первый опрос потерялся (таймаут), второй — «ждём», третий — «разрешено»: вход всё равно состоялся.
+    func testLinkWaitSurvivesALostPollAnswer() async throws {
+        let script = PollScript()
+        let expires = Int64(Date().timeIntervalSince1970 * 1000) + 60_000
+        let store = makeStore(fetch: { request in
+            let route = FakeAPI.route(request)
+            if route == "POST /auth/link" {
+                return (Data(#"{"code":"abc","url":"https://try-sonar.ru/auth/abc","expires_at":\#(expires)}"#.utf8), 200)
+            }
+            if route == "GET /auth/link/abc/poll" {
+                switch script.next() {
+                case 1: throw URLError(.timedOut)
+                case 2: return (Data(#"{"status":"pending"}"#.utf8), 200)
+                default: return (Data(#"{"status":"approved","session":"tok","user":\#(userJSON)}"#.utf8), 200)
+                }
+            }
+            return (Data(#"{"error":{"code":"not_found","message":"нет"}}"#.utf8), 404)
+        })
+        let link = try await store.createLoginLink()
+        let outcome = try await store.waitForLink(link)
+        XCTAssertEqual(outcome, .approved)
+        XCTAssertTrue(store.signedIn)
+        XCTAssertEqual(script.polls, 3)
+    }
+
+    /// Сервер ответил отказом — это не «потерялся ответ», ожидание заканчивается ошибкой, а не крутится вечно.
+    func testLinkWaitStopsOnARealServerError() async throws {
+        let expires = Int64(Date().timeIntervalSince1970 * 1000) + 60_000
+        let store = makeStore(fetch: { request in
+            if FakeAPI.route(request) == "POST /auth/link" {
+                return (Data(#"{"code":"abc","url":"https://try-sonar.ru/auth/abc","expires_at":\#(expires)}"#.utf8), 200)
+            }
+            return (Data(#"{"error":{"code":"not_found","message":"Ссылка не найдена"}}"#.utf8), 404)
+        })
+        let link = try await store.createLoginLink()
+        do {
+            _ = try await store.waitForLink(link)
+            XCTFail("404 должен прервать ожидание")
+        } catch let error as APIError {
+            XCTAssertEqual(error.status, 404)
+        }
     }
 
     // MARK: ключ API

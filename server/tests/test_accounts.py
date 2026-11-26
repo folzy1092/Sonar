@@ -99,3 +99,37 @@ def test_listeners_24h_counts_accounts_once(acc, con):
     con.execute("INSERT INTO player_state (user_id, is_playing, heartbeat_at) VALUES (?, 1, ?)", (c.id, now_ms()))
     con.execute("INSERT INTO player_state (user_id, is_playing, heartbeat_at) VALUES (?, 1, ?)", (a.id, now_ms()))
     assert acc.listeners_24h() == 2
+
+
+# ---- argon2 по минимуму OWASP: быстрее на 25 % vCPU, старые хэши переписываются при входе ----
+
+def test_new_hashes_use_the_light_parameters(acc):
+    from argon2 import PasswordHasher
+    from argon2.low_level import Type
+    user = run(acc.register("mira", "secret-pass"))
+    stored = acc.con.execute("SELECT password_hash FROM users WHERE id = ?", (user.id,)).fetchone()[0]
+    assert stored.startswith("$argon2id$") and "m=19456,t=2,p=1" in stored
+    assert not PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1, type=Type.ID).check_needs_rehash(stored)
+
+
+def test_old_heavy_hash_still_logs_in_and_is_rewritten(acc):
+    from argon2 import PasswordHasher
+    user = run(acc.register("mira", "secret-pass"))
+    heavy = PasswordHasher().hash("secret-pass")                       # параметры библиотеки по умолчанию: 64 МБ, t=3, p=4
+    acc.con.execute("UPDATE users SET password_hash = ? WHERE id = ?", (heavy, user.id))
+    assert run(acc.verify("mira", "secret-pass")).id == user.id        # старый хэш проверяется по своим параметрам
+    now = acc.con.execute("SELECT password_hash FROM users WHERE id = ?", (user.id,)).fetchone()[0]
+    assert now != heavy and "m=19456,t=2,p=1" in now                    # и переписан на облегчённый
+    assert run(acc.verify("mira", "secret-pass")).id == user.id        # новый хэш работает
+    with pytest.raises(AccountError):
+        run(acc.verify("mira", "wrong-password"))
+
+
+def test_wrong_password_does_not_rewrite_the_hash(acc):
+    from argon2 import PasswordHasher
+    user = run(acc.register("mira", "secret-pass"))
+    heavy = PasswordHasher().hash("secret-pass")
+    acc.con.execute("UPDATE users SET password_hash = ? WHERE id = ?", (heavy, user.id))
+    with pytest.raises(AccountError):
+        run(acc.verify("mira", "nope-nope-nope"))
+    assert acc.con.execute("SELECT password_hash FROM users WHERE id = ?", (user.id,)).fetchone()[0] == heavy
