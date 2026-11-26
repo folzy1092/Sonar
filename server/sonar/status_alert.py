@@ -57,6 +57,12 @@ def alert_title(c: Change) -> str:
     return f"Статус: {NAMES.get(c.key, c.key)}"
 
 
+# Об этих пунктах пишем в лог-группу. Остальное (lrclib, Genius, SoundCloud, Яндекс, YouTube, Spotify, Apple, «Медиа») — чужие
+# сервисы, к которым ходит само устройство со своего IP, а тексты песен ищет приложение: что с ними видит сервер в Германии,
+# пользователям неважно (lrclib вечно отвечает дольше 5 с), поэтому в логе молчим; в `/status` и на странице статуса они видны.
+OWN = frozenset({"main", "bot", "site", "storage", "proxy", "telegram"})
+
+
 class AlertGate:
     """Какие смены статуса идут в лог-группу. Раньше — каждая: одиночный таймаут lrclib на 5 секунд давал ⚠️, а следующая
     нормальная проверка — ✅, то есть два сообщения на пустяк. Теперь: пишем, только когда сбой подтверждён (❌ — три
@@ -74,6 +80,8 @@ class AlertGate:
             self.down = set()
 
     def allow(self, change: Change) -> bool:
+        if change.key not in OWN:
+            return False
         if change.new == DOWN:
             self.down.add(change.key)
         elif change.new == OK and change.key in self.down:

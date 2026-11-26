@@ -186,26 +186,41 @@ def _gate(con):
 
 def test_short_failures_and_warnings_stay_silent(con):
     gate = _gate(con)
-    assert not gate.allow(_change(old=OK, new=PARTIAL, now=Item("lrclib", DOWN, note="не ответил за 5 с")))
-    assert not gate.allow(_change(old=PARTIAL, new=OK, now=Item("lrclib", OK, 100)))
-    assert not gate.allow(_change(old=OK, new=PARTIAL, now=Item("lrclib", DOWN)))
+    assert not gate.allow(_change(key="site", old=OK, new=PARTIAL, now=Item("site", DOWN, note="не ответил за 5 с")))
+    assert not gate.allow(_change(key="site", old=PARTIAL, new=OK, now=Item("site", OK, 100)))
+    assert not gate.allow(_change(key="site", old=OK, new=PARTIAL, now=Item("site", DOWN)))
+
+
+def test_foreign_services_never_reach_the_log_even_when_down(con):
+    """lrclib и Genius нашему сервису не нужны (тексты ищет приложение), SoundCloud и Яндекс играют с устройства."""
+    gate = _gate(con)
+    for key in ("lrclib", "genius", "soundcloud", "yandex", "youtube", "spotify", "apple", "media"):
+        assert not gate.allow(_change(key=key, old=PARTIAL, new=DOWN)), key
+        assert not gate.allow(_change(key=key, old=DOWN, new=OK, now=Item(key, OK, 90))), key
+    assert gate.down == set()                                                   # и не запоминаем как «сообщённое»
+
+
+def test_own_items_are_reported(con):
+    gate = _gate(con)
+    for key in ("main", "bot", "site", "storage", "proxy", "telegram"):
+        assert gate.allow(_change(key=key, old=PARTIAL, new=DOWN)), key
 
 
 def test_confirmed_outage_and_recovery_are_reported_once(con):
     gate = _gate(con)
-    assert gate.allow(_change(old=PARTIAL, new=DOWN))
-    assert not gate.allow(_change(old=DOWN, new=PARTIAL, now=Item("lrclib", OK, 90)))     # промежуточное ⚠️ молчит
-    assert gate.allow(_change(old=PARTIAL, new=OK, now=Item("lrclib", OK, 90)))           # а «снова работает» придёт
-    assert not gate.allow(_change(old=PARTIAL, new=OK, now=Item("lrclib", OK, 90)))        # второй раз — нет
+    assert gate.allow(_change(key="site", old=PARTIAL, new=DOWN))
+    assert not gate.allow(_change(key="site", old=DOWN, new=PARTIAL, now=Item("site", OK, 90)))   # промежуточное ⚠️ молчит
+    assert gate.allow(_change(key="site", old=PARTIAL, new=OK, now=Item("site", OK, 90)))         # а «снова работает» придёт
+    assert not gate.allow(_change(key="site", old=PARTIAL, new=OK, now=Item("site", OK, 90)))      # второй раз — нет
 
 
 def test_recovery_after_restart_still_arrives(con):
-    assert _gate(con).allow(_change(old=PARTIAL, new=DOWN))
+    assert _gate(con).allow(_change(key="bot", old=PARTIAL, new=DOWN))
     after_restart = _gate(con)                                                            # новый процесс, память пуста
-    assert after_restart.allow(_change(old=PARTIAL, new=OK, now=Item("lrclib", OK, 90)))
+    assert after_restart.allow(_change(key="bot", old=PARTIAL, new=OK, now=Item("bot", OK, 90)))
 
 
 def test_gate_is_per_item(con):
     gate = _gate(con)
-    assert gate.allow(_change(key="lrclib", old=PARTIAL, new=DOWN))
-    assert not gate.allow(_change(key="genius", old=PARTIAL, new=OK, now=Item("genius", OK, 90)))   # у genius сбоя не было
+    assert gate.allow(_change(key="site", old=PARTIAL, new=DOWN))
+    assert not gate.allow(_change(key="bot", old=PARTIAL, new=OK, now=Item("bot", OK, 90)))   # у бота сбоя не было
