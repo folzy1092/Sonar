@@ -76,6 +76,12 @@ def install_site(app: FastAPI, directory: Path) -> None:
             page = await files.get_response(path.lstrip("/") or ".", request.scope)
         except HTTPException:
             return response
+        if page.status_code in (301, 302, 307, 308):
+            # «/faq» → «/faq/»: StaticFiles пишет абсолютный адрес со схемой, которую видит uvicorn, а за прокси
+            # хостинга это http. Относительный адрес оставляет браузер на https.
+            query = f"?{request.url.query}" if request.url.query else ""
+            page.headers["location"] = f"{path}/{query}"
+            return page
         page.headers["Cache-Control"] = _cache_control(path, page.media_type)
         return page
 

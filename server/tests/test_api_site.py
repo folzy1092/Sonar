@@ -76,6 +76,12 @@ def test_site_served_from_root(client):
     assert client.get("/../../etc/passwd").status_code == 404
 
 
+def test_site_slash_redirect_keeps_scheme(client):
+    # За прокси хостинга uvicorn видит http: абсолютный адрес в редиректе уводил бы с https на http.
+    r = client.get("/faq?x=1", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"] == "/faq/?x=1"
+
+
 def test_site_does_not_touch_api_and_admin(client):
     r = client.get("/api/nope")
     assert r.status_code == 404 and r.json() == {"error": {"code": "not_found", "message": "Not Found"}}

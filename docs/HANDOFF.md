@@ -127,7 +127,20 @@
 → 401 есть, а `/`, `/status`, `/@folzy`, `/api/oauth/now`, `/api/services/credentials`, `/downloads/…` → 404.
 То есть после этапа 3 сервер не перезапускали.
 
-**Живая проверка после рестарта** (не сделана — ждёт рестарта и владельца):
+**Живая проверка после рестарта — 2026-11-26, сервер на `4792a89`** (по HTTP снаружи):
+- ✅ п. 1: `/` → 200, `www` → 301 на `https://try-sonar.ru/`, http → 301 на https. `/@folzy` отдаёт `404.html` сайта со
+  скриптом `NotFound` (профиль рисуется в браузере, так задумано), `/api/public/users/folzy` → 200.
+- ✅ п. 2: `/api/oauth/now`, `/api/oauth/profile`, `/api/me`, `/api/services/credentials` без ключа → 401; `/api/nope` → 404 JSON;
+  `/admin/` → 303 на вход.
+- ✅ п. 6 (сервер): сборки уже выпущены — `/api/updates/windows/release.json` и `ios/release.json` отдают 0.3.0,
+  `/downloads/release/Sonar-setup.exe` → 200 (14,4 МБ) с сервера, не с GitHub.
+- 🔧 `/status` и `/faq` без слеша уводили на **http**://…/ (`StaticFiles` строит адрес из схемы uvicorn, за прокси — http).
+  Исправлено: редирект со слешем теперь относительный (`web.py`, тест `test_site_slash_redirect_keeps_scheme`). На Velt —
+  после `/update` сервера.
+- ⏳ не проверено (нужен владелец с устройствами): п. 3 вход на ПК и iPhone + синк лайка и Яндекса, п. 4 ключ API →
+  `/api/oauth/now?token=`, п. 5 `/dotify`, п. 6 — что ПК реально подхватывает обновление с сервера.
+
+Исходный список проверки:
 1. `curl -I https://try-sonar.ru/` → 200 (сайт), `/@folzy` — профиль, `https://www.try-sonar.ru/` → 301.
 2. `/api/oauth/now` без ключа → 401; `/api/updates/windows/release.json` → 404 (сборок ещё нет);
    `/downloads/release/Sonar-setup.exe` → 302 на GitHub.
