@@ -218,6 +218,12 @@ final class LookThemeTests: XCTestCase {
         XCTAssertNil(LocalProfile.profileURL("bad name"))
     }
 
+    func testShareURLPointsAtProfile() {
+        XCTAssertEqual(LocalProfile.shareURL(account: "folzy", local: "other").absoluteString, "https://try-sonar.ru/@folzy")
+        XCTAssertEqual(LocalProfile.shareURL(account: nil, local: "@Mira").absoluteString, "https://try-sonar.ru/@mira")
+        XCTAssertEqual(LocalProfile.shareURL(account: "", local: "").absoluteString, "https://try-sonar.ru")
+    }
+
     func testAvatarDataURL() {
         let bytes = Data([0xFF, 0xD8, 0xFF, 0x00, 0x42])
         let url = LocalProfile.dataURL(jpeg: bytes)

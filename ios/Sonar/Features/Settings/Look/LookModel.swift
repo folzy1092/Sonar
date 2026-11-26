@@ -311,6 +311,11 @@ enum LocalProfile {
         return "\(siteURL)/@\(name)"
     }
 
+    /// Что отдаёт «Поделиться» в профиле: ссылка на профиль (ник вошедшего аккаунта важнее локального), нет ника — сайт.
+    static func shareURL(account: String?, local: String) -> URL {
+        URL(string: profileURL(account ?? "") ?? profileURL(local) ?? siteURL)!
+    }
+
     /// Первая буква для заглушки аватара.
     static func initial(_ name: String) -> String {
         name.trimmingCharacters(in: .whitespacesAndNewlines).first.map { String($0).uppercased() } ?? "S"

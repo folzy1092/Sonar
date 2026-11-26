@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>{% block title %}Админка{% endblock %} · Sonar</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="{{ BASE }}/static/admin.css">
+<style>{{ ADMIN_CSS|safe }}</style>
 </head>
 <body>
 {% block body %}

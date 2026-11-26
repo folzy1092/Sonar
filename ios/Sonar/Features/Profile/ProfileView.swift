@@ -110,7 +110,8 @@ struct ProfileView: View {
                 Spacer(minLength: 0)
             }
             HStack(spacing: 12) {
-                ShareLink(item: URL(string: AboutSection.site)!, message: Text("Слушаю музыку в Sonar")) {
+                ShareLink(item: LocalProfile.shareURL(account: account.user?.username, local: settings.string(LookKey.profileUsername)),
+                          message: Text("Слушаю музыку в Sonar")) {
                     HStack(spacing: 10) {
                         SonarIcon(.share, size: 22)
                         Text("Поделиться")

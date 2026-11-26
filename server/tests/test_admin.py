@@ -457,3 +457,15 @@ def test_ip_headers_only_from_trusted_proxy(monkeypatch):
     assert _https(_req("10.0.0.2", {"X-Forwarded-Proto": "https"}))
     monkeypatch.setenv("SONAR_TRUSTED_PROXIES", "203.0.113.0/24")
     assert _ip(_req("203.0.113.9", spoof)) == "1.2.3.4"
+
+
+def test_styles_are_inlined_and_allowed_by_hash(client):
+    """Стили лежат в самой странице (второй запрос за CSS на плохом канале не доходит), CSP разрешает ровно этот текст."""
+    import base64
+    import hashlib
+    import re
+    page = client.get("/admin/login")
+    css = re.search(r"<style>(.*?)</style>", page.text, re.S).group(1)
+    assert "admin.css" not in page.text and ".shell" in css
+    digest = base64.b64encode(hashlib.sha256(css.encode("utf-8")).digest()).decode()
+    assert f"'sha256-{digest}'" in page.headers["content-security-policy"]

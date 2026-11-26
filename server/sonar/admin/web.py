@@ -6,7 +6,9 @@
 """
 from __future__ import annotations
 
+import base64
 import contextlib
+import hashlib
 import ipaddress
 import os
 import secrets
@@ -31,6 +33,10 @@ PRE_COOKIE = "sonar_admin_pre"
 BASE = "/admin"
 
 templates = Jinja2Templates(directory=str(HERE / "templates"))
+# Стили кладём прямо в страницу: на медленном и нестабильном канале (хостинг за прокси, мобильная сеть) второй запрос
+# за admin.css иногда не доходит, и страница остаётся голой. CSP разрешает именно этот текст по хэшу, не любой <style>.
+ADMIN_CSS = (HERE / "static" / "admin.css").read_text(encoding="utf-8")
+CSS_HASH = base64.b64encode(hashlib.sha256(ADMIN_CSS.encode("utf-8")).digest()).decode()
 
 SERVICE_NAMES = {"soundcloud": "SoundCloud", "yandex": "Яндекс Музыка", "youtube": "YouTube Music", "vk": "VK Музыка",
                  "spotify": "Spotify", "local": "Локальные файлы", None: "Без сервиса"}
@@ -100,7 +106,7 @@ def _fmt_day(day: str) -> str:
 
 
 templates.env.filters.update(num=_fmt_num, dt=_fmt_dt, day=_fmt_day)
-templates.env.globals.update(BASE=BASE, SERVICE_NAMES=SERVICE_NAMES, PLATFORM_NAMES=PLATFORM_NAMES, PLANS=subs.PLANS,
+templates.env.globals.update(BASE=BASE, ADMIN_CSS=ADMIN_CSS, SERVICE_NAMES=SERVICE_NAMES, PLATFORM_NAMES=PLATFORM_NAMES, PLANS=subs.PLANS,
                              PLAN_NAMES={k: v[0] for k, v in subs.PLANS.items()},
                              MESSAGES=MESSAGES, ACTIONS=ACTIONS)
 
@@ -175,7 +181,7 @@ def _https(request: Request) -> bool:
 
 def _secure(resp: Response) -> Response:
     resp.headers.update({
-        "Content-Security-Policy": "default-src 'none'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; form-action 'self';"
+        "Content-Security-Policy": "default-src 'none'; style-src 'self' 'sha256-" + CSS_HASH + "'; style-src-attr 'unsafe-inline'; img-src 'self' data:; form-action 'self';"
                                    " frame-ancestors 'none'; base-uri 'none'",
         "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "Cache-Control": "no-store",
         "X-Frame-Options": "DENY",
