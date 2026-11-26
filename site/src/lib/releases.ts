@@ -1,6 +1,6 @@
 // Версии для блока «Скачать»: iOS — `updates/ios-update.json`, «Что нового» — `updates/changelog.json`.
-// Версия Windows выпускается на каждый пуш (авто-патч), поэтому на странице она уточняется у GitHub
-// (`releases/latest`), а при сборке подставляется последняя из changelog.
+// Версия Windows уточняется на странице у своего сервера (`/api/updates/windows/release.json`, выпуск из админки),
+// а при сборке подставляется последняя из changelog. GitHub страница не трогает.
 import changelog from '../../../updates/changelog.json'
 import iosUpdate from '../../../updates/ios-update.json'
 
@@ -56,18 +56,9 @@ export function megabytes(bytes: number): string {
   return (Math.round((bytes / MB) * 10) / 10).toFixed(1)
 }
 
-/** Что нужно странице из ответа GitHub `releases/latest`; неверный ответ → null. */
-export interface WindowsRelease {
-  readonly version: string
-  readonly sizeBytes: number | null
-}
-
-export function parseLatestRelease(json: unknown, assetName: string): WindowsRelease | null {
+/** Версия из ответа `GET /api/updates/windows/release.json` (формат `tauri-plugin-updater`); нет сборки (404) или мусор → null. */
+export function parseUpdateManifest(json: unknown): string | null {
   if (!json || typeof json !== 'object') return null
-  const rel = json as { tag_name?: unknown; assets?: unknown }
-  const version = windowsVersionFromTag(rel.tag_name)
-  if (!version) return null
-  const assets = Array.isArray(rel.assets) ? (rel.assets as { name?: unknown; size?: unknown }[]) : []
-  const asset = assets.find((a) => a.name === assetName)
-  return { version, sizeBytes: typeof asset?.size === 'number' ? asset.size : null }
+  const version = (json as { version?: unknown }).version
+  return typeof version === 'string' && /^\d+\.\d+\.\d+$/.test(version) ? version : null
 }

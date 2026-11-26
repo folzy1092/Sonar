@@ -535,7 +535,7 @@ def _st(i: Item | None, ms: bool = False, extra: str = "") -> str:
 def _mark(i: Item | None, why: bool = False) -> str:
     """why — владельцу: у ⚠️ / ❌ причина (HTTP-код, таймаут, медленно)."""
     if i is None:
-        return e("partial")
+        return f"{e('info')} нет данных"   # Яндекс: судим по отчётам устройств, их может не быть
     mark = e({OK: "ok", PARTIAL: "partial", DOWN: "down"}[i.state])
     if why and i.state != OK and i.note:
         return f"{mark} {i.note}"

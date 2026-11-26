@@ -1,6 +1,7 @@
 """Экран бота = баннер (или нет) + HTML-текст + inline-кнопки. Показ правит то же сообщение (BOT.md §0)."""
 from __future__ import annotations
 
+import re
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,11 +37,20 @@ class Btn:
         return InlineKeyboardButton(**kw)
 
 
+def separate_quotes(html: str) -> str:
+    """Две цитаты подряд Telegram склеивает в одну — между ними нужна строка. Профиль, статус и «Сервисы» собираются из
+    нескольких `quote(...)`, поэтому разделитель ставим здесь, при создании экрана, а не в каждом месте."""
+    return re.sub(r"</blockquote>(?=<blockquote)", "</blockquote>\n", html)
+
+
 @dataclass
 class Screen:
     html: str
     kb: list[list[Btn]] = field(default_factory=list)
     banner: str | None = None      # main | profile | login | register | stats | support
+
+    def __post_init__(self) -> None:
+        self.html = separate_quotes(self.html)
 
     def markup(self) -> InlineKeyboardMarkup | None:
         return InlineKeyboardMarkup(inline_keyboard=[[b.build() for b in row] for row in self.kb]) if self.kb else None

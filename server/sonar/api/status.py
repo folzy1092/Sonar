@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import time
 
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 
-from .. import accounts
+from .. import accounts, sessions
 from ..db import now_ms
-from ..status import DOWN, OK, PARTIAL, Item, Status
+from ..status import DEVICE_CHECKED, DOWN, OK, PARTIAL, Item, Status
+from .deps import session
+from .errors import ApiError
 
 router = APIRouter()
 
@@ -102,3 +104,28 @@ async def get_history(request: Request, response: Response, days: int = Query(90
         st.history_cache = {**cache, days: hit}
     response.headers["Cache-Control"] = f"public, max-age={HISTORY_CACHE_S}"
     return hit[1]
+
+
+REPORT_NOTE_MAX = 100
+
+
+@router.post("/status/report", status_code=204)
+async def report(request: Request, s: sessions.Session = Depends(session)):
+    """Устройство сообщает, дошёл ли запрос до сервиса (сейчас — Яндекс: с серверов Velt он отвечает 451, а играет само
+    устройство). Тело: `{"service": "yandex", "ok": true, "ms": 180, "note": "HTTP 451"}`. У пользователя одна запись на
+    сервис — повторный отчёт её заменяет; в статусе учитываются отчёты за последние 20 минут (`Status.from_devices`)."""
+    try:
+        data = await request.json()
+    except ValueError:
+        raise ApiError(400, "bad_json", "Тело — JSON") from None
+    if not isinstance(data, dict) or data.get("service") not in DEVICE_CHECKED or not isinstance(data.get("ok"), bool):
+        raise ApiError(400, "bad_request", "Нужны service (yandex) и ok (true / false)")
+    ms = data.get("ms")
+    ms = int(ms) if isinstance(ms, (int, float)) and not isinstance(ms, bool) and 0 <= ms < 600_000 else None
+    note = data.get("note")
+    note = note.strip()[:REPORT_NOTE_MAX] if isinstance(note, str) and note.strip() else None
+    request.app.state.con.execute(
+        "INSERT INTO client_checks (user_id, service, ok, ms, note, at) VALUES (?,?,?,?,?,?)"
+        " ON CONFLICT(user_id, service) DO UPDATE SET ok = excluded.ok, ms = excluded.ms, note = excluded.note, at = excluded.at",
+        (s.user_id, data["service"], int(data["ok"]), ms, note, now_ms()))
+    return Response(status_code=204)

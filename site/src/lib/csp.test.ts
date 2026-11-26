@@ -29,11 +29,10 @@ describe('CSP сайта', () => {
     expect(policy).toMatch(/img-src 'self' data:/)
   })
 
-  it('сеть — только свой адрес (API Sonar под /api), релизы GitHub и lrclib (текст на странице трека)', () => {
+  it('сеть — только свой адрес (API Sonar под /api) и lrclib (текст на странице трека); GitHub не нужен', () => {
     const connect = directives.find((d) => d.startsWith('connect-src')) ?? ''
     expect(connect.split(/\s+/).slice(1).sort()).toEqual([
       "'self'",
-      'https://api.github.com',
       'https://lrclib.net',
     ])
   })

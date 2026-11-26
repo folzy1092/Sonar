@@ -22,7 +22,7 @@ from .db import connect
 from .logs import LogGroup
 from .releases import Releases
 from .status import Status
-from .status_alert import MARKS, alert_lines, alert_title
+from .status_alert import MARKS, AlertGate, alert_lines, alert_title
 from .updater import Updater
 
 log = logging.getLogger("sonar")
@@ -76,7 +76,11 @@ async def main() -> Updater:
     dp.include_router(moderation_router)   # раньше основного: там есть «поймать всё» для личных сообщений
     dp.include_router(router)
 
+    gate = AlertGate(con)
+
     async def on_status_change(change):
+        if not gate.allow(change):   # короткие сбои и ⚠️ в лог не идут (status_alert.AlertGate)
+            return
         await logs.event(MARKS[change.new], alert_title(change), lines=alert_lines(change), error=change.new == "down")
 
     status.on_change = on_status_change

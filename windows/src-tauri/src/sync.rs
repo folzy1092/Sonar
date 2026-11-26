@@ -178,6 +178,7 @@ pub async fn sync_now(http: &reqwest::Client, db: &Mutex<Store>) -> Result<SyncR
 pub async fn background(app: tauri::AppHandle) {
   use tauri::{Emitter, Manager};
   let mut wait = 10;
+  let mut tick: u32 = 0;
   loop {
     tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
     wait = 120;
@@ -189,6 +190,12 @@ pub async fn background(app: tauri::AppHandle) {
     }
     if crate::offline::is_on() {
       continue;
+    }
+    // Доступность Яндекса с этого устройства — серверу (статус судит по устройствам, с сервера Яндекс отвечает 451):
+    // сразу после запуска и дальше раз в ~6 минут, отчёт живёт на сервере 20.
+    tick = tick.wrapping_add(1);
+    if tick % 3 == 1 {
+      crate::account::report_yandex(&core, &db.0).await;
     }
     match sync_now(&core.http(), &db.0).await {
       Ok(r) if r.pulled > 0 => {

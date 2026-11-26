@@ -112,3 +112,100 @@ def test_changes_track_failure_duration_and_reason(con, tmp_path):
     assert st.bad_since == {}
     st.last = ok
     assert st._changes(ok, ok, now=1900.0) == []
+
+
+# ---- Яндекс по отчётам устройств, а не с сервера (451 из Германии) ----
+
+def _report(con, uid, ok, ms=150, note=None, at=None):
+    con.execute("INSERT OR IGNORE INTO users (id, number, login, username, display_name, created_at) VALUES (?,?,?,?,?,?)",
+                (uid, abs(hash(uid)) % 10**6, uid, uid, uid, 1))
+    con.execute("INSERT OR REPLACE INTO client_checks (user_id, service, ok, ms, note, at) VALUES (?,?,?,?,?,?)",
+                (uid, "yandex", int(ok), ms, note, at or now_ms()))
+
+
+def test_yandex_is_not_checked_from_the_server():
+    import inspect
+
+    from sonar.status import Status as S
+    assert "api.music.yandex.net" not in inspect.getsource(S.check)
+
+
+def test_no_device_reports_means_no_data_not_a_failure(con, tmp_path):
+    st = Status(con, tmp_path, Settings())
+    assert st.from_devices("yandex") is None
+
+
+def test_device_reports_decide_the_state(con, tmp_path):
+    st = Status(con, tmp_path, Settings())
+    _report(con, "a", True, 100)
+    assert st.from_devices("yandex").state == OK
+    _report(con, "b", False, note="HTTP 451")
+    assert st.from_devices("yandex").state == PARTIAL           # один из двух не дозвонился
+    for who in ("c", "d"):
+        _report(con, who, True, 200)
+    assert st.from_devices("yandex").state == OK                # плохой — меньшинство
+    assert st.from_devices("yandex").ms == 200                  # медиана по тем, у кого работает: 100, 200, 200
+
+
+def test_one_bad_device_alone_is_only_a_warning_two_are_an_outage(con, tmp_path):
+    st = Status(con, tmp_path, Settings())
+    _report(con, "a", False, note="HTTP 451")
+    assert st.from_devices("yandex").state == PARTIAL
+    _report(con, "b", False, note="таймаут")
+    item = st.from_devices("yandex")
+    assert item.state == DOWN and "❌ 2" in item.note and "HTTP 451" in item.note
+
+
+def test_old_device_reports_are_ignored(con, tmp_path):
+    st = Status(con, tmp_path, Settings())
+    _report(con, "a", True, at=now_ms() - 25 * 60_000)
+    assert st.from_devices("yandex") is None
+
+
+def test_media_ignores_missing_yandex_data(con, tmp_path, monkeypatch):
+    import asyncio
+
+    async def fake_remote(self, session, key, url, **params):
+        return Item(key, OK, 100, target=url)
+    monkeypatch.setattr(Status, "_remote", fake_remote)
+    monkeypatch.setattr(Status, "_telegram", lambda self: asyncio.sleep(0, Item("telegram", OK, 1)))
+    st = Status(con, tmp_path, Settings(data_dir=tmp_path, site_url="https://x"), bot=object())
+    got = asyncio.run(st.check())
+    assert "yandex" not in got and got["media"].state == OK and "нет данных" in got["media"].target
+    _report(con, "a", False, note="HTTP 451")
+    again = asyncio.run(st.check())
+    assert again["yandex"].state != OK and again["media"].state == PARTIAL
+
+
+# ---- уведомления: только подтверждённый сбой и восстановление после него ----
+
+def _gate(con):
+    from sonar.status_alert import AlertGate
+    return AlertGate(con)
+
+
+def test_short_failures_and_warnings_stay_silent(con):
+    gate = _gate(con)
+    assert not gate.allow(_change(old=OK, new=PARTIAL, now=Item("lrclib", DOWN, note="не ответил за 5 с")))
+    assert not gate.allow(_change(old=PARTIAL, new=OK, now=Item("lrclib", OK, 100)))
+    assert not gate.allow(_change(old=OK, new=PARTIAL, now=Item("lrclib", DOWN)))
+
+
+def test_confirmed_outage_and_recovery_are_reported_once(con):
+    gate = _gate(con)
+    assert gate.allow(_change(old=PARTIAL, new=DOWN))
+    assert not gate.allow(_change(old=DOWN, new=PARTIAL, now=Item("lrclib", OK, 90)))     # промежуточное ⚠️ молчит
+    assert gate.allow(_change(old=PARTIAL, new=OK, now=Item("lrclib", OK, 90)))           # а «снова работает» придёт
+    assert not gate.allow(_change(old=PARTIAL, new=OK, now=Item("lrclib", OK, 90)))        # второй раз — нет
+
+
+def test_recovery_after_restart_still_arrives(con):
+    assert _gate(con).allow(_change(old=PARTIAL, new=DOWN))
+    after_restart = _gate(con)                                                            # новый процесс, память пуста
+    assert after_restart.allow(_change(old=PARTIAL, new=OK, now=Item("lrclib", OK, 90)))
+
+
+def test_gate_is_per_item(con):
+    gate = _gate(con)
+    assert gate.allow(_change(key="lrclib", old=PARTIAL, new=DOWN))
+    assert not gate.allow(_change(key="genius", old=PARTIAL, new=OK, now=Item("genius", OK, 90)))   # у genius сбоя не было

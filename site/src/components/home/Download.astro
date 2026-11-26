@@ -126,12 +126,11 @@ const IOS_STEPS = [
 </section>
 
 <script>
-  import { LINKS } from '../../config'
-  import { megabytes, parseLatestRelease } from '../../lib/releases'
+  import { API_URL, LINKS } from '../../config'
+  import { megabytes, parseUpdateManifest } from '../../lib/releases'
 
   type Tab = 'windows' | 'ios'
   const IOS_RE = /iPhone|iPad|iPod/i
-  const EXE_NAME = 'Sonar-setup.exe'
 
   function select(box: HTMLElement, tab: Tab, focus = false): void {
     box.dataset.tab = tab
@@ -176,25 +175,29 @@ const IOS_STEPS = [
     })
   }
 
-  // Версия Windows выходит на каждый пуш — уточняем у GitHub; не вышло — остаётся версия из сборки.
+  // Версию и размер Windows уточняем у своего сервера (сборку выпускает владелец в админке); сборки там ещё нет или
+  // сервера нет (`npm run dev`) — остаётся версия из сборки сайта. GitHub не спрашиваем.
   const versionEls = document.querySelectorAll<HTMLElement>('[data-win-version]')
-  if (versionEls.length > 0) {
-    fetch(LINKS.latestReleaseApi, { headers: { Accept: 'application/vnd.github+json' } })
+  if (versionEls.length > 0 && API_URL) {
+    fetch(`${API_URL}/updates/windows/release.json`)
       .then((r) => (r.ok ? r.json() : null))
       .then((json) => {
-        const rel = parseLatestRelease(json, EXE_NAME)
-        if (!rel) return
+        const version = parseUpdateManifest(json)
+        if (!version) return
         versionEls.forEach((el) => {
-          el.textContent = (el.dataset.template ?? '{v}').replace('{v}', rel.version)
+          el.textContent = (el.dataset.template ?? '{v}').replace('{v}', version)
         })
-        if (rel.sizeBytes) {
+        // размер — из заголовков самого файла; пока сборки нет, сервер отправляет на GitHub — это не наш ответ, пропускаем
+        return fetch(LINKS.windowsExe, { method: 'HEAD', redirect: 'manual' }).then((head) => {
+          const bytes = head.type === 'basic' && head.ok ? Number(head.headers.get('content-length')) : 0
+          if (!bytes) return
           document.querySelectorAll<HTMLElement>('[data-win-size]').forEach((el) => {
-            el.textContent = ` · ${megabytes(rel.sizeBytes!)} ${el.dataset.unit ?? ''}`
+            el.textContent = ` · ${megabytes(bytes)} ${el.dataset.unit ?? ''}`
           })
-        }
+        })
       })
       .catch(() => {
-        /* нет сети или лимит GitHub — показываем версию из сборки */
+        /* нет сети — показываем версию из сборки */
       })
   }
 </script>

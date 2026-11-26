@@ -67,6 +67,40 @@ pub fn notify_ended(app: &tauri::AppHandle, err: &str) {
   }
 }
 
+/// Итог проверки Яндекса с этого устройства: (дошёл ли запрос, пояснение). `status` — HTTP-код, `None` — ответа не было.
+pub fn yandex_verdict(status: Option<u16>, timeout: bool) -> (bool, String) {
+  match status {
+    Some(code) if (200..300).contains(&code) => (true, String::new()),
+    Some(code) => (false, format!("HTTP {code}")),
+    None if timeout => (false, "не ответил за 5 с".into()),
+    None => (false, "нет соединения".into()),
+  }
+}
+
+/// Сообщить серверу, доступен ли Яндекс с этого устройства (API.md §9 `POST /status/report`). С серверов Velt Яндекс
+/// отвечает 451, а музыку играет само устройство со своего IP, поэтому судим по устройствам. Молча: не вошли, офлайн,
+/// нет сети — просто нет отчёта.
+pub async fn report_yandex(core: &Core, db: &Mutex<Store>) {
+  if crate::offline::is_on() || token().is_none() {
+    return;
+  }
+  let started = std::time::Instant::now();
+  let reply = core
+    .http()
+    .get("https://api.music.yandex.net/search")
+    .query(&[("text", "sonar"), ("type", "track"), ("page", "0")])
+    .timeout(Duration::from_secs(5))
+    .send()
+    .await;
+  let ms = started.elapsed().as_millis() as i64;
+  let (ok, note) = match &reply {
+    Ok(r) => yandex_verdict(Some(r.status().as_u16()), false),
+    Err(e) => yandex_verdict(None, e.is_timeout()),
+  };
+  let body = json!({ "service": "yandex", "ok": ok, "ms": ms, "note": note });
+  let _ = call(core, db, reqwest::Method::POST, "status/report", Some(body), true).await;
+}
+
 /// Живая ли сессия: один `GET /me`. Сервер ответил «заблокирован» или «сессии нет» — сессия забыта локально, окну
 /// ушло `account-ended`. Без сети и прочие ошибки — молча (фоновый обмен просто повторится).
 pub async fn probe(app: &tauri::AppHandle) {
@@ -419,6 +453,15 @@ mod tests {
     assert_eq!(timed.to_front(), r#"banned:{"reason":null,"until":1795000000000}"#);
     // Обычный 403 (закрытая регистрация) — не бан: просто текст.
     assert!(!parse_error(403, r#"{"error":{"code":"registration_closed","message":"Закрыта"}}"#).is_banned());
+  }
+
+  #[test]
+  fn yandex_verdict_names_the_reason() {
+    assert_eq!(yandex_verdict(Some(200), false), (true, String::new()));
+    assert_eq!(yandex_verdict(Some(451), false), (false, "HTTP 451".into()));
+    assert_eq!(yandex_verdict(Some(503), false), (false, "HTTP 503".into()));
+    assert_eq!(yandex_verdict(None, true), (false, "не ответил за 5 с".into()));
+    assert_eq!(yandex_verdict(None, false), (false, "нет соединения".into()));
   }
 
   #[test]

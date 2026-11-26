@@ -135,3 +135,12 @@ def test_services_menu_offers_all_four_services():
         assert {"services:ym", "services:sc", "services:yt", "services:sp"} <= {b.cb for row in screen.kb for b in row}
         assert any(b.url for row in screen.kb for b in row)       # кнопка «Открыть …»
     assert "cookie" in S.services("yt").html.lower() and "sp_dc" in S.services("sp").html
+
+
+def test_quotes_never_glue_together():
+    from sonar.bot.ui import Screen, quote
+    assert Screen(html=quote("a") + quote("b", "Заголовок")).html == "<blockquote>a</blockquote>\n<blockquote><b>Заголовок</b>\nb</blockquote>"
+    one = Screen(html="Текст\n" + quote("a")).html
+    assert one == "Текст\n<blockquote>a</blockquote>"          # вокруг одной цитаты ничего лишнего
+    for screen in (S.profile(USER, {"soundcloud": True, "yandex": False, "lastfm": False}, (1, 2), SET), S.services("ym")):
+        assert "</blockquote><blockquote" not in screen.html

@@ -21,7 +21,7 @@ export default defineConfig({
         // мелкие шрифты Vite встраивает как data:
         "font-src 'self' data:",
         // lrclib — текст на странице трека /t
-        "connect-src 'self' https://api.github.com https://lrclib.net",
+        "connect-src 'self' https://lrclib.net",
         // встройки плеера на странице трека /t — только по нажатию «Слушать»
         'frame-src https://www.youtube-nocookie.com https://w.soundcloud.com',
         "object-src 'none'",

@@ -1,8 +1,11 @@
 """Сообщение в лог-группу о смене статуса пункта: что сломалось, почему, сколько длится, что проверяли."""
 from __future__ import annotations
 
+import json
+import sqlite3
 from html import escape
 
+from .db import kv_get, kv_set
 from .status import DOWN, OK, Change
 
 MARKS = {OK: "✅", "partial": "⚠️", DOWN: "❌"}
@@ -52,3 +55,30 @@ def alert_lines(c: Change) -> list[str]:
 
 def alert_title(c: Change) -> str:
     return f"Статус: {NAMES.get(c.key, c.key)}"
+
+
+class AlertGate:
+    """Какие смены статуса идут в лог-группу. Раньше — каждая: одиночный таймаут lrclib на 5 секунд давал ⚠️, а следующая
+    нормальная проверка — ✅, то есть два сообщения на пустяк. Теперь: пишем, только когда сбой подтверждён (❌ — три
+    проверки подряд, около 15 минут), и один раз — когда после такого сбоя всё снова работает. ⚠️ и «упала одна проверка»
+    молчат (на странице статуса и в `/status` они по-прежнему видны). Что уже сообщили, помним в базе: после рестарта
+    сервера «снова работает» всё равно придёт."""
+
+    KEY = "status:alerted_down"
+
+    def __init__(self, con: sqlite3.Connection):
+        self.con = con
+        try:
+            self.down: set[str] = set(json.loads(kv_get(con, self.KEY) or "[]"))
+        except ValueError:
+            self.down = set()
+
+    def allow(self, change: Change) -> bool:
+        if change.new == DOWN:
+            self.down.add(change.key)
+        elif change.new == OK and change.key in self.down:
+            self.down.discard(change.key)
+        else:
+            return False
+        kv_set(self.con, self.KEY, json.dumps(sorted(self.down)))
+        return True

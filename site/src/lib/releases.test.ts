@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { compareVersions, latestEntry, megabytes, parseLatestRelease, windowsVersionFromTag, type ChangelogEntry } from './releases'
+import { compareVersions, latestEntry, megabytes, parseUpdateManifest, windowsVersionFromTag, type ChangelogEntry } from './releases'
 
 const entry = (version: string, platform: 'windows' | 'ios'): ChangelogEntry => ({
   version,
@@ -49,17 +49,15 @@ describe('megabytes', () => {
   })
 })
 
-describe('parseLatestRelease', () => {
-  test('версия и размер установщика', () => {
-    const json = { tag_name: 'windows-v0.1.40', assets: [{ name: 'Sonar-setup.exe', size: 5_000_000 }, { name: 'x', size: 1 }] }
-    expect(parseLatestRelease(json, 'Sonar-setup.exe')).toEqual({ version: '0.1.40', sizeBytes: 5_000_000 })
+describe('parseUpdateManifest', () => {
+  test('версия из ответа сервера (формат tauri-plugin-updater)', () => {
+    expect(parseUpdateManifest({ version: '0.3.12', notes: 'x', platforms: {} })).toBe('0.3.12')
   })
-  test('без установщика — версия без размера', () => {
-    expect(parseLatestRelease({ tag_name: 'windows-v1.0.0' }, 'Sonar-setup.exe')).toEqual({ version: '1.0.0', sizeBytes: null })
-  })
-  test('ошибка GitHub или чужой релиз → null', () => {
-    expect(parseLatestRelease({ message: 'API rate limit exceeded' }, 'Sonar-setup.exe')).toBeNull()
-    expect(parseLatestRelease(null, 'Sonar-setup.exe')).toBeNull()
-    expect(parseLatestRelease({ tag_name: 'ios-build-1' }, 'Sonar-setup.exe')).toBeNull()
+  test('сборки нет, мусор или чужая версия → null', () => {
+    expect(parseUpdateManifest(null)).toBeNull()
+    expect(parseUpdateManifest({ error: { code: 'not_found' } })).toBeNull()
+    expect(parseUpdateManifest({ version: 12 })).toBeNull()
+    expect(parseUpdateManifest({ version: 'v1; drop' })).toBeNull()
+    expect(parseUpdateManifest({ version: '1.2' })).toBeNull()
   })
 })

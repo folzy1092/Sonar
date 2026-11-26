@@ -116,6 +116,17 @@ CREATE TABLE IF NOT EXISTS support_messages (
   created_at    INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS support_blocks (tg_id INTEGER PRIMARY KEY, reason TEXT, until INTEGER);
+-- Доступность сервиса глазами устройств (API.md §9 `POST /status/report`): последняя проверка каждого пользователя.
+-- Яндекс с серверов Velt отвечает 451 и играет всё равно устройство со своего IP, поэтому судим по ним, а не по серверу.
+CREATE TABLE IF NOT EXISTS client_checks (
+  user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  service  TEXT NOT NULL,
+  ok       INTEGER NOT NULL,
+  ms       INTEGER,
+  note     TEXT,
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (user_id, service)
+);
 CREATE TABLE IF NOT EXISTS status_checks (
   ts            INTEGER NOT NULL,
   item          TEXT NOT NULL,

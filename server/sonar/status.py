@@ -21,6 +21,9 @@ MIN_FREE_BYTES = 100 * 1024 * 1024
 # Диск контейнера: shutil.disk_usage видит весь диск хоста (сотни ГБ), а у нас лимит тарифа — считаем свои файлы.
 DISK_QUOTA_MB = 2048            # тариф Velt (2026-11-22); другой — SONAR_DISK_QUOTA_MB в .env
 DISK_SCAN_EVERY_S = 30 * 60     # обход папки — раз в полчаса: файлов в .venv тысячи, а vCPU — четверть
+# Сервисы, которые проверяют сами устройства: с серверов Velt (Германия) Яндекс отвечает 451, а играет устройство со своего IP.
+DEVICE_CHECKED = ("yandex",)
+DEVICE_FRESH_MS = 20 * 60_000   # отчёт старше — устройство уже закрыли, не считаем
 
 
 def _mb(n: float) -> str:
@@ -172,13 +175,33 @@ class Status:
         except Exception as err:  # noqa: BLE001
             return Item("telegram", DOWN, note=_why(err), target="api.telegram.org · getMe")
 
+    def from_devices(self, service: str, now: int | None = None) -> Item | None:
+        """Состояние сервиса по свежим отчётам устройств (`POST /api/status/report`); отчётов нет — None («нет данных»).
+        Один плохой отчёт (VPN, чужая сеть) всех не ронял: ✅ — хоть у кого-то работает и не у большинства сбой;
+        ⚠️ — есть и плохие, и хорошие или плох единственный; ❌ — ни у кого и плохих отчётов двое и больше."""
+        now = now or now_ms()
+        rows = self.con.execute("SELECT ok, ms, note FROM client_checks WHERE service = ? AND at >= ?",
+                                (service, now - DEVICE_FRESH_MS)).fetchall()
+        if not rows:
+            return None
+        good = [r for r in rows if r["ok"]]
+        bad = len(rows) - len(good)
+        ms = sorted(r["ms"] for r in good if r["ms"] is not None)
+        median = ms[len(ms) // 2] if ms else None
+        if good and bad == 0:
+            return Item(service, OK, median, target="проверка с устройств")
+        notes = [r["note"] for r in rows if not r["ok"] and r["note"]]
+        why = f"у устройств: ✅ {len(good)} · ❌ {bad}" + (f" · {notes[0]}" if notes else "")
+        if good:
+            return Item(service, OK if len(good) > bad else PARTIAL, median, "" if len(good) > bad else why, "проверка с устройств")
+        return Item(service, DOWN if bad >= 2 else PARTIAL, None, why, "проверка с устройств")
+
     async def check(self) -> dict[str, Item]:
         items = [self._main(), await self._storage(),
                  Item("bot", OK, target="процесс бота") if self.bot else Item("bot", DOWN, note="бот не запущен")]
         async with aiohttp.ClientSession() as s:
             jobs = [
                 self._remote(s, "soundcloud", "https://soundcloud.com/"),
-                self._remote(s, "yandex", "https://api.music.yandex.net/search", text="sonar", type="track", page=0),
                 self._remote(s, "lrclib", "https://lrclib.net/api/search", q="sonar"),
                 self._remote(s, "genius", "https://genius.com/api/search/multi", q="sonar"),
                 self._remote(s, "site", self.settings.site_url),
@@ -191,15 +214,22 @@ class Status:
             if self.settings.public_url:
                 jobs.append(self._remote(s, "proxy", f"{self.settings.public_url}/api/health"))
             items += await asyncio.gather(*jobs)
+        items += [i for i in (self.from_devices(k) for k in DEVICE_CHECKED) if i is not None]
         # «Основной» в мс для всех: ответ сервера снаружи через туннель, если он жив; иначе — запрос к БД.
         proxy = next((i for i in items if i.key == "proxy"), None)
         if proxy and proxy.state == OK and proxy.ms is not None:
             items[0] = Item("main", items[0].state, proxy.ms, target=proxy.target)
-        # Медиа = выдаём ссылки на поток: живы ли оба сервиса.
-        sc, ym = next(i for i in items if i.key == "soundcloud"), next(i for i in items if i.key == "yandex")
-        media = OK if sc.state == ym.state == OK else (DOWN if sc.state == ym.state == DOWN else PARTIAL)
-        bad = [f"{x.key}: {x.note}" for x in (sc, ym) if x.state != OK and x.note]
-        items.append(Item("media", media, max(sc.ms or 0, ym.ms or 0) or None, "; ".join(bad), "SoundCloud + Яндекс"))
+        # Медиа = живы ли сервисы, из которых играет музыка. Яндекс — по отчётам устройств; данных нет — смотрим только SoundCloud.
+        core = [i for i in items if i.key in ("soundcloud", "yandex")]
+        if all(i.state == OK for i in core):
+            media = OK
+        elif all(i.state == DOWN for i in core):
+            media = DOWN
+        else:
+            media = PARTIAL
+        bad = [f"{x.key}: {x.note}" for x in core if x.state != OK and x.note]
+        target = "SoundCloud + Яндекс (по устройствам)" if len(core) > 1 else "SoundCloud (Яндекс — нет данных с устройств)"
+        items.append(Item("media", media, max((i.ms or 0) for i in core) or None, "; ".join(bad), target))
         ts = now_ms()
         self.con.executemany("INSERT INTO status_checks (ts, item, state, ms) VALUES (?,?,?,?)",
                              [(ts, i.key, i.state, i.ms) for i in items])

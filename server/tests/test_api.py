@@ -174,3 +174,36 @@ def test_status_is_cached(client, monkeypatch):
     client.get("/api/status")
     client.get("/api/status")
     assert len(calls) == 1
+
+
+# ---- POST /api/status/report: устройство сообщает, дошёл ли запрос до Яндекса ----
+
+def test_status_report_roundtrip(client, con):
+    add_session(con)
+    h = {"Authorization": "Bearer tok"}
+    r = client.post("/api/status/report", json={"service": "yandex", "ok": False, "ms": 321, "note": "  HTTP 451  "}, headers=h)
+    assert r.status_code == 204
+    row = con.execute("SELECT ok, ms, note FROM client_checks").fetchone()
+    assert tuple(row) == (0, 321, "HTTP 451")
+    client.post("/api/status/report", json={"service": "yandex", "ok": True, "ms": 90}, headers=h)
+    assert con.execute("SELECT COUNT(*) FROM client_checks").fetchone()[0] == 1       # одна запись на пользователя и сервис
+    assert tuple(con.execute("SELECT ok, ms, note FROM client_checks").fetchone()) == (1, 90, None)
+
+
+def test_status_report_validation_and_auth(client, con):
+    add_session(con)
+    h = {"Authorization": "Bearer tok"}
+    assert client.post("/api/status/report", json={"service": "yandex", "ok": True}).status_code == 401
+    for bad in ({"service": "soundcloud", "ok": True}, {"service": "yandex", "ok": "да"}, {"ok": True}, [1], "x"):
+        r = client.post("/api/status/report", json=bad, headers=h)
+        assert r.status_code == 400 and r.json()["error"]["code"] == "bad_request"
+    assert client.post("/api/status/report", content=b"{", headers=h).json()["error"]["code"] == "bad_json"
+    client.post("/api/status/report", json={"service": "yandex", "ok": True, "ms": -5, "note": "я" * 300}, headers=h)
+    row = con.execute("SELECT ms, note FROM client_checks").fetchone()
+    assert row["ms"] is None and len(row["note"]) == 100                              # мусорные значения не пишем
+
+
+def test_banned_user_cannot_report(client, con):
+    add_session(con, "bad", banned=1)
+    r = client.post("/api/status/report", json={"service": "yandex", "ok": True}, headers={"Authorization": "Bearer bad"})
+    assert r.status_code == 403
