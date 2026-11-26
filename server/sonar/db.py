@@ -202,6 +202,24 @@ CREATE TABLE IF NOT EXISTS admin_audit (
   detail        TEXT
 );
 CREATE INDEX IF NOT EXISTS admin_audit_target ON admin_audit(target, at);
+-- Сборки, выпущенные из админки (builds.py, SERVER_PROMPT этап 7): файлы — data/builds/<file>.
+CREATE TABLE IF NOT EXISTS builds (
+  id            INTEGER PRIMARY KEY,
+  platform      TEXT NOT NULL,           -- windows | ios
+  channel       TEXT NOT NULL,           -- release | beta
+  tag           TEXT NOT NULL,           -- релиз GitHub: windows-v0.3.12 / ios-build-751
+  version       TEXT NOT NULL,
+  build         INTEGER,                 -- CFBundleVersion iPhone
+  notes_json    TEXT NOT NULL,           -- {"ru": "…", "en": "…", …}
+  signature     TEXT,                    -- подпись .sig для tauri-plugin-updater
+  file          TEXT NOT NULL,           -- путь от data/builds
+  size          INTEGER NOT NULL,
+  sha256        TEXT NOT NULL,
+  published_at  INTEGER NOT NULL,
+  published_by  TEXT NOT NULL,
+  revoked       INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (platform, channel, tag)
+);
 """
 
 

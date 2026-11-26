@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Сборки{% endblock %}
+{% block main %}
+<div class="head">
+  <div><h1>Сборки</h1><p>CI только собирает. Выпускаешь здесь: сервер сам скачает файлы с GitHub, клиенты обновятся отсюда. На канал хранится {{ BUILD_KEEP }} последних.</p></div>
+</div>
+<div class="stack">
+{% if chosen %}
+<form method="post" action="{{ BASE }}/builds/publish" class="panel">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="tag" value="{{ chosen.tag_name }}">
+  <h2>Выпустить {{ chosen.name or chosen.tag_name }} <span class="mono muted">{{ chosen.tag_name }}</span></h2>
+  <div class="form-grid">
+    <div class="field">
+      <label for="channel">Канал</label>
+      <select id="channel" name="channel">
+        {% for k, name in CHANNEL_NAMES.items() %}<option value="{{ k }}">{{ name }}</option>{% endfor %}
+      </select>
+      <span class="hint">Бета видит и релизы; релиз — только релизы.</span>
+    </div>
+    {% for lang in BUILD_LANGS %}
+    <div class="field">
+      <label for="notes_{{ lang }}">Что нового · {{ LANG_NAMES[lang] }}{% if lang not in REQUIRED_LANGS %} <span class="muted">(можно пусто — покажем английское)</span>{% endif %}</label>
+      <textarea id="notes_{{ lang }}" name="notes_{{ lang }}" maxlength="4000" {{ 'required' if lang in REQUIRED_LANGS }}>{{ (chosen.body or '')[:4000] if lang == 'ru' }}</textarea>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="row" style="margin-top:16px"><button class="btn primary">Скачать и выпустить</button><a class="btn ghost" href="{{ BASE }}/builds">Отмена</a></div>
+</form>
+{% endif %}
+
+<div class="panel">
+  <h2>Выпущенные</h2>
+  {% if published %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Сборка</th><th>Канал</th><th>Версия</th><th>Размер</th><th>Выпущена</th><th></th></tr></thead>
+    <tbody>
+    {% for b in published %}
+    <tr>
+      <td><span class="mono">{{ b.tag }}</span> <span class="muted">{{ PLATFORM_NAMES.get(b.platform, b.platform) }}</span></td>
+      <td>{{ CHANNEL_NAMES[b.channel] }}{% if b.revoked %} <span class="tag bad">отозвана</span>{% endif %}</td>
+      <td class="num">{{ b.version }}{% if b.build %} ({{ b.build }}){% endif %}</td>
+      <td class="num">{{ (b.size / 1048576) | round(1) }} МБ</td>
+      <td class="num">{{ b.published_at | dt }} <span class="muted">{{ b.published_by }}</span></td>
+      <td><form class="inline" method="post" action="{{ BASE }}/builds/{{ b.id }}/{{ 'restore' if b.revoked else 'revoke' }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn ghost">{{ 'Вернуть' if b.revoked else 'Отозвать' }}</button></form></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="note">Пока ничего не выпущено — клиенты и кнопки «Скачать» берут сборки с GitHub, как раньше.</p>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <h2>Собрано на GitHub</h2>
+  {% if gh_error %}<p class="note">{{ gh_error }}</p>
+  {% elif candidates %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Релиз</th><th>Тег</th><th>Собран</th><th></th></tr></thead>
+    <tbody>
+    {% for r in candidates %}
+    <tr>
+      <td>{{ r.name or r.tag_name }}</td>
+      <td class="mono">{{ r.tag_name }}{% if r.tag_name in out %} <span class="tag">выпущена</span>{% endif %}</td>
+      <td class="num">{{ (r.published_at or '')[:16] | replace('T', ' ') }}</td>
+      <td><a class="btn ghost" href="{{ BASE }}/builds?tag={{ r.tag_name | urlencode }}">Выпустить</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}<p class="note">Сборок CI не нашлось.</p>{% endif %}
+</div>
+</div>
+{% endblock %}

@@ -1,8 +1,9 @@
 import Foundation
 
-// Проверка обновлений — порт ShadowUpdateCheck. Объявляет сборку человек: `updates/ios-update.json`
-// в main («рубильник», как в Shadow). CI выкладывает каждую сборку релизом `ios-build-<N>`; список
-// релизов GitHub — только запасной путь, если манифест не скачался.
+// Проверка обновлений — порт ShadowUpdateCheck. Объявляет сборку человек: с 2026-11-26 — в админке сайта
+// (`GET /api/updates/ios/<release|beta>.json`, тот же формат, API.md §8, 404 — в канале ничего нет).
+// Сервер молчит — по-старому: `updates/ios-update.json` в main («рубильник», как в Shadow), потом список
+// релизов GitHub `ios-build-<N>`.
 //
 // ios-update.json:
 // {
@@ -25,6 +26,15 @@ enum UpdateFeed {
     /// Постоянная ссылка на свежую сборку из main (релиз `ios-latest`).
     static let latestIPAURL = URL(string: "\(repo)/releases/download/ios-latest/Sonar.ipa")!
     static let tagPrefix = "ios-build-"
+    static let server = "https://try-sonar.ru"
+
+    /// Объявленная в админке сборка канала: `update.channel` "stable" → `release`, "beta" → `beta`.
+    static func serverURL(channel: String, lang: String) -> URL {
+        let name = channel == "beta" ? "beta" : "release"
+        var components = URLComponents(string: "\(server)/api/updates/ios/\(name).json")!
+        components.queryItems = [URLQueryItem(name: "lang", value: lang)]
+        return components.url!
+    }
 
     /// CI кладёт IPA в каждый релиз под этим именем.
     static func ipaURL(build: Int) -> URL {

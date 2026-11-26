@@ -45,10 +45,10 @@ SECTIONS: list[tuple[str, list[Pref]]] = [
     ("Ссылки", [
         Pref("site_url", "Сайт", "https://try-sonar.ru", "url", "Профили /@username и быстрый вход.", "site_url"),
         Pref("channel", "Канал новостей", "@SonarUpdates", "text", "Куда бот публикует посты.", "channel"),
-        Pref("download_url", "Скачать для Windows", "https://github.com/folzy1092/Sonar/releases/latest", "url",
+        Pref("download_url", "Скачать для Windows", "https://try-sonar.ru/downloads/release/Sonar-setup.exe", "url",
              "Если в боте нет проверенной версии.", "download_url"),
         Pref("download_url_ios", "Скачать для iPhone",
-             "https://github.com/folzy1092/Sonar/releases/download/ios-latest/Sonar.ipa", "url", "", "download_url_ios"),
+             "https://try-sonar.ru/downloads/release/Sonar.ipa", "url", "", "download_url_ios"),
     ]),
 ]
 ALL = {p.key: p for _, ps in SECTIONS for p in ps}

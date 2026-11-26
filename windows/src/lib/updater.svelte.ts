@@ -1,5 +1,7 @@
-// Автообновление (ROADMAP W6): `tauri-plugin-updater` читает `latest.json` из релиза
-// `windows-latest` на GitHub (подпись проверяется ключом из tauri.conf.json), качает установщик
+// Автообновление (ROADMAP W6): `tauri-plugin-updater` читает сначала сервер Sonar
+// (`/api/updates/windows/<канал>.json`, канал и язык — заголовками; сборки выпускает владелец в админке),
+// нет там сборки или сервер лежит — `latest.json` релиза `windows-latest` на GitHub (подпись проверяется
+// ключом из tauri.conf.json в обоих случаях), качает установщик
 // NSIS и ставит его поверх. Проверка — при запуске и раз в 6 ч (`update.auto_check`), скачивание
 // в фоне — `update.auto_download`. Найденное обновление показывает app/UpdatePopup.svelte.
 import { getVersion } from '@tauri-apps/api/app'
@@ -7,7 +9,7 @@ import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { isTauri } from './tauri'
 import { settings } from './settings.svelte'
-import { t } from './i18n.svelte'
+import { lang, t } from './i18n.svelte'
 import { offline } from './offline.svelte'
 import { compareVersions, isBeta, mergeReleases, parseChangelog, releaseNotes, type ChangelogEntry } from './update-core'
 
@@ -176,7 +178,8 @@ interface Found {
 
 async function find(): Promise<Found | null> {
   if (isTauri) {
-    const u = await check({ timeout: 20_000 })
+    const channel = settings.get('update.channel') === 'beta' ? 'beta' : 'release'
+    const u = await check({ timeout: 20_000, headers: { 'X-Sonar-Channel': channel, 'X-Sonar-Lang': lang() } })
     if (!u) return null
     // бета приходит только тем, кто выбрал канал «Бета»; стабильному — ничего не предлагаем
     if (isBeta(u.version) && settings.get('update.channel') !== 'beta') return null
@@ -206,7 +209,7 @@ function humanError(e: unknown): string {
   const s = String(e instanceof Error ? e.message : e)
   if (/signature/i.test(s)) return t('Подпись обновления не сошлась — файл не установлен')
   if (/timed? ?out|timeout/i.test(s)) return t('Сервер обновлений не ответил')
-  if (/network|connect|dns|error sending request/i.test(s)) return t('Нет связи с GitHub')
+  if (/network|connect|dns|error sending request/i.test(s)) return t('Нет связи с сервером обновлений')
   if (/404|not found|release json/i.test(s)) return t('Релиз ещё не опубликован')
   return s ? t(s) : t('Не удалось проверить обновления')
 }

@@ -20,7 +20,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 
-from . import api, config
+from . import api, builds, config
 from .accounts import Accounts
 from .admin import prefs
 from .admin.auth import FACTORY_LOGIN, AdminAuth
@@ -87,6 +87,7 @@ def create_app(con: sqlite3.Connection, settings: Settings, status: Status | Non
     app.state.bot_username = bot_username
     app.state.on_telegram_linked = None  # бот ставит: «Успешно! Аккаунт привязан» после «Разрешить» в приложении
     app.state.admin_auth = AdminAuth(con)
+    app.state.github = builds.GitHub(os.getenv("GITHUB_TOKEN"))  # «Сборки» в админке
     factory_password = app.state.admin_auth.ensure_factory()
     if factory_password:
         # Единственный раз, когда пароль виден: в базе только хэш. Потерял — python -m sonar.admin passwd.

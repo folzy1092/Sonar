@@ -7,8 +7,9 @@ const REPO = 'https://github.com/folzy1092/Sonar'
 export const LINKS = {
   repo: REPO,
   releases: `${REPO}/releases`,
-  windowsExe: `${REPO}/releases/latest/download/Sonar-setup.exe`,
-  iosIpa: `${REPO}/releases/download/ios-latest/Sonar.ipa`,
+  // выпущенная в админке сборка; пока её нет, сервер отвечает 302 на релизы GitHub (api/updates.py)
+  windowsExe: `${SITE_URL}/downloads/release/Sonar-setup.exe`,
+  iosIpa: `${SITE_URL}/downloads/release/Sonar.ipa`,
   latestReleaseApi: 'https://api.github.com/repos/folzy1092/Sonar/releases/latest',
   channel: 'https://t.me/SonarUpdates',
   bot: 'https://t.me/SonarMusicApp',

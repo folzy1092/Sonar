@@ -1,0 +1,140 @@
+"""Обновления и файлы сборок с сервера (API.md §8, SERVER_PROMPT этап 7).
+
+- `GET /api/updates/windows/<канал>.json` — формат `tauri-plugin-updater`. Канал из пути, а заголовок
+  `X-Sonar-Channel` его перекрывает: адрес в `tauri.conf.json` один, канал выбирают в настройках.
+- `GET /api/updates/ios/<канал>.json` — формат прежнего `updates/ios-update.json`.
+- `GET /api/updates/manifest.plist` — манифест `itms-services` с теми же параметрами, что у `api.palera.in/genPlist`.
+- `/downloads/<канал>/<файл>` — текущая сборка, `/downloads/<канал>/<тег>/<файл>` — конкретная (её адрес
+  уходит в манифесты обновлений: подпись и файл всегда от одной сборки). Range и ETag — у `FileResponse`.
+
+Нет сборки — JSON отвечает 404 (а не 204: на 404 tauri идёт к запасному адресу на GitHub), файлы — 302 на GitHub.
+"""
+from __future__ import annotations
+
+import re
+from datetime import UTC, datetime
+from urllib.parse import urlsplit
+from xml.sax.saxutils import escape
+
+from fastapi import APIRouter, Request
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
+
+from .. import builds
+from ..builds import FILES, Build
+from .errors import ApiError
+
+router = APIRouter(prefix="/updates", tags=["updates"])
+downloads = APIRouter(prefix="/downloads", include_in_schema=False)
+
+NO_CACHE = {"Cache-Control": "no-cache"}
+PLATFORM_BY_FILE = {name: platform for platform, name in FILES.items()}
+BUNDLE_RE = re.compile(r"^[A-Za-z0-9.-]{1,100}$")
+NAME_MAX = 64
+VERSION_RE = re.compile(r"^[0-9A-Za-z.+-]{1,32}$")
+
+
+def _channel(request: Request, path_channel: str) -> str:
+    chan = builds.channel_of(request.headers.get("x-sonar-channel")) or builds.channel_of(path_channel)
+    if chan is None:
+        raise ApiError(404, "not_found", "Нет такого канала")
+    return chan
+
+
+def _lang(request: Request) -> str:
+    return request.query_params.get("lang") or request.headers.get("x-sonar-lang") or ""
+
+
+def _current(request: Request, platform: str, path_channel: str) -> Build:
+    b = builds.current(request.app.state.con, platform, _channel(request, path_channel))
+    if b is None:
+        raise ApiError(404, "not_found", "Сборок в этом канале пока нет")
+    return b
+
+
+def file_url(request: Request, b: Build) -> str:
+    return f"{request.app.state.settings.site_url}/downloads/{b.channel}/{b.tag}/{FILES[b.platform]}"
+
+
+def _iso(ms: int) -> str:
+    return datetime.fromtimestamp(ms / 1000, UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+@router.get("/windows/{channel}.json")
+async def windows_update(request: Request, channel: str):
+    b = _current(request, "windows", channel)
+    body = {"version": b.version, "notes": b.notes_for(_lang(request)), "pub_date": _iso(b.published_at),
+            "platforms": {"windows-x86_64": {"signature": b.signature, "url": file_url(request, b)}}}
+    return JSONResponse(body, headers=NO_CACHE)
+
+
+@router.get("/ios/{channel}.json")
+async def ios_update(request: Request, channel: str):
+    b = _current(request, "ios", channel)
+    site = request.app.state.settings.site_url
+    body = {"enabled": True, "build": b.build, "version": b.version, "minimum_build": 0,
+            "title": f"Sonar {b.version}", "notes": b.notes_for(_lang(request)), "ipa_url": file_url(request, b),
+            "url": f"{site}/#download"}
+    return JSONResponse(body, headers=NO_CACHE)
+
+
+def _manifest_ipa_ok(request: Request, url: str) -> bool:
+    """Ставим только своё: ipa с локального сервера приложения (установка после переподписи) или наш /downloads."""
+    parts = urlsplit(url)
+    if parts.scheme == "http" and parts.hostname == "127.0.0.1" and parts.port:
+        return True
+    site = urlsplit(request.app.state.settings.site_url)
+    return (parts.scheme == "https" and parts.netloc == site.netloc and parts.path.startswith("/downloads/")
+            and not parts.query and ".." not in parts.path)
+
+
+@router.get("/manifest.plist")
+async def manifest(request: Request, fetchurl: str = "", bundleid: str = "com.folzy.sonar", name: str = "Sonar",
+                   version: str = "0"):
+    if not _manifest_ipa_ok(request, fetchurl):
+        raise ApiError(400, "bad_request", "fetchurl: только 127.0.0.1 или /downloads этого сервера")
+    if not BUNDLE_RE.match(bundleid) or not VERSION_RE.match(version) or not 0 < len(name) <= NAME_MAX:
+        raise ApiError(400, "bad_request", "Неверные bundleid, version или name")
+    e = lambda v: escape(v, {'"': "&quot;"})  # noqa: E731
+    body = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>items</key><array><dict>
+<key>assets</key><array><dict><key>kind</key><string>software-package</string><key>url</key><string>{e(fetchurl)}</string></dict></array>
+<key>metadata</key><dict><key>bundle-identifier</key><string>{e(bundleid)}</string><key>bundle-version</key><string>{e(version)}</string><key>kind</key><string>software</string><key>title</key><string>{e(name)}</string></dict>
+</dict></array></dict></plist>
+"""
+    return Response(body, media_type="application/xml", headers={"Cache-Control": "no-store"})
+
+
+# ---- файлы ----
+
+def _send(request: Request, b: Build) -> Response:
+    path = builds.file_path(request.app.state.settings.data_dir, b)
+    if not path.is_file():
+        return Response(status_code=404)
+    return FileResponse(path, media_type="application/octet-stream", filename=FILES[b.platform],
+                        headers={"Cache-Control": "no-cache"})
+
+
+def _platform(name: str) -> str:
+    platform = PLATFORM_BY_FILE.get(name)
+    if platform is None:
+        raise ApiError(404, "not_found", "Нет такого файла")
+    return platform
+
+
+@downloads.api_route("/{channel}/{name}", methods=["GET", "HEAD"])
+async def download_current(request: Request, channel: str, name: str):
+    platform, chan = _platform(name), builds.channel_of(channel)
+    if chan is None:
+        return Response(status_code=404)
+    b = builds.current(request.app.state.con, platform, chan)
+    if b is None:
+        return RedirectResponse(builds.FALLBACK[platform], status_code=302, headers=NO_CACHE)
+    return _send(request, b)
+
+
+@downloads.api_route("/{channel}/{tag}/{name}", methods=["GET", "HEAD"])
+async def download_pinned(request: Request, channel: str, tag: str, name: str):
+    platform, chan = _platform(name), builds.channel_of(channel)
+    b = builds.pinned(request.app.state.con, platform, chan, tag) if chan and builds.TAG_RE.match(tag) else None
+    return _send(request, b) if b else Response(status_code=404)

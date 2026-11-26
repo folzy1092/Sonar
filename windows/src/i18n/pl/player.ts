@@ -24,7 +24,7 @@ export default {
   '{n} МБ': '{n} MB',
   'Подпись обновления не сошлась — файл не установлен': 'Podpis aktualizacji się nie zgadza — plik nie został zainstalowany',
   'Сервер обновлений не ответил': 'Serwer aktualizacji nie odpowiedział',
-  'Нет связи с GitHub': 'Brak połączenia z GitHub',
+  'Нет связи с сервером обновлений': 'Brak połączenia z serwerem aktualizacji',
   'Релиз ещё не опубликован': 'Wydanie nie zostało jeszcze opublikowane',
   'Не удалось проверить обновления': 'Nie udało się sprawdzić aktualizacji',
   'Пример заметок к обновлению': 'Przykładowe informacje o aktualizacji',

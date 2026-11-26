@@ -5,7 +5,8 @@ import FoundationNetworking // тесты логики на Linux
 import Observation
 
 /// Проверка обновлений (SETTINGS.md «Автообновление»): при запуске и раз в 6 часов, если включено
-/// `update.auto_check`. Сначала `ios-update.json`, не скачался — список релизов GitHub. Нашлась новая
+/// `update.auto_check`. Сначала сервер Sonar (канал `update.channel`), потом `ios-update.json`, потом список
+/// релизов GitHub. Нашлась новая
 /// сборка — всплывашка снизу (один раз на сборку) и бейдж на «Обновлениях» в профиле.
 @MainActor
 @Observable
@@ -71,8 +72,10 @@ final class UpdateChecker {
         defer { isChecking = false }
         let installed = Self.installedBuild
         var result: UpdateStatus
-        if let (data, code) = await Self.fetch(UpdateFeed.manifestURL), (200 ..< 300).contains(code),
-           let manifest = UpdateManifest.parse(data) {
+        let channel = SettingsStore.shared.string("update.channel")
+        if let manifest = await Self.manifest(UpdateFeed.serverURL(channel: channel, lang: currentLang().rawValue)) {
+            result = .from(manifest: manifest, installedBuild: installed)
+        } else if let manifest = await Self.manifest(UpdateFeed.manifestURL) {
             result = .from(manifest: manifest, installedBuild: installed)
         } else if let (data, code) = await Self.fetch(UpdateFeed.releasesAPIURL) {
             if code == 404 {
@@ -85,7 +88,7 @@ final class UpdateChecker {
                 result = .failed("Сборок для iPhone пока нет")
             }
         } else {
-            result = .failed("Нет связи с GitHub")
+            result = .failed("Нет связи с сервером обновлений")
         }
         // что изменилось с установленной сборки; не скачалось — обновление всё равно показываем
         if case var .available(release) = result {
@@ -117,6 +120,11 @@ final class UpdateChecker {
         let entries = ChangelogEntry.parse(data)
         archive = entries
         return entries
+    }
+
+    private static func manifest(_ url: URL) async -> UpdateManifest? {
+        guard let (data, code) = await fetch(url), (200 ..< 300).contains(code) else { return nil }
+        return UpdateManifest.parse(data)
     }
 
     /// Параметр-метка мимо кэша CDN raw.githubusercontent (~5 мин): только что объявленная сборка видна сразу.

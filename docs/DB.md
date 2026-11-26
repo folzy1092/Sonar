@@ -461,6 +461,30 @@ CREATE TABLE status_daily (                     -- свёртка по дням,
 | `created_at` | INTEGER | мс |
 | `alerted_at` | INTEGER NULL | когда разослан алерт |
 
+## builds — выпущенные сборки (сервер, админка «Сборки», 2026-11-26)
+
+Файлы лежат в `data/builds/<платформа>/<канал>/<тег>/` (имя файла своё — `Sonar-setup.exe` / `Sonar.ipa`).
+На (платформу, канал) — последние 3 строки, старше удаляются вместе с файлами (`builds.prune`).
+
+| Поле | Тип | Что |
+|---|---|---|
+| `id` | INTEGER PK | |
+| `platform` | TEXT | `windows` / `ios` |
+| `channel` | TEXT | `release` / `beta` |
+| `tag` | TEXT | релиз GitHub: `windows-v0.3.12`, `ios-build-751` |
+| `version` | TEXT | `0.3.12` |
+| `build` | INTEGER NULL | CFBundleVersion iPhone |
+| `notes_json` | TEXT | «Что нового» по языкам: `{"ru": "…", "en": "…"}` (ru и en обязательны) |
+| `signature` | TEXT NULL | содержимое `.sig` для `tauri-plugin-updater` (Windows) |
+| `file` | TEXT | путь от `data/builds` |
+| `size` | INTEGER | байты, сверены с релизом |
+| `sha256` | TEXT | хэш скачанного файла |
+| `published_at` | INTEGER | мс |
+| `published_by` | TEXT | логин админа |
+| `revoked` | INTEGER | 1 — отозвана (не отдаётся, `/downloads/…/<тег>/…` → 404) |
+
+`UNIQUE (platform, channel, tag)`: повторный выпуск той же сборки обновляет тексты и снимает отзыв.
+
 ## Админка и дашборд (сервер, 2026-11-22)
 
 Таблицы в `server/sonar/db.py`; новые колонки старой базы добавляет `_migrate` (`COLUMNS`). Таблица `sessions` (выше)

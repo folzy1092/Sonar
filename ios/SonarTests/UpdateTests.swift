@@ -14,6 +14,23 @@ final class UpdateManifestTests: XCTestCase {
         XCTAssertEqual(manifest.pageURL.absoluteString, "https://github.com/folzy1092/Sonar/releases/tag/ios-build-123")
     }
 
+    func testServerFeedURLMapsChannel() {
+        XCTAssertEqual(UpdateFeed.serverURL(channel: "stable", lang: "en").absoluteString,
+                       "https://try-sonar.ru/api/updates/ios/release.json?lang=en")
+        XCTAssertEqual(UpdateFeed.serverURL(channel: "beta", lang: "ru").absoluteString,
+                       "https://try-sonar.ru/api/updates/ios/beta.json?lang=ru")
+        XCTAssertEqual(UpdateFeed.serverURL(channel: "", lang: "uk").lastPathComponent, "release.json")
+    }
+
+    /// Ответ сервера (api/updates.py) разбирается тем же парсером, ссылки — на сайт.
+    func testServerFeedBodyParses() throws {
+        let body = #"{"enabled": true, "build": 760, "version": "0.2.1", "minimum_build": 0, "title": "Sonar 0.2.1", "notes": "Новое", "ipa_url": "https://try-sonar.ru/downloads/release/ios-build-760/Sonar.ipa", "url": "https://try-sonar.ru/downloads/release/ios-build-760/Sonar.ipa"}"#
+        let manifest = try XCTUnwrap(UpdateManifest.parse(json(body)))
+        XCTAssertEqual(manifest.build, 760)
+        XCTAssertEqual(manifest.downloadURL?.host, "try-sonar.ru")
+        XCTAssertEqual(manifest.notes, "Новое")
+    }
+
     func testManifestTakesOnlyHTTPSLinks() throws {
         let manifest = try XCTUnwrap(UpdateManifest.parse(json(#"""
         {"build": 5, "ipa_url": "http://evil/Sonar.ipa", "url": "https://example.com/page", "title": "  ", "notes": " Привет "}

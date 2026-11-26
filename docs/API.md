@@ -809,22 +809,42 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 }
 ```
 
-## 8. Обновления
+## 8. Обновления (сделано на сервере 2026-11-26, SERVER_PROMPT этап 7)
+
+Сборки выпускает владелец в админке («Сборки», ADMIN.md §2): CI только собирает релиз на GitHub, сервер по кнопке
+скачивает его файлы к себе (`data/builds/<платформа>/<канал>/<тег>/`) и отдаёт сам. Каналы — `release` и `beta`;
+бета видит и выпущенные релизы (берётся та, у которой версия выше: хотфикс релиза не перебивает более новую бету). На (платформу, канал) хранятся последние 3 сборки.
 
 | Метод | Путь | Ответ |
 |---|---|---|
-| GET | `/updates/manifest.plist?ipa=<url>&build=<n>` (без авт.) | `manifest.plist` для `itms-services` |
+| GET | `/updates/windows/{release\|beta}.json` (без авт.) | формат `tauri-plugin-updater`, 404 — сборок нет |
+| GET | `/updates/ios/{release\|beta}.json` (без авт.) | формат прежнего `ios-update.json`, 404 — сборок нет |
+| GET | `/updates/manifest.plist?fetchurl=&bundleid=&name=&version=` (без авт.) | `manifest.plist` для `itms-services` |
+| GET, HEAD | `/downloads/{канал}/{Sonar-setup.exe\|Sonar.ipa}` (без `/api`) | текущая сборка; нет — 302 на релизы GitHub |
+| GET, HEAD | `/downloads/{канал}/{тег}/{файл}` (без `/api`) | конкретная сборка (её адрес — в манифестах), отозвана — 404 |
 
-Сами `update.json` / `changelog.json` клиент читает с
-`https://raw.githubusercontent.com/folzy1092/Sonar/main/updates/`:
+- Канал из пути перекрывает заголовок `X-Sonar-Channel: release|beta` (адрес в `tauri.conf.json` один, канал —
+  настройка `update.channel`). Язык «Что нового» — `?lang=` или `X-Sonar-Lang` (`ru en uk es de pl`), нет текста
+  на языке — английский, потом русский.
+- 404 у JSON, а не 204: на 404 `tauri-plugin-updater` идёт к следующему адресу — релизу `windows-latest` на GitHub.
+  iPhone при 404 / без сети читает по-старому `updates/ios-update.json`, потом список релизов GitHub.
+- Файлы — с Range и ETag (`FileResponse`). `Cache-Control: no-cache` у JSON.
+- `manifest.plist`: `fetchurl` — только `http://127.0.0.1:<порт>/…` (установка с телефона) или
+  `https://try-sonar.ru/downloads/…` без query; `bundleid`, `name`, `version` проверяются и экранируются.
 
 ```json
-// update.json
-{"enabled": true, "build": 42, "version": "1.2.0", "minimum_build": 30,
- "title": "Sonar 1.2.0", "notes": "Тексты песен, жесты в очереди",
- "api_url": null,  // если не null — приложение переключается на новый адрес API
- "url": "https://github.com/folzy1092/Sonar/releases/download/build-42/Sonar.ipa"}
+// GET /api/updates/windows/release.json
+{"version": "0.3.12", "notes": "Что нового", "pub_date": "2026-11-26T10:00:00Z",
+ "platforms": {"windows-x86_64": {"signature": "<.sig из релиза>",
+   "url": "https://try-sonar.ru/downloads/release/windows-v0.3.12/Sonar-setup.exe"}}}
+
+// GET /api/updates/ios/beta.json?lang=en
+{"enabled": true, "build": 760, "version": "0.2.1", "minimum_build": 0, "title": "Sonar 0.2.1",
+ "notes": "What’s new", "ipa_url": "https://try-sonar.ru/downloads/beta/ios-build-760/Sonar.ipa",
+ "url": "https://try-sonar.ru/#download"}
 ```
+
+`changelog.json` («Архив версий») клиенты пока читают с `raw.githubusercontent.com/folzy1092/Sonar/main/updates/`.
 
 ## 10. Пульт: iPhone управляет Sonar на ПК (локальная сеть, этап 13 NEXT_PROMPT)
 

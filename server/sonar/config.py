@@ -28,11 +28,11 @@ class Settings:
     fernet_key: str = ""
     public_url: str = ""
     site_url: str = "https://try-sonar.ru"
-    download_url: str = "https://github.com/folzy1092/Sonar/releases/latest"
-    # iPhone — постоянный релиз ios-latest (CI перезаливает, Latest не трогает — он у Windows)
+    download_url: str = "https://try-sonar.ru/downloads/release/Sonar-setup.exe"
+    # файлы отдаёт сервер (выпущенная в админке сборка), пока сборок нет — 302 на релизы GitHub
     # канал новостей и обновлений — посты с кнопками от имени бота (бот — админ канала)
     channel: str = "@SonarUpdates"
-    download_url_ios: str = "https://github.com/folzy1092/Sonar/releases/download/ios-latest/Sonar.ipa"
+    download_url_ios: str = "https://try-sonar.ru/downloads/release/Sonar.ipa"
     support_group_id: int | None = None
     log_chat_id: int | None = None
     data_thread_id: int | None = None   # тема «Data» лог-группы (бэкапы), создана другим ботом

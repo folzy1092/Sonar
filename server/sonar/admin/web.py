@@ -18,7 +18,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from .. import subs
+from .. import builds, subs
 from ..events import tz
 from . import charts, dashboard, prefs, users
 from .auth import PASSWORD_MIN, AdminAuth, AuthError, Session
@@ -47,11 +47,19 @@ MESSAGES = {
     "not_https": "Ссылка должна начинаться с https://", "bad_period": "Неверный период",
     "device_ended": "Сессия устройства завершена", "logged_out": "Вышел на всех устройствах",
     "sessions_closed": "Остальные сессии админки закрыты",
+    "published": "Сборка выпущена: файлы скачаны, клиенты увидят её при следующей проверке",
+    "revoked": "Сборка отозвана — клиенты её больше не видят", "restored": "Сборка снова доступна",
+    "bad_tag": "Нет такого тега сборки", "bad_channel": "Нет такого канала", "no_build": "Сборка не найдена",
+    "no_release": "На GitHub нет такого релиза", "no_assets": "В релизе нет файлов сборки (exe с .sig или Sonar.ipa)",
+    "no_version": "Не понял версию из названия релиза", "github": "GitHub не ответил или оборвал загрузку, попробуй ещё",
+    "bad_host": "GitHub отправил на незнакомый адрес — загрузка остановлена", "too_big": "Файл больше 200 МБ",
+    "no_notes": "Описание на русском и английском обязательно",
 }
 ACTIONS = {"login": "Вход в админку", "password": "Смена пароля", "ban": "Блокировка", "unban": "Разблокировка",
            "set_login": "Смена логина", "grant_sub": "Подписка вручную", "settings": "Настройки",
            "end_device": "Завершена сессия устройства", "logout_all": "Выход на всех устройствах",
-           "close_sessions": "Закрыты другие сессии админки", "login_failed": "Неудачный вход в админку"}
+           "close_sessions": "Закрыты другие сессии админки", "login_failed": "Неудачный вход в админку",
+           "publish_build": "Выпуск сборки", "revoke_build": "Отзыв сборки", "restore_build": "Возврат сборки"}
 PERIODS = {"today": 1, "7": 7, "30": 30, "90": 90}
 PAGE_MAX = 1_000_000  # дальше страниц всё равно нет, а огромный OFFSET роняет SQLite
 
@@ -443,3 +451,70 @@ async def audit_page(request: Request):
     link = lambda n: BASE + "/audit?" + urlencode({"a": action, "page": n})  # noqa: E731
     return _page(request, "audit.html", s, rows=rows, total=total, a=action, page=page, pages=pages, link=link,
                  nav="audit")
+
+
+# ---- сборки (SERVER_PROMPT этап 7) ----
+
+CHANNEL_NAMES = {"release": "Релиз", "beta": "Бета"}
+LANG_NAMES = {"ru": "Русский", "en": "English", "uk": "Українська", "es": "Español", "de": "Deutsch", "pl": "Polski"}
+templates.env.globals.update(CHANNEL_NAMES=CHANNEL_NAMES, LANG_NAMES=LANG_NAMES, BUILD_LANGS=builds.LANGS,
+                             REQUIRED_LANGS=builds.REQUIRED_LANGS, BUILD_KEEP=builds.KEEP)
+
+
+@router.get("/builds", response_class=HTMLResponse)
+async def builds_page(request: Request):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    st = _state(request)
+    published = builds.listing(st.con)
+    candidates, gh_error, chosen = [], None, None
+    try:
+        candidates = await st.github.releases()
+    except builds.BuildError as err:
+        gh_error = MESSAGES.get(err.code, err.code)
+    tag = request.query_params.get("tag", "")
+    if tag and builds.TAG_RE.match(tag):
+        chosen = next((r for r in candidates if r.get("tag_name") == tag), None)
+    return _page(request, "builds.html", s, published=published, candidates=candidates, gh_error=gh_error,
+                 chosen=chosen, out={b.tag for b in published}, nav="builds")
+
+
+@router.post("/builds/publish")
+async def builds_publish(request: Request):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    form = await _form(request)
+    tag = form.get("tag", "")
+    if not _csrf_ok(s, form):
+        return _go("/builds", e="csrf")
+    st = _state(request)
+    notes = {lang: form.get(f"notes_{lang}", "") for lang in builds.LANGS}
+    try:
+        b = await builds.publish(st.con, st.settings.data_dir, st.github, tag, form.get("channel", ""), notes,
+                                 s.admin.login)
+    except builds.BuildError as err:
+        return _go("/builds", e=err.code, tag=tag if builds.TAG_RE.match(tag) else None)
+    users.audit(st.con, s.admin.login, "publish_build", b.tag, channel=b.channel, version=b.version, size=b.size,
+                sha256=b.sha256)
+    return _go("/builds", m="published")
+
+
+@router.post("/builds/{build_id}/{action}")
+async def builds_action(request: Request, build_id: int, action: str):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    form = await _form(request)
+    if not _csrf_ok(s, form):
+        return _go("/builds", e="csrf")
+    if action not in ("revoke", "restore"):
+        return _go("/builds", e="no_build")
+    st = _state(request)
+    try:
+        b = builds.set_revoked(st.con, build_id, action == "revoke")
+    except builds.BuildError as err:
+        return _go("/builds", e=err.code)
+    users.audit(st.con, s.admin.login, f"{action}_build", b.tag, channel=b.channel)
+    return _go("/builds", m="revoked" if action == "revoke" else "restored")

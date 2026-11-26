@@ -8,7 +8,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import auth, errors, integrations, me, misc, public, services, status, sync
+from . import auth, errors, integrations, me, misc, public, services, status, sync, updates
 from .deps import API_PER_IP, AUTH_PER_IP, WINDOW_S, Limiter, client_ip
 from .errors import PREFIX, error, is_api
 
@@ -39,6 +39,7 @@ def install(app: FastAPI) -> None:
                        allow_headers=["Authorization", "Content-Type"], max_age=600)
 
     for router in (misc.router, status.router, auth.router, me.router, sync.router, services.router,
-                   integrations.router, public.router):
+                   integrations.router, public.router, updates.router):
         app.include_router(router, prefix=PREFIX)
     app.include_router(misc.router, include_in_schema=False)  # старые пути в корне — алиасы
+    app.include_router(updates.downloads)  # файлы сборок — /downloads, вне /api и его лимита
