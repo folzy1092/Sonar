@@ -12,6 +12,7 @@ import argparse
 import logging
 import os
 import sqlite3
+import time
 from pathlib import Path
 
 from cryptography.fernet import Fernet
@@ -24,13 +25,15 @@ from . import api, builds, config
 from .accounts import Accounts
 from .admin import prefs
 from .admin.auth import FACTORY_LOGIN, AdminAuth
-from .admin.web import BASE, HERE, router as admin_router
+from .admin.web import BASE, HERE, _ip, router as admin_router
 from .config import Settings
 from .api.errors import is_api
 from .status import Status
 from .updater import Updater
 
 log = logging.getLogger("sonar.web")
+# Что клиенты дёргают постоянно: в консоли хостинга они заглушили бы остальное.
+QUIET = {"/health", "/api/health", "/api/player/state", "/api/status/report"}
 
 # Файлы Astro с хэшем в имени не меняются никогда; HTML — всегда сверять, остальное (картинки, шрифты) — час.
 IMMUTABLE = "public, max-age=31536000, immutable"
@@ -107,6 +110,22 @@ def create_app(con: sqlite3.Connection, settings: Settings, status: Status | Non
         if request.headers.get("host", "").startswith("admin.") and not request.url.path.startswith(BASE):
             return RedirectResponse(BASE + "/", status_code=303)
         return await call_next(request)
+
+    @app.middleware("http")
+    async def access_log(request: Request, call_next):
+        """Строка в консоль на каждый запрос: настоящий IP (за прокси), метод, путь без query (в нём бывают ключи), код,
+        время. Нужна, чтобы увидеть, доходят ли запросы клиента до сервера: uvicorn при log_level=warning молчит."""
+        started = time.monotonic()
+        status = 500
+        try:
+            response = await call_next(request)
+            status = response.status_code
+            return response
+        finally:
+            path = request.url.path
+            if path not in QUIET:
+                log.info("HTTP %s %s %s -> %s %d мс", _ip(request), request.method, path[:120], status,
+                         int((time.monotonic() - started) * 1000))
 
     api.install(app)
     install_site(app, site or site_dir(settings))

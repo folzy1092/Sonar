@@ -243,3 +243,20 @@ def test_dns_failure_keeps_previous_proxy_addresses(monkeypatch):
         raise OSError("dns")
     monkeypatch.setattr(socket_mod, "getaddrinfo", down)
     assert admin_web._trusted("217.60.245.67") and not admin_web._trusted("203.0.113.5")
+
+
+def test_access_log_writes_real_ip_and_hides_query(caplog, tmp_path):
+    import logging
+
+    from sonar.config import Settings
+    from sonar.db import connect
+    from sonar.web import create_app
+    app = create_app(connect(":memory:"), Settings(data_dir=tmp_path))
+    with caplog.at_level(logging.INFO, logger="sonar.web"):
+        c = TestClient(app)
+        c.get("/api/whoami?token=секрет")
+        c.get("/api/health")
+    lines = [r.getMessage() for r in caplog.records if r.name == "sonar.web"]
+    assert any("/api/whoami -> 200" in line for line in lines)
+    assert not any("секрет" in line or "token" in line for line in lines)
+    assert not any("/api/health" in line for line in lines)      # постоянные запросы клиентов в консоль не пишем
