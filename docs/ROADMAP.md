@@ -612,6 +612,10 @@ SoundCloud — `/resolve`, короткие on.soundcloud.com тоже), ком�
 >   перезапуск; `sync.py` больше не качает репо ради коммитов вне `server/` (`sonar/updater.py`, BOT.md §2.12б, ADMIN.md §0).
 >   ✅ 2026-11-26 блокировки: бан на срок и навсегда с 403 `account_banned` (ПК, iPhone, бот), блок обращений «Баг / Идея», команды
 >   `/who /ban /unban /rban /runban /banned`, `/admin` со сбросом пароля админки, вход на iPhone обязателен, «Ключ API» на iPhone.
+>   ✅ 2026-11-26 диагностика доступности (`docs/SERVER_DIAG.md`, ветка `server-diag`): страница `/diag`, `GET /api/diag` и
+>   `/api/diag/payload`, монитор event loop, access-лог с байтами / UA / «ОБОРВАН», DNS доверенного прокси в фоне,
+>   `server/tools/diag_probe.py`, кнопка в `/admin` бота. Корень «открылось раз, потом всё» не найден; следующее — замеры
+>   `/diag` с телефона владельца (LTE / Wi-Fi / VPN) и консоль Velt.
 >
 > **С сервером — админ-панель** (`docs/ADMIN.md`, решение 2026-11-17): объявление сборок
 > в два клика вместо ручного `announce` и `ios-update.json`, аккаунты, устройства, флаги функций, рассылки.

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
 import os
 import sqlite3
@@ -17,15 +18,15 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 
-from . import api, builds, config
+from . import api, builds, config, diag
 from .accounts import Accounts
 from .admin import prefs
 from .admin.auth import FACTORY_LOGIN, AdminAuth
-from .admin.web import BASE, HERE, _ip, router as admin_router
+from .admin.web import BASE, HERE, _ip, router as admin_router, warm_site_addresses
 from .config import Settings
 from .api.errors import is_api
 from .status import Status
@@ -33,7 +34,14 @@ from .updater import Updater
 
 log = logging.getLogger("sonar.web")
 # Что клиенты дёргают постоянно: в консоли хостинга они заглушили бы остальное.
-QUIET = {"/health", "/api/health", "/api/player/state", "/api/status/report", "/api/oauth/now", "/oauth/now"}
+# /api/diag/payload — страница /diag за прогон дёргает его 30 раз; итог виден на самой странице.
+QUIET = {"/health", "/api/health", "/api/player/state", "/api/status/report", "/api/oauth/now", "/oauth/now",
+         "/api/diag/payload"}
+UA_MAX = 40
+# Страница /diag (SERVER_DIAG_PROMPT §4.2): без внешних файлов, ходит только на свой /api/diag*.
+DIAG_PAGE = (Path(__file__).with_name("diag_page.html")).read_text(encoding="utf-8")
+DIAG_HEADERS = {"Cache-Control": "no-store", "Content-Security-Policy":
+                "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'"}
 
 # Файлы Astro с хэшем в имени не меняются никогда; HTML — всегда сверять, остальное (картинки, шрифты) — час.
 IMMUTABLE = "public, max-age=31536000, immutable"
@@ -117,25 +125,55 @@ def create_app(con: sqlite3.Connection, settings: Settings, status: Status | Non
             return RedirectResponse(BASE + "/", status_code=303)
         return await call_next(request)
 
-    @app.middleware("http")
-    async def access_log(request: Request, call_next):
-        """Строка в консоль на каждый запрос: настоящий IP (за прокси), метод, путь без query (в нём бывают ключи), код,
-        время. Нужна, чтобы увидеть, доходят ли запросы клиента до сервера: uvicorn при log_level=warning молчит."""
-        started = time.monotonic()
-        status = 500
-        try:
-            response = await call_next(request)
-            status = response.status_code
-            return response
-        finally:
-            path = request.url.path
-            if path not in QUIET:
-                log.info("HTTP %s %s %s -> %s %d мс", _ip(request), request.method, path[:120], status,
-                         int((time.monotonic() - started) * 1000))
+    @app.get("/diag", include_in_schema=False)
+    async def diag_page():
+        return HTMLResponse(DIAG_PAGE, headers=DIAG_HEADERS)
 
     api.install(app)
     install_site(app, site or site_dir(settings))
+    install_access_log(app)          # последним — снаружи всех: видит и ответы сайта, а не их внутренние 404
+    warm_site_addresses()            # адреса прокси ищутся в фоне до первых запросов, а не на них
     return app
+
+
+def _log_request(request: Request, status: int, started: float, sent: int, finished: bool) -> None:
+    if request.url.path in QUIET:
+        return
+    ua = (request.headers.get("user-agent") or "-")[:UA_MAX]
+    log.info("HTTP %s %s %s -> %s %d мс %d Б%s ua=%s", _ip(request), request.method, request.url.path[:120], status,
+             int((time.monotonic() - started) * 1000), sent, "" if finished else " ОБОРВАН", ua)
+
+
+def install_access_log(app: FastAPI) -> None:
+    """Строка в консоль на каждый запрос, когда тело ушло до конца или оборвалось: настоящий IP (за прокси), метод,
+    путь без query (в нём бывают ключи), код, время до последнего байта, сколько байт ушло, начало User-Agent.
+    Нужна, чтобы увидеть, доходят ли запросы до сервера и уходят ли ответы целиком: uvicorn при log_level=warning
+    молчит. Заодно — счётчик запросов и монитор event loop для `/api/diag`."""
+
+    @app.middleware("http")
+    async def access_log(request: Request, call_next):
+        diag.MONITOR.start(asyncio.get_running_loop())    # один раз на loop
+        diag.REQUESTS.hit()
+        started = time.monotonic()
+        try:
+            response = await call_next(request)
+        except Exception:
+            _log_request(request, 500, started, 0, True)
+            raise
+        body = response.body_iterator
+
+        async def counted():
+            sent, finished = 0, False
+            try:
+                async for chunk in body:
+                    sent += len(chunk)
+                    yield chunk
+                finished = True
+            finally:
+                _log_request(request, response.status_code, started, sent, finished)
+
+        response.body_iterator = counted()
+        return response
 
 
 def main() -> None:

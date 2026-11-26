@@ -14,6 +14,7 @@ import os
 import secrets
 import time
 import socket
+import threading
 from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
@@ -131,24 +132,57 @@ def _trusted_networks() -> list:
 
 SITE_ADDRS_TTL_S = 600
 _site_addrs: tuple[float | None, frozenset[str]] = (None, frozenset())   # None — DNS ещё не спрашивали
+_dns_lock = threading.Lock()
+_dns_busy = False
 
 
-def _site_addresses() -> frozenset[str]:
-    """Адреса, в которые смотрит домен сайта (`SONAR_PUBLIC_URL`): на них стоит nginx хостинга. Прокси хостинга подключается
-    к контейнеру с публичного адреса (217.60.245.67), а он не входит в списки частных сетей — без этого сервер принимал
-    адрес прокси за адрес клиента, и лимиты входа, регистрации и запросов были общими на всех. Спрашиваем DNS раз в 10 минут."""
+def _site_host() -> str | None:
+    return urlsplit(os.getenv("SONAR_PUBLIC_URL") or "").hostname
+
+
+def refresh_site_addresses() -> frozenset[str]:
+    """Спросить DNS синхронно — только из фонового потока (`warm_site_addresses`) или теста, не из запроса."""
     global _site_addrs
-    now = time.monotonic()
-    asked, known = _site_addrs
-    if asked is not None and now - asked < SITE_ADDRS_TTL_S:
-        return known
-    host = urlsplit(os.getenv("SONAR_PUBLIC_URL") or "").hostname
+    host = _site_host()
     found: set[str] = set()
     if host:
         with contextlib.suppress(OSError):
             found = {info[4][0] for info in socket.getaddrinfo(host, None)}
-    _site_addrs = (now, frozenset(found) or known)   # DNS не ответил — остаёмся с прежними адресами
+    _site_addrs = (time.monotonic(), frozenset(found) or _site_addrs[1])   # DNS не ответил — остаёмся с прежними
     return _site_addrs[1]
+
+
+def warm_site_addresses() -> threading.Thread | None:
+    """Обновить адреса в фоновом потоке, если он ещё не идёт. Зовётся при старте HTTP и когда кэш устарел."""
+    global _dns_busy
+    with _dns_lock:
+        if _dns_busy or not _site_host():
+            return None
+        _dns_busy = True
+
+    def run() -> None:
+        global _dns_busy
+        try:
+            refresh_site_addresses()
+        finally:
+            with _dns_lock:
+                _dns_busy = False
+    thread = threading.Thread(target=run, name="site-dns", daemon=True)
+    thread.start()
+    return thread
+
+
+def _site_addresses() -> frozenset[str]:
+    """Адреса, в которые смотрит домен сайта (`SONAR_PUBLIC_URL`): на них стоит nginx хостинга. Прокси хостинга подключается
+    к контейнеру с публичного адреса, а он не входит в списки частных сетей — без этого сервер принимал адрес прокси за адрес
+    клиента, и лимиты входа, регистрации и запросов были общими на всех.
+
+    Запрос DNS не ждёт: синхронный `getaddrinfo` в event loop держал бы и бота, и весь HTTP, пока резолвер думает
+    (SERVER_DIAG_PROMPT §4.1.2). Отдаём то, что знаем, а устаревший кэш (10 минут) обновляется в фоне."""
+    asked, known = _site_addrs
+    if asked is None or time.monotonic() - asked >= SITE_ADDRS_TTL_S:
+        warm_site_addresses()
+    return known
 
 
 def _trusted(addr: str) -> bool:

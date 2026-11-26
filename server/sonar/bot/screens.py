@@ -760,8 +760,10 @@ def update_done(r: dict) -> Screen:
 
 # ---- /admin: команды владельца (скрытая, только владелец) ----
 
-def admin_menu(admin_url: str = "") -> Screen:
+def admin_menu(admin_url: str = "", diag_url: str = "") -> Screen:
     kb = [[Btn("Открыть админку", "web", url=admin_url)]] if admin_url else []
+    if diag_url:     # страница проверки связи — её же можно скинуть другу, у кого «ничего не открывается»
+        kb.append([Btn("Диагностика", "stats", url=diag_url)])
     # В Telegram у кнопки в паре места на ~12 знаков с иконкой: рядом только короткие подписи, длинные — по одной в строку.
     kb += [[Btn("Блокировки", "cancel", "mod:list"), Btn("Как банить", "info", "adm:help")],
            [Btn("Выпустить сборку", "download", "bld:list")],

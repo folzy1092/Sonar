@@ -224,6 +224,7 @@ def test_proxy_on_the_sites_own_address_is_trusted(con, tmp_path, monkeypatch):
     monkeypatch.setenv("SONAR_PUBLIC_URL", "https://try-sonar.ru")
     monkeypatch.setattr(admin_web, "_site_addrs", (None, frozenset()))
     monkeypatch.setattr(socket_mod, "getaddrinfo", lambda host, port: [(2, 1, 6, "", ("217.60.245.67", 0))])
+    admin_web.refresh_site_addresses()               # на сервере это делает фоновый поток при старте HTTP
     app = create_app(con, Settings(data_dir=tmp_path))
     proxy = TestClient(app, base_url="http://testserver", client=("217.60.245.67", 5000))
     assert proxy.get("/api/whoami", headers={"X-Forwarded-For": "198.51.100.8"}).json()["ip"] == "198.51.100.8"
@@ -242,7 +243,41 @@ def test_dns_failure_keeps_previous_proxy_addresses(monkeypatch):
     def down(host, port):
         raise OSError("dns")
     monkeypatch.setattr(socket_mod, "getaddrinfo", down)
+    assert admin_web.refresh_site_addresses() == {"217.60.245.67"}
     assert admin_web._trusted("217.60.245.67") and not admin_web._trusted("203.0.113.5")
+
+
+def test_request_never_waits_for_site_dns(monkeypatch):
+    """Устаревший кэш адресов: запрос сразу получает прежние, а DNS спрашивает фоновый поток (SERVER_DIAG_PROMPT §4.1.2)."""
+    import socket as socket_mod
+    import threading
+
+    from sonar.admin import web as admin_web
+    monkeypatch.setenv("SONAR_PUBLIC_URL", "https://try-sonar.ru")
+    monkeypatch.setattr(admin_web, "_site_addrs", (None, frozenset({"217.60.245.67"})))
+    release, asked_from = threading.Event(), []
+
+    def slow(host, port):
+        asked_from.append(threading.current_thread())
+        assert release.wait(5)
+        return [(2, 1, 6, "", ("217.60.245.99", 0))]
+    monkeypatch.setattr(socket_mod, "getaddrinfo", slow)
+    monkeypatch.setattr(admin_web, "warm_site_addresses", _remember(admin_web.warm_site_addresses, started := []))
+    assert admin_web._site_addresses() == {"217.60.245.67"}       # ответ без ожидания DNS
+    assert admin_web._site_addresses() == {"217.60.245.67"}       # второй поток не плодится, пока идёт первый
+    release.set()
+    started[0].join(5)
+    assert [t is threading.main_thread() for t in asked_from] == [False]
+    assert admin_web._site_addresses() == {"217.60.245.99"}
+
+
+def _remember(fn, into: list):
+    def wrapper():
+        thread = fn()
+        if thread is not None:
+            into.append(thread)
+        return thread
+    return wrapper
 
 
 def test_access_log_writes_real_ip_and_hides_query(caplog, tmp_path):

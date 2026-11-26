@@ -477,7 +477,7 @@ def test_no_cramped_rows_on_admin_screens(ctx, con):
     row = con.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
     full = {"errors": {}, "code": {"have": "a" * 40, "remote": "b" * 40, "new": True, "known": True, "changed": True,
                                    "deps": False, "commits": []}, "site": {"have": "x", "remote": "y", "new": True}}
-    screens = [S.admin_menu("https://try-sonar.ru/admin/"), S.update_menu(full), S.update_confirm_restart(),
+    screens = [S.admin_menu("https://try-sonar.ru/admin/", "https://try-sonar.ru/diag"), S.update_menu(full), S.update_confirm_restart(),
                S.admin_reset_confirm("folzy"), M.card(ctx, row, TG),
                S.builds_list([{"tag": "windows-v0.3.0", "platform": "windows", "version": "x", "state": "new"}])]
     bans.ban(con, "a", uid, "", None)

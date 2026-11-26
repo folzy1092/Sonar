@@ -1008,3 +1008,17 @@ Sonar). Телефон шлёт `pair` с кодом → ПК отвечает `
 `/admin/`. Все POST — с CSRF-токеном формы; сессия — cookie `sonar_admin` (httpOnly, SameSite=Strict, Secure за
 HTTPS, 12 ч). Подробно — `docs/ADMIN.md` §0.
 
+## 12. Диагностика (2026-11-26, `docs/SERVER_DIAG.md`)
+
+Без авторизации, оба ответа с `Cache-Control: no-store`, адресов клиентов в них нет (`sonar/api/diag.py`).
+
+- `GET /diag` → `{ "version": "<8 знаков коммита>", "uptime_s": int, "loop_lag": { "max_ms": int, "p95_ms": int,
+  "samples": int }, "rss_mb": float, "requests_per_min": int }` — отставание event loop за 5 минут (таймер раз в секунду),
+  память процесса, HTTP-запросов за последнюю минуту.
+- `GET /diag/payload?kb=N` (`N` — 0…2048, по умолчанию 1) → `text/plain`, ровно `N × 1024` байт, тело одно и то же при том же `N`
+  и плохо сжимается (gzip прокси не превратит проверку в пустяк), честный `Content-Length`. В access-лог не пишется.
+  Свой лимит — 90 запросов в минуту на IP поверх общего; ошибки — `400 bad_request` (кривой `kb`), `429 too_many` с `Retry-After: 60`.
+
+Страница проверки — `GET /diag` **в корне сайта**, не под `/api`: один HTML без внешних ресурсов (CSP `default-src 'none'`),
+гоняет `payload` 1…1024 КБ по три раза и 6 параллельных по 32 КБ, показывает таблицу и «Скопировать результат».
+То же с компьютера — `python server/tools/diag_probe.py [адрес] [--json]`.

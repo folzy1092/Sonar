@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Sonar · диагностика</title>
+<style>
+:root { --bg: #f6f5f2; --fg: #1d1c1a; --dim: #6d6a64; --line: #dcd8d0; --ok: #2f7d4f; --bad: #b3402e; --plate: #ecebe5; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #121211; --fg: #ecebe7; --dim: #9a978f; --line: #2c2b28; --ok: #6cc28f; --bad: #ef8a76; --plate: #1d1c1a; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+p { margin: 0 0 16px; color: var(--dim); }
+button { font: inherit; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--plate); color: var(--fg); cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+#summary { font-weight: 600; margin: 16px 0; min-height: 1.5em; }
+#summary.ok { color: var(--ok); } #summary.bad { color: var(--bad); }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+th { color: var(--dim); font-weight: 500; }
+td.ok { color: var(--ok); } td.bad { color: var(--bad); }
+pre { white-space: pre-wrap; word-break: break-word; background: var(--plate); padding: 12px; border-radius: 10px; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Диагностика связи с Sonar</h1>
+<p>Страница качает с сервера куски разного размера и смотрит, на каком что-то рвётся. Около 30 запросов, до 4 МБ трафика, меньше минуты. Твой IP сюда не попадает.</p>
+<div class="row">
+  <button id="run">Проверить</button>
+  <button id="copy" disabled>Скопировать результат</button>
+</div>
+<div id="summary"></div>
+<table>
+  <thead><tr><th>Размер</th><th>Итог</th><th>Первый байт</th><th>Всего</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<pre id="server" hidden></pre>
+</main>
+<script>
+"use strict";
+const SIZES = [1, 8, 16, 17, 32, 64, 256, 1024];
+const RUNS = 3;
+const PARALLEL = 6;
+const PARALLEL_KB = 32;
+const TIMEOUT_MS = 15000;
+const $ = (id) => document.getElementById(id);
+let report = "";
+
+async function probe(kb, tag) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+  const t0 = performance.now();
+  let ttfb = null, bytes = 0;
+  const done = (outcome) => ({ kb, tag, outcome, bytes, ttfb, ms: performance.now() - t0 });
+  try {
+    const r = await fetch(`/api/diag/payload?kb=${kb}&r=${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+                          { cache: "no-store", signal: ctl.signal });
+    ttfb = performance.now() - t0;
+    if (!r.ok) return done(`HTTP ${r.status}`);
+    const reader = r.body.getReader();
+    for (;;) {
+      const { done: end, value } = await reader.read();
+      if (end) break;
+      bytes += value.length;
+    }
+    return done(bytes === kb * 1024 ? "ok" : `обрыв на ${bytes} Б`);
+  } catch (e) {
+    if (ctl.signal.aborted) return done(bytes ? `таймаут на ${bytes} Б` : "таймаут");
+    return done(bytes ? `обрыв на ${bytes} Б` : "ошибка сети");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const ms = (v) => v == null ? "—" : `${Math.round(v)} мс`;
+
+function addRow(res) {
+  const tr = document.createElement("tr");
+  [`${res.kb} КБ ${res.tag}`, res.outcome, ms(res.ttfb), ms(res.ms)].forEach((text, i) => {
+    const td = document.createElement("td");
+    td.textContent = text;
+    if (i === 1) td.className = res.outcome === "ok" ? "ok" : "bad";
+    tr.appendChild(td);
+  });
+  $("rows").appendChild(tr);
+}
+
+async function serverInfo() {
+  try {
+    const r = await fetch(`/api/diag?r=${Date.now()}`, { cache: "no-store" });
+    return r.ok ? await r.json() : { error: `HTTP ${r.status}` };
+  } catch (e) {
+    return { error: "ошибка сети" };
+  }
+}
+
+function summarize(results) {
+  const bad = results.filter((r) => r.outcome !== "ok");
+  if (!bad.length) return { ok: true, text: `Всё дошло: ${results.length} из ${results.length}.` };
+  const first = bad[0];
+  return { ok: false, text: `Сбоев ${bad.length} из ${results.length}. Первый — ${first.kb} КБ ${first.tag}: ${first.outcome}.` };
+}
+
+async function run() {
+  $("run").disabled = true; $("copy").disabled = true; $("copy").textContent = "Скопировать результат";
+  $("rows").textContent = ""; $("summary").textContent = "Проверяю…"; $("summary").className = "";
+  const results = [];
+  const before = await serverInfo();
+  for (const kb of SIZES) {
+    for (let i = 1; i <= RUNS; i++) {
+      const res = await probe(kb, `#${i}`);
+      results.push(res);
+      addRow(res);
+    }
+  }
+  const burst = await Promise.all(Array.from({ length: PARALLEL }, (_, i) => probe(PARALLEL_KB, `парал. ${i + 1}`)));
+  burst.forEach((res) => { results.push(res); addRow(res); });
+  const after = await serverInfo();
+  const sum = summarize(results);
+  $("summary").textContent = sum.text;
+  $("summary").className = sum.ok ? "ok" : "bad";
+  const server = `Сервер до: ${JSON.stringify(before)}\nСервер после: ${JSON.stringify(after)}`;
+  $("server").hidden = false;
+  $("server").textContent = server;
+  report = [
+    `Sonar диагностика ${new Date().toISOString()}`,
+    `Браузер: ${navigator.userAgent}`,
+    `Сеть: ${(navigator.connection && navigator.connection.effectiveType) || "?"}`,
+    sum.text,
+    ...results.map((r) => `${r.kb} КБ ${r.tag}: ${r.outcome}, первый байт ${ms(r.ttfb)}, всего ${ms(r.ms)}`),
+    server,
+  ].join("\n");
+  $("run").disabled = false; $("copy").disabled = false;
+}
+
+$("run").addEventListener("click", run);
+$("copy").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(report);
+    $("copy").textContent = "Скопировано";
+  } catch (e) {
+    $("server").textContent = report;
+    $("copy").textContent = "Выдели текст ниже";
+  }
+});
+</script>
+</body>
+</html>

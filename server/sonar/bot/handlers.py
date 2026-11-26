@@ -296,16 +296,26 @@ async def announce_update(ctx: Ctx) -> None:
 PASSWORD_SHOWN_S = 120   # сколько живёт сообщение с новым паролем админки
 
 
-def _admin_url(ctx: Ctx) -> str:
+def _https_base(ctx: Ctx) -> str:
     base = (ctx.settings.public_url or ctx.settings.site_url or "").rstrip("/")
-    return f"{base}/admin/" if base.startswith("https://") else ""
+    return base if base.startswith("https://") else ""
+
+
+def _admin_url(ctx: Ctx) -> str:
+    base = _https_base(ctx)
+    return f"{base}/admin/" if base else ""
+
+
+def _admin_menu(ctx: Ctx) -> Screen:
+    base = _https_base(ctx)
+    return S.admin_menu(_admin_url(ctx), f"{base}/diag" if base else "")
 
 
 @router.message(Command("admin"))
 async def cmd_admin(msg: Message, ctx: Ctx):
     if not ctx.is_owner(msg.from_user.id):
         return
-    await ctx.shower.send(msg.chat.id, S.admin_menu(_admin_url(ctx)))
+    await ctx.shower.send(msg.chat.id, _admin_menu(ctx))
 
 
 async def _delete_later(ctx: Ctx, chat_id: int, message_id: int, seconds: int) -> None:
@@ -323,7 +333,7 @@ async def admin_button(q: CallbackQuery, ctx: Ctx) -> None:
     action = (q.data or "").partition(":")[2]
     edit = lambda s: ctx.shower.edit(q.message, s)  # noqa: E731
     if action == "menu":
-        return await edit(S.admin_menu(_admin_url(ctx)))
+        return await edit(_admin_menu(ctx))
     if action == "help":
         from .moderation import HELP
         return await edit(Screen(html=HELP, kb=[[Btn("Назад", "back", "adm:menu")]]))
@@ -335,7 +345,7 @@ async def admin_button(q: CallbackQuery, ctx: Ctx) -> None:
     try:
         password = AdminAuth(con).reset_password(FACTORY_LOGIN)   # argon2 ~0,1 с — раз в жизни, поток не нужен
     except AuthError:
-        return await edit(S.admin_menu(_admin_url(ctx)))
+        return await edit(_admin_menu(ctx))
     admin_users.audit(con, f"telegram:{q.from_user.id}", "reset_admin_password", FACTORY_LOGIN)
     shown = await edit(S.admin_reset_done(FACTORY_LOGIN, password, _admin_url(ctx), PASSWORD_SHOWN_S // 60))
     chat_id = q.message.chat.id
