@@ -767,6 +767,7 @@ def admin_menu(admin_url: str = "", diag_url: str = "") -> Screen:
     # В Telegram у кнопки в паре места на ~12 знаков с иконкой: рядом только короткие подписи, длинные — по одной в строку.
     kb += [[Btn("Блокировки", "cancel", "mod:list"), Btn("Как банить", "info", "adm:help")],
            [Btn("Выпустить сборку", "download", "bld:list")],
+           [Btn("Пост в канал", "sent", "post:new")],
            [Btn("Сбросить пароль админки", "key", "adm:pw")],
            [Btn("Обновление", "refresh", "upd:chk"), Btn("Статус", "status_ok", "status")]]
     return Screen(html=f"{e('warning')} <b>Админ</b>\n"
