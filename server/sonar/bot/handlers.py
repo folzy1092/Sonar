@@ -17,6 +17,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 from .. import dotify, sessions
+from ..admin import users as admin_users
+from ..admin.auth import FACTORY_LOGIN, AdminAuth, AuthError
 from ..accounts import AccountError, Accounts, User, looks_like_token
 from ..config import Settings
 from ..db import now_ms
@@ -256,6 +258,58 @@ async def announce_update(ctx: Ctx) -> None:
                                 f"запросил: {result.get('source')}"])
 
 
+
+
+# ---- /admin: команды владельца (скрытая, только владелец) ----
+
+PASSWORD_SHOWN_S = 120   # сколько живёт сообщение с новым паролем админки
+
+
+def _admin_url(ctx: Ctx) -> str:
+    base = (ctx.settings.public_url or ctx.settings.site_url or "").rstrip("/")
+    return f"{base}/admin/" if base.startswith("https://") else ""
+
+
+@router.message(Command("admin"))
+async def cmd_admin(msg: Message, ctx: Ctx):
+    if not ctx.is_owner(msg.from_user.id):
+        return
+    await ctx.shower.send(msg.chat.id, S.admin_menu(_admin_url(ctx)))
+
+
+async def _delete_later(ctx: Ctx, chat_id: int, message_id: int, seconds: int) -> None:
+    await asyncio.sleep(seconds)
+    try:
+        await ctx.bot.delete_message(chat_id, message_id)
+    except TelegramBadRequest:
+        pass
+
+
+async def admin_button(q: CallbackQuery, ctx: Ctx) -> None:
+    if not ctx.is_owner(q.from_user.id):
+        return await q.answer("Только для владельца", show_alert=True)
+    await q.answer()
+    action = (q.data or "").partition(":")[2]
+    edit = lambda s: ctx.shower.edit(q.message, s)  # noqa: E731
+    if action == "menu":
+        return await edit(S.admin_menu(_admin_url(ctx)))
+    if action == "pw":
+        return await edit(S.admin_reset_confirm(FACTORY_LOGIN))
+    if action != "pw_yes":
+        return None
+    con = ctx.accounts.con
+    try:
+        password = AdminAuth(con).reset_password(FACTORY_LOGIN)   # argon2 ~0,1 с — раз в жизни, поток не нужен
+    except AuthError:
+        return await edit(S.admin_menu(_admin_url(ctx)))
+    admin_users.audit(con, f"telegram:{q.from_user.id}", "reset_admin_password", FACTORY_LOGIN)
+    shown = await edit(S.admin_reset_done(FACTORY_LOGIN, password, _admin_url(ctx), PASSWORD_SHOWN_S // 60))
+    chat_id = q.message.chat.id
+    asyncio.create_task(_delete_later(ctx, chat_id, getattr(shown, "message_id", q.message.message_id), PASSWORD_SHOWN_S))
+    return None
+
+
+
 # ---- перенос Любимых из Dotify (скрытая команда, в меню её нет) ----
 
 @router.message(Command("dotify"))
@@ -328,6 +382,8 @@ async def on_button(q: CallbackQuery, state: FSMContext, ctx: Ctx):
         return await link_button(q, ctx)
     if data.startswith("upd:"):
         return await update_button(q, ctx)
+    if data.startswith("adm:"):
+        return await admin_button(q, ctx)
     user = ctx.accounts.by_tg(q.from_user.id)
     head, _, rest = data.partition(":")
     if user is None and head not in GUEST_OK:

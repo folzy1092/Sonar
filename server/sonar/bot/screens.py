@@ -678,3 +678,29 @@ def update_done(r: dict) -> Screen:
         head = f"{e('info')} <b>Сервер перезапущен</b>"
         tail = f"<code>{cur}</code> (новую версию GitHub проверить не удалось)"
     return Screen(html=head + "\n" + quote(tail), kb=[[Btn("К обновлению", "refresh", "upd:menu")]])
+
+
+# ---- /admin: команды владельца (скрытая, только владелец) ----
+
+def admin_menu(admin_url: str = "") -> Screen:
+    kb = [[Btn("Открыть админку", "web", url=admin_url)]] if admin_url else []
+    kb += [[Btn("Сбросить пароль админки", "key", "adm:pw")],
+           [Btn("Обновление сервера", "refresh", "upd:chk"), Btn("Статус", "status_ok", "status")]]
+    return Screen(html=f"{e('warning')} <b>Админ</b>\n"
+                       + quote("Команды только для владельца. Обновление и перезапуск сервера — по частям, "
+                               "сброс пароля — если забыл вход в админку."), kb=kb)
+
+
+def admin_reset_confirm(login: str) -> Screen:
+    return Screen(html=f"{e('key')} <b>Сбросить пароль админки?</b>\n"
+                       + quote(f"Для <code>{h(login)}</code> появится новый случайный пароль, старый перестанет работать, "
+                               "все сессии админки закроются. После входа сайт сразу попросит придумать свой."),
+                  kb=[[Btn("Да, сбросить", "confirm", "adm:pw_yes"), Btn("Отмена", "cancel", "adm:menu")]])
+
+
+def admin_reset_done(login: str, password: str, url: str, minutes: int) -> Screen:
+    link = f"\nВход: {h(url)}" if url else ""
+    return Screen(html=f"{e('success')} <b>Новый пароль админки</b>\n"
+                       + quote(f"Логин: <code>{h(login)}</code>\nПароль: <code>{h(password)}</code>{link}\n"
+                               f"Сообщение удалится через {minutes} мин — сохрани пароль сейчас. "
+                               "После входа придумай свой."))

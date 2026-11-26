@@ -145,8 +145,19 @@ class AdminAuth:
             raise AuthError("no_admin")
         self._store_password(r["id"], _ph.hash(new))
 
-    def _store_password(self, admin_id: int, password_hash: str) -> None:
+    def reset_password(self, login: str = FACTORY_LOGIN) -> str:
+        """Новый случайный пароль без старого (бот, `/admin`: владелец забыл заводской). Сессии закрываются, а при
+        входе сразу откроется форма смены (`must_change`). Админа нет — создаётся заводской. → пароль, показать один раз."""
+        self.ensure_factory()
+        r = self.con.execute("SELECT id FROM admins WHERE login = ?", (login,)).fetchone()
+        if r is None:
+            raise AuthError("no_admin")
+        password = secrets.token_urlsafe(FACTORY_PASSWORD_BYTES)
+        self._store_password(r["id"], _ph.hash(password), must_change=True)
+        return password
+
+    def _store_password(self, admin_id: int, password_hash: str, must_change: bool = False) -> None:
         with tx(self.con):
-            self.con.execute("UPDATE admins SET password_hash = ?, must_change = 0, changed_at = ? WHERE id = ?",
-                             (password_hash, now_ms(), admin_id))
+            self.con.execute("UPDATE admins SET password_hash = ?, must_change = ?, changed_at = ? WHERE id = ?",
+                             (password_hash, int(must_change), now_ms(), admin_id))
             self.con.execute("DELETE FROM admin_sessions WHERE admin_id = ?", (admin_id,))

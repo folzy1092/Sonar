@@ -240,7 +240,7 @@ const TERMS: LegalDoc = {
       id: 'install',
       title: 'Где брать Sonar',
       blocks: [
-        'Официальные копии — только на этом сайте, в [GitHub Releases](https://github.com/folzy1092/Sonar/releases) и в канале [@SonarUpdates](https://t.me/SonarUpdates). Изменять и распространять сборки Sonar нельзя: код открыт для чтения, но лицензия у него закрытая ([лицензии](/licenses)).',
+        'Официальные копии — только на этом сайте и в канале [@SonarUpdates](https://t.me/SonarUpdates). Изменять и распространять сборки Sonar нельзя: лицензия закрытая ([лицензии](/licenses)).',
       ],
     },
     {
