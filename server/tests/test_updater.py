@@ -342,20 +342,20 @@ def test_update_command_is_owner_only_and_silent_for_others():
     asyncio.run(H.cmd_update(message(OWNER), ctx))
     menu = ctx.shower.shown[-1]
     assert "Сервер" in menu.html and "бот: /update" in menu.html
-    assert buttons(menu) == ["upd:server", "upd:chk", "upd:rst"]     # сайт актуален — кнопки нет
+    assert buttons(menu) == ["upd:server", "upd:chk", "upd:rst", "adm:menu"]     # сайт актуален — кнопки нет
 
 
 def test_menu_offers_all_when_both_new():
     ctx = bot_ctx(FakeUpdater(new_site=True))
     asyncio.run(H.cmd_update(message(OWNER), ctx))
-    assert buttons(ctx.shower.shown[-1]) == ["upd:all", "upd:server", "upd:site", "upd:chk", "upd:rst"]
+    assert buttons(ctx.shower.shown[-1]) == ["upd:all", "upd:server", "upd:site", "upd:chk", "upd:rst", "adm:menu"]
 
 
 def test_nothing_new_offers_only_check_and_restart():
     ctx = bot_ctx(FakeUpdater(new_code=False))
     asyncio.run(H.cmd_update(message(OWNER), ctx))
     assert "актуален" in ctx.shower.shown[-1].html
-    assert buttons(ctx.shower.shown[-1]) == ["upd:chk", "upd:rst"]
+    assert buttons(ctx.shower.shown[-1]) == ["upd:chk", "upd:rst", "adm:menu"]
 
 
 def test_not_on_hosting_says_so():

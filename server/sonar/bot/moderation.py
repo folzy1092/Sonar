@@ -28,6 +28,11 @@ from .ui import Btn, Screen, quote
 router = Router()
 PRESETS = {"1d": bans.DAY, "7d": 7 * bans.DAY, "perm": None}
 PRESET_NAMES = {"1d": "1 дн", "7d": "7 дн", "perm": "навсегда"}
+
+
+def _rows(buttons: list[Btn], per_row: int = 2) -> list[list[Btn]]:
+    """Кнопки по две в ряд: три подписи вроде «Бан · навсегда» в одну строку Telegram обрезает."""
+    return [buttons[i:i + per_row] for i in range(0, len(buttons), per_row)]
 HELP = (f"{e('info')} <b>Блокировки</b>\n" + quote(
     "<code>/who кто</code> — карточка с кнопками\n"
     "<code>/ban кто [срок] [причина]</code> — бан аккаунта\n"
@@ -109,12 +114,12 @@ def card(ctx, row: sqlite3.Row | None, tg_id: int | None) -> Screen:
         if bans.of_user(con, row["id"]):
             kb.append([Btn("Разбанить", "confirm", f"mod:unban:{ref}")])
         else:
-            kb.append([Btn(f"Бан · {PRESET_NAMES[k]}", "cancel", f"mod:ban:{ref}:{k}") for k in PRESETS])
+            kb += _rows([Btn(f"Бан {PRESET_NAMES[k]}", "cancel", f"mod:ban:{ref}:{k}") for k in PRESETS])
     if tg_id:
         if block:
-            kb.append([Btn("Открыть обращения", "confirm", f"mod:rub:{ref}")])
+            kb.append([Btn("Открыть репорты", "confirm", f"mod:rub:{ref}")])
         else:
-            kb.append([Btn(f"Обращения · {PRESET_NAMES[k]}", "bug", f"mod:rb:{ref}:{k}") for k in PRESETS])
+            kb += _rows([Btn(f"Репорты {PRESET_NAMES[k]}", "bug", f"mod:rb:{ref}:{k}") for k in PRESETS])
     kb.append([Btn("Назад", "back", "adm:menu")])
     return Screen(html=f"{e('profile')} <b>Пользователь</b>\n" + quote("\n".join(lines)), kb=kb)
 

@@ -467,3 +467,22 @@ def test_web_report_block_needs_telegram(admin, con):
     uid = add_user(con, "nogram")
     r = admin.client.post(f"/admin/users/{uid}/rblock", data={"csrf": admin.token()}, follow_redirects=False)
     assert "e=no_tg" in r.headers["location"]
+
+
+# ---- кнопки читаются: рядом только короткие подписи ----
+
+def test_no_cramped_rows_on_admin_screens(ctx, con):
+    from sonar.bot import screens as S
+    uid = add_user(con, tg_id=TG)
+    row = con.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+    full = {"errors": {}, "code": {"have": "a" * 40, "remote": "b" * 40, "new": True, "known": True, "changed": True,
+                                   "deps": False, "commits": []}, "site": {"have": "x", "remote": "y", "new": True}}
+    screens = [S.admin_menu("https://try-sonar.ru/admin/"), S.update_menu(full), S.update_confirm_restart(),
+               S.admin_reset_confirm("folzy"), M.card(ctx, row, TG)]
+    bans.ban(con, "a", uid, "", None)
+    bans.report_block(con, "a", TG, "", None)
+    screens.append(M.card(ctx, con.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone(), TG))
+    for screen in screens:
+        for line in screen.kb:
+            if len(line) > 1:
+                assert all(len(b.text) <= 13 for b in line), [b.text for b in line]

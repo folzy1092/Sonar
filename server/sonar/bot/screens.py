@@ -647,7 +647,8 @@ def update_menu(st: dict) -> Screen:
         + ([Btn("Только сайт", "web", "upd:site")] if new_site else [])
     if row:
         kb.append(row)
-    kb.append([Btn("Проверить снова", "refresh", "upd:chk"), Btn("Перезапустить", "logout", "upd:rst")])
+    kb += [[Btn("Проверить снова", "refresh", "upd:chk")], [Btn("Перезапустить сервер", "logout", "upd:rst")],
+           [Btn("Назад", "back", "adm:menu")]]
     return Screen(html=f"{e('refresh')} <b>Обновление сервера</b>\n" + quote("\n".join(_update_lines(st))), kb=kb)
 
 
@@ -672,7 +673,7 @@ def update_confirm_restart() -> Screen:
     return Screen(html=f"{e('refresh')} <b>Перезапустить сервер?</b>\n"
                        + quote("Код и сайт не обновляются — только перезапуск (подхватит правки <code>.env</code>). "
                                "Бот и API недоступны секунд 20–40."),
-                  kb=[[Btn("Да, перезапустить", "confirm", "upd:rst_yes"), Btn("Отмена", "cancel", "upd:menu")]])
+                  kb=[[Btn("Да, перезапустить", "confirm", "upd:rst_yes")], [Btn("Отмена", "cancel", "upd:menu")]])
 
 
 def update_site_done(state: str) -> Screen:
@@ -703,9 +704,10 @@ def update_done(r: dict) -> Screen:
 
 def admin_menu(admin_url: str = "") -> Screen:
     kb = [[Btn("Открыть админку", "web", url=admin_url)]] if admin_url else []
-    kb += [[Btn("Заблокированные", "cancel", "mod:list"), Btn("Как банить", "info", "adm:help")],
+    # В Telegram у кнопки в паре места на ~12 знаков с иконкой: рядом только короткие подписи, длинные — по одной в строку.
+    kb += [[Btn("Блокировки", "cancel", "mod:list"), Btn("Как банить", "info", "adm:help")],
            [Btn("Сбросить пароль админки", "key", "adm:pw")],
-           [Btn("Обновление сервера", "refresh", "upd:chk"), Btn("Статус", "status_ok", "status")]]
+           [Btn("Обновление", "refresh", "upd:chk"), Btn("Статус", "status_ok", "status")]]
     return Screen(html=f"{e('warning')} <b>Админ</b>\n"
                        + quote("Команды только для владельца. Обновление и перезапуск сервера — по частям, "
                                "сброс пароля — если забыл вход в админку."), kb=kb)
@@ -715,7 +717,7 @@ def admin_reset_confirm(login: str) -> Screen:
     return Screen(html=f"{e('key')} <b>Сбросить пароль админки?</b>\n"
                        + quote(f"Для <code>{h(login)}</code> появится новый случайный пароль, старый перестанет работать, "
                                "все сессии админки закроются. После входа сайт сразу попросит придумать свой."),
-                  kb=[[Btn("Да, сбросить", "confirm", "adm:pw_yes"), Btn("Отмена", "cancel", "adm:menu")]])
+                  kb=[[Btn("Да, сбросить", "confirm", "adm:pw_yes")], [Btn("Отмена", "cancel", "adm:menu")]])
 
 
 def admin_reset_done(login: str, password: str, url: str, minutes: int) -> Screen:
