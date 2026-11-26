@@ -20,9 +20,13 @@ async def health():
 
 @router.get("/whoami")
 async def whoami(request: Request):
-    """Какой адрес клиента видит сервер за nginx хостинга. Лимиты входа и регистрации считаются по нему: если у разных людей здесь
-    один и тот же адрес (адрес прокси), лимит общий и надо настроить SONAR_TRUSTED_PROXIES. Свой адрес не секрет."""
-    return JSONResponse({"ip": client_ip(request)}, headers={"Cache-Control": "no-store"})
+    """Какой адрес клиента видит сервер за nginx хостинга и что именно передал прокси (`remote` — кто подключился,
+    `forwarded_for` / `real_ip` — что он сказал про клиента). Лимиты входа, регистрации и запросов считаются по `ip`: если у
+    разных людей он один и тот же (адрес прокси), лимит общий. Свои же данные запроса, секрета тут нет."""
+    h = request.headers
+    return JSONResponse({"ip": client_ip(request), "remote": request.client.host if request.client else None,
+                         "forwarded_for": h.get("x-forwarded-for", ""), "real_ip": h.get("x-real-ip", ""),
+                         "proto": h.get("x-forwarded-proto", "")}, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/config")

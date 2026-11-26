@@ -72,13 +72,13 @@ def test_screens_render(rels, users):
     folzy, _, _ = users
     s = Settings()
     r = rels.add("ios", "build 229", IPA, notes="Текст песни", audience="only", targets=["u:folzy", "#1"])
-    for screen in [S.versions(s), S.versions(s, None, r, owner=True), S.rel_admin({"windows": None, "ios": r}, s),
+    for screen in [S.versions(s), S.versions(s, None, owner=True), S.rel_admin({"windows": None, "ios": r}, s),
                    S.rel_ask_url("ios"), S.rel_ask_version("ios", "ios-build-229"), S.rel_ask_notes(), S.rel_ask_audience(),
                    S.rel_ask_targets("only"), S.rel_list("ios", [r]), S.rel_item(r, 1), S.rel_alert(r),
                    S.rel_confirm({"platform": "ios", "version": "b", "url": IPA, "audience": "except", "targets": ["u:x"]})]:
         assert screen.html and all(len(b.cb or "") <= 64 for row in screen.kb for b in row)
-    kb = S.versions(s, None, r).kb[0]
-    assert kb[1].url == IPA and kb[0].url == s.download_url
+    kb = S.versions(s).kb[0]
+    assert kb[1].url == s.download_url_ios and kb[0].url == s.download_url   # кнопки — файлы с сайта, не закреплённая ссылка
 
 
 def test_post_draft_rows_and_presets():

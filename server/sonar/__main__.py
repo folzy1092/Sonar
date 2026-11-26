@@ -13,9 +13,10 @@ from aiogram.types import BotCommand
 
 from . import config
 from .accounts import Accounts
-from . import bans
+from . import bans, builds
 from .bot.handlers import Ctx, announce_update, router
 from .bot.moderation import router as moderation_router
+from .bot.publishing import router as publishing_router
 from .bot.support import Support
 from .bot.ui import Shower
 from .db import connect
@@ -72,8 +73,10 @@ async def main() -> Updater:
               bot_username=me.username or "SonarMusicApp")
     dp = Dispatcher(storage=MemoryStorage())
     ctx.updater = Updater(settings.data_dir, dp)
+    ctx.github = builds.GitHub(os.getenv("GITHUB_TOKEN"))
     dp["ctx"] = ctx
     dp.include_router(moderation_router)   # раньше основного: там есть «поймать всё» для личных сообщений
+    dp.include_router(publishing_router)
     dp.include_router(router)
 
     gate = AlertGate(con)

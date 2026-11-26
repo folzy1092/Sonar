@@ -234,6 +234,25 @@ final class BanTests: XCTestCase {
         }
     }
 
+    // MARK: карточка синхронизации
+
+    func testSyncCardStateFollowsLoginAndProgress() {
+        let when = Date(timeIntervalSince1970: 1_795_000_000)
+        XCTAssertEqual(SyncCardState.of(signedIn: false, syncing: true, lastSyncAt: when, lastError: "x"), .signedOut)
+        XCTAssertEqual(SyncCardState.of(signedIn: true, syncing: true, lastSyncAt: when, lastError: nil), .syncing)
+        XCTAssertEqual(SyncCardState.of(signedIn: true, syncing: false, lastSyncAt: when, lastError: "Нет связи"), .failed("Нет связи"))
+        XCTAssertEqual(SyncCardState.of(signedIn: true, syncing: false, lastSyncAt: nil, lastError: nil), .never)
+        XCTAssertEqual(SyncCardState.of(signedIn: true, syncing: false, lastSyncAt: when, lastError: ""), .done(when))
+    }
+
+    func testSyncNowOnlyWhenThereIsSomeoneToSyncWithAndNothingRuns() {
+        XCTAssertFalse(SyncCardState.signedOut.canSyncNow)
+        XCTAssertFalse(SyncCardState.syncing.canSyncNow)
+        XCTAssertTrue(SyncCardState.never.canSyncNow)
+        XCTAssertTrue(SyncCardState.failed("x").canSyncNow)
+        XCTAssertTrue(SyncCardState.done(Date()).canSyncNow)
+    }
+
     // MARK: ключ API
 
     func testApiKeyIsMaskedAndAddressIsBuilt() {

@@ -236,39 +236,65 @@ def _latest_release() -> dict | None:
         return None
 
 
-def download_links(s: Settings, win: Release | None, ios: Release | None) -> list[list[Btn]]:
-    """Кнопки скачивания: закреплённая проверенная версия, иначе — общая ссылка платформы."""
-    return [[Btn("Windows", "logo_windows", url=win.url if win else s.download_url),
-             Btn("iPhone", "logo_apple", url=ios.url if ios else s.download_url_ios)]]
+def versions(s: Settings, current: dict | None = None, owner: bool = False) -> Screen:
+    """«Версии»: то, что владелец выпустил на сайте (`builds`, канал «релиз»). Ничего не выпущено — так и пишем, а не прочерк.
+    `current` — {платформа: Build | None}. Владельцу — кнопка «Выпустить сборку» (`bot/publishing.py`)."""
+    cur = current or {}
 
+    def line(platform: str, name: str) -> str:
+        b = cur.get(platform)
+        if b is None:
+            return f"{name}: ещё не выпущено"
+        return f"{name}: <b>{h(b.version)}</b>" + (f" ({b.build})" if b.build else "")
 
-def versions(s: Settings, win: Release | None = None, ios: Release | None = None, owner: bool = False,
-             public: dict[str, Release | None] | None = None) -> Screen:
-    rel = _latest_release()
     html = f"{e('versions')} <b>Версии</b>\n" + quote("Скачивай свежие сборки. Выбери платформу:")
-    if public is not None:
-        # последние актуальные релизы для всех (версии «только списку» — бета, не считаются)
-        names = {"windows": "Windows", "ios": "iOS", "android": "Android"}
-        html += quote("\n".join(f"{n}: <b>{h(public[k].version) if public.get(k) else '—'}</b>" for k, n in names.items()),
-                      "Актуальные версии")
-    lines = []
-    for r in (win, ios):
-        if r:
-            lines.append(f"{e('logo_windows' if r.platform == 'windows' else 'logo_apple')} {r.platform_name}: <b>{h(r.version)}</b>")
-    if lines:
-        html += quote("\n".join(lines), "Проверенные")
-    notes = next((r.notes for r in (ios, win) if r and r.notes), "")
+    html += quote("\n".join([line("windows", "Windows"), line("ios", "iOS")]), "Актуальные версии")
+    notes = next((b.notes_for("ru") for b in (cur.get("windows"), cur.get("ios")) if b and b.notes_for("ru")), "")
     if notes:
-        html += quote(f"{e('new')} <b>Что нового:</b>\n{h(notes)}")
-    elif rel:
-        changes = "\n".join(f"• {h(c)}" for c in rel.get("changes", [])[:4])
-        html += quote(f"{e('new')} <b>Что нового:</b>\n{changes}")
+        html += quote(f"{e('new')} <b>Что нового:</b>\n{h(notes[:700])}")
     html += quote("iPhone: ставь IPA через ESign / Feather своей парой, дальше Sonar обновляется сам.")
-    kb = download_links(s, win, ios)
+    kb = [[Btn("Windows", "logo_windows", url=s.download_url), Btn("iPhone", "logo_apple", url=s.download_url_ios)]]
     if owner:
-        kb.append([Btn("Управление версиями", "integration", "rel:admin")])
+        kb.append([Btn("Выпустить сборку", "download", "bld:list")])
     kb.append([back("profile")])
     return Screen(html=html, kb=kb)
+
+
+# ---- выпуск сборок из бота (только владелец, bot/publishing.py) ----
+
+def builds_list(rows: list[dict], error: str | None = None) -> Screen:
+    """rows: {tag, platform, version, state} — state: `release` (выпущена), `revoked`, `new` (ещё нет на сайте)."""
+    names = {"windows": "Windows", "ios": "iPhone"}
+    lines = []
+    for r in rows:
+        mark = {"release": f"{e('ok')} на сайте", "revoked": f"{e('warning')} отозвана", "new": f"{e('new')} не выпущена"}[r["state"]]
+        lines.append(f"<code>{h(r['tag'])}</code> · {names.get(r['platform'], r['platform'])} · {mark}")
+    body = "\n".join(lines) or "Сборок CI на GitHub не нашлось."
+    if error:
+        body = f"{e('warning')} {h(error)}\n" + body
+    kb = [[Btn(f"Выпустить {r['tag']}", "download", f"bld:pub:{r['tag']}")] for r in rows if r["state"] != "release"]
+    kb += [[Btn("Обновить список", "refresh", "bld:list")], [Btn("Назад", "back", "adm:menu")]]
+    return Screen(html=f"{e('versions')} <b>Выпуск сборок</b>\n"
+                       + quote(body, "Последние сборки CI") +
+                  quote("«Выпустить» скачивает сборку с GitHub на сервер и делает её релизом: приложения обновятся с сайта, "
+                        "кнопки «Скачать» отдадут файл с try-sonar.ru. Описание берётся из заметок сборки."), kb=kb)
+
+
+def build_publishing(tag: str) -> Screen:
+    return Screen(html=f"{e('wait')} Скачиваю <code>{h(tag)}</code> с GitHub и выпускаю…")
+
+
+def build_published(b) -> Screen:
+    size = f"{b.size / 1048576:.1f} МБ"
+    name = {"windows": "Windows", "ios": "iPhone"}.get(b.platform, b.platform)
+    return Screen(html=f"{e('success')} <b>Выпущено</b>\n" + quote(
+        f"{name} <b>{h(b.version)}</b>" + (f" ({b.build})" if b.build else "") + f" · {size}\n"
+        "Канал: релиз. Приложения увидят обновление при следующей проверке, файл — на try-sonar.ru."),
+        kb=[[Btn("К сборкам", "back", "bld:list")]])
+
+
+def build_failed(text: str) -> Screen:
+    return Screen(html=f"{e('cancel')} <b>Не выпустилось</b>\n" + quote(h(text)), kb=[[Btn("К сборкам", "back", "bld:list")]])
 
 
 # ---- управление версиями (только владелец, BOT.md §2.12) ----
@@ -706,6 +732,7 @@ def admin_menu(admin_url: str = "") -> Screen:
     kb = [[Btn("Открыть админку", "web", url=admin_url)]] if admin_url else []
     # В Telegram у кнопки в паре места на ~12 знаков с иконкой: рядом только короткие подписи, длинные — по одной в строку.
     kb += [[Btn("Блокировки", "cancel", "mod:list"), Btn("Как банить", "info", "adm:help")],
+           [Btn("Выпустить сборку", "download", "bld:list")],
            [Btn("Сбросить пароль админки", "key", "adm:pw")],
            [Btn("Обновление", "refresh", "upd:chk"), Btn("Статус", "status_ok", "status")]]
     return Screen(html=f"{e('warning')} <b>Админ</b>\n"

@@ -212,4 +212,34 @@ def test_banned_user_cannot_report(client, con):
 def test_whoami_returns_the_callers_address_not_a_spoofed_header(client):
     r = client.get("/api/whoami", headers={"X-Forwarded-For": "203.0.113.77"})
     assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
-    assert r.json() == {"ip": "testclient"}          # соединение не от доверенного прокси: заголовку не верим
+    assert r.json()["ip"] == "testclient"            # соединение не от доверенного прокси: заголовку не верим
+    assert r.json()["forwarded_for"] == "203.0.113.77" and r.json()["remote"] == "testclient"   # но показываем, что пришло
+
+
+def test_proxy_on_the_sites_own_address_is_trusted(con, tmp_path, monkeypatch):
+    """Прокси хостинга подключается с публичного адреса домена: ему верим, и клиент различается по X-Forwarded-For."""
+    import socket as socket_mod
+
+    from sonar.admin import web as admin_web
+    monkeypatch.setenv("SONAR_PUBLIC_URL", "https://try-sonar.ru")
+    monkeypatch.setattr(admin_web, "_site_addrs", (None, frozenset()))
+    monkeypatch.setattr(socket_mod, "getaddrinfo", lambda host, port: [(2, 1, 6, "", ("217.60.245.67", 0))])
+    app = create_app(con, Settings(data_dir=tmp_path))
+    proxy = TestClient(app, base_url="http://testserver", client=("217.60.245.67", 5000))
+    assert proxy.get("/api/whoami", headers={"X-Forwarded-For": "198.51.100.8"}).json()["ip"] == "198.51.100.8"
+    assert proxy.get("/api/whoami", headers={"X-Forwarded-For": "bogus, 198.51.100.9"}).json()["ip"] == "198.51.100.9"
+    stranger = TestClient(app, base_url="http://testserver", client=("203.0.113.5", 5000))   # не прокси: заголовок подделан
+    assert stranger.get("/api/whoami", headers={"X-Forwarded-For": "198.51.100.8"}).json()["ip"] == "203.0.113.5"
+
+
+def test_dns_failure_keeps_previous_proxy_addresses(monkeypatch):
+    import socket as socket_mod
+
+    from sonar.admin import web as admin_web
+    monkeypatch.setenv("SONAR_PUBLIC_URL", "https://try-sonar.ru")
+    monkeypatch.setattr(admin_web, "_site_addrs", (None, frozenset({"217.60.245.67"})))
+
+    def down(host, port):
+        raise OSError("dns")
+    monkeypatch.setattr(socket_mod, "getaddrinfo", down)
+    assert admin_web._trusted("217.60.245.67") and not admin_web._trusted("203.0.113.5")

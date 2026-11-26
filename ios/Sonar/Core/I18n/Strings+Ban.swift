@@ -31,6 +31,12 @@ extension I18n {
         "Создан {date}": "Created {date}",
         "Объявленных сборок пока нет": "No announced builds yet",
         "Сборки CI с GitHub": "CI builds from GitHub",
+        "Синхронизирую…": "Syncing…",
+        "Последний обмен: {time}": "Last sync: {time}",
+        "Ещё не синхронизировалось": "Not synced yet",
+        "Синхронизировать сейчас": "Sync now",
+        "Лайки, плейлисты и настройки едут на сервер и на твои другие устройства сами, раз в пару минут.": "Likes, playlists and settings travel to the server and your other devices on their own, every couple of minutes.",
+        "Лайки, плейлисты и настройки станут общими на iPhone и компьютере после входа в аккаунт.": "Likes, playlists and settings will be shared between iPhone and computer once you sign in.",
     ]
 
     static let banUK: [String: String] = [
@@ -63,6 +69,12 @@ extension I18n {
         "Создан {date}": "Створено {date}",
         "Объявленных сборок пока нет": "Оголошених збірок поки немає",
         "Сборки CI с GitHub": "Збірки CI з GitHub",
+        "Синхронизирую…": "Синхронізую…",
+        "Последний обмен: {time}": "Останній обмін: {time}",
+        "Ещё не синхронизировалось": "Ще не синхронізувалося",
+        "Синхронизировать сейчас": "Синхронізувати зараз",
+        "Лайки, плейлисты и настройки едут на сервер и на твои другие устройства сами, раз в пару минут.": "Лайки, плейлисти й налаштування їдуть на сервер і на твої інші пристрої самі, раз на пару хвилин.",
+        "Лайки, плейлисты и настройки станут общими на iPhone и компьютере после входа в аккаунт.": "Лайки, плейлисти й налаштування стануть спільними на iPhone і комп’ютері після входу в акаунт.",
     ]
 
     static let banES: [String: String] = [
@@ -95,6 +107,12 @@ extension I18n {
         "Создан {date}": "Creada el {date}",
         "Объявленных сборок пока нет": "Aún no hay compilaciones anunciadas",
         "Сборки CI с GitHub": "Compilaciones de CI desde GitHub",
+        "Синхронизирую…": "Sincronizando…",
+        "Последний обмен: {time}": "Último intercambio: {time}",
+        "Ещё не синхронизировалось": "Aún no se ha sincronizado",
+        "Синхронизировать сейчас": "Sincronizar ahora",
+        "Лайки, плейлисты и настройки едут на сервер и на твои другие устройства сами, раз в пару минут.": "Los me gusta, las listas y los ajustes viajan solos al servidor y a tus otros dispositivos, cada pocos minutos.",
+        "Лайки, плейлисты и настройки станут общими на iPhone и компьютере после входа в аккаунт.": "Los me gusta, las listas y los ajustes serán compartidos entre iPhone y ordenador al iniciar sesión.",
     ]
 
     static let banDE: [String: String] = [
@@ -127,6 +145,12 @@ extension I18n {
         "Создан {date}": "Erstellt am {date}",
         "Объявленных сборок пока нет": "Noch keine angekündigten Builds",
         "Сборки CI с GitHub": "CI-Builds von GitHub",
+        "Синхронизирую…": "Synchronisiere…",
+        "Последний обмен: {time}": "Letzter Abgleich: {time}",
+        "Ещё не синхронизировалось": "Noch nicht synchronisiert",
+        "Синхронизировать сейчас": "Jetzt synchronisieren",
+        "Лайки, плейлисты и настройки едут на сервер и на твои другие устройства сами, раз в пару минут.": "Likes, Playlists und Einstellungen wandern von selbst alle paar Minuten zum Server und zu deinen anderen Geräten.",
+        "Лайки, плейлисты и настройки станут общими на iPhone и компьютере после входа в аккаунт.": "Likes, Playlists und Einstellungen werden nach der Anmeldung zwischen iPhone und Computer geteilt.",
     ]
 
     static let banPL: [String: String] = [
@@ -159,5 +183,11 @@ extension I18n {
         "Создан {date}": "Utworzono {date}",
         "Объявленных сборок пока нет": "Brak jeszcze ogłoszonych wersji",
         "Сборки CI с GitHub": "Wersje CI z GitHub",
+        "Синхронизирую…": "Synchronizuję…",
+        "Последний обмен: {time}": "Ostatnia wymiana: {time}",
+        "Ещё не синхронизировалось": "Jeszcze nie synchronizowano",
+        "Синхронизировать сейчас": "Synchronizuj teraz",
+        "Лайки, плейлисты и настройки едут на сервер и на твои другие устройства сами, раз в пару минут.": "Polubienia, playlisty i ustawienia same trafiają na serwer i na twoje inne urządzenia, co kilka minut.",
+        "Лайки, плейлисты и настройки станут общими на iPhone и компьютере после входа в аккаунт.": "Polubienia, playlisty i ustawienia będą wspólne na iPhonie i komputerze po zalogowaniu.",
     ]
 }

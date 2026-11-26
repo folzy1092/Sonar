@@ -10,9 +10,11 @@ import contextlib
 import ipaddress
 import os
 import secrets
+import time
+import socket
 from datetime import date, datetime
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -121,12 +123,34 @@ def _trusted_networks() -> list:
     return nets
 
 
+SITE_ADDRS_TTL_S = 600
+_site_addrs: tuple[float | None, frozenset[str]] = (None, frozenset())   # None — DNS ещё не спрашивали
+
+
+def _site_addresses() -> frozenset[str]:
+    """Адреса, в которые смотрит домен сайта (`SONAR_PUBLIC_URL`): на них стоит nginx хостинга. Прокси хостинга подключается
+    к контейнеру с публичного адреса (217.60.245.67), а он не входит в списки частных сетей — без этого сервер принимал
+    адрес прокси за адрес клиента, и лимиты входа, регистрации и запросов были общими на всех. Спрашиваем DNS раз в 10 минут."""
+    global _site_addrs
+    now = time.monotonic()
+    asked, known = _site_addrs
+    if asked is not None and now - asked < SITE_ADDRS_TTL_S:
+        return known
+    host = urlsplit(os.getenv("SONAR_PUBLIC_URL") or "").hostname
+    found: set[str] = set()
+    if host:
+        with contextlib.suppress(OSError):
+            found = {info[4][0] for info in socket.getaddrinfo(host, None)}
+    _site_addrs = (now, frozenset(found) or known)   # DNS не ответил — остаёмся с прежними адресами
+    return _site_addrs[1]
+
+
 def _trusted(addr: str) -> bool:
     try:
         ip = ipaddress.ip_address(addr.strip())
     except ValueError:
         return False
-    return any(ip in net for net in _trusted_networks())
+    return any(ip in net for net in _trusted_networks()) or str(ip) in _site_addresses()
 
 
 def _ip(request: Request) -> str:

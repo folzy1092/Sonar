@@ -16,7 +16,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
-from .. import dotify, sessions
+from .. import builds, dotify, sessions
 from ..admin import users as admin_users
 from ..admin.auth import FACTORY_LOGIN, AdminAuth, AuthError
 from ..accounts import AccountError, Accounts, User, looks_like_token
@@ -87,6 +87,7 @@ class Ctx:
     releases: Releases | None = None
     bot_username: str = "SonarMusicApp"
     updater: Updater | None = None
+    github: builds.GitHub | None = None     # выпуск сборок из бота (bot/publishing.py)
 
     def is_owner(self, tg_id: int) -> bool:
         return bool(self.settings.owner_tg_id) and tg_id == self.settings.owner_tg_id
@@ -498,9 +499,10 @@ async def report_button(q: CallbackQuery, rest: str, state: FSMContext, ctx: Ctx
 
 
 def versions_screen(ctx: Ctx, user: User, tg_id: int):
-    r = ctx.releases
-    return S.versions(ctx.settings, r.current("windows", user) if r else None, r.current("ios", user) if r else None,
-                      owner=ctx.is_owner(tg_id), public={p: r.current(p, None) for p in PLATFORMS} if r else None)
+    """Актуальные версии — то, что выпущено на сайте (`builds`, канал релиз); раньше читалась старая таблица `releases`."""
+    con = ctx.accounts.con
+    return S.versions(ctx.settings, {p: builds.current(con, p, "release") for p in ("windows", "ios")},
+                      owner=ctx.is_owner(tg_id))
 
 
 # ---- проверенные версии: только владелец (BOT.md §2.12) ----

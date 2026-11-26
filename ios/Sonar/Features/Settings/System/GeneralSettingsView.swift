@@ -10,8 +10,59 @@ struct GeneralSettingsView: View {
     @Environment(SettingsStore.self) private var settings
     @State private var languageSheet = false
     @State private var quickSheet = false
+    @State private var account = AccountStore.shared
+    @State private var sync = SyncService.shared
+    @State private var showSignIn = false
 
     private var lang: Lang { currentLang() }
+
+    private var syncState: SyncCardState {
+        SyncCardState.of(signedIn: account.signedIn, syncing: sync.syncing, lastSyncAt: sync.lastSyncAt, lastError: sync.lastError)
+    }
+
+    /// Синхронизация через сервер Sonar: лайки, плейлисты и настройки едут сами, как только вошёл (обмен раз в пару минут);
+    /// слияние идёт в обе стороны, ничего не заменяется. Без входа — приглашение войти.
+    private var syncSection: some View {
+        let state = syncState
+        return SystemSection(title: t("Синхронизация"), footer: state == .signedOut
+            ? t("Лайки, плейлисты и настройки станут общими на iPhone и компьютере после входа в аккаунт.")
+            : t("Лайки, плейлисты и настройки едут на сервер и на твои другие устройства сами, раз в пару минут.")) {
+            SystemRow(icon: state == .signedOut ? .cloud : .cloudSync, title: syncTitle(state), subtitle: syncSubtitle(state),
+                      value: syncSummary(state))
+            RowDivider()
+            if state == .signedOut {
+                SystemButtonRow(icon: .user, title: t("Войти или создать аккаунт"), chevron: true) { showSignIn = true }
+            } else {
+                SystemButtonRow(icon: .refresh, title: t("Синхронизировать сейчас"), enabled: state.canSyncNow) {
+                    Task { await sync.syncNow() }
+                }
+            }
+        }
+        .sheet(isPresented: $showSignIn) { AuthGateView() }
+        .onChange(of: account.signedIn) { _, signed in
+            if signed { showSignIn = false }
+        }
+    }
+
+    private func syncTitle(_ state: SyncCardState) -> String {
+        if let user = account.user { return "@\(user.username)" }
+        return t("Нет входа в аккаунт Sonar")
+    }
+
+    private func syncSubtitle(_ state: SyncCardState) -> String {
+        switch state {
+        case .signedOut: t("Лайки, плейлисты и настройки — на всех твоих устройствах")
+        case .syncing: t("Синхронизирую…")
+        case let .failed(message): t(message)
+        case .never: t("Ещё не синхронизировалось")
+        case let .done(date): t("Последний обмен: {time}", ["time": date.formatted(.dateTime.hour().minute())])
+        }
+    }
+
+    private func syncSummary(_ state: SyncCardState) -> String? {
+        guard case .done = state, let report = sync.lastReport, report.pushed + report.pulled > 0 else { return nil }
+        return "↑\(report.pushed) ↓\(report.pulled)"
+    }
 
     private func binding(_ key: String) -> Binding<String> {
         Binding(get: { settings.string(key) }, set: { settings.set(key, .string($0)) })
@@ -69,14 +120,8 @@ struct GeneralSettingsView: View {
                 .cascade(2)
             }
 
-            SystemSection(title: t("Синхронизация"), footer: t("Лайки, плейлисты и настройки будут общими на iPhone и компьютере, когда появится сервер Sonar. Пока всё хранится на этом телефоне.")) {
-                SystemRow(icon: .cloudSync, title: t("Сохранить в облако"), subtitle: t("Лайки и плейлисты с этого устройства"), value: t("С сервером"))
-                    .opacity(0.55)
-                RowDivider()
-                SystemRow(icon: .cloud, title: t("Загрузить из облака"), subtitle: t("Заменит лайки и плейлисты здесь"), value: t("С сервером"))
-                    .opacity(0.55)
-            }
-            .cascade(3)
+            syncSection
+                .cascade(3)
 
             AboutSection()
                 .cascade(4)
