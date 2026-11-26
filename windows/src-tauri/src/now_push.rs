@@ -54,6 +54,7 @@ pub fn spawn(app: AppHandle, state: PlayerState) {
     let body = body(&state, track.as_ref());
     if let Err(e) = crate::account::call(&core, db, reqwest::Method::PUT, "player/state", Some(body), true).await {
       log::debug!("«сейчас играет» на сервер не ушло: {e}");
+      crate::account::notify_ended(&app, &e);
     }
   });
 }

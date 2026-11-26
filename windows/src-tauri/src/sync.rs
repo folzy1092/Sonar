@@ -195,14 +195,24 @@ pub async fn background(app: tauri::AppHandle) {
         let _ = app.emit("sync-applied", r.pulled);
       }
       Ok(_) => {}
-      Err(e) => log::warn!("синхронизация: {e}"),
+      Err(e) => {
+        log::warn!("синхронизация: {e}");
+        // Обмен упал: если сервер говорит «заблокирован» или «сессии нет» — выйти и сказать окну (`account-ended`).
+        crate::account::probe(&app).await;
+        if configured(&db.0).is_none() {
+          continue;
+        }
+      }
     }
     match crate::cred_sync::run(&core, &db.0).await {
       Ok(true) => {
         let _ = app.emit("services-changed", ());
       }
       Ok(false) => {}
-      Err(e) => log::warn!("входы в сервисы: {e}"),
+      Err(e) => {
+        log::warn!("входы в сервисы: {e}");
+        crate::account::notify_ended(&app, &e.to_string());
+      }
     }
   }
 }

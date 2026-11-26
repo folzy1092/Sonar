@@ -83,4 +83,9 @@ export default {
   "Логин — от 3 до 24 символов: латиница, цифры, «_» и «.»": "Login — od 3 do 24 znaków: litery łacińskie, cyfry, „_” i „.”",
   "Сначала задай пароль — иначе в аккаунт будет не войти": "Najpierw ustaw hasło — inaczej nie wejdziesz na konto",
   "Слишком много попыток — подожди немного": "Za dużo prób — poczekaj chwilę",
+  "Учётная запись заблокирована": "Konto zablokowane",
+  "Срок: до {date}": "Okres: do {date}",
+  "Срок: навсегда": "Okres: na zawsze",
+  "Причина: {reason}": "Powód: {reason}",
+  "Если это ошибка — напиши в @SonarMusicApp.": "Jeśli to pomyłka — napisz do @SonarMusicApp.",
 }

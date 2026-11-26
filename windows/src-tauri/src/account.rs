@@ -23,20 +23,57 @@ const TIMEOUT: Duration = Duration::from_secs(15);
 
 type Res<T> = Result<T, String>;
 
-/// Ошибка сервера — `{"error": {"code", "message"}}`; во фронт уходит текст, а `signed_out` — когда сессии больше нет.
+/// Ошибка сервера — `{"error": {"code", "message"}}`; во фронт уходит текст, `signed_out` — когда сессии больше нет, а
+/// `banned:{"until":мс|null,"reason":"…"|null}` — когда аккаунт заблокирован (`403 account_banned`, API.md §1).
 #[derive(Debug, PartialEq)]
 pub struct ApiError {
   pub status: u16,
   pub code: String,
   pub message: String,
+  /// Только у `account_banned`: до какого момента (мс), `None` — навсегда.
+  pub until: Option<i64>,
+  pub reason: Option<String>,
 }
 
+/// Префикс ошибки «аккаунт заблокирован» для фронта (`lib/account-ban.ts`).
+pub const BANNED_PREFIX: &str = "banned:";
+
 impl ApiError {
+  fn is_banned(&self) -> bool {
+    self.status == 403 && self.code == "account_banned"
+  }
+
   fn to_front(&self) -> String {
     if self.status == 401 && self.code == "unauthorized" {
       return "signed_out".into();
     }
+    if self.is_banned() {
+      return format!("{BANNED_PREFIX}{}", json!({ "until": self.until, "reason": self.reason }));
+    }
     self.message.clone()
+  }
+}
+
+/// Сессия кончилась по воле сервера: отозвана или аккаунт заблокирован (текст из [`ApiError::to_front`]).
+pub fn session_ended(err: &str) -> bool {
+  err == "signed_out" || err.starts_with(BANNED_PREFIX)
+}
+
+/// Окну: сессии больше нет (`account-ended`, текст — как у ошибки). Зовёт фон, который не ходит через [`call`] сам.
+pub fn notify_ended(app: &tauri::AppHandle, err: &str) {
+  use tauri::Emitter;
+  if session_ended(err) {
+    let _ = app.emit("account-ended", err.to_owned());
+  }
+}
+
+/// Живая ли сессия: один `GET /me`. Сервер ответил «заблокирован» или «сессии нет» — сессия забыта локально, окну
+/// ушло `account-ended`. Без сети и прочие ошибки — молча (фоновый обмен просто повторится).
+pub async fn probe(app: &tauri::AppHandle) {
+  use tauri::Manager;
+  let (Some(core), Some(db)) = (app.try_state::<std::sync::Arc<Core>>(), app.try_state::<Db>()) else { return };
+  if let Err(e) = call(&core, &db.0, reqwest::Method::GET, "me", None, true).await {
+    notify_ended(app, &e);
   }
 }
 
@@ -53,6 +90,8 @@ pub fn parse_error(status: u16, body: &str) -> ApiError {
     status,
     code: e["code"].as_str().unwrap_or("error").to_owned(),
     message: e["message"].as_str().unwrap_or(fallback).to_owned(),
+    until: e["until"].as_i64(),
+    reason: e["reason"].as_str().map(str::to_owned),
   }
 }
 
@@ -124,8 +163,8 @@ pub(crate) async fn call(core: &Core, db: &Mutex<Store>, method: reqwest::Method
   let text = r.text().await.unwrap_or_default();
   if !(200..300).contains(&status) {
     let e = parse_error(status, &text);
-    if auth && e.status == 401 {
-      forget(); // сессию отозвали (выход на другом устройстве, бан) — локально тоже выходим
+    if auth && (e.status == 401 || e.is_banned()) {
+      forget(); // сессию отозвали или аккаунт заблокирован — локально тоже выходим (при бане токен сервер хранит, но не пускает)
     }
     return Err(e.to_front());
   }
@@ -360,12 +399,26 @@ mod tests {
   #[test]
   fn parses_server_errors() {
     let e = parse_error(409, r#"{"error":{"code":"login_taken","message":"Логин уже занят"}}"#);
-    assert_eq!(e, ApiError { status: 409, code: "login_taken".into(), message: "Логин уже занят".into() });
+    assert_eq!(e, ApiError { status: 409, code: "login_taken".into(), message: "Логин уже занят".into(), until: None, reason: None });
     assert_eq!(parse_error(502, "<html>").message, "Сервер Sonar не отвечает — попробуй позже");
     assert_eq!(parse_error(401, r#"{"error":{"code":"unauthorized","message":"x"}}"#).to_front(), "signed_out");
     // Неверный пароль — тоже 401, но это не «вышли»: показываем текст сервера.
     assert_eq!(parse_error(401, r#"{"error":{"code":"bad_credentials","message":"Неверный логин или пароль"}}"#).to_front(),
                "Неверный логин или пароль");
+  }
+
+  #[test]
+  fn banned_account_goes_to_front_with_term_and_reason() {
+    let body = r#"{"error":{"code":"account_banned","message":"Учётная запись заблокирована навсегда","until":null,"reason":"спам"}}"#;
+    let e = parse_error(403, body);
+    assert!(e.is_banned() && e.until.is_none() && e.reason.as_deref() == Some("спам"));
+    let front = e.to_front();
+    assert_eq!(front, r#"banned:{"reason":"спам","until":null}"#);
+    assert!(session_ended(&front) && session_ended("signed_out") && !session_ended("Неверный пароль"));
+    let timed = parse_error(403, r#"{"error":{"code":"account_banned","message":"x","until":1795000000000,"reason":null}}"#);
+    assert_eq!(timed.to_front(), r#"banned:{"reason":null,"until":1795000000000}"#);
+    // Обычный 403 (закрытая регистрация) — не бан: просто текст.
+    assert!(!parse_error(403, r#"{"error":{"code":"registration_closed","message":"Закрыта"}}"#).is_banned());
   }
 
   #[test]

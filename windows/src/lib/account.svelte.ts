@@ -5,6 +5,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { isTauri } from './tauri'
 import { settings } from './settings.svelte'
 import { offline } from './offline.svelte'
+import { listen } from '@tauri-apps/api/event'
+import { parseBan, sessionEnded, type Ban } from './account-ban'
+import { t } from './i18n.svelte'
 
 export interface AccountUser {
   id: string
@@ -95,6 +98,8 @@ class Account {
   reachable = $state(false)
   checked = $state(false)
   server = $state('')
+  /** Аккаунт заблокирован (`403 account_banned`): ворота показывают срок и причину вместо обычного входа. */
+  banned = $state<Ban | null>(null)
 
   readonly gate = $derived(needsGate({ signedIn: this.signedIn, reachable: this.reachable, offline: offline.on }))
 
@@ -106,6 +111,8 @@ class Account {
     this.user = st.user
     this.reachable = await call<boolean>('account_ping').catch(() => false)
     this.checked = true
+    // Фон Rust (синк, «сейчас играет») узнал, что сессии больше нет или аккаунт заблокирован: выходим сразу.
+    void listen<string>('account-ended', (ev) => this.ended(ev.payload))
     if (this.signedIn && this.reachable) {
       void this.refresh()
       void call('account_report_device').catch(() => {})
@@ -117,10 +124,16 @@ class Account {
     this.reachable = await call<boolean>('account_ping').catch(() => false)
   }
 
-  /** Ошибка `signed_out` — сессию отозвали на другом устройстве: показываем вход. */
+  /** Сессии больше нет: отозвана на другом устройстве (`signed_out`) или аккаунт заблокирован — показываем вход. */
   private guard = (e: unknown): never => {
-    if (String(e) === 'signed_out') this.dropLocal()
+    if (sessionEnded(e)) this.ended(e)
     throw e
+  }
+
+  private ended(e: unknown) {
+    const ban = parseBan(e)
+    if (ban) this.banned = ban
+    this.dropLocal()
   }
 
   private dropLocal() {
@@ -130,6 +143,7 @@ class Account {
 
   private apply(user: AccountUser) {
     const fresh = !this.signedIn
+    this.banned = null
     this.user = user
     this.signedIn = true
     // только что вошли — сразу синк с сервером (лайки, плейлисты, настройки с других устройств)
@@ -143,17 +157,29 @@ class Account {
     try {
       this.apply(await call<AccountUser>('account_me'))
     } catch (e) {
-      if (String(e) === 'signed_out') this.dropLocal()
+      if (sessionEnded(e)) this.ended(e)
+    }
+  }
+
+  /** Вход или регистрация: заблокированному сервер отвечает `account_banned` — показываем срок и причину. */
+  private async enter(run: () => Promise<AccountUser>) {
+    try {
+      this.apply(await run())
+    } catch (e) {
+      const ban = parseBan(e)
+      if (!ban) throw e
+      this.banned = ban
+      throw new Error(t('Учётная запись заблокирована'))
     }
   }
 
   async login(login: string, password: string) {
-    this.apply(await call<AccountUser>('account_login', { login: login.trim().replace(/^@/, ''), password }))
+    await this.enter(() => call<AccountUser>('account_login', { login: login.trim().replace(/^@/, ''), password }))
     void call('account_report_device').catch(() => {})
   }
 
   async register(login: string, password: string) {
-    this.apply(await call<AccountUser>('account_register', { login: login.trim().replace(/^@/, '').toLowerCase(), password }))
+    await this.enter(() => call<AccountUser>('account_register', { login: login.trim().replace(/^@/, '').toLowerCase(), password }))
   }
 
   async logout() {
