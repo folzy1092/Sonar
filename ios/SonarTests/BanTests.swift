@@ -149,6 +149,34 @@ final class BanTests: XCTestCase {
         XCTAssertTrue(store.signedIn)
     }
 
+    // MARK: причина сетевого сбоя
+
+    func testNetworkFailureKeepsItsReason() async {
+        let cases: [(URLError.Code, String)] = [(.timedOut, "таймаут, -1001"), (.cannotFindHost, "DNS, -1003"),
+                                                (.notConnectedToInternet, "нет интернета, -1009"),
+                                                (.serverCertificateUntrusted, "ошибка TLS, -1202")]
+        for (code, expected) in cases {
+            let client = APIClient(base: URL(string: "https://try-sonar.ru/api")!, fetch: { _ in throw URLError(code) })
+            do {
+                try await client.call("GET", "health")
+                XCTFail("ждали ошибку сети")
+            } catch let error as APIError {
+                XCTAssertEqual(error.code, "network")
+                XCTAssertEqual(error.message, "Нет связи с сервером Sonar", "сообщение прежнее — оно переводится")
+                XCTAssertEqual(error.detail, expected)
+            } catch {
+                XCTFail("\(error)")
+            }
+        }
+    }
+
+    func testAccountErrorTextAppendsReasonOnlyForNetwork() {
+        let net = APIError(status: 0, code: "network", message: "Нет связи с сервером Sonar", detail: "таймаут, -1001")
+        XCTAssertTrue(AccountErrorText.of(net).hasSuffix("(таймаут, -1001)"))
+        XCTAssertEqual(AccountErrorText.of(APIError(status: 401, code: "bad_credentials", message: "Неверный логин или пароль")),
+                       t("Неверный логин или пароль"))
+    }
+
     // MARK: ключ API
 
     func testApiKeyIsMaskedAndAddressIsBuilt() {

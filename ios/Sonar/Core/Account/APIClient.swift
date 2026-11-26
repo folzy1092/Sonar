@@ -11,6 +11,8 @@ struct APIError: LocalizedError, Equatable, Sendable {
     /// Только у `account_banned`: до какого момента (мс Unix), `nil` — навсегда.
     var until: Int64?
     var reason: String?
+    /// Только у `network`: что именно не вышло («таймаут», «DNS», «ошибка TLS» …) — чтобы «Нет связи» не прятало причину.
+    var detail: String?
 
     var errorDescription: String? { message }
 
@@ -102,10 +104,25 @@ struct APIClient: Sendable {
         do {
             (data, status) = try await fetch(req)
         } catch {
-            throw APIError(status: 0, code: "network", message: "Нет связи с сервером Sonar")
+            throw APIError(status: 0, code: "network", message: "Нет связи с сервером Sonar", detail: Self.reason(of: error))
         }
         guard (200 ..< 300).contains(status) else { throw Self.error(status: status, data: data) }
         return data
+    }
+
+    /// Короткая причина сетевого сбоя для экрана входа: слово и код `URLError` (-1001 …).
+    static func reason(of error: Error) -> String {
+        guard let url = error as? URLError else { return String(describing: type(of: error)) }
+        let word: String = switch url.code {
+        case .timedOut: "таймаут"
+        case .cannotFindHost, .dnsLookupFailed: "DNS"
+        case .cannotConnectToHost: "нет соединения с узлом"
+        case .networkConnectionLost: "связь оборвалась"
+        case .notConnectedToInternet: "нет интернета"
+        case .secureConnectionFailed, .serverCertificateUntrusted: "ошибка TLS"
+        default: "сбой сети"
+        }
+        return "\(word), \(url.code.rawValue)"
     }
 
     static func error(status: Int, data: Data) -> APIError {

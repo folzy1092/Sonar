@@ -159,6 +159,16 @@ struct AuthGateView: View {
     }
 }
 
+/// Текст ошибки для форм входа: перевод сообщения плюс причина сетевого сбоя в скобках («… (таймаут, -1001)»).
+@MainActor
+enum AccountErrorText {
+    static func of(_ error: Error) -> String {
+        let base = t(error.localizedDescription)
+        if let api = error as? APIError, let detail = api.detail { return "\(base) (\(detail))" }
+        return base
+    }
+}
+
 /// Вход логином и паролем.
 private struct LoginForm: View {
     let account: AccountStore
@@ -205,7 +215,7 @@ private struct LoginForm: View {
                 try await account.login(login, password: password)
                 Haptics.tap()
             } catch {
-                self.error = t(error.localizedDescription)
+                self.error = AccountErrorText.of(error)
                 password = ""
                 focus = 1
             }
@@ -270,7 +280,7 @@ private struct RegisterForm: View {
                 try await account.register(login, password: password)
                 Haptics.tap()
             } catch {
-                self.error = t(error.localizedDescription)
+                self.error = AccountErrorText.of(error)
             }
         }
     }
@@ -324,7 +334,7 @@ struct LinkLoginView: View {
             if outcome == .approved { Haptics.tap() }
         } catch is CancellationError {
         } catch {
-            self.error = t(error.localizedDescription)
+            self.error = AccountErrorText.of(error)
         }
     }
 
