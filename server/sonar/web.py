@@ -33,7 +33,7 @@ from .updater import Updater
 
 log = logging.getLogger("sonar.web")
 # Что клиенты дёргают постоянно: в консоли хостинга они заглушили бы остальное.
-QUIET = {"/health", "/api/health", "/api/player/state", "/api/status/report"}
+QUIET = {"/health", "/api/health", "/api/player/state", "/api/status/report", "/api/oauth/now", "/oauth/now"}
 
 # Файлы Astro с хэшем в имени не меняются никогда; HTML — всегда сверять, остальное (картинки, шрифты) — час.
 IMMUTABLE = "public, max-age=31536000, immutable"
