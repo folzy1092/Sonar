@@ -99,6 +99,10 @@ def card(ctx, row: sqlite3.Row | None, tg_id: int | None) -> Screen:
         lines.append(f"Telegram: {tg}")
         devices = con.execute("SELECT COUNT(*) FROM sessions WHERE user_id = ?", (row["id"],)).fetchone()[0]
         lines.append(f"Устройств: {devices}")
+        # Что синк уже положил на сервер: по этой цифре видно, доехали ли Любимые с устройства (`sync_rows`, тип like).
+        likes = con.execute("SELECT COUNT(*) FROM sync_rows WHERE user_id = ? AND type = 'like' AND value_json IS NOT NULL",
+                            (row["id"],)).fetchone()[0]
+        lines.append(f"Любимых на сервере: {likes}")
         ban = bans.of_user(con, row["id"])
         lines.append(f"{e('cancel')} <b>Заблокирован {h(S._when(ban.until))}</b>" + (f" — {h(ban.reason)}" if ban.reason else "")
                      if ban else f"{e('ok')} Аккаунт не заблокирован")

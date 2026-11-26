@@ -486,3 +486,13 @@ def test_no_cramped_rows_on_admin_screens(ctx, con):
         for line in screen.kb:
             if len(line) > 1:
                 assert all(len(b.text) <= 13 for b in line), [b.text for b in line]
+
+
+def test_who_card_counts_likes_that_reached_the_server(ctx, con):
+    uid = add_user(con, tg_id=TG)
+    rows = [(uid, "like", f"sc:{n}", '{"x": 1}' if n < 3 else None, n, 1) for n in range(5)]     # две строки — снятые лайки
+    con.executemany("INSERT INTO sync_rows (user_id, type, key, value_json, rev, client_ts) VALUES (?,?,?,?,?,?)", rows)
+    con.execute("INSERT INTO sync_rows (user_id, type, key, value_json, rev, client_ts) VALUES (?,?,?,?,?,?)",
+                (uid, "playlist", "p1", '{"x": 1}', 9, 1))                                         # плейлисты не считаем
+    command(ctx, M.cmd_who, OWNER, "mira")
+    assert "Любимых на сервере: 3" in ctx.shower.shown[-1].html
