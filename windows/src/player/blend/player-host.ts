@@ -8,6 +8,7 @@ import { settings } from '../../lib/settings.svelte'
 import { tempo } from '../tempo.svelte'
 import type { BlendAnalysis } from './analysis'
 import type { BlendHost, BlendSettings, OwnSound } from './controller.svelte'
+import { restDeck } from './automation'
 import type { DeckChain } from './deck-chain'
 import { blendRatings } from './ratings.svelte'
 import { blendSettings } from './settings'
@@ -103,7 +104,12 @@ export function createBlendHost(side: HostSide): BlendHost<Track, PlayerDeck> {
   function release(deck: PlayerDeck) {
     const h = held.get(deck.el)
     held.delete(deck.el)
+    // плеер уже играет в этот дек (кроссфейд забрал его, пока B грузился): свой поток и ручки не трогаем,
+    // снимаем только hls.js B — он чистит `src`, лишь если тот ещё его собственный
+    if (side.otherDeck() !== deck.el) return h?.hls?.destroy()
     stop(deck.el, h?.hls ?? null)
+    const ctx = side.ctx()
+    if (ctx) restDeck(deck.chain, ctx.sampleRate / 2, ctx.currentTime)
   }
 
   async function load(track: Track, startSec: number): Promise<PlayerDeck | null> {
@@ -114,21 +120,26 @@ export function createBlendHost(side: HostSide): BlendHost<Track, PlayerDeck> {
     silence(chain, ctx)
     const mine = { hls: null, stream: null, track }
     held.set(el, mine)
-    const stale = () => held.get(el)?.track !== track
+    const ours = () => held.get(el)?.track === track
+    // дек стал текущим у плеера (обычный кроссфейд, пока B грузился) — в него больше не лезем
+    const stale = () => !ours() || side.otherDeck() !== el
+    const drop = () => {
+      if (ours()) release({ el, chain })
+      return null
+    }
     try {
       const stream = await api.streamUrl(track.ref, track)
-      if (stale()) return null
+      if (stale()) return drop()
       const hls = side.mount(el, stream, Math.max(0, startSec))
       held.set(el, { hls, stream, track })
       await ready(el, hls)
-      if (stale()) return null
+      if (stale()) return drop()
       hls?.on(Hls.Events.ERROR, (_e, data) => {
         if (data.fatal) side.deckError(el)
       })
       return { el, chain }
     } catch {
-      if (!stale()) release({ el, chain })
-      return null
+      return drop()
     }
   }
 

@@ -8,6 +8,7 @@ import { removedTracks, isRemovedError } from '../lib/removed-tracks.svelte'
 import { api, errorText, rawError, onMediaControl, type PlayerState, type Repeat, type StreamUrl, type Track } from '../lib/api'
 import { eq } from './eq.svelte'
 import { Leveler } from './leveler'
+import { restDeck } from './blend/automation'
 import { DeckChain } from './blend/deck-chain'
 import type { BlendAnalysis } from './blend/analysis'
 import { BlendController } from './blend/controller.svelte'
@@ -621,7 +622,7 @@ class Player {
     if (!crossfade) {
       this.blend.abort()
       this.endFade()
-      this.gainTo(this.audio, 1, 0)
+      this.freshDeck(this.audio, 1)
     }
     this.leveler?.trackChanged()
     tempo.trackChanged(this.current?.ref ?? null)
@@ -756,6 +757,14 @@ class Player {
     this.maybeCrossfade(a, ms)
   }
 
+  /** Дек под новый трек: ручки сведения в покое (фильтр, эхо, сдвиг тона от оборванного перехода не
+   *  достаются следующему треку), громкость `gain` сразу. */
+  private freshDeck(el: HTMLAudioElement | null, gain: number) {
+    const chain = el && this.chains.get(el)
+    if (chain && this.ctx) restDeck(chain, this.ctx.sampleRate / 2, this.ctx.currentTime)
+    this.gainTo(el, gain, 0)
+  }
+
   /** Плавно (`sec`) выставить громкость дека в Web Audio; 0 с — сразу. */
   private gainTo(el: HTMLAudioElement | null, v: number, sec: number) {
     const g = el ? this.chains.get(el)?.gain : null
@@ -806,7 +815,7 @@ class Player {
     this.finishPlay(false)
     const oldHls = this.hls
     this.hls = null
-    this.gainTo(neu, 0, 0)
+    this.freshDeck(neu, 0)
     this.audio = neu
     this.pos = p
     try {

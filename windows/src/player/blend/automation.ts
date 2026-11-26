@@ -2,7 +2,7 @@
 // запланированное и кладёт рампы на ближайшую секунду: ключевые такты (свап басов, «раз») ставятся точно,
 // между ними — выборки каждые 100 мс (экспонента частот, равная мощность громкости).
 
-import { type BlendCurves, DECK_PARAMS, type DeckParam, type DeckValues, keyBars, valueAt } from './curves'
+import { type BlendCurves, DECK_PARAMS, type DeckParam, type DeckValues, keyBars, restValues, valueAt } from './curves'
 import { type Band, MIN_RAMP_SEC } from './deck-chain'
 
 /** Что контроллер трогает в `DeckChain`. Подмножество, чтобы тесты могли подставить игрушечный граф. */
@@ -113,6 +113,13 @@ export function setDeck(chain: ChainLike, values: Partial<DeckValues>, t: number
     param.cancelScheduledValues(t)
     param.setValueAtTime(v, t)
   }
+}
+
+/** Дек свободен: тишина, ручки в покое, без сдвига тона. Иначе следующий трек на этом деке унаследует
+ *  фильтр оборванного перехода (lp на 300 Гц — «играет за стенкой»). */
+export function restDeck(chain: ChainLike, nyquist: number, t: number) {
+  setDeck(chain, { ...restValues(nyquist), gain: 0 }, t)
+  void chain.setShift(1)
 }
 
 /** Плавно за `sec` привести ручки к значениям (отмена, «Следующий», конец перехода). */
