@@ -133,3 +133,38 @@ def test_wrong_password_does_not_rewrite_the_hash(acc):
     with pytest.raises(AccountError):
         run(acc.verify("mira", "nope-nope-nope"))
     assert acc.con.execute("SELECT password_hash FROM users WHERE id = ?", (user.id,)).fetchone()[0] == heavy
+
+
+def test_ip_limit_is_looser_than_the_login_one(acc):
+    """Пять опечаток с одного IP (мобильный оператор, общий nginx) не запирают вход другим логинам."""
+    for n in range(10):
+        with pytest.raises(AccountError) as e:
+            run(acc.verify(f"user{n}", "wrong-password", ip="203.0.113.5"))
+        assert e.value.code == "no_user"
+    run(acc.register("mira", "secret-pass"))
+    assert run(acc.verify("mira", "secret-pass", ip="203.0.113.5")).login == "mira"
+
+
+def test_ip_limit_still_stops_a_spray(acc):
+    from sonar.accounts import IP_LOGIN_TRIES
+    for n in range(IP_LOGIN_TRIES):
+        with pytest.raises(AccountError):
+            run(acc.verify(f"user{n}", "wrong-password", ip="198.51.100.9"))
+    with pytest.raises(AccountError) as e:
+        run(acc.verify("brand-new", "wrong-password", ip="198.51.100.9"))
+    assert e.value.code == "too_many"
+    with pytest.raises(AccountError) as other:                       # а с другого адреса — по-прежнему «нет такого»
+        run(acc.verify("brand-new", "wrong-password", ip="198.51.100.10"))
+    assert other.value.code == "no_user"
+
+
+def test_successful_login_does_not_clear_the_ip_counter(acc):
+    from sonar.accounts import IP_LOGIN_TRIES
+    run(acc.register("mira", "secret-pass"))
+    for n in range(IP_LOGIN_TRIES - 1):
+        with pytest.raises(AccountError):
+            run(acc.verify(f"user{n}", "wrong-password", ip="192.0.2.7"))
+    run(acc.verify("mira", "secret-pass", ip="192.0.2.7"))           # 30-я попытка, успешная
+    with pytest.raises(AccountError) as e:
+        run(acc.verify("mira", "secret-pass", ip="192.0.2.7"))
+    assert e.value.code == "too_many"

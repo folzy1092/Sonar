@@ -207,3 +207,9 @@ def test_banned_user_cannot_report(client, con):
     add_session(con, "bad", banned=1)
     r = client.post("/api/status/report", json={"service": "yandex", "ok": True}, headers={"Authorization": "Bearer bad"})
     assert r.status_code == 403
+
+
+def test_whoami_returns_the_callers_address_not_a_spoofed_header(client):
+    r = client.get("/api/whoami", headers={"X-Forwarded-For": "203.0.113.77"})
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
+    assert r.json() == {"ip": "testclient"}          # соединение не от доверенного прокси: заголовку не верим

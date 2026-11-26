@@ -91,6 +91,9 @@ def looks_like_token(text: str) -> bool:
 
 # ---- лимиты входа (в памяти, как SPEC §3.4): 5 попыток за 15 минут на ключ ----
 
+IP_LOGIN_TRIES = 30   # попыток входа за 15 минут с одного IP (на логин — 5)
+
+
 class RateLimit:
     def __init__(self, limit: int = 5, window_s: int = 15 * 60):
         self.limit, self.window = limit, window_s
@@ -147,7 +150,10 @@ class Accounts:
     def __init__(self, con: sqlite3.Connection, fernet_key: str):
         self.con = con
         self.fernet = Fernet(fernet_key.encode())
-        self.login_limit = RateLimit()
+        self.login_limit = RateLimit()                      # 5 попыток за 15 минут на логин и на Telegram
+        # IP считается отдельно и мягче: у мобильного оператора и у общего nginx хостинга за одним адресом сидят многие, а
+        # перебор пароля и так упирается в лимит на логин. 5 на IP хватало, чтобы пара опечаток заперла вход всем.
+        self.ip_limit = RateLimit(limit=IP_LOGIN_TRIES)
 
     # ---- поиск ----
 
@@ -200,13 +206,16 @@ class Accounts:
     async def verify(self, login: str, password: str, tg_id: int | None = None, ip: str | None = None) -> User:
         """Вход логином и паролем; AccountError('no_user' | 'bad_password' | 'too_many').
 
-        Лимит — 5 попыток за 15 минут на логин, на Telegram (бот) и на IP (API).
+        Лимит — 5 попыток за 15 минут на логин и на Telegram (бот), 30 — на IP (API).
         """
-        keys = [f"login:{login.strip().lstrip('@').lower()[:64]}"] + ([f"tg:{tg_id}"] if tg_id else [])             + ([f"ip:{ip}"] if ip else [])
-        if self.login_limit.blocked(*keys):
+        keys = [f"login:{login.strip().lstrip('@').lower()[:64]}"] + ([f"tg:{tg_id}"] if tg_id else [])
+        ip_key = f"ip:{ip}" if ip else None
+        if self.login_limit.blocked(*keys) or (ip_key and self.ip_limit.blocked(ip_key)):
             raise AccountError("too_many")
         # Попытка считается до проверки: пока argon2 считает в потоке, параллельные попытки тоже упрутся в лимит.
         self.login_limit.hit(*keys)
+        if ip_key:
+            self.ip_limit.hit(ip_key)
         bans.expire(self.con)
         r = self.con.execute("SELECT * FROM users WHERE login = ?", (login.strip().lstrip("@"),)).fetchone()
         if r is None:
@@ -221,7 +230,7 @@ class Accounts:
         if r["banned"]:
             # О бане говорим только тому, кто знает пароль: чужому это не раскрывает, что такой аккаунт есть.
             raise AccountError("banned", bans.Ban(r["ban_reason"], r["ban_until"], r["banned_at"]))
-        self.login_limit.reset(*keys)
+        self.login_limit.reset(*keys)      # IP не сбрасываем: иначе вход под своим аккаунтом обнулял бы счётчик перебора
         return User.of(r)
 
     def link_tg(self, user: User, tg_id: int, tg_username: str | None) -> User:
