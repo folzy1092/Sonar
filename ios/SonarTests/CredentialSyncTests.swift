@@ -125,7 +125,7 @@ final class CredentialSyncerTests: XCTestCase {
 
     func testRunPushesMineAppliesRemoteAndSavesBase() async throws {
         let api = FakeAPI()
-        api.on("GET /services/credentials", #"{"yandex":{"token":"y0_a"},"vk":{"token":"x"}}"#)
+        api.on("GET /services/credentials", 200, #"{"yandex":{"token":"y0_a"},"vk":{"token":"x"}}"#)
         api.on("PUT /services/credentials", 204, "")
         let host = FakeHost(["soundcloud": .init(fields: ["client_id": "abc"], name: "Folzy")])
         let syncer = CredentialSyncer(host: host)
@@ -143,7 +143,7 @@ final class CredentialSyncerTests: XCTestCase {
 
     func testSecondRunIsQuietAndFailedApplyIsNotRetried() async throws {
         let api = FakeAPI()
-        api.on("GET /services/credentials", #"{"spotify":{"sp_dc":"bad"}}"#)
+        api.on("GET /services/credentials", 200, #"{"spotify":{"sp_dc":"bad"}}"#)
         let host = FakeHost([:], failing: ["spotify"])
         let syncer = CredentialSyncer(host: host)
         let v = vault()
@@ -161,7 +161,7 @@ final class CredentialSyncerTests: XCTestCase {
 
     func testForgetWhenDisconnectedElsewhere() async throws {
         let api = FakeAPI()
-        api.on("GET /services/credentials", "{}")
+        api.on("GET /services/credentials", 200, "{}")
         let ym: CredentialSync.Fields = ["token": "y0_a"]
         let host = FakeHost(["yandex": .init(fields: ym, name: nil)])
         let v = vault()
@@ -177,7 +177,7 @@ final class CredentialSyncerTests: XCTestCase {
 
     func testBaseNotSavedAfterSignOut() async throws {
         let api = FakeAPI()
-        api.on("GET /services/credentials", #"{"yandex":{"token":"y0_a"}}"#)
+        api.on("GET /services/credentials", 200, #"{"yandex":{"token":"y0_a"}}"#)
         let v = vault()
         v.clear()
 
