@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Сервер{% endblock %}
+{% macro act(part, label, primary=false, off=false) %}
+<form class="inline" method="post" action="{{ BASE }}/server/{{ part }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn {{ 'primary' if primary else 'ghost' }}"{{ ' disabled' if off }}>{{ label }}</button></form>
+{% endmacro %}
+{% block main %}
+<div class="head">
+  <div><h1>Сервер</h1><p>Обновление по частям без панели хостинга: код тянется с GitHub, процесс перезапускается сам (тот же контейнер, секунд 20–40). Сайт обновляется на лету, без перезапуска.</p></div>
+  <a class="btn ghost" href="{{ BASE }}/server?check=1">Проверить на GitHub</a>
+</div>
+<div class="stack">
+{% if not available %}
+<div class="panel"><p class="note">Сервер запущен не через <span class="mono">sync.py</span> (локальная разработка) — обновлять нечем. На хостинге он запускается именно так.</p></div>
+{% else %}
+<div class="panel">
+  <h2>Части</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Часть</th><th>Сейчас</th><th>На GitHub</th><th></th></tr></thead>
+    <tbody>
+    <tr>
+      <td>Сервер <span class="muted">бот · API · админка · sync.py · зависимости</span></td>
+      <td class="mono">{{ current.sha[:8] or '—' }}</td>
+      <td>
+        {% if st and st.code %}
+          <span class="mono">{{ st.code.remote[:8] }}</span>
+          {% if st.code.changed %}<span class="tag deep">есть правки в server/</span>
+          {% elif st.code.new %}<span class="tag">репо ушло вперёд, server/ тот же</span>
+          {% else %}<span class="tag">актуально</span>{% endif %}
+          {% if st.code.deps %}<span class="tag">зависимости</span>{% endif %}
+        {% elif st and st.errors.code %}<span class="muted">{{ st.errors.code }}</span>
+        {% else %}<span class="muted">{{ 'не проверено' if not checked else '—' }}</span>{% endif %}
+      </td>
+      <td>{{ act('server', 'Обновить и перезапустить', primary=(st and st.code and st.code.changed), off=restarting) }}</td>
+    </tr>
+    <tr>
+      <td>Сайт <span class="muted">try-sonar.ru, на лету</span></td>
+      <td class="mono">{{ (current.site | replace('sha256:', ''))[:12] or '—' }}</td>
+      <td>
+        {% if st and st.site %}
+          {% if st.site.remote %}<span class="mono">{{ (st.site.remote | replace('sha256:', ''))[:12] }}</span>
+          {% if st.site.new %}<span class="tag deep">новая сборка</span>{% else %}<span class="tag">актуально</span>{% endif %}
+          {% else %}<span class="muted">в релизе site-latest нет архива</span>{% endif %}
+        {% elif st and st.errors.site %}<span class="muted">{{ st.errors.site }}</span>
+        {% else %}<span class="muted">{{ 'не проверено' if not checked else '—' }}</span>{% endif %}
+      </td>
+      <td>{{ act('site', 'Обновить сайт', primary=(st and st.site and st.site.new)) }}</td>
+    </tr>
+    </tbody>
+  </table>
+  </div>
+  {% if st and st.code and st.code.commits %}
+  <h2 style="margin-top:20px">Коммиты в server/</h2>
+  <ul class="mono" style="margin:8px 0 0;padding-left:18px">{% for c in st.code.commits %}<li>{{ c }}</li>{% endfor %}</ul>
+  {% endif %}
+  <div class="row" style="margin-top:16px">
+    {{ act('all', 'Обновить всё', off=restarting) }}
+    {{ act('restart', 'Просто перезапустить', off=restarting) }}
+  </div>
+  <p class="note">Бот и API — один процесс (одна база, один порт, 512 МБ), поэтому обновляются только вместе. «Просто перезапустить» код не трогает — подхватит правки <span class="mono">.env</span>. Выпуск сборок для клиентов — на странице «Сборки».</p>
+</div>
+
+{% if last %}
+<div class="panel">
+  <h2>Последний перезапуск</h2>
+  <p>{{ (last.done_at * 1000) | int | dt }} · {{ {'server': 'обновление сервера', 'all': 'сервер и сайт', 'restart': 'просто перезапуск'}.get(last.what, last.what) }} · запросил: {{ last.by if last.source == 'admin' else 'бот' }}
+  — <span class="mono">{{ (last.old or '')[:8] or '—' }} → {{ (last.current or '')[:8] or '—' }}</span>
+  {% if last.ok is sameas true %}<span class="tag">удалось</span>{% elif last.ok is sameas false %}<span class="tag bad">версия не та</span>{% else %}<span class="tag">версию не проверил</span>{% endif %}</p>
+</div>
+{% endif %}
+{% endif %}
+</div>
+{% endblock %}

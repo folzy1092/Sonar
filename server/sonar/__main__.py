@@ -13,7 +13,7 @@ from aiogram.types import BotCommand
 
 from . import config
 from .accounts import Accounts
-from .bot.handlers import Ctx, router
+from .bot.handlers import Ctx, announce_update, router
 from .bot.support import Support
 from .bot.ui import Shower
 from .db import connect
@@ -21,6 +21,7 @@ from .logs import LogGroup
 from .releases import Releases
 from .status import Status
 from .status_alert import MARKS, alert_lines, alert_title
+from .updater import Updater
 
 log = logging.getLogger("sonar")
 
@@ -32,7 +33,8 @@ async def serve_web(con, settings, status, ctx) -> None:
     from .bot.handlers import telegram_linked
     from .web import create_app
     host = os.getenv("SONAR_HTTP_HOST", "127.0.0.1")
-    app = create_app(con, settings, status, accounts=ctx.accounts, bot_username=ctx.bot_username)
+    app = create_app(con, settings, status, accounts=ctx.accounts, bot_username=ctx.bot_username,
+                     updater=ctx.updater)
     app.state.on_telegram_linked = lambda tg_id, user: telegram_linked(ctx, tg_id, user)
     server = uvicorn.Server(uvicorn.Config(app, host=host, port=settings.port,
                                            log_level="warning", proxy_headers=True))
@@ -42,7 +44,8 @@ async def serve_web(con, settings, status, ctx) -> None:
     await server.serve()
 
 
-async def main() -> None:
+async def main() -> Updater:
+    """Возвращает Updater: если из бота или админки запросили перезапуск, `finish()` делает его после выхода из цикла."""
     settings = config.load()
     if not settings.bot_token:
         sys.exit("SONAR_BOT_TOKEN пуст — заполни server/.env (пример: server/env.example)")
@@ -55,6 +58,7 @@ async def main() -> None:
               status=status, support=Support(bot, con, settings), logs=logs, releases=Releases(con),
               bot_username=me.username or "SonarMusicApp")
     dp = Dispatcher(storage=MemoryStorage())
+    ctx.updater = Updater(settings.data_dir, dp)
     dp["ctx"] = ctx
     dp.include_router(router)
 
@@ -78,6 +82,7 @@ async def main() -> None:
     backups = asyncio.create_task(logs.backup_loop(str(settings.db_path)))
     await logs.start_icons()
     await logs.event("▶️", "Бот запущен", lines=[f"@{me.username} · пользователей: {ctx.accounts.users_count()}"])
+    await announce_update(ctx)
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
@@ -85,11 +90,12 @@ async def main() -> None:
         backups.cancel()
         web.cancel()
         await bot.session.close()
+    return ctx.updater
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     try:
-        asyncio.run(main())
+        asyncio.run(main()).finish()
     except KeyboardInterrupt:
         pass

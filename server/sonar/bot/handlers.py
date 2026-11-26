@@ -24,6 +24,7 @@ from ..logs import LogGroup
 from ..posts import Draft
 from ..releases import PLATFORMS, ReleaseError, Releases, check_url, parse_targets, version_from_url
 from ..status import Status
+from ..updater import Updater, short
 from . import screens as S
 from .emoji import e
 from .support import Support
@@ -83,6 +84,7 @@ class Ctx:
     logs: LogGroup
     releases: Releases | None = None
     bot_username: str = "SonarMusicApp"
+    updater: Updater | None = None
 
     def is_owner(self, tg_id: int) -> bool:
         return bool(self.settings.owner_tg_id) and tg_id == self.settings.owner_tg_id
@@ -187,6 +189,72 @@ async def telegram_linked(ctx: Ctx, tg_id: int, user: User) -> None:
     except Exception:  # noqa: BLE001 — бот не должен ронять ответ API
         pass
 
+# ---- обновление сервера по частям: скрытая /update, только владелец (sonar/updater.py) ----
+
+@router.message(Command("update"))
+async def cmd_update(msg: Message, ctx: Ctx):
+    if not ctx.is_owner(msg.from_user.id):
+        return
+    if ctx.updater is None or not ctx.updater.available():
+        return await ctx.shower.send(msg.chat.id, S.update_unavailable())
+    shown = await ctx.shower.send(msg.chat.id, S.update_checking())
+    await ctx.shower.edit(shown, S.update_menu(await ctx.updater.check(force=True)))
+
+
+async def update_button(q: CallbackQuery, ctx: Ctx) -> None:
+    if not ctx.is_owner(q.from_user.id):
+        return await q.answer("Только для владельца", show_alert=True)
+    upd = ctx.updater
+    if upd is None or not upd.available():
+        await q.answer()
+        return await ctx.shower.edit(q.message, S.update_unavailable())
+    edit = lambda s: ctx.shower.edit(q.message, s)  # noqa: E731
+    action = (q.data or "").partition(":")[2]
+    if upd.restarting:
+        return await q.answer("Перезапуск уже идёт", show_alert=True)
+    await q.answer()
+    if action in ("chk", "menu"):
+        if action == "chk":
+            await edit(S.update_checking())
+        return await edit(S.update_menu(await upd.check(force=action == "chk")))
+    if action == "rst":
+        return await edit(S.update_confirm_restart())
+    if action == "site":
+        await edit(S.update_checking())
+        return await edit(S.update_site_done(await upd.update_site()))
+    what = {"server": "server", "all": "all", "rst_yes": "restart"}.get(action)
+    if what is None:
+        return None
+    st = await upd.check()
+    await edit(S.update_pending(what, st))
+    if not upd.request_restart(what, source="telegram", by=str(q.from_user.id), chat_id=q.message.chat.id,
+                               message_id=q.message.message_id):
+        await edit(S.update_unavailable())
+    return None
+
+
+async def announce_update(ctx: Ctx) -> None:
+    """Первый старт после перезапуска из бота или админки: итог — в то же сообщение, и строкой в лог-группу."""
+    if ctx.updater is None:
+        return
+    result = ctx.updater.take_result()
+    if result is None:
+        return
+    screen = S.update_done(result)
+    chat_id, message_id = result.get("chat_id"), result.get("message_id")
+    try:
+        if chat_id and message_id:
+            await ctx.bot.edit_message_text(screen.html, chat_id=chat_id, message_id=message_id, parse_mode="HTML",
+                                            reply_markup=screen.markup())
+        elif result.get("source") != "telegram" and ctx.settings.owner_tg_id:
+            await ctx.shower.send(ctx.settings.owner_tg_id, screen)
+    except Exception:  # noqa: BLE001 — итог не должен ронять запуск
+        pass
+    word = {True: "ок", False: "версия не та", None: "версия не проверена"}[result["ok"]]
+    await ctx.logs.event("🔄", "Сервер перезапущен" if result.get("what") == "restart" else "Сервер обновлён",
+                         lines=[f"{short(result.get('old'))} → {short(result.get('current'))} · {word}",
+                                f"запросил: {result.get('source')}"])
+
 
 # ---- перенос Любимых из Dotify (скрытая команда, в меню её нет) ----
 
@@ -258,6 +326,8 @@ async def on_button(q: CallbackQuery, state: FSMContext, ctx: Ctx):
         return await staff_button(q, ctx)
     if data.startswith("lk:"):
         return await link_button(q, ctx)
+    if data.startswith("upd:"):
+        return await update_button(q, ctx)
     user = ctx.accounts.by_tg(q.from_user.id)
     head, _, rest = data.partition(":")
     if user is None and head not in GUEST_OK:

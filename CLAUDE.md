@@ -255,6 +255,10 @@ ROADMAP — «Блок O». **ПК сделан 2026-11-23 (этапы 0–1):**
   сайт lengubot. HTTPS и домен (A-записи `@` и `www` на reg.ru) даёт прокси хостинга перед портом контейнера, Cloudflare
   не нужен. Запуск — `server/deploy/sync.py`: в контейнере только он и `.env`, он сам скачивает `server/` из `main`
   (архивом, без git), ставит `requirements-run.txt` в свой venv и запускает `python -m sonar`; база — `data/` рядом.
+  **Обновление частей без панели** (2026-11-26, образец — `/update` lengubot): скрытая `/update` бота и админка «Сервер» —
+  `server/sonar/updater.py` + `deploy/sync.py` (`status`, `update_site`, `SONAR_SYNC_SKIP`): сайт подменяется на лету, сервер
+  (бот + API + админка — один процесс, по отдельности не обновляются) — стоп опроса и `os.execv(sync.py)` тем же PID; код
+  качается, только если в коммитах есть правки `server/` (compare API). BOT.md §2.12б, ADMIN.md §0.
   Порт открыт наружу, поэтому IP клиента админка берёт из заголовков только от прокси (`SONAR_TRUSTED_PROXIES`).
   Адрес API в клиенте не зашит намертво. Подключение клиентов к серверу — задание `docs/SERVER_PROMPT.md` (2026-11-25).
   API — под `/api` (`<API>` = `https://try-sonar.ru/api`), код — `server/sonar/api/` по модулю на раздел API.md: ошибки,

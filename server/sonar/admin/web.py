@@ -54,12 +54,19 @@ MESSAGES = {
     "no_version": "Не понял версию из названия релиза", "github": "GitHub не ответил или оборвал загрузку, попробуй ещё",
     "bad_host": "GitHub отправил на незнакомый адрес — загрузка остановлена", "too_big": "Файл больше 200 МБ",
     "no_notes": "Описание на русском и английском обязательно",
+    "site_updated": "Сайт обновлён на лету — перезапуск не понадобился", "site_same": "Сайт уже актуален",
+    "site_none": "В релизе site-latest нет архива сайта — ничего не менял",
+    "site_failed": "Сайт не обновился, остаётся прежний — подробности в журнале сервера",
+    "restarting": "Перезапускаюсь: страница не ответит секунд 20–40, потом обнови её",
+    "no_restart": "Перезапуск недоступен: сервер запущен не через sync.py, это не бот, или перезапуск уже идёт",
+    "bad_part": "Нечего обновлять с таким названием",
 }
 ACTIONS = {"login": "Вход в админку", "password": "Смена пароля", "ban": "Блокировка", "unban": "Разблокировка",
            "set_login": "Смена логина", "grant_sub": "Подписка вручную", "settings": "Настройки",
            "end_device": "Завершена сессия устройства", "logout_all": "Выход на всех устройствах",
            "close_sessions": "Закрыты другие сессии админки", "login_failed": "Неудачный вход в админку",
-           "publish_build": "Выпуск сборки", "revoke_build": "Отзыв сборки", "restore_build": "Возврат сборки"}
+           "publish_build": "Выпуск сборки", "revoke_build": "Отзыв сборки", "restore_build": "Возврат сборки",
+           "update_site": "Обновление сайта", "update_server": "Обновление сервера", "restart_server": "Перезапуск сервера"}
 PERIODS = {"today": 1, "7": 7, "30": 30, "90": 90}
 PAGE_MAX = 1_000_000  # дальше страниц всё равно нет, а огромный OFFSET роняет SQLite
 
@@ -178,8 +185,13 @@ async def _form(request: Request) -> dict[str, str]:
     return {k: v for k, v in (await request.form()).items() if isinstance(v, str)}
 
 
+def _same(a: str, b: str) -> bool:
+    """compare_digest для строк падает на не-ASCII: токен из формы приходит от клиента, сравниваем байты."""
+    return secrets.compare_digest(a.encode(), b.encode())
+
+
 def _csrf_ok(s: Session, form: dict) -> bool:
-    return secrets.compare_digest(form.get("csrf", ""), s.csrf)
+    return _same(form.get("csrf", ""), s.csrf)
 
 
 def _int(v: str, low: int = 1) -> int:
@@ -216,7 +228,7 @@ async def login_page(request: Request):
 async def login_submit(request: Request):
     form = await _form(request)
     pre = request.cookies.get(PRE_COOKIE, "")
-    if not pre or not secrets.compare_digest(form.get("csrf", ""), pre):
+    if not pre or not _same(form.get("csrf", ""), pre):
         return _go("/login", e="csrf")
     try:
         token, s = await _auth(request).login(form.get("login", ""), form.get("password", ""), _ip(request),
@@ -518,3 +530,45 @@ async def builds_action(request: Request, build_id: int, action: str):
         return _go("/builds", e=err.code)
     users.audit(st.con, s.admin.login, f"{action}_build", b.tag, channel=b.channel)
     return _go("/builds", m="revoked" if action == "revoke" else "restored")
+
+
+# ---- сервер: обновление по частям без панели (sonar/updater.py) ----
+
+SITE_RESULT = {"updated": "site_updated", "same": "site_same", "none": "site_none", "failed": "site_failed"}
+
+
+@router.get("/server", response_class=HTMLResponse)
+async def server_page(request: Request):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    upd = _state(request).updater
+    checked = request.query_params.get("check") == "1"
+    return _page(request, "server.html", s, available=upd.available(), current=upd.current(),
+                 st=await upd.check(force=True) if checked and upd.available() else None, checked=checked,
+                 last=upd.last_result(), restarting=upd.restarting, nav="server")
+
+
+@router.post("/server/{part}")
+async def server_update(request: Request, part: str):
+    s = _guard(request)
+    if not isinstance(s, Session):
+        return s
+    form = await _form(request)
+    if not _csrf_ok(s, form):
+        return _go("/server", e="csrf")
+    st = _state(request)
+    if part not in ("site", "server", "all", "restart"):
+        return _go("/server", e="bad_part")
+    if not st.updater.available():
+        return _go("/server", e="no_restart")
+    if part == "site":
+        state = await st.updater.update_site()
+        users.audit(st.con, s.admin.login, "update_site", state)
+        return _go("/server", m=SITE_RESULT[state])
+    if part != "restart":
+        await st.updater.check()   # нужна цель, с которой потом сверим коммит
+    if not st.updater.request_restart(part, source="admin", by=s.admin.login):
+        return _go("/server", e="no_restart")
+    users.audit(st.con, s.admin.login, "restart_server" if part == "restart" else "update_server", part)
+    return _go("/server", m="restarting")

@@ -28,6 +28,7 @@ from .admin.web import BASE, HERE, router as admin_router
 from .config import Settings
 from .api.errors import is_api
 from .status import Status
+from .updater import Updater
 
 log = logging.getLogger("sonar.web")
 
@@ -48,14 +49,16 @@ def _cache_control(path: str, media_type: str | None) -> str:
 
 
 def install_site(app: FastAPI, directory: Path) -> None:
-    """Сайт из корня: www → без www, неизвестный приложению GET — файл сайта (или его 404.html)."""
-    if not (directory / "index.html").is_file():
-        log.info("сайта нет в %s — отдаю только API и админку", directory)
-        return
-    files = StaticFiles(directory=str(directory), html=True)
+    """Сайт из корня: www → без www, неизвестный приложению GET — файл сайта (или его 404.html).
+
+    Наличие сайта проверяется на каждый запрос, а не при старте: «Сервер → Обновить сайт» подменяет папку на
+    лету (`updater.update_site`), и первая установка тоже не требует перезапуска."""
+    files = StaticFiles(directory=str(directory), html=True, check_dir=False)
 
     @app.middleware("http")
     async def site(request: Request, call_next):
+        if not (directory / "index.html").is_file():
+            return await call_next(request)  # сайта нет — только API и админка
         path = request.url.path
         reading = request.method in ("GET", "HEAD")
         mine = reading and not is_api(path) and not path.startswith(BASE)
@@ -76,7 +79,7 @@ def install_site(app: FastAPI, directory: Path) -> None:
 
 def create_app(con: sqlite3.Connection, settings: Settings, status: Status | None = None,
                accounts: Accounts | None = None, bot_username: str = "SonarMusicApp",
-               site: Path | None = None) -> FastAPI:
+               site: Path | None = None, updater: Updater | None = None) -> FastAPI:
     """status и accounts — общие с ботом (`python -m sonar`): одни лимиты входа и одна сводка статуса.
     Без них (`python -m sonar.web`, тесты) — свои; `/api/status` тогда читает последние проверки из базы."""
     app = FastAPI(title="Sonar", docs_url=None, redoc_url=None, openapi_url=None)
@@ -88,6 +91,7 @@ def create_app(con: sqlite3.Connection, settings: Settings, status: Status | Non
     app.state.on_telegram_linked = None  # бот ставит: «Успешно! Аккаунт привязан» после «Разрешить» в приложении
     app.state.admin_auth = AdminAuth(con)
     app.state.github = builds.GitHub(os.getenv("GITHUB_TOKEN"))  # «Сборки» в админке
+    app.state.updater = updater or Updater(settings.data_dir)       # «Сервер» в админке; без бота перезапуска нет
     factory_password = app.state.admin_auth.ensure_factory()
     if factory_password:
         # Единственный раз, когда пароль виден: в базе только хэш. Потерял — python -m sonar.admin passwd.

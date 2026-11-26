@@ -580,3 +580,101 @@ def status(items: dict[str, Item], online: int, users: int, uptime: float | None
         other.append(f"{e('logo_telegram')} Telegram: {_mark(g('telegram'), True)}")
         html += quote(_tree(other), "Тексты и прочее:")
     return Screen(html=html, kb=[[Btn("Обновить", "refresh", "status")], [Btn("Страница статуса", "web", url="https://try-sonar.ru/status")]])
+
+
+# ---- обновление сервера: скрытая /update, только владелец (sonar/updater.py) ----
+
+def _update_lines(st: dict) -> list[str]:
+    err, code_, site_ = st.get("errors", {}), st.get("code"), st.get("site")
+    lines = []
+    if err.get("code") or code_ is None:
+        lines.append(f"{e('warning')} Сервер: GitHub не ответил — <code>{h(err.get('code', '?'))}</code>")
+    elif code_["changed"]:
+        lines.append(f"{e('new')} <b>Сервер</b> (бот, API, админка): <code>{h(_sha(code_['have']))}</code> → "
+                     f"<code>{h(_sha(code_['remote']))}</code>")
+        for c in code_["commits"]:
+            sha, _, subject = c.partition(" ")
+            lines.append(f"• <code>{h(sha)}</code> {h(subject)}")
+        if code_["deps"]:
+            lines.append("Поменяются зависимости — поставятся при старте.")
+        lines.append("Перезапуск займёт секунд 20–40: бот и API на это время недоступны.")
+    elif code_["new"]:
+        lines.append(f"{e('ok')} Сервер: актуален <code>{h(_sha(code_['have']))}</code> "
+                     "(в репо есть новое, но не в <code>server/</code>)")
+    else:
+        lines.append(f"{e('ok')} Сервер: актуален <code>{h(_sha(code_['have']))}</code>")
+    if err.get("site") or site_ is None:
+        lines.append(f"{e('warning')} Сайт: GitHub не ответил — <code>{h(err.get('site', '?'))}</code>")
+    elif not site_["remote"]:
+        lines.append(f"{e('info')} Сайт: в релизе <code>site-latest</code> нет архива")
+    elif site_["new"]:
+        lines.append(f"{e('new')} <b>Сайт</b>: есть новая сборка — обновится на лету, без перезапуска")
+    else:
+        lines.append(f"{e('ok')} Сайт: актуален")
+    return lines
+
+
+def _sha(sha: str) -> str:
+    return (sha or "")[:8] or "—"
+
+
+def update_menu(st: dict) -> Screen:
+    code_, site_ = st.get("code") or {}, st.get("site") or {}
+    new_code, new_site = bool(code_.get("changed")), bool(site_.get("new"))
+    kb: list[list[Btn]] = []
+    if new_code and new_site:
+        kb.append([Btn("Обновить всё", "download", "upd:all")])
+    row = ([Btn("Только сервер", "download", "upd:server")] if new_code else []) \
+        + ([Btn("Только сайт", "web", "upd:site")] if new_site else [])
+    if row:
+        kb.append(row)
+    kb.append([Btn("Проверить снова", "refresh", "upd:chk"), Btn("Перезапустить", "logout", "upd:rst")])
+    return Screen(html=f"{e('refresh')} <b>Обновление сервера</b>\n" + quote("\n".join(_update_lines(st))), kb=kb)
+
+
+def update_checking() -> Screen:
+    return Screen(html=f"{e('wait')} Проверяю GitHub…")
+
+
+def update_unavailable() -> Screen:
+    return Screen(html=f"{e('info')} <b>Обновление недоступно</b>\n"
+                       + quote("Сервер запущен не через <code>sync.py</code> — обновлять нечем. "
+                               "На хостинге Velt он запускается именно так."))
+
+
+def update_pending(what: str, st: dict) -> Screen:
+    title = {"server": "Обновляю сервер", "all": "Обновляю сервер и сайт", "restart": "Перезапускаю сервер"}[what]
+    lines = _update_lines(st) if what != "restart" else []
+    lines.append("Бот и API остановятся секунд на 20–40, потом это сообщение изменится на итог.")
+    return Screen(html=f"{e('wait')} <b>{title}</b>\n" + quote("\n".join(lines)))
+
+
+def update_confirm_restart() -> Screen:
+    return Screen(html=f"{e('refresh')} <b>Перезапустить сервер?</b>\n"
+                       + quote("Код и сайт не обновляются — только перезапуск (подхватит правки <code>.env</code>). "
+                               "Бот и API недоступны секунд 20–40."),
+                  kb=[[Btn("Да, перезапустить", "confirm", "upd:rst_yes"), Btn("Отмена", "cancel", "upd:menu")]])
+
+
+def update_site_done(state: str) -> Screen:
+    text = {"updated": f"{e('ok')} <b>Сайт обновлён</b> — перезапуск не понадобился",
+            "same": f"{e('ok')} Сайт уже актуален",
+            "none": f"{e('info')} В релизе <code>site-latest</code> нет архива сайта — ничего не менял",
+            "failed": f"{e('cancel')} <b>Сайт не обновился</b> — остаётся прежний. Подробности в журнале сервера"}[state]
+    return Screen(html=text, kb=[[Btn("К обновлению", "back", "upd:menu")]])
+
+
+def update_done(r: dict) -> Screen:
+    old, cur, target = _sha(r.get("old", "")), _sha(r.get("current", "")), _sha(r.get("target", ""))
+    what = r.get("what")
+    if what == "restart":
+        head, tail = f"{e('ok')} <b>Сервер перезапущен</b>", f"<code>{cur}</code>"
+    elif r.get("ok"):
+        head, tail = f"{e('ok')} <b>Сервер обновлён</b>", f"<code>{old}</code> → <code>{cur}</code>"
+    elif r.get("ok") is False:
+        head = f"{e('cancel')} <b>Перезапущен, но версия не та</b>"
+        tail = f"ждал <code>{target}</code>, стоит <code>{cur}</code> — смотри журнал <code>sync.py</code>"
+    else:
+        head = f"{e('info')} <b>Сервер перезапущен</b>"
+        tail = f"<code>{cur}</code> (новую версию GitHub проверить не удалось)"
+    return Screen(html=head + "\n" + quote(tail), kb=[[Btn("К обновлению", "refresh", "upd:menu")]])

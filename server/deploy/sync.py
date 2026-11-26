@@ -2,12 +2,17 @@
 
 Стартовая команда панели: `python sync.py`. При каждом старте:
 1. читает `.env` рядом с собой (переменные панели важнее);
-2. спрашивает у GitHub последний коммит ветки и, если он новый, скачивает архив репо и
-   берёт из него только папку `server/` (git на хостинге не нужен; GITHUB_TOKEN — по желанию);
+2. спрашивает у GitHub последний коммит ветки и, если он новый, смотрит, менялась ли папка `server/`
+   (compare API): нет — только запоминает коммит, да — скачивает архив репо и берёт из него `server/`
+   (git на хостинге не нужен; GITHUB_TOKEN — по желанию);
 3. обновляет сам себя из `server/deploy/sync.py`, если тот поменялся;
 4. если поменялся архив сайта в релизе `site-latest` (его собирает `site.yml`) — кладёт его в `site/`;
 5. ставит зависимости `requirements-run.txt` в свой venv — только когда файл поменялся;
 6. запускает `python -m sonar` (бот + HTTP на PORT; сайт раздаётся из корня, SONAR_SITE_DIR).
+
+Обновление по частям без панели — `sonar/updater.py` (бот `/update`, админка «Сервер»): он подгружает этот
+файл как модуль (`SONAR_HOME`), зовёт `status()` / `update_site()`, а для кода перезапускает процесс через
+`os.execv(sync.py)` с `SONAR_SYNC_SKIP` — какие шаги этого старта пропустить (`code`, `site`).
 
 Раскладка в контейнере:
     sync.py  .env        — кладёт владелец
@@ -25,6 +30,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -33,7 +39,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 HOME = Path(__file__).resolve().parent
 APP = HOME / "app"
@@ -45,6 +51,10 @@ SITE_ASSET = "site.tar.gz"
 DOWNLOAD_HOSTS = ("github.com",)
 DOWNLOAD_SUFFIX = ".githubusercontent.com"
 TAG = "[sync]"
+SKIP_ENV = "SONAR_SYNC_SKIP"       # «code,site» — что пропустить на этом старте
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+COMPARE_FILES_MAX = 300             # столько файлов отдаёт compare; больше — считаем, что server/ менялся
+COMMITS_SHOWN = 10
 
 
 def say(text: str) -> None:
@@ -156,6 +166,59 @@ def install_app(sha: str, archive: bytes) -> None:
     say(f"код обновлён до {sha[:8]} ({files} файлов)")
 
 
+def api_json(path: str) -> dict:
+    return json.loads(http_get(f"https://api.github.com/repos/{repo()}/{path}",
+                               accept="application/vnd.github+json", timeout=15))
+
+
+def server_diff(old: str, new: str) -> dict:
+    """Что в `server/` поменялось между коммитами: changed, deps (requirements-run.txt), commits (только
+    те, что трогали `server/`). known=False — выяснить не вышло (нет старого коммита, GitHub не ответил,
+    история переписана): тогда считаем, что менялось."""
+    unknown = {"known": False, "changed": True, "deps": False, "commits": []}
+    if not SHA_RE.match(old or "") or not SHA_RE.match(new or ""):
+        return unknown
+    try:
+        data = api_json(f"compare/{old}...{new}")
+    except Exception:
+        return unknown
+    files = data.get("files") or []
+    if data.get("status") == "diverged" or len(files) >= COMPARE_FILES_MAX:
+        return unknown
+    paths = [p for f in files for p in (f.get("filename"), f.get("previous_filename")) if p]
+    changed = any(p.startswith("server/") for p in paths)
+    commits: list[str] = []
+    if changed:
+        try:
+            since = data["base_commit"]["commit"]["committer"]["date"]
+            rows = api_json(f"commits?sha={quote(branch())}&path=server&since={quote(since)}"
+                            f"&per_page={COMMITS_SHOWN + 1}")
+            for row in rows:
+                if row.get("sha") != old:
+                    commits.append(f"{row['sha'][:7]} {row['commit']['message'].splitlines()[0][:100]}")
+        except Exception:
+            pass
+    return {"known": True, "changed": changed, "deps": "server/requirements-run.txt" in paths,
+            "commits": commits[:COMMITS_SHOWN]}
+
+
+def check_code() -> dict:
+    """Без изменений на диске: have / remote / new (репо ушло вперёд) / changed (в `server/` есть правки)."""
+    have, sha = local_sha(), remote_sha()
+    out = {"have": have, "remote": sha, "new": sha != have, "known": True, "changed": False, "deps": False,
+           "commits": []}
+    if sha != have:
+        out.update(server_diff(have, sha))
+    return out
+
+
+def take_skip() -> set[str]:
+    """Какие шаги пропустить на этом старте (перезапуск из бота / админки). Стирается перед запуском бота,
+    но не раньше: при self_update sync.py перезапускает сам себя с тем же окружением."""
+    raw = os.environ.get(SKIP_ENV, "")
+    return {part.strip() for part in raw.split(",") if part.strip()}
+
+
 def update_code() -> None:
     have = local_sha()
     try:
@@ -166,6 +229,13 @@ def update_code() -> None:
     if sha == have and (APP / "sonar").is_dir():
         say(f"код актуален ({sha[:8]})")
         return
+    if have and (APP / "sonar").is_dir():
+        diff = server_diff(have, sha)
+        if diff["known"] and not diff["changed"]:
+            # Коммиты были только про iOS, Windows, сайт или доки: качать весь репо незачем.
+            (APP / ".sha").write_text(sha)
+            say(f"server/ не менялся ({have[:8]} → {sha[:8]}) — код оставляю")
+            return
     started = time.monotonic()
     # С токеном — через API (подходит и для приватного репо), без — прямой архив.
     url = (f"https://api.github.com/repos/{repo()}/tarball/{sha}" if token()
@@ -235,26 +305,56 @@ def install_site(version: str, archive: bytes) -> None:
     say(f"сайт обновлён ({files} файлов)")
 
 
-def update_site() -> None:
-    """Сайт — архив в релизе `site-latest`. Не вышло — остаётся прежний (или сервер живёт без сайта)."""
+def site_have() -> str:
     try:
-        release = json.loads(http_get(f"https://api.github.com/repos/{repo()}/releases/tags/{SITE_TAG}",
-                                      accept="application/vnd.github+json", timeout=15))
-        asset = next((a for a in release.get("assets", []) if a.get("name") == SITE_ASSET), None)
-        if asset is None:
+        return (SITE / ".version").read_text().strip() if (SITE / "index.html").is_file() else ""
+    except OSError:
+        return ""
+
+
+def site_remote() -> tuple[str, str]:
+    """(версия, адрес) архива сайта в релизе `site-latest`; пусто — архива нет. Версия — хэш файла."""
+    release = api_json(f"releases/tags/{SITE_TAG}")
+    asset = next((a for a in release.get("assets", []) if a.get("name") == SITE_ASSET), None)
+    if asset is None:
+        return "", ""
+    version = asset.get("digest") or f"{asset.get('id')}:{asset.get('updated_at')}"
+    return version, str(asset.get("browser_download_url", ""))
+
+
+def check_site() -> dict:
+    have = site_have()
+    version, _ = site_remote()
+    return {"have": have, "remote": version, "new": bool(version) and version != have}
+
+
+def update_site() -> str:
+    """Сайт — архив в релизе `site-latest`. Возвращает `updated` / `same` / `none` (архива нет) / `failed`.
+    Не вышло — остаётся прежний (или сервер живёт без сайта). Меняется на лету: перезапуск не нужен."""
+    try:
+        version, url = site_remote()
+        if not version:
             say(f"в релизе {SITE_TAG} нет {SITE_ASSET} — сайт не трогаю")
-            return
-        version = asset.get("digest") or f"{asset.get('id')}:{asset.get('updated_at')}"
-        try:
-            have = (SITE / ".version").read_text().strip()
-        except OSError:
-            have = ""
-        if version == have and (SITE / "index.html").is_file():
+            return "none"
+        if version == site_have():
             say("сайт актуален")
-            return
-        install_site(version, download(str(asset.get("browser_download_url", ""))))
+            return "same"
+        install_site(version, download(url))
+        return "updated"
     except Exception as error:
         say(f"сайт не обновлён ({error}); остаётся прежний")
+        return "failed"
+
+
+def status() -> dict:
+    """Сводка для бота и админки: по каждой части — что стоит и что на GitHub, либо ошибка."""
+    out: dict = {"repo": repo(), "branch": branch(), "code": None, "site": None, "errors": {}}
+    for key, check in (("code", check_code), ("site", check_site)):
+        try:
+            out[key] = check()
+        except Exception as error:
+            out["errors"][key] = str(error)[:200]
+    return out
 
 
 def self_update() -> None:
@@ -323,6 +423,7 @@ def check_yandex(python: str) -> None:
 
 def main() -> int:
     load_env(HOME / ".env")
+    os.environ.setdefault("SONAR_HOME", str(HOME))   # по нему sonar/updater.py находит этот файл
     os.environ.setdefault("SONAR_DATA_DIR", str(HOME / "data"))
     os.environ.setdefault("SONAR_SITE_DIR", str(SITE))
     os.environ.setdefault("SONAR_HTTP_HOST", "0.0.0.0")
@@ -331,12 +432,17 @@ def main() -> int:
     say(f"{repo()} · ветка {branch()} · порт {os.environ.get('PORT') or os.environ.get('SERVER_PORT') or '—'}")
     if not os.environ.get("PORT") and os.environ.get("SERVER_PORT"):
         os.environ["PORT"] = os.environ["SERVER_PORT"]  # переменная Pterodactyl
-    update_code()
+    skip = take_skip()
+    if "code" in skip:
+        say("код не трогаю (перезапуск без обновления)")
+    else:
+        update_code()
     if not (APP / "sonar" / "__main__.py").is_file():
         say("кода сервера нет и скачать не удалось — запуск остановлен")
         return 1
     self_update()
-    update_site()
+    if "site" not in skip:
+        update_site()
     python, extra = python_for_app()
     try:
         install_deps(python, extra)
@@ -346,6 +452,7 @@ def main() -> int:
             return 1
         say("запускаю с прежними зависимостями")
     check_yandex(python)
+    os.environ.pop(SKIP_ENV, None)
     os.chdir(APP)
     say("запуск python -m sonar")
     os.execv(python, [python, "-m", "sonar"])
