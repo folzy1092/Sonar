@@ -5,7 +5,9 @@ import UIKit
 /// как бот (BOT.md §2.1–2.3, §3) и ПК. В приложении вход всегда начинается с логина и пароля; Telegram —
 /// быстрая ссылка `?start=link_<code>`: подтверждаешь в боте или на устройстве, где уже вошёл.
 ///
-/// С 2026-11-25 — лист из Профиля («Войти или создать аккаунт»), вход на iPhone по желанию.
+/// С 2026-11-26 вход обязателен, как на ПК: `RootView` закрывает приложение этим экраном, пока сервер отвечает, а входа нет
+/// (`AccountStore.needsGate`). Если аккаунт заблокирован — сверху красная плашка со сроком и причиной (`BanInfo`).
+/// Лист из Профиля («Войти или создать аккаунт») остаётся для случая, когда сервер был недоступен.
 struct AuthGateView: View {
     enum Step: Hashable {
         case welcome, login, register, link
@@ -23,6 +25,7 @@ struct AuthGateView: View {
             ScrollView {
                 VStack(spacing: 28) {
                     header
+                    banNotice
                     Group {
                         switch step {
                         case .welcome: welcome
@@ -45,6 +48,43 @@ struct AuthGateView: View {
             .scrollIndicators(.hidden)
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// «Учётная запись заблокирована»: срок и причина из ответа сервера; вход в другой аккаунт остаётся возможным.
+    @ViewBuilder
+    private var banNotice: some View {
+        if let ban = account.banned {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    SonarIcon(.shield, filled: true, size: 20)
+                    Text(t("Учётная запись заблокирована"))
+                        .font(.system(size: 17, weight: .semibold))
+                }
+                .foregroundStyle(Theme.danger)
+                Text(banTerm(ban))
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.text)
+                if let reason = ban.reason {
+                    Text(t("Причина: {reason}", ["reason": reason]))
+                        .font(.system(size: 15))
+                        .foregroundStyle(Theme.text)
+                }
+                Text(t("Если это ошибка — напиши в @SonarMusicApp."))
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.textSecondary)
+                    .padding(.top, 2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .background(Theme.danger.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Theme.danger.opacity(0.4)))
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    private func banTerm(_ ban: BanInfo) -> String {
+        if let until = ban.untilText(locale: currentLang().locale) { return t("Срок: до {date}", ["date": until]) }
+        return t("Срок: навсегда")
     }
 
     private func go(_ next: Step) {

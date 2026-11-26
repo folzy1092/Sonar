@@ -259,6 +259,10 @@ ROADMAP — «Блок O». **ПК сделан 2026-11-23 (этапы 0–1):**
   `server/sonar/updater.py` + `deploy/sync.py` (`status`, `update_site`, `SONAR_SYNC_SKIP`): сайт подменяется на лету, сервер
   (бот + API + админка — один процесс, по отдельности не обновляются) — стоп опроса и `os.execv(sync.py)` тем же PID; код
   качается, только если в коммитах есть правки `server/` (compare API). BOT.md §2.12б, ADMIN.md §0.
+  **Блокировки** (2026-11-26, `server/sonar/bans.py`): бан аккаунта на срок или навсегда — API отвечает `403 account_banned` с
+  `until` / `reason` (сессии не стираются), ПК и iPhone выходят сами и показывают экран бана; блок обращений «Баг / Идея»
+  (`support_blocks`); команды владельца `/who /ban /unban /rban /runban /banned` и `/admin` (сброс пароля админки) — BOT.md §2.12в–г.
+  **Вход на iPhone обязателен** (решение владельца 2026-11-26): ворота `AuthGateView` при живом `/health` (`AccountStore.needsGate`).
   Порт открыт наружу, поэтому IP клиента админка берёт из заголовков только от прокси (`SONAR_TRUSTED_PROXIES`).
   Адрес API в клиенте не зашит намертво. Подключение клиентов к серверу — задание `docs/SERVER_PROMPT.md` (2026-11-25).
   API — под `/api` (`<API>` = `https://try-sonar.ru/api`), код — `server/sonar/api/` по модулю на раздел API.md: ошибки,

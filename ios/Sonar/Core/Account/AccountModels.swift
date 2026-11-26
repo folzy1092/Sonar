@@ -253,3 +253,14 @@ enum AccountValidation {
         password.count < 8 ? "Пароль — от 8 символов" : nil
     }
 }
+
+/// Ключ API (`GET /me/integration`, `POST /integrations/api-key`): по нему selfbot и другие сервисы читают «сейчас играет».
+struct ApiKeyInfo: Codable, Equatable, Sendable {
+    var key: String?
+    var createdAt: Int64?
+
+    enum CodingKeys: String, CodingKey {
+        case key
+        case createdAt = "created_at"
+    }
+}

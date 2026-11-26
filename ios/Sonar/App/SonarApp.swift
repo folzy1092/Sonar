@@ -39,6 +39,10 @@ struct SonarApp: App {
                 .environment(offline)
                 .tint(Theme.accent)
                 .task {
+                    // аккаунт заблокировали — музыка стоп (экран бана показывают ворота входа)
+                    AccountStore.shared.onBanned = { PlaybackEngine.shared.pause() }
+                    // сервер жив? — ворота входа встают только тогда (AccountStore.needsGate)
+                    if !offline.isOn { await AccountStore.shared.checkServer() }
                     // «Классика» — основной вид: один раз переключаем и прежних пользователей
                     ClassicSwitch.applyOnce(settings)
                     // при запуске и раз в 6 часов (update.auto_check)

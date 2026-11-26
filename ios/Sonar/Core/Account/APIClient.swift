@@ -8,6 +8,9 @@ struct APIError: LocalizedError, Equatable, Sendable {
     var status: Int
     var code: String
     var message: String
+    /// Только у `account_banned`: до какого момента (мс Unix), `nil` — навсегда.
+    var until: Int64?
+    var reason: String?
 
     var errorDescription: String? { message }
 
@@ -17,6 +20,12 @@ struct APIError: LocalizedError, Equatable, Sendable {
     static let sessionTooNewCode = "session_too_new"
 
     var isUnauthorized: Bool { status == 401 }
+    /// `403 account_banned` — аккаунт заблокирован (API.md §1 «Блокировка»).
+    var isBanned: Bool { status == 403 && code == Self.bannedCode }
+    /// Сессии больше нет: её отозвали (401) или аккаунт заблокирован (403) — приложение выходит само.
+    var endsSession: Bool { isUnauthorized || isBanned }
+
+    static let bannedCode = "account_banned"
 }
 
 /// HTTP к серверу Sonar: JSON в обе стороны, `Authorization: Bearer <session>`. Сеть — замыкание
@@ -35,6 +44,12 @@ struct APIClient: Sendable {
             let (data, response) = try await URLSession.shared.data(for: request)
             return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
         }
+    }
+
+    /// Отвечает ли сервер (`GET /health`, без сессии). Ворота входа встают только когда да: упавший сервер не запирает приложение.
+    func ping() async -> Bool {
+        guard let req = try? request("GET", "health"), let (_, status) = try? await fetch(req) else { return false }
+        return (200 ..< 300).contains(status)
     }
 
     func with(token: String?) -> APIClient {
@@ -95,11 +110,12 @@ struct APIClient: Sendable {
 
     static func error(status: Int, data: Data) -> APIError {
         struct Envelope: Decodable {
-            struct Body: Decodable { var code: String; var message: String }
+            struct Body: Decodable { var code: String; var message: String; var until: Int64?; var reason: String? }
             var error: Body
         }
         if let envelope = try? JSONDecoder().decode(Envelope.self, from: data) {
-            return APIError(status: status, code: envelope.error.code, message: envelope.error.message)
+            return APIError(status: status, code: envelope.error.code, message: envelope.error.message,
+                            until: envelope.error.until, reason: envelope.error.reason)
         }
         let message: String = switch status {
         case 401: "Сессия закончилась — войди заново"

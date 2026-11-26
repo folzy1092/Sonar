@@ -15,13 +15,26 @@ struct RootView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
     @State private var showUpdate = false
+    @State private var account = AccountStore.shared
     /// Нижний системный отступ (полоска «домой»): панели во всю ширину заходят под него.
     @State private var bottomInset: CGFloat = 0
 
     var body: some View {
-        // Вход в аккаунт Sonar на iPhone — по желанию (решение владельца 2026-11-25): ворот нет,
-        // войти можно в Профиле; без входа всё работает автономно, как раньше.
+        // Вход обязателен, как на ПК (решение владельца 2026-11-26): пока сервер отвечает, а входа нет, приложение закрыто
+        // воротами. Сервер лёг или включён офлайн-режим — ворот нет. Заблокированному ворота показывают срок и причину.
+        // `gate` считаем здесь, в body: так SwiftUI следит за `account` и `offline` и сам показывает и убирает ворота
+        let gate = account.needsGate && !offline.isOn
         app
+            .fullScreenCover(isPresented: .constant(gate)) {
+                AuthGateView()
+            }
+            .onChange(of: offline.isOn) { _, on in
+                // выключили офлайн — заново спросить сервер: может, пора показать вход
+                if !on { Task { await account.checkServer() } }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active, !offline.isOn { Task { await account.checkServer() } }
+            }
     }
 
     @ViewBuilder

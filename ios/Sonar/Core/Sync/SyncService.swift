@@ -84,8 +84,8 @@ final class SyncService {
             if try await CredentialSyncer.shared.run(client: client, vault: account.vault) {
                 NotificationCenter.default.post(name: .servicesChanged, object: nil)
             }
-        } catch let error as APIError where error.isUnauthorized {
-            account.signedOut()
+        } catch let error as APIError where error.endsSession {
+            account.sessionEnded(error)
         } catch {
             CrashLog.warn("обмен входами в сервисы не прошёл: \(error.localizedDescription)")
         }
@@ -117,8 +117,8 @@ final class SyncService {
             }
             lastSyncAt = Date()
             lastError = nil
-        } catch let error as APIError where error.isUnauthorized {
-            account.signedOut()
+        } catch let error as APIError where error.endsSession {
+            account.sessionEnded(error)
         } catch RemoteSyncError.refused("not_paired") {
             // ключ пульта больше не подходит — не стучимся каждые 2 минуты, пока не привяжут заново
             if case let .lan(pcID) = target { RemoteSyncPC.forget(pcID) }

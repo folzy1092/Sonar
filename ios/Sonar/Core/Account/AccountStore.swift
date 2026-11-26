@@ -5,9 +5,12 @@ import Observation
 /// устройство), подтверждение чужого входа, профиль и устройства.
 ///
 /// `serverEnabled` = задан адрес (Info.plist `SonarAPIBaseURL` = `https://try-sonar.ru/api` или настройка
-/// `server.url`) **и** флаг `server.enabled` (с 2026-11-25 умолчание true). Вход — по желанию, из Профиля:
-/// ворота `AuthGateView` больше не показываются (`needsSignIn` — только подсказка). Выключить флаг —
-/// ни одного запроса, синк не стартует.
+/// `server.url`) **и** флаг `server.enabled` (с 2026-11-25 умолчание true). Вход обязателен, как на ПК (решение владельца
+/// 2026-11-26): `needsGate` — сервер включён, отвечает на `/health`, а входа нет; тогда `RootView` закрывает приложение
+/// воротами `AuthGateView`. Сервер лёг или офлайн-режим — ворот нет. Выключить флаг — ни одного запроса, синк не стартует.
+///
+/// Заблокированный аккаунт (`403 account_banned`): сессия стирается, `banned` хранит срок и причину — ворота показывают их
+/// вместо обычного приглашения, а `onBanned` останавливает музыку.
 @MainActor
 @Observable
 final class AccountStore {
@@ -47,8 +50,14 @@ final class AccountStore {
     var message: String?
 
     var signedIn: Bool { user != nil && vault.token != nil }
-    /// Ворота входа: сервер включён, а входа нет.
-    var needsSignIn: Bool { enabled() && !signedIn }
+    /// Сервер ответил на `/health` при последней проверке (`checkServer`).
+    private(set) var reachable = false
+    /// Аккаунт заблокирован: срок и причина для ворот. Входом в другой аккаунт сбрасывается.
+    private(set) var banned: BanInfo?
+    /// Ворота входа: сервер включён и отвечает, а входа нет. Офлайн-режим учитывает `RootView` (он наблюдаемый).
+    var needsGate: Bool { enabled() && reachable && !signedIn }
+    /// Блокировка пришла — остановить музыку (`SonarApp`).
+    @ObservationIgnored var onBanned: (@MainActor () -> Void)?
 
     /// Это устройство в списке (после `loadDevices`).
     var currentDevice: AccountDevice? { devices.first(where: \.current) }
@@ -109,17 +118,35 @@ final class AccountStore {
 
     // MARK: вход
 
+    /// Спросить сервер, жив ли он: ворота входа встают только тогда (при запуске, на возврате в приложение, после офлайна).
+    func checkServer() async {
+        guard enabled(), let base = Self.baseURL(settings: settings, plistURL: plistURL) else {
+            reachable = false
+            return
+        }
+        reachable = await APIClient(base: base, fetch: fetch).ping()
+    }
+
     func login(_ login: String, password: String) async throws {
-        let result = try await api().login(login: login, password: password, device: deviceDescriptor)
-        signedIn(result)
+        try await entering { try await api().login(login: login, password: password, device: deviceDescriptor) }
     }
 
     func register(_ login: String, password: String) async throws {
         if let problem = AccountValidation.loginProblem(login) ?? AccountValidation.passwordProblem(password) {
             throw APIError(status: 400, code: "invalid", message: problem)
         }
-        let result = try await api().register(login: login, password: password, device: deviceDescriptor)
-        signedIn(result)
+        try await entering { try await api().register(login: login, password: password, device: deviceDescriptor) }
+    }
+
+    /// Вход или регистрация: заблокированному сервер отвечает `account_banned` — запоминаем срок и причину для ворот.
+    private func entering(_ work: () async throws -> AuthResult) async throws {
+        do {
+            signedIn(try await work())
+        } catch let error as APIError where error.isBanned {
+            banned = BanInfo(error)
+            throw APIError(status: error.status, code: error.code, message: t("Учётная запись заблокирована"),
+                           until: error.until, reason: error.reason)
+        }
     }
 
     /// Быстрая ссылка для входа этого устройства: показать её (бот / QR), потом `waitForLink`.
@@ -157,6 +184,7 @@ final class AccountStore {
 
     private func signedIn(_ result: AuthResult) {
         vault.save(result)
+        banned = nil
         user = result.user
         onSessionChange?(true)
     }
@@ -169,12 +197,22 @@ final class AccountStore {
         onSessionChange?(false)
     }
 
-    /// 401 — сессии больше нет.
+    /// Сервер сказал, что сессии больше нет: 401 — отозвана, 403 `account_banned` — аккаунт заблокирован (тогда ещё
+    /// запоминаем срок и причину и останавливаем музыку). Зовут и `SyncService`.
+    func sessionEnded(_ error: APIError) {
+        if let ban = BanInfo(error) {
+            banned = ban
+            onBanned?()
+        }
+        signedOut()
+    }
+
+    /// 401 / 403 `account_banned` — сессии больше нет.
     private func guarded<T: Sendable>(_ work: () async throws -> T) async throws -> T {
         do {
             return try await work()
-        } catch let error as APIError where error.isUnauthorized {
-            signedOut()
+        } catch let error as APIError where error.endsSession {
+            sessionEnded(error)
             throw error
         }
     }
@@ -269,6 +307,20 @@ final class AccountStore {
         }
         try await guarded { try await api().revokeDevice(id) }
         devices.removeAll { $0.id == id }
+    }
+
+    // MARK: ключ API (Интеграции)
+
+    func apiKey() async throws -> ApiKeyInfo {
+        try await guarded { try await api().apiKey() }
+    }
+
+    func newApiKey() async throws -> ApiKeyInfo {
+        try await guarded { try await api().newApiKey() }
+    }
+
+    func deleteApiKey() async throws {
+        try await guarded { try await api().deleteApiKey() }
     }
 
     /// При каждом запуске (если вошли): сообщить серверу версию Sonar, ОС и имя устройства.

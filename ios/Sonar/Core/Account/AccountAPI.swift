@@ -84,6 +84,22 @@ struct AccountAPI: Sendable {
         try await client.call("DELETE", "auth/telegram")
     }
 
+    // MARK: ключ API (API.md §7)
+
+    /// Ключ API аккаунта (общий с ботом); ключа нет — `key == nil`.
+    func apiKey() async throws -> ApiKeyInfo {
+        try await client.send("GET", "me/integration")
+    }
+
+    /// Создать или перевыпустить: прежний ключ сразу перестаёт работать.
+    func newApiKey() async throws -> ApiKeyInfo {
+        try await client.send("POST", "integrations/api-key")
+    }
+
+    func deleteApiKey() async throws {
+        try await client.call("DELETE", "integrations/api-key")
+    }
+
     // MARK: устройства
 
     func devices() async throws -> [AccountDevice] {

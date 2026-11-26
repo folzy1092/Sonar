@@ -8,6 +8,7 @@ struct ProfileView: View {
     @Environment(ChromeState.self) private var chrome
     @Environment(UpdateChecker.self) private var checker
     @Environment(SettingsStore.self) private var settings
+    @State private var account = AccountStore.shared
 
     var body: some View {
         ScrollView {
@@ -53,7 +54,7 @@ struct ProfileView: View {
                 }
                 section("Интеграции", 5) {
                     link("Ключ API", .link) {
-                        ServerOnlyView(.apiKey)
+                        if AccountStore.serverEnabled { ApiKeyView() } else { ServerOnlyView(.apiKey) }
                     }
                 }
                 section("Система", 6) {
@@ -77,6 +78,12 @@ struct ProfileView: View {
         .animation(Motion.spring, value: checker.available)
     }
 
+    /// Подпись под именем: кто вошёл. Без входа (сервер недоступен или офлайн) — так и пишем, а не «появится с сервером».
+    private var accountLine: String {
+        if let user = account.user { return "@\(user.username)" + (user.number.map { " · #\($0)" } ?? "") }
+        return account.enabled() ? t("Нет входа в аккаунт Sonar") : t("Аккаунт Sonar выключен")
+    }
+
     /// Разработчик Sonar — значок «Dev» у имени (`SonarDeep.subscriptionOf`, до сервера — по нику).
     private var isDev: Bool {
         SonarDeep.subscriptionOf(username: settings.string(LookKey.profileUsername)).tier == .dev
@@ -95,7 +102,7 @@ struct ProfileView: View {
                             .lineLimit(1)
                         if isDev { DevBadge(size: 12) }
                     }
-                    Text("Аккаунт Sonar появится вместе с сервером")
+                    Text(accountLine)
                         .font(.system(size: 14))
                         .foregroundStyle(Theme.textSecondary)
                         .lineLimit(2)
