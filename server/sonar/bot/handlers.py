@@ -213,7 +213,7 @@ async def update_button(q: CallbackQuery, ctx: Ctx) -> None:
         return await ctx.shower.edit(q.message, S.update_unavailable())
     edit = lambda s: ctx.shower.edit(q.message, s)  # noqa: E731
     action = (q.data or "").partition(":")[2]
-    if upd.restarting:
+    if upd.busy:
         return await q.answer("Перезапуск уже идёт", show_alert=True)
     await q.answer()
     if action in ("chk", "menu"):
@@ -221,7 +221,19 @@ async def update_button(q: CallbackQuery, ctx: Ctx) -> None:
             await edit(S.update_checking())
         return await edit(S.update_menu(await upd.check(force=action == "chk")))
     if action == "rst":
+        return await edit(S.update_restart_menu())
+    if action == "rst_all":
         return await edit(S.update_confirm_restart())
+    if action in ("rst_bot", "rst_api"):
+        part = action[4:]
+        _audit(ctx, q.from_user.id, "restart_" + part, part)
+        await edit(S.update_part_pending(part))
+        if part == "bot":
+            notice = {"chat_id": q.message.chat.id, "message_id": q.message.message_id, "by": q.from_user.id}
+            if not upd.restart_bot(notice):
+                await edit(S.update_part_done(part, False))
+            return None
+        return await edit(S.update_part_done(part, await upd.restart_api()))
     if action == "site":
         await edit(S.update_checking())
         return await edit(S.update_site_done(await upd.update_site()))
@@ -234,6 +246,24 @@ async def update_button(q: CallbackQuery, ctx: Ctx) -> None:
                                message_id=q.message.message_id):
         await edit(S.update_unavailable())
     return None
+
+
+def _audit(ctx: Ctx, tg_id: int, action: str, target: str) -> None:
+    ctx.accounts.con.execute("INSERT INTO admin_audit (at, admin, action, target) VALUES (?,?,?,?)",
+                             (now_ms(), f"telegram:{tg_id}", action, target))
+
+
+async def announce_part(ctx: Ctx, part: str) -> None:
+    """Опрос бота поднялся заново: итог — в то же сообщение, где нажали «Только бота»."""
+    notice, ctx.updater.notice = ctx.updater.notice, None
+    if notice:
+        try:
+            screen = S.update_part_done(part, True)
+            await ctx.bot.edit_message_text(screen.html, chat_id=notice["chat_id"], message_id=notice["message_id"],
+                                            parse_mode="HTML", reply_markup=screen.markup())
+        except Exception:  # noqa: BLE001 — итог не должен ронять опрос
+            pass
+    await ctx.logs.event("🔄", "Бот перезапущен", lines=["опрос Telegram, HTTP не прерывался"])
 
 
 async def announce_update(ctx: Ctx) -> None:

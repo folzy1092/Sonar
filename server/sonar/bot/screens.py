@@ -673,7 +673,7 @@ def update_menu(st: dict) -> Screen:
         + ([Btn("Только сайт", "web", "upd:site")] if new_site else [])
     if row:
         kb.append(row)
-    kb += [[Btn("Проверить снова", "refresh", "upd:chk")], [Btn("Перезапустить сервер", "logout", "upd:rst")],
+    kb += [[Btn("Проверить снова", "refresh", "upd:chk")], [Btn("Перезапуск", "logout", "upd:rst")],
            [Btn("Назад", "back", "adm:menu")]]
     return Screen(html=f"{e('refresh')} <b>Обновление сервера</b>\n" + quote("\n".join(_update_lines(st))), kb=kb)
 
@@ -693,6 +693,29 @@ def update_pending(what: str, st: dict) -> Screen:
     lines = _update_lines(st) if what != "restart" else []
     lines.append("Бот и API остановятся секунд на 20–40, потом это сообщение изменится на итог.")
     return Screen(html=f"{e('wait')} <b>{title}</b>\n" + quote("\n".join(lines)))
+
+
+def update_restart_menu() -> Screen:
+    text = ("Бот и HTTP (API, админка, сайт) — части одного процесса, но перезапускаются порознь.\n"
+            "Только бота: опрос Telegram заново, HTTP не прерывается.\n"
+            "Только API: HTTP заново, бот не прерывается.\n"
+            "Код и <code>.env</code> при этом не перечитываются — для них «Весь сервер» или обновление.")
+    return Screen(html=f"{e('refresh')} <b>Что перезапустить</b>\n" + quote(text),
+                  kb=[[Btn("Только бота", "refresh", "upd:rst_bot"), Btn("Только API", "refresh", "upd:rst_api")],
+                      [Btn("Весь сервер", "logout", "upd:rst_all")], [Btn("Назад", "back", "upd:menu")]])
+
+
+def update_part_pending(part: str) -> Screen:
+    word = {"bot": "Перезапускаю бота", "api": "Перезапускаю API"}[part]
+    note = "Секунду-две бот не ответит." if part == "bot" else "Админка и приложения не ответят секунд 5, бот работает."
+    return Screen(html=f"{e('wait')} <b>{word}</b>\n" + quote(note))
+
+
+def update_part_done(part: str, ok: bool) -> Screen:
+    name = {"bot": "Бот", "api": "API"}[part]
+    head = f"{e('ok')} <b>{name} перезапущен</b>" if ok else f"{e('cancel')} <b>{name} не перезапустился</b>"
+    tail = "" if ok else "\n" + quote("Уже идёт другой перезапуск или часть не успела подняться — смотри журнал сервера.")
+    return Screen(html=head + tail, kb=[[Btn("К обновлению", "refresh", "upd:menu")]])
 
 
 def update_confirm_restart() -> Screen:

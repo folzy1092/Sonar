@@ -71,7 +71,7 @@ ACTIONS = {"login": "Вход в админку", "password": "Смена пар
            "close_sessions": "Закрыты другие сессии админки", "login_failed": "Неудачный вход в админку",
            "publish_build": "Выпуск сборки", "revoke_build": "Отзыв сборки", "restore_build": "Возврат сборки",
            "reset_admin_password": "Сброс пароля админки из бота", "ban_expired": "Срок бана вышел",
-           "report_block": "Закрыты обращения", "report_unblock": "Открыты обращения", "update_site": "Обновление сайта", "update_server": "Обновление сервера", "restart_server": "Перезапуск сервера"}
+           "report_block": "Закрыты обращения", "report_unblock": "Открыты обращения", "update_site": "Обновление сайта", "update_server": "Обновление сервера", "restart_server": "Перезапуск сервера", "restart_bot": "Перезапуск бота", "restart_api": "Перезапуск API"}
 PERIODS = {"today": 1, "7": 7, "30": 30, "90": 90}
 PAGE_MAX = 1_000_000  # дальше страниц всё равно нет, а огромный OFFSET роняет SQLite
 

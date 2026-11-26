@@ -309,13 +309,29 @@ class FakeUpdater:
         self.requests.append((what, kw))
         return True
 
+    bot_restart = api_restart = False
+    parts: list = []
+
+    @property
+    def busy(self):
+        return self.restarting
+
+    def restart_bot(self, notice=None):
+        self.parts.append(("bot", notice))
+        return True
+
+    async def restart_api(self):
+        self.parts.append(("api", None))
+        return True
+
 
 OWNER, STRANGER = 100, 200
 
 
 def bot_ctx(updater):
+    from sonar.db import connect
     return SimpleNamespace(settings=Settings(owner_tg_id=OWNER), shower=FakeShower(), updater=updater,
-                           is_owner=lambda uid: uid == OWNER)
+                           accounts=SimpleNamespace(con=connect(":memory:")), is_owner=lambda uid: uid == OWNER)
 
 
 def message(uid):
@@ -393,9 +409,87 @@ def test_bare_restart_asks_for_confirmation_first():
     upd = FakeUpdater()
     ctx = bot_ctx(upd)
     asyncio.run(H.update_button(query("upd:rst", OWNER), ctx))
+    assert buttons(ctx.shower.shown[-1]) == ["upd:rst_bot", "upd:rst_api", "upd:rst_all", "upd:menu"]
+    asyncio.run(H.update_button(query("upd:rst_all", OWNER), ctx))
     assert upd.requests == [] and "upd:rst_yes" in buttons(ctx.shower.shown[-1])
     asyncio.run(H.update_button(query("upd:rst_yes", OWNER), ctx))
     assert upd.requests[0][0] == "restart"
+
+
+def test_restart_one_part_from_the_bot():
+    upd = FakeUpdater()
+    upd.parts = []
+    ctx = bot_ctx(upd)
+    asyncio.run(H.update_button(query("upd:rst_bot", OWNER), ctx))
+    assert [p for p, _ in upd.parts] == ["bot"] and upd.parts[0][1]["message_id"] == 42
+    assert upd.requests == [] and "Перезапускаю бота" in ctx.shower.shown[-1].html   # итог допишет main() после запуска опроса
+    asyncio.run(H.update_button(query("upd:rst_api", OWNER), ctx))
+    assert [p for p, _ in upd.parts] == ["bot", "api"]
+    assert "API перезапущен" in ctx.shower.shown[-1].html
+    audit = [r["action"] for r in ctx.accounts.con.execute("SELECT action FROM admin_audit ORDER BY id")]
+    assert audit == ["restart_bot", "restart_api"]
+
+
+def test_updater_restarts_bot_polling_only(home):
+    async def run():
+        dp = FakeDispatcher()
+        upd = U.Updater(home, dp)
+        assert upd.restart_bot({"chat_id": 1})
+        assert not upd.restart_bot() and upd.busy       # второй перезапуск не накладывается
+        await upd._task
+        assert dp.stopped == 1 and upd.bot_restart and not upd.restarting   # флаг снимает main() после запуска опроса
+    asyncio.run(run())
+
+
+def test_restart_api_waits_for_the_new_server():
+    async def run():
+        upd = U.Updater(Path("."), FakeDispatcher())
+        server = SimpleNamespace(started=True, should_exit=False)
+        upd.api = server
+
+        async def serve_again():                         # как цикл в `serve_web`: увидел выход и поднял новый сервер
+            while not server.should_exit:
+                await asyncio.sleep(0.01)
+            await asyncio.sleep(0.05)
+            upd.api_restart = False
+        task = asyncio.create_task(serve_again())
+        assert await upd.restart_api() is True and server.should_exit
+        await task
+        upd.api = SimpleNamespace(started=False, should_exit=False)
+        assert await upd.restart_api() is False          # ещё не поднялся — перезапускать нечего
+    asyncio.run(run())
+
+
+def test_serve_web_comes_back_after_api_restart(tmp_path):
+    """Настоящий uvicorn: после `restart_api` порт снова отвечает, и тем же приложением."""
+    import socket
+    import urllib.request
+
+    from sonar import __main__ as M
+    from sonar.config import Settings
+    from sonar.db import connect
+
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    async def run():
+        upd = U.Updater(tmp_path, FakeDispatcher())
+        ctx = SimpleNamespace(accounts=None, bot_username="x", updater=upd)
+        task = asyncio.create_task(M.serve_web(connect(":memory:"), Settings(data_dir=tmp_path, port=port), None, ctx))
+        for _ in range(100):
+            if upd.api is not None and upd.api.started:
+                break
+            await asyncio.sleep(0.05)
+        first = upd.api
+        get = lambda: asyncio.to_thread(lambda: urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=5).status)  # noqa: E731
+        assert await get() == 200
+        assert await upd.restart_api() is True
+        assert upd.api is not first and upd.api.started and await get() == 200
+        upd.api.should_exit = True                       # обычная остановка — цикл заканчивается
+        await asyncio.wait_for(task, 10)
+    asyncio.run(run())
 
 
 def test_buttons_ignored_while_restarting():

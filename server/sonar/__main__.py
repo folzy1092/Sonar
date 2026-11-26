@@ -14,7 +14,7 @@ from aiogram.types import BotCommand
 from . import config
 from .accounts import Accounts
 from . import bans, builds
-from .bot.handlers import Ctx, announce_update, router
+from .bot.handlers import Ctx, announce_part, announce_update, router
 from .bot.moderation import router as moderation_router
 from .bot.publishing import router as publishing_router
 from .bot.support import Support
@@ -24,7 +24,7 @@ from .logs import LogGroup
 from .releases import Releases
 from .status import Status
 from .status_alert import MARKS, AlertGate, alert_lines, alert_title
-from .updater import Updater
+from .updater import API_BIND_TRIES, API_WAIT_S, Updater
 
 log = logging.getLogger("sonar")
 
@@ -39,12 +39,42 @@ async def serve_web(con, settings, status, ctx) -> None:
     app = create_app(con, settings, status, accounts=ctx.accounts, bot_username=ctx.bot_username,
                      updater=ctx.updater)
     app.state.on_telegram_linked = lambda tg_id, user: telegram_linked(ctx, tg_id, user)
-    server = uvicorn.Server(uvicorn.Config(app, host=host, port=settings.port,
-                                           log_level="warning", proxy_headers=True))
-    # Сигналы (Ctrl+C) ловит бот; uvicorn свои обработчики не ставит.
-    server.capture_signals = contextlib.nullcontext
+    updater = ctx.updater
     log.info("HTTP: http://%s:%s/admin/", host, settings.port)
-    await server.serve()
+    tries = 0
+    while True:
+        server = uvicorn.Server(uvicorn.Config(app, host=host, port=settings.port,
+                                               log_level="warning", proxy_headers=True))
+        # Сигналы (Ctrl+C) ловит бот; uvicorn свои обработчики не ставит.
+        server.capture_signals = contextlib.nullcontext
+        updater.api = server
+        watcher = asyncio.create_task(_api_started(server, updater)) if updater.api_restart else None
+        try:
+            await server.serve()
+        except SystemExit:                       # порт ещё занят (uvicorn выходит так) — пробуем снова
+            if not updater.api_restart or tries >= API_BIND_TRIES:
+                updater.api_restart = False
+                raise
+            tries += 1
+            await asyncio.sleep(1)
+            continue
+        finally:
+            if watcher:
+                watcher.cancel()
+        if not updater.api_restart:              # обычная остановка, а не перезапуск из бота
+            break
+        tries = 0
+        await asyncio.sleep(0.5)                 # порт освободится
+        log.info("HTTP перезапускается")
+
+
+async def _api_started(server, updater: Updater) -> None:
+    """Новый HTTP-сервер поднялся → перезапуск закончен (`Updater.restart_api` ждёт этого флага)."""
+    for _ in range(int(API_WAIT_S * 4)):
+        if server.started:
+            break
+        await asyncio.sleep(0.25)
+    updater.api_restart = False
 
 
 async def bans_loop(con, every_s: int = 60) -> None:
@@ -106,7 +136,14 @@ async def main() -> Updater:
     await logs.event("▶️", "Бот запущен", lines=[f"@{me.username} · пользователей: {ctx.accounts.users_count()}"])
     await announce_update(ctx)
     try:
-        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+        while True:
+            await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types(), close_bot_session=False)
+            if not ctx.updater.bot_restart:      # обычная остановка или полный перезапуск (`finish()`)
+                break
+            await bot.session.close()            # сессия откроется заново при первом запросе
+            ctx.updater.bot_restart = False
+            log.info("опрос бота перезапущен")
+            await announce_part(ctx, "bot")
     finally:
         checks.cancel()
         backups.cancel()

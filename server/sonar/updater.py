@@ -37,6 +37,8 @@ STOP_TRIES = 20
 STOP_DELAY_S = 1.0     # ответ бота и админки успевает уйти раньше, чем встанет опрос
 STOP_RETRY_S = 0.5
 WHATS = ("server", "all", "restart")
+API_WAIT_S = 20.0      # сколько ждать, пока HTTP поднимется заново
+API_BIND_TRIES = 5     # порт после остановки освобождается не сразу
 # Что sync.py пропускает на старте после перезапуска.
 SKIP = {"server": "site", "all": "", "restart": "code,site"}
 
@@ -54,6 +56,12 @@ class Updater:
         self._cache: tuple[float, dict] | None = None
         self._lock = asyncio.Lock()
         self._task: asyncio.Task | None = None
+        # Перезапуск одной части без перезапуска процесса: опрос бота или HTTP (API и админка). Код и .env при этом
+        # не перечитываются — для них нужен полный перезапуск (`request_restart`).
+        self.bot_restart = False
+        self.api_restart = False
+        self.api = None                    # uvicorn.Server, пока работает
+        self.notice: dict | None = None    # куда написать «бот перезапущен»
 
     # ---- sync.py ----
 
@@ -134,6 +142,45 @@ class Updater:
                 break
         log.error("перезапуск отменён: опрос бота не остановился")
         self.restarting = False
+
+    @property
+    def busy(self) -> bool:
+        return self.restarting or self.bot_restart or self.api_restart
+
+    def restart_bot(self, notice: dict | None = None) -> bool:
+        """Остановить опрос Telegram — `main()` сразу запустит его заново; HTTP не трогаем. False — занято."""
+        if self.busy or self.dp is None:
+            return False
+        self.bot_restart, self.notice = True, notice
+        self._task = asyncio.get_running_loop().create_task(self._stop_bot())
+        return True
+
+    async def _stop_bot(self) -> None:
+        await asyncio.sleep(STOP_DELAY_S)       # ответ бота успевает уйти
+        for _ in range(STOP_TRIES):
+            try:
+                await self.dp.stop_polling()
+                return
+            except RuntimeError:
+                await asyncio.sleep(STOP_RETRY_S)
+            except Exception:  # noqa: BLE001
+                log.exception("не удалось остановить опрос бота")
+                break
+        self.bot_restart = False
+
+    async def restart_api(self) -> bool:
+        """Остановить HTTP и дождаться, пока `serve_web` поднимет его заново; бот не прерывается. False — не вышло."""
+        server = self.api
+        if self.busy or server is None or not server.started:
+            return False
+        self.api_restart = True
+        server.should_exit = True
+        for _ in range(int(API_WAIT_S / 0.25)):
+            await asyncio.sleep(0.25)
+            if not self.api_restart:            # новый сервер поднялся и сам снял флаг
+                return True
+        self.api_restart = False
+        return False
 
     def finish(self) -> None:
         """После остановки опроса и `asyncio.run`: запомнить план и перезапустить процесс через sync.py.
