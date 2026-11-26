@@ -265,6 +265,11 @@ ROADMAP — «Блок O». **ПК сделан 2026-11-23 (этапы 0–1):**
   **Диагностика доступности** (2026-11-26, `docs/SERVER_DIAG.md`): страница `/diag` (без входа, проверка тел 1…1024 КБ),
   `GET /api/diag` / `/api/diag/payload` (API.md §12), монитор event loop (`sonar/diag.py`, предупреждение > 200 мс), access-лог
   с байтами, UA и «ОБОРВАН», с компьютера — `server/tools/diag_probe.py`. Причина «открылось раз, потом всё» ещё не найдена.
+  **Точное «сейчас играет» и помощники** (2026-11-26, `docs/NOW_ACCURACY_PROMPT.md`): обложку и длину трека дотягивают ПК
+  (`services/backfill.rs`, `lib/track-backfill.ts`) и iPhone (`Core/Library/TrackBackfill.swift`); публичный профиль —
+  `server/sonar/public_profile.py` + сайт `scripts/profile-view.ts`; права помощников (`panel` · `server` · `moderation`) —
+  `server/sonar/staff.py`, таблица `staff`, админка «Доступ» (выдаёт только владелец). iPhone: поиск по настройкам —
+  `Core/Settings/SettingsSearch.swift`; левый круг свёрнутой панели — наверх без разворота (`ChromeState.holdCollapsed`, `Router.goToTop`).
   **Вход на iPhone обязателен** (решение владельца 2026-11-26): ворота `AuthGateView` при живом `/health` (`AccountStore.needsGate`).
   **Каналы обновлений** (решение владельца 2026-11-26): релиз — всем и только с сайта (выпуск в админке «Сборки», GitHub у клиентов не
   опрашивается); бета — только `folzy` (`SONAR_BETA_USERS`) и с GitHub через сервер (`api/updates.py`, API.md §8); версия 0.3.0.

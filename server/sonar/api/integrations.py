@@ -71,7 +71,10 @@ def _text(v) -> str:
 
 
 def now_json(state: dict | None, heartbeat_at: int | None, now: int) -> dict:
-    """Ответ `/oauth/now` в формате Dotify из последнего PlayerState (чистая функция — для тестов)."""
+    """Ответ `/oauth/now` в формате Dotify из последнего PlayerState (чистая функция — для тестов).
+
+    Как у Dotify: `position_ms` — позиция на момент `updated_at` (когда пришёл снимок), досчитывает читатель.
+    Сервер сам не прибавляет `now − updated_at`, иначе читатель прибавит ещё раз и будет спешить на возраст снимка."""
     updated = heartbeat_at or now
     ref = state.get("ref") if state else None
     if not isinstance(ref, str) or ":" not in ref:
@@ -80,7 +83,7 @@ def now_json(state: dict | None, heartbeat_at: int | None, now: int) -> dict:
     meta = state.get("track") if isinstance(state.get("track"), dict) else {}
     playing = bool(state.get("is_playing")) and now - updated <= STALE_MS
     duration_ms = max(_int(meta.get("duration_ms")), 0)
-    position = _int(state.get("position_ms")) + (now - updated if playing else 0)
+    position = _int(state.get("position_ms"))
     if duration_ms:
         position = min(position, duration_ms)
     position = max(position, 0)
@@ -88,7 +91,7 @@ def now_json(state: dict | None, heartbeat_at: int | None, now: int) -> dict:
     track = {
         "artist": _text(meta.get("artist")),
         "context": state.get("context") if isinstance(state.get("context"), str) else None,
-        "cover_art": cover if isinstance(cover, str) else None,
+        "cover_art": cover if isinstance(cover, str) and cover else None,
         "duration": duration_ms // 1000,
         "duration_ms": duration_ms,
         "id": track_id,

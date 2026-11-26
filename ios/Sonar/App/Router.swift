@@ -45,6 +45,10 @@ final class Router {
     var playerOpen = false { didSet { if playerOpen != oldValue { Haptics.step() } } }
     /// Стек Профиля без пути (экраны настроек открываются ссылками-видами) — к началу его возвращает новый id.
     var profileRoot = UUID() { didSet { Haptics.step() } }
+    /// Какой экземпляр корня Профиля сейчас на экране (`nil` — открыт экран настроек поверх или другая вкладка).
+    var profileOnTop: UUID?
+    /// Просьбы вкладкам прокрутиться к началу: экран следит за своим счётчиком (`HomeView`, `ProfileView`).
+    private(set) var topTick: [Tab: Int] = [:]
     private(set) var toast: String?
 
     @ObservationIgnored private var toastTask: Task<Void, Never>?
@@ -75,6 +79,13 @@ final class Router {
         case .search: search = NavigationPath()
         case .profile: profileRoot = UUID()
         }
+    }
+
+    /// Тап по текущей вкладке: в корень и к началу. Профиль без открытых экранов не пересоздаём — едем вверх
+    /// плавно; с открытым экраном новый стек и так начинается сверху.
+    func goToTop(_ tab: Tab) {
+        if tab != .profile || profileOnTop == nil { popToRoot(tab) }
+        topTick[tab, default: 0] += 1
     }
 
     func say(_ text: String, seconds: Double = FallbackNotice.otherSeconds) {

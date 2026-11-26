@@ -1,6 +1,7 @@
 """Блокировки в боте: команды владельца и фильтр для заблокированных (BOT.md §2.12г).
 
-Команды (скрытые, только владелец; в меню их нет, `/admin` даёт кнопки и подсказку):
+Команды (скрытые: владелец и помощники с правом `moderation` из «Доступа» админки — staff.py; в меню их нет,
+`/admin` даёт кнопки и подсказку — он только у владельца). Себя и владельца не блокирует никто:
     /who <кто>                      карточка: статус бана и блока обращений, быстрые кнопки
     /ban <кто> [срок] [причина]     бан аккаунта; срок не указан — навсегда
     /unban <кто>
@@ -20,7 +21,7 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
 
-from .. import bans
+from .. import bans, staff
 from . import screens as S
 from .emoji import e, h
 from .ui import Btn, Screen, quote
@@ -133,6 +134,15 @@ def _is_owner_account(ctx, row: sqlite3.Row | None, tg_id: int | None) -> bool:
     return bool(owner) and (tg_id == owner or (row is not None and row["tg_id"] == owner))
 
 
+def _block_refusal(ctx, actor: int, row: sqlite3.Row | None, tg_id: int | None) -> str | None:
+    """Бан и блок обращений: владельца и себя — нельзя. → текст отказа или None."""
+    if _is_owner_account(ctx, row, tg_id):
+        return "Владельца не блокирую."
+    if tg_id == actor or (row is not None and row["tg_id"] == actor):
+        return "Себя не блокирую."
+    return None
+
+
 def _nope(text: str) -> Screen:
     return Screen(html=f"{e('cancel')} {text}")
 
@@ -145,7 +155,8 @@ def _done(ctx, text: str, row, tg_id) -> Screen:
 # ---- команды ----
 
 def _owner(ctx, msg: Message) -> bool:
-    return ctx.is_owner(msg.from_user.id)
+    """Владелец или помощник с правом модерации."""
+    return staff.allowed(ctx, msg.from_user.id, "moderation")
 
 
 @router.message(Command("who"))
@@ -168,8 +179,9 @@ async def cmd_ban(msg: Message, command: CommandObject, ctx):
     row, tg_id = _find(ctx.accounts.con, who)
     if not who or row is None:
         return await ctx.shower.send(msg.chat.id, Screen(html=HELP) if not who else _nope("Аккаунт не найден."))
-    if _is_owner_account(ctx, row, tg_id):
-        return await ctx.shower.send(msg.chat.id, _nope("Владельца не блокирую."))
+    refusal = _block_refusal(ctx, msg.from_user.id, row, tg_id)
+    if refusal:
+        return await ctx.shower.send(msg.chat.id, _nope(refusal))
     until = bans.until_from(duration)
     bans.ban(ctx.accounts.con, f"telegram:{msg.from_user.id}", row["id"], reason, until)
     await ctx.shower.send(msg.chat.id, _done(ctx, f"Заблокирован <code>{h(row['login'])}</code> {h(S._when(until))}", row, tg_id))
@@ -200,8 +212,9 @@ async def cmd_rban(msg: Message, command: CommandObject, ctx):
     if tg_id is None:
         return await ctx.shower.send(msg.chat.id, _nope("Аккаунт не найден, а у найденного нет привязанного Telegram: "
                                                          "обращения идут только через бота, закрывать нечего."))
-    if _is_owner_account(ctx, row, tg_id):
-        return await ctx.shower.send(msg.chat.id, _nope("Владельца не блокирую."))
+    refusal = _block_refusal(ctx, msg.from_user.id, row, tg_id)
+    if refusal:
+        return await ctx.shower.send(msg.chat.id, _nope(refusal))
     until = bans.until_from(duration)
     bans.report_block(ctx.accounts.con, f"telegram:{msg.from_user.id}", tg_id, reason, until)
     await ctx.shower.send(msg.chat.id, _done(ctx, f"Обращения закрыты {h(S._when(until))}", row, tg_id))
@@ -246,7 +259,7 @@ def banned_list(ctx) -> Screen:
 
 @router.callback_query(F.data.startswith("mod:"))
 async def mod_button(q: CallbackQuery, ctx):
-    if not ctx.is_owner(q.from_user.id):
+    if not staff.allowed(ctx, q.from_user.id, "moderation"):
         return await q.answer("Только для владельца", show_alert=True)
     await q.answer()
     parts = (q.data or "").split(":")
@@ -260,8 +273,9 @@ async def mod_button(q: CallbackQuery, ctx):
     if row is None and tg_id is None:
         return await edit(_nope("Пользователь пропал."))
     who = f"telegram:{q.from_user.id}"
-    if act in ("ban", "rb") and _is_owner_account(ctx, row, tg_id):
-        return await edit(_nope("Владельца не блокирую."))
+    refusal = _block_refusal(ctx, q.from_user.id, row, tg_id) if act in ("ban", "rb") else None
+    if refusal:
+        return await edit(_nope(refusal))
     try:
         if act == "ban" and row is not None and arg in PRESETS:
             until = bans.until_from(PRESETS[arg])

@@ -721,6 +721,8 @@ struct PlaylistScreen: View {
     }
 
     private func load() async {
+        // Любимые из Dotify без обложек и длины — добить лениво, текущий трек первым
+        if source == .liked { TrackBackfiller.shared.fillLiked(first: engine.current?.ref) }
         guard case let .service(playlist) = source, !offline.isOn else { return }
         loading = true
         defer { loading = false }

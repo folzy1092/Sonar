@@ -23,7 +23,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from .. import bans, builds, subs
+from .. import bans, builds, staff, subs
 from ..events import tz
 from . import charts, dashboard, prefs, users
 from .auth import PASSWORD_MIN, AdminAuth, AuthError, Session
@@ -71,6 +71,9 @@ MESSAGES = {
     "bad_part": "Нечего обновлять с таким названием", "bad_duration": "Срок: 30м, 2ч, 3д, 1н или навсегда",
     "no_tg": "У пользователя не привязан Telegram — обращения идут только через бота",
     "report_blocked": "Обращения закрыты", "report_unblocked": "Обращения снова открыты",
+    "no_access": "Доступ к админке закрыт", "owner": "Это аккаунт владельца — его не трогаем",
+    "self": "Себя не блокируем", "admin_login_taken": "Такой логин уже занят другим входом в админку",
+    "staff_saved": "Права сохранены", "staff_revoked": "Права забраны, вход в админку и его сессии удалены",
 }
 ACTIONS = {"login": "Вход в админку", "password": "Смена пароля", "ban": "Блокировка", "unban": "Разблокировка",
            "set_login": "Смена логина", "grant_sub": "Подписка вручную", "settings": "Настройки",
@@ -78,7 +81,8 @@ ACTIONS = {"login": "Вход в админку", "password": "Смена пар
            "close_sessions": "Закрыты другие сессии админки", "login_failed": "Неудачный вход в админку",
            "publish_build": "Выпуск сборки", "revoke_build": "Отзыв сборки", "restore_build": "Возврат сборки",
            "reset_admin_password": "Сброс пароля админки из бота", "ban_expired": "Срок бана вышел",
-           "report_block": "Закрыты обращения", "report_unblock": "Открыты обращения", "update_site": "Обновление сайта", "update_server": "Обновление сервера", "restart_server": "Перезапуск сервера", "restart_bot": "Перезапуск бота", "restart_api": "Перезапуск API"}
+           "report_block": "Закрыты обращения", "report_unblock": "Открыты обращения", "update_site": "Обновление сайта", "update_server": "Обновление сервера", "restart_server": "Перезапуск сервера", "restart_bot": "Перезапуск бота", "restart_api": "Перезапуск API",
+           "grant_staff": "Выданы права", "revoke_staff": "Забраны права"}
 PERIODS = {"today": 1, "7": 7, "30": 30, "90": 90}
 PAGE_MAX = 1_000_000  # дальше страниц всё равно нет, а огромный OFFSET роняет SQLite
 
@@ -109,7 +113,7 @@ def _fmt_day(day: str) -> str:
 templates.env.filters.update(num=_fmt_num, dt=_fmt_dt, day=_fmt_day)
 templates.env.globals.update(BASE=BASE, ADMIN_CSS=ADMIN_CSS, SERVICE_NAMES=SERVICE_NAMES, PLATFORM_NAMES=PLATFORM_NAMES, PLANS=subs.PLANS,
                              PLAN_NAMES={k: v[0] for k, v in subs.PLANS.items()},
-                             MESSAGES=MESSAGES, ACTIONS=ACTIONS)
+                             MESSAGES=MESSAGES, ACTIONS=ACTIONS, PERMS=staff.PERMS, PERM_NAMES=staff.PERM_NAMES)
 
 
 def _state(request: Request):
@@ -231,7 +235,8 @@ def _go(path: str, **q) -> RedirectResponse:
 def _page(request: Request, name: str, s: Session | None, status: int = 200, **ctx) -> HTMLResponse:
     msg = request.query_params.get("m")
     err = request.query_params.get("e")
-    ctx.update(admin=s.admin if s else None, csrf=s.csrf if s else "", msg=MESSAGES.get(msg), err=MESSAGES.get(err))
+    ctx.update(admin=s.admin if s else None, csrf=s.csrf if s else "", msg=MESSAGES.get(msg), err=MESSAGES.get(err),
+               perms=_perms(request, s) if s else staff.NONE)
     return _secure(templates.TemplateResponse(request, name, ctx, status_code=status))
 
 
@@ -269,14 +274,29 @@ def _int(v: str, low: int = 1) -> int:
         return low
 
 
-def _guard(request: Request) -> Session | Response:
-    """Вошёл и сменил заводской пароль — сессия; иначе — куда отправить."""
+def _perms(request: Request, s: Session) -> frozenset[str]:
+    """Права админа: владелец — все, помощник — из `staff` (перечитываются на каждом запросе, отзыв действует сразу)."""
+    return staff.admin_perms(_state(request).con, s.admin.user_id)
+
+
+def _forbidden(request: Request, s: Session) -> HTMLResponse:
+    return _page(request, "403.html", s, status=403)
+
+
+def _guard(request: Request, need: str = "panel") -> Session | Response:
+    """Вошёл, сменил заводской пароль и есть право `need` — сессия; иначе — куда отправить или 403."""
     s = _session(request)
     if s is None:
         return _go("/login")
     if s.admin.must_change:
         return _go("/password")
-    return s
+    perms = _perms(request, s)
+    if "panel" not in perms:            # помощника заблокировали — сессия больше не нужна
+        _auth(request).logout(s)
+        resp = _go("/login", e="no_access")
+        resp.delete_cookie(COOKIE, path=BASE)
+        return resp
+    return s if need in perms else _forbidden(request, s)
 
 
 # ---- вход ----
@@ -429,6 +449,22 @@ async def user_page(request: Request, user_id: str):
     return _page(request, "user.html", s, c=c, nav="users")
 
 
+# Действия в карточке пользователя, доступные помощнику с правом moderation; остальные (логин, подписка) — владельцу.
+MOD_NEEDS = {a: "moderation" for a in ("ban", "unban", "rblock", "runblock", "device", "logout_all")}
+
+
+def _moderation_refusal(request: Request, s: Session, perms: frozenset[str], user_id: str, action: str) -> str | None:
+    """Себя не банят; владельца не банит никто, а помощник не трогает его аккаунт вообще. → код ошибки или None."""
+    blocking = action in ("ban", "rblock")
+    if blocking and user_id == s.admin.user_id:
+        return "self"
+    owner_tg = _state(request).settings.owner_tg_id
+    row = _state(request).con.execute("SELECT tg_id FROM users WHERE id = ?", (user_id,)).fetchone()
+    if owner_tg and row is not None and row["tg_id"] == owner_tg and (blocking or staff.OWNER not in perms):
+        return "owner"
+    return None
+
+
 @router.post("/users/{user_id}/{action}")
 async def user_action(request: Request, user_id: str, action: str):
     s = _guard(request)
@@ -438,6 +474,12 @@ async def user_action(request: Request, user_id: str, action: str):
     path = f"/users/{user_id}"
     if not _csrf_ok(s, form):
         return _go(path, e="csrf")
+    perms = _perms(request, s)
+    if (MOD_NEEDS.get(action) or staff.OWNER) not in perms:
+        return _forbidden(request, s)
+    refusal = _moderation_refusal(request, s, perms, user_id, action)
+    if refusal:
+        return _go(path, e=refusal)
     con, who = _state(request).con, s.admin.login
     try:
         if action == "ban":
@@ -491,7 +533,7 @@ async def user_action(request: Request, user_id: str, action: str):
 
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
-    s = _guard(request)
+    s = _guard(request, staff.OWNER)
     if not isinstance(s, Session):
         return s
     return _page(request, "settings.html", s, sections=prefs.SECTIONS, values=prefs.values(_state(request).con),
@@ -500,7 +542,7 @@ async def settings_page(request: Request):
 
 @router.post("/settings")
 async def settings_submit(request: Request):
-    s = _guard(request)
+    s = _guard(request, staff.OWNER)
     if not isinstance(s, Session):
         return s
     form = await _form(request)
@@ -560,7 +602,7 @@ templates.env.globals.update(CHANNEL_NAMES=CHANNEL_NAMES, LANG_NAMES=LANG_NAMES,
 
 @router.get("/builds", response_class=HTMLResponse)
 async def builds_page(request: Request):
-    s = _guard(request)
+    s = _guard(request, staff.OWNER)
     if not isinstance(s, Session):
         return s
     st = _state(request)
@@ -579,7 +621,7 @@ async def builds_page(request: Request):
 
 @router.post("/builds/publish")
 async def builds_publish(request: Request):
-    s = _guard(request)
+    s = _guard(request, staff.OWNER)
     if not isinstance(s, Session):
         return s
     form = await _form(request)
@@ -600,7 +642,7 @@ async def builds_publish(request: Request):
 
 @router.post("/builds/{build_id}/{action}")
 async def builds_action(request: Request, build_id: int, action: str):
-    s = _guard(request)
+    s = _guard(request, staff.OWNER)
     if not isinstance(s, Session):
         return s
     form = await _form(request)
@@ -624,7 +666,7 @@ SITE_RESULT = {"updated": "site_updated", "same": "site_same", "none": "site_non
 
 @router.get("/server", response_class=HTMLResponse)
 async def server_page(request: Request):
-    s = _guard(request)
+    s = _guard(request, 'server')
     if not isinstance(s, Session):
         return s
     upd = _state(request).updater
@@ -636,7 +678,7 @@ async def server_page(request: Request):
 
 @router.post("/server/{part}")
 async def server_update(request: Request, part: str):
-    s = _guard(request)
+    s = _guard(request, 'server')
     if not isinstance(s, Session):
         return s
     form = await _form(request)
@@ -657,3 +699,59 @@ async def server_update(request: Request, part: str):
         return _go("/server", e="no_restart")
     users.audit(st.con, s.admin.login, "restart_server" if part == "restart" else "update_server", part)
     return _go("/server", m="restarting")
+
+
+# ---- доступ: права помощников (staff.py), только владелец ----
+
+def _access_page(request: Request, s: Session, **ctx) -> HTMLResponse:
+    return _page(request, "access.html", s, rows=staff.listing(_state(request).con), nav="access", **ctx)
+
+
+@router.get("/access", response_class=HTMLResponse)
+async def access_page(request: Request):
+    s = _guard(request, staff.OWNER)
+    if not isinstance(s, Session):
+        return s
+    return _access_page(request, s)
+
+
+@router.post("/access")
+async def access_grant(request: Request):
+    """Поставить права галочками; новый вход в админку — пароль показывается прямо в ответе, не в адресе."""
+    s = _guard(request, staff.OWNER)
+    if not isinstance(s, Session):
+        return s
+    form = await _form(request)
+    if not _csrf_ok(s, form):
+        return _go("/access", e="csrf")
+    st = _state(request)
+    user = staff.find(st.con, form.get("user", ""))
+    if user is None:
+        return _go("/access", e="no_user")
+    perms = {p for p in staff.PERMS if form.get("perm_" + p) == "1"}
+    try:
+        password = staff.grant(st.con, _auth(request), s.admin.login, user, perms, st.settings.owner_tg_id)
+    except staff.StaffError as err:
+        return _go("/access", e=err.code)
+    if password is None:
+        return _go("/access", m="staff_saved" if perms else "staff_revoked")
+    return _access_page(request, s, new_login=user["login"], new_password=password)
+
+
+@router.post("/access/revoke")
+async def access_revoke(request: Request):
+    s = _guard(request, staff.OWNER)
+    if not isinstance(s, Session):
+        return s
+    form = await _form(request)
+    if not _csrf_ok(s, form):
+        return _go("/access", e="csrf")
+    st = _state(request)
+    user = st.con.execute("SELECT * FROM users WHERE id = ?", (form.get("user", ""),)).fetchone()
+    if user is None:
+        return _go("/access", e="no_user")
+    try:
+        staff.revoke(st.con, _auth(request), s.admin.login, user)
+    except staff.StaffError as err:
+        return _go("/access", e=err.code)
+    return _go("/access", m="staff_revoked")

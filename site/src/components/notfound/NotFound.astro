@@ -4,6 +4,7 @@
 import { href, useT, type Lang } from '../../i18n'
 import Icon from '../Icon.astro'
 import Logo from '../Logo.astro'
+import '../../styles/profile.css'
 
 interface Props {
   lang: Lang
@@ -15,7 +16,6 @@ const strings = {
   profileTitle: t('@{name} — профиль'),
   loading: t('Загружаем профиль…'),
   since: t('В Sonar с {date}'),
-  showcase: t('Витрина и любимые треки появятся здесь позже — только то, что открыто в приватности профиля.'),
   errorTitle: t('Профиль сейчас не загрузить'),
   errorLead: t('Сервер Sonar не ответил. Обнови страницу чуть позже.'),
 }
@@ -53,6 +53,8 @@ const strings = {
       <a class="btn btn--ghost" href={href(lang, '/')}>{t('На главную')}</a>
     </div>
   </div>
+
+  <div class="pf" data-pf hidden></div>
 
   <script type="application/json" data-nf-strings set:html={JSON.stringify(strings)} />
 </section>

@@ -14,6 +14,8 @@ struct HomeView: View {
     @Environment(OfflineMode.self) private var offline
     @State private var showUpdate = false
     @State private var showModes = false
+    /// Тап по вкладке «Главная» (и по левому кругу свёрнутой панели) — наверх.
+    @State private var scroll = ScrollPosition(edge: .top)
     private var feed: HomeFeed { HomeFeed.shared }
     private var history: PlayHistory { PlayHistory.shared }
 
@@ -39,8 +41,12 @@ struct HomeView: View {
             .padding(.bottom, 170)
         }
         .scrollIndicators(.hidden)
+        .scrollPosition($scroll)
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, offset in
             if active { chrome.scrolled(to: offset) }
+        }
+        .onChange(of: router.topTick[.home]) {
+            withAnimation(Motion.settle) { scroll.scrollTo(edge: .top) }
         }
         .refreshable { if !offline.isOn { await feed.refresh(force: true) } }
         .animation(Motion.spring, value: engine.waveMode)

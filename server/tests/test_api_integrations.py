@@ -78,10 +78,15 @@ def test_now_from_player_state(client, sess):
 
 def test_now_json_rules():
     base = 1_000_000
-    # играет — позиция идёт от последнего сердцебиения, но не дальше длины трека
-    assert now_json(STATE, base, base + 5000)["position_ms"] == 6000
-    short = {**STATE, "track": {**STATE["track"], "duration_ms": 2000}}
+    # играет — позиция на момент снимка (updated_at = сердцебиение), досчитывает читатель; не дальше длины трека
+    live = now_json(STATE, base, base + 5000)
+    assert (live["position_ms"], live["updated_at"], live["track"]["updated_at"]) == (1000, base, base)
+    assert now_json(STATE, base, base + 9000)["position_ms"] == 1000
+    short = {**STATE, "position_ms": 5000, "track": {**STATE["track"], "duration_ms": 2000}}
     assert now_json(short, base, base + 5000)["position_ms"] == 2000
+    bare = {**STATE, "track": {"title": "t", "artist": "a", "cover_url": ""}}
+    blank = now_json(bare, base, base + 5000)["track"]
+    assert (blank["cover_art"], blank["duration_ms"]) == (None, 0), "пустая обложка — null, а не пустая строка"
     # тишина дольше STALE_MS — пауза на последней известной позиции
     stale = now_json(STATE, base, base + STALE_MS + 1)
     assert (stale["state"], stale["is_playing"], stale["position_ms"], stale["track"]["is_playing"]) == ("paused", False, 1000, False)

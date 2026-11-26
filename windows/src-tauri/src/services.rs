@@ -16,6 +16,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
+pub mod backfill;
 pub mod fallback;
 pub mod import;
 pub mod share;

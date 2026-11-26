@@ -16,7 +16,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
-from .. import builds, dotify, sessions
+from .. import builds, dotify, sessions, staff
 from ..admin import users as admin_users
 from ..admin.auth import FACTORY_LOGIN, AdminAuth, AuthError
 from ..accounts import AccountError, Accounts, User, looks_like_token
@@ -192,11 +192,11 @@ async def telegram_linked(ctx: Ctx, tg_id: int, user: User) -> None:
     except Exception:  # noqa: BLE001 — бот не должен ронять ответ API
         pass
 
-# ---- обновление сервера по частям: скрытая /update, только владелец (sonar/updater.py) ----
+# ---- обновление сервера по частям: скрытая /update — владелец и помощники с правом `server` (sonar/updater.py, staff.py) ----
 
 @router.message(Command("update"))
 async def cmd_update(msg: Message, ctx: Ctx):
-    if not ctx.is_owner(msg.from_user.id):
+    if not staff.allowed(ctx, msg.from_user.id, "server"):
         return
     if ctx.updater is None or not ctx.updater.available():
         return await ctx.shower.send(msg.chat.id, S.update_unavailable())
@@ -205,7 +205,7 @@ async def cmd_update(msg: Message, ctx: Ctx):
 
 
 async def update_button(q: CallbackQuery, ctx: Ctx) -> None:
-    if not ctx.is_owner(q.from_user.id):
+    if not staff.allowed(ctx, q.from_user.id, "server"):
         return await q.answer("Только для владельца", show_alert=True)
     upd = ctx.updater
     if upd is None or not upd.available():

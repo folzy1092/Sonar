@@ -9,11 +9,12 @@ enum NowPush {
     static let queueMax = 200
 
     /// Что показать в `/oauth/now`: таблицу `tracks` на сервере заполняет только перенос из Dotify.
+    /// Неизвестные обложка и длина не уходят вовсе (nil), а не пустой строкой и нулём — бот покажет «не знаю», а не «0:00».
     struct Meta: Encodable, Equatable, Sendable {
         var title: String
         var artist: String
         var coverURL: String?
-        var durationMs: Int
+        var durationMs: Int?
 
         enum CodingKeys: String, CodingKey {
             case title, artist
@@ -48,7 +49,9 @@ enum NowPush {
     }
 
     /// Снимок плеера → тело. Ничего не играет (`nil` или битый снимок) — `ref` пустой, сервер покажет «остановлено».
-    static func state(_ snap: PlaybackSnapshot?, isPlaying: Bool, deviceId: String, now: Date) -> State {
+    /// `playerDurationMs` — длина, которую узнал сам плеер: у трека из Dotify в карточке её может не быть.
+    static func state(_ snap: PlaybackSnapshot?, isPlaying: Bool, deviceId: String, now: Date,
+                      playerDurationMs: Int = 0) -> State {
         let ts = Int(now.timeIntervalSince1970 * 1000)
         guard let snap, let current = snap.current else {
             return State(deviceId: deviceId, ref: nil, context: nil, isPlaying: false, positionMs: 0, queue: [],
@@ -61,8 +64,14 @@ enum NowPush {
                      isPlaying: isPlaying, positionMs: max(0, Int(snap.position * 1000)), queue: window,
                      queueIndex: snap.pos - start, shuffle: snap.shuffle, repeatMode: snap.repeatMode.rawValue,
                      clientTs: ts,
-                     track: Meta(title: current.title, artist: current.artist, coverURL: current.coverURL,
-                                 durationMs: current.durationMs))
+                     track: meta(current, playerDurationMs: playerDurationMs))
+    }
+
+    /// Карточка трека для сервера: длина — из трека, иначе из плеера, иначе не шлём; пустая обложка — не шлём.
+    static func meta(_ track: Track, playerDurationMs: Int) -> Meta {
+        let duration = track.durationMs > 0 ? track.durationMs : playerDurationMs
+        let cover = track.coverURL.flatMap { $0.isEmpty ? nil : $0 }
+        return Meta(title: track.title, artist: track.artist, coverURL: cover, durationMs: duration > 0 ? duration : nil)
     }
 }
 

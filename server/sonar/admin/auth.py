@@ -45,6 +45,7 @@ class Admin:
     id: int
     login: str
     must_change: bool
+    user_id: str | None = None      # помощник владельца (staff.py); None — владелец
 
 
 @dataclass
@@ -74,7 +75,7 @@ class AdminAuth:
         return password
 
     def _admin(self, r) -> Admin:
-        return Admin(r["id"], r["login"], bool(r["must_change"]))
+        return Admin(r["id"], r["login"], bool(r["must_change"]), r["user_id"])
 
     async def login(self, login: str, password: str, ip: str, user_agent: str = "") -> tuple[str, Session]:
         """→ (токен для cookie, сессия). AuthError('too_many' | 'bad')."""
@@ -136,7 +137,7 @@ class AdminAuth:
         if new == old or new.lower() in {r["login"].lower(), FACTORY_LOGIN}:
             raise AuthError("weak")
         self._store_password(r["id"], await asyncio.to_thread(_ph.hash, new))
-        return self._new_session(Admin(r["id"], r["login"], False), ip, user_agent)
+        return self._new_session(Admin(r["id"], r["login"], False, r["user_id"]), ip, user_agent)
 
     def set_password(self, login: str, new: str) -> None:
         """Новый пароль без старого (CLI `python -m sonar.admin passwd`): сессии закрываются."""
@@ -155,6 +156,23 @@ class AdminAuth:
         password = secrets.token_urlsafe(FACTORY_PASSWORD_BYTES)
         self._store_password(r["id"], _ph.hash(password), must_change=True)
         return password
+
+    def add_staff(self, login: str, user_id: str) -> str:
+        """Вход в админку помощнику (право panel, staff.py): логин — его логин Sonar, пароль случайный и одноразовый
+        (`must_change`). → пароль, показать владельцу один раз."""
+        password = secrets.token_urlsafe(FACTORY_PASSWORD_BYTES)
+        with tx(self.con):
+            self.con.execute("DELETE FROM admins WHERE user_id = ?", (user_id,))
+            self.con.execute("INSERT INTO admins (login, password_hash, must_change, created_at, user_id) VALUES (?,?,1,?,?)",
+                             (login, _ph.hash(password), now_ms(), user_id))
+        return password
+
+    def drop_staff(self, user_id: str) -> None:
+        """Забрать вход в админку у помощника: строка админа и все его сессии."""
+        with tx(self.con):
+            self.con.execute("DELETE FROM admin_sessions WHERE admin_id IN (SELECT id FROM admins WHERE user_id = ?)",
+                             (user_id,))
+            self.con.execute("DELETE FROM admins WHERE user_id = ?", (user_id,))
 
     def _store_password(self, admin_id: int, password_hash: str, must_change: bool = False) -> None:
         with tx(self.con):

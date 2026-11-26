@@ -41,14 +41,14 @@ final class TabTapTests: XCTestCase {
         XCTAssertEqual(TabTap.of(.search, current: .profile, collapsed: true), .select)
     }
 
-    func testCurrentTabGoesToRoot() {
-        XCTAssertEqual(TabTap.of(.profile, current: .profile, collapsed: false), .popToRoot)
+    func testCurrentTabGoesToTop() {
+        XCTAssertEqual(TabTap.of(.profile, current: .profile, collapsed: false), .toTop)
     }
 
-    func testCollapsedCircleGoesToRootAndExpands() {
+    func testCollapsedCircleGoesToTopWithoutExpanding() {
         for tab in Tab.allCases {
-            XCTAssertEqual(TabTap.of(tab, current: tab, collapsed: true), .expandAndPopToRoot,
-                           "левый круг свёрнутой панели ведёт в корень вкладки, а не только разворачивает панель")
+            XCTAssertEqual(TabTap.of(tab, current: tab, collapsed: true), .toTopCollapsed,
+                           "левый круг свёрнутой панели ведёт к началу вкладки, панель не разворачивает")
         }
     }
 }
@@ -68,5 +68,45 @@ final class ChromeExpandTests: XCTestCase {
         chrome.select(.library)
         XCTAssertFalse(chrome.collapsed)
         XCTAssertEqual(chrome.tab, .library)
+    }
+}
+
+@MainActor
+final class ChromeHoldTests: XCTestCase {
+    func testScrollToTopKeepsBarCollapsed() {
+        let chrome = ChromeState()
+        chrome.scrolled(to: 800)
+        XCTAssertTrue(chrome.collapsed)
+        chrome.holdCollapsed()
+        for offset in stride(from: CGFloat(700), through: 0, by: -100) { chrome.scrolled(to: offset) }
+        XCTAssertTrue(chrome.collapsed, "экран сам доехал до начала — панель осталась свёрнутой")
+    }
+
+    func testFingerReleasesHold() {
+        let chrome = ChromeState()
+        chrome.scrolled(to: 800)
+        chrome.holdCollapsed()
+        chrome.scrolled(to: 0)
+        chrome.scrolled(to: 10)
+        chrome.scrolled(to: 40)
+        XCTAssertTrue(chrome.collapsed, "палец повёл вниз — панель свёрнута, дальше обычные правила")
+        chrome.scrolled(to: 10)
+        XCTAssertFalse(chrome.collapsed, "вверх больше порога — развернулась")
+    }
+
+    func testPullAtTopExpands() {
+        let chrome = ChromeState()
+        chrome.scrolled(to: 800)
+        chrome.holdCollapsed()
+        chrome.scrolled(to: 0)
+        chrome.scrolled(to: -20)
+        XCTAssertFalse(chrome.collapsed, "потянули за верх — разворачиваем")
+    }
+
+    func testHoldNeedsCollapsedBar() {
+        let chrome = ChromeState()
+        chrome.holdCollapsed()
+        chrome.scrolled(to: 100)
+        XCTAssertTrue(chrome.collapsed, "развёрнутую панель удержание не трогает — обычная прокрутка сворачивает")
     }
 }

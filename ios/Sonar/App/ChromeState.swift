@@ -18,8 +18,22 @@ final class ChromeState {
     private var anchor: CGFloat = 0
     /// Развернули кнопкой посреди списка — опору ставим там, где палец двинется дальше.
     private var reanchor = false
+    /// Левый круг свёрнутой панели: экран сам едет к началу, а панель остаётся свёрнутой, пока список не двинет палец.
+    private var held = false
+    /// Прошлое смещение — по нему видно, куда едет список, пока панель придержана.
+    private var lastOffset: CGFloat = 0
 
     func scrolled(to offset: CGFloat) {
+        defer { lastOffset = offset }
+        if held {
+            // Прокрутка к началу идёт только вверх и не ниже нуля; вниз или потянули за верх — это уже палец.
+            if offset >= 0, offset <= lastOffset { return }
+            held = false
+            if offset > 0 {
+                anchor = offset
+                return
+            }
+        }
         if reanchor {
             reanchor = false
             anchor = offset
@@ -45,7 +59,14 @@ final class ChromeState {
 
     func expand() {
         collapsed = false
+        held = false
         reanchor = true
+    }
+
+    /// Панель не разворачивается, пока экран сам едет к началу (тап по левому кругу свёрнутой панели).
+    func holdCollapsed() {
+        guard collapsed else { return }
+        held = true
     }
 
     /// Новая вкладка — панель развёрнута.
@@ -55,17 +76,17 @@ final class ChromeState {
     }
 }
 
-/// Что делает тап по значку вкладки в нижней панели. Тап по текущей вкладке — в её корень (в настройках —
-/// к началу списка), и в свёрнутой панели тоже: левый круг не просто разворачивает панель, а ведёт на
-/// вкладку, как значок в развёрнутой (панель при этом разворачивается).
+/// Что делает тап по значку вкладки в нижней панели. Тап по текущей вкладке — в её корень и к началу
+/// (Главная — наверх, настройки — к профилю). Левый круг свёрнутой панели делает то же, но панель остаётся
+/// свёрнутой (решение владельца 2026-11-26): разворачивает её только прокрутка вверх.
 enum TabTap: Equatable {
     case select
-    case popToRoot
-    case expandAndPopToRoot
+    case toTop
+    case toTopCollapsed
 
     static func of(_ tab: Tab, current: Tab, collapsed: Bool) -> TabTap {
         if tab != current { return .select }
-        return collapsed ? .expandAndPopToRoot : .popToRoot
+        return collapsed ? .toTopCollapsed : .toTop
     }
 }
 

@@ -29,6 +29,20 @@ final class NowPushTests: XCTestCase {
         XCTAssertNotNil(o["track"])
     }
 
+    func testUnknownLengthComesFromPlayerOrIsOmitted() throws {
+        var bare = track("sc:1")
+        bare.durationMs = 0
+        bare.coverURL = ""
+        XCTAssertEqual(NowPush.meta(bare, playerDurationMs: 93_000).durationMs, 93_000, "длину знает плеер")
+        let none = NowPush.meta(bare, playerDurationMs: 0)
+        XCTAssertNil(none.durationMs)
+        XCTAssertNil(none.coverURL)
+        guard case let .object(o) = try JSONValue(data: APIClient.encoder.encode(none)) else { return XCTFail("не объект") }
+        XCTAssertNil(o["duration_ms"], "не знаем — не шлём ноль")
+        XCTAssertNil(o["cover_url"])
+        XCTAssertEqual(NowPush.meta(track("sc:2"), playerDurationMs: 1).durationMs, 200_000, "своя длина важнее плеера")
+    }
+
     func testLongQueueIsCutAroundCurrent() {
         let state = NowPush.state(snap(500, pos: 300), isPlaying: false, deviceId: "d1", now: now)
         XCTAssertEqual(state.queue.count, NowPush.queueMax)

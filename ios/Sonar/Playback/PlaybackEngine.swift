@@ -331,6 +331,8 @@ final class PlaybackEngine {
         player.seek(to: CMTime(seconds: position, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         nowPlaying.update()
         updateFades()
+        // «сейчас играет» на сервере — сразу с новой позицией, а не через 10 с (NOW_ACCURACY_PROMPT §1)
+        saveSnapshot(force: true)
     }
 
     func toggleShuffle() {
@@ -702,6 +704,7 @@ final class PlaybackEngine {
                 }
                 self.isLoading = false
                 self.nowPlaying.update(artworkFor: track)
+                self.backfillCurrent(track)
                 self.topUpAutoplay()
                 self.refreshWaveCache()
             } catch {
@@ -1396,11 +1399,26 @@ final class PlaybackEngine {
         pushNowPlaying(snapshot)
     }
 
+    /// Трек без обложки или длины (перенос из Dotify) — добить у сервиса (`TrackBackfill`), обновить очередь,
+    /// экран блокировки и сразу отправить «сейчас играет» уже с ними.
+    private func backfillCurrent(_ track: Track) {
+        guard TrackBackfill.needs(track) else { return }
+        Task {
+            guard let merged = await TrackBackfiller.shared.fill(track) else { return }
+            self.tracks = self.tracks.map { $0.ref == merged.ref ? TrackBackfill.merge($0, merged) : $0 }
+            guard self.current?.ref == merged.ref else { return }
+            if self.duration <= 0 { self.duration = Double(merged.durationMs) / 1000 }
+            self.nowPlaying.update(artworkFor: merged, force: true)
+            self.saveSnapshot(force: true)
+        }
+    }
+
     /// «Сейчас играет» на сервер (`NowPush`): только когда вошли в аккаунт Sonar и не в офлайне.
     private func pushNowPlaying(_ snapshot: PlaybackSnapshot?) {
         let account = AccountStore.shared
         guard !OfflineFlag.isOn, let base = account.apiBaseURL, let token = account.sessionToken else { return }
-        let state = NowPush.state(snapshot, isPlaying: isPlaying, deviceId: account.vault.deviceId, now: Date())
+        let state = NowPush.state(snapshot, isPlaying: isPlaying, deviceId: account.vault.deviceId, now: Date(),
+                                  playerDurationMs: Int(duration * 1000))
         Task { await NowPusher.shared.submit(state, client: APIClient(base: base, token: token)) }
     }
 }
@@ -1651,9 +1669,10 @@ final class NowPlaying {
     }
 
     /// Обложка для экрана блокировки — качается один раз на трек.
-    func update(artworkFor track: Track) {
+    /// force — обложку только что добили (`TrackBackfill`), скачать заново.
+    func update(artworkFor track: Track, force: Bool = false) {
         update()
-        guard artworkRef != track.ref else { return }
+        guard force || artworkRef != track.ref else { return }
         artworkRef = track.ref
         artwork = nil
         guard let url = track.coverURL.flatMap(URL.init(string:)) else { return }

@@ -67,15 +67,14 @@ CORS — только сайт (`https://try-sonar.ru`, `https://www.try-sonar.r
 | DELETE | `/me/avatar` | → `204` |
 | PUT | `/me/background` | multipart `file` (картинка ≤ 5 МБ или видео ≤ 10 с, ≤ 15 МБ) → `{id, kind: "image"\|"video", url}` |
 | DELETE | `/me/background` | → `204` |
-| GET | `/public/users/{username}` (без авт.; сайт на том же адресе — CORS не нужен; кэш 60 с) | → `{username, display_name, number, avatar_url, created_at}`, нет или забанен — `404 not_found`; сделано 2026-11-26 (`api/public.py`); расширенный `PublicProfile` (ниже) — черновик, ждёт ответа по приватности |
+| GET | `/public/users/{username}` (без авт.; сайт на том же адресе — CORS не нужен; кэш 60 с) | → `PublicProfile` (ниже), нет или забанен — `404 not_found`; шапка — 2026-11-26 утром, разделы — 2026-11-26 (`sonar/public_profile.py`) |
 | GET | `/notifications?since=` | → `[{id, title, text, created_at, read}]` |
 | POST | `/notifications/read` | `{ids: [id]}` → `204` |
 
-`PublicProfile` — **черновик** страницы профиля по ссылке `https://try-sonar.ru/@username` (SPEC §4.5а).
-Пока по нему работает только предпросмотр «Как видят мой профиль» на ПК (`windows/src/lib/public-profile.ts`
-`buildPublicProfile`, раскладка — `pages/profile/ProfileView.svelte`, её же повторит сайт). Сервер **не отдаёт**
-поля ниже шапки, пока владелец не ответит про приватность (NEXT_PROMPT этап 0 п. 9): до ответа
-`/public/users/{username}` — только шапка `{username, display_name, number, avatar_url, created_at}`.
+`PublicProfile` — страница профиля по ссылке `https://try-sonar.ru/@username` (SPEC §4.5а): сайт
+(`site/src/scripts/profile-view.ts`) и предпросмотр «Как видят мой профиль» на ПК (`windows/src/lib/public-profile.ts`).
+Собирает сервер из того, что устройства уже прислали: синк (`like`, `playlist`, `playlist_item`, `setting`),
+`POST /plays`, `PUT /player/state`. У сервисов ничего не спрашивает.
 
 ```
 {username, display_name, number, avatar_url, created_at,
@@ -84,15 +83,19 @@ CORS — только сайт (`https://try-sonar.ru`, `https://www.try-sonar.r
  top_artists: [{name, avatar_url, ref, plays}],                    // до 6
  likes: {count, tracks: [PublicTrack]},                            // треков до 8, count — все
  playlists: [{id, name, track_count, duration_ms, covers}],        // свои плейлисты Sonar, до 12, обложек до 4
- playlist_count}
-PublicTrack = {ref, title, artist, cover_url, duration_ms}
+ playlist_count,
+ showcase: [{kind, ref, title, subtitle, cover_url}],             // из настройки profile.showcase, до 6
+ private: ["now_playing" | "stats" | "likes" | "playlists"]}      // какие разделы скрыты от гостя
+PublicTrack = {ref, title, artist, cover_url | null, duration_ms | null}
 ```
 
 Только публичные поля: ни `item_id`, ни токенов, ни устройств; имя и аватар — только профиля Sonar
 (`PATCH /me`), не аккаунта SoundCloud / Яндекса. `now_playing` — только пока трек играет (пауза — `null`).
-Плейлисты, скрытые из «Все», сервер в `playlists` не кладёт. Какие разделы гость видит (Любимые,
-статистика, «сейчас играет», отдельные плейлисты) — решит ответ владельца по приватности; предпросмотр
-на ПК до него показывает всё как открытое.
+Гость — не друг: раздел виден только при `privacy.<раздел> = everyone` (нет настройки — `everyone`);
+`friends` и `nobody` прячут раздел — он `null` (`top_artists` идёт вместе со `stats`), а его имя попадает в `private`.
+Пустой раздел (ничего не прослушано, лайков нет) — тоже `null`, но без `private`: сайт прячет блок, а не рисует нули.
+Плейлисты со скрытием из «Все» и из `privacy.hidden_playlists` не отдаются; плейлист в витрине прячется вместе
+с плейлистами. Лайки — только треков (артисты и альбомы не считаются), свежие сверху.
 
 ### «Схожесть» вкуса — `GET /users/{username}/taste` (договор, 2026-11-22)
 
@@ -588,7 +591,9 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
  "is_playing": true, "position_ms": 41000, "queue": ["sc:1", "ym:2"], "queue_index": 0,
  "shuffle": false, "repeat": "off", "client_ts": 1794340534779,
  "track": {"title": "zombie", "artist": "cowboyclicker", "cover_url": "https://…", "duration_ms": 180000}}
-// track — необязательно: метаданные текущего трека для `/oauth/now` (§7). Очередь клиенты режут окном
+// track — необязательно: метаданные текущего трека для `/oauth/now` (§7). Неизвестных `cover_url` и `duration_ms`
+// в нём нет вовсе (не `null` и не `0`); клиент дозаполняет карточку (ПК `services/backfill.rs`, iPhone `TrackBackfill.swift`)
+// и сразу шлёт новый снимок. Длину, пока карточки нет, ПК и iPhone берут из самого плеера. Очередь клиенты режут окном
 // вокруг текущего: до 50 треков до него, всего до 200, queue_index пересчитан (ПК now_push.rs, iPhone NowPush.swift).
 // Клиент шлёт состояние при смене трека / паузе и раз в 30 с, пока играет; в офлайне и без входа — не шлёт.
 
@@ -766,7 +771,7 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 
 - `state`: `playing` / `paused` / `stopped` (`track: null`, если ничего ещё не играло).
 - Клиент молчит дольше 90 с (закрыли приложение, пропала сеть) — `paused`, позиция — последняя присланная.
-  Пока играет, `position_ms` досчитывается от `updated_at` и не больше `duration_ms`.
+- `position_ms` — позиция на момент `updated_at` (когда пришёл последний снимок плеера), как у Dotify: досчитывает читатель (`+ (сейчас − updated_at)`, пока `is_playing`); не больше `duration_ms`. Сервер сам не досчитывает (до 2026-11-26 досчитывал — читатель прибавлял второй раз и спешил).
 - `source`: key сервиса из §2 «Префиксы ref» (`soundcloud` / `yandex` / `vk` / `spotify`; позже `youtube`). `id` и `track_id` — id без префикса трека (`sc:`/`ym:`/`vk:`/`sp:`).
 - `duration` — секунды (целое), `duration_ms` — миллисекунды.
 

@@ -1,5 +1,6 @@
 """Этап 6 (SERVER_PROMPT): сайт из корня сервера, профиль `/@username` и история статуса для сайта."""
 import itertools
+import json
 import time
 
 import pytest
@@ -45,10 +46,86 @@ def test_public_profile_header(client, con):
     r = client.get("/api/public/users/@mira")
     assert r.status_code == 200 and r.headers["cache-control"].startswith("public")
     assert r.json() == {"username": "mira", "display_name": "Mira", "number": r.json()["number"],
-                        "avatar_url": None, "created_at": 1700000000000}
+                        "avatar_url": None, "created_at": 1700000000000, "now_playing": None, "stats": None,
+                        "top_artists": [], "likes": None, "playlists": None, "playlist_count": 0, "showcase": [],
+                        "private": []}, "пустой профиль — пустые разделы, а не нули"
     for nope in ("evil", "ghost"):
         r = client.get(f"/api/public/users/{nope}")
         assert r.status_code == 404 and r.json()["error"]["code"] == "not_found"
+
+
+def put_row(con, uid, kind, key, value):
+    con.execute("INSERT OR REPLACE INTO sync_rows (user_id, type, key, value_json, rev, client_ts) VALUES (?,?,?,?,1,0)",
+                (uid, kind, key, None if value is None else json.dumps(value)))
+
+
+def card(ref, title, cover=None, ms=0):
+    return {"ref": ref, "title": title, "artist": "одиссея", "cover_url": cover, "duration_ms": ms}
+
+
+def user_id(con, username):
+    add_user(con, username)
+    return con.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()["id"]
+
+
+def fill_profile(con, uid):
+    now = now_ms()
+    for i, (artist, days_ago) in enumerate([("одиссея", 0), ("одиссея", 1), ("ссш", 1), ("одиссея", 2), ("ссш", 9)]):
+        con.execute("INSERT INTO plays (user_id, ref, artist, played_at, listened_ms) VALUES (?,?,?,?,?)",
+                    (uid, f"sc:{i % 3}", artist, now - days_ago * DAY, 60_000))
+    put_row(con, uid, "like", "sc:1", {"kind": "track", "added_at": 1, "track": card("sc:1", "старый", ms=1000)})
+    put_row(con, uid, "like", "sc:2", {"kind": "track", "added_at": 5,
+                                       "track": card("sc:2", "новый", "https://i1.sndcdn.com/a.jpg")})
+    put_row(con, uid, "like", "sc:3", None)
+    put_row(con, uid, "like", "ar:1", {"kind": "artist", "added_at": 9})
+    put_row(con, uid, "playlist", "pl_a", {"name": "Ночь", "hidden": False, "updated_at": 10})
+    put_row(con, uid, "playlist", "pl_b", {"name": "Скрыт", "hidden": True, "updated_at": 20})
+    put_row(con, uid, "playlist", "pl_c", {"name": "Личный", "hidden": False, "updated_at": 30})
+    for i, pos in enumerate([2, 1, 3]):
+        put_row(con, uid, "playlist_item", f"it{i}", {"playlist_id": "pl_a", "ref": f"sc:{i}", "position": pos,
+                                                       "track": card(f"sc:{i}", "т", f"https://c/{i % 2}", 1000)})
+    put_row(con, uid, "setting", "privacy.hidden_playlists", ["pl_c"])
+    con.execute("INSERT INTO player_state (user_id, is_playing, heartbeat_at, state_json) VALUES (?,1,?,?)",
+                (uid, now, json.dumps({"ref": "sc:2", "is_playing": True, "position_ms": 1000, "client_ts": now,
+                                       "track": {"title": "новый", "artist": "одиссея", "duration_ms": 93000}})))
+
+
+def test_public_profile_full(client, con):
+    fill_profile(con, user_id(con, "nika"))
+    p = client.get("/api/public/users/nika").json()
+    assert p["now_playing"] == {"ref": "sc:2", "title": "новый", "artist": "одиссея", "cover_url": None,
+                                "duration_ms": 93000}
+    assert p["stats"] == {"plays": 5, "total_ms": 300_000, "tracks": 3, "artists": 2, "streak_days": 3}
+    assert p["top_artists"][0] == {"name": "одиссея", "plays": 3, "avatar_url": None, "ref": None}
+    assert p["likes"]["count"] == 2, "артист и удалённый лайк не считаются"
+    assert [t["title"] for t in p["likes"]["tracks"]] == ["новый", "старый"]
+    assert p["likes"]["tracks"][1]["cover_url"] is None and p["likes"]["tracks"][0]["duration_ms"] is None
+    assert p["playlist_count"] == 1, "скрытый и спрятанный от всех не видны"
+    assert p["playlists"] == [{"id": "pl_a", "name": "Ночь", "track_count": 3, "duration_ms": 3000,
+                               "covers": ["https://c/1", "https://c/0"]}]
+    assert p["private"] == []
+
+
+def test_public_profile_respects_privacy(client, con):
+    uid = user_id(con, "ghosty")
+    fill_profile(con, uid)
+    for key in ("now_playing", "stats", "likes", "playlists"):
+        put_row(con, uid, "setting", f"privacy.{key}", "nobody" if key == "stats" else "friends")
+    put_row(con, uid, "setting", "profile.showcase", [{"kind": "playlist", "ref": "pl_a", "title": "Ночь"},
+                                                      {"kind": "track", "ref": "sc:2", "title": "новый"}])
+    p = client.get("/api/public/users/ghosty").json()
+    assert p["private"] == ["now_playing", "stats", "likes", "playlists"]
+    assert p["now_playing"] is None and p["stats"] is None and p["likes"] is None and p["playlists"] is None
+    assert p["top_artists"] == [] and p["playlist_count"] == 0
+    assert [s["ref"] for s in p["showcase"]] == ["sc:2"], "плейлист в витрине прячется вместе с плейлистами"
+
+
+def test_public_profile_stale_player_is_not_now_playing(client, con):
+    uid = user_id(con, "sleepy")
+    old = now_ms() - 10 * 60_000
+    con.execute("INSERT INTO player_state (user_id, is_playing, heartbeat_at, state_json) VALUES (?,1,?,?)",
+                (uid, old, json.dumps({"ref": "sc:1", "is_playing": True, "client_ts": old, "track": {"title": "x"}})))
+    assert client.get("/api/public/users/sleepy").json()["now_playing"] is None
 
 
 def test_status_history_per_day(client, con):

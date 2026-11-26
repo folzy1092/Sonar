@@ -534,7 +534,12 @@ export const api = {
   /** Карточка итогов картинкой (export.rs `save_image`): PNG в base64 → окно «Сохранить как». */
   saveImage: (name: string, title: string, pngBase64: string) =>
     call<string | null>('save_image', { name, title, pngBase64 }),
-  savePlayerState: (state: PlayerState) => call<void>('save_player_state', { state }),
+  /** `durationMs` — длительность, которую знает плеер: уходит в «сейчас играет», если в кэше трека 0. */
+  savePlayerState: (state: PlayerState, durationMs?: number) =>
+    call<void>('save_player_state', { state, durationMs: durationMs && durationMs > 0 ? Math.round(durationMs) : null }),
+  /** Обложка и длительность по ref (`sc:` / `ym:`), найденное — сразу в кэш (commands.rs `fill_tracks`).
+   *  `failed` — не спросились (сеть, ключи), их можно спросить снова. */
+  fillTracks: (refs: string[]) => call<{ tracks: Track[]; failed: string[] }>('fill_tracks', { refs }),
   loadPlayerState: () => call<{ state: PlayerState; tracks: Track[] } | null>('load_player_state'),
   recordPlay: (play: { ref: string; artist: string; context: string | null; played_at: number; listened_ms: number }) =>
     call<void>('record_play', { play }),

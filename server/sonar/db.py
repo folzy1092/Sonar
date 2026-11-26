@@ -213,6 +213,13 @@ CREATE TABLE IF NOT EXISTS admin_audit (
   detail        TEXT
 );
 CREATE INDEX IF NOT EXISTS admin_audit_target ON admin_audit(target, at);
+-- Помощники владельца (staff.py, ADMIN.md «Доступ»): права через запятую — panel, server, moderation.
+CREATE TABLE IF NOT EXISTS staff (
+  user_id       TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  perms         TEXT NOT NULL,
+  granted_at    INTEGER NOT NULL,
+  granted_by    TEXT NOT NULL
+);
 -- Сборки, выпущенные из админки (builds.py, SERVER_PROMPT этап 7): файлы — data/builds/<file>.
 CREATE TABLE IF NOT EXISTS builds (
   id            INTEGER PRIMARY KEY,
@@ -279,6 +286,8 @@ COLUMNS = [
     # PUT /player/state: какое устройство играет и весь PlayerState (API.md §5)
     ("player_state", "device_id", "TEXT"),
     ("player_state", "state_json", "TEXT"),
+    # вход в админку помощника (право panel): NULL — владелец, у помощника — его аккаунт Sonar (staff.py)
+    ("admins", "user_id", "TEXT REFERENCES users(id) ON DELETE CASCADE"),
 ]
 
 

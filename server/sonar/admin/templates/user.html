@@ -43,7 +43,7 @@
             <td>{{ PLATFORM_NAMES.get(d.platform, d.platform) }}</td>
             <td class="num sub">{{ d.app_version or '—' }}{% if d.build %} ({{ d.build }}){% endif %}</td>
             <td class="num">{{ d.last_seen_at | dt }}</td>
-            <td>{% if d.device_name %}<form class="inline" method="post" action="{{ BASE }}/users/{{ u.id }}/device"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="device" value="{{ d.device_id }}"><button class="btn ghost">Завершить</button></form>{% endif %}</td></tr>
+            <td>{% if d.device_name and 'moderation' in perms %}<form class="inline" method="post" action="{{ BASE }}/users/{{ u.id }}/device"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="device" value="{{ d.device_id }}"><button class="btn ghost">Завершить</button></form>{% endif %}</td></tr>
         {% endfor %}</tbody>
       </table></div>
       {% else %}<div class="empty">Устройств нет: в приложение ещё не входил</div>{% endif %}
@@ -75,8 +75,10 @@
   </div>
 </div>
 
+{% if 'owner' in perms or 'moderation' in perms %}
 <h2 class="section-title">Действия</h2>
 <div class="actions">
+  {% if 'owner' in perms %}
   <div class="panel">
     <h2>Подписка вручную</h2>
     <form method="post" action="{{ BASE }}/users/{{ u.id }}/sub">
@@ -96,6 +98,8 @@
       <button class="btn">Сменить</button>
     </form>
   </div>
+  {% endif %}
+  {% if 'moderation' in perms %}
   {% if c.devices | selectattr('device_name') | list %}
   <div class="panel">
     <h2>Выйти на всех устройствах</h2>
@@ -144,5 +148,7 @@
     {% endif %}
   </div>
   {% endif %}
+  {% endif %}
 </div>
+{% endif %}
 {% endblock %}

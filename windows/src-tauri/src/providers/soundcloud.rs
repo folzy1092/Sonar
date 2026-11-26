@@ -171,13 +171,9 @@ impl SoundCloud<'_> {
       .filter_map(|t| t["id"].as_u64().map(|n| n.to_string()))
       .collect();
     let mut full = std::collections::HashMap::new();
-    for chunk in missing.chunks(50) {
-      let ids = chunk.join(",");
-      let v = self.get(&format!("{API}/tracks"), &[("ids", &ids)]).await?;
-      for t in v.as_array().into_iter().flatten() {
-        if let Some(n) = t["id"].as_u64() {
-          full.insert(n, t.clone());
-        }
+    for t in self.tracks_by_ids(&missing).await? {
+      if let Some(n) = t["id"].as_u64() {
+        full.insert(n, t);
       }
     }
     Ok(items
@@ -196,6 +192,16 @@ impl SoundCloud<'_> {
   /// Что за адресом soundcloud.com (трек, плейлист / альбом, пользователь) — `/resolve`.
   pub async fn resolve(&self, url: &str) -> Result<Value> {
     self.get(&format!("{API}/resolve"), &[("url", url)]).await
+  }
+
+  /// Полные JSON треков по id (`/tracks?ids=`, порциями по 50); удалённых и закрытых в ответе нет.
+  pub async fn tracks_by_ids(&self, ids: &[String]) -> Result<Vec<Value>> {
+    let mut out = Vec::with_capacity(ids.len());
+    for chunk in ids.chunks(50) {
+      let v = self.get(&format!("{API}/tracks"), &[("ids", &chunk.join(","))]).await?;
+      out.extend(v.as_array().into_iter().flatten().cloned());
+    }
+    Ok(out)
   }
 
   pub async fn track_json(&self, id: &str) -> Result<Value> {

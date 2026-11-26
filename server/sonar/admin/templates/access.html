@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Доступ{% endblock %}
+{% block main %}
+<div class="head">
+  <div><h1>Доступ</h1><p>Права помощникам по аккаунту Sonar. Владелец может всё, помощник — только отмеченное</p></div>
+</div>
+
+{% if new_password %}
+<div class="panel">
+  <h2>Вход в админку создан</h2>
+  <p class="note">Логин <span class="mono">{{ new_login }}</span>, одноразовый пароль <span class="mono">{{ new_password }}</span> —
+    показывается один раз. Передай его лично: при первом входе админка попросит сменить пароль</p>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2>Выдать или поменять права</h2>
+  <form method="post" action="{{ BASE }}/access">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field"><label for="user">Пользователь</label><input id="user" name="user" type="text" maxlength="64" required placeholder="#12, логин, @username, u_… или Telegram ID"><span class="hint">Права ставятся ровно такими, как отмечено: снятая галочка забирает право</span></div>
+    <div class="form-grid">
+      <label class="toggle"><input type="checkbox" name="perm_panel" value="1"><span><span>Админка</span><br><span class="hint muted">Вход сюда: дашборд, пользователи, журнал. Логин — как в Sonar, пароль одноразовый</span></span></label>
+      <label class="toggle"><input type="checkbox" name="perm_server" value="1"><span><span>Сервер</span><br><span class="hint muted"><span class="mono">/update</span> в боте и страница «Сервер» (вместе с «Админкой»)</span></span></label>
+      <label class="toggle"><input type="checkbox" name="perm_moderation" value="1"><span><span>Модерация</span><br><span class="hint muted"><span class="mono">/who /ban /unban /rban /runban /banned</span> в боте; бан, обращения и выход с устройств в карточке</span></span></label>
+    </div>
+    <button class="btn primary">Сохранить права</button>
+  </form>
+</div>
+
+<h2 class="section-title">Помощники</h2>
+{% if rows %}
+<div class="table-wrap"><table>
+  <thead><tr><th>Пользователь</th><th>Права</th><th>Вход в админку</th><th>Выдал</th><th></th></tr></thead>
+  <tbody>{% for r in rows %}
+  <tr><td><a href="{{ BASE }}/users/{{ r.user_id }}">{{ r.display_name }}</a> <span class="mono muted">{{ r.login }} · #{{ r.number }}</span>{% if r.banned %} <span class="tag bad">бан — права не действуют</span>{% endif %}{% if not r.tg_id %} <span class="tag">без Telegram — бот не узнает</span>{% endif %}</td>
+      <td>{% for p in PERMS if p in r.perms %}<span class="tag">{{ PERM_NAMES[p] }}</span> {% endfor %}</td>
+      <td class="mono">{{ r.admin_login or '—' }}</td>
+      <td class="sub">{{ r.granted_by }}, <span class="num">{{ r.granted_at | dt }}</span></td>
+      <td><form class="inline" method="post" action="{{ BASE }}/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="user" value="{{ r.user_id }}"><button class="btn danger">Забрать всё</button></form></td></tr>
+  {% endfor %}</tbody>
+</table></div>
+{% else %}<div class="empty">Помощников нет — все права только у владельца</div>{% endif %}
+{% endblock %}

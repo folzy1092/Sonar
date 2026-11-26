@@ -104,7 +104,6 @@ const pl: Dict = {
   "@{name} — профиль": "@{name} — profil",
   "Загружаем профиль…": "Wczytujemy profil…",
   "В Sonar с {date}": "W Sonar od {date}",
-  "Витрина и любимые треки появятся здесь позже — только то, что открыто в приватности профиля.": "Witryna i ulubione utwory pojawią się tu później — tylko to, co jest otwarte w prywatności profilu.",
   "Профиль сейчас не загрузить": "Nie da się teraz wczytać profilu",
   "Сервер Sonar не ответил. Обнови страницу чуть позже.": "Serwer Sonar nie odpowiedział. Odśwież stronę trochę później.",
   "Ошибка 404": "Błąd 404",
@@ -459,6 +458,25 @@ const pl: Dict = {
   "Нет. Бот [@SonarMusicApp](https://t.me/SonarMusicApp) — дополнение: быстрый вход, статистика и поддержка. Sonar работает и без него.": "Nie. Bot [@SonarMusicApp](https://t.me/SonarMusicApp) to dodatek: szybkie logowanie, statystyki i wsparcie. Sonar działa i bez niego.",
   "Если позовёшь друга своей ссылкой из бота, 20% от его пополнений придут на твой внутренний баланс в боте. Правила — в [условиях](/terms).": "Jeśli zaprosisz znajomego swoim linkiem z bota, 20% jego doładowań trafi na Twoje saldo wewnętrzne w bocie. Zasady — w [warunkach](/terms).",
   "Обращение уходит в группу поддержки Sonar, а ответ придёт тебе в бота.": "Zgłoszenie trafia do grupy wsparcia Sonar, a odpowiedź przyjdzie do Ciebie w bocie.",
+  // публичный профиль /@username
+  "Сейчас слушает": "Teraz słucha",
+  "Статистика": "Statystyki",
+  "Чаще всего слушает": "Najczęściej słucha",
+  "Любимые": "Ulubione",
+  "Плейлисты": "Playlisty",
+  "Плейлист": "Playlista",
+  "Витрина": "Witryna",
+  "Тут пока тихо: прослушиваний, лайков и плейлистов ещё нет.": "Na razie cisza: nie ma jeszcze odsłuchań, polubień ani playlist.",
+  "Часть профиля скрыта настройками приватности.": "Część profilu jest ukryta w ustawieniach prywatności.",
+  "прослушивание|прослушивания|прослушиваний": "odsłuchanie|odsłuchania|odsłuchań",
+  "час музыки|часа музыки|часов музыки": "godzina muzyki|godziny muzyki|godzin muzyki",
+  "минута музыки|минуты музыки|минут музыки": "minuta muzyki|minuty muzyki|minut muzyki",
+  "трек|трека|треков": "utwór|utwory|utworów",
+  "исполнитель|исполнителя|исполнителей": "wykonawca|wykonawców|wykonawców",
+  "день подряд|дня подряд|дней подряд": "dzień z rzędu|dni z rzędu|dni z rzędu",
+  "{n} раз|{n} раза|{n} раз": "{n} raz|{n} razy|{n} razy",
+  "{n} трек|{n} трека|{n} треков": "{n} utwór|{n} utwory|{n} utworów",
+  "{n} плейлист|{n} плейлиста|{n} плейлистов": "{n} playlista|{n} playlisty|{n} playlist",
 }
 
 export default pl

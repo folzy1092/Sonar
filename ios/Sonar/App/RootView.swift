@@ -265,8 +265,8 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
 /// Таб-бар и мини-плеер — одни и те же элементы в двух раскладках, поэтому переход плавный: панель
 /// вкладок сжимается в круг текущей вкладки, лупа уезжает вправо в свой круг, мини-плеер опускается
 /// между ними, сужается и прячет лайк; прочие значки растворяются в левом круге. Пружина ~0,4 с.
-/// Прокрутка вверх или тап по левому кругу — обратно (как список чатов в Shadow); тап по кругу ещё и
-/// возвращает в корень вкладки, как тап по её значку в развёрнутой панели (`TabTap`).
+/// Прокрутка вверх — обратно (как список чатов в Shadow). Тап по левому кругу ведёт в корень вкладки и к её
+/// началу, как тап по значку в развёрнутой панели, но панель не разворачивает (`TabTap`, `holdCollapsed`).
 /// Стиль панели — Интерфейс → Вкладки (`appearance.tab_style`): плавающая капсула (умолчание),
 /// стандартная во всю ширину у края, закруглённая сверху, компактная узкая капсула. Сворачивается — во всех.
 struct BottomChrome: View {
@@ -392,12 +392,12 @@ struct BottomChrome: View {
         switch TabTap.of(tab, current: chrome.tab, collapsed: collapsed) {
         case .select:
             chrome.select(tab)
-        case .popToRoot:
-            withAnimation(Motion.spring) { router.popToRoot(tab) }
-        case .expandAndPopToRoot:
-            // левый круг свёрнутой панели — та же вкладка: в её корень (настройки — к началу списка) и панель назад
-            chrome.expand()
-            withAnimation(Motion.spring) { router.popToRoot(tab) }
+        case .toTop:
+            withAnimation(Motion.spring) { router.goToTop(tab) }
+        case .toTopCollapsed:
+            // левый круг свёрнутой панели — та же вкладка: в корень и к началу, а панель остаётся свёрнутой
+            chrome.holdCollapsed()
+            withAnimation(Motion.spring) { router.goToTop(tab) }
         }
     }
 }

@@ -306,6 +306,7 @@ pub fn run() {
       commands::share_twins,
       commands::cache_tracks,
       commands::save_player_state,
+      commands::fill_tracks,
       commands::load_player_state,
       commands::record_play,
       commands::get_setting,

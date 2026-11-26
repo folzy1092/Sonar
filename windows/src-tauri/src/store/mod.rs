@@ -10,6 +10,7 @@ use std::path::Path;
 
 mod alias;
 mod artist_graph;
+mod backfill;
 mod blend;
 pub mod covers;
 mod dupes;
@@ -374,11 +375,14 @@ impl Store {
     let tx = self.db.transaction()?;
     {
       let mut st = tx.prepare(
-        // теги: пустое значение старые не затирает (трек из кэша или очереди приходит без тегов)
+        // теги, обложка и длительность: пустое значение известное не затирает (трек из кэша или очереди приходит
+        // без тегов, карточка из Dotify — без обложки и длительности, а дозаполненную может перебить эхо синка)
         "INSERT INTO tracks (ref, title, artist, artists_json, album_json, duration_ms, cover_url, url, fetched_at, tags)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, NULLIF(?10, ''))
          ON CONFLICT(ref) DO UPDATE SET title = ?2, artist = ?3, artists_json = ?4, album_json = ?5,
-           duration_ms = ?6, cover_url = ?7, url = ?8, fetched_at = ?9, tags = COALESCE(NULLIF(?10, ''), tags)",
+           duration_ms = CASE WHEN ?6 > 0 THEN ?6 ELSE duration_ms END,
+           cover_url = COALESCE(NULLIF(?7, ''), cover_url), url = ?8, fetched_at = ?9,
+           tags = COALESCE(NULLIF(?10, ''), tags)",
       )?;
       let now = now_ms();
       for t in tracks {

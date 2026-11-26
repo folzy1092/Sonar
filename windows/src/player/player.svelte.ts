@@ -25,6 +25,8 @@ import { isLocalRef } from '../lib/services'
 import { Clock } from '../lyrics/core/clock'
 import { countsAsPlay, dropUpcoming, enqueue, enqueueAt, fallbackSkipPos, makeOrder, nextPos, nextRepeat, prevPos } from './queue'
 import { toast } from '../lib/toast.svelte'
+import { trackBackfill } from '../lib/track-backfill-run'
+import { mergeMissing } from '../lib/track-backfill'
 
 
 const HEARTBEAT_MS = 30_000
@@ -138,6 +140,7 @@ class Player {
   private raf = 0
   private offMedia: (() => void) | null = null
   private offOffline: (() => void) | null = null
+  private offBackfill: (() => void) | null = null
   private ctx: AudioContext | null = null
   /** Нормализация громкости (`audio.normalize`). */
   leveler: Leveler | null = null
@@ -262,6 +265,7 @@ class Player {
     })
 
     this.offOffline = offline.onChange((on) => on && this.goOffline())
+    this.offBackfill = trackBackfill.subscribe((fresh) => this.applyBackfill(fresh))
     void this.restore()
     void eq.load()
     // нормализация громкости — включается и выключается сразу, без перезапуска трека
@@ -296,6 +300,7 @@ class Player {
     this.raf = 0
     this.offMedia?.()
     this.offOffline?.()
+    this.offBackfill?.()
     void this.ctx?.close()
   }
 
@@ -638,6 +643,8 @@ class Player {
     this.quality = null
     a.removeAttribute('src')
     this.updateMedia()
+    // трек из Dotify без обложки и длительности — спросить сервис первым (NOW_ACCURACY_PROMPT §2)
+    trackBackfill.enqueue([], track)
 
     try {
       const s = await api.streamUrl(track.ref, track)
@@ -963,7 +970,26 @@ class Player {
 
   private saveState() {
     if (!this.current) return
-    void api.savePlayerState(this.state()).catch(() => {})
+    // длительность плеера — для «сейчас играет», если в кэше трека 0
+    void api.savePlayerState(this.state(), this.durationMs).catch(() => {})
+  }
+
+  /** Свежие обложка и длительность (у треков из Dotify их нет) — в очередь; у текущего ещё карточка в
+   *  медиа-сессии и состояние на сервер сразу, не дожидаясь следующего сохранения. */
+  private applyBackfill(fresh: readonly Track[]) {
+    const byRef = new Map(fresh.map((f) => [f.ref, f]))
+    const next = this.tracks.map((tr) => {
+      const f = byRef.get(tr.ref)
+      return f ? mergeMissing(tr, f) : tr
+    })
+    if (!next.some((tr, i) => tr !== this.tracks[i])) return
+    const before = this.current
+    this.tracks = next
+    const f = before && byRef.get(before.ref)
+    if (!before || !f || mergeMissing(before, f) === before) return
+    if (!(this.durationMs > 0) && f.duration_ms > 0) this.durationMs = f.duration_ms
+    this.updateMedia()
+    this.saveState()
   }
 
   private updateMedia() {
@@ -1022,6 +1048,7 @@ class Player {
       this.durationMs = tracks[index].duration_ms
       this.place(found >= 0 ? state.position_ms : 0)
       this.updateMedia()
+      trackBackfill.enqueue([], this.current)
     } catch {
       // вне приложения (npm run dev) — просто пустой плеер
     }

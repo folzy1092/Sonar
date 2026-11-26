@@ -3,12 +3,12 @@ import { API_URL } from '../config'
 import { href, splitLang, LANGS, type Lang } from '../i18n'
 import { profileHandle, readProfile, type ProfileResult, type PublicProfile } from '../lib/profile'
 import { parseMissingRoute, restorePath } from '../lib/route'
+import { renderProfileSections } from './profile-view'
 
 interface Strings {
   readonly profileTitle: string
   readonly loading: string
   readonly since: string
-  readonly showcase: string
   readonly errorTitle: string
   readonly errorLead: string
 }
@@ -75,15 +75,16 @@ function render(root: HTMLElement, strings: Strings, lang: Lang, result: Profile
   setText(root, '[data-nf-handle]', profileHandle(p))
   setText(root, '[data-nf-initial]', p.displayName[0])
   setText(root, '[data-nf-lead]', sinceText(strings, lang, p))
+  root.querySelectorAll<HTMLElement>('[data-nf-lead]').forEach((el) => (el.hidden = !p.createdAt))
   document.title = `${p.displayName} (@${p.username}) — Sonar`
+  const host = root.querySelector<HTMLElement>('[data-pf]')
+  if (host) renderProfileSections(host, lang, p)
 }
 
 function sinceText(strings: Strings, lang: Lang, p: PublicProfile): string {
-  if (!p.createdAt) return strings.showcase
+  if (!p.createdAt) return ''
   const date = new Intl.DateTimeFormat(lang, { dateStyle: 'long' }).format(new Date(p.createdAt))
-  const since = strings.since.replace('{date}', date)
-  // «26 ноября 2026 г.» уже с точкой — вторую не ставим
-  return `${/[.!?]$/.test(since) ? since : `${since}.`} ${strings.showcase}`
+  return strings.since.replace('{date}', date)
 }
 
 function show(root: HTMLElement, view: 'profile' | 'missing'): void {

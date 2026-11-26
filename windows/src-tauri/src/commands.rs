@@ -381,11 +381,31 @@ pub fn cache_tracks(db: State<'_, Db>, tracks: Vec<Track>) -> Res<()> {
   db.0.lock().unwrap().upsert_tracks(&tracks).map_err(err)
 }
 
+/// `duration_ms` — длительность, которую знает плеер (у трека из Dotify в кэше 0): уходит в «сейчас играет».
 #[tauri::command]
-pub fn save_player_state(app: tauri::AppHandle, db: State<'_, Db>, state: PlayerState) -> Res<()> {
+pub fn save_player_state(app: tauri::AppHandle, db: State<'_, Db>, state: PlayerState, duration_ms: Option<u64>) -> Res<()> {
   db.0.lock().unwrap().save_player_state(&state).map_err(err)?;
-  crate::now_push::spawn(app, state);
+  crate::now_push::spawn(app, state, duration_ms);
   Ok(())
+}
+
+/// Сколько ref берём за один вызов `fill_tracks` (фронт шлёт пачки по 20).
+const FILL_TRACKS_MAX: usize = 50;
+
+/// Дозаполнение обложки и длительности по ref (только `sc:` и `ym:`, тем же сервисом, что играет):
+/// найденное — в кэш `tracks` (лайкнутые уходят синком), ответ — свежие карточки и ref, которые не спросились.
+#[tauri::command]
+pub async fn fill_tracks(core: State<'_, Arc<Core>>, db: State<'_, Db>, refs: Vec<String>) -> Res<crate::services::backfill::TrackMeta> {
+  crate::offline::guard()?;
+  let refs: Vec<String> = refs.into_iter().filter(|r| crate::services::backfill::can_backfill(r)).take(FILL_TRACKS_MAX).collect();
+  if refs.is_empty() {
+    return Ok(Default::default());
+  }
+  let meta = core.track_meta(&refs).await;
+  if !meta.tracks.is_empty() {
+    db.0.lock().unwrap().apply_backfill(&meta.tracks).map_err(err)?;
+  }
+  Ok(meta)
 }
 
 #[derive(Serialize)]

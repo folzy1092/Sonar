@@ -104,7 +104,6 @@ const de: Dict = {
   "@{name} — профиль": "@{name} — Profil",
   "Загружаем профиль…": "Profil wird geladen…",
   "В Sonar с {date}": "Bei Sonar seit {date}",
-  "Витрина и любимые треки появятся здесь позже — только то, что открыто в приватности профиля.": "Vitrine und Lieblingstitel erscheinen hier später — nur das, was in der Profil-Privatsphäre freigegeben ist.",
   "Профиль сейчас не загрузить": "Das Profil lässt sich gerade nicht laden",
   "Сервер Sonar не ответил. Обнови страницу чуть позже.": "Der Sonar-Server hat nicht geantwortet. Lade die Seite etwas später neu.",
   "Ошибка 404": "Fehler 404",
@@ -459,6 +458,25 @@ const de: Dict = {
   "Нет. Бот [@SonarMusicApp](https://t.me/SonarMusicApp) — дополнение: быстрый вход, статистика и поддержка. Sonar работает и без него.": "Nein. Der Bot [@SonarMusicApp](https://t.me/SonarMusicApp) ist ein Extra: schneller Login, Statistik und Support. Sonar funktioniert auch ohne ihn.",
   "Если позовёшь друга своей ссылкой из бота, 20% от его пополнений придут на твой внутренний баланс в боте. Правила — в [условиях](/terms).": "Lädst du einen Freund mit deinem Link aus dem Bot ein, gehen 20 % seiner Aufladungen auf dein internes Guthaben im Bot. Die Regeln stehen in den [Bedingungen](/terms).",
   "Обращение уходит в группу поддержки Sonar, а ответ придёт тебе в бота.": "Deine Nachricht geht an die Support-Gruppe von Sonar, die Antwort bekommst du im Bot.",
+  // публичный профиль /@username
+  "Сейчас слушает": "Hört gerade",
+  "Статистика": "Statistik",
+  "Чаще всего слушает": "Hört am meisten",
+  "Любимые": "Lieblingstitel",
+  "Плейлисты": "Playlists",
+  "Плейлист": "Playlist",
+  "Витрина": "Vitrine",
+  "Тут пока тихо: прослушиваний, лайков и плейлистов ещё нет.": "Hier ist es noch still: keine Wiedergaben, Likes oder Playlists.",
+  "Часть профиля скрыта настройками приватности.": "Ein Teil des Profils ist durch die Privatsphäre-Einstellungen verborgen.",
+  "прослушивание|прослушивания|прослушиваний": "Wiedergabe|Wiedergaben",
+  "час музыки|часа музыки|часов музыки": "Stunde Musik|Stunden Musik",
+  "минута музыки|минуты музыки|минут музыки": "Minute Musik|Minuten Musik",
+  "трек|трека|треков": "Titel|Titel",
+  "исполнитель|исполнителя|исполнителей": "Künstler|Künstler",
+  "день подряд|дня подряд|дней подряд": "Tag in Folge|Tage in Folge",
+  "{n} раз|{n} раза|{n} раз": "{n}-mal|{n}-mal",
+  "{n} трек|{n} трека|{n} треков": "{n} Titel|{n} Titel",
+  "{n} плейлист|{n} плейлиста|{n} плейлистов": "{n} Playlist|{n} Playlists",
 }
 
 export default de

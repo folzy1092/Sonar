@@ -531,7 +531,8 @@ CREATE TABLE admins (                           -- свой вход админ�
   password_hash TEXT NOT NULL,                  -- argon2id; заводской folzy — случайный пароль, один раз в журнал
   must_change   INTEGER NOT NULL DEFAULT 1,     -- 1 — до смены пароля видна только форма смены
   created_at    INTEGER NOT NULL,
-  changed_at    INTEGER
+  changed_at    INTEGER,
+  user_id       TEXT REFERENCES users(id) ON DELETE CASCADE  -- NULL — владелец; иначе вход помощника (право panel)
 );
 CREATE TABLE admin_sessions (
   token_hash    TEXT PRIMARY KEY,               -- sha256 cookie sonar_admin
@@ -545,11 +546,18 @@ CREATE TABLE admin_audit (                      -- журнал действий
   id            INTEGER PRIMARY KEY,
   at            INTEGER NOT NULL,
   admin         TEXT NOT NULL,
-  action        TEXT NOT NULL,                  -- login | password | ban | unban | set_login | grant_sub | settings
+  action        TEXT NOT NULL,                  -- login | password | ban | unban | set_login | grant_sub | settings | grant_staff | revoke_staff
   target        TEXT,                           -- users.id, если про пользователя
   detail        TEXT                            -- JSON
 );
 -- Настройки без деплоя — в kv под ключами setting:<ключ> (admin/prefs.py), умолчания — в коде.
+
+CREATE TABLE staff (                            -- помощники владельца, страница «Доступ» (staff.py, 2026-11-26)
+  user_id       TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  perms         TEXT NOT NULL,                  -- через запятую: panel, server, moderation
+  granted_at    INTEGER NOT NULL,
+  granted_by    TEXT NOT NULL                   -- логин админа, выдавшего права
+);
 ```
 
 Объём `events`: ~30 открытий и ~1 000 треков в день на 10 человек ≈ 370 тыс. строк в год ≈ 60 МБ с индексами —

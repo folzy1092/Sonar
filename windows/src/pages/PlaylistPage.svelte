@@ -28,6 +28,8 @@
   import { PixelCollage } from '../lib/pixel-collage.svelte'
   import { offline } from '../lib/offline.svelte'
   import { findGroup, parseGroupId } from '../lib/offline-groups'
+  import { trackBackfill } from '../lib/track-backfill-run'
+  import { mergeMissing } from '../lib/track-backfill'
 
   const id = router.param ?? 'favorites'
   /** `offline` — альбом или исполнитель из доступного без сети (lib/offline-groups.ts): локальный список, без сети. */
@@ -106,6 +108,8 @@
       if (kind === 'favorites') {
         items = await api.favorites()
         pc.set([], [])
+        // у перенесённых из Dotify нет обложки и длительности — добиваем лениво (NOW_ACCURACY_PROMPT §2)
+        trackBackfill.enqueue(items)
       } else if (kind === 'local') {
         items = await api.localTracks()
         pc.set(items)
@@ -148,6 +152,17 @@
   $effect(() => {
     if (kind === 'service' && !offline.on) void load()
   })
+  // свежие обложки и длительности — в список на экране, без перечитывания (`library.version` не трогаем)
+  onDestroy(
+    trackBackfill.subscribe((fresh) => {
+      const byRef = new Map(fresh.map((f) => [f.ref, f]))
+      const next = items.map((it) => {
+        const f = byRef.get(it.ref)
+        return f ? mergeMissing(it, f) : it
+      })
+      if (next.some((it, i) => it !== items[i])) items = next
+    }),
+  )
   // локальные — заново после скана папок (новый файл, правка тегов, удаление)
   if (kind === 'local') onDestroy(onLocalFilesChanged(() => void load()))
 

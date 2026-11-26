@@ -126,6 +126,15 @@ final class LibraryStore {
         save()
     }
 
+    /// Добитые обложка и длина (`TrackBackfill`): только у треков, что ещё в Любимых; уходит синком как обычная правка.
+    func fillMeta(_ tracks: [Track]) {
+        let fresh = Dictionary(tracks.map { ($0.ref, $0) }, uniquingKeysWith: { first, _ in first })
+        let updated = liked.map { old in fresh[old.ref].map { TrackBackfill.merge(old, $0) } ?? old }
+        guard updated != liked else { return }
+        liked = updated
+        save()
+    }
+
     private func save() {
         let snapshot = Snapshot(liked: liked, speeds: nil, sounds: sounds, sources: sources.mapValues(\.rawValue),
                                 disliked: disliked.sorted(), likedAt: likedAt)

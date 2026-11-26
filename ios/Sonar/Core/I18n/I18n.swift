@@ -72,7 +72,7 @@ enum Lang: String, CaseIterable, Identifiable, Sendable {
 
 enum I18n {
     /// Словарь языка: Windows + iOS (iOS главнее), затем свои словари экранов (`Strings+Library`, `Strings+Export`,
-    /// `Strings+YouTube`, `Strings+Spotify`, `Strings+Fallback`, `Strings+Smart`, `Strings+Remote`, `Strings+SonarDeep`, `Strings+Search`, `Strings+Offline`, `Strings+Blend`, `Strings+Share`, `Strings+TrackSource`, `Strings+Ban`).
+    /// `Strings+YouTube`, `Strings+Spotify`, `Strings+Fallback`, `Strings+Smart`, `Strings+Remote`, `Strings+SonarDeep`, `Strings+Search`, `Strings+Offline`, `Strings+Blend`, `Strings+Share`, `Strings+TrackSource`, `Strings+Ban`, `Strings+SettingsSearch`).
     static let dictionaries: [Lang: [String: String]] = [
         .en: windowsEN.merging(iosEN) { _, ios in ios }.merging(accountEN) { _, a in a }.merging(libraryEN) { _, l in l }
             .merging(exportEN) { _, e in e }.merging(youtubeEN) { _, y in y }.merging(spotifyEN) { _, s in s }.merging(fallbackEN) { _, f in f }
@@ -84,7 +84,8 @@ enum I18n {
             .merging(blendEN) { _, b in b }
             .merging(shareEN) { _, s in s }
             .merging(trackSourceEN) { _, s in s }
-            .merging(banEN) { _, b in b },
+            .merging(banEN) { _, b in b }
+            .merging(settingsSearchEN) { _, s in s },
         .uk: windowsUK.merging(iosUK) { _, ios in ios }.merging(accountUK) { _, a in a }.merging(libraryUK) { _, l in l }
             .merging(exportUK) { _, e in e }.merging(youtubeUK) { _, y in y }.merging(spotifyUK) { _, s in s }.merging(fallbackUK) { _, f in f }
             .merging(smartUK) { _, s in s }
@@ -95,10 +96,14 @@ enum I18n {
             .merging(blendUK) { _, b in b }
             .merging(shareUK) { _, s in s }
             .merging(trackSourceUK) { _, s in s }
-            .merging(banUK) { _, b in b },
-        .es: windowsES.merging(appES) { _, a in a }.merging(shareES) { _, s in s }.merging(trackSourceES) { _, s in s }.merging(banES) { _, b in b },
-        .de: windowsDE.merging(appDE) { _, a in a }.merging(shareDE) { _, s in s }.merging(trackSourceDE) { _, s in s }.merging(banDE) { _, b in b },
-        .pl: windowsPL.merging(appPL) { _, a in a }.merging(sharePL) { _, s in s }.merging(trackSourcePL) { _, s in s }.merging(banPL) { _, b in b },
+            .merging(banUK) { _, b in b }
+            .merging(settingsSearchUK) { _, s in s },
+        .es: windowsES.merging(appES) { _, a in a }.merging(shareES) { _, s in s }.merging(trackSourceES) { _, s in s }.merging(banES) { _, b in b }
+            .merging(settingsSearchES) { _, s in s },
+        .de: windowsDE.merging(appDE) { _, a in a }.merging(shareDE) { _, s in s }.merging(trackSourceDE) { _, s in s }.merging(banDE) { _, b in b }
+            .merging(settingsSearchDE) { _, s in s },
+        .pl: windowsPL.merging(appPL) { _, a in a }.merging(sharePL) { _, s in s }.merging(trackSourcePL) { _, s in s }.merging(banPL) { _, b in b }
+            .merging(settingsSearchPL) { _, s in s },
     ]
 
     /// Своя строка языка или, у es / de / pl, английская.
