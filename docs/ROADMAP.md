@@ -592,7 +592,21 @@ SoundCloud — `/resolve`, короткие on.soundcloud.com тоже), ком�
 > - [x] Этап 3. Синк ✅ сделано 2026-11-25: сервер — `/sync/pull|push|snapshot|replace` как хаб ПК (строки `sync_rows`,
 >   страницы `more`), `POST /plays`, `PUT|GET /player/state`; `/dotify` пишет в синк. ПК — синк на сервер после входа
 >   (сразу, через 10 с после запуска, раз в 2 мин), iPhone — страницы `pull`. Тест «два устройства» — `tests/test_api_sync.py`.
->   Вживую — нет (ждём SSL хостера). Следующее — этап 4 (входы в сервисы на всех устройствах).
+>   Вживую — нет (ждём SSL хостера).
+> - [x] Этап 4. Входы в сервисы на всех устройствах ✅ сделано 2026-11-26: `GET|PUT /api/services/credentials` (Fernet,
+>   `server/sonar/api/services.py`), ПК `cred_sync.rs`, iPhone `Core/Account/CredentialSync.swift` — трёхстороннее слияние
+>   с базой из прошлого синка: вошёл на одном — подключено везде, отключил — отключено везде.
+> - [x] Этап 5. Ключ API и «сейчас играет» ✅ сделано 2026-11-26: `/api/integrations/api-key`, `GET /api/oauth/now` в
+>   формате Dotify, `/api/oauth/profile` (`api/integrations.py`); ПК шлёт состояние плеера (`now_push.rs`), iPhone —
+>   `Core/Account/NowPush.swift`; «Ключ API» в Интеграциях ПК. Селфбот — `docs/SELFBOT_PROMPT.md`, отдельной сессией.
+> - [x] Этап 6. Сайт на Velt ✅ сделано 2026-11-26: `site.yml` → релиз `site-latest`, `sync.py` распаковывает в `site/`,
+>   `web.py` раздаёт с корня, www → 301; `GET /api/public/users/{username}`, `GET /api/status/history`.
+> - [x] Этап 7. Сборки с сервера ✅ сделано 2026-11-26: админка «Сборки» (`builds.py`, выпуск из релизов CI в
+>   `data/builds`, 3 на канал, отзыв), `/api/updates/<платформа>/<канал>.json`, `manifest.plist`, `/downloads/…`
+>   (нет сборки — 404 / 302 на GitHub). ПК и iPhone сначала спрашивают сервер, потом GitHub.
+>   **SSL на `try-sonar.ru` работает с 2026-11-26** (`/api/health` 200), но контейнер ещё на старом коде — нужен рестарт.
+>   Следующее: рестарт и живая проверка (HANDOFF), первая сборка через админку, потом п. 4 этапа 7 — CI перестаёт
+>   объявлять Latest и `ios-update.json`; iPhone `InstallLinks` → свой `manifest.plist`; выключить GitHub Pages.
 >
 > **С сервером — админ-панель** (`docs/ADMIN.md`, решение 2026-11-17): объявление сборок
 > в два клика вместо ручного `announce` и `ios-update.json`, аккаунты, устройства, флаги функций, рассылки.
@@ -750,8 +764,8 @@ Rust + Slint (или Tauri), настройки из `SETTINGS.md` (раздел
 
 ## Выпуск: хостинг и закрытие репо (решение владельца 2026-11-25)
 
-- [ ] Сайт — на своём хостинге (не GitHub Pages); сборки exe / IPA и `update.json` — оттуда же, не из GitHub Releases.
-- [ ] Перевести ссылки автообновления и кнопки скачивания с `releases/latest/download/…` и `ios-latest` на хостинг.
+- [x] Сайт — на своём хостинге (не GitHub Pages); сборки exe / IPA и `update.json` — оттуда же, не из GitHub Releases. ✅ код 2026-11-26 (SERVER_PROMPT этапы 6–7), GitHub — пока запасной
+- [x] Перевести ссылки автообновления и кнопки скачивания с `releases/latest/download/…` и `ios-latest` на хостинг. ✅ 2026-11-26 (`/downloads/release/…`; установка на iPhone — ещё через palera)
 - [ ] Выход обновления: владелец сам выкладывает сборку на хостинг и пишет пост в бота / `@SonarUpdates` с кнопками; пока не выложил — скачать нельзя.
 - [ ] Репо: закрыть или оставить открытым без единой публичной ссылки; GitHub — только сборки и тесты. README и доки — внутренние.
 - ✅ 2026-11-25: LICENSE переписан по максимуму; 404 SoundCloud — понятная подпись и значок в строке (ПК, iPhone).

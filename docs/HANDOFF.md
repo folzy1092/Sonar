@@ -1,3 +1,58 @@
+# Передача 2026-11-26 → сервер: этапы 4–7 сделаны, нужен рестарт на Velt и живая проверка
+
+Задание — `docs/SERVER_PROMPT.md` (у всех семи этапов ✅). Коммиты: `9014f6b` (этап 4), `3388475` (этап 5), `130000b`
+(этап 6), `dd397f4` (этап 7), `b8affa2` (починка тестов iOS этапа 4). Подробности — API.md §2 (входы в сервисы), §7
+(ключ API, `/oauth/now`), §8 (обновления и `/downloads`), §1 (публичный профиль), §9 (история статуса), ADMIN.md
+«Сборки», DB.md (`service_accounts`, `builds`), ROADMAP «Сервер».
+
+**Что сделано**
+- Этап 4: `GET|PUT /api/services/credentials` (`server/sonar/api/services.py`, Fernet `SONAR_FERNET_KEY`). ПК —
+  `cred_sync.rs`, iPhone — `Core/Account/CredentialSync.swift`: трёхстороннее слияние своих ключей, серверных и базы
+  с прошлого синка (база — хэши). Протухший чужой ключ пробуется один раз и с сервера не удаляется.
+- Этап 5: ключ API (`/api/integrations/api-key`, `/api/me/integration`), `GET /api/oauth/now` в формате Dotify из
+  последнего `PlayerState` (тишина > 90 с — пауза), `/api/oauth/profile`; ключ — `Bearer` или `?token=`. ПК шлёт
+  состояние плеера — `now_push.rs`, iPhone — `NowPush.swift`. «Ключ API» — в Интеграциях ПК.
+- Этап 6: сайт на Velt. `site.yml` → релиз `site-latest` (`--latest=false`), `sync.py` скачивает и распаковывает
+  в `site/` (битый архив — остаётся старая копия), `web.py` раздаёт с корня, `/_astro` — кэш на год, www → 301.
+  `GET /api/public/users/{username}`, `GET /api/status/history`. CNAME убран.
+- Этап 7: админка → «Сборки» (`server/sonar/builds.py`, `admin/templates/builds.html`): выбрать релиз CI на GitHub,
+  канал (релиз / бета), описание ru/en (+uk/es/de/pl) → сервер сам качает файлы в `data/builds/<канал>/<тег>/`,
+  хранит 3 на канал, отзыв и возврат, журнал. API: `/api/updates/windows|ios/<канал>.json`, `manifest.plist`,
+  `/downloads/<канал>/[<тег>/]<файл>`. Нет сборки — 404 (клиенты идут на GitHub) / 302 на GitHub для `/downloads`.
+  Бета видит и релизы, берёт версию выше. ПК: `tauri.conf.json` endpoints — сервер, потом `latest.json` на GitHub;
+  iPhone: сервер по `update.channel` → `ios-update.json` → список релизов. Кнопки «Скачать» — `/downloads/release/…`.
+  `GITHUB_TOKEN` в `.env` — только если репо станет приватным.
+
+**SSL работает** (2026-11-26): `https://try-sonar.ru/api/health` → 200. Но контейнер крутит старый код: `/api/me`
+→ 401 есть, а `/`, `/status`, `/@folzy`, `/api/oauth/now`, `/api/services/credentials`, `/downloads/…` → 404.
+То есть после этапа 3 сервер не перезапускали.
+
+**Живая проверка после рестарта** (не сделана — ждёт рестарта и владельца):
+1. `curl -I https://try-sonar.ru/` → 200 (сайт), `/@folzy` — профиль, `https://www.try-sonar.ru/` → 301.
+2. `/api/oauth/now` без ключа → 401; `/api/updates/windows/release.json` → 404 (сборок ещё нет);
+   `/downloads/release/Sonar-setup.exe` → 302 на GitHub.
+3. Вход на ПК и iPhone в один аккаунт; лайк на ПК → на телефоне за ≤ 2 мин; вошёл в Яндекс на ПК → на телефоне подключён.
+4. Ключ API в Интеграциях → `curl "https://try-sonar.ru/api/oauth/now?token=…"` показывает играющий трек.
+5. `/dotify` с файлом владельца → лайки на устройствах.
+6. Админка → «Сборки» → выпустить текущую `windows-v*` в релиз → `/api/updates/windows/release.json` отдаёт её,
+   ПК видит обновление с сервера.
+
+**Что дальше**
+- После проверки п. 6 — п. 4 этапа 7: `windows.yml` перестаёт ставить Latest, CI не объявляет `ios-update.json`.
+  Только когда у всех стоит сборка, которая уже спрашивает сервер (0.2.x после `dd397f4`).
+- iPhone `InstallLinks.swift` всё ещё ставит через `api.palera.in` — перевести на свой `/api/updates/manifest.plist`.
+- GitHub Pages в настройках репо можно выключить (деплой туда убран).
+- Не сделано в «Сборках»: аудитория (бета только части людей), `minimum_build`, рассылка о выходе, кнопка «бету — в релиз».
+- Селфбот — `docs/SELFBOT_PROMPT.md`, отдельная сессия в его репо (после рестарта `/api/oauth/now` живой).
+
+**Осторожно**
+- `server/sonar/__main__.py`, `status.py`, `status_alert.py` и `TASKS.md` меняются параллельно — не коммитить чужое.
+- notify.py на этом маке нет — уведомления шли через пуш приложения.
+- На этом маке нет Xcode (только Command Line Tools) — iOS по-прежнему только CI. CI iOS падал на этапах 4–5 (тесты
+  `CredentialSyncTests`: `FakeAPI.on` без кода ответа не компилируется) — починено в `b8affa2`, iOS зелёный.
+
+---
+
 # Передача 2026-11-25 (поздний вечер) → сервер: этапы 1–3 сделаны, дальше 4–7 (`docs/SERVER_PROMPT.md`)
 
 Задание — `docs/SERVER_PROMPT.md` (у этапов 1–3 стоит ✅). Коммиты: `f4a8164` (этап 1), `845581c` (этап 2 + `/dotify`),

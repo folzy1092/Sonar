@@ -264,11 +264,17 @@ ROADMAP — «Блок O». **ПК сделан 2026-11-23 (этапы 0–1):**
   Синк (этап 3, 2026-11-25) — `server/sonar/sync.py` хранит строки как хаб ПК (`sync_rows`, без разбора значений);
   ПК синкается с сервером, как только вошёл (`sync::configured` = сессия в keyring).
   Перенос Любимых из Dotify — скрытая `/dotify` бота (`server/sonar/dotify.py`); selfbot уходит с Dotify — `docs/SELFBOT_PROMPT.md`.
+  Входы в сервисы (этап 4, 2026-11-26) — `api/services.py` (Fernet), ПК `cred_sync.rs`, iPhone `Core/Account/CredentialSync.swift`
+  (трёхстороннее слияние с базой прошлого синка). Ключ API и `/api/oauth/now` в формате Dotify (этап 5) — `api/integrations.py`,
+  состояние плеера шлют ПК `now_push.rs` и iPhone `Core/Account/NowPush.swift`. Публичный профиль — `api/public.py` (этап 6).
 - **Сборки объявляет владелец сам** (решение 2026-11-25): CI только собирает, владелец проверяет сборку и
   выпускает её на сайте как релиз или бету (админка, `docs/ADMIN.md`), пишет описание. Автообновление ПК и
   iPhone смотрит на сайт (каналы релиз / бета), а не на GitHub Releases. На сервере — только последние
-  несколько сборок каждого канала (exe ~13 МБ, ipa ~9 МБ), файлы — через кэш Cloudflare. До запуска сервера
-  обновления идут по-старому (`windows.yml`, `ios-update.json`).
+  несколько сборок каждого канала (exe ~13 МБ, ipa ~9 МБ). Сделано 2026-11-26 (этап 7): админка «Сборки» +
+  `server/sonar/builds.py` (качает релиз CI в `data/builds`, 3 на канал), `api/updates.py` — `/api/updates/<платформа>/<канал>.json`,
+  `manifest.plist`, `/downloads/<канал>/<файл>` (нет сборки — 404 / 302 на GitHub). ПК (`tauri.conf.json` endpoints) и iPhone
+  (`UpdateChecker`) спрашивают сначала сервер, потом GitHub; CI пока объявляет по-старому (`windows.yml` Latest,
+  `ios-update.json`) — переключать, когда у всех стоит сборка с серверным адресом (SERVER_PROMPT этап 7 п. 4).
 
 ## Тесты в Telegram
 
