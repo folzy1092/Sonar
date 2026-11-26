@@ -22,6 +22,18 @@ final class UpdateManifestTests: XCTestCase {
         XCTAssertEqual(UpdateFeed.serverURL(channel: "", lang: "uk").lastPathComponent, "release.json")
     }
 
+    /// Бета — только своему логину; всем остальным (и без входа, и со старой настройкой «beta») — релиз с сайта.
+    func testBetaChannelIsOwnerOnly() {
+        XCTAssertEqual(UpdateFeed.channel(setting: "beta", login: "folzy"), "beta")
+        XCTAssertEqual(UpdateFeed.channel(setting: "beta", login: " Folzy "), "beta")
+        XCTAssertEqual(UpdateFeed.channel(setting: "beta", login: "mira"), "release")
+        XCTAssertEqual(UpdateFeed.channel(setting: "beta", login: nil), "release")
+        XCTAssertEqual(UpdateFeed.channel(setting: "stable", login: "folzy"), "release")
+        XCTAssertEqual(UpdateFeed.channel(setting: "", login: "folzy"), "release")
+        XCTAssertFalse(UpdateFeed.betaAllowed(login: "folzy2"))
+        XCTAssertFalse(UpdateFeed.betaAllowed(login: nil))
+    }
+
     /// Ответ сервера (api/updates.py) разбирается тем же парсером, ссылки — на сайт.
     func testServerFeedBodyParses() throws {
         let body = #"{"enabled": true, "build": 760, "version": "0.2.1", "minimum_build": 0, "title": "Sonar 0.2.1", "notes": "Новое", "ipa_url": "https://try-sonar.ru/downloads/release/ios-build-760/Sonar.ipa", "url": "https://try-sonar.ru/downloads/release/ios-build-760/Sonar.ipa"}"#

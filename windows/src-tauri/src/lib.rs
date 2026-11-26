@@ -223,6 +223,7 @@ pub fn run() {
       account::account_register,
       account::account_logout,
       account::account_me,
+      account::account_session_header,
       account::account_update,
       account::account_password,
       account::account_devices,

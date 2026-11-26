@@ -16,6 +16,8 @@
   import { t } from '../../lib/i18n.svelte'
   import { SITE_URL as SITE } from '../../lib/site'
   import { offline } from '../../lib/offline.svelte'
+  import { account } from '../../lib/account.svelte'
+  import { betaAllowed } from '../../lib/beta'
 
   const LINKS = [
     { label: 'Сайт', url: SITE },
@@ -120,12 +122,14 @@
     <span class="ic"><Icon name="user2" size={16} /></span>
     <span class="txt"><b>{t('Приглашения')} <Soon /></b><small>{t('Позови друзей в Sonar — когда появится сервер')}</small></span>
   </div>
-  <Switch
-    title={t('Бета-версии')}
-    hint={t('Получать обновления раньше всех — они могут быть сырыми')}
-    on={settings.get('update.channel') === 'beta'}
-    onchange={(on) => settings.set('update.channel', on ? 'beta' : 'stable')}
-  />
+  {#if betaAllowed(account.user?.login)}
+    <Switch
+      title={t('Бета-версии')}
+      hint={t('Получать обновления раньше всех — они могут быть сырыми')}
+      on={settings.get('update.channel') === 'beta'}
+      onchange={(on) => settings.set('update.channel', on ? 'beta' : 'stable')}
+    />
+  {/if}
   <div class="row">
     <span class="ic"><Icon name="clock" size={16} /></span>
     <span class="txt"><b>{t('Платежи')} <Soon /></b><small>{t('История оплат Sonar Deep — когда появится сервер')}</small></span>

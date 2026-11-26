@@ -1,6 +1,6 @@
 [package]
 name = "sonar"
-version = "0.2.0"
+version = "0.3.0"
 description = "Sonar — музыкальный плеер: SoundCloud и Яндекс Музыка"
 authors = ["Folzy"]
 license-file = "../../LICENSE"

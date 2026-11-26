@@ -29,6 +29,8 @@ extension I18n {
         "Перевыпустить": "Reissue",
         "Ключ и адрес — как пароль: не показывай их другим.": "The key and address are like a password — don’t share them.",
         "Создан {date}": "Created {date}",
+        "Объявленных сборок пока нет": "No announced builds yet",
+        "Сборки CI с GitHub": "CI builds from GitHub",
     ]
 
     static let banUK: [String: String] = [
@@ -59,6 +61,8 @@ extension I18n {
         "Перевыпустить": "Перевипустити",
         "Ключ и адрес — как пароль: не показывай их другим.": "Ключ і адреса — як пароль: не показуй їх іншим.",
         "Создан {date}": "Створено {date}",
+        "Объявленных сборок пока нет": "Оголошених збірок поки немає",
+        "Сборки CI с GitHub": "Збірки CI з GitHub",
     ]
 
     static let banES: [String: String] = [
@@ -89,6 +93,8 @@ extension I18n {
         "Перевыпустить": "Regenerar",
         "Ключ и адрес — как пароль: не показывай их другим.": "La clave y la dirección son como una contraseña: no las compartas.",
         "Создан {date}": "Creada el {date}",
+        "Объявленных сборок пока нет": "Aún no hay compilaciones anunciadas",
+        "Сборки CI с GitHub": "Compilaciones de CI desde GitHub",
     ]
 
     static let banDE: [String: String] = [
@@ -119,6 +125,8 @@ extension I18n {
         "Перевыпустить": "Neu ausstellen",
         "Ключ и адрес — как пароль: не показывай их другим.": "Schlüssel und Adresse sind wie ein Passwort – gib sie nicht weiter.",
         "Создан {date}": "Erstellt am {date}",
+        "Объявленных сборок пока нет": "Noch keine angekündigten Builds",
+        "Сборки CI с GitHub": "CI-Builds von GitHub",
     ]
 
     static let banPL: [String: String] = [
@@ -149,5 +157,7 @@ extension I18n {
         "Перевыпустить": "Wygeneruj ponownie",
         "Ключ и адрес — как пароль: не показывай их другим.": "Klucz i adres są jak hasło — nie udostępniaj ich.",
         "Создан {date}": "Utworzono {date}",
+        "Объявленных сборок пока нет": "Brak jeszcze ogłoszonych wersji",
+        "Сборки CI с GitHub": "Wersje CI z GitHub",
     ]
 }

@@ -7,6 +7,7 @@ struct UpdatesSettingsView: View {
     @Environment(SelfUpdater.self) private var updater
     @Environment(SigningModel.self) private var signing
     @Environment(SettingsStore.self) private var settings
+    @State private var account = AccountStore.shared
 
     var body: some View {
         SettingsScreen(title: "Обновления") {
@@ -77,7 +78,13 @@ struct UpdatesSettingsView: View {
                                selected: settings.string("update.channel") == "stable") {
                         settings.set("update.channel", .string("stable"))
                     }
-                    OptionTile(icon: "flask", title: "Бета", subtitle: "Скоро", soon: true)
+                    // Бета (сборки CI с GitHub) — только владельцу; остальным переключателя нет, у них только то, что выпущено на сайте
+                    if UpdateFeed.betaAllowed(login: account.user?.login) {
+                        OptionTile(icon: "flask", title: "Бета", subtitle: "Сборки CI с GitHub",
+                                   selected: settings.string("update.channel") == "beta") {
+                            settings.set("update.channel", .string("beta"))
+                        }
+                    }
                 }
             }
             .cascade(2)

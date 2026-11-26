@@ -11,6 +11,9 @@ import { isTauri } from './tauri'
 import { settings } from './settings.svelte'
 import { lang, t } from './i18n.svelte'
 import { offline } from './offline.svelte'
+import { invoke } from '@tauri-apps/api/core'
+import { account } from './account.svelte'
+import { updateChannel } from './beta'
 import { compareVersions, isBeta, mergeReleases, parseChangelog, releaseNotes, type ChangelogEntry } from './update-core'
 
 export type UpdatePhase = 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'installing' | 'error'
@@ -178,11 +181,18 @@ interface Found {
 
 async function find(): Promise<Found | null> {
   if (isTauri) {
-    const channel = settings.get('update.channel') === 'beta' ? 'beta' : 'release'
-    const u = await check({ timeout: 20_000, headers: { 'X-Sonar-Channel': channel, 'X-Sonar-Lang': lang() } })
+    // Релиз — всем и только с сайта. Бета (сборки CI с GitHub) — только своему логину: сервер проверяет сессию, поэтому
+    // для беты и только для неё в запрос уходит `Authorization` (значение отдаёт Rust, токен в настройках не лежит).
+    const channel = updateChannel(settings.get('update.channel'), account.user?.login)
+    const headers: Record<string, string> = { 'X-Sonar-Channel': channel, 'X-Sonar-Lang': lang() }
+    if (channel === 'beta') {
+      const auth = await invoke<string | null>('account_session_header').catch(() => null)
+      if (auth) headers.Authorization = auth
+    }
+    const u = await check({ timeout: 20_000, headers })
     if (!u) return null
-    // бета приходит только тем, кто выбрал канал «Бета»; стабильному — ничего не предлагаем
-    if (isBeta(u.version) && settings.get('update.channel') !== 'beta') return null
+    // бета-версии (с суффиксом) приходят только по каналу «Бета»; релизу — ничего не предлагаем
+    if (isBeta(u.version) && channel !== 'beta') return null
     return { raw: u, version: u.version, date: u.date ?? '', notes: releaseNotes(u.body) }
   }
   // Превью интерфейса в браузере (npm run dev): показываем пример, чтобы видеть все состояния.

@@ -72,20 +72,18 @@ final class UpdateChecker {
         defer { isChecking = false }
         let installed = Self.installedBuild
         var result: UpdateStatus
-        let channel = SettingsStore.shared.string("update.channel")
-        if let manifest = await Self.manifest(UpdateFeed.serverURL(channel: channel, lang: currentLang().rawValue)) {
-            result = .from(manifest: manifest, installedBuild: installed)
-        } else if let manifest = await Self.manifest(UpdateFeed.manifestURL) {
-            result = .from(manifest: manifest, installedBuild: installed)
-        } else if let (data, code) = await Self.fetch(UpdateFeed.releasesAPIURL) {
-            if code == 404 {
-                result = .failed("Релизов пока нет")
-            } else if !(200 ..< 300).contains(code) {
-                result = .failed("GitHub ответил \(code)")
-            } else if let release = UpdateRelease.parseReleases(data) {
-                result = .from(release: release, installedBuild: installed)
+        // Релиз — всем и только с сайта (что владелец выпустил в админке), GitHub не опрашиваем. Бета (сборки CI с GitHub)
+        // идёт через тот же сервер и только своему логину: сессия уходит в запрос беты и больше никуда.
+        let account = AccountStore.shared
+        let channel = UpdateFeed.channel(setting: SettingsStore.shared.string("update.channel"), login: account.user?.login)
+        let token = channel == "beta" ? account.sessionToken : nil
+        if let (data, code) = await Self.fetch(UpdateFeed.serverURL(channel: channel, lang: currentLang().rawValue), token: token) {
+            if (200 ..< 300).contains(code), let manifest = UpdateManifest.parse(data) {
+                result = .from(manifest: manifest, installedBuild: installed)
+            } else if code == 404 {
+                result = .failed("Объявленных сборок пока нет")
             } else {
-                result = .failed("Сборок для iPhone пока нет")
+                result = .failed("Сервер обновлений ответил \(code)")
             }
         } else {
             result = .failed("Нет связи с сервером обновлений")
@@ -122,19 +120,16 @@ final class UpdateChecker {
         return entries
     }
 
-    private static func manifest(_ url: URL) async -> UpdateManifest? {
-        guard let (data, code) = await fetch(url), (200 ..< 300).contains(code) else { return nil }
-        return UpdateManifest.parse(data)
-    }
-
     /// Параметр-метка мимо кэша CDN raw.githubusercontent (~5 мин): только что объявленная сборка видна сразу.
-    private static func fetch(_ url: URL) async -> (Data, Int)? {
+    /// `token` — сессия Sonar, только для запроса беты на свой сервер (`Authorization: Bearer`); GitHub её не видит.
+    private static func fetch(_ url: URL, token: String? = nil) async -> (Data, Int)? {
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         var items = components?.queryItems ?? []
         items.append(URLQueryItem(name: "t", value: String(Int(Date().timeIntervalSince1970))))
         components?.queryItems = items
         var request = URLRequest(url: components?.url ?? url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        if let token, url.host == "try-sonar.ru" { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         guard let (data, response) = try? await URLSession.shared.data(for: request) else { return nil }
         return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
     }

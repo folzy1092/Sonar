@@ -18,6 +18,20 @@ import Foundation
 //
 // Только Foundation — проверяется тестами без симулятора.
 enum UpdateFeed {
+    /// Бета-обновления — только владельцу (решение 2026-11-26). Сборки CI с GitHub отдаёт свой сервер: он проверяет сессию
+    /// и логин (`SONAR_BETA_USERS`), остальным отвечает как на релиз. Список здесь — чтобы чужим не показывать переключатель.
+    static let betaLogins: Set<String> = ["folzy"]
+
+    static func betaAllowed(login: String?) -> Bool {
+        guard let login else { return false }
+        return betaLogins.contains(login.trimmingCharacters(in: .whitespaces).lowercased())
+    }
+
+    /// Канал запроса: "beta" — включена в настройках **и** вошёл свой логин, иначе "release" (только то, что выпущено на сайте).
+    static func channel(setting: String, login: String?) -> String {
+        setting == "beta" && betaAllowed(login: login) ? "beta" : "release"
+    }
+
     static let repo = "https://github.com/folzy1092/Sonar"
     static let manifestURL = URL(string: "https://raw.githubusercontent.com/folzy1092/Sonar/main/updates/ios-update.json")!
     static let changelogURL = URL(string: "https://raw.githubusercontent.com/folzy1092/Sonar/main/updates/changelog.json")!

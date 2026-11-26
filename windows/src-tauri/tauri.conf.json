@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Sonar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "identifier": "com.folzy.sonar",
   "build": {
     "frontendDist": "../dist",
@@ -66,8 +66,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ4QzYxRTkxMDBFRjVCNUMKUldSY1crOEFrUjdHU0c1VEVGcGYxVE9qMUlzM1kzZDBDcnA4THJvc3grbWZ2SXlMSVlvK2N2cDcK",
       "endpoints": [
-        "https://try-sonar.ru/api/updates/windows/release.json",
-        "https://github.com/folzy1092/Sonar/releases/download/windows-latest/latest.json"
+        "https://try-sonar.ru/api/updates/windows/release.json"
       ],
       "windows": {
         "installMode": "passive"

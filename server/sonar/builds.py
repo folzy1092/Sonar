@@ -43,8 +43,12 @@ MAX_REDIRECTS = 5
 TIMEOUT_S = 300
 # GitHub отдаёт файлы релизов через свои CDN; release-assets — новый адрес вместо objects (с 2025 года).
 DOWNLOAD_HOSTS = {"github.com", "api.github.com", "objects.githubusercontent.com",
-                  "release-assets.githubusercontent.com"}
-TOKEN_HOSTS = {"github.com", "api.github.com"}
+                  "release-assets.githubusercontent.com", "raw.githubusercontent.com"}
+TOKEN_HOSTS = {"github.com", "api.github.com", "raw.githubusercontent.com"}
+FEED_MAX_BYTES = 256 * 1024     # latest.json и ios-update.json — десятки строк, больше — это не они
+# Бета-канал — сборки CI прямо с GitHub (только для владельца, `api/updates.py`): последний релиз Windows и объявление iOS.
+BETA_FEEDS = {"windows": f"https://github.com/{REPO}/releases/download/windows-latest/latest.json",
+              "ios": f"https://raw.githubusercontent.com/{REPO}/main/updates/ios-update.json"}
 
 
 class BuildError(Exception):
@@ -161,6 +165,28 @@ class GitHub:
                     raise BuildError("github")
                 return await r.json()
         except (aiohttp.ClientError, TimeoutError) as err:
+            raise BuildError("github") from err
+
+    async def json_file(self, url: str, limit: int = FEED_MAX_BYTES):
+        """Маленький JSON с GitHub (latest.json Windows, ios-update.json). Редиректы — вручную: каждый адрес проходит
+        проверку хоста, токен уходит только самому GitHub. Не вышло — BuildError."""
+        try:
+            async with self._session() as s:
+                for _ in range(MAX_REDIRECTS + 1):
+                    if not allowed(url):
+                        raise BuildError("bad_host")
+                    async with s.get(url, headers=self._headers(url, "application/json"), allow_redirects=False) as r:
+                        if r.status in (301, 302, 303, 307, 308):
+                            url = urljoin(url, r.headers.get("Location", ""))
+                            continue
+                        if r.status != 200:
+                            raise BuildError("github")
+                        raw = await r.content.read(limit + 1)
+                        if len(raw) > limit:
+                            raise BuildError("too_big")
+                        return json.loads(raw)
+                raise BuildError("github")
+        except (aiohttp.ClientError, TimeoutError, ValueError) as err:
             raise BuildError("github") from err
 
     async def releases(self) -> list[dict]:

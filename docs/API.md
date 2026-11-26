@@ -841,7 +841,14 @@ iPhone: `Core/Export/PlaylistExport.swift` (те же правила; ключи
 - Канал из пути перекрывает заголовок `X-Sonar-Channel: release|beta` (адрес в `tauri.conf.json` один, канал —
   настройка `update.channel`). Язык «Что нового» — `?lang=` или `X-Sonar-Lang` (`ru en uk es de pl`), нет текста
   на языке — английский, потом русский.
-- 404 у JSON, а не 204: на 404 `tauri-plugin-updater` идёт к следующему адресу — релизу `windows-latest` на GitHub.
+- **Каналы (решение владельца 2026-11-26).** *Релиз* — всем и **только с сайта**: то, что владелец выпустил в админке «Сборки»
+  (`/api/updates/<платформа>/release.json`, файлы с `/downloads`); GitHub у клиентов (`tauri.conf.json` endpoints,
+  `UpdateChecker`) больше не опрашивается. *Бета* — сборки CI прямо с GitHub (`windows-latest/latest.json`, `updates/ios-update.json`
+  из `main`; сервер читает и отдаёт их как есть, кэш 5 минут, при сбое GitHub — прежний ответ, потом бета-сборка из админки) и
+  **только логинам из `SONAR_BETA_USERS`** (по умолчанию `folzy`) по `Authorization: Bearer <сессия>`. Запрос беты без права — не
+  ошибка, а ответ релиза (старые клиенты с включённым «Бета» продолжают получать обычные обновления). Клиенты показывают
+  переключатель «Бета» только своему логину и шлют сессию только в запросе беты (ПК — `account_session_header`).
+- 404 у релиза — «выпущенных сборок пока нет» (ПК: «Релиз ещё не опубликован»); запасного адреса на GitHub нет.
   iPhone при 404 / без сети читает по-старому `updates/ios-update.json`, потом список релизов GitHub.
 - Файлы — с Range и ETag (`FileResponse`). `Cache-Control: no-cache` у JSON.
 - `manifest.plist`: `fetchurl` — только `http://127.0.0.1:<порт>/…` (установка с телефона) или

@@ -67,6 +67,13 @@ pub fn notify_ended(app: &tauri::AppHandle, err: &str) {
   }
 }
 
+/// Значение заголовка `Authorization` для запроса **беты** (сервер отдаёт бету только своим логинам, 2026-11-26). Окно
+/// получает его лишь на время проверки обновления; остальным запросам к серверу окно сессию не показывает.
+#[tauri::command]
+pub fn account_session_header() -> Option<String> {
+  token().map(|t| format!("Bearer {t}"))
+}
+
 /// Итог проверки Яндекса с этого устройства: (дошёл ли запрос, пояснение). `status` — HTTP-код, `None` — ответа не было.
 pub fn yandex_verdict(status: Option<u16>, timeout: bool) -> (bool, String) {
   match status {

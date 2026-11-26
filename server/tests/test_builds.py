@@ -33,6 +33,14 @@ class FakeGitHub(GitHub):
     def __init__(self, releases):
         super().__init__(None)
         self.by_tag = {r["tag_name"]: r for r in releases}
+        self.feeds = {}          # адрес → JSON, который «отдаёт GitHub» (бета-канал)
+        self.feed_calls = 0
+
+    async def json_file(self, url, limit=builds.FEED_MAX_BYTES):
+        self.feed_calls += 1
+        if url not in self.feeds:
+            raise BuildError("github")
+        return self.feeds[url]
 
     async def releases(self):
         return list(self.by_tag.values())
@@ -67,6 +75,18 @@ def client(con, tmp_path, gh):
     c = TestClient(app, base_url="http://testserver")
     c.factory_password = password
     return c
+
+
+def beta_headers(con, login="folzy", token="btok", banned=0):
+    """Заголовки пользователя с сессией: бета отдаётся только своим логинам (`SONAR_BETA_USERS`, по умолчанию folzy)."""
+    from sonar import sessions
+    from sonar.db import now_ms
+    uid = f"u_{login}"
+    con.execute("INSERT OR IGNORE INTO users (id, number, login, username, display_name, created_at, banned) VALUES (?,?,?,?,?,?,?)",
+                (uid, abs(hash(login)) % 10**6, login, login, login, now_ms(), banned))
+    con.execute("INSERT INTO sessions (id, user_id, token_hash, device_id, device_name, platform, created_at, last_seen_at)"
+                " VALUES (?,?,?,?,?,?,?,?)", (f"s_{token}", uid, sessions._h(token), f"dev-{token}", "ПК", "windows", now_ms(), now_ms()))
+    return {"Authorization": f"Bearer {token}", "X-Sonar-Channel": "beta"}
 
 
 def pub(con, tmp_path, gh, tag, channel="release", notes=NOTES):
@@ -172,7 +192,9 @@ def test_windows_feed_tauri_format_channel_header_and_lang(client, con, tmp_path
     assert client.get("/api/updates/windows/release.json").status_code == 404, "404 — tauri идёт на GitHub"
     pub(con, tmp_path, gh, "windows-v0.1.10", "beta")
     assert client.get("/api/updates/windows/release.json").status_code == 404
-    r = client.get("/api/updates/windows/release.json", headers={"X-Sonar-Channel": "beta", "X-Sonar-Lang": "de-DE"})
+    # Бета без права (нет сессии) — не 404 «нет канала», а ответ релиза; сборки админки в бете видит только свой логин.
+    assert client.get("/api/updates/windows/release.json", headers={"X-Sonar-Channel": "beta"}).status_code == 404
+    r = client.get("/api/updates/windows/release.json", headers={**beta_headers(con), "X-Sonar-Lang": "de-DE"})
     j = r.json()
     assert r.headers["cache-control"] == "no-cache"
     assert (j["version"], j["notes"]) == ("0.1.10", "Neu")
@@ -181,7 +203,7 @@ def test_windows_feed_tauri_format_channel_header_and_lang(client, con, tmp_path
     assert win["url"] == "https://try-sonar.ru/downloads/beta/windows-v0.1.10/Sonar-setup.exe"
     assert win["signature"].startswith("SIGNATURE-")
     # язык без описания — английское; стабильный канал старым именем
-    assert client.get("/api/updates/windows/beta.json?lang=pl").json()["notes"] == "New"
+    assert client.get("/api/updates/windows/beta.json?lang=pl", headers=beta_headers(con, token="b2")).json()["notes"] == "New"
     pub(con, tmp_path, gh, "windows-v0.1.11")
     assert client.get("/api/updates/windows/x.json", headers={"X-Sonar-Channel": "stable"}).json()["version"] == "0.1.11"
     assert client.get("/api/updates/windows/nightly.json").status_code == 404
@@ -293,3 +315,68 @@ def test_admin_publish_revoke_restore_with_audit(client, con):
 def test_admin_builds_needs_login(client):
     assert client.get("/admin/builds", follow_redirects=False).headers["location"] == "/admin/login"
     assert client.post("/admin/builds/publish", data={}, follow_redirects=False).status_code in (303, 307)
+
+
+# ---- бета: только свои, прямо с GitHub; релиз — только с сайта ----
+
+LATEST = {"version": "0.2.272", "notes": "CI", "pub_date": "2026-11-26T05:00:00Z",
+          "platforms": {"windows-x86_64": {"signature": "sig", "url": "https://github.com/x/y/releases/download/windows-v0.2.272/Sonar.exe"}}}
+IOS_FEED = {"enabled": True, "build": 761, "version": "0.2.1", "minimum_build": 0, "title": "t", "notes": "n",
+            "ipa_url": "https://github.com/x/y/releases/download/ios-build-761/Sonar.ipa", "url": "https://x"}
+
+
+def test_owner_gets_github_beta_and_everyone_else_gets_the_release(client, con, tmp_path, gh):
+    gh.feeds[builds.BETA_FEEDS["windows"]] = LATEST
+    pub(con, tmp_path, gh, "windows-v0.1.10")                                   # то, что выпущено на сайте
+    mine = client.get("/api/updates/windows/release.json", headers=beta_headers(con)).json()
+    assert mine == LATEST                                                       # свой логин — сборка CI как есть
+    other = beta_headers(con, login="mira", token="m1")
+    assert client.get("/api/updates/windows/release.json", headers=other).json()["version"] == "0.1.10"
+    # без сессии и со старым клиентом, у которого включена «Бета», — тоже только релиз с сайта
+    assert client.get("/api/updates/windows/beta.json").json()["version"] == "0.1.10"
+    assert client.get("/api/updates/windows/release.json", headers={"X-Sonar-Channel": "beta"}).json()["version"] == "0.1.10"
+
+
+def test_beta_ios_feed_from_github(client, con, gh):
+    gh.feeds[builds.BETA_FEEDS["ios"]] = IOS_FEED
+    assert client.get("/api/updates/ios/beta.json", headers=beta_headers(con)).json() == IOS_FEED
+    assert client.get("/api/updates/ios/beta.json").status_code == 404           # чужому бета не светится: релиза нет
+
+
+def test_banned_owner_session_is_not_beta(client, con, gh):
+    gh.feeds[builds.BETA_FEEDS["windows"]] = LATEST
+    headers = beta_headers(con, banned=1)
+    r = client.get("/api/updates/windows/release.json", headers=headers)
+    assert r.status_code == 404                                                  # а не бета
+
+
+def test_beta_list_comes_from_env(client, con, gh, monkeypatch):
+    gh.feeds[builds.BETA_FEEDS["windows"]] = LATEST
+    monkeypatch.setenv("SONAR_BETA_USERS", "lev, Mira")
+    assert client.get("/api/updates/windows/beta.json", headers=beta_headers(con, "mira", "t1")).json() == LATEST
+    assert client.get("/api/updates/windows/beta.json", headers=beta_headers(con, "folzy", "t2")).status_code == 404
+
+
+def test_beta_is_cached_and_survives_a_github_outage(client, con, gh, monkeypatch):
+    gh.feeds[builds.BETA_FEEDS["windows"]] = LATEST
+    h = beta_headers(con)
+    assert client.get("/api/updates/windows/beta.json", headers=h).json() == LATEST
+    assert client.get("/api/updates/windows/beta.json", headers=h).json() == LATEST
+    assert gh.feed_calls == 1                                                    # второй раз — из кэша
+    monkeypatch.setattr("sonar.api.updates.BETA_CACHE_S", 0)
+    gh.feeds.clear()                                                             # GitHub лёг
+    assert client.get("/api/updates/windows/beta.json", headers=h).json() == LATEST   # отдаём прежний, не «обновлений нет»
+
+
+def test_beta_falls_back_to_admin_build_when_github_is_silent_or_odd(client, con, tmp_path, gh):
+    h = beta_headers(con)
+    pub(con, tmp_path, gh, "windows-v0.1.10", "beta")
+    assert client.get("/api/updates/windows/beta.json", headers=h).json()["version"] == "0.1.10"     # GitHub молчит
+    gh.feeds[builds.BETA_FEEDS["windows"]] = {"version": "9.9.9"}                # не тот формат: без платформ и подписи
+    assert client.get("/api/updates/windows/beta.json", headers=h).json()["version"] == "0.1.10"
+
+
+def test_github_feed_hosts_are_whitelisted():
+    assert builds.allowed(builds.BETA_FEEDS["windows"]) and builds.allowed(builds.BETA_FEEDS["ios"])
+    assert not builds.allowed("https://raw.githubusercontent.com.evil.example/x.json")
+    assert not builds.allowed("http://raw.githubusercontent.com/x.json")

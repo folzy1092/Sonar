@@ -2,6 +2,9 @@
 
 - `GET /api/updates/windows/<канал>.json` — формат `tauri-plugin-updater`. Канал из пути, а заголовок
   `X-Sonar-Channel` его перекрывает: адрес в `tauri.conf.json` один, канал выбирают в настройках.
+- **Релиз** — только то, что владелец выпустил в админке («Сборки»), и только с нашего сайта. **Бета** — сборки CI прямо с
+  GitHub (`latest.json` Windows, `ios-update.json`), и только логинам из `SONAR_BETA_USERS` (по умолчанию `folzy`) по
+  `Authorization: Bearer`; всем остальным запрос беты отвечает как релиз.
 - `GET /api/updates/ios/<канал>.json` — формат прежнего `updates/ios-update.json`.
 - `GET /api/updates/manifest.plist` — манифест `itms-services` с теми же параметрами, что у `api.palera.in/genPlist`.
 - `/downloads/<канал>/<файл>` — текущая сборка, `/downloads/<канал>/<тег>/<файл>` — конкретная (её адрес
@@ -11,7 +14,10 @@
 """
 from __future__ import annotations
 
+import logging
+import os
 import re
+import time
 from datetime import UTC, datetime
 from urllib.parse import urlsplit
 from xml.sax.saxutils import escape
@@ -19,9 +25,12 @@ from xml.sax.saxutils import escape
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 
-from .. import builds
-from ..builds import FILES, Build
+from .. import builds, sessions
+from ..builds import FILES, Build, BuildError
+from .deps import bearer
 from .errors import ApiError
+
+log = logging.getLogger("sonar.updates")
 
 router = APIRouter(prefix="/updates", tags=["updates"])
 downloads = APIRouter(prefix="/downloads", include_in_schema=False)
@@ -33,19 +42,70 @@ NAME_MAX = 64
 VERSION_RE = re.compile(r"^[0-9A-Za-z.+-]{1,32}$")
 
 
+BETA_CACHE_S = 300      # сборка CI на GitHub выходит на каждый пуш; раз в 5 минут для одного владельца достаточно
+
+
+def beta_users() -> set[str]:
+    """Логины, которым доступна бета (`SONAR_BETA_USERS`, через запятую; по умолчанию — владелец `folzy`)."""
+    raw = os.environ.get("SONAR_BETA_USERS", "folzy")
+    return {x.strip().lower() for x in raw.split(",") if x.strip()}
+
+
+def _beta_ok(request: Request) -> bool:
+    """Запрос с сессией (`Authorization: Bearer`) пользователя из списка беты. Забаненный и чужой — нет."""
+    token = bearer(request)
+    st = request.app.state
+    s = sessions.by_token(st.con, token) if token else None
+    user = st.accounts.by_id(s.user_id) if s else None
+    return user is not None and user.login.lower() in beta_users()
+
+
 def _channel(request: Request, path_channel: str) -> str:
+    """Канал из заголовка или пути. Бета — только своим: остальным (в том числе старым клиентам с включённым «Бета»)
+    отвечаем как на релиз, а не 404 — они продолжают получать обычные обновления."""
     chan = builds.channel_of(request.headers.get("x-sonar-channel")) or builds.channel_of(path_channel)
     if chan is None:
         raise ApiError(404, "not_found", "Нет такого канала")
-    return chan
+    return "release" if chan == "beta" and not _beta_ok(request) else chan
+
+
+def _feed_ok(platform: str, data) -> bool:
+    if not isinstance(data, dict):
+        return False
+    if platform == "windows":
+        win = (data.get("platforms") or {}).get("windows-x86_64")
+        return isinstance(data.get("version"), str) and isinstance(win, dict) and bool(win.get("url")) and bool(win.get("signature"))
+    return isinstance(data.get("build"), int) and isinstance(data.get("ipa_url"), str)
+
+
+async def _github_feed(request: Request, platform: str) -> dict | None:
+    """Бета с GitHub: `latest.json` Windows и `ios-update.json` как есть (CI публикует их сам), кэш на 5 минут.
+    GitHub не ответил или ответ не тот — None (дальше пробуем сборки из админки)."""
+    st = request.app.state
+    cache = getattr(st, "beta_cache", None)
+    if cache is None:
+        cache = st.beta_cache = {}
+    hit = cache.get(platform)
+    if hit and time.monotonic() - hit[0] < BETA_CACHE_S:
+        return hit[1]
+    try:
+        data = await st.github.json_file(builds.BETA_FEEDS[platform])
+    except BuildError as err:
+        log.warning("бета %s: GitHub не отдал %s", platform, err.code)
+        return hit[1] if hit else None            # старый ответ лучше, чем «обновлений нет»
+    if not _feed_ok(platform, data):
+        log.warning("бета %s: на GitHub не тот формат", platform)
+        return hit[1] if hit else None
+    cache[platform] = (time.monotonic(), data)
+    return data
 
 
 def _lang(request: Request) -> str:
     return request.query_params.get("lang") or request.headers.get("x-sonar-lang") or ""
 
 
-def _current(request: Request, platform: str, path_channel: str) -> Build:
-    b = builds.current(request.app.state.con, platform, _channel(request, path_channel))
+def _current(request: Request, platform: str, chan: str) -> Build:
+    b = builds.current(request.app.state.con, platform, chan)
     if b is None:
         raise ApiError(404, "not_found", "Сборок в этом канале пока нет")
     return b
@@ -61,7 +121,10 @@ def _iso(ms: int) -> str:
 
 @router.get("/windows/{channel}.json")
 async def windows_update(request: Request, channel: str):
-    b = _current(request, "windows", channel)
+    chan = _channel(request, channel)
+    if chan == "beta" and (feed := await _github_feed(request, "windows")):
+        return JSONResponse(feed, headers=NO_CACHE)
+    b = _current(request, "windows", chan)
     body = {"version": b.version, "notes": b.notes_for(_lang(request)), "pub_date": _iso(b.published_at),
             "platforms": {"windows-x86_64": {"signature": b.signature, "url": file_url(request, b)}}}
     return JSONResponse(body, headers=NO_CACHE)
@@ -69,7 +132,10 @@ async def windows_update(request: Request, channel: str):
 
 @router.get("/ios/{channel}.json")
 async def ios_update(request: Request, channel: str):
-    b = _current(request, "ios", channel)
+    chan = _channel(request, channel)
+    if chan == "beta" and (feed := await _github_feed(request, "ios")):
+        return JSONResponse(feed, headers=NO_CACHE)
+    b = _current(request, "ios", chan)
     site = request.app.state.settings.site_url
     body = {"enabled": True, "build": b.build, "version": b.version, "minimum_build": 0,
             "title": f"Sonar {b.version}", "notes": b.notes_for(_lang(request)), "ipa_url": file_url(request, b),
