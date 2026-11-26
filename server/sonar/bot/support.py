@@ -12,6 +12,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from .. import bans
 from ..accounts import User
 from ..config import Settings
 from ..db import kv_get, kv_set, now_ms
@@ -40,8 +41,11 @@ class Support:
         return self.con.execute("SELECT * FROM tickets WHERE id = ?", (tid,)).fetchone()
 
     def blocked(self, tg_id: int) -> bool:
-        r = self.con.execute("SELECT until FROM support_blocks WHERE tg_id = ?", (tg_id,)).fetchone()
-        return bool(r) and (not r["until"] or r["until"] > now_ms())
+        return self.block_of(tg_id) is not None
+
+    def block_of(self, tg_id: int):
+        """Блок обращений (`bans.report_block_of`): причина и срок, или None."""
+        return bans.report_block_of(self.con, tg_id)
 
     def _staff_kb(self, tid: str) -> InlineKeyboardMarkup:
         b = lambda t, k, a: InlineKeyboardButton(text=t, icon_custom_emoji_id=icon(k), callback_data=f"t:{a}:{tid}")  # noqa: E731

@@ -18,7 +18,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from .. import builds, subs
+from .. import bans, builds, subs
 from ..events import tz
 from . import charts, dashboard, prefs, users
 from .auth import PASSWORD_MIN, AdminAuth, AuthError, Session
@@ -59,14 +59,17 @@ MESSAGES = {
     "site_failed": "Сайт не обновился, остаётся прежний — подробности в журнале сервера",
     "restarting": "Перезапускаюсь: страница не ответит секунд 20–40, потом обнови её",
     "no_restart": "Перезапуск недоступен: сервер запущен не через sync.py, это не бот, или перезапуск уже идёт",
-    "bad_part": "Нечего обновлять с таким названием",
+    "bad_part": "Нечего обновлять с таким названием", "bad_duration": "Срок: 30м, 2ч, 3д, 1н или навсегда",
+    "no_tg": "У пользователя не привязан Telegram — обращения идут только через бота",
+    "report_blocked": "Обращения закрыты", "report_unblocked": "Обращения снова открыты",
 }
 ACTIONS = {"login": "Вход в админку", "password": "Смена пароля", "ban": "Блокировка", "unban": "Разблокировка",
            "set_login": "Смена логина", "grant_sub": "Подписка вручную", "settings": "Настройки",
            "end_device": "Завершена сессия устройства", "logout_all": "Выход на всех устройствах",
            "close_sessions": "Закрыты другие сессии админки", "login_failed": "Неудачный вход в админку",
            "publish_build": "Выпуск сборки", "revoke_build": "Отзыв сборки", "restore_build": "Возврат сборки",
-           "reset_admin_password": "Сброс пароля админки из бота", "update_site": "Обновление сайта", "update_server": "Обновление сервера", "restart_server": "Перезапуск сервера"}
+           "reset_admin_password": "Сброс пароля админки из бота", "ban_expired": "Срок бана вышел",
+           "report_block": "Закрыты обращения", "report_unblock": "Открыты обращения", "update_site": "Обновление сайта", "update_server": "Обновление сервера", "restart_server": "Перезапуск сервера"}
 PERIODS = {"today": 1, "7": 7, "30": 30, "90": 90}
 PAGE_MAX = 1_000_000  # дальше страниц всё равно нет, а огромный OFFSET роняет SQLite
 
@@ -374,8 +377,24 @@ async def user_action(request: Request, user_id: str, action: str):
     con, who = _state(request).con, s.admin.login
     try:
         if action == "ban":
-            users.ban(con, who, user_id, form.get("reason", ""))
+            ok, duration = bans.parse_duration(form.get("duration", "") or "навсегда")
+            if not ok:
+                return _go(path, e="bad_duration")
+            users.ban(con, who, user_id, form.get("reason", ""), bans.until_from(duration))
             msg = "banned"
+        elif action in ("rblock", "runblock"):
+            row = con.execute("SELECT tg_id FROM users WHERE id = ?", (user_id,)).fetchone()
+            if row is None or not row["tg_id"]:
+                return _go(path, e="no_tg")
+            if action == "runblock":
+                bans.report_unblock(con, who, row["tg_id"])
+                msg = "report_unblocked"
+            else:
+                ok, duration = bans.parse_duration(form.get("duration", "") or "навсегда")
+                if not ok:
+                    return _go(path, e="bad_duration")
+                bans.report_block(con, who, row["tg_id"], form.get("reason", ""), bans.until_from(duration))
+                msg = "report_blocked"
         elif action == "unban":
             users.unban(con, who, user_id)
             msg = "unbanned"
@@ -399,6 +418,8 @@ async def user_action(request: Request, user_id: str, action: str):
             return _go(path)
     except users.UserError as err:
         return _go(path, e=err.code)
+    except bans.ModerationError as err:
+        return _go(path, e="no_change" if err.code == "no_change" else err.code)
     return _go(path, m=msg)
 
 

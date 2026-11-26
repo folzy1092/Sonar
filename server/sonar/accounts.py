@@ -17,6 +17,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from cryptography.fernet import Fernet, InvalidToken
 
+from . import bans
 from .db import now_ms, tx
 
 LOGIN_RE = re.compile(r"^[a-z0-9_.]{3,24}$")
@@ -42,9 +43,10 @@ def password_ok(password_hash: str, password: str) -> bool:
 class AccountError(Exception):
     """Понятная пользователю причина: code — ключ текста в боте."""
 
-    def __init__(self, code: str):
+    def __init__(self, code: str, ban=None):
         super().__init__(code)
         self.code = code
+        self.ban = ban      # bans.Ban у кода «banned»
 
 
 @dataclass
@@ -191,13 +193,17 @@ class Accounts:
             raise AccountError("too_many")
         # Попытка считается до проверки: пока argon2 считает в потоке, параллельные попытки тоже упрутся в лимит.
         self.login_limit.hit(*keys)
-        r = self.con.execute("SELECT * FROM users WHERE login = ? AND banned = 0", (login.strip().lstrip("@"),)).fetchone()
+        bans.expire(self.con)
+        r = self.con.execute("SELECT * FROM users WHERE login = ?", (login.strip().lstrip("@"),)).fetchone()
         if r is None:
             # Та же работа argon2, что и с настоящим логином: по времени ответа не понять, есть ли такой аккаунт.
             await asyncio.to_thread(password_ok, _DUMMY_HASH, password)
             raise AccountError("no_user")
         if not await asyncio.to_thread(password_ok, r["password_hash"] or _DUMMY_HASH, password):
             raise AccountError("bad_password")
+        if r["banned"]:
+            # О бане говорим только тому, кто знает пароль: чужому это не раскрывает, что такой аккаунт есть.
+            raise AccountError("banned", bans.Ban(r["ban_reason"], r["ban_until"], r["banned_at"]))
         self.login_limit.reset(*keys)
         return User.of(r)
 

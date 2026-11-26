@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from .. import sessions
+from .. import bans, sessions
 from ..accounts import AccountError, RateLimit
 from ..sessions import DeviceError, DeviceInfo
-from .deps import client_ip, session
+from .deps import banned_error, client_ip, session
 from .errors import ApiError
 
 router = APIRouter(prefix="/auth")
@@ -31,6 +31,8 @@ ERRORS = {
 
 
 def account_error(err: AccountError) -> ApiError:
+    if err.code == "banned" and err.ban is not None:
+        return banned_error(err.ban)
     status, code, message = ERRORS.get(err.code, (400, err.code, err.code))
     return ApiError(status, code, message, {"Retry-After": "900"} if status == 429 else None)
 
@@ -76,6 +78,9 @@ async def register(request: Request):
     if _register_limit.blocked(ip):
         raise ApiError(429, "too_many", "Слишком много регистраций с этого адреса — попробуй через час",
                        {"Retry-After": str(REGISTER_WINDOW_S)})
+    ban = bans.of_device(st.con, dev.id)
+    if ban:
+        raise banned_error(ban)   # с устройства заблокированного новый аккаунт не завести
     try:
         user = await st.accounts.register(login, password)
     except AccountError as err:

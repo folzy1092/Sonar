@@ -29,7 +29,7 @@
         <dt>Telegram</dt><dd>{% if u.tg_id %}{{ '@' ~ u.tg_username if u.tg_username else '' }} <span class="mono muted">{{ u.tg_id }}</span>{% else %}не привязан{% endif %}</dd>
         <dt>Пароль</dt><dd>{{ 'есть' if u.password_hash else 'нет, вход через Telegram' }}</dd>
         <dt>Сервисы</dt><dd>{% if c.linked %}{% for l in c.linked %}{{ SERVICE_NAMES.get(l.service, l.service) }}{% if l.ext_name %} ({{ l.ext_name }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}не подключены{% endif %}</dd>
-        {% if u.banned %}<dt>Бан</dt><dd>{{ u.banned_at | dt }}{% if u.ban_reason %} — {{ u.ban_reason }}{% endif %}</dd>{% endif %}
+        {% if u.banned %}<dt>Бан</dt><dd>{{ u.banned_at | dt }}, {{ ('до ' ~ (u.ban_until | dt)) if u.ban_until else 'навсегда' }}{% if u.ban_reason %} — {{ u.ban_reason }}{% endif %}</dd>{% endif %}
         <dt>Подписка</dt><dd>{% if c.sub %}{{ PLAN_NAMES[c.sub.plan] }} до {{ c.sub.ends_at | dt(False) }}{% else %}нет{% endif %}</dd>
       </dl>
     </div>
@@ -106,16 +106,43 @@
   <div class="panel">
     {% if u.banned %}
     <h2>Блокировка</h2>
-    <p class="note">Заблокирован {{ u.banned_at | dt }}{% if u.ban_reason %}: {{ u.ban_reason }}{% endif %}</p>
+    <p class="note">Заблокирован {{ u.banned_at | dt }}, {{ ('до ' ~ (u.ban_until | dt)) if u.ban_until else 'навсегда' }}{% if u.ban_reason %}: {{ u.ban_reason }}{% endif %}</p>
     <form method="post" action="{{ BASE }}/users/{{ u.id }}/unban"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Разблокировать</button></form>
     {% else %}
     <h2>Заблокировать</h2>
     <form method="post" action="{{ BASE }}/users/{{ u.id }}/ban">
       <input type="hidden" name="csrf" value="{{ csrf }}">
-      <div class="field"><label for="reason">Причина</label><input id="reason" name="reason" type="text" maxlength="200"><span class="hint">Все сессии на устройствах закроются, вход — закрыт</span></div>
+      <div class="field"><label for="duration">Срок</label>
+        <select id="duration" name="duration">
+          <option value="1ч">1 час</option><option value="1д">1 день</option><option value="7д">7 дней</option>
+          <option value="30д">30 дней</option><option value="навсегда" selected>Навсегда</option>
+        </select>
+        <span class="hint">Приложение выйдет из аккаунта и покажет «учётная запись заблокирована» со сроком и причиной; в боте — то же</span></div>
+      <div class="field"><label for="reason">Причина</label><input id="reason" name="reason" type="text" maxlength="200"><span class="hint">Увидит сам пользователь</span></div>
       <button class="btn danger">Заблокировать</button>
     </form>
     {% endif %}
   </div>
+  {% if u.tg_id %}
+  <div class="panel">
+    <h2>Обращения (баги и идеи)</h2>
+    {% if c.report_block %}
+    <p class="note">Закрыты {{ ('до ' ~ (c.report_block.until | dt)) if c.report_block.until else 'навсегда' }}{% if c.report_block.reason %}: {{ c.report_block.reason }}{% endif %}</p>
+    <form method="post" action="{{ BASE }}/users/{{ u.id }}/runblock"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn">Открыть обращения</button></form>
+    {% else %}
+    <form method="post" action="{{ BASE }}/users/{{ u.id }}/rblock">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><label for="rduration">Срок</label>
+        <select id="rduration" name="duration">
+          <option value="1ч">1 час</option><option value="1д">1 день</option><option value="7д">7 дней</option>
+          <option value="30д">30 дней</option><option value="навсегда" selected>Навсегда</option>
+        </select>
+        <span class="hint">Для спама в поддержку: бот перестанет принимать баги и идеи, остальное работает</span></div>
+      <div class="field"><label for="rreason">Причина</label><input id="rreason" name="reason" type="text" maxlength="200"></div>
+      <button class="btn danger">Закрыть обращения</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

@@ -7,7 +7,7 @@ from fastapi import Request
 
 from ..accounts import RateLimit
 from ..admin.web import _ip
-from .. import sessions
+from .. import bans, sessions
 from ..events import Device, session_device
 from .errors import ApiError
 
@@ -49,12 +49,23 @@ def bearer(request: Request) -> str | None:
     return auth[7:].strip() or None
 
 
+def banned_error(ban: bans.Ban) -> ApiError:
+    """403 `account_banned` с причиной и сроком: приложение выходит из аккаунта и показывает «учётная запись заблокирована»."""
+    return ApiError(403, "account_banned", bans.message(ban), extra={"until": ban.until, "reason": ban.reason})
+
+
+def _reject(con, token: str | None) -> ApiError:
+    """Сессии нет: если токен настоящий, но аккаунт заблокирован, — говорим об этом, иначе обычный 401."""
+    ban = bans.of_token(con, sessions._h(token)) if token else None
+    return banned_error(ban) if ban else ApiError(401, "unauthorized", "Нет или неверная сессия")
+
+
 def device(request: Request) -> Device:
-    """Зависимость FastAPI: сессия клиента → пользователь и устройство, иначе 401."""
+    """Зависимость FastAPI: сессия клиента → пользователь и устройство, иначе 401 (заблокирован — 403)."""
     token = bearer(request)
     dev = session_device(request.app.state.con, token) if token else None
     if dev is None:
-        raise ApiError(401, "unauthorized", "Нет или неверная сессия")
+        raise _reject(request.app.state.con, token)
     return dev
 
 
@@ -65,6 +76,6 @@ def session(request: Request) -> sessions.Session:
     con = request.app.state.con
     s = sessions.by_token(con, token) if token else None
     if s is None:
-        raise ApiError(401, "unauthorized", "Нет или неверная сессия")
+        raise _reject(con, token)
     sessions.seen(con, s)
     return s

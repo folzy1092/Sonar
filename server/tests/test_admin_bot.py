@@ -90,13 +90,13 @@ def test_admin_command_is_owner_only_and_silent_for_others(ctx):
     asyncio.run(H.cmd_admin(message(STRANGER), ctx))
     assert ctx.shower.shown == []
     asyncio.run(H.cmd_admin(message(OWNER), ctx))
-    assert buttons(ctx.shower.shown[-1]) == ["https://try-sonar.ru/admin/", "adm:pw", "upd:chk", "status"]
+    assert buttons(ctx.shower.shown[-1]) == ["https://try-sonar.ru/admin/", "mod:list", "adm:help", "adm:pw", "upd:chk", "status"]
 
 
 def test_no_https_address_no_link_button(ctx):
     ctx.settings = Settings(owner_tg_id=OWNER, public_url="", site_url="")
     asyncio.run(H.cmd_admin(message(OWNER), ctx))
-    assert buttons(ctx.shower.shown[-1])[0] == "adm:pw"
+    assert buttons(ctx.shower.shown[-1])[0] == "mod:list"
 
 
 def test_reset_needs_confirmation(ctx, con):

@@ -13,7 +13,9 @@ from aiogram.types import BotCommand
 
 from . import config
 from .accounts import Accounts
+from . import bans
 from .bot.handlers import Ctx, announce_update, router
+from .bot.moderation import router as moderation_router
 from .bot.support import Support
 from .bot.ui import Shower
 from .db import connect
@@ -44,6 +46,17 @@ async def serve_web(con, settings, status, ctx) -> None:
     await server.serve()
 
 
+async def bans_loop(con, every_s: int = 60) -> None:
+    """Временные баны снимаются сами: остальной код смотрит просто на `banned = 0` (bans.py)."""
+    while True:
+        try:
+            for uid in bans.expire(con):
+                log.info("срок бана вышел: %s", uid)
+        except Exception:  # noqa: BLE001
+            log.exception("снятие просроченных банов")
+        await asyncio.sleep(every_s)
+
+
 async def main() -> Updater:
     """Возвращает Updater: если из бота или админки запросили перезапуск, `finish()` делает его после выхода из цикла."""
     settings = config.load()
@@ -60,6 +73,7 @@ async def main() -> Updater:
     dp = Dispatcher(storage=MemoryStorage())
     ctx.updater = Updater(settings.data_dir, dp)
     dp["ctx"] = ctx
+    dp.include_router(moderation_router)   # раньше основного: там есть «поймать всё» для личных сообщений
     dp.include_router(router)
 
     async def on_status_change(change):
@@ -80,6 +94,7 @@ async def main() -> Updater:
     web = asyncio.create_task(serve_web(con, settings, status, ctx))
     checks = asyncio.create_task(status.loop())
     backups = asyncio.create_task(logs.backup_loop(str(settings.db_path)))
+    expiry = asyncio.create_task(bans_loop(con))
     await logs.start_icons()
     await logs.event("▶️", "Бот запущен", lines=[f"@{me.username} · пользователей: {ctx.accounts.users_count()}"])
     await announce_update(ctx)
@@ -88,6 +103,7 @@ async def main() -> Updater:
     finally:
         checks.cancel()
         backups.cancel()
+        expiry.cancel()
         web.cancel()
         await bot.session.close()
     return ctx.updater

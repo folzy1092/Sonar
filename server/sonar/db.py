@@ -261,6 +261,7 @@ def connect(path: Path | str) -> sqlite3.Connection:
 COLUMNS = [
     ("users", "ban_reason", "TEXT"),
     ("users", "banned_at", "INTEGER"),
+    ("users", "ban_until", "INTEGER"),   # NULL при banned = 1 — навсегда (bans.py)
     # метаданные трека для лайков из /dotify и синка (DB.md `tracks`)
     ("tracks", "artists_json", "TEXT"),
     ("tracks", "url", "TEXT"),

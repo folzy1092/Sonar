@@ -8,7 +8,7 @@ import sqlite3
 
 from ..accounts import LOGIN_RE
 from ..db import now_ms, tx
-from .. import subs
+from .. import bans, subs
 
 PAGE = 50
 AUDIT_PAGE = 100
@@ -129,27 +129,24 @@ def card(con: sqlite3.Connection, user_id: str, now: int | None = None) -> dict 
     journal = [dict(r) for r in con.execute(
         "SELECT at, admin, action, detail FROM admin_audit WHERE target = ? ORDER BY at DESC LIMIT 30", (user_id,))]
     return {"user": dict(u), "stats": stats, "services": services, "artists": artists, "devices": devices,
-            "linked": linked, "sub": subs.active(con, user_id, now), "history": [dict(r) for r in subs.history(con, user_id)],
+            "linked": linked, "report_block": bans.report_block_of(con, u["tg_id"]) if u["tg_id"] else None,
+            "sub": subs.active(con, user_id, now), "history": [dict(r) for r in subs.history(con, user_id)],
             "journal": journal}
 
 
-def ban(con: sqlite3.Connection, admin: str, user_id: str, reason: str) -> None:
-    reason = reason.strip()[:200] or None
-    with tx(con):
-        n = con.execute("UPDATE users SET banned = 1, ban_reason = ?, banned_at = ? WHERE id = ? AND banned = 0",
-                        (reason, now_ms(), user_id)).rowcount
-        if not n:
-            raise UserError("no_change")
-        con.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))  # бан выкидывает со всех устройств
-        audit(con, admin, "ban", user_id, reason=reason)
+def ban(con: sqlite3.Connection, admin: str, user_id: str, reason: str, until: int | None = None) -> None:
+    """Блокировка (`bans.ban`): сессии остаются, приложение получит `account_banned` и выйдет само."""
+    try:
+        bans.ban(con, admin, user_id, reason, until)
+    except bans.ModerationError:
+        raise UserError("no_user") from None
 
 
 def unban(con: sqlite3.Connection, admin: str, user_id: str) -> None:
-    with tx(con):
-        if not con.execute("UPDATE users SET banned = 0, ban_reason = NULL, banned_at = NULL WHERE id = ? AND banned = 1",
-                           (user_id,)).rowcount:
-            raise UserError("no_change")
-        audit(con, admin, "unban", user_id)
+    try:
+        bans.unban(con, admin, user_id)
+    except bans.ModerationError:
+        raise UserError("no_change") from None
 
 
 def set_login(con: sqlite3.Connection, admin: str, user_id: str, login: str) -> None:

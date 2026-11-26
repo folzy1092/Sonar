@@ -15,13 +15,16 @@ _HTTP_CODES = {400: "bad_request", 401: "unauthorized", 403: "forbidden", 404: "
 
 
 class ApiError(Exception):
-    def __init__(self, status: int, code: str, message: str, headers: dict[str, str] | None = None):
+    def __init__(self, status: int, code: str, message: str, headers: dict[str, str] | None = None,
+                 extra: dict | None = None):
         super().__init__(code)
-        self.status, self.code, self.message, self.headers = status, code, message, headers
+        self.status, self.code, self.message, self.headers, self.extra = status, code, message, headers, extra
 
 
-def error(status: int, code: str, message: str, headers: dict[str, str] | None = None) -> JSONResponse:
-    return JSONResponse({"error": {"code": code, "message": message}}, status_code=status, headers=headers)
+def error(status: int, code: str, message: str, headers: dict[str, str] | None = None,
+          extra: dict | None = None) -> JSONResponse:
+    """`extra` — дополнительные поля внутри `error` (у `account_banned` — `until` и `reason`)."""
+    return JSONResponse({"error": {"code": code, "message": message, **(extra or {})}}, status_code=status, headers=headers)
 
 
 def is_api(path: str) -> bool:
@@ -31,7 +34,7 @@ def is_api(path: str) -> bool:
 def install(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def on_api_error(_request: Request, exc: ApiError):
-        return error(exc.status, exc.code, exc.message, exc.headers)
+        return error(exc.status, exc.code, exc.message, exc.headers, exc.extra)
 
     @app.exception_handler(StarletteHTTPException)
     async def on_http(request: Request, exc: StarletteHTTPException):

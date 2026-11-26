@@ -218,7 +218,7 @@ def test_dashboard_users_card_and_actions(client, con):
     assert con.execute("SELECT login, username FROM users WHERE id = ?", (uid,)).fetchone()[:] == ("mira2", "mira")
     assert "m=banned" in client.post(f"/admin/users/{uid}/ban", data={"csrf": token, "reason": "спам"},
                                      follow_redirects=False).headers["location"]
-    assert con.execute("SELECT COUNT(*) FROM sessions WHERE user_id = ?", (uid,)).fetchone()[0] == 0
+    assert con.execute("SELECT COUNT(*) FROM sessions WHERE user_id = ?", (uid,)).fetchone()[0] == 1  # остаётся: клиент получит 403
     assert events.session_device(con, "tok") is None
     assert "Блокировка" in client.get("/admin/audit").text
     assert client.get("/admin/users/u_nope").status_code == 404

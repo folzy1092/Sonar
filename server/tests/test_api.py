@@ -69,7 +69,8 @@ def test_bearer_dependency(client, con):
     assert client.get("/api/_me_test").status_code == 401
     assert client.get("/api/_me_test", headers={"Authorization": "Bearer "}).status_code == 401
     assert client.get("/api/_me_test", headers={"Authorization": "Basic tok"}).status_code == 401
-    assert client.get("/api/_me_test", headers={"Authorization": "Bearer bad"}).status_code == 401  # бан
+    banned = client.get("/api/_me_test", headers={"Authorization": "Bearer bad"})   # бан — не «сессия кончилась»
+    assert banned.status_code == 403 and banned.json()["error"]["code"] == "account_banned"
     r = client.get("/api/_me_test", headers={"Authorization": "Bearer tok"})
     assert r.json() == {"user_id": uid, "device_id": "dev-1"}
     assert con.execute("SELECT last_seen_at FROM sessions WHERE id = 's_tok'").fetchone()[0] > 1

@@ -52,6 +52,7 @@ CREATE TABLE users (
   banned        INTEGER NOT NULL DEFAULT 0,
   ban_reason    TEXT,                           -- причина бана из админки (миграция в server/sonar/db.py COLUMNS)
   banned_at     INTEGER,
+  ban_until     INTEGER,                        -- при banned = 1: до какого момента (мс); NULL — навсегда (sonar/bans.py)
   created_at    INTEGER NOT NULL
 );
 

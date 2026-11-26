@@ -684,7 +684,8 @@ def update_done(r: dict) -> Screen:
 
 def admin_menu(admin_url: str = "") -> Screen:
     kb = [[Btn("Открыть админку", "web", url=admin_url)]] if admin_url else []
-    kb += [[Btn("Сбросить пароль админки", "key", "adm:pw")],
+    kb += [[Btn("Заблокированные", "cancel", "mod:list"), Btn("Как банить", "info", "adm:help")],
+           [Btn("Сбросить пароль админки", "key", "adm:pw")],
            [Btn("Обновление сервера", "refresh", "upd:chk"), Btn("Статус", "status_ok", "status")]]
     return Screen(html=f"{e('warning')} <b>Админ</b>\n"
                        + quote("Команды только для владельца. Обновление и перезапуск сервера — по частям, "
@@ -704,3 +705,28 @@ def admin_reset_done(login: str, password: str, url: str, minutes: int) -> Scree
                        + quote(f"Логин: <code>{h(login)}</code>\nПароль: <code>{h(password)}</code>{link}\n"
                                f"Сообщение удалится через {minutes} мин — сохрани пароль сейчас. "
                                "После входа придумай свой."))
+
+
+# ---- блокировки (sonar/bans.py, sonar/bot/moderation.py) ----
+
+def _when(until: int | None) -> str:
+    from .. import bans
+    from ..events import tz
+    return bans.describe(until, tz())
+
+
+def banned(b) -> Screen:
+    """Заблокированному на любое сообщение или кнопку: срок и причина."""
+    lines = [f"Срок: <b>{h(_when(b.until))}</b>"]
+    if b.reason:
+        lines.append(f"Причина: {h(b.reason)}")
+    lines.append("Если это ошибка — напиши владельцу Sonar.")
+    return Screen(html=f"{e('cancel')} <b>Учётная запись заблокирована</b>\n" + quote("\n".join(lines)))
+
+
+def report_blocked(b) -> Screen:
+    lines = [f"Срок: <b>{h(_when(b.until))}</b>"]
+    if b.reason:
+        lines.append(f"Причина: {h(b.reason)}")
+    return Screen(html=f"{e('warning')} <b>Обращения отключены</b>\n"
+                       + quote("Отправка багов и идей для тебя закрыта.\n" + "\n".join(lines)))

@@ -293,6 +293,9 @@ async def admin_button(q: CallbackQuery, ctx: Ctx) -> None:
     edit = lambda s: ctx.shower.edit(q.message, s)  # noqa: E731
     if action == "menu":
         return await edit(S.admin_menu(_admin_url(ctx)))
+    if action == "help":
+        from .moderation import HELP
+        return await edit(Screen(html=HELP, kb=[[Btn("Назад", "back", "adm:menu")]]))
     if action == "pw":
         return await edit(S.admin_reset_confirm(FACTORY_LOGIN))
     if action != "pw_yes":
@@ -476,8 +479,9 @@ async def report_button(q: CallbackQuery, rest: str, state: FSMContext, ctx: Ctx
     edit = lambda s: ctx.shower.edit(q.message, s)  # noqa: E731
     if not ctx.support.staff_chat:
         return await q.message.answer("Поддержка пока не подключена.")
-    if ctx.support.blocked(q.from_user.id):
-        return await say(ctx, q.message.chat.id, f"{e('warning')} Доступ к обращениям ограничен.")
+    block = ctx.support.block_of(q.from_user.id)
+    if block:
+        return await ctx.shower.send(q.message.chat.id, S.report_blocked(block))
     t = ctx.support.open_ticket(q.from_user.id)
     if t:
         return await say(ctx, q.message.chat.id, f"{e('info')} У тебя уже открыто обращение <code>#{t['id']}</code> — пиши сюда, всё уйдёт в поддержку.")
@@ -1039,6 +1043,9 @@ async def ack(ctx: Ctx, msg: Message) -> None:
 async def report_first(msg: Message, state: FSMContext, ctx: Ctx):
     data = await state.get_data()
     await state.clear()
+    block = ctx.support.block_of(msg.from_user.id)
+    if block:      # заблокировали, пока человек писал
+        return await ctx.shower.send(msg.chat.id, S.report_blocked(block))
     user = ctx.accounts.by_tg(msg.from_user.id)
     tid = await ctx.support.create(user, msg, data.get("kind", "bug"), data.get("platform", "windows"))
     kind = data.get("kind", "bug")
@@ -1121,6 +1128,9 @@ async def any_message(msg: Message, ctx: Ctx):
         return await say(ctx, msg.chat.id, f"{e('sent')} Ушло пользователю", reply_to=msg.message_id)
     t = ctx.support.open_ticket(msg.from_user.id)
     if t:
+        block = ctx.support.block_of(msg.from_user.id)
+        if block:   # спам в открытое обращение: дальше не пересылаем
+            return await ctx.shower.send(msg.chat.id, S.report_blocked(block))
         await ctx.support.forward(t, msg)
         return await ack(ctx, msg)
     if msg.text and looks_like_token(msg.text):
