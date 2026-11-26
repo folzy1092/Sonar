@@ -451,19 +451,38 @@ SC_HELP = ("1. Открой soundcloud.com и войди.\n2. OAuth-токен: 
 YM_OAUTH = "https://oauth.yandex.ru/authorize?response_type=token&client_id=23cabbbdc6cd418abb4b39c32c41195d"
 
 
+YT_HELP = ("1. В приложении: Сервисы → YouTube Music → «Войти через YouTube Music» — откроется окно входа в Google.\n"
+           "2. Поиск и треки работают и без входа, вход нужен для лайков и плейлистов аккаунта.\n"
+           "3. Окно не пустило? Cookie вручную: music.youtube.com → F12 → Сеть → любой запрос к youtubei → заголовок Cookie → "
+           "вставь в приложении («Заменить cookie»).")
+SP_HELP = ("1. На компьютере: Сервисы → Spotify → «Войти через Spotify» — окно входа откроется внутри Sonar.\n"
+           "2. Вошёл на ПК — на iPhone Spotify подключится сам после входа в тот же аккаунт Sonar.\n"
+           "3. Нужно вручную? open.spotify.com → F12 → Приложение → Файлы cookie → значение <code>sp_dc</code> → вставь в приложении.\n"
+           "Spotify даёт медиатеку и ссылки; играет резервный сервис (Яндекс, SoundCloud, YouTube Music).")
+
+
 def services(tab: str | None = None) -> Screen:
-    tabs = [Btn("Яндекс Музыка", "logo_yandex_music", "services:ym"), Btn("SoundCloud", "logo_soundcloud", "services:sc")]
+    tabs = [[Btn("Яндекс Музыка", "logo_yandex_music", "services:ym"), Btn("SoundCloud", "logo_soundcloud", "services:sc")],
+            [Btn("YouTube Music", "logo_youtube", "services:yt"), Btn("Spotify", "logo_spotify", "services:sp")]]
     tail = "\n" + quote(f"{e('info')} Токены вставляй в приложении, не сюда — бот такие сообщения удаляет.")
     if tab == "ym":
         return Screen(banner="main", html=f"{e('logo_yandex_music')} <b>Яндекс Музыка</b>\n" + quote(YM_HELP)
                       + quote(f"{e('warning')} Никому не отправляй токен. В приложении есть вход в один клик — он делает то же самое сам.") + tail,
-                      kb=[[Btn("Открыть ссылку Яндекса", "integration", url=YM_OAUTH)], tabs, [back("services")]])
+                      kb=[[Btn("Открыть ссылку Яндекса", "integration", url=YM_OAUTH)], *tabs, [back("services")]])
     if tab == "sc":
         return Screen(banner="main", html=f"{e('logo_soundcloud')} <b>SoundCloud</b> (с компьютера)\n" + quote(SC_HELP)
                       + quote(f"{e('warning')} Никому не отправляй oauth_token — это доступ к твоему аккаунту.") + tail,
-                      kb=[tabs, [back("services")]])
+                      kb=[*tabs, [back("services")]])
+    if tab == "yt":
+        return Screen(banner="main", html=f"{e('logo_youtube')} <b>YouTube Music</b>\n" + quote(YT_HELP)
+                      + quote(f"{e('warning')} Никому не отправляй cookie — это доступ к твоему аккаунту Google.") + tail,
+                      kb=[[Btn("Открыть YouTube Music", "web", url="https://music.youtube.com")], *tabs, [back("services")]])
+    if tab == "sp":
+        return Screen(banner="main", html=f"{e('logo_spotify')} <b>Spotify</b>\n" + quote(SP_HELP)
+                      + quote(f"{e('warning')} Никому не отправляй sp_dc — это доступ к твоему аккаунту Spotify.") + tail,
+                      kb=[[Btn("Открыть Spotify", "web", url="https://open.spotify.com")], *tabs, [back("services")]])
     return Screen(banner="main", html=f"{e('services')} <b>Сервисы</b>\n\nКак подключить музыку к Sonar. Выбери сервис:" + tail,
-                  kb=[tabs, [back("main")]])
+                  kb=[*tabs, [back("main")]])
 
 
 # ---- баг / идея ----

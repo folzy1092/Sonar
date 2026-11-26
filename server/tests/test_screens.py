@@ -24,7 +24,7 @@ def all_screens():
         S.profile(USER, {"soundcloud": True, "yandex": False, "lastfm": False}, (412, 96), SET),
         S.integration(None, SET), S.integration("snr_abc", SET), S.ask("?", "a", "b"), S.referral(USER, 2, "SonarMusicApp"),
         S.versions(SET), S.logout_ask(), S.stats("week", st), S.stats("day", empty), S.services(), S.services("ym"),
-        S.services("sc"), S.report_kind(), S.report_platform("bug"), S.report_platform("idea"), S.report_prompt("bug"),
+        S.services("sc"), S.services("yt"), S.services("sp"), S.report_kind(), S.report_platform("bug"), S.report_platform("idea"), S.report_prompt("bug"),
         S.ticket_opened("053d4a74"), S.status(items, 3, 12, 99.98, owner=True), S.status(items, 3, 12, None, owner=False),
         S.status(bad, 0, 1, 50.0, owner=True),
     ]
@@ -124,3 +124,14 @@ def test_pack_placeholder():
 def test_status_zero_ms_is_valid_html():
     html = S.status({"main": Item("main", OK, 0)}, 0, 0, None, owner=False).html
     assert "&lt; 1 мс" in html and "< 1" not in html
+
+
+def test_services_menu_offers_all_four_services():
+    callbacks = [b.cb for row in S.services().kb for b in row]
+    assert {"services:ym", "services:sc", "services:yt", "services:sp"} <= set(callbacks)
+    for tab, word in (("yt", "YouTube Music"), ("sp", "Spotify")):
+        screen = S.services(tab)
+        assert word in screen.html
+        assert {"services:ym", "services:sc", "services:yt", "services:sp"} <= {b.cb for row in screen.kb for b in row}
+        assert any(b.url for row in screen.kb for b in row)       # кнопка «Открыть …»
+    assert "cookie" in S.services("yt").html.lower() and "sp_dc" in S.services("sp").html
