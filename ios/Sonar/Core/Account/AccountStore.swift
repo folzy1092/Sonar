@@ -181,7 +181,7 @@ final class AccountStore {
     }
 
     /// Один опрос по ненадёжной сети: сбой сети (`network`) — `nil`, «повтори позже»; всё остальное (отказ сервера, 401, бан) — ошибка.
-    private func lenient<T>(_ work: () async throws -> T) async throws -> T? {
+    private func lenient<T: Sendable>(_ work: () async throws -> T) async throws -> T? {
         do {
             return try await work()
         } catch let error as APIError where error.code == "network" {
