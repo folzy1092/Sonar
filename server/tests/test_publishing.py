@@ -131,3 +131,27 @@ def test_callbacks_fit_telegram_limit():
     rows = [{"tag": "windows-v0.3.12345", "platform": "windows", "version": "x", "state": "new"},
             {"tag": "ios-build-123456789", "platform": "ios", "version": "y", "state": "new"}]
     assert all(len((b.cb or "").encode()) <= 64 for row in S.builds_list(rows).kb for b in row)
+
+
+def test_revoke_and_restore_a_published_build(ctx, con):
+    press(ctx, "bld:pub:ios-build-776")
+    press(ctx, "bld:list")
+    assert "bld:rev:ios-build-776" in buttons(ctx.shower.shown[-1])
+    press(ctx, "bld:rev:ios-build-776")
+    assert builds.current(con, "ios", "release") is None                 # клиенты сборку больше не видят
+    assert "bld:res:ios-build-776" in buttons(ctx.shower.shown[-1])
+    press(ctx, "bld:res:ios-build-776")
+    assert builds.current(con, "ios", "release").tag == "ios-build-776"
+    actions = [r["action"] for r in con.execute("SELECT action FROM admin_audit ORDER BY id")]
+    assert actions[-2:] == ["revoke_build", "restore_build"]
+
+
+def test_revoke_unknown_build_is_explained(ctx):
+    press(ctx, "bld:rev:windows-v0.9.9")
+    assert "нет в релизе" in ctx.shower.shown[-1].html
+
+
+def test_only_the_owner_can_revoke(ctx, con):
+    press(ctx, "bld:pub:ios-build-776")
+    q = press(ctx, "bld:rev:ios-build-776", uid=123)
+    assert builds.current(con, "ios", "release") is not None and q.answers == ["Только для владельца"]

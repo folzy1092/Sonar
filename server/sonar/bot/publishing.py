@@ -2,7 +2,7 @@
 
 То же, что «Сборки» в админке (`builds.publish`): сервер скачивает файлы к себе, клиенты обновляются с сайта, а кнопки
 «Скачать» отдают файл с try-sonar.ru. Описание берётся из заметок сборки (русское и английское — один текст; тонкая правка —
-в админке). Только канал «релиз»: бета идёт с GitHub напрямую и только владельцу (`api/updates.py`).
+в админке). Кнопка «Убрать с сайта» отзывает релиз (`builds.set_revoked`: клиенты не видят, файл остаётся). Только канал «релиз»: бета идёт с GitHub напрямую и только владельцу (`api/updates.py`).
 Роутер подключается раньше основного, как у `moderation.py`.
 """
 from __future__ import annotations
@@ -57,6 +57,18 @@ async def bld_button(q: CallbackQuery, ctx):
         return await edit(S.build_failed("Выпуск недоступен: нет связи с GitHub у этого сервера."))
     act, _, arg = (q.data or "")[4:].partition(":")
     if act == "list":
+        try:
+            return await edit(S.builds_list(await _rows(ctx)))
+        except builds.BuildError as err:
+            return await edit(S.builds_list([], MESSAGES.get(err.code, err.code)))
+    if act in ("rev", "res") and builds.TAG_RE.match(arg):
+        found = builds.pinned(ctx.accounts.con, builds.platform_of(arg), "release", arg, any_state=True)
+        if found is None:
+            return await edit(S.build_failed("Такой сборки нет в релизе на сайте."))
+        who = f"telegram:{q.from_user.id}"
+        builds.set_revoked(ctx.accounts.con, found.id, act == "rev")
+        admin_users.audit(ctx.accounts.con, who, "revoke_build" if act == "rev" else "restore_build", found.tag,
+                          channel=found.channel, via="bot")
         try:
             return await edit(S.builds_list(await _rows(ctx)))
         except builds.BuildError as err:

@@ -272,12 +272,21 @@ def builds_list(rows: list[dict], error: str | None = None) -> Screen:
     body = "\n".join(lines) or "Сборок CI на GitHub не нашлось."
     if error:
         body = f"{e('warning')} {h(error)}\n" + body
-    kb = [[Btn(f"Выпустить {r['tag']}", "download", f"bld:pub:{r['tag']}")] for r in rows if r["state"] != "release"]
+    kb = []
+    for r in rows:
+        tag = r["tag"]
+        if r["state"] == "new":
+            kb.append([Btn(f"Выпустить {tag}", "download", f"bld:pub:{tag}")])
+        elif r["state"] == "revoked":
+            kb.append([Btn(f"Вернуть {tag}", "refresh", f"bld:res:{tag}")])
+        else:
+            kb.append([Btn(f"Убрать с сайта {tag}", "cancel", f"bld:rev:{tag}")])
     kb += [[Btn("Обновить список", "refresh", "bld:list")], [Btn("Назад", "back", "adm:menu")]]
     return Screen(html=f"{e('versions')} <b>Выпуск сборок</b>\n"
                        + quote(body, "Последние сборки CI") +
                   quote("«Выпустить» скачивает сборку с GitHub на сервер и делает её релизом: приложения обновятся с сайта, "
-                        "кнопки «Скачать» отдадут файл с try-sonar.ru. Описание берётся из заметок сборки."), kb=kb)
+                        "кнопки «Скачать» отдадут файл с try-sonar.ru. Описание берётся из заметок сборки. "
+                        "«Убрать с сайта» отзывает сборку: приложения её больше не видят, файл остаётся на сервере, вернуть можно."), kb=kb)
 
 
 def build_publishing(tag: str) -> Screen:
