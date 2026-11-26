@@ -318,6 +318,8 @@ struct LinkLoginView: View {
         do {
             let fresh = try await account.createLoginLink()
             link = fresh
+            // Как на ПК: бот открывается сам, не ждём тапа — там остаётся нажать «Разрешить»; кнопка ниже — на случай, если не открылся
+            if let url = fresh.telegramURL { openURL(url) }
             outcome = try await account.waitForLink(fresh)
             if outcome == .approved { Haptics.tap() }
         } catch is CancellationError {
