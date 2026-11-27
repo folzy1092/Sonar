@@ -1,5 +1,6 @@
 ---
-// Подвал (SITE.md §2): канал, бот, «Баг или идея», вопросы, юр-страницы, лицензии, скачивание.
+// Подвал (SITE.md §2): скачивание, «Условия использования» (все юр-страницы, cookie и возврат — якорями),
+// «Полезное» (вопросы, новости, бот, баг или идея, статус, лицензии).
 import { LINKS } from '../config'
 import { href, useT, type Lang } from '../i18n'
 import Icon from './Icon.astro'
@@ -18,26 +19,28 @@ const COLUMNS = [
     links: [
       { label: 'Windows', url: LINKS.windowsExe, icon: 'mc:windows-fill' },
       { label: 'iPhone', url: href(lang, '/download#ios'), icon: 'mc:apple-fill' },
-          ],
-  },
-  {
-    title: t('Связь'),
-    links: [
-      { label: t('Канал'), url: LINKS.channel, icon: 'mc:telegram-fill', external: true },
-      { label: t('Бот'), url: LINKS.bot, icon: 'mc:telegram-fill', external: true },
-      { label: t('Баг или идея'), url: LINKS.botReport, icon: 'mc:bug-line', external: true },
-      { label: t('Вопросы'), url: href(lang, '/faq'), icon: 'mc:question-line' },
-      { label: t('Статус'), url: href(lang, '/status'), icon: 'mc:wave-line' },
     ],
   },
   {
-    title: t('Документы'),
+    title: t('Условия использования'),
     links: [
-      { label: t('Условия'), url: href(lang, '/terms') },
-      { label: t('Конфиденциальность'), url: href(lang, '/privacy') },
+      { label: t('Пользовательское соглашение'), url: href(lang, '/terms') },
+      { label: t('Политика конфиденциальности'), url: href(lang, '/privacy') },
+      { label: t('Политика cookie'), url: href(lang, '/privacy#cookies') },
       { label: t('Условия подписки'), url: href(lang, '/subscription') },
+      { label: t('Политика возврата средств'), url: href(lang, '/subscription#refund') },
       { label: t('Удаление данных'), url: href(lang, '/delete') },
-      { label: t('Лицензии'), url: href(lang, '/licenses') },
+    ],
+  },
+  {
+    title: t('Полезное'),
+    links: [
+      { label: t('Вопросы'), url: href(lang, '/faq'), icon: 'mc:question-line' },
+      { label: t('Новости'), url: LINKS.channel, icon: 'mc:news-line', external: true },
+      { label: t('Бот'), url: LINKS.bot, icon: 'mc:telegram-fill', external: true },
+      { label: t('Баг или идея'), url: LINKS.botReport, icon: 'mc:bug-line', external: true },
+      { label: t('Статус'), url: href(lang, '/status'), icon: 'mc:wave-line' },
+      { label: t('Лицензии'), url: href(lang, '/licenses'), icon: 'mc:certificate-line' },
     ],
   },
 ]

@@ -100,13 +100,14 @@ export interface CustomStyle {
 
 export const CUSTOM_STYLE_PREFIX = 'custom:'
 
-/** Особые настройки шрифта заголовков у стилей: ширина (ось wdth) и жирность. */
+/** Особые настройки шрифта заголовков у стилей: ширина (ось wdth) и жирность. Трекинг не туже
+ *  ~-0.035em: на 44 px и плотнее у Inter Tight 900 «Л» налезает на «ю» (Любимые). */
 export const DISPLAY_TUNING: Record<string, { wdth?: number; weight?: number; tracking?: string }> = {
   'Manrope Variable': { weight: 800, tracking: '-0.02em' },
   'Science Gothic Variable': { wdth: 165, weight: 800 },
   'IBM Plex Sans Variable': { wdth: 78, weight: 700 },
-  'Inter Tight Variable': { weight: 900, tracking: '-0.05em' },
-  'Geist Variable': { weight: 800, tracking: '-0.045em' },
+  'Inter Tight Variable': { weight: 900, tracking: '-0.025em' },
+  'Geist Variable': { weight: 800, tracking: '-0.035em' },
   'Unbounded Variable': { weight: 700, tracking: '-0.01em' },
   'Sofia Sans Extra Condensed Variable': { weight: 900 },
 }

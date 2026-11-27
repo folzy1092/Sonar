@@ -155,7 +155,7 @@ pub fn dismiss() {
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum Sent {
   Telegram,
-  /// Бот отчётов не вшит в эту сборку — лог сохранён, путь показан в Проводнике.
+  /// Бот отчётов не вшит в эту сборку или Telegram недоступен — лог сохранён, путь показан в Проводнике.
   Saved { path: String },
 }
 
@@ -212,6 +212,14 @@ struct Rejected {
   description: Option<String>,
 }
 
+impl std::fmt::Display for Rejected {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_str(&self.message())
+  }
+}
+
+impl std::error::Error for Rejected {}
+
 impl Rejected {
   /// Тема удалена, закрыта или id темы не тот — можно отправить в общий чат.
   fn thread_problem(&self) -> bool {
@@ -248,7 +256,13 @@ async fn send_document(
   if let Some(thread) = thread {
     form = form.text("message_thread_id", thread.to_owned());
   }
-  let r = http.post(format!("https://api.telegram.org/bot{}/sendDocument", bot.token)).multipart(form).send().await?;
+  // без URL в ошибке: в нём токен бота, а текст ошибки попадает на плашку и в журнал
+  let r = http
+    .post(format!("https://api.telegram.org/bot{}/sendDocument", bot.token))
+    .multipart(form)
+    .send()
+    .await
+    .map_err(reqwest::Error::without_url)?;
   let status = r.status();
   if status.is_success() {
     return Ok(Ok(()));
@@ -258,7 +272,7 @@ async fn send_document(
   Ok(Err(Rejected { status: status.as_u16(), description }))
 }
 
-/// Отправить отчёт: в Telegram ботом отчётов, а в сборке без него — сохранить в «Загрузки».
+/// Отправить отчёт: в Telegram ботом отчётов, а в сборке без него или без связи с Telegram — сохранить в «Загрузки».
 pub async fn send(http: &reqwest::Client, device: &str, ctx: &Context) -> Result<Sent> {
   let report = path("report.log").ok_or_else(|| anyhow!("журнал не запущен"))?;
   let body = std::fs::read(&report).map_err(|_| anyhow!("Отчёт уже отправлен или удалён"))?;
@@ -266,25 +280,40 @@ pub async fn send(http: &reqwest::Client, device: &str, ctx: &Context) -> Result
   let caption = caption(&p, device, ctx);
   let name = format!("sonar-{}-{}.log", env!("CARGO_PKG_VERSION"), crate::store::now_ms());
   match report_bot() {
-    Some(bot) => {
-      let mut sent = send_document(http, &bot, bot.thread, &caption, &name, &body).await?;
-      // тема сломалась — лучше отчёт в общем чате, чем никакого
-      if matches!(&sent, Err(e) if bot.thread.is_some() && e.thread_problem()) {
-        sent = send_document(http, &bot, None, &caption, &name, &body).await?;
+    Some(bot) => match send_telegram(http, &bot, &caption, &name, &body).await {
+      Ok(()) => {
+        dismiss();
+        Ok(Sent::Telegram)
       }
-      sent.map_err(|e| anyhow!(e.message()))?;
-      dismiss();
-      Ok(Sent::Telegram)
-    }
-    None => {
-      let dir = std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join("Downloads")).filter(|d| d.is_dir());
-      let dir = dir.or_else(|| DIR.get().cloned()).ok_or_else(|| anyhow!("некуда сохранить"))?;
-      let out = dir.join(name);
-      std::fs::write(&out, [caption.as_bytes(), b"\n\n", &body].concat())?;
-      dismiss();
-      Ok(Sent::Saved { path: out.to_string_lossy().into_owned() })
-    }
+      // Telegram ответил отказом — показать причину, «Ещё раз» может помочь
+      Err(e) if e.downcast_ref::<Rejected>().is_some() => Err(e),
+      // до Telegram не достучаться (сеть, провайдер или антивирус режет api.telegram.org, TLS) — сохранить файл
+      Err(e) => {
+        write("WARN", &format!("отчёт: Telegram недоступен, сохраняю файл — {e:#}"));
+        save_report(&caption, &name, &body)
+      }
+    },
+    None => save_report(&caption, &name, &body),
   }
+}
+
+async fn send_telegram(http: &reqwest::Client, bot: &ReportBot, caption: &str, name: &str, body: &[u8]) -> Result<()> {
+  let mut sent = send_document(http, bot, bot.thread, caption, name, body).await?;
+  // тема сломалась — лучше отчёт в общем чате, чем никакого
+  if matches!(&sent, Err(e) if bot.thread.is_some() && e.thread_problem()) {
+    sent = send_document(http, bot, None, caption, name, body).await?;
+  }
+  sent.map_err(anyhow::Error::new)
+}
+
+/// Лог — в «Загрузки» (или в папку журнала): его останется переслать вручную.
+fn save_report(caption: &str, name: &str, body: &[u8]) -> Result<Sent> {
+  let dir = std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join("Downloads")).filter(|d| d.is_dir());
+  let dir = dir.or_else(|| DIR.get().cloned()).ok_or_else(|| anyhow!("некуда сохранить"))?;
+  let out = dir.join(name);
+  std::fs::write(&out, [caption.as_bytes(), b"\n\n", body].concat())?;
+  dismiss();
+  Ok(Sent::Saved { path: out.to_string_lossy().into_owned() })
 }
 
 #[cfg(test)]
@@ -320,6 +349,15 @@ mod tests {
     assert_eq!(summarize(log).errors, 0);
     assert!(is_benign("ResizeObserver loop completed with undelivered notifications."));
     assert!(!is_benign("TypeError: x is undefined"));
+  }
+
+  #[test]
+  fn telegram_rejection_is_told_apart_from_network_failure() {
+    // отказ Telegram показываем, а сетевую ошибку — нет: тогда отчёт уходит файлом в «Загрузки»
+    let rejected = anyhow::Error::new(Rejected { status: 400, description: Some("Bad Request: chat not found".into()) });
+    assert!(rejected.downcast_ref::<Rejected>().is_some());
+    assert_eq!(rejected.to_string(), "Telegram не принял отчёт: Bad Request: chat not found (400)");
+    assert!(anyhow!("error sending request").downcast_ref::<Rejected>().is_none());
   }
 
   #[test]
