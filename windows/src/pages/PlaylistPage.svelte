@@ -1,8 +1,7 @@
 <script lang="ts">
   import ScrollStick from '../components/ScrollStick.svelte'
   import { cascade } from '../lib/cascade'
-  import { growLimit, LIST_WINDOW } from '../lib/list-window'
-  import { nearEnd } from '../lib/near-end'
+  import { VirtualRows } from '../lib/virtual-rows.svelte'
   // Плейлист / Любимые (pc/Screenshot_28). Параметр роутера:
   //   favorites — свои лайки; pl_… — плейлист Sonar (правка, скрыть, удалить, порядок перетаскиванием);
   //   scpl:… / ympl:… — плейлист сервиса «фантомом», с кнопкой «Перенести в Sonar»;
@@ -82,14 +81,11 @@
     else if (sort.id === 'duration') list.sort((a, b) => a.duration_ms - b.duration_ms)
     return list
   })
-  // окно списка: «Любимые» на тысячи треков не рисуются целиком; новый фильтр или порядок — окно снова маленькое
-  let limit = $state(LIST_WINDOW)
-  $effect.pre(() => {
-    void filter
-    void sortIdx
-    limit = LIST_WINDOW
-  })
-  const shown = $derived(visible.length > limit ? visible.slice(0, limit) : visible)
+  // окно списка: «Любимые» на тысячи треков не рисуются целиком — только строки у экрана (lib/virtual-rows)
+  const rows = new VirtualRows(58)
+  const winStart = $derived(rows.range(visible.length).start)
+  const winEnd = $derived(rows.range(visible.length).end)
+  const shown = $derived(visible.slice(winStart, winEnd))
   const total = $derived(avail.reduce((s, t) => s + t.duration_ms, 0))
   const countMeta = $derived(offline.on ? offline.countText(avail.length, items.length) : tracksText(items.length))
   const context = kind === 'favorites' ? 'favorites' : kind === 'local' ? 'local' : kind === 'offline' ? 'offline' : `playlist:${id}`
@@ -415,9 +411,17 @@
   {:else if !visible.length}
     <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('В «{title}» нет «{query}».', { title: heading, query: filter.trim() })} />
   {:else}
-    <div class="list" use:cascade>
-      {#each shown as t, i (t.item_id ?? t.ref + i)}
+    <div
+      class="list"
+      use:cascade
+      use:rows.track
+      style:padding-top="{winStart * rows.rowH}px"
+      style:padding-bottom="{(visible.length - winEnd) * rows.rowH}px"
+    >
+      {#each shown as t, j (t.item_id ?? t.ref + (winStart + j))}
+        {@const i = winStart + j}
         <div
+          data-row
           class="drag"
           class:over={dragOver === i && dragFrom !== i}
           draggable={canReorder && !selecting}
@@ -447,9 +451,6 @@
           />
         </div>
       {/each}
-      {#if shown.length < visible.length}
-        <div class="more" use:nearEnd={{ key: limit, onreach: () => (limit = growLimit(limit, visible.length)) }}></div>
-      {/if}
     </div>
   {/if}
 </div>
@@ -516,10 +517,6 @@
     /* строки вне экрана не раскладываются и не рисуются */
     content-visibility: auto;
     contain-intrinsic-size: auto 56px;
-  }
-  /* сторож окна списка — невидимая строка в самом низу */
-  .more {
-    height: 1px;
   }
   .collab {
     padding: 1px 8px;

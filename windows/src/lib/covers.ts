@@ -66,3 +66,39 @@ export function collage(tracks: readonly CoverSource[]): string[] {
   const covers = distinctCovers(tracks)
   return covers.length >= COLLAGE_SIZE ? covers : covers.slice(0, 1)
 }
+
+/**
+ * Обложка в размере под место на экране (память WebView2, 2026-11-27): сервисы отдают 400–640 px, а в строке
+ * списка картинка 44 px — каждая декодированная 500×500 весит ~1 МБ, тысяча строк Любимых — гигабайт.
+ * Берём ближайший размер сервиса не меньше `cssPx × dpr`; только уменьшаем, неизвестный адрес — как есть.
+ * Ключ коллажей (`coverKey`) от размера не зависит — повторы ловятся по-прежнему.
+ */
+export function thumbUrl(url: string, cssPx: number, dpr = 1): string {
+  const need = Math.ceil(cssPx * Math.max(1, dpr))
+  // SoundCloud: -large (100) · -t300x300 · -t500x500 / -crop / -original
+  if (/\.sndcdn\.com\//i.test(url)) {
+    const m = /-(t500x500|t300x300|crop|original)(\.\w+)(\?.*)?$/i.exec(url)
+    if (!m) return url
+    const to = need <= 100 ? 'large' : need <= 300 ? 't300x300' : null
+    if (!to || to === m[1]) return url
+    return url.slice(0, m.index) + `-${to}${m[2]}${m[3] ?? ''}`
+  }
+  // Яндекс: …/400x400 → 100x100 / 200x200
+  if (/avatars\.(mds\.)?yandex\.net\//i.test(url)) {
+    const m = /\/(\d+)x(\d+)$/.exec(url)
+    if (!m) return url
+    const side = need <= 100 ? 100 : need <= 200 ? 200 : null
+    return side && side < +m[1] ? url.slice(0, m.index) + `/${side}x${side}` : url
+  }
+  // YouTube Music / Google: =w544-h544… или =s544
+  if (/\.(googleusercontent|ggpht)\.com\//i.test(url)) {
+    const side = need <= 120 ? 120 : need <= 240 ? 240 : null
+    if (!side) return url
+    return url.replace(/=w(\d+)-h(\d+)/, (s, w) => (+w > side ? `=w${side}-h${side}` : s)).replace(/=s(\d+)(?=[-?]|$)/, (s, w) => (+w > side ? `=s${side}` : s))
+  }
+  // Spotify: обложка альбома 640 → 300 / 64
+  if (/i\.scdn\.co\/image\/ab67616d0000b273/i.test(url)) {
+    return need <= 64 ? url.replace(/ab67616d0000b273/i, 'ab67616d00004851') : need <= 300 ? url.replace(/ab67616d0000b273/i, 'ab67616d00001e02') : url
+  }
+  return url
+}

@@ -14,6 +14,7 @@ mod login;
 mod local;
 mod lyrics;
 mod media;
+mod memory;
 mod calls;
 mod glass;
 mod gvideo;
@@ -149,6 +150,7 @@ pub fn run() {
         tray::START_HIDDEN.store(true, std::sync::atomic::Ordering::Relaxed);
         if let Some(w) = app.get_webview_window("main") {
           let _ = w.hide();
+          memory::set_low(&w, true);
         }
       } else {
         // страховка: заставка не дала знать о первом кадре — всё равно показать окно

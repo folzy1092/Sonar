@@ -8,8 +8,7 @@
   import Icon from '../components/Icon.svelte'
   import TrackRow from '../components/TrackRow.svelte'
   import { cascade } from '../lib/cascade'
-  import { growLimit, LIST_WINDOW } from '../lib/list-window'
-  import { nearEnd } from '../lib/near-end'
+  import { VirtualRows } from '../lib/virtual-rows.svelte'
   import { api, errorText, type SmartPlaylist } from '../lib/api'
   import { durationText, tracksText } from '../lib/format'
   import { library } from '../lib/library.svelte'
@@ -41,13 +40,11 @@
   })
   const total = $derived(avail.reduce((s, x) => s + x.duration_ms, 0))
   const countMeta = $derived(offline.on ? offline.countText(avail.length, items.length) : tracksText(items.length))
-  // окно списка: большой умный плейлист не рисуется целиком; новый фильтр — окно снова маленькое
-  let limit = $state(LIST_WINDOW)
-  $effect.pre(() => {
-    void filter
-    limit = LIST_WINDOW
-  })
-  const shown = $derived(visible.length > limit ? visible.slice(0, limit) : visible)
+  // окно списка: большой умный плейлист не рисуется целиком — только строки у экрана (lib/virtual-rows)
+  const rows = new VirtualRows(56)
+  const winStart = $derived(rows.range(visible.length).start)
+  const winEnd = $derived(rows.range(visible.length).end)
+  const shown = $derived(visible.slice(winStart, winEnd))
 
   /** Подпись под названием: откуда треки и сколько условий. */
   const rulesText = $derived.by(() => {
@@ -159,22 +156,21 @@
   {:else if !visible.length}
     <EmptyState icon="search" title={t('Ничего не нашлось')} text={t('В «{title}» нет «{query}».', { title, query: filter.trim() })} />
   {:else}
-    <div class="list" use:cascade>
-      {#each shown as x, i (x.ref)}
-        <TrackRow track={x} addedAt={x.added_at} onplay={() => play(i)} />
+    <div
+      class="list"
+      use:cascade
+      use:rows.track
+      style:padding-top="{winStart * rows.rowH}px"
+      style:padding-bottom="{(visible.length - winEnd) * rows.rowH}px"
+    >
+      {#each shown as x, j (x.ref)}
+        <div data-row><TrackRow track={x} addedAt={x.added_at} onplay={() => play(winStart + j)} /></div>
       {/each}
-      {#if shown.length < visible.length}
-        <div class="more" use:nearEnd={{ key: limit, onreach: () => (limit = growLimit(limit, visible.length)) }}></div>
-      {/if}
     </div>
   {/if}
 </div>
 
 <style>
-  /* сторож окна списка — невидимая строка в самом низу */
-  .more {
-    height: 1px;
-  }
   /* строки вне экрана не раскладываются и не рисуются */
   .list > :global(*) {
     content-visibility: auto;

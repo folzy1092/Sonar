@@ -39,7 +39,9 @@ const BLEND_FALLBACK_MS = 6000
 /** Поток в <audio> без старта: HLS — через hls.js, файл — прямо в элемент. */
 function mountStream(el: HTMLAudioElement, s: StreamUrl, atSec: number): Hls | null {
   if (s.kind === 'hls' && Hls.isSupported()) {
-    const hls = new Hls({ startPosition: atSec })
+    // буфер: сыгранное держим 30 с (по умолчанию — весь трек, на часовом сете это десятки МБ в MSE),
+    // вперёд — до минуты (по умолчанию до 10 мин)
+    const hls = new Hls({ startPosition: atSec, backBufferLength: 30, maxMaxBufferLength: 60 })
     hls.loadSource(s.url)
     hls.attachMedia(el)
     return hls

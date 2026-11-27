@@ -5245,6 +5245,7 @@ dependencies = [
  "tower",
  "url",
  "urlencoding",
+ "webview2-com",
  "windows 0.62.2",
  "windows-registry",
  "windows-version",

@@ -56,7 +56,7 @@
 
 {#snippet cover(url: string | null, size: number)}
   <span class="cover" style:--size="{size}px">
-    {#if url}<img src={offline.src(url)} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="music" size={Math.round(size / 2.4)} />{/if}
+    {#if url}<img src={offline.src(url, size)} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="music" size={Math.round(size / 2.4)} />{/if}
   </span>
 {/snippet}
 

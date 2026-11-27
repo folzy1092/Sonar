@@ -32,10 +32,10 @@
   <span class="art">
     {#if covers.length >= 4}
       <span class="grid">
-        {#each covers as c, i (c)}<img src={offline.src(c)} alt="" loading="lazy" draggable="false" style:--i={i} />{/each}
+        {#each covers as c, i (c)}<img src={offline.src(c, 88)} alt="" loading="lazy" draggable="false" style:--i={i} />{/each}
       </span>
     {:else if covers.length}
-      <img class="one" src={offline.src(covers[0])} alt="" loading="lazy" draggable="false" />
+      <img class="one" src={offline.src(covers[0], 176)} alt="" loading="lazy" draggable="false" />
     {:else}
       <span class="ph"><Icon name={icon} size={40} /></span>
     {/if}
@@ -47,7 +47,7 @@
       <span class="faces">
         {#each preview.shown as a, i (a.name)}
           <span class="face" style:z-index={3 - i}>
-            {#if a.avatar_url}<img src={offline.src(a.avatar_url)} alt="" loading="lazy" draggable="false" />{:else}{a.name.slice(0, 1).toUpperCase()}{/if}
+            {#if a.avatar_url}<img src={offline.src(a.avatar_url, 34)} alt="" loading="lazy" draggable="false" />{:else}{a.name.slice(0, 1).toUpperCase()}{/if}
           </span>
         {/each}
       </span>

@@ -108,7 +108,7 @@
   >
     <span class="art" class:round={item.group === 'artists'}>
       {#if item.cover}
-        <img src={offline.src(item.cover)} alt="" loading="lazy" draggable="false" />
+        <img src={offline.src(item.cover, 34)} alt="" loading="lazy" draggable="false" />
       {:else}
         <Icon name={item.icon} size={18} />
       {/if}

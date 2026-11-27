@@ -72,7 +72,7 @@
 {#snippet art(size: number)}
   <button class="art" style:--size="{size}px" title={t('Открыть Sonar (двойной клик)')} ondblclick={() => invoke('show_main')}>
     {#key s.cover_url}
-      {#if s.cover_url}<img src={offline.src(s.cover_url)} alt="" draggable="false" />{:else}<span class="ph"><Icon name="music" size={size * 0.4} /></span>{/if}
+      {#if s.cover_url}<img src={offline.src(s.cover_url, size)} alt="" draggable="false" />{:else}<span class="ph"><Icon name="music" size={size * 0.4} /></span>{/if}
     {/key}
   </button>
 {/snippet}

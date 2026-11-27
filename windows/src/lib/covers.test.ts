@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collage, coverKey, distinctCovers, type CoverSource } from './covers'
+import { collage, coverKey, distinctCovers, thumbUrl, type CoverSource } from './covers'
 
 const t = (cover_url: string | null, album: string | null = null, artist = 'A'): CoverSource => ({
   cover_url,
@@ -75,5 +75,38 @@ describe('collage', () => {
     expect(collage(four.slice(0, 3))).toEqual(['https://c/1.jpg'])
     expect(collage(four.slice(0, 1))).toEqual(['https://c/1.jpg'])
     expect(collage([])).toEqual([])
+  })
+})
+
+describe('thumbUrl', () => {
+  it('SoundCloud: 500 → large / t300x300, большое — как есть', () => {
+    const u = 'https://i1.sndcdn.com/artworks-abc-t500x500.jpg'
+    expect(thumbUrl(u, 44)).toBe('https://i1.sndcdn.com/artworks-abc-large.jpg')
+    expect(thumbUrl(u, 44, 2)).toBe('https://i1.sndcdn.com/artworks-abc-large.jpg')
+    expect(thumbUrl(u, 120, 2)).toBe('https://i1.sndcdn.com/artworks-abc-t300x300.jpg')
+    expect(thumbUrl(u, 320, 1.5)).toBe(u)
+    expect(thumbUrl('https://i1.sndcdn.com/avatars-x-large.jpg', 44)).toBe('https://i1.sndcdn.com/avatars-x-large.jpg')
+  })
+  it('Яндекс: 400x400 → 100x100 / 200x200', () => {
+    const u = 'https://avatars.yandex.net/get-music-content/1/ab/400x400'
+    expect(thumbUrl(u, 44, 1.25)).toBe('https://avatars.yandex.net/get-music-content/1/ab/100x100')
+    expect(thumbUrl(u, 160, 1)).toBe('https://avatars.yandex.net/get-music-content/1/ab/200x200')
+    expect(thumbUrl(u, 320, 1)).toBe(u)
+  })
+  it('Google: =w544-h544 → 120 / 240, =s544 тоже', () => {
+    expect(thumbUrl('https://lh3.googleusercontent.com/x=w544-h544-l90-rj', 44, 2)).toBe('https://lh3.googleusercontent.com/x=w120-h120-l90-rj')
+    expect(thumbUrl('https://yt3.ggpht.com/x=s544', 180)).toBe('https://yt3.ggpht.com/x=s240')
+    expect(thumbUrl('https://lh3.googleusercontent.com/x=w60-h60', 200)).toBe('https://lh3.googleusercontent.com/x=w60-h60')
+  })
+  it('Spotify: 640 → 64 / 300', () => {
+    const u = 'https://i.scdn.co/image/ab67616d0000b273deadbeef'
+    expect(thumbUrl(u, 40)).toBe('https://i.scdn.co/image/ab67616d00004851deadbeef')
+    expect(thumbUrl(u, 180)).toBe('https://i.scdn.co/image/ab67616d00001e02deadbeef')
+    expect(thumbUrl(u, 400)).toBe(u)
+  })
+  it('чужие адреса не трогает, ключ коллажа тот же', () => {
+    expect(thumbUrl('http://127.0.0.1:5000/cover?u=x', 40)).toBe('http://127.0.0.1:5000/cover?u=x')
+    const u = 'https://avatars.yandex.net/get-music-content/1/ab/400x400'
+    expect(coverKey(thumbUrl(u, 40))).toBe(coverKey(u))
   })
 })

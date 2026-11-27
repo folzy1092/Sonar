@@ -4,6 +4,7 @@
 import { api, onLocalFilesChanged, onOfflineChanged, onOfflineIndexChanged, type Track } from './api'
 import { settings } from './settings.svelte'
 import { availableOnly, imageSrc, isAvailable, suggestOnNetwork, uniqueByRef } from './offline-core'
+import { thumbUrl } from './covers'
 import { t } from './i18n.svelte'
 import { toast } from './toast.svelte'
 
@@ -64,8 +65,10 @@ class Offline {
     return availableOnly(tracks, this.on, this.refs)
   }
 
-  /** Адрес для `<img src>`: в офлайне чужие картинки — только из кэша на диске, без сети. */
-  src = (url: string | null | undefined): string | undefined => imageSrc(url, this.on, this.port)
+  /** Адрес для `<img src>`: в офлайне чужие картинки — только из кэша на диске, без сети. `px` — сторона
+   *  картинки на экране (CSS px): в сети берём обложку сервиса этого размера, а не 500×500 (`thumbUrl`). */
+  src = (url: string | null | undefined, px?: number): string | undefined =>
+    imageSrc(url && px && !this.on ? thumbUrl(url, px, globalThis.devicePixelRatio || 1) : url, this.on, this.port)
 
   /** Подпись списка в офлайне: «12 из 40 · офлайн». */
   countText(n: number, total: number): string {

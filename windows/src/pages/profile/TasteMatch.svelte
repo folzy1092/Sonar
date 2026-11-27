@@ -61,7 +61,7 @@
           <li>
             <button class="row" onclick={() => play(i)} title={t('Слушать')}>
               <span class="cover">
-                {#if track.cover_url}<img src={offline.src(track.cover_url)} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="music" size={16} />{/if}
+                {#if track.cover_url}<img src={offline.src(track.cover_url, 40)} alt="" loading="lazy" draggable="false" class="fade-img" onload={loaded} />{:else}<Icon name="music" size={16} />{/if}
                 <span class="hover-play"><Icon name="play" size={16} filled /></span>
               </span>
               <span class="meta"><b>{track.title}</b><small>{track.artist}</small></span>

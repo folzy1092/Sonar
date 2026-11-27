@@ -42,6 +42,7 @@ pub fn show_main(app: &AppHandle) {
     let _ = w.unminimize();
     let _ = w.show();
     let _ = w.set_focus();
+    crate::memory::set_low(&w, false);
   }
 }
 
@@ -93,9 +94,14 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
         api.prevent_close();
         if HIDE_ON_CLOSE.load(Ordering::Relaxed) {
           let _ = win.hide();
+          crate::memory::set_low(&win, true);
         } else {
           handle.exit(0);
         }
+      }
+      // свернули / развернули / спрятали хоткеем — память WebView2 по видимости окна (memory.rs)
+      if let WindowEvent::Resized(_) | WindowEvent::Focused(_) = e {
+        crate::memory::sync(&win);
       }
     });
   }

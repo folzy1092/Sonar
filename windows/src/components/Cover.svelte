@@ -28,7 +28,7 @@
   {#key url && !failed ? url : ''}
     {#if url && !failed}
       <img
-        src={offline.src(url)}
+        src={offline.src(url, size)}
         alt=""
         loading="lazy"
         draggable="false"

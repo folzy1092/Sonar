@@ -159,7 +159,7 @@
     {#if addedBy}
       {@const who = addedBy.display_name || addedBy.username}
       <span class="adder" title={t('Добавил(а) {name}', { name: who })}>
-        {#if addedBy.avatar_url}<img src={offline.src(addedBy.avatar_url)} alt="" loading="lazy" draggable="false" />{:else}{[...who][0].toUpperCase()}{/if}
+        {#if addedBy.avatar_url}<img src={offline.src(addedBy.avatar_url, 20)} alt="" loading="lazy" draggable="false" />{:else}{[...who][0].toUpperCase()}{/if}
       </span>
     {/if}
     {#if variant !== 'album'}
